@@ -1,0 +1,1848 @@
+2026-01-22T04:11:22.631Z [DEBUG] Watching for changes in setting files /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude...
+2026-01-22T04:11:22.635Z [ERROR] Failed to save config with lock: Error: ENOENT: no such file or directory, lstat '/tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json'
+2026-01-22T04:11:22.636Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055082636
+2026-01-22T04:11:22.636Z [DEBUG] Setting permissions for new file: 600
+2026-01-22T04:11:22.636Z [DEBUG] Temp file written successfully, size: 82 bytes
+2026-01-22T04:11:22.636Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055082636 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:22.636Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:22.674Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055082674
+2026-01-22T04:11:22.675Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:22.675Z [DEBUG] Temp file written successfully, size: 130 bytes
+2026-01-22T04:11:22.675Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:22.675Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055082674 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:22.678Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:22.678Z [DEBUG] [init] configureGlobalMTLS starting
+2026-01-22T04:11:22.679Z [DEBUG] [init] configureGlobalMTLS complete
+2026-01-22T04:11:22.679Z [DEBUG] [init] configureGlobalAgents starting
+2026-01-22T04:11:22.679Z [DEBUG] [init] configureGlobalAgents complete
+2026-01-22T04:11:22.681Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055082681
+2026-01-22T04:11:22.681Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:22.681Z [DEBUG] Temp file written successfully, size: 167 bytes
+2026-01-22T04:11:22.681Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:22.681Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055082681 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:22.681Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:22.683Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055082683
+2026-01-22T04:11:22.683Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:22.683Z [DEBUG] Temp file written successfully, size: 202 bytes
+2026-01-22T04:11:22.683Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:22.683Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055082683 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:22.683Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:22.684Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055082684
+2026-01-22T04:11:22.684Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:22.684Z [DEBUG] Temp file written successfully, size: 239 bytes
+2026-01-22T04:11:22.684Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:22.684Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055082684 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:22.684Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:22.707Z [DEBUG] [LSP MANAGER] initializeLspServerManager() called
+2026-01-22T04:11:22.707Z [DEBUG] [LSP MANAGER] Created manager instance, state=pending
+2026-01-22T04:11:22.707Z [DEBUG] [LSP MANAGER] Starting async initialization (generation 1)
+2026-01-22T04:11:22.712Z [DEBUG] [STARTUP] Loading MCP configs...
+2026-01-22T04:11:22.715Z [DEBUG] Found 0 plugins (0 enabled, 0 disabled)
+2026-01-22T04:11:22.715Z [DEBUG] Total LSP servers loaded: 0
+2026-01-22T04:11:22.715Z [DEBUG] [LSP SERVER MANAGER] getAllLspServers returned 0 server(s)
+2026-01-22T04:11:22.715Z [DEBUG] LSP manager initialized with 0 servers
+2026-01-22T04:11:22.715Z [DEBUG] LSP server manager initialized successfully
+2026-01-22T04:11:22.715Z [DEBUG] LSP notification handlers registered successfully for all 0 server(s)
+2026-01-22T04:11:22.715Z [DEBUG] [STARTUP] MCP configs loaded in 3ms
+2026-01-22T04:11:22.716Z [DEBUG] [STARTUP] Running setup()...
+2026-01-22T04:11:22.743Z [DEBUG] Loading skills from: managed=/etc/claude-code/.claude/skills, user=/tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/skills, project=[/tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude/skills]
+2026-01-22T04:11:22.767Z [DEBUG] installed_plugins.json doesn't exist, returning empty V2 object
+2026-01-22T04:11:22.784Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json.tmp.115.1769055082784
+2026-01-22T04:11:22.784Z [DEBUG] Temp file written successfully, size: 2 bytes
+2026-01-22T04:11:22.784Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json.tmp.115.1769055082784 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json
+2026-01-22T04:11:22.784Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json written atomically
+2026-01-22T04:11:22.787Z [DEBUG] getPluginSkills: Processing 0 enabled plugins
+2026-01-22T04:11:22.787Z [DEBUG] Total plugin skills loaded: 0
+2026-01-22T04:11:22.787Z [DEBUG] Total plugin commands loaded: 0
+2026-01-22T04:11:22.787Z [DEBUG] Registered 0 hooks from 0 plugins
+2026-01-22T04:11:22.803Z [DEBUG] [STARTUP] setup() completed in 87ms
+2026-01-22T04:11:22.803Z [DEBUG] [STARTUP] Loading commands and agents...
+2026-01-22T04:11:22.809Z [DEBUG] Total plugin agents loaded: 0
+2026-01-22T04:11:22.811Z [DEBUG] Loaded 8 unique skills (managed: 0, user: 0, project: 8, legacy commands: 0)
+2026-01-22T04:11:22.811Z [DEBUG] getSkills returning: 8 skill dir commands, 0 plugin skills, 0 bundled skills
+2026-01-22T04:11:22.812Z [DEBUG] [STARTUP] Commands and agents loaded in 9ms
+2026-01-22T04:11:22.821Z [DEBUG] MCP server "tasks": Starting connection with timeout of 30000ms
+2026-01-22T04:11:22.828Z [DEBUG] MCP server "reports": Starting connection with timeout of 30000ms
+2026-01-22T04:11:22.833Z [DEBUG] MCP server "polsia_infra": Starting connection with timeout of 30000ms
+2026-01-22T04:11:22.988Z [DEBUG] Creating shell snapshot for bash (/bin/bash)
+2026-01-22T04:11:22.989Z [DEBUG] Looking for shell config file: /opt/render/.bashrc
+2026-01-22T04:11:22.989Z [DEBUG] Shell config file not found: /opt/render/.bashrc, creating snapshot with Claude Code defaults only
+2026-01-22T04:11:22.989Z [DEBUG] Snapshots directory: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/shell-snapshots
+2026-01-22T04:11:22.990Z [DEBUG] Creating snapshot at: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/shell-snapshots/snapshot-bash-1769055082989-h7zzv3.sh
+2026-01-22T04:11:22.990Z [DEBUG] Shell binary exists: true
+2026-01-22T04:11:22.990Z [DEBUG] Execution timeout: 10000ms
+2026-01-22T04:11:22.995Z [DEBUG] Ripgrep first use test: PASSED (mode=builtin, path=/opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/x64-linux/rg)
+2026-01-22T04:11:23.006Z [DEBUG] Watching for changes in skill directories: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude/skills...
+2026-01-22T04:11:23.075Z [DEBUG] Getting matching hook commands for SubagentStart with query: Explore
+2026-01-22T04:11:23.075Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:23.075Z [DEBUG] Matched 0 unique hooks for query "Explore" (0 before deduplication)
+2026-01-22T04:11:23.075Z [DEBUG] Getting matching hook commands for SubagentStart with query: Plan
+2026-01-22T04:11:23.075Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:23.075Z [DEBUG] Matched 0 unique hooks for query "Plan" (0 before deduplication)
+2026-01-22T04:11:23.075Z [DEBUG] Getting matching hook commands for SubagentStart with query: Bash
+2026-01-22T04:11:23.075Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:23.075Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-01-22T04:11:23.283Z [DEBUG] Shell snapshot created successfully (843 bytes)
+2026-01-22T04:11:23.388Z [DEBUG] Remote settings: No settings found (404)
+2026-01-22T04:11:23.388Z [DEBUG] Programmatic settings change notification for policySettings
+2026-01-22T04:11:23.388Z [DEBUG] Plugin hooks: reloading due to policySettings change
+2026-01-22T04:11:23.390Z [DEBUG] Found 0 plugins (0 enabled, 0 disabled)
+2026-01-22T04:11:23.390Z [DEBUG] Registered 0 hooks from 0 plugins
+2026-01-22T04:11:23.394Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083394
+2026-01-22T04:11:23.394Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:23.394Z [DEBUG] Temp file written successfully, size: 415 bytes
+2026-01-22T04:11:23.394Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:23.394Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083394 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:23.394Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:23.395Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083395
+2026-01-22T04:11:23.395Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:23.395Z [DEBUG] Temp file written successfully, size: 451 bytes
+2026-01-22T04:11:23.395Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:23.396Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083395 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:23.396Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:23.397Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083397
+2026-01-22T04:11:23.397Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:23.397Z [DEBUG] Temp file written successfully, size: 479 bytes
+2026-01-22T04:11:23.397Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:23.397Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083397 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:23.397Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:23.398Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083398
+2026-01-22T04:11:23.398Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:23.398Z [DEBUG] Temp file written successfully, size: 531 bytes
+2026-01-22T04:11:23.398Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:23.398Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083398 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:23.398Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:23.399Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083399
+2026-01-22T04:11:23.400Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:23.400Z [DEBUG] Temp file written successfully, size: 570 bytes
+2026-01-22T04:11:23.400Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:23.400Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083399 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:23.400Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:23.401Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083401
+2026-01-22T04:11:23.401Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:23.401Z [DEBUG] Temp file written successfully, size: 608 bytes
+2026-01-22T04:11:23.401Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:23.401Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083401 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:23.401Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:23.402Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083402
+2026-01-22T04:11:23.402Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:23.402Z [DEBUG] Temp file written successfully, size: 647 bytes
+2026-01-22T04:11:23.402Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:23.402Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083402 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:23.402Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:23.403Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083403
+2026-01-22T04:11:23.403Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:23.403Z [DEBUG] Temp file written successfully, size: 677 bytes
+2026-01-22T04:11:23.403Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:23.403Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083403 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:23.403Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:23.404Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083404
+2026-01-22T04:11:23.404Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:23.404Z [DEBUG] Temp file written successfully, size: 707 bytes
+2026-01-22T04:11:23.404Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:23.404Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083404 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:23.404Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:23.469Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083468
+2026-01-22T04:11:23.469Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:23.469Z [DEBUG] Temp file written successfully, size: 753 bytes
+2026-01-22T04:11:23.469Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:23.469Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083468 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:23.469Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:23.470Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-01-22T04:11:23.470Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-01-22T04:11:23.470Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:11:23.471Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:11:23.491Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083491
+2026-01-22T04:11:23.491Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:23.492Z [DEBUG] Temp file written successfully, size: 803 bytes
+2026-01-22T04:11:23.492Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:23.492Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083491 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:23.492Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:23.495Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:11:23.495Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:11:23.499Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:11:23.500Z [DEBUG] Skills and commands included in Skill tool:
+2026-01-22T04:11:23.501Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083501
+2026-01-22T04:11:23.501Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:23.501Z [DEBUG] Temp file written successfully, size: 849 bytes
+2026-01-22T04:11:23.501Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:23.501Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083501 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:23.501Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:23.505Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:11:23.505Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:11:23.569Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:11:23.572Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:11:23.572Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:11:23.573Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:11:23.573Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:11:23.573Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:11:23.573Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:11:23.589Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083589
+2026-01-22T04:11:23.589Z [DEBUG] Preserving file permissions: 100600
+2026-01-22T04:11:23.589Z [DEBUG] Temp file written successfully, size: 916 bytes
+2026-01-22T04:11:23.589Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:11:23.589Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json.tmp.115.1769055083589 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json
+2026-01-22T04:11:23.589Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/.claude.json written atomically
+2026-01-22T04:11:23.695Z [ERROR] MCP server "polsia_infra" Server stderr: [Polsia Infra MCP] Resilience handlers installed (with Sentry)
+2026-01-22T04:11:23.696Z [ERROR] MCP server "tasks" Server stderr: [Tasks MCP] Resilience handlers installed (with Sentry)
+2026-01-22T04:11:23.696Z [ERROR] MCP server "reports" Server stderr: [Reports MCP] Resilience handlers installed (with Sentry)
+2026-01-22T04:11:23.883Z [ERROR] MCP server "tasks" Server stderr: [Tasks MCP] Initialized for company 956, user 976
+2026-01-22T04:11:23.884Z [ERROR] MCP server "tasks" Server stderr: [Tasks MCP] Server running on stdio
+2026-01-22T04:11:23.890Z [DEBUG] MCP server "tasks": Successfully connected to undefined server in 1074ms
+2026-01-22T04:11:23.890Z [DEBUG] MCP server "tasks": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"task-management","version":"1.0.0"}}
+2026-01-22T04:11:23.896Z [ERROR] MCP server "reports" Server stderr: [Reports MCP] Initialized for company 956
+[Reports MCP] Server running on stdio
+2026-01-22T04:11:23.896Z [DEBUG] MCP server "reports": Successfully connected to undefined server in 1069ms
+2026-01-22T04:11:23.896Z [DEBUG] MCP server "reports": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"reports","version":"1.0.0"}}
+2026-01-22T04:11:23.898Z [ERROR] MCP server "polsia_infra" Server stderr: [Polsia Infra MCP] Initialized for company 956
+[Polsia Infra MCP] Server running on stdio
+2026-01-22T04:11:23.899Z [DEBUG] MCP server "polsia_infra": Successfully connected to undefined server in 1066ms
+2026-01-22T04:11:23.899Z [DEBUG] MCP server "polsia_infra": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"polsia-infra","version":"1.0.0"}}
+2026-01-22T04:11:23.902Z [DEBUG] MCP server "polsia_support": Starting connection with timeout of 30000ms
+2026-01-22T04:11:23.909Z [DEBUG] MCP server "stripe": Starting connection with timeout of 30000ms
+2026-01-22T04:11:23.917Z [DEBUG] MCP server "context7": Starting connection with timeout of 30000ms
+2026-01-22T04:11:24.272Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:11:24.274Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:11:24.502Z [ERROR] MCP server "polsia_support" Server stderr: [Polsia Support MCP] Resilience handlers installed (with Sentry)
+2026-01-22T04:11:24.514Z [ERROR] MCP server "stripe" Server stderr: [Stripe MCP] Resilience handlers installed (with Sentry)
+2026-01-22T04:11:24.684Z [ERROR] MCP server "stripe" Server stderr: [Stripe MCP] Initialized for company 956
+2026-01-22T04:11:24.685Z [ERROR] MCP server "stripe" Server stderr: [Stripe MCP] Server running on stdio
+2026-01-22T04:11:24.688Z [DEBUG] MCP server "stripe": Successfully connected to undefined server in 779ms
+2026-01-22T04:11:24.688Z [DEBUG] MCP server "stripe": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"stripe","version":"1.0.0"}}
+2026-01-22T04:11:24.714Z [ERROR] MCP server "polsia_support" Server stderr: [POLSIA Support MCP] Initialized for company 956, agent: Engineering
+2026-01-22T04:11:24.715Z [ERROR] MCP server "polsia_support" Server stderr: [POLSIA Support MCP] Server running on stdio
+2026-01-22T04:11:24.719Z [DEBUG] MCP server "polsia_support": Successfully connected to undefined server in 818ms
+2026-01-22T04:11:24.719Z [DEBUG] MCP server "polsia_support": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"polsia_support","version":"1.0.0"}}
+2026-01-22T04:11:25.152Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:11:25.465Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:11:25.712Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-01-22T04:11:25.713Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-01-22T04:11:25.714Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-01-22T04:11:25.714Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:25.714Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-01-22T04:11:25.714Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-01-22T04:11:25.714Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:25.714Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-01-22T04:11:25.739Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-01-22T04:11:25.740Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-01-22T04:11:25.740Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:25.740Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-01-22T04:11:25.763Z [DEBUG] [Agent: Explore] Reached max turns limit (1)
+2026-01-22T04:11:27.065Z [DEBUG] Getting matching hook commands for SubagentStop with query: undefined
+2026-01-22T04:11:27.065Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:27.065Z [DEBUG] Matched 0 unique hooks for query "no match query" (0 before deduplication)
+2026-01-22T04:11:29.091Z [DEBUG] Getting matching hook commands for SubagentStop with query: undefined
+2026-01-22T04:11:29.091Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:29.091Z [DEBUG] Matched 0 unique hooks for query "no match query" (0 before deduplication)
+2026-01-22T04:11:30.033Z [ERROR] MCP server "context7" Server stderr: WARNING: Using default CLIENT_IP_ENCRYPTION_KEY.
+2026-01-22T04:11:30.137Z [ERROR] MCP server "context7" Server stderr: Context7 Documentation MCP Server v2.1.0 running on stdio
+2026-01-22T04:11:30.143Z [DEBUG] MCP server "context7": Successfully connected to undefined server in 6227ms
+2026-01-22T04:11:30.143Z [DEBUG] MCP server "context7": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"Context7","version":"2.1.0"}}
+2026-01-22T04:11:30.148Z [DEBUG] MCP server "dashboard": Starting connection with timeout of 30000ms
+2026-01-22T04:11:30.156Z [DEBUG] MCP server "postmark": Starting connection with timeout of 30000ms
+2026-01-22T04:11:30.162Z [DEBUG] MCP server "capabilities": Starting connection with timeout of 30000ms
+2026-01-22T04:11:30.269Z [ERROR] MCP server "dashboard" Server stderr: [Dashboard Actions MCP] Args received: --company-id=956 --agent-name=Engineering --allow-inbox-message
+2026-01-22T04:11:30.269Z [ERROR] MCP server "dashboard" Server stderr: [Dashboard Actions MCP] Initialized for company 956, agent: Engineering
+2026-01-22T04:11:30.270Z [ERROR] MCP server "dashboard" Server stderr: [Dashboard Actions MCP] Server running on stdio
+2026-01-22T04:11:30.274Z [DEBUG] MCP server "dashboard": Successfully connected to undefined server in 127ms
+2026-01-22T04:11:30.274Z [DEBUG] MCP server "dashboard": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"dashboard-actions","version":"1.0.0"}}
+2026-01-22T04:11:30.398Z [ERROR] MCP server "postmark" Server stderr: [Postmark MCP] Initialized for company 956 (PROD mode)
+2026-01-22T04:11:30.399Z [ERROR] MCP server "postmark" Server stderr: [Postmark MCP] Server running on stdio
+2026-01-22T04:11:30.404Z [DEBUG] MCP server "postmark": Successfully connected to undefined server in 249ms
+2026-01-22T04:11:30.404Z [DEBUG] MCP server "postmark": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"postmark","version":"1.0.0"}}
+2026-01-22T04:11:30.550Z [ERROR] MCP server "capabilities" Server stderr: [Capabilities MCP] Resilience handlers installed (with Sentry)
+2026-01-22T04:11:30.618Z [ERROR] MCP server "capabilities" Server stderr: [Capabilities MCP] Initialized for company 956
+2026-01-22T04:11:30.619Z [ERROR] MCP server "capabilities" Server stderr: [Capabilities MCP] Server running on stdio
+2026-01-22T04:11:30.622Z [DEBUG] MCP server "capabilities": Successfully connected to undefined server in 461ms
+2026-01-22T04:11:30.622Z [DEBUG] MCP server "capabilities": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"capabilities","version":"1.0.0"}}
+2026-01-22T04:11:30.633Z [DEBUG] Initialized versioned plugins system with 0 plugins
+2026-01-22T04:11:30.641Z [DEBUG] Getting matching hook commands for SessionStart with query: startup
+2026-01-22T04:11:30.641Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:30.641Z [DEBUG] Matched 0 unique hooks for query "startup" (0 before deduplication)
+2026-01-22T04:11:30.641Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:11:30.649Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:11:30.649Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:11:30.649Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:11:30.655Z [DEBUG] Total plugin output styles loaded: 0
+2026-01-22T04:11:30.677Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:11:30.677Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:11:30.678Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:11:30.678Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:11:30.682Z [DEBUG] Getting matching hook commands for UserPromptSubmit with query: undefined
+2026-01-22T04:11:30.682Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:30.682Z [DEBUG] Matched 0 unique hooks for query "no match query" (0 before deduplication)
+2026-01-22T04:11:30.684Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:11:30.689Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:11:30.689Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:11:30.690Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:11:32.678Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:11:35.873Z [DEBUG] executePreToolHooks called for tool: mcp__tasks__start_task
+2026-01-22T04:11:35.876Z [DEBUG] Getting matching hook commands for PreToolUse with query: mcp__tasks__start_task
+2026-01-22T04:11:35.876Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:11:35.876Z [DEBUG] Matched 4 unique hooks for query "mcp__tasks__start_task" (4 before deduplication)
+2026-01-22T04:11:35.886Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:35.886Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:35.886Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:35.886Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:35.887Z [DEBUG] Hook approved tool use for mcp__tasks__start_task, bypassing permission check
+2026-01-22T04:11:35.888Z [DEBUG] MCP server "tasks": Calling MCP tool: start_task
+2026-01-22T04:11:36.102Z [DEBUG] MCP server "tasks": STDIO connection dropped after 12s uptime
+2026-01-22T04:11:36.102Z [DEBUG] MCP server "tasks": Connection error: Unexpected token '✅', "✅ Connecte"... is not valid JSON
+2026-01-22T04:11:36.224Z [DEBUG] MCP server "tasks": STDIO connection dropped after 12s uptime
+2026-01-22T04:11:36.224Z [DEBUG] MCP server "tasks": Connection error: Unexpected token 'u', "[updateTask"... is not valid JSON
+2026-01-22T04:11:36.259Z [DEBUG] MCP server "tasks": STDIO connection dropped after 12s uptime
+2026-01-22T04:11:36.259Z [DEBUG] MCP server "tasks": Connection error: Unexpected token '_', "[_publishTo"... is not valid JSON
+2026-01-22T04:11:36.259Z [DEBUG] MCP server "tasks": STDIO connection dropped after 12s uptime
+2026-01-22T04:11:36.259Z [DEBUG] MCP server "tasks": Connection error: Unexpected token 'u', "[updateTask"... is not valid JSON
+2026-01-22T04:11:36.260Z [DEBUG] MCP server "tasks": Tool 'start_task' completed successfully in 372ms
+2026-01-22T04:11:36.263Z [DEBUG] Getting matching hook commands for PostToolUse with query: mcp__tasks__start_task
+2026-01-22T04:11:36.263Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:36.263Z [DEBUG] Matched 0 unique hooks for query "mcp__tasks__start_task" (0 before deduplication)
+2026-01-22T04:11:36.272Z [DEBUG] MCP server "tasks": STDIO connection dropped after 12s uptime
+2026-01-22T04:11:36.272Z [DEBUG] MCP server "tasks": Connection error: Unexpected non-whitespace character after JSON at position 4 (line 1 column 5)
+2026-01-22T04:11:36.272Z [DEBUG] MCP server "tasks": STDIO connection dropped after 12s uptime
+2026-01-22T04:11:36.272Z [DEBUG] MCP server "tasks": Connection error: Unexpected token '_', "[_publishTo"... is not valid JSON
+2026-01-22T04:11:36.274Z [DEBUG] executePreToolHooks called for tool: Glob
+2026-01-22T04:11:36.274Z [DEBUG] Getting matching hook commands for PreToolUse with query: Glob
+2026-01-22T04:11:36.274Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:11:36.274Z [DEBUG] Matched 4 unique hooks for query "Glob" (4 before deduplication)
+2026-01-22T04:11:36.282Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:36.282Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:36.282Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:36.282Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:36.283Z [DEBUG] Hook approved tool use for Glob, bypassing permission check
+2026-01-22T04:11:36.313Z [DEBUG] Getting matching hook commands for PostToolUse with query: Glob
+2026-01-22T04:11:36.313Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:36.313Z [DEBUG] Matched 0 unique hooks for query "Glob" (0 before deduplication)
+2026-01-22T04:11:36.328Z [DEBUG] executePreToolHooks called for tool: mcp__polsia_infra__list_instances
+2026-01-22T04:11:36.328Z [DEBUG] Getting matching hook commands for PreToolUse with query: mcp__polsia_infra__list_instances
+2026-01-22T04:11:36.328Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:11:36.328Z [DEBUG] Matched 4 unique hooks for query "mcp__polsia_infra__list_instances" (4 before deduplication)
+2026-01-22T04:11:36.335Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:36.335Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:36.335Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:36.335Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:36.336Z [DEBUG] Hook approved tool use for mcp__polsia_infra__list_instances, bypassing permission check
+2026-01-22T04:11:36.336Z [DEBUG] MCP server "polsia_infra": Calling MCP tool: list_instances
+2026-01-22T04:11:36.585Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 12s uptime
+2026-01-22T04:11:36.585Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected token '✅', "✅ Connecte"... is not valid JSON
+2026-01-22T04:11:36.650Z [DEBUG] MCP server "polsia_infra": Tool 'list_instances' completed successfully in 314ms
+2026-01-22T04:11:36.651Z [DEBUG] Getting matching hook commands for PostToolUse with query: mcp__polsia_infra__list_instances
+2026-01-22T04:11:36.651Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:36.651Z [DEBUG] Matched 0 unique hooks for query "mcp__polsia_infra__list_instances" (0 before deduplication)
+2026-01-22T04:11:36.662Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:11:36.662Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:11:36.662Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:11:36.662Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:11:36.666Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:11:36.673Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:11:36.673Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:11:36.674Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:11:38.647Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:11:42.864Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:11:42.864Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:11:42.864Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:11:42.864Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:11:42.864Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:11:42.865Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:11:42.865Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:11:42.865Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:11:42.865Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:11:42.865Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:11:42.865Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:11:42.865Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:11:42.865Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:11:42.865Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:11:42.865Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:11:42.865Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:11:42.865Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:11:42.865Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:11:42.865Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:11:42.865Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:11:43.027Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.027Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.027Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.027Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.027Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.028Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.028Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.028Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.028Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.028Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.028Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.028Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.028Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.028Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.028Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.028Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.028Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.028Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.028Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.028Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:11:43.031Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:43.033Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:11:43.036Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:11:43.036Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:43.036Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:11:43.037Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:11:43.041Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:11:43.041Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:43.041Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:11:43.041Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:11:43.045Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:11:43.045Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:43.045Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:11:43.046Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:11:43.049Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:11:43.049Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:43.049Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:11:43.053Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:11:43.053Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:43.053Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:11:43.256Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:11:43.256Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:11:43.256Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:11:43.256Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:11:43.261Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:11:43.268Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:11:43.268Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:11:43.268Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:11:45.300Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:11:54.627Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:11:54.627Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:11:54.627Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:11:54.627Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:11:54.627Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:11:54.627Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:11:54.627Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:11:54.628Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:11:54.628Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:11:54.628Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:11:54.628Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:11:54.628Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:11:54.628Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:11:54.628Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:11:54.628Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:11:54.628Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:11:54.629Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:11:54.629Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:11:54.629Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:11:54.629Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:11:54.629Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:11:54.629Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:11:54.629Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:11:54.629Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:11:54.629Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:11:54.630Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:11:54.630Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:11:54.630Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.671Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.672Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.672Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:11:54.673Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.674Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:11:54.676Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.677Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:11:54.677Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:54.677Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:11:54.678Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:11:54.681Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:11:54.682Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:11:54.682Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:54.682Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:11:54.683Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:11:54.686Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:11:54.686Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:54.686Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:11:54.687Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:11:54.690Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:11:54.690Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:54.690Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:11:54.691Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:11:54.693Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:11:54.693Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:54.693Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:11:54.693Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:11:54.697Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:11:54.697Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:54.697Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:11:54.697Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:11:54.697Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:11:54.697Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:11:54.900Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:11:54.900Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:11:54.900Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:11:54.900Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:11:54.905Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:11:54.911Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:11:54.911Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:11:54.911Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:11:57.332Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:12:01.358Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:12:01.358Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:12:01.358Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:12:01.359Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:12:01.359Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:12:01.359Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:12:01.359Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:12:01.359Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:12:01.359Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:12:01.359Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:12:01.359Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:12:01.359Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:12:01.385Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:01.385Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:01.385Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:01.385Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:01.385Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:01.385Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:01.385Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:01.385Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:01.385Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:01.385Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:01.385Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:01.385Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:01.385Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:12:01.387Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:12:01.389Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:12:01.389Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:12:01.389Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:12:01.389Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:12:01.393Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:12:01.393Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:12:01.393Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:12:01.395Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:12:01.395Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:12:01.395Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:12:01.478Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:12:01.478Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:12:01.478Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:12:01.478Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:12:01.482Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:12:01.487Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:12:01.487Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:12:01.488Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:12:03.595Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:12:12.981Z [DEBUG] executePreToolHooks called for tool: TodoWrite
+2026-01-22T04:12:12.982Z [DEBUG] Getting matching hook commands for PreToolUse with query: TodoWrite
+2026-01-22T04:12:12.982Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:12:12.982Z [DEBUG] Matched 4 unique hooks for query "TodoWrite" (4 before deduplication)
+2026-01-22T04:12:12.991Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:12.991Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:12.991Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:12.991Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:12.992Z [DEBUG] Hook approved tool use for TodoWrite, bypassing permission check
+2026-01-22T04:12:12.992Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json.tmp.115.1769055132992
+2026-01-22T04:12:12.992Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:12:12.992Z [DEBUG] Temp file written successfully, size: 1145 bytes
+2026-01-22T04:12:12.992Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:12:12.992Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json.tmp.115.1769055132992 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json
+2026-01-22T04:12:12.992Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json written atomically
+2026-01-22T04:12:12.995Z [DEBUG] Getting matching hook commands for PostToolUse with query: TodoWrite
+2026-01-22T04:12:12.995Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:12:12.995Z [DEBUG] Matched 0 unique hooks for query "TodoWrite" (0 before deduplication)
+2026-01-22T04:12:13.007Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:12:13.007Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:12:13.007Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:12:13.007Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:12:13.011Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:12:13.018Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:12:13.018Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:12:13.019Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:12:15.321Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:12:37.939Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:12:37.940Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:12:37.940Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:12:37.940Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:12:37.947Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:37.947Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:37.947Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:37.948Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:37.948Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:12:37.952Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html.tmp.115.1769055157952
+2026-01-22T04:12:37.952Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:12:37.952Z [DEBUG] Temp file written successfully, size: 9290 bytes
+2026-01-22T04:12:37.952Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:12:37.952Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html.tmp.115.1769055157952 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html
+2026-01-22T04:12:37.952Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html written atomically
+2026-01-22T04:12:37.957Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:12:37.957Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:12:37.957Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:12:37.969Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:12:37.969Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:12:37.969Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:12:37.969Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:12:37.979Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:37.979Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:37.979Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:37.979Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:12:37.980Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:12:37.982Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html.tmp.115.1769055157982
+2026-01-22T04:12:37.982Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:12:37.982Z [DEBUG] Temp file written successfully, size: 9685 bytes
+2026-01-22T04:12:37.982Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:12:37.982Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html.tmp.115.1769055157982 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html
+2026-01-22T04:12:37.982Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html written atomically
+2026-01-22T04:12:37.987Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:12:37.987Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:12:37.987Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:12:38.011Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:12:38.011Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:12:38.011Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:12:38.011Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:12:38.017Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:12:38.021Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:12:38.021Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:12:38.023Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:12:40.396Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:13:08.087Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:13:08.088Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:13:08.088Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:08.088Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:13:08.095Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:08.095Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:08.095Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:08.095Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:08.095Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:13:08.098Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html.tmp.115.1769055188098
+2026-01-22T04:13:08.098Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:13:08.098Z [DEBUG] Temp file written successfully, size: 10875 bytes
+2026-01-22T04:13:08.098Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:13:08.098Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html.tmp.115.1769055188098 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html
+2026-01-22T04:13:08.099Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html written atomically
+2026-01-22T04:13:08.103Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:13:08.103Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:08.103Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:13:08.118Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:13:08.119Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:13:08.119Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:08.119Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:13:08.133Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:08.133Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:08.133Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:08.133Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:08.133Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:13:08.135Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html.tmp.115.1769055188135
+2026-01-22T04:13:08.135Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:13:08.135Z [DEBUG] Temp file written successfully, size: 11184 bytes
+2026-01-22T04:13:08.135Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:13:08.135Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html.tmp.115.1769055188135 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html
+2026-01-22T04:13:08.135Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html written atomically
+2026-01-22T04:13:08.139Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:13:08.139Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:08.139Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:13:08.178Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:13:08.178Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:13:08.178Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:13:08.178Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:13:08.182Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:13:08.188Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:13:08.188Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:13:08.189Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:13:10.204Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:13:30.495Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:13:30.496Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:13:30.496Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:30.496Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:13:30.505Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:30.505Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:30.505Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:30.505Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:30.505Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:13:30.506Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html.tmp.115.1769055210506
+2026-01-22T04:13:30.506Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:13:30.507Z [DEBUG] Temp file written successfully, size: 11266 bytes
+2026-01-22T04:13:30.507Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:13:30.507Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html.tmp.115.1769055210506 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html
+2026-01-22T04:13:30.507Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html written atomically
+2026-01-22T04:13:30.510Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:13:30.510Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:30.510Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:13:30.524Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:13:30.524Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:13:30.524Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:30.524Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:13:30.533Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:30.533Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:30.533Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:30.533Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:30.534Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:13:30.535Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html.tmp.115.1769055210535
+2026-01-22T04:13:30.535Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:13:30.535Z [DEBUG] Temp file written successfully, size: 11248 bytes
+2026-01-22T04:13:30.535Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:13:30.535Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html.tmp.115.1769055210535 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html
+2026-01-22T04:13:30.535Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/index.html written atomically
+2026-01-22T04:13:30.539Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:13:30.539Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:30.539Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:13:30.567Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:13:30.567Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:13:30.567Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:13:30.567Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:13:30.570Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:13:30.575Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:13:30.575Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:13:30.575Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:13:32.780Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:13:40.129Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:13:40.131Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:13:40.131Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:40.131Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:13:40.148Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.149Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.149Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.149Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.150Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:13:40.151Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/login.html.tmp.115.1769055220151
+2026-01-22T04:13:40.151Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:13:40.152Z [DEBUG] Temp file written successfully, size: 2116 bytes
+2026-01-22T04:13:40.152Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:13:40.152Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/login.html.tmp.115.1769055220151 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/login.html
+2026-01-22T04:13:40.152Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/login.html written atomically
+2026-01-22T04:13:40.161Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:13:40.161Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:40.161Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:13:40.185Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:13:40.185Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:13:40.185Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:40.185Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:13:40.194Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.194Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.194Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.194Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.194Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:13:40.195Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/register.html.tmp.115.1769055220195
+2026-01-22T04:13:40.195Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:13:40.195Z [DEBUG] Temp file written successfully, size: 2771 bytes
+2026-01-22T04:13:40.195Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:13:40.195Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/register.html.tmp.115.1769055220195 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/register.html
+2026-01-22T04:13:40.195Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/register.html written atomically
+2026-01-22T04:13:40.198Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:13:40.198Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:40.198Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:13:40.235Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:13:40.235Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:13:40.235Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:40.235Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:13:40.241Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.241Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.241Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.241Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.242Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:13:40.242Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/interview.html.tmp.115.1769055220242
+2026-01-22T04:13:40.242Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:13:40.242Z [DEBUG] Temp file written successfully, size: 6973 bytes
+2026-01-22T04:13:40.242Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:13:40.242Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/interview.html.tmp.115.1769055220242 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/interview.html
+2026-01-22T04:13:40.243Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/interview.html written atomically
+2026-01-22T04:13:40.247Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:13:40.247Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:40.247Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:13:40.277Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:13:40.277Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:13:40.277Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:40.277Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:13:40.283Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.283Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.283Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.283Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.283Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:13:40.284Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/history.html.tmp.115.1769055220284
+2026-01-22T04:13:40.284Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:13:40.284Z [DEBUG] Temp file written successfully, size: 6275 bytes
+2026-01-22T04:13:40.284Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:13:40.284Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/history.html.tmp.115.1769055220284 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/history.html
+2026-01-22T04:13:40.285Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/history.html written atomically
+2026-01-22T04:13:40.287Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:13:40.287Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:40.287Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:13:40.370Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:13:40.370Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:13:40.370Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:40.370Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:13:40.384Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.384Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.384Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.384Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:40.385Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:13:40.386Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/payment-success.html.tmp.115.1769055220386
+2026-01-22T04:13:40.386Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:13:40.386Z [DEBUG] Temp file written successfully, size: 3150 bytes
+2026-01-22T04:13:40.386Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:13:40.386Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/payment-success.html.tmp.115.1769055220386 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/payment-success.html
+2026-01-22T04:13:40.386Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/payment-success.html written atomically
+2026-01-22T04:13:40.388Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:13:40.388Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:40.388Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:13:40.400Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:13:40.400Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:13:40.400Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:13:40.400Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:13:40.404Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:13:40.410Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:13:40.410Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:13:40.410Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:13:42.328Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:13:45.211Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:13:45.211Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:13:45.212Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:13:45.212Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:45.212Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:13:45.212Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:13:45.212Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:45.212Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:13:45.223Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:45.223Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:45.223Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:45.223Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:45.223Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:45.223Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:45.223Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:45.223Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:45.224Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:13:45.225Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:13:45.230Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:13:45.230Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:45.230Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:13:45.232Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:13:45.232Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:45.232Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:13:45.261Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:13:45.261Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:13:45.261Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:13:45.261Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:13:45.265Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:13:45.271Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:13:45.271Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:13:45.271Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:13:47.206Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:13:53.581Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:13:53.582Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:13:53.582Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:53.582Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:13:53.589Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.589Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.589Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.589Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.589Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:13:53.590Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html.tmp.115.1769055233590
+2026-01-22T04:13:53.590Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:13:53.590Z [DEBUG] Temp file written successfully, size: 6305 bytes
+2026-01-22T04:13:53.590Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:13:53.590Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html.tmp.115.1769055233590 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html
+2026-01-22T04:13:53.591Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html written atomically
+2026-01-22T04:13:53.594Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:13:53.594Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:53.594Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:13:53.608Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:13:53.608Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:13:53.608Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:53.609Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:13:53.622Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.622Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.622Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.622Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.622Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:13:53.623Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/jobs.html.tmp.115.1769055233623
+2026-01-22T04:13:53.623Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:13:53.624Z [DEBUG] Temp file written successfully, size: 11231 bytes
+2026-01-22T04:13:53.624Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:13:53.624Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/jobs.html.tmp.115.1769055233623 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/jobs.html
+2026-01-22T04:13:53.624Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/jobs.html written atomically
+2026-01-22T04:13:53.628Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:13:53.628Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:53.628Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:13:53.658Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:13:53.658Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:13:53.658Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:53.659Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:13:53.669Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.669Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.669Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.669Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.669Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:13:53.670Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html.tmp.115.1769055233670
+2026-01-22T04:13:53.670Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:13:53.670Z [DEBUG] Temp file written successfully, size: 6305 bytes
+2026-01-22T04:13:53.670Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:13:53.670Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html.tmp.115.1769055233670 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html
+2026-01-22T04:13:53.670Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html written atomically
+2026-01-22T04:13:53.673Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:13:53.673Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:53.673Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:13:53.708Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:13:53.708Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:13:53.708Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:53.708Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:13:53.718Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.718Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.718Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.718Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:53.718Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:13:53.720Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/jobs.html.tmp.115.1769055233720
+2026-01-22T04:13:53.720Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:13:53.720Z [DEBUG] Temp file written successfully, size: 11231 bytes
+2026-01-22T04:13:53.720Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:13:53.720Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/jobs.html.tmp.115.1769055233720 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/jobs.html
+2026-01-22T04:13:53.720Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/jobs.html written atomically
+2026-01-22T04:13:53.723Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:13:53.723Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:53.723Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:13:53.771Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:13:53.771Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:13:53.771Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:13:53.771Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:13:53.775Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:13:53.784Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:13:53.784Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:13:53.784Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:13:55.938Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:13:58.627Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:13:58.628Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:13:58.628Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:13:58.628Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:13:58.628Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:58.628Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:13:58.628Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:13:58.628Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:58.628Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:13:58.628Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:13:58.628Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:13:58.628Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:13:58.648Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:58.648Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:58.648Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:58.648Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:58.648Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:58.648Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:58.648Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:58.648Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:58.648Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:58.648Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:58.648Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:58.648Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:13:58.648Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:13:58.649Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:13:58.652Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:13:58.652Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:58.652Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:13:58.652Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:13:58.656Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:13:58.656Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:58.656Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:13:58.659Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:13:58.659Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:13:58.659Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:13:58.728Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:13:58.728Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:13:58.728Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:13:58.728Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:13:58.732Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:13:58.737Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:13:58.737Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:13:58.737Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:14:01.084Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:14:06.203Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:14:06.204Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:14:06.204Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:14:06.204Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:14:06.210Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:06.210Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:06.210Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:06.210Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:06.211Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:14:06.212Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/login.html.tmp.115.1769055246212
+2026-01-22T04:14:06.212Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:14:06.212Z [DEBUG] Temp file written successfully, size: 2116 bytes
+2026-01-22T04:14:06.212Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:14:06.212Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/login.html.tmp.115.1769055246212 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/login.html
+2026-01-22T04:14:06.212Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/login.html written atomically
+2026-01-22T04:14:06.215Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:14:06.215Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:14:06.215Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:14:06.229Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:14:06.229Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:14:06.229Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:14:06.229Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:14:06.238Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:06.238Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:06.238Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:06.238Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:06.238Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:14:06.239Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/register.html.tmp.115.1769055246239
+2026-01-22T04:14:06.239Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:14:06.239Z [DEBUG] Temp file written successfully, size: 2771 bytes
+2026-01-22T04:14:06.239Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:14:06.239Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/register.html.tmp.115.1769055246239 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/register.html
+2026-01-22T04:14:06.239Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/register.html written atomically
+2026-01-22T04:14:06.242Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:14:06.242Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:14:06.242Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:14:06.263Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:14:06.263Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:14:06.263Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:14:06.264Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:14:06.274Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:06.274Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:06.274Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:06.274Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:06.274Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:14:06.275Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/history.html.tmp.115.1769055246275
+2026-01-22T04:14:06.275Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:14:06.275Z [DEBUG] Temp file written successfully, size: 6275 bytes
+2026-01-22T04:14:06.275Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:14:06.275Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/history.html.tmp.115.1769055246275 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/history.html
+2026-01-22T04:14:06.275Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/history.html written atomically
+2026-01-22T04:14:06.279Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:14:06.279Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:14:06.279Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:14:06.308Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:14:06.308Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:14:06.308Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:14:06.308Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:14:06.312Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:14:06.317Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:14:06.317Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:14:06.318Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:14:08.223Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:14:10.214Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:14:10.214Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:14:10.214Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:14:10.214Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:14:10.214Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:14:10.214Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:14:10.214Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:14:10.214Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:14:10.222Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:10.223Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:10.223Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:10.223Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:10.223Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:10.223Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:10.223Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:10.223Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:10.223Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:14:10.224Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:14:10.226Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:14:10.226Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:14:10.226Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:14:10.227Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:14:10.227Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:14:10.227Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:14:10.254Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:14:10.254Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:14:10.254Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:14:10.254Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:14:10.258Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:14:10.264Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:14:10.264Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:14:10.264Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:14:12.290Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:14:19.352Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:14:19.353Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:14:19.353Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:14:19.353Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:14:19.361Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:19.361Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:19.361Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:19.361Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:19.361Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:14:19.362Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/payment-success.html.tmp.115.1769055259362
+2026-01-22T04:14:19.362Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:14:19.362Z [DEBUG] Temp file written successfully, size: 3150 bytes
+2026-01-22T04:14:19.362Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:14:19.362Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/payment-success.html.tmp.115.1769055259362 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/payment-success.html
+2026-01-22T04:14:19.362Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/payment-success.html written atomically
+2026-01-22T04:14:19.366Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:14:19.366Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:14:19.366Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:14:19.380Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:14:19.380Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:14:19.380Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:14:19.380Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:14:19.390Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:19.390Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:19.390Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:19.390Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:19.391Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:14:19.392Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/payment-success.html.tmp.115.1769055259392
+2026-01-22T04:14:19.392Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:14:19.392Z [DEBUG] Temp file written successfully, size: 3166 bytes
+2026-01-22T04:14:19.392Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:14:19.392Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/payment-success.html.tmp.115.1769055259392 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/payment-success.html
+2026-01-22T04:14:19.392Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/payment-success.html written atomically
+2026-01-22T04:14:19.395Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:14:19.395Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:14:19.395Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:14:19.428Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:14:19.428Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:14:19.428Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:14:19.428Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:14:19.432Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:14:19.438Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:14:19.438Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:14:19.438Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:14:21.393Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:14:33.043Z [DEBUG] executePreToolHooks called for tool: TodoWrite
+2026-01-22T04:14:33.044Z [DEBUG] Getting matching hook commands for PreToolUse with query: TodoWrite
+2026-01-22T04:14:33.044Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:14:33.044Z [DEBUG] Matched 4 unique hooks for query "TodoWrite" (4 before deduplication)
+2026-01-22T04:14:33.051Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:33.051Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:33.051Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:33.051Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:33.052Z [DEBUG] Hook approved tool use for TodoWrite, bypassing permission check
+2026-01-22T04:14:33.052Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json.tmp.115.1769055273052
+2026-01-22T04:14:33.052Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:14:33.052Z [DEBUG] Temp file written successfully, size: 1147 bytes
+2026-01-22T04:14:33.052Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:14:33.052Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json.tmp.115.1769055273052 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json
+2026-01-22T04:14:33.052Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json written atomically
+2026-01-22T04:14:33.054Z [DEBUG] Getting matching hook commands for PostToolUse with query: TodoWrite
+2026-01-22T04:14:33.054Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:14:33.054Z [DEBUG] Matched 0 unique hooks for query "TodoWrite" (0 before deduplication)
+2026-01-22T04:14:33.102Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:14:33.102Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:14:33.102Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:14:33.102Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:14:33.111Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:33.111Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:33.111Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:33.111Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:33.111Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:14:33.112Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js.tmp.115.1769055273112
+2026-01-22T04:14:33.112Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:14:33.112Z [DEBUG] Temp file written successfully, size: 1390 bytes
+2026-01-22T04:14:33.112Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:14:33.112Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js.tmp.115.1769055273112 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js
+2026-01-22T04:14:33.112Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js written atomically
+2026-01-22T04:14:33.114Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:14:33.114Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:14:33.114Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:14:33.132Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:14:33.132Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:14:33.132Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:14:33.132Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:14:33.139Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:33.139Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:33.139Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:33.139Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:33.139Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:14:33.140Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js.tmp.115.1769055273140
+2026-01-22T04:14:33.140Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:14:33.140Z [DEBUG] Temp file written successfully, size: 1390 bytes
+2026-01-22T04:14:33.140Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:14:33.140Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js.tmp.115.1769055273140 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js
+2026-01-22T04:14:33.140Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js written atomically
+2026-01-22T04:14:33.142Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:14:33.142Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:14:33.142Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:14:33.188Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:14:33.188Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:14:33.188Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:14:33.188Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:14:33.191Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:14:33.199Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:14:33.199Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:14:33.199Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:14:35.420Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:14:36.762Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:14:36.763Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:14:36.763Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:14:36.763Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:14:36.763Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:14:36.763Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:14:36.763Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:14:36.763Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:14:36.771Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:36.771Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:36.771Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:36.771Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:36.771Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:36.771Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:36.771Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:36.771Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:36.771Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:14:36.772Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:14:36.774Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:14:36.774Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:14:36.774Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:14:36.775Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:14:36.775Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:14:36.775Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:14:36.799Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:14:36.799Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:14:36.799Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:14:36.799Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:14:36.802Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:14:36.809Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:14:36.809Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:14:36.809Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:14:38.796Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:14:43.295Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:14:43.296Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:14:43.296Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:14:43.296Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:14:43.302Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:43.302Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:43.302Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:43.302Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:43.302Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:14:43.303Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/js/main.js.tmp.115.1769055283303
+2026-01-22T04:14:43.303Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:14:43.303Z [DEBUG] Temp file written successfully, size: 6877 bytes
+2026-01-22T04:14:43.303Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:14:43.303Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/js/main.js.tmp.115.1769055283303 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/js/main.js
+2026-01-22T04:14:43.303Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/js/main.js written atomically
+2026-01-22T04:14:43.306Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:14:43.306Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:14:43.306Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:14:43.319Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:14:43.320Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:14:43.320Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:14:43.320Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:14:43.326Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:43.326Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:43.326Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:43.326Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:43.327Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:14:43.328Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/js/main.js.tmp.115.1769055283328
+2026-01-22T04:14:43.328Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:14:43.328Z [DEBUG] Temp file written successfully, size: 6878 bytes
+2026-01-22T04:14:43.328Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:14:43.328Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/js/main.js.tmp.115.1769055283328 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/js/main.js
+2026-01-22T04:14:43.328Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/js/main.js written atomically
+2026-01-22T04:14:43.331Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:14:43.331Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:14:43.331Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:14:43.355Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:14:43.355Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:14:43.355Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:14:43.355Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:14:43.363Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:43.363Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:43.363Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:43.363Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:14:43.363Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:14:43.364Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/package.json.tmp.115.1769055283364
+2026-01-22T04:14:43.364Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:14:43.364Z [DEBUG] Temp file written successfully, size: 591 bytes
+2026-01-22T04:14:43.364Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:14:43.364Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/package.json.tmp.115.1769055283364 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/package.json
+2026-01-22T04:14:43.364Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/package.json written atomically
+2026-01-22T04:14:43.367Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:14:43.367Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:14:43.367Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:14:43.399Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:14:43.399Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:14:43.399Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:14:43.399Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:14:43.402Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:14:43.408Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:14:43.408Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:14:43.408Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:14:45.340Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:15:01.950Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:15:01.950Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:15:01.950Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:15:01.950Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:15:01.957Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:01.957Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:01.957Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:01.957Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:01.957Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:15:01.962Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/css/styles.css.tmp.115.1769055301962
+2026-01-22T04:15:01.962Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:15:01.962Z [DEBUG] Temp file written successfully, size: 14183 bytes
+2026-01-22T04:15:01.962Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:15:01.963Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/css/styles.css.tmp.115.1769055301962 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/css/styles.css
+2026-01-22T04:15:01.963Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/css/styles.css written atomically
+2026-01-22T04:15:01.967Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:15:01.967Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:15:01.967Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:15:01.981Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:15:01.981Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:15:01.981Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:15:01.981Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:15:01.986Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:15:01.993Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:15:01.993Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:15:01.993Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:15:03.942Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:15:08.505Z [DEBUG] executePreToolHooks called for tool: TodoWrite
+2026-01-22T04:15:08.506Z [DEBUG] Getting matching hook commands for PreToolUse with query: TodoWrite
+2026-01-22T04:15:08.506Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:15:08.506Z [DEBUG] Matched 4 unique hooks for query "TodoWrite" (4 before deduplication)
+2026-01-22T04:15:08.513Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:08.513Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:08.513Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:08.513Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:08.513Z [DEBUG] Hook approved tool use for TodoWrite, bypassing permission check
+2026-01-22T04:15:08.513Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json.tmp.115.1769055308513
+2026-01-22T04:15:08.513Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:15:08.513Z [DEBUG] Temp file written successfully, size: 1149 bytes
+2026-01-22T04:15:08.513Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:15:08.513Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json.tmp.115.1769055308513 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json
+2026-01-22T04:15:08.513Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json written atomically
+2026-01-22T04:15:08.515Z [DEBUG] Getting matching hook commands for PostToolUse with query: TodoWrite
+2026-01-22T04:15:08.515Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:15:08.515Z [DEBUG] Matched 0 unique hooks for query "TodoWrite" (0 before deduplication)
+2026-01-22T04:15:08.528Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-01-22T04:15:08.528Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-01-22T04:15:08.528Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:15:08.528Z [DEBUG] Matched 4 unique hooks for query "Bash" (4 before deduplication)
+2026-01-22T04:15:08.536Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:08.536Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:08.536Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:08.536Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:08.536Z [DEBUG] Hook approved tool use for Bash, bypassing permission check
+2026-01-22T04:15:08.539Z [DEBUG] No session environment scripts found
+2026-01-22T04:15:08.630Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-01-22T04:15:08.630Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:15:08.630Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:15:08.631Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:15:08.631Z [DEBUG] Getting matching hook commands for PostToolUse with query: Bash
+2026-01-22T04:15:08.631Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:15:08.631Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-01-22T04:15:08.645Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:15:08.645Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:15:08.645Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:15:08.645Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:15:08.648Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:15:08.653Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:15:08.653Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:15:08.653Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:15:09.000Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:15:10.952Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:15:19.818Z [DEBUG] executePreToolHooks called for tool: Write
+2026-01-22T04:15:19.819Z [DEBUG] Getting matching hook commands for PreToolUse with query: Write
+2026-01-22T04:15:19.819Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:15:19.819Z [DEBUG] Matched 4 unique hooks for query "Write" (4 before deduplication)
+2026-01-22T04:15:19.826Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:19.826Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:19.826Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:19.826Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:19.826Z [DEBUG] Hook approved tool use for Write, bypassing permission check
+2026-01-22T04:15:19.844Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/migrations/001_add_omniscore.js.tmp.115.1769055319844
+2026-01-22T04:15:19.844Z [DEBUG] Temp file written successfully, size: 2602 bytes
+2026-01-22T04:15:19.844Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/migrations/001_add_omniscore.js.tmp.115.1769055319844 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/migrations/001_add_omniscore.js
+2026-01-22T04:15:19.844Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/migrations/001_add_omniscore.js written atomically
+2026-01-22T04:15:19.846Z [DEBUG] Getting matching hook commands for PostToolUse with query: Write
+2026-01-22T04:15:19.846Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:15:19.846Z [DEBUG] Matched 0 unique hooks for query "Write" (0 before deduplication)
+2026-01-22T04:15:19.863Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:15:19.863Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:15:19.863Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:15:19.863Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:15:19.866Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:15:19.871Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:15:19.871Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:15:19.872Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:15:21.915Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:15:22.944Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-01-22T04:15:22.945Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-01-22T04:15:22.945Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:15:22.945Z [DEBUG] Matched 4 unique hooks for query "Bash" (4 before deduplication)
+2026-01-22T04:15:22.950Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:22.950Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:22.950Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:22.950Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:22.950Z [DEBUG] Hook approved tool use for Bash, bypassing permission check
+2026-01-22T04:15:23.040Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-01-22T04:15:23.041Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:15:23.041Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:15:23.041Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:15:23.041Z [DEBUG] Getting matching hook commands for PostToolUse with query: Bash
+2026-01-22T04:15:23.041Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:15:23.041Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-01-22T04:15:23.055Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:15:23.055Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:15:23.055Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:15:23.055Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:15:23.057Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:15:23.063Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:15:23.063Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:15:23.063Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:15:25.122Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:15:25.544Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:15:56.662Z [WARN] Streaming stall detected: 30.8s gap between events (stall #1)
+2026-01-22T04:15:57.169Z [WARN] Streaming completed with 1 stall(s), total stall time: 30.8s
+2026-01-22T04:15:57.171Z [DEBUG] executePreToolHooks called for tool: Write
+2026-01-22T04:15:57.172Z [DEBUG] Getting matching hook commands for PreToolUse with query: Write
+2026-01-22T04:15:57.172Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:15:57.172Z [DEBUG] Matched 4 unique hooks for query "Write" (4 before deduplication)
+2026-01-22T04:15:57.182Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:57.182Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:57.182Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:57.182Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:15:57.182Z [DEBUG] Hook approved tool use for Write, bypassing permission check
+2026-01-22T04:15:57.182Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/services/omniscore.js.tmp.115.1769055357182
+2026-01-22T04:15:57.182Z [DEBUG] Temp file written successfully, size: 8755 bytes
+2026-01-22T04:15:57.182Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/services/omniscore.js.tmp.115.1769055357182 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/services/omniscore.js
+2026-01-22T04:15:57.182Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/services/omniscore.js written atomically
+2026-01-22T04:15:57.185Z [DEBUG] Getting matching hook commands for PostToolUse with query: Write
+2026-01-22T04:15:57.185Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:15:57.185Z [DEBUG] Matched 0 unique hooks for query "Write" (0 before deduplication)
+2026-01-22T04:15:57.200Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:15:57.200Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:15:57.200Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:15:57.200Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:15:57.205Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:15:57.210Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:15:57.210Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:15:57.211Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:16:00.204Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:16:15.639Z [DEBUG] executePreToolHooks called for tool: TodoWrite
+2026-01-22T04:16:15.640Z [DEBUG] Getting matching hook commands for PreToolUse with query: TodoWrite
+2026-01-22T04:16:15.640Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:16:15.640Z [DEBUG] Matched 4 unique hooks for query "TodoWrite" (4 before deduplication)
+2026-01-22T04:16:15.647Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:15.647Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:15.647Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:15.647Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:15.648Z [DEBUG] Hook approved tool use for TodoWrite, bypassing permission check
+2026-01-22T04:16:15.648Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json.tmp.115.1769055375648
+2026-01-22T04:16:15.648Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:16:15.648Z [DEBUG] Temp file written successfully, size: 1153 bytes
+2026-01-22T04:16:15.648Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:16:15.648Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json.tmp.115.1769055375648 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json
+2026-01-22T04:16:15.648Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json written atomically
+2026-01-22T04:16:15.650Z [DEBUG] Getting matching hook commands for PostToolUse with query: TodoWrite
+2026-01-22T04:16:15.650Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:16:15.650Z [DEBUG] Matched 0 unique hooks for query "TodoWrite" (0 before deduplication)
+2026-01-22T04:16:15.661Z [DEBUG] executePreToolHooks called for tool: Write
+2026-01-22T04:16:15.661Z [DEBUG] Getting matching hook commands for PreToolUse with query: Write
+2026-01-22T04:16:15.661Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:16:15.661Z [DEBUG] Matched 4 unique hooks for query "Write" (4 before deduplication)
+2026-01-22T04:16:15.670Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:15.670Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:15.670Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:15.670Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:15.670Z [DEBUG] Hook approved tool use for Write, bypassing permission check
+2026-01-22T04:16:15.670Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/routes/omniscore.js.tmp.115.1769055375670
+2026-01-22T04:16:15.670Z [DEBUG] Temp file written successfully, size: 3639 bytes
+2026-01-22T04:16:15.670Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/routes/omniscore.js.tmp.115.1769055375670 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/routes/omniscore.js
+2026-01-22T04:16:15.670Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/routes/omniscore.js written atomically
+2026-01-22T04:16:15.673Z [DEBUG] Getting matching hook commands for PostToolUse with query: Write
+2026-01-22T04:16:15.673Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:16:15.673Z [DEBUG] Matched 0 unique hooks for query "Write" (0 before deduplication)
+2026-01-22T04:16:15.689Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:16:15.689Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:16:15.689Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:16:15.689Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:16:15.694Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:16:15.700Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:16:15.700Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:16:15.700Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:16:18.351Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:16:20.858Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:16:20.858Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:16:20.858Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:16:20.858Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:16:20.865Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:20.865Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:20.865Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:20.865Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:20.866Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:16:20.868Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:16:20.868Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:16:20.868Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:16:20.880Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:16:20.880Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:16:20.880Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:16:20.880Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:16:20.885Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:16:20.891Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:16:20.891Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:16:20.892Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:16:22.781Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:16:26.326Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:16:26.326Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:16:26.326Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:16:26.326Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:16:26.334Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:26.334Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:26.334Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:26.334Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:26.335Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:16:26.335Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js.tmp.115.1769055386335
+2026-01-22T04:16:26.335Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:16:26.336Z [DEBUG] Temp file written successfully, size: 1445 bytes
+2026-01-22T04:16:26.336Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:16:26.336Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js.tmp.115.1769055386335 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js
+2026-01-22T04:16:26.336Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js written atomically
+2026-01-22T04:16:26.338Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:16:26.338Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:16:26.338Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:16:26.352Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:16:26.352Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:16:26.352Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:16:26.352Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:16:26.360Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:26.360Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:26.360Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:26.360Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:26.360Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:16:26.361Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js.tmp.115.1769055386361
+2026-01-22T04:16:26.361Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:16:26.361Z [DEBUG] Temp file written successfully, size: 1489 bytes
+2026-01-22T04:16:26.361Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:16:26.361Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js.tmp.115.1769055386361 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js
+2026-01-22T04:16:26.361Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/server.js written atomically
+2026-01-22T04:16:26.365Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:16:26.365Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:16:26.365Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:16:26.387Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:16:26.387Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:16:26.387Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:16:26.387Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:16:26.391Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:16:26.397Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:16:26.397Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:16:26.397Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:16:28.416Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:16:29.345Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:16:29.345Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:16:29.345Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:16:29.345Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:16:29.351Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:29.351Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:29.351Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:29.351Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:29.351Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:16:29.353Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:16:29.353Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:16:29.353Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:16:29.364Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:16:29.364Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:16:29.364Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:16:29.364Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:16:29.368Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:16:29.374Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:16:29.374Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:16:29.375Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:16:30.769Z [DEBUG] Metrics opt-out API response: enabled=true, vcsLinking=false
+2026-01-22T04:16:30.938Z [DEBUG] BigQuery metrics exported successfully
+2026-01-22T04:16:30.938Z [DEBUG] "BigQuery API Response: {\n  \"accepted_count\": 12,\n  \"rejected_count\": 0\n}"
+2026-01-22T04:16:32.279Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:16:40.718Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:16:40.720Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:16:40.720Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:16:40.720Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:16:40.728Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:40.728Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:40.728Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:40.728Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:40.728Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:16:40.729Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/routes/interviews.js.tmp.115.1769055400729
+2026-01-22T04:16:40.729Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:16:40.729Z [DEBUG] Temp file written successfully, size: 7151 bytes
+2026-01-22T04:16:40.729Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:16:40.729Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/routes/interviews.js.tmp.115.1769055400729 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/routes/interviews.js
+2026-01-22T04:16:40.730Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/routes/interviews.js written atomically
+2026-01-22T04:16:40.733Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:16:40.734Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:16:40.734Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:16:40.748Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:16:40.748Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:16:40.748Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:16:40.748Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:16:40.760Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:40.760Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:40.760Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:40.760Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:40.761Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:16:40.762Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/routes/interviews.js.tmp.115.1769055400762
+2026-01-22T04:16:40.762Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:16:40.762Z [DEBUG] Temp file written successfully, size: 7996 bytes
+2026-01-22T04:16:40.762Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:16:40.762Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/routes/interviews.js.tmp.115.1769055400762 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/routes/interviews.js
+2026-01-22T04:16:40.762Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/routes/interviews.js written atomically
+2026-01-22T04:16:40.765Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:16:40.765Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:16:40.765Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:16:40.795Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:16:40.795Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:16:40.795Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:16:40.795Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:16:40.800Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:16:40.807Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:16:40.807Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:16:40.808Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:16:43.214Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:16:48.142Z [DEBUG] executePreToolHooks called for tool: TodoWrite
+2026-01-22T04:16:48.143Z [DEBUG] Getting matching hook commands for PreToolUse with query: TodoWrite
+2026-01-22T04:16:48.143Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:16:48.143Z [DEBUG] Matched 4 unique hooks for query "TodoWrite" (4 before deduplication)
+2026-01-22T04:16:48.151Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:48.151Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:48.151Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:48.151Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:16:48.151Z [DEBUG] Hook approved tool use for TodoWrite, bypassing permission check
+2026-01-22T04:16:48.151Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json.tmp.115.1769055408151
+2026-01-22T04:16:48.152Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:16:48.152Z [DEBUG] Temp file written successfully, size: 1157 bytes
+2026-01-22T04:16:48.152Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:16:48.152Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json.tmp.115.1769055408151 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json
+2026-01-22T04:16:48.152Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json written atomically
+2026-01-22T04:16:48.154Z [DEBUG] Getting matching hook commands for PostToolUse with query: TodoWrite
+2026-01-22T04:16:48.154Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:16:48.154Z [DEBUG] Matched 0 unique hooks for query "TodoWrite" (0 before deduplication)
+2026-01-22T04:16:48.169Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:16:48.169Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:16:48.169Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:16:48.169Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:16:48.172Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:16:48.180Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:16:48.180Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:16:48.180Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:16:50.301Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:17:39.007Z [WARN] Streaming stall detected: 47.8s gap between events (stall #1)
+2026-01-22T04:17:40.160Z [WARN] Streaming completed with 1 stall(s), total stall time: 47.8s
+2026-01-22T04:17:40.169Z [DEBUG] executePreToolHooks called for tool: Write
+2026-01-22T04:17:40.170Z [DEBUG] Getting matching hook commands for PreToolUse with query: Write
+2026-01-22T04:17:40.170Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:17:40.171Z [DEBUG] Matched 4 unique hooks for query "Write" (4 before deduplication)
+2026-01-22T04:17:40.188Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:17:40.188Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:17:40.188Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:17:40.188Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:17:40.188Z [DEBUG] Hook approved tool use for Write, bypassing permission check
+2026-01-22T04:17:40.188Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/omniscore.html.tmp.115.1769055460188
+2026-01-22T04:17:40.189Z [DEBUG] Temp file written successfully, size: 14793 bytes
+2026-01-22T04:17:40.189Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/omniscore.html.tmp.115.1769055460188 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/omniscore.html
+2026-01-22T04:17:40.189Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/omniscore.html written atomically
+2026-01-22T04:17:40.192Z [DEBUG] Getting matching hook commands for PostToolUse with query: Write
+2026-01-22T04:17:40.192Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:17:40.192Z [DEBUG] Matched 0 unique hooks for query "Write" (0 before deduplication)
+2026-01-22T04:17:40.208Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:17:40.208Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:17:40.208Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:17:40.208Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:17:40.211Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:17:40.217Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:17:40.217Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:17:40.217Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:17:42.306Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:17:44.178Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:17:44.178Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:17:44.178Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:17:44.178Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:17:44.183Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:17:44.183Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:17:44.183Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:17:44.183Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:17:44.183Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:17:44.185Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:17:44.185Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:17:44.185Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:17:44.199Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:17:44.199Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:17:44.199Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:17:44.199Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:17:44.203Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:17:44.211Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:17:44.211Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:17:44.211Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:17:46.461Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:18:11.500Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:18:11.500Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:18:11.500Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:18:11.501Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:18:11.509Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:11.509Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:11.509Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:11.509Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:11.509Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:18:11.511Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html.tmp.115.1769055491511
+2026-01-22T04:18:11.511Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:18:11.511Z [DEBUG] Temp file written successfully, size: 6446 bytes
+2026-01-22T04:18:11.511Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:18:11.511Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html.tmp.115.1769055491511 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html
+2026-01-22T04:18:11.511Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html written atomically
+2026-01-22T04:18:11.515Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:18:11.515Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:18:11.515Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:18:11.529Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:18:11.529Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:18:11.529Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:18:11.529Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:18:11.540Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:11.540Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:11.540Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:11.540Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:11.540Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:18:11.542Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html.tmp.115.1769055491542
+2026-01-22T04:18:11.542Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:18:11.542Z [DEBUG] Temp file written successfully, size: 7096 bytes
+2026-01-22T04:18:11.542Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:18:11.542Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html.tmp.115.1769055491542 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html
+2026-01-22T04:18:11.542Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html written atomically
+2026-01-22T04:18:11.546Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:18:11.546Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:18:11.546Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:18:11.604Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:18:11.604Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:18:11.604Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:18:11.604Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:18:11.617Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:11.617Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:11.617Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:11.617Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:11.617Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:18:11.618Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html.tmp.115.1769055491618
+2026-01-22T04:18:11.618Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:18:11.619Z [DEBUG] Temp file written successfully, size: 10267 bytes
+2026-01-22T04:18:11.619Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:18:11.619Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html.tmp.115.1769055491618 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html
+2026-01-22T04:18:11.619Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/dashboard.html written atomically
+2026-01-22T04:18:11.622Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:18:11.622Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:18:11.622Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:18:11.655Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:18:11.655Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:18:11.655Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:18:11.655Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:18:11.659Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:18:11.678Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:18:11.678Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:18:11.678Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:18:13.706Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:18:22.575Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:18:22.575Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:18:22.575Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:18:22.575Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:18:22.578Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:18:22.586Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:18:22.586Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:18:22.587Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:18:24.788Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:18:26.199Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:18:26.199Z [DEBUG] executePreToolHooks called for tool: Read
+2026-01-22T04:18:26.199Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:18:26.199Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:18:26.199Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:18:26.199Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-01-22T04:18:26.199Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:18:26.199Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-01-22T04:18:26.208Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:26.208Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:26.208Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:26.208Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:26.208Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:26.208Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:26.208Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:26.208Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:26.209Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:18:26.210Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-01-22T04:18:26.213Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:18:26.213Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:18:26.213Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:18:26.216Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-01-22T04:18:26.216Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:18:26.216Z [DEBUG] Matched 0 unique hooks for query "Read" (0 before deduplication)
+2026-01-22T04:18:26.250Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:18:26.250Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:18:26.250Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:18:26.250Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:18:26.254Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:18:26.263Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:18:26.263Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:18:26.263Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:18:28.406Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:18:38.575Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:18:38.576Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:18:38.576Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:18:38.576Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:18:38.583Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:38.583Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:38.583Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:38.583Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:38.584Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:18:38.584Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/history.html.tmp.115.1769055518584
+2026-01-22T04:18:38.584Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:18:38.584Z [DEBUG] Temp file written successfully, size: 6416 bytes
+2026-01-22T04:18:38.584Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:18:38.584Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/history.html.tmp.115.1769055518584 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/history.html
+2026-01-22T04:18:38.585Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/history.html written atomically
+2026-01-22T04:18:38.587Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:18:38.587Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:18:38.587Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:18:38.602Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-01-22T04:18:38.602Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-01-22T04:18:38.602Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:18:38.602Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-01-22T04:18:38.613Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:38.613Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:38.613Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:38.613Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:38.614Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-01-22T04:18:38.615Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/jobs.html.tmp.115.1769055518615
+2026-01-22T04:18:38.615Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:18:38.615Z [DEBUG] Temp file written successfully, size: 11372 bytes
+2026-01-22T04:18:38.615Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:18:38.615Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/jobs.html.tmp.115.1769055518615 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/jobs.html
+2026-01-22T04:18:38.615Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/public/jobs.html written atomically
+2026-01-22T04:18:38.618Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-01-22T04:18:38.618Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:18:38.618Z [DEBUG] Matched 0 unique hooks for query "Edit" (0 before deduplication)
+2026-01-22T04:18:38.647Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:18:38.647Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:18:38.647Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:18:38.647Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:18:38.652Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:18:38.658Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:18:38.658Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:18:38.659Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:18:40.876Z [DEBUG] Stream started - received first chunk
+2026-01-22T04:18:44.481Z [DEBUG] executePreToolHooks called for tool: TodoWrite
+2026-01-22T04:18:44.482Z [DEBUG] Getting matching hook commands for PreToolUse with query: TodoWrite
+2026-01-22T04:18:44.482Z [DEBUG] Found 1 hook matchers in settings
+2026-01-22T04:18:44.482Z [DEBUG] Matched 4 unique hooks for query "TodoWrite" (4 before deduplication)
+2026-01-22T04:18:44.499Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:44.499Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:44.499Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:44.499Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-22T04:18:44.499Z [DEBUG] Hook approved tool use for TodoWrite, bypassing permission check
+2026-01-22T04:18:44.500Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json.tmp.115.1769055524500
+2026-01-22T04:18:44.500Z [DEBUG] Preserving file permissions: 100644
+2026-01-22T04:18:44.500Z [DEBUG] Temp file written successfully, size: 1159 bytes
+2026-01-22T04:18:44.500Z [DEBUG] Applied original permissions to temp file
+2026-01-22T04:18:44.500Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json.tmp.115.1769055524500 to /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json
+2026-01-22T04:18:44.500Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-21876/hireloop/todos/dc1e07ed-3ee7-4692-b912-72fedc0b59d7-agent-dc1e07ed-3ee7-4692-b912-72fedc0b59d7.json written atomically
+2026-01-22T04:18:44.502Z [DEBUG] Getting matching hook commands for PostToolUse with query: TodoWrite
+2026-01-22T04:18:44.502Z [DEBUG] Found 0 hook matchers in settings
+2026-01-22T04:18:44.502Z [DEBUG] Matched 0 unique hooks for query "TodoWrite" (0 before deduplication)
+2026-01-22T04:18:44.515Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-22T04:18:44.515Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-22T04:18:44.515Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-22T04:18:44.515Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-22T04:18:44.519Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-22T04:18:44.525Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-22T04:18:44.525Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-22T04:18:44.526Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-22T04:18:46.846Z [DEBUG] Stream started - received first chunk

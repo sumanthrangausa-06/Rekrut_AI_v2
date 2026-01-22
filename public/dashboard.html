@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard - HireLoop</title>
+  <title>Dashboard - Rekrut AI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -15,14 +15,18 @@
     <!-- Sidebar -->
     <aside class="sidebar">
       <a href="/" class="logo">
-        <span class="logo-icon">◉</span>
-        <span>HireLoop</span>
+        <span class="logo-icon">◎</span>
+        <span>Rekrut AI</span>
       </a>
       
       <nav class="sidebar-nav">
         <a href="/dashboard.html" class="nav-item active">
           <span class="nav-icon">📊</span>
           <span>Dashboard</span>
+        </a>
+        <a href="/omniscore.html" class="nav-item">
+          <span class="nav-icon">🎯</span>
+          <span>OmniScore</span>
         </a>
         <a href="/interview.html" class="nav-item">
           <span class="nav-icon">🎤</span>
@@ -55,13 +59,27 @@
       <header class="page-header">
         <div>
           <h1>Welcome back, <span id="greeting-name">there</span>!</h1>
-          <p>Here's your interview prep progress</p>
+          <p>Build your OmniScore and land your dream job</p>
         </div>
         <a href="/interview.html" class="btn btn-primary">
           <span>🎤</span> Start Mock Interview
         </a>
       </header>
-      
+
+      <!-- OmniScore Card -->
+      <a href="/omniscore.html" class="omniscore-dashboard-card" id="omniscore-preview">
+        <div class="omniscore-preview-circle">
+          <span class="omniscore-preview-value" id="omniscore-value">---</span>
+          <span class="omniscore-preview-label">OmniScore</span>
+        </div>
+        <div class="omniscore-preview-info">
+          <span class="omniscore-badge" id="omniscore-tier">Loading...</span>
+          <h3>Your Candidate Credit Score</h3>
+          <p>Score ranges 300-850. Complete interviews to improve.</p>
+        </div>
+        <div class="omniscore-preview-arrow">→</div>
+      </a>
+
       <!-- Stats Cards -->
       <div class="stats-grid">
         <div class="stat-card">
@@ -155,24 +173,149 @@
         window.location.href = '/login.html';
         return;
       }
-      
+
       // Update greeting
       const name = user.name || user.email.split('@')[0];
       document.getElementById('greeting-name').textContent = name;
       document.getElementById('user-name').textContent = name;
       document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
-      
+
       // Update plan badge
       if (user.is_paid) {
         document.getElementById('user-plan').textContent = 'Pro Plan';
         document.getElementById('user-plan').classList.add('pro');
         document.getElementById('upgrade-banner').style.display = 'none';
       }
-      
+
+      // Load OmniScore
+      loadOmniScore();
+
       // Load stats and interviews
       loadInterviewStats();
       loadRecentInterviews();
     });
+
+    async function loadOmniScore() {
+      try {
+        const data = await apiCall('/omniscore');
+        if (data && data.omniscore) {
+          document.getElementById('omniscore-value').textContent = data.omniscore.total_score;
+          document.getElementById('omniscore-tier').textContent = data.omniscore.tier_label;
+          document.getElementById('omniscore-tier').className = 'omniscore-badge ' + data.omniscore.tier.replace('_', '-');
+        }
+      } catch (err) {
+        document.getElementById('omniscore-value').textContent = '300';
+        document.getElementById('omniscore-tier').textContent = 'New';
+      }
+    }
   </script>
+
+  <style>
+    .omniscore-dashboard-card {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      background: linear-gradient(135deg, var(--bg-card) 0%, #1a1a2e 100%);
+      border: 1px solid var(--accent-primary);
+      border-radius: var(--radius-lg);
+      padding: 24px 32px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-glow);
+      transition: all 0.2s;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .omniscore-dashboard-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 60px rgba(16, 185, 129, 0.25);
+    }
+
+    .omniscore-preview-circle {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: conic-gradient(from 0deg, var(--accent-primary) 0%, #06b6d4 50%, var(--accent-primary) 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .omniscore-preview-circle::before {
+      content: '';
+      position: absolute;
+      width: 65px;
+      height: 65px;
+      border-radius: 50%;
+      background: var(--bg-card);
+    }
+
+    .omniscore-preview-value {
+      position: relative;
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .omniscore-preview-label {
+      position: relative;
+      font-size: 8px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .omniscore-preview-info {
+      flex: 1;
+    }
+
+    .omniscore-preview-info h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+      margin: 8px 0 4px;
+    }
+
+    .omniscore-preview-info p {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .omniscore-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .omniscore-badge.excellent, .omniscore-badge.exceptional {
+      background: var(--accent-gradient);
+      color: #000;
+    }
+
+    .omniscore-badge.good {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--accent-primary);
+    }
+
+    .omniscore-badge.fair {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+
+    .omniscore-badge.needs-work {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .omniscore-preview-arrow {
+      font-size: 24px;
+      color: var(--accent-primary);
+    }
+  </style>
 </body>
 </html>

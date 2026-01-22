@@ -1,0 +1,42 @@
+[
+  {
+    "content": "Rebrand all HireLoop references to Rekrut AI across HTML files",
+    "status": "completed",
+    "activeForm": "Rebranding HTML files to Rekrut AI"
+  },
+  {
+    "content": "Update JS, CSS and package.json with new branding",
+    "status": "completed",
+    "activeForm": "Updating JS and config files"
+  },
+  {
+    "content": "Create OmniScore database migration",
+    "status": "completed",
+    "activeForm": "Creating OmniScore database tables"
+  },
+  {
+    "content": "Build OmniScore calculation service",
+    "status": "completed",
+    "activeForm": "Building OmniScore calculation service"
+  },
+  {
+    "content": "Create OmniScore API routes",
+    "status": "completed",
+    "activeForm": "Creating OmniScore API routes"
+  },
+  {
+    "content": "Build OmniScore dashboard UI",
+    "status": "completed",
+    "activeForm": "Building OmniScore dashboard"
+  },
+  {
+    "content": "Integrate OmniScore with interviews",
+    "status": "completed",
+    "activeForm": "Integrating OmniScore with interviews"
+  },
+  {
+    "content": "Deploy and verify",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying changes"
+  }
+]

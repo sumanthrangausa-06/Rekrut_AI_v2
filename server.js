@@ -7,6 +7,7 @@ const pool = require('./lib/db');
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
+const omniscoreRoutes = require('./routes/omniscore');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,7 +18,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'hireloop-secret-key-change-in-prod',
+  secret: process.env.SESSION_SECRET || 'rekrutai-secret-key-change-in-prod',
   resave: false,
   saveUninitialized: false,
   cookie: { secure: process.env.NODE_ENV === 'production', maxAge: 7 * 24 * 60 * 60 * 1000 }
@@ -30,6 +31,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/interviews', interviewRoutes);
+app.use('/api/omniscore', omniscoreRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -44,5 +46,5 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`HireLoop running on port ${PORT}`);
+  console.log(`Rekrut AI running on port ${PORT}`);
 });

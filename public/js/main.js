@@ -1,11 +1,11 @@
-// HireLoop Main JavaScript
+// Rekrut AI Main JavaScript
 
 // Auth state
 let currentUser = null;
 
 // Check auth status on page load
 async function checkAuth() {
-  const token = localStorage.getItem('hireloop_token');
+  const token = localStorage.getItem('rekrutai_token');
   if (!token) return null;
   
   try {
@@ -63,7 +63,7 @@ async function handleRegister(event) {
     const data = await response.json();
     
     if (data.success) {
-      localStorage.setItem('hireloop_token', data.token);
+      localStorage.setItem('rekrutai_token', data.token);
       window.location.href = '/dashboard.html';
     } else {
       errorEl.textContent = data.error || 'Registration failed';
@@ -102,7 +102,7 @@ async function handleLogin(event) {
     const data = await response.json();
     
     if (data.success) {
-      localStorage.setItem('hireloop_token', data.token);
+      localStorage.setItem('rekrutai_token', data.token);
       window.location.href = '/dashboard.html';
     } else {
       errorEl.textContent = data.error || 'Login failed';
@@ -119,13 +119,13 @@ async function handleLogin(event) {
 
 // Logout
 function handleLogout() {
-  localStorage.removeItem('hireloop_token');
+  localStorage.removeItem('rekrutai_token');
   window.location.href = '/';
 }
 
 // API helper
 async function apiCall(endpoint, options = {}) {
-  const token = localStorage.getItem('hireloop_token');
+  const token = localStorage.getItem('rekrutai_token');
   const headers = {
     'Content-Type': 'application/json',
     ...(token && { 'Authorization': `Bearer ${token}` }),
@@ -138,7 +138,7 @@ async function apiCall(endpoint, options = {}) {
   });
   
   if (response.status === 401) {
-    localStorage.removeItem('hireloop_token');
+    localStorage.removeItem('rekrutai_token');
     window.location.href = '/login.html';
     return null;
   }

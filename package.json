@@ -1,7 +1,7 @@
 {
-  "name": "hireloop",
-  "version": "1.0.0",
-  "description": "AI-powered interview preparation platform",
+  "name": "rekrutai",
+  "version": "2.0.0",
+  "description": "Rekrut AI - The candidate credit score platform with OmniScore",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniScore - Rekrut AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <a href="/" class="logo">
+        <span class="logo-icon">◎</span>
+        <span>Rekrut AI</span>
+      </a>
+
+      <nav class="sidebar-nav">
+        <a href="/dashboard.html" class="nav-item">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/omniscore.html" class="nav-item active">
+          <span class="nav-icon">🎯</span>
+          <span>OmniScore</span>
+        </a>
+        <a href="/interview.html" class="nav-item">
+          <span class="nav-icon">🎤</span>
+          <span>New Interview</span>
+        </a>
+        <a href="/history.html" class="nav-item">
+          <span class="nav-icon">📁</span>
+          <span>History</span>
+        </a>
+        <a href="/jobs.html" class="nav-item">
+          <span class="nav-icon">💼</span>
+          <span>Job Listings</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button onclick="handleLogout()" class="btn btn-ghost btn-sm btn-full">Logout</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="page-header">
+        <div>
+          <h1>Your OmniScore</h1>
+          <p>Your candidate credit score - the higher, the better</p>
+        </div>
+        <a href="/interview.html" class="btn btn-primary">
+          <span>🎯</span> Boost Your Score
+        </a>
+      </header>
+
+      <!-- Main Score Card -->
+      <div class="omniscore-main-card" id="omniscore-card">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading your OmniScore...</p>
+        </div>
+      </div>
+
+      <!-- Score Breakdown -->
+      <section class="section">
+        <h2>Score Breakdown</h2>
+        <div class="breakdown-grid" id="breakdown-grid">
+          <div class="loading-state">
+            <div class="spinner"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recommendations -->
+      <section class="section">
+        <div class="section-header">
+          <h2>How to Improve</h2>
+        </div>
+        <div class="recommendations-list" id="recommendations">
+          <div class="loading-state">
+            <div class="spinner"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Score History -->
+      <section class="section">
+        <div class="section-header">
+          <h2>Score History</h2>
+        </div>
+        <div class="history-list" id="score-history">
+          <div class="loading-state">
+            <div class="spinner"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    let scoreData = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await checkAuth();
+      if (!user) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      // Daily check-in for behavior points
+      try {
+        await apiCall('/omniscore/checkin', { method: 'POST' });
+      } catch (e) {}
+
+      loadOmniScore();
+    });
+
+    async function loadOmniScore() {
+      try {
+        const data = await apiCall('/omniscore/breakdown');
+        if (!data || !data.current) {
+          showEmptyState();
+          return;
+        }
+
+        scoreData = data;
+        renderScoreCard(data.current);
+        renderBreakdown(data.breakdown);
+        renderRecommendations(data.recommendations);
+        renderHistory(data.history);
+
+      } catch (err) {
+        console.error('Failed to load OmniScore:', err);
+        showEmptyState();
+      }
+    }
+
+    function showEmptyState() {
+      document.getElementById('omniscore-card').innerHTML = `
+        <div class="omniscore-main-card-content">
+          <div class="omniscore-circle-large">
+            <span class="omniscore-value-large">300</span>
+            <span class="omniscore-label-large">OmniScore</span>
+          </div>
+          <div class="omniscore-info">
+            <span class="score-badge needs-work">New</span>
+            <h2>Start Building Your Score</h2>
+            <p>Complete mock interviews, stay active, and watch your OmniScore grow!</p>
+            <a href="/interview.html" class="btn btn-primary">Start First Interview</a>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderScoreCard(current) {
+      const tierClass = current.tier.replace('_', '-');
+      const progress = ((current.total_score - 300) / 550) * 100;
+
+      document.getElementById('omniscore-card').innerHTML = `
+        <div class="omniscore-main-card-content">
+          <div class="omniscore-circle-large">
+            <svg class="score-ring" viewBox="0 0 120 120">
+              <circle class="score-ring-bg" cx="60" cy="60" r="52" />
+              <circle class="score-ring-fill" cx="60" cy="60" r="52"
+                style="stroke-dasharray: ${progress * 3.27}, 327" />
+            </svg>
+            <span class="omniscore-value-large">${current.total_score}</span>
+            <span class="omniscore-label-large">OmniScore</span>
+          </div>
+          <div class="omniscore-info">
+            <span class="score-badge ${tierClass}">${current.tier_label}</span>
+            <h2>Your Candidate Credit Score</h2>
+            <p>Score ranges from 300 (minimum) to 850 (exceptional). Keep practicing to improve!</p>
+            <div class="score-range">
+              <span>300</span>
+              <div class="range-bar">
+                <div class="range-fill" style="width: ${progress}%"></div>
+                <div class="range-marker" style="left: ${progress}%"></div>
+              </div>
+              <span>850</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderBreakdown(breakdown) {
+      const grid = document.getElementById('breakdown-grid');
+
+      grid.innerHTML = Object.entries(breakdown).map(([key, data]) => {
+        const percentage = Math.round((data.score / data.max) * 100);
+        return `
+          <div class="breakdown-card">
+            <div class="breakdown-header">
+              <span class="breakdown-label">${data.label}</span>
+              <span class="breakdown-score">${data.score}/${data.max}</span>
+            </div>
+            <div class="breakdown-bar">
+              <div class="breakdown-fill" style="width: ${percentage}%"></div>
+            </div>
+            <p class="breakdown-desc">${data.description}</p>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderRecommendations(recommendations) {
+      const list = document.getElementById('recommendations');
+
+      if (!recommendations || recommendations.length === 0) {
+        list.innerHTML = `
+          <div class="empty-state">
+            <p>🎉 Great job! You're doing everything right. Keep it up!</p>
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = recommendations.map(rec => `
+        <div class="recommendation-card ${rec.priority}">
+          <div class="rec-header">
+            <span class="rec-priority ${rec.priority}">${rec.priority.toUpperCase()}</span>
+            <span class="rec-gain">+${rec.potential_gain} pts potential</span>
+          </div>
+          <h3>${rec.title}</h3>
+          <p>${rec.description}</p>
+          ${rec.type === 'interview' ? '<a href="/interview.html" class="btn btn-primary btn-sm">Start Interview</a>' : ''}
+        </div>
+      `).join('');
+    }
+
+    function renderHistory(history) {
+      const list = document.getElementById('score-history');
+
+      if (!history || history.length === 0) {
+        list.innerHTML = `
+          <div class="empty-state">
+            <p>No score changes yet. Complete activities to start tracking your progress!</p>
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = history.map(item => {
+        const date = new Date(item.created_at).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric'
+        });
+        const changeClass = item.change_amount >= 0 ? 'positive' : 'negative';
+        const changePrefix = item.change_amount >= 0 ? '+' : '';
+
+        return `
+          <div class="history-item">
+            <div class="history-date">${date}</div>
+            <div class="history-reason">${item.change_reason}</div>
+            <div class="history-change ${changeClass}">${changePrefix}${item.change_amount}</div>
+            <div class="history-score">${item.new_score}</div>
+          </div>
+        `;
+      }).join('');
+    }
+  </script>
+
+  <style>
+    .omniscore-main-card {
+      background: linear-gradient(135deg, var(--bg-card) 0%, #1a1a2e 100%);
+      border: 1px solid var(--accent-primary);
+      border-radius: var(--radius-lg);
+      padding: 48px;
+      margin-bottom: 32px;
+      box-shadow: var(--shadow-glow);
+    }
+
+    .omniscore-main-card-content {
+      display: flex;
+      align-items: center;
+      gap: 48px;
+    }
+
+    .omniscore-circle-large {
+      position: relative;
+      width: 180px;
+      height: 180px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .score-ring {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .score-ring-bg {
+      fill: none;
+      stroke: var(--border-color);
+      stroke-width: 8;
+    }
+
+    .score-ring-fill {
+      fill: none;
+      stroke: url(#scoreGradient);
+      stroke-width: 8;
+      stroke-linecap: round;
+      transition: stroke-dasharray 0.5s ease;
+    }
+
+    .omniscore-value-large {
+      font-family: var(--font-display);
+      font-size: 56px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .omniscore-label-large {
+      font-size: 14px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .omniscore-info {
+      flex: 1;
+    }
+
+    .omniscore-info h2 {
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 600;
+      margin: 12px 0;
+    }
+
+    .omniscore-info p {
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+
+    .score-range {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .range-bar {
+      flex: 1;
+      height: 8px;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-full);
+      position: relative;
+    }
+
+    .range-fill {
+      height: 100%;
+      background: var(--accent-gradient);
+      border-radius: var(--radius-full);
+    }
+
+    .range-marker {
+      position: absolute;
+      top: -4px;
+      width: 16px;
+      height: 16px;
+      background: var(--accent-primary);
+      border: 2px solid var(--bg-card);
+      border-radius: 50%;
+      transform: translateX(-50%);
+    }
+
+    .breakdown-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .breakdown-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 20px;
+    }
+
+    .breakdown-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .breakdown-label {
+      font-weight: 600;
+    }
+
+    .breakdown-score {
+      color: var(--accent-primary);
+      font-weight: 600;
+    }
+
+    .breakdown-bar {
+      height: 6px;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-full);
+      margin-bottom: 12px;
+    }
+
+    .breakdown-fill {
+      height: 100%;
+      background: var(--accent-gradient);
+      border-radius: var(--radius-full);
+      transition: width 0.5s ease;
+    }
+
+    .breakdown-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .recommendation-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .recommendation-card.high {
+      border-color: #ef4444;
+    }
+
+    .rec-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .rec-priority {
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .rec-priority.high {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .rec-priority.medium {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+
+    .rec-gain {
+      font-size: 13px;
+      color: var(--accent-primary);
+    }
+
+    .recommendation-card h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    .recommendation-card p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+
+    .history-item {
+      display: grid;
+      grid-template-columns: 80px 1fr auto auto;
+      gap: 16px;
+      align-items: center;
+      padding: 16px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .history-date {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .history-reason {
+      font-size: 14px;
+    }
+
+    .history-change {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .history-change.positive {
+      color: var(--accent-primary);
+    }
+
+    .history-change.negative {
+      color: #ef4444;
+    }
+
+    .history-score {
+      font-family: var(--font-display);
+      font-weight: 600;
+      min-width: 50px;
+      text-align: right;
+    }
+
+    @media (max-width: 768px) {
+      .omniscore-main-card-content {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .breakdown-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .history-item {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+
+  <svg style="position: absolute; width: 0; height: 0;">
+    <defs>
+      <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#10b981" />
+        <stop offset="100%" style="stop-color:#06b6d4" />
+      </linearGradient>
+    </defs>
+  </svg>
+</body>
+</html>
