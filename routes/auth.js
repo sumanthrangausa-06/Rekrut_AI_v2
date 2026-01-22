@@ -41,7 +41,16 @@ router.post('/register', async (req, res) => {
     });
   } catch (err) {
     console.error('Registration error:', err);
-    res.status(500).json({ error: 'Registration failed' });
+
+    // Provide more specific error messages
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'This email is already registered' });
+    }
+    if (err.code === '42703') {
+      return res.status(500).json({ error: 'Database schema error. Please try again in a few minutes.' });
+    }
+
+    res.status(500).json({ error: 'Registration failed. Please try again.' });
   }
 });
 
