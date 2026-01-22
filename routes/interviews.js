@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback } = require('../lib/polsia-ai');
+const omniscoreService = require('../services/omniscore');
 
 const router = express.Router();
 
@@ -147,11 +148,37 @@ router.post('/:id/complete', authMiddleware, async (req, res) => {
       [JSON.stringify(overallFeedback), overallFeedback.overall_score, duration, req.params.id]
     );
 
+    // Update OmniScore with interview results
+    let omniscoreUpdate = null;
+    try {
+      omniscoreUpdate = await omniscoreService.addInterviewComponent(
+        req.user.id,
+        req.params.id,
+        overallFeedback.overall_score
+      );
+
+      // Update role-specific score if job title is available
+      if (interviewData.job_id) {
+        const job = await pool.query('SELECT title FROM jobs WHERE id = $1', [interviewData.job_id]);
+        if (job.rows.length > 0) {
+          await omniscoreService.updateRoleScore(
+            req.user.id,
+            job.rows[0].title,
+            overallFeedback.overall_score
+          );
+        }
+      }
+    } catch (scoreErr) {
+      console.error('OmniScore update error:', scoreErr);
+      // Don't fail the request if OmniScore update fails
+    }
+
     res.json({
       success: true,
       overall_feedback: overallFeedback,
       duration_seconds: duration,
-      response_count: validResponses.length
+      response_count: validResponses.length,
+      omniscore: omniscoreUpdate
     });
   } catch (err) {
     console.error('Complete interview error:', err);
