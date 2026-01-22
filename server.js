@@ -11,6 +11,7 @@ const omniscoreRoutes = require('./routes/omniscore');
 const companyRoutes = require('./routes/company');
 const trustscoreRoutes = require('./routes/trustscore');
 const recruiterRoutes = require('./routes/recruiter');
+const candidateRoutes = require('./routes/candidate');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -35,6 +36,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/interviews', interviewRoutes);
 app.use('/api/omniscore', omniscoreRoutes);
+app.use('/api/candidate', candidateRoutes);
 
 // API Routes - Recruiter/Company side
 app.use('/api/company', companyRoutes);

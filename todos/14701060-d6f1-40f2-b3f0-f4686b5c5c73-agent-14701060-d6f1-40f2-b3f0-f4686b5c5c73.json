@@ -1,0 +1,42 @@
+[
+  {
+    "content": "Create database migration for candidate profile tables",
+    "status": "completed",
+    "activeForm": "Creating candidate profile database migration"
+  },
+  {
+    "content": "Build candidate routes for profile, skills, assessments",
+    "status": "completed",
+    "activeForm": "Building candidate API routes"
+  },
+  {
+    "content": "Add AI functions for resume parsing and skill assessments",
+    "status": "completed",
+    "activeForm": "Adding AI resume parsing functions"
+  },
+  {
+    "content": "Create candidate-dashboard.html - central hub",
+    "status": "completed",
+    "activeForm": "Creating candidate dashboard page"
+  },
+  {
+    "content": "Create candidate-profile.html - profile editor",
+    "status": "completed",
+    "activeForm": "Creating candidate profile editor"
+  },
+  {
+    "content": "Create skill-assessments.html - take skill tests",
+    "status": "completed",
+    "activeForm": "Creating skill assessments page"
+  },
+  {
+    "content": "Create job-board.html - browse jobs with OmniScore matching",
+    "status": "completed",
+    "activeForm": "Creating job board page"
+  },
+  {
+    "content": "Update navigation and test end-to-end",
+    "status": "in_progress",
+    "activeForm": "Updating navigation and testing"
+  }
+]

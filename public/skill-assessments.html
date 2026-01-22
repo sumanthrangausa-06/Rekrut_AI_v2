@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skill Assessments - Rekrut AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <a href="/" class="logo">
+        <span class="logo-icon">◎</span>
+        <span>Rekrut AI</span>
+      </a>
+
+      <nav class="sidebar-nav">
+        <a href="/candidate-dashboard.html" class="nav-item">
+          <span class="nav-icon">🏠</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/candidate-profile.html" class="nav-item">
+          <span class="nav-icon">👤</span>
+          <span>My Profile</span>
+        </a>
+        <a href="/omniscore.html" class="nav-item">
+          <span class="nav-icon">🎯</span>
+          <span>OmniScore</span>
+        </a>
+        <a href="/skill-assessments.html" class="nav-item active">
+          <span class="nav-icon">📝</span>
+          <span>Skill Tests</span>
+        </a>
+        <a href="/interview.html" class="nav-item">
+          <span class="nav-icon">🎤</span>
+          <span>Interview Prep</span>
+        </a>
+        <a href="/job-board.html" class="nav-item">
+          <span class="nav-icon">💼</span>
+          <span>Job Board</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button onclick="handleLogout()" class="btn btn-ghost btn-sm btn-full">Logout</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="page-header">
+        <div>
+          <h1>Skill Assessments</h1>
+          <p>Verify your skills with AI-powered assessments</p>
+        </div>
+      </header>
+
+      <!-- Assessment View (shown when taking a test) -->
+      <div id="assessment-view" style="display: none;">
+        <div class="assessment-header">
+          <div class="assessment-info">
+            <h2 id="assessment-title">JavaScript Assessment</h2>
+            <p id="assessment-progress">Question 1 of 5</p>
+          </div>
+          <div class="assessment-timer" id="assessment-timer">
+            <span class="timer-icon">⏱️</span>
+            <span id="timer-display">00:00</span>
+          </div>
+        </div>
+
+        <div class="question-card" id="question-card">
+          <div class="question-number">Question <span id="current-question">1</span></div>
+          <div class="question-difficulty" id="question-difficulty">Medium</div>
+          <p class="question-text" id="question-text">Loading question...</p>
+
+          <div class="options-list" id="options-list">
+            <!-- Options rendered here -->
+          </div>
+        </div>
+
+        <div class="assessment-nav">
+          <button class="btn btn-ghost" id="prev-btn" onclick="previousQuestion()" disabled>Previous</button>
+          <button class="btn btn-primary" id="next-btn" onclick="nextQuestion()">Next</button>
+        </div>
+      </div>
+
+      <!-- Results View (shown after completing) -->
+      <div id="results-view" style="display: none;">
+        <div class="results-card">
+          <div class="results-score-circle" id="results-circle">
+            <span class="results-score" id="results-score">0%</span>
+            <span class="results-label" id="results-label">Score</span>
+          </div>
+          <div class="results-info">
+            <h2 id="results-title">Assessment Complete!</h2>
+            <p id="results-message">You've completed the assessment.</p>
+            <div class="results-badge" id="results-badge">
+              <!-- Badge shown if passed -->
+            </div>
+          </div>
+        </div>
+
+        <div class="results-details">
+          <h3>Results Breakdown</h3>
+          <div class="results-stats">
+            <div class="result-stat">
+              <span class="stat-value" id="correct-count">0</span>
+              <span class="stat-label">Correct</span>
+            </div>
+            <div class="result-stat">
+              <span class="stat-value" id="total-questions">0</span>
+              <span class="stat-label">Total Questions</span>
+            </div>
+            <div class="result-stat">
+              <span class="stat-value" id="time-taken">0:00</span>
+              <span class="stat-label">Time Taken</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="results-feedback" id="results-feedback">
+          <h3>AI Feedback</h3>
+          <div class="feedback-content" id="feedback-content">
+            <!-- AI feedback rendered here -->
+          </div>
+        </div>
+
+        <div class="results-actions">
+          <a href="/candidate-profile.html#skills" class="btn btn-ghost">Back to Skills</a>
+          <button class="btn btn-primary" onclick="showStartView()">Take Another Assessment</button>
+        </div>
+      </div>
+
+      <!-- Start View (default) -->
+      <div id="start-view">
+        <!-- Your Skills Section -->
+        <section class="section">
+          <div class="section-header">
+            <h2>Your Skills</h2>
+            <a href="/candidate-profile.html#skills" class="btn btn-ghost btn-sm">Manage Skills</a>
+          </div>
+          <div class="skills-assessment-grid" id="skills-grid">
+            <div class="loading-state">
+              <div class="spinner"></div>
+              <p>Loading your skills...</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Popular Assessments -->
+        <section class="section">
+          <h2>Popular Assessments</h2>
+          <div class="popular-assessments">
+            <div class="assessment-card" onclick="startQuickAssessment('JavaScript', 'technical')">
+              <div class="assessment-icon">🟨</div>
+              <div class="assessment-details">
+                <h4>JavaScript</h4>
+                <p>Modern ES6+, async/await, DOM</p>
+              </div>
+              <span class="assessment-arrow">→</span>
+            </div>
+            <div class="assessment-card" onclick="startQuickAssessment('Python', 'technical')">
+              <div class="assessment-icon">🐍</div>
+              <div class="assessment-details">
+                <h4>Python</h4>
+                <p>Core concepts, libraries, best practices</p>
+              </div>
+              <span class="assessment-arrow">→</span>
+            </div>
+            <div class="assessment-card" onclick="startQuickAssessment('React', 'technical')">
+              <div class="assessment-icon">⚛️</div>
+              <div class="assessment-details">
+                <h4>React</h4>
+                <p>Hooks, state management, patterns</p>
+              </div>
+              <span class="assessment-arrow">→</span>
+            </div>
+            <div class="assessment-card" onclick="startQuickAssessment('SQL', 'technical')">
+              <div class="assessment-icon">🗃️</div>
+              <div class="assessment-details">
+                <h4>SQL</h4>
+                <p>Queries, joins, optimization</p>
+              </div>
+              <span class="assessment-arrow">→</span>
+            </div>
+            <div class="assessment-card" onclick="startQuickAssessment('Communication', 'soft_skill')">
+              <div class="assessment-icon">💬</div>
+              <div class="assessment-details">
+                <h4>Communication</h4>
+                <p>Clear expression, active listening</p>
+              </div>
+              <span class="assessment-arrow">→</span>
+            </div>
+            <div class="assessment-card" onclick="startQuickAssessment('Problem Solving', 'soft_skill')">
+              <div class="assessment-icon">🧩</div>
+              <div class="assessment-details">
+                <h4>Problem Solving</h4>
+                <p>Critical thinking, analysis</p>
+              </div>
+              <span class="assessment-arrow">→</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Past Assessments -->
+        <section class="section">
+          <div class="section-header">
+            <h2>Your Assessment History</h2>
+          </div>
+          <div class="past-assessments" id="past-assessments">
+            <div class="loading-state">
+              <div class="spinner"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    let currentAssessment = null;
+    let currentQuestionIndex = 0;
+    let responses = [];
+    let startTime = null;
+    let timerInterval = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await checkAuth();
+      if (!user) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      // Check URL params for skill to assess
+      const params = new URLSearchParams(window.location.search);
+      const skillName = params.get('skill');
+      const skillId = params.get('id');
+
+      if (skillName) {
+        startAssessment(skillId, skillName, 3, 'technical');
+      } else {
+        loadSkills();
+        loadPastAssessments();
+      }
+    });
+
+    async function loadSkills() {
+      try {
+        const data = await apiCall('/candidate/skills');
+        if (data.success) {
+          renderSkillsGrid(data.skills);
+        }
+      } catch (err) {
+        console.error('Load skills error:', err);
+      }
+    }
+
+    function renderSkillsGrid(skills) {
+      const container = document.getElementById('skills-grid');
+
+      if (!skills || skills.length === 0) {
+        container.innerHTML = `
+          <div class="empty-skills-card">
+            <h3>No Skills Added Yet</h3>
+            <p>Add skills to your profile to take assessments and earn verified badges.</p>
+            <a href="/candidate-profile.html#skills" class="btn btn-primary">Add Skills</a>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = skills.map(skill => `
+        <div class="skill-assessment-card ${skill.is_verified ? 'verified' : ''}">
+          <div class="skill-header">
+            <span class="skill-name">${skill.skill_name}</span>
+            ${skill.is_verified ? '<span class="verified-badge">✓ Verified</span>' : ''}
+          </div>
+          <div class="skill-level-bar">
+            <div class="skill-level-fill" style="width: ${skill.level * 20}%"></div>
+          </div>
+          <div class="skill-meta">
+            <span class="skill-category">${skill.category || 'technical'}</span>
+            <span class="skill-level-text">Level ${skill.level}/5</span>
+          </div>
+          ${skill.is_verified ? `
+            <div class="skill-verified-info">
+              <span>Verified Score: ${skill.verified_score}%</span>
+            </div>
+          ` : `
+            <button class="btn btn-primary btn-sm btn-full" onclick="startAssessment(${skill.id}, '${skill.skill_name}', ${skill.level}, '${skill.category}')">
+              Take Assessment
+            </button>
+          `}
+        </div>
+      `).join('');
+    }
+
+    async function loadPastAssessments() {
+      try {
+        const data = await apiCall('/candidate/assessments');
+        if (data.success) {
+          renderPastAssessments(data.assessments);
+        }
+      } catch (err) {
+        console.error('Load assessments error:', err);
+      }
+    }
+
+    function renderPastAssessments(assessments) {
+      const container = document.getElementById('past-assessments');
+
+      if (!assessments || assessments.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <p>No assessments completed yet. Take your first assessment above!</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = assessments.map(a => `
+        <div class="past-assessment-item ${a.passed ? 'passed' : 'failed'}">
+          <div class="assessment-result-icon">${a.passed ? '✅' : '❌'}</div>
+          <div class="assessment-result-info">
+            <h4>${a.title || a.skill_name + ' Assessment'}</h4>
+            <p>${new Date(a.completed_at || a.created_at).toLocaleDateString()}</p>
+          </div>
+          <div class="assessment-result-score">
+            <span class="score-value">${a.score || 0}%</span>
+            <span class="score-label">${a.passed ? 'Passed' : 'Not Passed'}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function startAssessment(skillId, skillName, skillLevel, category) {
+      try {
+        document.getElementById('start-view').style.display = 'none';
+        document.getElementById('results-view').style.display = 'none';
+        document.getElementById('assessment-view').style.display = 'block';
+
+        document.getElementById('assessment-title').textContent = skillName + ' Assessment';
+        document.getElementById('question-text').textContent = 'Generating questions...';
+        document.getElementById('options-list').innerHTML = '<div class="spinner"></div>';
+
+        const data = await apiCall('/candidate/assessments/start', {
+          method: 'POST',
+          body: JSON.stringify({
+            skill_id: skillId,
+            skill_name: skillName,
+            skill_level: skillLevel,
+            category: category
+          })
+        });
+
+        if (data.success) {
+          currentAssessment = data.assessment;
+          currentQuestionIndex = 0;
+          responses = new Array(data.questions.length).fill(null);
+          startTime = Date.now();
+
+          // Start timer
+          startTimer();
+
+          // Render first question
+          renderQuestion(data.questions[currentQuestionIndex], 0, data.questions.length);
+        }
+      } catch (err) {
+        console.error('Start assessment error:', err);
+        alert('Failed to start assessment. Please try again.');
+        showStartView();
+      }
+    }
+
+    function startQuickAssessment(skillName, category) {
+      startAssessment(null, skillName, 3, category);
+    }
+
+    function startTimer() {
+      timerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        document.getElementById('timer-display').textContent =
+          `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      }, 1000);
+    }
+
+    function renderQuestion(question, index, total) {
+      document.getElementById('assessment-progress').textContent = `Question ${index + 1} of ${total}`;
+      document.getElementById('current-question').textContent = index + 1;
+      document.getElementById('question-difficulty').textContent = question.difficulty || 'Medium';
+      document.getElementById('question-difficulty').className = 'question-difficulty ' + (question.difficulty || 'medium');
+      document.getElementById('question-text').textContent = question.question;
+
+      const optionsHtml = question.options.map((opt, i) => {
+        const letter = String.fromCharCode(65 + i);
+        const isSelected = responses[index] === letter;
+        return `
+          <label class="option-item ${isSelected ? 'selected' : ''}">
+            <input type="radio" name="answer" value="${letter}" ${isSelected ? 'checked' : ''} onchange="selectAnswer('${letter}')">
+            <span class="option-letter">${letter}</span>
+            <span class="option-text">${opt.replace(/^[A-D]\)\s*/, '')}</span>
+          </label>
+        `;
+      }).join('');
+
+      document.getElementById('options-list').innerHTML = optionsHtml;
+
+      // Update nav buttons
+      document.getElementById('prev-btn').disabled = index === 0;
+      document.getElementById('next-btn').textContent = index === total - 1 ? 'Submit' : 'Next';
+    }
+
+    function selectAnswer(letter) {
+      responses[currentQuestionIndex] = letter;
+
+      // Update UI
+      document.querySelectorAll('.option-item').forEach(opt => {
+        opt.classList.remove('selected');
+        if (opt.querySelector('input').value === letter) {
+          opt.classList.add('selected');
+        }
+      });
+    }
+
+    function previousQuestion() {
+      if (currentQuestionIndex > 0) {
+        currentQuestionIndex--;
+        const questions = currentAssessment.questions;
+        renderQuestion(questions[currentQuestionIndex], currentQuestionIndex, questions.length);
+      }
+    }
+
+    async function nextQuestion() {
+      const questions = currentAssessment.questions;
+
+      if (currentQuestionIndex === questions.length - 1) {
+        // Submit assessment
+        await submitAssessment();
+      } else {
+        currentQuestionIndex++;
+        renderQuestion(questions[currentQuestionIndex], currentQuestionIndex, questions.length);
+      }
+    }
+
+    async function submitAssessment() {
+      clearInterval(timerInterval);
+      const timeTaken = Math.floor((Date.now() - startTime) / 1000);
+
+      document.getElementById('next-btn').textContent = 'Submitting...';
+      document.getElementById('next-btn').disabled = true;
+
+      try {
+        const data = await apiCall(`/candidate/assessments/${currentAssessment.id}/submit`, {
+          method: 'POST',
+          body: JSON.stringify({ responses })
+        });
+
+        if (data.success) {
+          showResults(data.evaluation, timeTaken);
+        }
+      } catch (err) {
+        console.error('Submit error:', err);
+        alert('Failed to submit assessment');
+        document.getElementById('next-btn').textContent = 'Submit';
+        document.getElementById('next-btn').disabled = false;
+      }
+    }
+
+    function showResults(evaluation, timeTaken) {
+      document.getElementById('assessment-view').style.display = 'none';
+      document.getElementById('results-view').style.display = 'block';
+
+      const score = evaluation.score || 0;
+      const passed = evaluation.passed;
+
+      // Update circle
+      const circle = document.getElementById('results-circle');
+      circle.className = 'results-score-circle ' + (passed ? 'passed' : 'failed');
+      document.getElementById('results-score').textContent = score + '%';
+
+      // Update text
+      document.getElementById('results-title').textContent = passed ? '🎉 Congratulations!' : 'Keep Practicing!';
+      document.getElementById('results-message').textContent = passed
+        ? 'You\'ve earned a verified badge for this skill!'
+        : 'You need 70% or higher to earn the verified badge.';
+
+      // Update badge
+      document.getElementById('results-badge').innerHTML = passed
+        ? '<span class="earned-badge">✓ Skill Verified</span>'
+        : '';
+
+      // Update stats
+      document.getElementById('correct-count').textContent = evaluation.correct_count || 0;
+      document.getElementById('total-questions').textContent = evaluation.total_questions || 5;
+      const minutes = Math.floor(timeTaken / 60);
+      const seconds = timeTaken % 60;
+      document.getElementById('time-taken').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+      // Render feedback
+      const feedbackHtml = `
+        <div class="feedback-section">
+          <h4>Strengths</h4>
+          <ul>
+            ${(evaluation.strengths || []).map(s => `<li>✅ ${s}</li>`).join('')}
+          </ul>
+        </div>
+        <div class="feedback-section">
+          <h4>Areas to Improve</h4>
+          <ul>
+            ${(evaluation.areas_to_improve || []).map(a => `<li>📝 ${a}</li>`).join('')}
+          </ul>
+        </div>
+        <div class="feedback-summary">
+          <p>${evaluation.feedback_summary || ''}</p>
+        </div>
+      `;
+      document.getElementById('feedback-content').innerHTML = feedbackHtml;
+    }
+
+    function showStartView() {
+      document.getElementById('assessment-view').style.display = 'none';
+      document.getElementById('results-view').style.display = 'none';
+      document.getElementById('start-view').style.display = 'block';
+
+      currentAssessment = null;
+      currentQuestionIndex = 0;
+      responses = [];
+      clearInterval(timerInterval);
+
+      // Reload data
+      loadSkills();
+      loadPastAssessments();
+    }
+  </script>
+
+  <style>
+    /* Skills Assessment Grid */
+    .skills-assessment-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .skill-assessment-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      transition: all 0.2s;
+    }
+
+    .skill-assessment-card:hover {
+      border-color: var(--accent-primary);
+    }
+
+    .skill-assessment-card.verified {
+      border-color: var(--accent-primary);
+      background: rgba(16, 185, 129, 0.05);
+    }
+
+    .skill-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .skill-name {
+      font-family: var(--font-display);
+      font-weight: 600;
+    }
+
+    .verified-badge {
+      color: var(--accent-primary);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .skill-level-bar {
+      height: 6px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-full);
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .skill-level-fill {
+      height: 100%;
+      background: var(--accent-gradient);
+      border-radius: var(--radius-full);
+    }
+
+    .skill-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .skill-verified-info {
+      font-size: 13px;
+      color: var(--accent-primary);
+      text-align: center;
+      padding: 8px;
+      background: rgba(16, 185, 129, 0.1);
+      border-radius: var(--radius-md);
+    }
+
+    .empty-skills-card {
+      grid-column: span 3;
+      text-align: center;
+      padding: 60px 40px;
+      background: var(--bg-card);
+      border: 1px dashed var(--border-light);
+      border-radius: var(--radius-lg);
+    }
+
+    .empty-skills-card h3 {
+      font-family: var(--font-display);
+      margin-bottom: 8px;
+    }
+
+    .empty-skills-card p {
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+
+    /* Popular Assessments */
+    .popular-assessments {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .assessment-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .assessment-card:hover {
+      border-color: var(--accent-primary);
+      transform: translateY(-2px);
+    }
+
+    .assessment-icon {
+      font-size: 32px;
+    }
+
+    .assessment-details h4 {
+      font-family: var(--font-display);
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+
+    .assessment-details p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .assessment-arrow {
+      margin-left: auto;
+      color: var(--accent-primary);
+      font-size: 20px;
+    }
+
+    /* Past Assessments */
+    .past-assessment-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      margin-bottom: 12px;
+    }
+
+    .past-assessment-item.passed {
+      border-left: 3px solid var(--accent-primary);
+    }
+
+    .past-assessment-item.failed {
+      border-left: 3px solid #ef4444;
+    }
+
+    .assessment-result-icon {
+      font-size: 24px;
+    }
+
+    .assessment-result-info {
+      flex: 1;
+    }
+
+    .assessment-result-info h4 {
+      font-family: var(--font-display);
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+
+    .assessment-result-info p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .assessment-result-score {
+      text-align: right;
+    }
+
+    .assessment-result-score .score-value {
+      display: block;
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .assessment-result-score .score-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Assessment View */
+    .assessment-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+
+    .assessment-info h2 {
+      font-family: var(--font-display);
+      font-size: 24px;
+      margin-bottom: 4px;
+    }
+
+    .assessment-info p {
+      color: var(--text-muted);
+    }
+
+    .assessment-timer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+    }
+
+    .timer-icon {
+      font-size: 18px;
+    }
+
+    #timer-display {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .question-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      margin-bottom: 24px;
+    }
+
+    .question-number {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .question-difficulty {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .question-difficulty.easy {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--accent-primary);
+    }
+
+    .question-difficulty.medium {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+
+    .question-difficulty.hard {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .question-text {
+      font-size: 18px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    .options-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .option-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .option-item:hover {
+      border-color: var(--accent-primary);
+    }
+
+    .option-item.selected {
+      border-color: var(--accent-primary);
+      background: rgba(16, 185, 129, 0.1);
+    }
+
+    .option-item input {
+      display: none;
+    }
+
+    .option-letter {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-md);
+      font-weight: 600;
+    }
+
+    .option-item.selected .option-letter {
+      background: var(--accent-primary);
+      color: #000;
+    }
+
+    .option-text {
+      flex: 1;
+    }
+
+    .assessment-nav {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Results View */
+    .results-card {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 40px;
+      margin-bottom: 24px;
+    }
+
+    .results-score-circle {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: var(--bg-elevated);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .results-score-circle.passed {
+      background: rgba(16, 185, 129, 0.2);
+      border: 3px solid var(--accent-primary);
+    }
+
+    .results-score-circle.failed {
+      background: rgba(239, 68, 68, 0.1);
+      border: 3px solid #ef4444;
+    }
+
+    .results-score {
+      font-family: var(--font-display);
+      font-size: 40px;
+      font-weight: 700;
+    }
+
+    .results-score-circle.passed .results-score {
+      color: var(--accent-primary);
+    }
+
+    .results-score-circle.failed .results-score {
+      color: #ef4444;
+    }
+
+    .results-label {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .results-info h2 {
+      font-family: var(--font-display);
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .results-info p {
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+
+    .earned-badge {
+      display: inline-block;
+      padding: 8px 16px;
+      background: var(--accent-gradient);
+      border-radius: var(--radius-full);
+      color: #000;
+      font-weight: 600;
+    }
+
+    .results-details {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .results-details h3 {
+      font-family: var(--font-display);
+      margin-bottom: 20px;
+    }
+
+    .results-stats {
+      display: flex;
+      gap: 40px;
+    }
+
+    .result-stat {
+      text-align: center;
+    }
+
+    .result-stat .stat-value {
+      display: block;
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--accent-primary);
+    }
+
+    .result-stat .stat-label {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .results-feedback {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .results-feedback h3 {
+      font-family: var(--font-display);
+      margin-bottom: 20px;
+    }
+
+    .feedback-section {
+      margin-bottom: 20px;
+    }
+
+    .feedback-section h4 {
+      font-size: 14px;
+      margin-bottom: 12px;
+      color: var(--text-secondary);
+    }
+
+    .feedback-section ul {
+      list-style: none;
+    }
+
+    .feedback-section li {
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .feedback-summary {
+      padding: 16px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+    }
+
+    .results-actions {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+    }
+
+    @media (max-width: 1024px) {
+      .skills-assessment-grid,
+      .popular-assessments {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .empty-skills-card {
+        grid-column: span 2;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .skills-assessment-grid,
+      .popular-assessments {
+        grid-template-columns: 1fr;
+      }
+
+      .empty-skills-card {
+        grid-column: span 1;
+      }
+
+      .results-card {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .results-stats {
+        justify-content: center;
+      }
+    }
+  </style>
+</body>
+</html>
