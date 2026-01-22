@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mock Interview - HireLoop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/interview.css">
+</head>
+<body>
+  <div class="interview-layout">
+    <!-- Header -->
+    <header class="interview-header">
+      <a href="/dashboard.html" class="back-btn">
+        <span>←</span> Back to Dashboard
+      </a>
+      <div class="interview-progress" id="progress-container" style="display: none;">
+        <span id="progress-text">Question 1 of 5</span>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill" style="width: 20%;"></div>
+        </div>
+      </div>
+      <div id="timer" class="timer" style="display: none;">00:00</div>
+    </header>
+    
+    <!-- Setup Screen -->
+    <div class="screen" id="setup-screen">
+      <div class="setup-container">
+        <h1>Start Your <span class="text-gradient">Mock Interview</span></h1>
+        <p>Tell us about the role you're preparing for and we'll generate relevant questions.</p>
+        
+        <form id="setup-form">
+          <div class="form-group">
+            <label for="job-title">Job Title</label>
+            <input type="text" id="job-title" placeholder="e.g., Product Manager, Software Engineer" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="job-description">Job Description (optional)</label>
+            <textarea id="job-description" placeholder="Paste the job description to get more relevant questions..." rows="4"></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="question-count">Number of Questions</label>
+            <select id="question-count">
+              <option value="3">3 Questions (Quick Practice)</option>
+              <option value="5" selected>5 Questions (Standard)</option>
+              <option value="7">7 Questions (Thorough)</option>
+            </select>
+          </div>
+          
+          <button type="submit" class="btn btn-primary btn-large btn-full">
+            <span>🎯</span> Generate Interview Questions
+          </button>
+        </form>
+      </div>
+    </div>
+    
+    <!-- Interview Screen -->
+    <div class="screen" id="interview-screen" style="display: none;">
+      <div class="interview-container">
+        <div class="question-section">
+          <div class="ai-interviewer">
+            <div class="ai-avatar">🤖</div>
+            <span>AI Interviewer</span>
+          </div>
+          <div class="question-card">
+            <span class="question-label" id="question-label">Behavioral Question</span>
+            <p class="question-text" id="question-text">Loading question...</p>
+          </div>
+        </div>
+        
+        <div class="response-section">
+          <div class="video-container" id="video-container">
+            <video id="video-preview" autoplay muted playsinline></video>
+            <div class="video-overlay" id="video-overlay">
+              <p>Camera preview</p>
+              <small>Your video won't be uploaded unless you choose to</small>
+            </div>
+          </div>
+          
+          <div class="response-input">
+            <label>Your Response</label>
+            <textarea id="response-text" placeholder="Type your response here, or use the microphone to record..." rows="6"></textarea>
+          </div>
+          
+          <div class="response-controls">
+            <button type="button" class="btn btn-ghost" id="skip-btn">
+              Skip Question
+            </button>
+            <button type="button" class="btn btn-primary" id="submit-response-btn">
+              Submit Response
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Feedback Screen -->
+    <div class="screen" id="feedback-screen" style="display: none;">
+      <div class="feedback-container">
+        <div class="feedback-header">
+          <h2>Question Feedback</h2>
+          <div class="score-badge" id="question-score">8/10</div>
+        </div>
+        
+        <div class="feedback-section">
+          <h3>✅ Strengths</h3>
+          <ul id="feedback-strengths"></ul>
+        </div>
+        
+        <div class="feedback-section">
+          <h3>💡 Areas for Improvement</h3>
+          <ul id="feedback-improvements"></ul>
+        </div>
+        
+        <div class="feedback-section">
+          <h3>📝 Detailed Feedback</h3>
+          <p id="feedback-detailed"></p>
+        </div>
+        
+        <button type="button" class="btn btn-primary btn-large btn-full" id="next-question-btn">
+          Next Question <span>→</span>
+        </button>
+      </div>
+    </div>
+    
+    <!-- Results Screen -->
+    <div class="screen" id="results-screen" style="display: none;">
+      <div class="results-container">
+        <div class="results-header">
+          <h1>Interview Complete! 🎉</h1>
+          <p>Here's your overall performance summary</p>
+        </div>
+        
+        <div class="overall-score-card">
+          <div class="score-circle">
+            <span class="score-value" id="overall-score">8</span>
+            <span class="score-max">/10</span>
+          </div>
+          <div class="score-info">
+            <span class="readiness-badge" id="readiness-badge">Almost Ready</span>
+            <p id="overall-summary">You demonstrated strong communication skills...</p>
+          </div>
+        </div>
+        
+        <div class="results-grid">
+          <div class="results-section">
+            <h3>🏆 Top Strengths</h3>
+            <ul id="results-strengths"></ul>
+          </div>
+          
+          <div class="results-section">
+            <h3>💪 Priority Improvements</h3>
+            <ul id="results-improvements"></ul>
+          </div>
+        </div>
+        
+        <div class="results-section">
+          <h3>📚 Recommended Practice</h3>
+          <ul id="results-recommendations"></ul>
+        </div>
+        
+        <div class="results-actions">
+          <a href="/interview.html" class="btn btn-primary btn-large">Practice Again</a>
+          <a href="/dashboard.html" class="btn btn-ghost btn-large">Back to Dashboard</a>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay" style="display: none;">
+      <div class="loading-content">
+        <div class="spinner-large"></div>
+        <p id="loading-text">Generating interview questions...</p>
+      </div>
+    </div>
+  </div>
+  
+  <script src="/js/main.js"></script>
+  <script src="/js/interview.js"></script>
+</body>
+</html>

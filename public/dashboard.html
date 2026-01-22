@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - HireLoop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <a href="/" class="logo">
+        <span class="logo-icon">◉</span>
+        <span>HireLoop</span>
+      </a>
+      
+      <nav class="sidebar-nav">
+        <a href="/dashboard.html" class="nav-item active">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/interview.html" class="nav-item">
+          <span class="nav-icon">🎤</span>
+          <span>New Interview</span>
+        </a>
+        <a href="/history.html" class="nav-item">
+          <span class="nav-icon">📁</span>
+          <span>History</span>
+        </a>
+        <a href="/jobs.html" class="nav-item">
+          <span class="nav-icon">💼</span>
+          <span>Job Listings</span>
+        </a>
+      </nav>
+      
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-avatar" id="user-avatar">?</div>
+          <div class="user-details">
+            <span class="user-name" id="user-name">Loading...</span>
+            <span class="user-plan" id="user-plan">Free Plan</span>
+          </div>
+        </div>
+        <button onclick="handleLogout()" class="btn btn-ghost btn-sm">Logout</button>
+      </div>
+    </aside>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="page-header">
+        <div>
+          <h1>Welcome back, <span id="greeting-name">there</span>!</h1>
+          <p>Here's your interview prep progress</p>
+        </div>
+        <a href="/interview.html" class="btn btn-primary">
+          <span>🎤</span> Start Mock Interview
+        </a>
+      </header>
+      
+      <!-- Stats Cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">🎯</div>
+          <div class="stat-info">
+            <span class="stat-value" id="total-interviews">0</span>
+            <span class="stat-label">Completed Interviews</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📊</div>
+          <div class="stat-info">
+            <span class="stat-value" id="avg-score">-</span>
+            <span class="stat-label">Average Score</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🏆</div>
+          <div class="stat-info">
+            <span class="stat-value" id="best-score">-</span>
+            <span class="stat-label">Best Score</span>
+          </div>
+        </div>
+        <div class="stat-card highlight">
+          <div class="stat-icon">🚀</div>
+          <div class="stat-info">
+            <span class="stat-value" id="readiness">-</span>
+            <span class="stat-label">Interview Readiness</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Quick Actions -->
+      <section class="section">
+        <h2>Quick Actions</h2>
+        <div class="action-grid">
+          <a href="/interview.html" class="action-card">
+            <div class="action-icon">🎯</div>
+            <h3>Practice Interview</h3>
+            <p>Start a mock interview for any role</p>
+          </a>
+          <a href="/interview.html?type=behavioral" class="action-card">
+            <div class="action-icon">🧠</div>
+            <h3>Behavioral Questions</h3>
+            <p>Practice STAR method responses</p>
+          </a>
+          <a href="/interview.html?type=technical" class="action-card">
+            <div class="action-icon">💻</div>
+            <h3>Technical Interview</h3>
+            <p>System design & coding questions</p>
+          </a>
+          <a href="/jobs.html" class="action-card">
+            <div class="action-icon">🔍</div>
+            <h3>Browse Jobs</h3>
+            <p>Find roles to practice for</p>
+          </a>
+        </div>
+      </section>
+      
+      <!-- Recent Interviews -->
+      <section class="section">
+        <div class="section-header">
+          <h2>Recent Interviews</h2>
+          <a href="/history.html" class="btn btn-ghost btn-sm">View All</a>
+        </div>
+        <div class="interview-list" id="recent-interviews">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Loading your interviews...</p>
+          </div>
+        </div>
+      </section>
+      
+      <!-- Upgrade Banner -->
+      <section class="upgrade-banner" id="upgrade-banner">
+        <div class="upgrade-content">
+          <h3>🚀 Unlock Unlimited Practice</h3>
+          <p>Get detailed AI feedback, video recording, and score tracking with Pro.</p>
+        </div>
+        <a href="https://buy.stripe.com/5kQaEX7HUdKwfII5KWdjP3G" class="btn btn-primary">Upgrade to Pro - $29/mo</a>
+      </section>
+    </main>
+  </div>
+  
+  <script src="/js/main.js"></script>
+  <script>
+    // Initialize dashboard
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await checkAuth();
+      if (!user) {
+        window.location.href = '/login.html';
+        return;
+      }
+      
+      // Update greeting
+      const name = user.name || user.email.split('@')[0];
+      document.getElementById('greeting-name').textContent = name;
+      document.getElementById('user-name').textContent = name;
+      document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+      
+      // Update plan badge
+      if (user.is_paid) {
+        document.getElementById('user-plan').textContent = 'Pro Plan';
+        document.getElementById('user-plan').classList.add('pro');
+        document.getElementById('upgrade-banner').style.display = 'none';
+      }
+      
+      // Load stats and interviews
+      loadInterviewStats();
+      loadRecentInterviews();
+    });
+  </script>
+</body>
+</html>
