@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Log In - HireLoop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/auth.css">
+</head>
+<body>
+  <div class="auth-container">
+    <div class="auth-card">
+      <a href="/" class="logo">
+        <span class="logo-icon">◉</span>
+        <span>HireLoop</span>
+      </a>
+      
+      <h1>Welcome Back</h1>
+      <p class="auth-subtitle">Sign in to continue your interview prep</p>
+      
+      <div id="login-error" class="error-message"></div>
+      
+      <form id="login-form">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" required placeholder="you@company.com">
+        </div>
+        
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required placeholder="••••••••">
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-full">Sign In</button>
+      </form>
+      
+      <div class="auth-footer">
+        <p>Don't have an account? <a href="/register.html">Sign up free</a></p>
+      </div>
+    </div>
+    
+    <div class="auth-visual">
+      <div class="visual-content">
+        <h2>Practice makes <span class="text-gradient">perfect</span></h2>
+        <p>"I bombed 5 interviews before finding HireLoop. After 2 weeks of practice, I landed my dream job at Google."</p>
+        <div class="testimonial-author">
+          <span class="author-name">— Sarah K.</span>
+          <span class="author-title">Product Manager</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="/js/main.js"></script>
+</body>
+</html>

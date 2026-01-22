@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign Up - HireLoop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/auth.css">
+</head>
+<body>
+  <div class="auth-container">
+    <div class="auth-card">
+      <a href="/" class="logo">
+        <span class="logo-icon">◉</span>
+        <span>HireLoop</span>
+      </a>
+      
+      <h1>Create Your Account</h1>
+      <p class="auth-subtitle">Start practicing for your next interview</p>
+      
+      <div id="register-error" class="error-message"></div>
+      
+      <form id="register-form">
+        <div class="form-group">
+          <label for="name">Full Name</label>
+          <input type="text" id="name" name="name" required placeholder="Jane Smith">
+        </div>
+        
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" required placeholder="you@company.com">
+        </div>
+        
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required placeholder="••••••••" minlength="6">
+        </div>
+        
+        <div class="form-group">
+          <label for="role">I am a...</label>
+          <select id="role" name="role">
+            <option value="candidate">Job Candidate</option>
+            <option value="hiring_manager">Hiring Manager</option>
+          </select>
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-full">Create Account</button>
+      </form>
+      
+      <div class="auth-footer">
+        <p>Already have an account? <a href="/login.html">Sign in</a></p>
+      </div>
+    </div>
+    
+    <div class="auth-visual">
+      <div class="visual-content">
+        <h2>Join <span class="text-gradient">10,000+</span> candidates</h2>
+        <p>Practice with AI-powered mock interviews and get the feedback you need to land your dream job.</p>
+        <div class="stats-mini">
+          <div class="stat-mini">
+            <span class="stat-value">87%</span>
+            <span>Success Rate</span>
+          </div>
+          <div class="stat-mini">
+            <span class="stat-value">2.5x</span>
+            <span>Score Improvement</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="/js/main.js"></script>
+</body>
+</html>

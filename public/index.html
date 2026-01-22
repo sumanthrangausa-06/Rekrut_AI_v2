@@ -1,50 +1,242 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            background: #fafafa;
-            color: #1a1a1a;
-        }
-        .container {
-            text-align: center;
-            padding: 40px;
-        }
-        h1 { font-size: 2rem; margin-bottom: 16px; }
-        p { color: #666; font-size: 1.1rem; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HireLoop - AI Interview Prep That Actually Works</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Welcome to your app</h1>
-        <p>Built with Polsia</p>
-    </div>
+  <div class="app">
+    <!-- Navigation -->
+    <nav class="nav">
+      <div class="nav-container">
+        <a href="/" class="logo">
+          <span class="logo-icon">◉</span>
+          <span>HireLoop</span>
+        </a>
+        <div class="nav-links" id="nav-links">
+          <a href="#features">Features</a>
+          <a href="#how-it-works">How It Works</a>
+          <a href="#pricing">Pricing</a>
+        </div>
+        <div class="nav-auth" id="nav-auth">
+          <a href="/login.html" class="btn btn-ghost">Log In</a>
+          <a href="/register.html" class="btn btn-primary">Get Started</a>
+        </div>
+      </div>
+    </nav>
 
-    <!-- Polsia Analytics - tracks page views for your dashboard -->
-    <script>
-    (function() {
-        var slug = 'hireloop';
-        if (!slug || slug === '__POLSIA_' + 'SLUG__') return;
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="hero-content">
+        <div class="hero-badge">🚀 Now with AI-powered feedback</div>
+        <h1>Stop Bombing <span class="text-gradient">Interviews</span></h1>
+        <p class="hero-subtitle">Practice with our AI interviewer. Get brutally honest feedback. Land the job.</p>
+        <div class="hero-cta">
+          <a href="/register.html" class="btn btn-primary btn-large">Start Practicing Free</a>
+          <a href="#how-it-works" class="btn btn-ghost btn-large">See How It Works</a>
+        </div>
+        <div class="hero-stats">
+          <div class="stat">
+            <span class="stat-value">10K+</span>
+            <span class="stat-label">Mock Interviews</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value">87%</span>
+            <span class="stat-label">Success Rate</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value">2.5x</span>
+            <span class="stat-label">Score Improvement</span>
+          </div>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <div class="interview-card">
+          <div class="card-header">
+            <div class="card-dots">
+              <span></span><span></span><span></span>
+            </div>
+            <span>Mock Interview</span>
+          </div>
+          <div class="card-content">
+            <div class="question-bubble">
+              <span class="ai-tag">AI Interviewer</span>
+              <p>"Tell me about a time you had to deal with a difficult stakeholder. How did you handle it?"</p>
+            </div>
+            <div class="response-area">
+              <div class="typing-indicator">
+                <span></span><span></span><span></span>
+              </div>
+              <span>Recording your response...</span>
+            </div>
+          </div>
+          <div class="card-footer">
+            <div class="score-preview">
+              <span class="score">8.5</span>
+              <span class="score-label">/ 10</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
-        var vid = localStorage.getItem('polsia_vid');
-        if (!vid) {
-            vid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                var r = Math.random() * 16 | 0;
-                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-            });
-            localStorage.setItem('polsia_vid', vid);
-        }
-        new Image().src = 'https://polsia.com/api/beacon/pixel?s=' + encodeURIComponent(slug) + '&v=' + encodeURIComponent(vid);
-    })();
-    </script>
+    <!-- Features Section -->
+    <section class="features" id="features">
+      <div class="section-header">
+        <h2>Everything You Need to <span class="text-gradient">Ace Your Interview</span></h2>
+        <p>Realistic practice with AI-powered feedback that gets you hired</p>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🎯</div>
+          <h3>Role-Specific Questions</h3>
+          <p>AI generates questions tailored to your target job. Product Manager? Software Engineer? We've got you covered.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🎥</div>
+          <h3>Video Recording</h3>
+          <p>Practice like it's the real thing. Record yourself, review your body language, and improve.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🤖</div>
+          <h3>AI Analysis</h3>
+          <p>Get instant feedback on your answers. Know exactly what to improve and how.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Score Tracking</h3>
+          <p>Watch yourself improve over time. Track your scores and see your progress.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">💡</div>
+          <h3>Detailed Feedback</h3>
+          <p>Not just "good" or "bad". Get specific, actionable feedback on every answer.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3>Practice Anytime</h3>
+          <p>No scheduling needed. Practice at 2am in your pajamas. We don't judge.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="how-it-works" id="how-it-works">
+      <div class="section-header">
+        <h2>How It <span class="text-gradient">Works</span></h2>
+        <p>Three simple steps to interview confidence</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">01</div>
+          <div class="step-content">
+            <h3>Tell Us Your Target Role</h3>
+            <p>Enter the job you're applying for. Our AI will generate relevant interview questions.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">02</div>
+          <div class="step-content">
+            <h3>Record Your Answers</h3>
+            <p>Answer each question on video. Practice your delivery, not just your content.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">03</div>
+          <div class="step-content">
+            <h3>Get AI Feedback</h3>
+            <p>Receive detailed analysis of your answers with specific improvement suggestions.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section class="pricing" id="pricing">
+      <div class="section-header">
+        <h2>Simple <span class="text-gradient">Pricing</span></h2>
+        <p>One plan. Unlimited practice. No surprises.</p>
+      </div>
+      <div class="pricing-cards">
+        <div class="pricing-card">
+          <div class="pricing-header">
+            <h3>Free</h3>
+            <div class="price">$0<span>/forever</span></div>
+          </div>
+          <ul class="pricing-features">
+            <li>✓ 3 mock interviews per month</li>
+            <li>✓ AI-generated questions</li>
+            <li>✓ Basic feedback</li>
+            <li class="disabled">✗ Video recording</li>
+            <li class="disabled">✗ Detailed AI analysis</li>
+            <li class="disabled">✗ Score tracking</li>
+          </ul>
+          <a href="/register.html" class="btn btn-ghost btn-full">Start Free</a>
+        </div>
+        <div class="pricing-card featured">
+          <div class="pricing-badge">Most Popular</div>
+          <div class="pricing-header">
+            <h3>Pro</h3>
+            <div class="price">$29<span>/month</span></div>
+          </div>
+          <ul class="pricing-features">
+            <li>✓ Unlimited mock interviews</li>
+            <li>✓ AI-generated questions</li>
+            <li>✓ Video recording & playback</li>
+            <li>✓ Detailed AI analysis</li>
+            <li>✓ Score tracking & history</li>
+            <li>✓ Priority support</li>
+          </ul>
+          <a href="https://buy.stripe.com/5kQaEX7HUdKwfII5KWdjP3G" class="btn btn-primary btn-full">Get Pro</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta">
+      <div class="cta-content">
+        <h2>Ready to <span class="text-gradient">Land Your Dream Job</span>?</h2>
+        <p>Join thousands of candidates who've improved their interview skills with HireLoop.</p>
+        <a href="/register.html" class="btn btn-primary btn-large">Start Practicing Now</a>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-content">
+        <div class="footer-brand">
+          <a href="/" class="logo">
+            <span class="logo-icon">◉</span>
+            <span>HireLoop</span>
+          </a>
+          <p>AI-powered interview prep that actually works.</p>
+        </div>
+        <div class="footer-links">
+          <div class="footer-col">
+            <h4>Product</h4>
+            <a href="#features">Features</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#how-it-works">How It Works</a>
+          </div>
+          <div class="footer-col">
+            <h4>Account</h4>
+            <a href="/login.html">Log In</a>
+            <a href="/register.html">Sign Up</a>
+            <a href="/dashboard.html">Dashboard</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 HireLoop. All rights reserved.</p>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/js/main.js"></script>
 </body>
 </html>
