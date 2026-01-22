@@ -1,145 +1,135 @@
-/**
- * Database Migration Runner
- *
- * Runs on every deploy via `npm run build`.
- *
- * How it works:
- * 1. Creates core tables (users, _migrations) - always runs, idempotent
- * 2. Reads migrations from migrations/ folder
- * 3. Runs new migrations in order (tracked in _migrations table)
- *
- * To create a new migration:
- *   Create a file in migrations/ with format: {timestamp}_{name}.js
- *   Example: migrations/1704067200000_add_products_table.js
- *
- * Migration file format:
- *   module.exports = {
- *     name: 'add_products_table',
- *     up: async (client) => {
- *       await client.query(`CREATE TABLE products (...)`);
- *     }
- *   };
- */
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 async function migrate() {
-  console.log('Running migrations...');
-
   const client = await pool.connect();
   try {
-    // 1. Create migration tracking table (always first)
+    // Create migrations tracking table
     await client.query(`
       CREATE TABLE IF NOT EXISTS _migrations (
         id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL UNIQUE,
-        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        name VARCHAR(255) UNIQUE NOT NULL,
+        applied_at TIMESTAMP DEFAULT NOW()
       )
     `);
 
-    // 2. Core tables (idempotent - safe to run every time)
-    await runCoreMigrations(client);
+    // Core tables
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255),
+        name VARCHAR(255),
+        role VARCHAR(50) DEFAULT 'candidate',
+        company_name VARCHAR(255),
+        github_username VARCHAR(255),
+        avatar_url TEXT,
+        is_paid BOOLEAN DEFAULT false,
+        stripe_subscription_id VARCHAR(255),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
 
-    // 3. Run migrations from migrations/ folder
-    await runFolderMigrations(client);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS jobs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL,
+        company VARCHAR(255),
+        description TEXT,
+        requirements TEXT,
+        location VARCHAR(255),
+        salary_range VARCHAR(100),
+        job_type VARCHAR(50) DEFAULT 'full-time',
+        status VARCHAR(50) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
 
-    console.log('Migrations complete.');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS interviews (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+        interview_type VARCHAR(50) DEFAULT 'mock',
+        status VARCHAR(50) DEFAULT 'pending',
+        questions JSONB DEFAULT '[]',
+        responses JSONB DEFAULT '[]',
+        ai_feedback JSONB,
+        overall_score INTEGER,
+        duration_seconds INTEGER,
+        video_urls JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT NOW(),
+        completed_at TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS interview_questions (
+        id SERIAL PRIMARY KEY,
+        category VARCHAR(100),
+        difficulty VARCHAR(50) DEFAULT 'medium',
+        question_text TEXT NOT NULL,
+        ideal_answer_points JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS agent_data (
+        id SERIAL PRIMARY KEY,
+        type VARCHAR(100) NOT NULL,
+        data JSONB NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Run migration files from migrations folder
+    const migrationsDir = path.join(__dirname, 'migrations');
+    if (fs.existsSync(migrationsDir)) {
+      const files = fs.readdirSync(migrationsDir)
+        .filter(f => f.endsWith('.js'))
+        .sort();
+      
+      for (const file of files) {
+        const migration = require(path.join(migrationsDir, file));
+        const existing = await client.query(
+          'SELECT id FROM _migrations WHERE name = $1',
+          [migration.name]
+        );
+        
+        if (existing.rows.length === 0) {
+          console.log(`Running migration: ${migration.name}`);
+          await client.query('BEGIN');
+          try {
+            await migration.up(client);
+            await client.query(
+              'INSERT INTO _migrations (name) VALUES ($1)',
+              [migration.name]
+            );
+            await client.query('COMMIT');
+            console.log(`Migration ${migration.name} completed`);
+          } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+          }
+        }
+      }
+    }
+
+    console.log('All migrations completed successfully');
+  } catch (err) {
+    console.error('Migration error:', err);
+    process.exit(1);
   } finally {
     client.release();
     await pool.end();
   }
 }
 
-/**
- * Core tables that every app needs.
- * These use CREATE IF NOT EXISTS so they're safe to run repeatedly.
- */
-async function runCoreMigrations(client) {
-  // Users table with subscription support
-  // Used by Polsia for syncing end-user subscription status
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      email VARCHAR(255) NOT NULL,
-      name VARCHAR(255),
-      password_hash VARCHAR(255),
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-      -- Subscription fields (synced by Polsia when customer subscribes)
-      stripe_subscription_id VARCHAR(255),
-      subscription_status VARCHAR(50),
-      subscription_plan VARCHAR(255),
-      subscription_expires_at TIMESTAMPTZ,
-      subscription_updated_at TIMESTAMPTZ
-    )
-  `);
-
-  // Unique constraint on email (required for UPSERT)
-  await client.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users (LOWER(email))
-  `);
-
-  // Index for subscription lookups
-  await client.query(`
-    CREATE INDEX IF NOT EXISTS users_stripe_subscription_id_idx ON users (stripe_subscription_id)
-  `);
-}
-
-/**
- * Run migrations from migrations/ folder.
- * Each migration runs once and is tracked in _migrations table.
- */
-async function runFolderMigrations(client) {
-  const migrationsDir = path.join(__dirname, 'migrations');
-
-  // Skip if no migrations folder
-  if (!fs.existsSync(migrationsDir)) {
-    return;
-  }
-
-  // Get all migration files, sorted by name (timestamp prefix ensures order)
-  const files = fs.readdirSync(migrationsDir)
-    .filter(f => f.endsWith('.js'))
-    .sort();
-
-  if (files.length === 0) {
-    return;
-  }
-
-  // Get already-applied migrations
-  const applied = await client.query('SELECT name FROM _migrations');
-  const appliedNames = new Set(applied.rows.map(r => r.name));
-
-  // Run pending migrations
-  for (const file of files) {
-    const migration = require(path.join(migrationsDir, file));
-    const name = migration.name || file.replace('.js', '');
-
-    if (appliedNames.has(name)) {
-      continue; // Already applied
-    }
-
-    console.log(`Running migration: ${name}`);
-
-    try {
-      await client.query('BEGIN');
-      await migration.up(client);
-      await client.query('INSERT INTO _migrations (name) VALUES ($1)', [name]);
-      await client.query('COMMIT');
-      console.log(`Migration complete: ${name}`);
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw new Error(`Migration failed (${name}): ${err.message}`);
-    }
-  }
-}
-
-migrate().catch(err => {
-  console.error('Migration failed:', err.message);
-  process.exit(1);
-});
+migrate();
