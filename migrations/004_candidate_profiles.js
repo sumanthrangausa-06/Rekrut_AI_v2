@@ -137,20 +137,11 @@ module.exports = {
       )
     `);
 
-    // Job applications
+    // Job applications - table already created in migration 002 with candidate_id
+    // Add match_score column if not exists
     await client.query(`
-      CREATE TABLE IF NOT EXISTS job_applications (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
-        status VARCHAR(50) DEFAULT 'applied',
-        cover_letter TEXT,
-        match_score INTEGER,
-        applied_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW(),
-        recruiter_notes TEXT,
-        UNIQUE(user_id, job_id)
-      )
+      ALTER TABLE job_applications
+      ADD COLUMN IF NOT EXISTS match_score INTEGER
     `);
 
     // Parsed resume data (from AI parsing)
@@ -172,7 +163,7 @@ module.exports = {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_work_experience_user ON work_experience(user_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_education_user ON education(user_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_saved_jobs_user ON saved_jobs(user_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_job_applications_user ON job_applications(user_id)`);
+    // Note: job_applications index already exists from migration 002 (idx_job_applications_candidate)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_job_applications_job ON job_applications(job_id)`);
 
     console.log('Candidate profiles tables created');

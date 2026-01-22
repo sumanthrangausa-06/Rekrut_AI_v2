@@ -895,9 +895,9 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
     } catch (e) {}
 
     const result = await pool.query(`
-      INSERT INTO job_applications (user_id, job_id, cover_letter, match_score)
+      INSERT INTO job_applications (candidate_id, job_id, cover_letter, match_score)
       VALUES ($1, $2, $3, $4)
-      ON CONFLICT (user_id, job_id) DO UPDATE SET
+      ON CONFLICT (job_id, candidate_id) DO UPDATE SET
         cover_letter = $3,
         updated_at = NOW()
       RETURNING *
@@ -918,7 +918,7 @@ router.get('/applications', authMiddleware, async (req, res) => {
       FROM job_applications ja
       JOIN jobs j ON ja.job_id = j.id
       LEFT JOIN users u ON j.user_id = u.id
-      WHERE ja.user_id = $1
+      WHERE ja.candidate_id = $1
       ORDER BY ja.applied_at DESC
     `, [req.user.id]);
 
@@ -984,7 +984,7 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
     );
 
     const applicationCount = await pool.query(
-      'SELECT COUNT(*) as count FROM job_applications WHERE user_id = $1',
+      'SELECT COUNT(*) as count FROM job_applications WHERE candidate_id = $1',
       [req.user.id]
     );
 
