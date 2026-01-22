@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Successful - HireLoop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="success-container">
+    <div class="success-card">
+      <div class="success-icon">🎉</div>
+      <h1>Welcome to Pro!</h1>
+      <p>Your payment was successful. You now have unlimited access to all HireLoop features.</p>
+      
+      <div class="features-unlocked">
+        <h3>What's unlocked:</h3>
+        <ul>
+          <li>✓ Unlimited mock interviews</li>
+          <li>✓ Video recording & playback</li>
+          <li>✓ Detailed AI analysis</li>
+          <li>✓ Score tracking & history</li>
+          <li>✓ Priority support</li>
+        </ul>
+      </div>
+      
+      <a href="/dashboard.html" class="btn btn-primary btn-large">Go to Dashboard</a>
+    </div>
+  </div>
+  
+  <script src="/js/main.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get('session_id') || urlParams.get('checkout_session_id');
+      
+      if (sessionId) {
+        try {
+          const token = localStorage.getItem('hireloop_token');
+          if (token) {
+            await fetch(`/api/auth/verify-payment?session_id=${sessionId}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+          }
+        } catch (err) {
+          console.error('Payment verification error:', err);
+        }
+      }
+    });
+  </script>
+  
+  <style>
+    .success-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    
+    .success-card {
+      background: var(--bg-card);
+      border: 1px solid var(--accent-primary);
+      border-radius: var(--radius-lg);
+      padding: 48px;
+      max-width: 480px;
+      text-align: center;
+      box-shadow: var(--shadow-glow);
+    }
+    
+    .success-icon {
+      font-size: 64px;
+      margin-bottom: 24px;
+    }
+    
+    .success-card h1 {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    
+    .success-card > p {
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+    }
+    
+    .features-unlocked {
+      background: var(--bg-secondary);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin-bottom: 32px;
+      text-align: left;
+    }
+    
+    .features-unlocked h3 {
+      font-family: var(--font-display);
+      font-size: 16px;
+      margin-bottom: 16px;
+      color: var(--text-muted);
+    }
+    
+    .features-unlocked li {
+      padding: 8px 0;
+      color: var(--accent-primary);
+    }
+  </style>
+</body>
+</html>

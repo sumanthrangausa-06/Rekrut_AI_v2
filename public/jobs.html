@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Listings - HireLoop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <a href="/" class="logo">
+        <span class="logo-icon">◉</span>
+        <span>HireLoop</span>
+      </a>
+      
+      <nav class="sidebar-nav">
+        <a href="/dashboard.html" class="nav-item">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/interview.html" class="nav-item">
+          <span class="nav-icon">🎤</span>
+          <span>New Interview</span>
+        </a>
+        <a href="/history.html" class="nav-item">
+          <span class="nav-icon">📁</span>
+          <span>History</span>
+        </a>
+        <a href="/jobs.html" class="nav-item active">
+          <span class="nav-icon">💼</span>
+          <span>Job Listings</span>
+        </a>
+      </nav>
+      
+      <div class="sidebar-footer">
+        <button onclick="handleLogout()" class="btn btn-ghost btn-sm btn-full">Logout</button>
+      </div>
+    </aside>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="page-header">
+        <div>
+          <h1>Job Listings</h1>
+          <p>Find roles to practice for or post jobs as a hiring manager</p>
+        </div>
+        <button id="post-job-btn" class="btn btn-primary" style="display: none;">
+          <span>➕</span> Post a Job
+        </button>
+      </header>
+      
+      <!-- Job List -->
+      <div class="job-grid" id="job-grid">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading jobs...</p>
+        </div>
+      </div>
+      
+      <!-- Empty State -->
+      <div class="empty-state" id="empty-state" style="display: none;">
+        <div class="empty-icon">💼</div>
+        <h3>No Jobs Listed Yet</h3>
+        <p>Start a mock interview with any job title, or wait for hiring managers to post roles.</p>
+        <a href="/interview.html" class="btn btn-primary">Start Custom Interview</a>
+      </div>
+    </main>
+  </div>
+  
+  <!-- Post Job Modal -->
+  <div class="modal-overlay" id="post-job-modal" style="display: none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Post a Job</h2>
+        <button onclick="closeModal()" class="close-btn">✕</button>
+      </div>
+      <form id="post-job-form">
+        <div class="form-group">
+          <label>Job Title *</label>
+          <input type="text" name="title" required placeholder="e.g., Senior Product Manager">
+        </div>
+        <div class="form-group">
+          <label>Company</label>
+          <input type="text" name="company" placeholder="Company name">
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea name="description" rows="4" placeholder="Describe the role..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>Requirements</label>
+          <textarea name="requirements" rows="3" placeholder="Key requirements..."></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Location</label>
+            <input type="text" name="location" placeholder="e.g., Remote, NYC">
+          </div>
+          <div class="form-group">
+            <label>Salary Range</label>
+            <input type="text" name="salary_range" placeholder="e.g., $120k-$150k">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" onclick="closeModal()" class="btn btn-ghost">Cancel</button>
+          <button type="submit" class="btn btn-primary">Post Job</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <script src="/js/main.js"></script>
+  <script>
+    let currentUser = null;
+    
+    document.addEventListener('DOMContentLoaded', async () => {
+      currentUser = await checkAuth();
+      if (!currentUser) {
+        window.location.href = '/login.html';
+        return;
+      }
+      
+      // Show post button for hiring managers
+      if (currentUser.role === 'hiring_manager' || currentUser.role === 'admin') {
+        document.getElementById('post-job-btn').style.display = 'flex';
+        document.getElementById('post-job-btn').onclick = () => openModal();
+      }
+      
+      loadJobs();
+      setupPostForm();
+    });
+    
+    async function loadJobs() {
+      try {
+        const data = await apiCall('/jobs');
+        const grid = document.getElementById('job-grid');
+        const emptyState = document.getElementById('empty-state');
+        
+        if (!data || data.jobs.length === 0) {
+          grid.style.display = 'none';
+          emptyState.style.display = 'block';
+          return;
+        }
+        
+        grid.innerHTML = data.jobs.map(job => `
+          <div class="job-card">
+            <div class="job-header">
+              <h3>${job.title}</h3>
+              <span class="job-type">${job.job_type || 'Full-time'}</span>
+            </div>
+            <div class="job-company">${job.company || job.poster_company || 'Company'}</div>
+            ${job.location ? `<div class="job-location">📍 ${job.location}</div>` : ''}
+            ${job.salary_range ? `<div class="job-salary">💰 ${job.salary_range}</div>` : ''}
+            ${job.description ? `<p class="job-desc">${job.description.substring(0, 150)}${job.description.length > 150 ? '...' : ''}</p>` : ''}
+            <div class="job-actions">
+              <a href="/interview.html?job_id=${job.id}&job_title=${encodeURIComponent(job.title)}&job_desc=${encodeURIComponent(job.description || '')}" class="btn btn-primary btn-sm">
+                Practice Interview
+              </a>
+            </div>
+          </div>
+        `).join('');
+        
+      } catch (err) {
+        console.error('Failed to load jobs:', err);
+      }
+    }
+    
+    function openModal() {
+      document.getElementById('post-job-modal').style.display = 'flex';
+    }
+    
+    function closeModal() {
+      document.getElementById('post-job-modal').style.display = 'none';
+    }
+    
+    function setupPostForm() {
+      document.getElementById('post-job-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const btn = form.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.textContent = 'Posting...';
+        
+        try {
+          const data = await apiCall('/jobs', {
+            method: 'POST',
+            body: JSON.stringify({
+              title: form.title.value,
+              company: form.company.value,
+              description: form.description.value,
+              requirements: form.requirements.value,
+              location: form.location.value,
+              salary_range: form.salary_range.value
+            })
+          });
+          
+          if (data?.success) {
+            closeModal();
+            loadJobs();
+            form.reset();
+          } else {
+            alert(data?.error || 'Failed to post job');
+          }
+        } catch (err) {
+          alert('Error posting job');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Post Job';
+        }
+      });
+    }
+  </script>
+  
+  <style>
+    .job-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
+    }
+    
+    .job-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      transition: all 0.2s;
+    }
+    
+    .job-card:hover {
+      border-color: var(--accent-primary);
+      transform: translateY(-2px);
+    }
+    
+    .job-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    
+    .job-header h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+    }
+    
+    .job-type {
+      padding: 4px 10px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    
+    .job-company {
+      color: var(--accent-primary);
+      font-weight: 500;
+      margin-bottom: 12px;
+    }
+    
+    .job-location,
+    .job-salary {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    
+    .job-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin: 16px 0;
+    }
+    
+    .job-actions {
+      margin-top: 16px;
+    }
+    
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 24px;
+    }
+    
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      max-width: 560px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .modal-header h2 {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 600;
+    }
+    
+    .close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 20px;
+      cursor: pointer;
+    }
+    
+    .modal form {
+      padding: 24px;
+    }
+    
+    .modal .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .modal label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: var(--text-secondary);
+    }
+    
+    .modal input,
+    .modal textarea {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 14px;
+    }
+    
+    .modal input:focus,
+    .modal textarea:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+    }
+    
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-color);
+    }
+    
+    /* Empty state */
+    .empty-icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+    }
+    
+    .empty-state h3 {
+      font-family: var(--font-display);
+      font-size: 24px;
+      margin-bottom: 12px;
+    }
+  </style>
+</body>
+</html>
