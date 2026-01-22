@@ -8,6 +8,9 @@ const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
 const omniscoreRoutes = require('./routes/omniscore');
+const companyRoutes = require('./routes/company');
+const trustscoreRoutes = require('./routes/trustscore');
+const recruiterRoutes = require('./routes/recruiter');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,11 +30,16 @@ app.use(session({
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// API Routes
+// API Routes - Candidate side
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/interviews', interviewRoutes);
 app.use('/api/omniscore', omniscoreRoutes);
+
+// API Routes - Recruiter/Company side
+app.use('/api/company', companyRoutes);
+app.use('/api/trustscore', trustscoreRoutes);
+app.use('/api/recruiter', recruiterRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

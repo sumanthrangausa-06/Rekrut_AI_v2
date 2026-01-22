@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recruiter Dashboard - Rekrut AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar recruiter-sidebar">
+      <a href="/" class="logo">
+        <span class="logo-icon">◎</span>
+        <span>Rekrut AI</span>
+      </a>
+      <span class="sidebar-badge">Employer</span>
+
+      <nav class="sidebar-nav">
+        <a href="/recruiter-dashboard.html" class="nav-item active">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/recruiter-trustscore.html" class="nav-item">
+          <span class="nav-icon">🛡️</span>
+          <span>TrustScore</span>
+        </a>
+        <a href="/recruiter-jobs.html" class="nav-item">
+          <span class="nav-icon">💼</span>
+          <span>Job Postings</span>
+        </a>
+        <a href="/recruiter-applications.html" class="nav-item">
+          <span class="nav-icon">📋</span>
+          <span>Applications</span>
+        </a>
+        <a href="/recruiter-interviews.html" class="nav-item">
+          <span class="nav-icon">📅</span>
+          <span>Interviews</span>
+        </a>
+        <a href="/recruiter-analytics.html" class="nav-item">
+          <span class="nav-icon">📈</span>
+          <span>Analytics</span>
+        </a>
+        <a href="/company-profile.html" class="nav-item">
+          <span class="nav-icon">🏢</span>
+          <span>Company Profile</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-avatar company-avatar" id="user-avatar">?</div>
+          <div class="user-details">
+            <span class="user-name" id="user-name">Loading...</span>
+            <span class="company-name" id="company-name">Company</span>
+          </div>
+        </div>
+        <button onclick="handleLogout()" class="btn btn-ghost btn-sm">Logout</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="page-header">
+        <div>
+          <h1>Recruiter Dashboard</h1>
+          <p>Manage your hiring pipeline and build trust</p>
+        </div>
+        <a href="/job-create.html" class="btn btn-primary">
+          <span>+</span> Post New Job
+        </a>
+      </header>
+
+      <!-- TrustScore Card -->
+      <a href="/recruiter-trustscore.html" class="trustscore-dashboard-card" id="trustscore-preview">
+        <div class="trustscore-preview-circle">
+          <span class="trustscore-preview-value" id="trustscore-value">---</span>
+          <span class="trustscore-preview-label">TrustScore</span>
+        </div>
+        <div class="trustscore-preview-info">
+          <span class="trustscore-badge" id="trustscore-tier">Loading...</span>
+          <h3>Your Employer Credit Score</h3>
+          <p>Score ranges 0-1000. Build trust through verified hiring practices.</p>
+        </div>
+        <div class="trustscore-preview-arrow">→</div>
+      </a>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">💼</div>
+          <div class="stat-info">
+            <span class="stat-value" id="active-jobs">0</span>
+            <span class="stat-label">Active Jobs</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📥</div>
+          <div class="stat-info">
+            <span class="stat-value" id="total-applications">0</span>
+            <span class="stat-label">Total Applications</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🎯</div>
+          <div class="stat-info">
+            <span class="stat-value" id="new-applications">0</span>
+            <span class="stat-label">New Today</span>
+          </div>
+        </div>
+        <div class="stat-card highlight purple">
+          <div class="stat-icon">📈</div>
+          <div class="stat-info">
+            <span class="stat-value" id="offer-ratio">-</span>
+            <span class="stat-label">Offer Rate</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Two Column Layout -->
+      <div class="dashboard-grid">
+        <!-- Upcoming Interviews -->
+        <section class="section">
+          <div class="section-header">
+            <h2>Upcoming Interviews</h2>
+            <a href="/recruiter-interviews.html" class="btn btn-ghost btn-sm">View All</a>
+          </div>
+          <div class="interview-list" id="upcoming-interviews">
+            <div class="loading-state">
+              <div class="spinner"></div>
+              <p>Loading interviews...</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Recent Applications -->
+        <section class="section">
+          <div class="section-header">
+            <h2>Recent Applications</h2>
+            <a href="/recruiter-applications.html" class="btn btn-ghost btn-sm">View All</a>
+          </div>
+          <div class="application-list" id="recent-applications">
+            <div class="loading-state">
+              <div class="spinner"></div>
+              <p>Loading applications...</p>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Quick Actions -->
+      <section class="section">
+        <h2>Quick Actions</h2>
+        <div class="action-grid recruiter-actions">
+          <a href="/job-create.html" class="action-card">
+            <div class="action-icon">✨</div>
+            <h3>Create AI-Optimized Job</h3>
+            <p>Use AI to craft compelling job descriptions</p>
+          </a>
+          <a href="/recruiter-applications.html?status=applied" class="action-card">
+            <div class="action-icon">📋</div>
+            <h3>Review Applications</h3>
+            <p>See candidates with verified OmniScores</p>
+          </a>
+          <a href="/recruiter-trustscore.html" class="action-card">
+            <div class="action-icon">🛡️</div>
+            <h3>Improve TrustScore</h3>
+            <p>See recommendations to boost your score</p>
+          </a>
+          <a href="/company-profile.html" class="action-card">
+            <div class="action-icon">🏢</div>
+            <h3>Complete Profile</h3>
+            <p>Add details to verify your company</p>
+          </a>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    // Check recruiter auth
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await checkAuth();
+      if (!user) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      // Verify recruiter role
+      if (!user.company_id && user.role !== 'recruiter') {
+        window.location.href = '/dashboard.html';
+        return;
+      }
+
+      // Update user info
+      const name = user.name || user.email.split('@')[0];
+      document.getElementById('user-name').textContent = name;
+      document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+      document.getElementById('company-name').textContent = user.company_name || 'Company';
+
+      // Load dashboard data
+      loadRecruiterDashboard();
+    });
+
+    async function loadRecruiterDashboard() {
+      try {
+        const data = await apiCall('/recruiter/dashboard');
+        if (!data) return;
+
+        // Update TrustScore
+        if (data.trust_score) {
+          document.getElementById('trustscore-value').textContent = data.trust_score.total_score;
+          document.getElementById('trustscore-tier').textContent = data.trust_score.tier_label;
+          document.getElementById('trustscore-tier').style.background = data.trust_score.tier_color;
+        }
+
+        // Update stats
+        document.getElementById('active-jobs').textContent = data.job_stats?.active_jobs || 0;
+        document.getElementById('total-applications').textContent = data.application_stats?.total_applications || 0;
+        document.getElementById('new-applications').textContent = data.application_stats?.new_applications || 0;
+
+        const interviewed = parseInt(data.application_stats?.interviewed) || 0;
+        const offered = parseInt(data.application_stats?.offered) || 0;
+        const ratio = interviewed > 0 ? ((offered / interviewed) * 100).toFixed(0) + '%' : '-';
+        document.getElementById('offer-ratio').textContent = ratio;
+
+        // Render upcoming interviews
+        renderUpcomingInterviews(data.upcoming_interviews || []);
+
+        // Render recent applications
+        renderRecentApplications(data.recent_applications || []);
+
+      } catch (err) {
+        console.error('Failed to load dashboard:', err);
+      }
+    }
+
+    function renderUpcomingInterviews(interviews) {
+      const container = document.getElementById('upcoming-interviews');
+
+      if (interviews.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <p>No upcoming interviews</p>
+            <a href="/recruiter-applications.html" class="btn btn-ghost btn-sm">Review applications</a>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = interviews.map(i => `
+        <div class="interview-item">
+          <div class="interview-time">
+            <span class="date">${new Date(i.scheduled_at).toLocaleDateString()}</span>
+            <span class="time">${new Date(i.scheduled_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+          </div>
+          <div class="interview-info">
+            <span class="candidate-name">${i.candidate_name}</span>
+            <span class="job-title">${i.job_title}</span>
+          </div>
+          <span class="interview-type-badge ${i.interview_type}">${i.interview_type}</span>
+        </div>
+      `).join('');
+    }
+
+    function renderRecentApplications(applications) {
+      const container = document.getElementById('recent-applications');
+
+      if (applications.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <p>No applications yet</p>
+            <a href="/job-create.html" class="btn btn-ghost btn-sm">Post a job</a>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = applications.map(a => `
+        <div class="application-item">
+          <div class="candidate-info">
+            <span class="candidate-name">${a.candidate_name}</span>
+            <span class="job-title">${a.job_title}</span>
+          </div>
+          <div class="application-meta">
+            ${a.omniscore_at_apply ? `<span class="omniscore-badge">${a.omniscore_at_apply} OmniScore</span>` : ''}
+            <span class="status-badge ${a.status}">${a.status}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+  </script>
+
+  <style>
+    .recruiter-sidebar {
+      background: linear-gradient(180deg, #1a1a24 0%, #12121a 100%);
+    }
+
+    .sidebar-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+      color: white;
+      margin: -12px 0 20px 0;
+    }
+
+    .company-avatar {
+      background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%) !important;
+    }
+
+    .company-name {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .trustscore-dashboard-card {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      background: linear-gradient(135deg, #1a1a2e 0%, #2d1f4e 100%);
+      border: 1px solid #8b5cf6;
+      border-radius: var(--radius-lg);
+      padding: 24px 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 0 40px rgba(139, 92, 246, 0.2);
+      transition: all 0.2s;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .trustscore-dashboard-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 60px rgba(139, 92, 246, 0.3);
+    }
+
+    .trustscore-preview-circle {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: conic-gradient(from 0deg, #8b5cf6 0%, #d946ef 50%, #8b5cf6 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .trustscore-preview-circle::before {
+      content: '';
+      position: absolute;
+      width: 65px;
+      height: 65px;
+      border-radius: 50%;
+      background: #1a1a2e;
+    }
+
+    .trustscore-preview-value {
+      position: relative;
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .trustscore-preview-label {
+      position: relative;
+      font-size: 8px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .trustscore-preview-info {
+      flex: 1;
+    }
+
+    .trustscore-preview-info h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      margin: 8px 0 4px;
+    }
+
+    .trustscore-preview-info p {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .trustscore-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+      background: #8b5cf6;
+      color: white;
+    }
+
+    .trustscore-preview-arrow {
+      font-size: 24px;
+      color: #8b5cf6;
+    }
+
+    .stat-card.highlight.purple {
+      border-color: #8b5cf6;
+      box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .recruiter-actions .action-card:hover {
+      border-color: #8b5cf6;
+      box-shadow: 0 0 30px rgba(139, 92, 246, 0.2);
+    }
+
+    .interview-item, .application-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+      margin-bottom: 12px;
+    }
+
+    .interview-time {
+      display: flex;
+      flex-direction: column;
+      text-align: center;
+      padding-right: 16px;
+      border-right: 1px solid var(--border-color);
+      margin-right: 16px;
+    }
+
+    .interview-time .date {
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .interview-time .time {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .interview-info, .candidate-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .candidate-name {
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    .job-title {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .interview-type-badge {
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+
+    .interview-type-badge.video {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+    }
+
+    .interview-type-badge.phone {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+    }
+
+    .application-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .omniscore-badge {
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+    }
+
+    .status-badge {
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+
+    .status-badge.applied {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+    }
+
+    .status-badge.reviewing {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+
+    .status-badge.interviewed {
+      background: rgba(139, 92, 246, 0.2);
+      color: #8b5cf6;
+    }
+
+    .status-badge.offered {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 32px;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 1024px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</body>
+</html>

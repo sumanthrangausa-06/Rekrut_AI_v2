@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Postings - Rekrut AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar recruiter-sidebar">
+      <a href="/" class="logo">
+        <span class="logo-icon">◎</span>
+        <span>Rekrut AI</span>
+      </a>
+      <span class="sidebar-badge">Employer</span>
+
+      <nav class="sidebar-nav">
+        <a href="/recruiter-dashboard.html" class="nav-item">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/recruiter-trustscore.html" class="nav-item">
+          <span class="nav-icon">🛡️</span>
+          <span>TrustScore</span>
+        </a>
+        <a href="/recruiter-jobs.html" class="nav-item active">
+          <span class="nav-icon">💼</span>
+          <span>Job Postings</span>
+        </a>
+        <a href="/recruiter-applications.html" class="nav-item">
+          <span class="nav-icon">📋</span>
+          <span>Applications</span>
+        </a>
+        <a href="/recruiter-interviews.html" class="nav-item">
+          <span class="nav-icon">📅</span>
+          <span>Interviews</span>
+        </a>
+        <a href="/recruiter-analytics.html" class="nav-item">
+          <span class="nav-icon">📈</span>
+          <span>Analytics</span>
+        </a>
+        <a href="/company-profile.html" class="nav-item">
+          <span class="nav-icon">🏢</span>
+          <span>Company Profile</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-avatar company-avatar" id="user-avatar">?</div>
+          <div class="user-details">
+            <span class="user-name" id="user-name">Loading...</span>
+            <span class="company-name" id="company-name">Company</span>
+          </div>
+        </div>
+        <button onclick="handleLogout()" class="btn btn-ghost btn-sm">Logout</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <div>
+          <h1>Job Postings</h1>
+          <p>Manage your active job listings</p>
+        </div>
+        <a href="/job-create.html" class="btn btn-primary">
+          <span>+</span> Post New Job
+        </a>
+      </header>
+
+      <!-- Filter Tabs -->
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-status="all">All</button>
+        <button class="filter-tab" data-status="active">Active</button>
+        <button class="filter-tab" data-status="paused">Paused</button>
+        <button class="filter-tab" data-status="closed">Closed</button>
+      </div>
+
+      <!-- Jobs List -->
+      <div class="jobs-list" id="jobs-list">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading jobs...</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    let currentFilter = 'all';
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await checkAuth();
+      if (!user || !user.company_id) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      const name = user.name || user.email.split('@')[0];
+      document.getElementById('user-name').textContent = name;
+      document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+      document.getElementById('company-name').textContent = user.company_name || 'Company';
+
+      loadJobs();
+
+      // Filter tabs
+      document.querySelectorAll('.filter-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          currentFilter = tab.dataset.status;
+          loadJobs();
+        });
+      });
+    });
+
+    async function loadJobs() {
+      try {
+        const url = currentFilter === 'all' ? '/recruiter/jobs' : `/recruiter/jobs?status=${currentFilter}`;
+        const data = await apiCall(url);
+        if (!data) return;
+
+        renderJobs(data.jobs || []);
+      } catch (err) {
+        console.error('Failed to load jobs:', err);
+      }
+    }
+
+    function renderJobs(jobs) {
+      const container = document.getElementById('jobs-list');
+
+      if (jobs.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">💼</div>
+            <h3>No jobs found</h3>
+            <p>Create your first job posting to start receiving applications.</p>
+            <a href="/job-create.html" class="btn btn-primary">Post New Job</a>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = jobs.map(job => `
+        <div class="job-card">
+          <div class="job-header">
+            <div class="job-title-row">
+              <h3>${job.title}</h3>
+              <span class="status-badge ${job.status}">${job.status}</span>
+            </div>
+            <div class="job-meta">
+              ${job.location ? `<span>📍 ${job.location}</span>` : ''}
+              ${job.salary_range ? `<span>💰 ${job.salary_range}</span>` : ''}
+              <span>📅 ${new Date(job.created_at).toLocaleDateString()}</span>
+            </div>
+          </div>
+
+          <div class="job-stats">
+            <div class="job-stat">
+              <span class="stat-value">${job.views || 0}</span>
+              <span class="stat-label">Views</span>
+            </div>
+            <div class="job-stat">
+              <span class="stat-value">${job.application_count || 0}</span>
+              <span class="stat-label">Applications</span>
+            </div>
+            <div class="job-stat">
+              <span class="stat-value">${job.interviews || 0}</span>
+              <span class="stat-label">Interviews</span>
+            </div>
+          </div>
+
+          <div class="job-actions">
+            <a href="/recruiter-applications.html?job_id=${job.id}" class="btn btn-ghost btn-sm">View Applications</a>
+            <button class="btn btn-ghost btn-sm" onclick="toggleJobStatus(${job.id}, '${job.status}')">
+              ${job.status === 'active' ? 'Pause' : 'Activate'}
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="editJob(${job.id})">Edit</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function toggleJobStatus(jobId, currentStatus) {
+      const newStatus = currentStatus === 'active' ? 'paused' : 'active';
+      try {
+        await apiCall(`/recruiter/jobs/${jobId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: newStatus })
+        });
+        loadJobs();
+      } catch (err) {
+        alert('Failed to update job status');
+      }
+    }
+
+    function editJob(jobId) {
+      // TODO: Implement edit modal or page
+      alert('Edit functionality coming soon');
+    }
+  </script>
+
+  <style>
+    .recruiter-sidebar { background: linear-gradient(180deg, #1a1a24 0%, #12121a 100%); }
+    .sidebar-badge { display: inline-block; padding: 4px 10px; background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%); border-radius: var(--radius-full); font-size: 11px; font-weight: 600; color: white; margin: -12px 0 20px 0; }
+    .company-avatar { background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%) !important; }
+    .company-name { font-size: 11px; color: var(--text-muted); }
+
+    .filter-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      padding: 4px;
+      background: var(--bg-card);
+      border-radius: var(--radius-full);
+      width: fit-content;
+    }
+
+    .filter-tab {
+      padding: 8px 20px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-tab:hover {
+      color: var(--text-primary);
+    }
+
+    .filter-tab.active {
+      background: #8b5cf6;
+      color: white;
+    }
+
+    .job-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 16px;
+      transition: all 0.2s;
+    }
+
+    .job-card:hover {
+      border-color: #8b5cf6;
+    }
+
+    .job-header {
+      margin-bottom: 20px;
+    }
+
+    .job-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .job-title-row h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+
+    .status-badge.active { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+    .status-badge.paused { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .status-badge.closed { background: rgba(107, 114, 128, 0.2); color: #6b7280; }
+
+    .job-meta {
+      display: flex;
+      gap: 20px;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .job-stats {
+      display: flex;
+      gap: 32px;
+      padding: 16px 0;
+      border-top: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 16px;
+    }
+
+    .job-stat {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .job-stat .stat-value {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 700;
+      color: #8b5cf6;
+    }
+
+    .job-stat .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .job-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      border: 1px dashed var(--border-color);
+    }
+
+    .empty-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    .empty-state h3 {
+      font-family: var(--font-display);
+      margin-bottom: 8px;
+    }
+
+    .empty-state p {
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+  </style>
+</body>
+</html>

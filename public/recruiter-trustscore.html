@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrustScore Dashboard - Rekrut AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar recruiter-sidebar">
+      <a href="/" class="logo">
+        <span class="logo-icon">◎</span>
+        <span>Rekrut AI</span>
+      </a>
+      <span class="sidebar-badge">Employer</span>
+
+      <nav class="sidebar-nav">
+        <a href="/recruiter-dashboard.html" class="nav-item">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/recruiter-trustscore.html" class="nav-item active">
+          <span class="nav-icon">🛡️</span>
+          <span>TrustScore</span>
+        </a>
+        <a href="/recruiter-jobs.html" class="nav-item">
+          <span class="nav-icon">💼</span>
+          <span>Job Postings</span>
+        </a>
+        <a href="/recruiter-applications.html" class="nav-item">
+          <span class="nav-icon">📋</span>
+          <span>Applications</span>
+        </a>
+        <a href="/recruiter-interviews.html" class="nav-item">
+          <span class="nav-icon">📅</span>
+          <span>Interviews</span>
+        </a>
+        <a href="/recruiter-analytics.html" class="nav-item">
+          <span class="nav-icon">📈</span>
+          <span>Analytics</span>
+        </a>
+        <a href="/company-profile.html" class="nav-item">
+          <span class="nav-icon">🏢</span>
+          <span>Company Profile</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-avatar company-avatar" id="user-avatar">?</div>
+          <div class="user-details">
+            <span class="user-name" id="user-name">Loading...</span>
+            <span class="company-name" id="company-name">Company</span>
+          </div>
+        </div>
+        <button onclick="handleLogout()" class="btn btn-ghost btn-sm">Logout</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="page-header">
+        <div>
+          <h1>TrustScore<span class="trademark">™</span></h1>
+          <p>Your employer credibility score - visible to all candidates</p>
+        </div>
+      </header>
+
+      <!-- Main TrustScore Card -->
+      <div class="trustscore-hero-card">
+        <div class="trustscore-main">
+          <div class="trustscore-circle large">
+            <div class="trustscore-ring">
+              <svg viewBox="0 0 200 200">
+                <circle cx="100" cy="100" r="90" fill="none" stroke="#2d2d3a" stroke-width="12"/>
+                <circle id="score-ring" cx="100" cy="100" r="90" fill="none" stroke="url(#trustGradient)" stroke-width="12" stroke-linecap="round" stroke-dasharray="565.5" stroke-dashoffset="565.5" transform="rotate(-90 100 100)"/>
+                <defs>
+                  <linearGradient id="trustGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#8b5cf6"/>
+                    <stop offset="100%" style="stop-color:#d946ef"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            <div class="trustscore-inner">
+              <span class="trustscore-value" id="main-score">---</span>
+              <span class="trustscore-label">of 1000</span>
+            </div>
+          </div>
+          <div class="trustscore-meta">
+            <span class="tier-badge" id="tier-badge">Loading...</span>
+            <p class="tier-description" id="tier-description">Building your employer reputation</p>
+          </div>
+        </div>
+
+        <div class="trustscore-breakdown">
+          <h3>Score Breakdown</h3>
+          <div class="breakdown-list" id="breakdown-list">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Recommendations -->
+      <section class="section">
+        <h2>Improve Your TrustScore</h2>
+        <div class="recommendations-grid" id="recommendations">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Loading recommendations...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- What is TrustScore -->
+      <section class="section info-section">
+        <h2>What is TrustScore?</h2>
+        <div class="info-grid">
+          <div class="info-card">
+            <div class="info-icon">🛡️</div>
+            <h3>Employer Credibility</h3>
+            <p>TrustScore (0-1000) measures your company's credibility as an employer. Candidates see this when viewing your jobs.</p>
+          </div>
+          <div class="info-card">
+            <div class="info-icon">✓</div>
+            <h3>Verification Status</h3>
+            <p>Verified companies with work email domains automatically get a verification badge and score boost.</p>
+          </div>
+          <div class="info-card">
+            <div class="info-icon">📝</div>
+            <h3>Job Authenticity</h3>
+            <p>AI analyzes your job postings for completeness, realistic requirements, and clear salary information.</p>
+          </div>
+          <div class="info-card">
+            <div class="info-icon">📊</div>
+            <h3>Hiring Ratio</h3>
+            <p>Your interview-to-offer ratio shows candidates you have fair, efficient hiring practices.</p>
+          </div>
+          <div class="info-card">
+            <div class="info-icon">⭐</div>
+            <h3>Candidate Feedback</h3>
+            <p>After interviews, candidates can rate their experience. Positive feedback boosts your score.</p>
+          </div>
+          <div class="info-card">
+            <div class="info-icon">🎯</div>
+            <h3>Platform Behavior</h3>
+            <p>Response times, profile completeness, and regular activity all contribute to your score.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Score History -->
+      <section class="section">
+        <h2>Score History</h2>
+        <div class="history-list" id="history-list">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Loading history...</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await checkAuth();
+      if (!user || !user.company_id) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      const name = user.name || user.email.split('@')[0];
+      document.getElementById('user-name').textContent = name;
+      document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+      document.getElementById('company-name').textContent = user.company_name || 'Company';
+
+      loadTrustScore();
+    });
+
+    async function loadTrustScore() {
+      try {
+        const data = await apiCall('/trustscore/breakdown');
+        if (!data) return;
+
+        const { current, breakdown, recommendations, history } = data;
+
+        // Update main score
+        document.getElementById('main-score').textContent = current.total_score;
+        document.getElementById('tier-badge').textContent = current.tier_label;
+        document.getElementById('tier-badge').style.background = current.tier_color;
+
+        // Animate score ring
+        const ring = document.getElementById('score-ring');
+        const percentage = current.total_score / 1000;
+        const offset = 565.5 * (1 - percentage);
+        setTimeout(() => {
+          ring.style.strokeDashoffset = offset;
+        }, 100);
+
+        // Tier description
+        const descriptions = {
+          exceptional: 'Top-tier employer! Candidates trust your company highly.',
+          excellent: 'Excellent reputation. Candidates view you favorably.',
+          trusted: 'Trusted employer with good hiring practices.',
+          good: 'Good standing. Room for improvement.',
+          building: 'Building trust. Follow recommendations below.',
+          new: 'New employer. Complete actions to build credibility.'
+        };
+        document.getElementById('tier-description').textContent = descriptions[current.tier] || descriptions.new;
+
+        // Render breakdown
+        renderBreakdown(breakdown);
+
+        // Render recommendations
+        renderRecommendations(recommendations);
+
+        // Render history
+        renderHistory(history);
+
+      } catch (err) {
+        console.error('Failed to load TrustScore:', err);
+      }
+    }
+
+    function renderBreakdown(breakdown) {
+      const container = document.getElementById('breakdown-list');
+      container.innerHTML = breakdown.map(item => {
+        const percentage = (item.score / item.max) * 100;
+        return `
+          <div class="breakdown-item">
+            <div class="breakdown-header">
+              <span class="breakdown-label">${item.label}</span>
+              <span class="breakdown-score">${item.score}/${item.max}</span>
+            </div>
+            <div class="breakdown-bar">
+              <div class="breakdown-fill" style="width: ${percentage}%"></div>
+            </div>
+            <span class="breakdown-desc">${item.description}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderRecommendations(recommendations) {
+      const container = document.getElementById('recommendations');
+
+      if (!recommendations || recommendations.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <p>Great job! No immediate recommendations.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = recommendations.map(rec => `
+        <div class="recommendation-card priority-${rec.priority}">
+          <div class="rec-priority">${rec.priority}</div>
+          <h4>${rec.title}</h4>
+          <p>${rec.description}</p>
+          <div class="rec-gain">+${rec.potential_gain} potential points</div>
+        </div>
+      `).join('');
+    }
+
+    function renderHistory(history) {
+      const container = document.getElementById('history-list');
+
+      if (!history || history.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <p>No score changes yet.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = history.map(h => `
+        <div class="history-item">
+          <div class="history-change ${h.change_amount >= 0 ? 'positive' : 'negative'}">
+            ${h.change_amount >= 0 ? '+' : ''}${h.change_amount}
+          </div>
+          <div class="history-info">
+            <span class="history-reason">${h.change_reason}</span>
+            <span class="history-date">${new Date(h.created_at).toLocaleDateString()}</span>
+          </div>
+          <div class="history-scores">
+            <span>${h.previous_score}</span>
+            <span class="arrow">→</span>
+            <span>${h.new_score}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+  </script>
+
+  <style>
+    .trademark {
+      font-size: 14px;
+      vertical-align: super;
+      color: var(--text-muted);
+    }
+
+    .recruiter-sidebar {
+      background: linear-gradient(180deg, #1a1a24 0%, #12121a 100%);
+    }
+
+    .sidebar-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+      color: white;
+      margin: -12px 0 20px 0;
+    }
+
+    .company-avatar {
+      background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%) !important;
+    }
+
+    .company-name {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .trustscore-hero-card {
+      background: linear-gradient(135deg, #1a1a2e 0%, #2d1f4e 100%);
+      border: 1px solid #8b5cf6;
+      border-radius: var(--radius-lg);
+      padding: 40px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      margin-bottom: 32px;
+      box-shadow: 0 0 60px rgba(139, 92, 246, 0.2);
+    }
+
+    .trustscore-main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .trustscore-circle.large {
+      width: 200px;
+      height: 200px;
+      position: relative;
+      margin-bottom: 24px;
+    }
+
+    .trustscore-ring {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+    }
+
+    .trustscore-ring svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    #score-ring {
+      transition: stroke-dashoffset 1s ease-out;
+    }
+
+    .trustscore-inner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .trustscore-value {
+      font-family: var(--font-display);
+      font-size: 56px;
+      font-weight: 700;
+    }
+
+    .trustscore-label {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .tier-badge {
+      display: inline-block;
+      padding: 8px 20px;
+      border-radius: var(--radius-full);
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+      margin-bottom: 12px;
+    }
+
+    .tier-description {
+      color: var(--text-secondary);
+      font-size: 15px;
+    }
+
+    .trustscore-breakdown h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      margin-bottom: 20px;
+    }
+
+    .breakdown-item {
+      margin-bottom: 20px;
+    }
+
+    .breakdown-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .breakdown-label {
+      font-weight: 500;
+    }
+
+    .breakdown-score {
+      color: #8b5cf6;
+      font-weight: 600;
+    }
+
+    .breakdown-bar {
+      height: 8px;
+      background: #2d2d3a;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 4px;
+    }
+
+    .breakdown-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #8b5cf6 0%, #d946ef 100%);
+      border-radius: 4px;
+      transition: width 0.5s ease-out;
+    }
+
+    .breakdown-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .recommendations-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+    }
+
+    .recommendation-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      position: relative;
+    }
+
+    .recommendation-card.priority-high {
+      border-color: #ef4444;
+    }
+
+    .recommendation-card.priority-medium {
+      border-color: #f59e0b;
+    }
+
+    .recommendation-card.priority-low {
+      border-color: #8b5cf6;
+    }
+
+    .rec-priority {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .priority-high .rec-priority {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .priority-medium .rec-priority {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+
+    .priority-low .rec-priority {
+      background: rgba(139, 92, 246, 0.2);
+      color: #8b5cf6;
+    }
+
+    .recommendation-card h4 {
+      font-family: var(--font-display);
+      font-size: 16px;
+      margin-bottom: 8px;
+      padding-right: 60px;
+    }
+
+    .recommendation-card p {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+
+    .rec-gain {
+      font-size: 13px;
+      color: #10b981;
+      font-weight: 600;
+    }
+
+    .info-section {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      border: 1px solid var(--border-color);
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .info-card {
+      padding: 20px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+    }
+
+    .info-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+
+    .info-card h3 {
+      font-family: var(--font-display);
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+
+    .info-card p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      margin-bottom: 12px;
+    }
+
+    .history-change {
+      width: 60px;
+      text-align: center;
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .history-change.positive {
+      color: #10b981;
+    }
+
+    .history-change.negative {
+      color: #ef4444;
+    }
+
+    .history-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .history-reason {
+      font-weight: 500;
+    }
+
+    .history-date {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .history-scores {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-display);
+      color: var(--text-muted);
+    }
+
+    .history-scores .arrow {
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 1024px) {
+      .trustscore-hero-card {
+        grid-template-columns: 1fr;
+      }
+
+      .info-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</body>
+</html>

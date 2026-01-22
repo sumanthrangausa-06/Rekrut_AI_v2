@@ -1,0 +1,52 @@
+[
+  {
+    "content": "Create database migration for TrustScore and company tables",
+    "status": "completed",
+    "activeForm": "Creating database migration for TrustScore"
+  },
+  {
+    "content": "Build TrustScore service with scoring logic",
+    "status": "completed",
+    "activeForm": "Building TrustScore calculation service"
+  },
+  {
+    "content": "Create company/recruiter authentication routes",
+    "status": "completed",
+    "activeForm": "Creating company authentication routes"
+  },
+  {
+    "content": "Build TrustScore API routes",
+    "status": "completed",
+    "activeForm": "Building TrustScore API routes"
+  },
+  {
+    "content": "Create job optimizer AI service",
+    "status": "completed",
+    "activeForm": "Creating AI job optimizer service"
+  },
+  {
+    "content": "Build recruiter dashboard and company profile pages",
+    "status": "completed",
+    "activeForm": "Building recruiter dashboard pages"
+  },
+  {
+    "content": "Add job creation with AI optimization",
+    "status": "completed",
+    "activeForm": "Adding job creation with AI optimization"
+  },
+  {
+    "content": "Build hiring analytics dashboard",
+    "status": "completed",
+    "activeForm": "Building hiring analytics dashboard"
+  },
+  {
+    "content": "Create interview scheduler",
+    "status": "completed",
+    "activeForm": "Creating interview scheduler"
+  },
+  {
+    "content": "Test and deploy",
+    "status": "in_progress",
+    "activeForm": "Testing and deploying"
+  }
+]

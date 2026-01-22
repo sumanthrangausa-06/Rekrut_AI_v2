@@ -24,5 +24,26 @@
   "firstStartTime": "2026-01-22T04:11:22.641Z",
   "sonnet45MigrationComplete": true,
   "opus45MigrationComplete": true,
-  "thinkingMigrationComplete": true
+  "thinkingMigrationComplete": true,
+  "projects": {
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-21882/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "server.js",
+        "main.js",
+        "interviews.js",
+        "dashboard.html",
+        "register.html"
+      ],
+      "exampleFilesGeneratedAt": 1769055963899
+    }
+  }
 }

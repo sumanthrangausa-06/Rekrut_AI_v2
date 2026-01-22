@@ -1,4 +1,7 @@
 {
+  "cachedStatsigGates": {
+    "tengu_prompt_suggestion": true
+  },
   "cachedGrowthBookFeatures": {
     "tengu_1p_event_batch_config": {
       "scheduledDelayMillis": 5000,
