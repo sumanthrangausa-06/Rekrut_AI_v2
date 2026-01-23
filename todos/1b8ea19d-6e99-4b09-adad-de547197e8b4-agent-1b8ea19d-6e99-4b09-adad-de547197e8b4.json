@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Add OAuth support (Google & LinkedIn)",
+    "status": "completed",
+    "activeForm": "Adding OAuth support"
+  },
+  {
+    "content": "Implement refresh tokens with rotation",
+    "status": "completed",
+    "activeForm": "Implementing refresh tokens"
+  },
+  {
+    "content": "Create skills graph visualization component",
+    "status": "completed",
+    "activeForm": "Creating skills graph visualization"
+  },
+  {
+    "content": "Enhance OmniScore dashboard frontend",
+    "status": "completed",
+    "activeForm": "Enhancing OmniScore dashboard"
+  },
+  {
+    "content": "Test and deploy Phase 1 MVP",
+    "status": "in_progress",
+    "activeForm": "Testing and deploying"
+  }
+]

@@ -1,0 +1,152 @@
+     1→const express = require('express');
+     2→const bcrypt = require('bcryptjs');
+     3→const pool = require('../lib/db');
+     4→const { generateToken, authMiddleware } = require('../lib/auth');
+     5→
+     6→const router = express.Router();
+     7→
+     8→// Register
+     9→router.post('/register', async (req, res) => {
+    10→  try {
+    11→    const { email, password, name, role = 'candidate', company_name } = req.body;
+    12→
+    13→    if (!email || !password) {
+    14→      return res.status(400).json({ error: 'Email and password are required' });
+    15→    }
+    16→
+    17→    // Check if user exists
+    18→    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    19→    if (existing.rows.length > 0) {
+    20→      return res.status(400).json({ error: 'Email already registered' });
+    21→    }
+    22→
+    23→    // Hash password
+    24→    const password_hash = await bcrypt.hash(password, 10);
+    25→
+    26→    // Create user
+    27→    const result = await pool.query(
+    28→      `INSERT INTO users (email, password_hash, name, role, company_name)
+    29→       VALUES ($1, $2, $3, $4, $5)
+    30→       RETURNING id, email, name, role, company_name, created_at`,
+    31→      [email, password_hash, name, role, company_name]
+    32→    );
+    33→
+    34→    const user = result.rows[0];
+    35→    const token = generateToken(user);
+    36→
+    37→    res.json({
+    38→      success: true,
+    39→      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    40→      token
+    41→    });
+    42→  } catch (err) {
+    43→    console.error('Registration error:', err);
+    44→
+    45→    // Provide more specific error messages
+    46→    if (err.code === '23505') {
+    47→      return res.status(400).json({ error: 'This email is already registered' });
+    48→    }
+    49→    if (err.code === '42703') {
+    50→      return res.status(500).json({ error: 'Database schema error. Please try again in a few minutes.' });
+    51→    }
+    52→
+    53→    res.status(500).json({ error: 'Registration failed. Please try again.' });
+    54→  }
+    55→});
+    56→
+    57→// Login
+    58→router.post('/login', async (req, res) => {
+    59→  try {
+    60→    const { email, password } = req.body;
+    61→
+    62→    if (!email || !password) {
+    63→      return res.status(400).json({ error: 'Email and password are required' });
+    64→    }
+    65→
+    66→    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    67→    if (result.rows.length === 0) {
+    68→      return res.status(401).json({ error: 'Invalid credentials' });
+    69→    }
+    70→
+    71→    const user = result.rows[0];
+    72→    const validPassword = await bcrypt.compare(password, user.password_hash);
+    73→    if (!validPassword) {
+    74→      return res.status(401).json({ error: 'Invalid credentials' });
+    75→    }
+    76→
+    77→    const token = generateToken(user);
+    78→    req.session.token = token;
+    79→
+    80→    res.json({
+    81→      success: true,
+    82→      user: {
+    83→        id: user.id,
+    84→        email: user.email,
+    85→        name: user.name,
+    86→        role: user.role,
+    87→        is_paid: user.is_paid
+    88→      },
+    89→      token
+    90→    });
+    91→  } catch (err) {
+    92→    console.error('Login error:', err);
+    93→    res.status(500).json({ error: 'Login failed' });
+    94→  }
+    95→});
+    96→
+    97→// Get current user
+    98→router.get('/me', authMiddleware, (req, res) => {
+    99→  res.json({
+   100→    user: {
+   101→      id: req.user.id,
+   102→      email: req.user.email,
+   103→      name: req.user.name,
+   104→      role: req.user.role,
+   105→      company_name: req.user.company_name,
+   106→      is_paid: req.user.is_paid,
+   107→      created_at: req.user.created_at
+   108→    }
+   109→  });
+   110→});
+   111→
+   112→// Logout
+   113→router.post('/logout', (req, res) => {
+   114→  req.session.destroy();
+   115→  res.json({ success: true });
+   116→});
+   117→
+   118→// Payment verification
+   119→router.get('/verify-payment', authMiddleware, async (req, res) => {
+   120→  try {
+   121→    const sessionId = req.query.session_id;
+   122→    if (!sessionId) {
+   123→      return res.status(400).json({ error: 'Session ID required' });
+   124→    }
+   125→
+   126→    // Verify with Polsia
+   127→    const response = await fetch(
+   128→      `${process.env.POLSIA_API_URL || 'https://polsia.com/api/proxy/ai'}/api/company-payments/verify?session_id=${sessionId}`,
+   129→      { headers: { 'Authorization': `Bearer ${process.env.POLSIA_API_KEY}` } }
+   130→    );
+   131→    const { verified, payment } = await response.json();
+   132→
+   133→    if (verified) {
+   134→      await pool.query(
+   135→        'UPDATE users SET is_paid = true, stripe_subscription_id = $1 WHERE id = $2',
+   136→        [payment.subscription_id || sessionId, req.user.id]
+   137→      );
+   138→      res.json({ success: true, verified: true });
+   139→    } else {
+   140→      res.json({ success: false, verified: false });
+   141→    }
+   142→  } catch (err) {
+   143→    console.error('Payment verification error:', err);
+   144→    res.status(500).json({ error: 'Verification failed' });
+   145→  }
+   146→});
+   147→
+   148→module.exports = router;
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

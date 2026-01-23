@@ -17,7 +17,9 @@
     "tengu_tool_pear": false,
     "tengu_thinkback": false,
     "tengu_streaming_tool_execution2": false,
-    "tengu_tool_search_unsupported_models": null,
+    "tengu_tool_search_unsupported_models": [
+      "haiku"
+    ],
     "tengu_ant_attribution_header_new": true
   },
   "userID": "341a05986f127ac5f4e73dd335ae6d8f841ac894ccea8debe1d88d7cbe5e7244",
@@ -101,6 +103,25 @@
         "main.js"
       ],
       "exampleFilesGeneratedAt": 1769097929097
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-24818/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "server.js",
+        "dashboard.html",
+        "candidate.js",
+        "polsia-ai.js",
+        "auth.js"
+      ],
+      "exampleFilesGeneratedAt": 1769184273861
     }
   }
 }

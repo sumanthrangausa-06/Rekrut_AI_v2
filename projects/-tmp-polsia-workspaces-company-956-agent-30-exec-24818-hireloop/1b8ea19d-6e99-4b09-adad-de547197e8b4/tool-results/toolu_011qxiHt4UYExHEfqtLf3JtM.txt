@@ -1,0 +1,28 @@
+     1→{
+     2→  "name": "rekrutai",
+     3→  "version": "2.0.0",
+     4→  "description": "Rekrut AI - The candidate credit score platform with OmniScore",
+     5→  "main": "server.js",
+     6→  "scripts": {
+     7→    "start": "node server.js",
+     8→    "build": "node migrate.js"
+     9→  },
+    10→  "dependencies": {
+    11→    "@anthropic-ai/sdk": "^0.30.0",
+    12→    "bcryptjs": "^2.4.3",
+    13→    "cookie-parser": "^1.4.6",
+    14→    "cors": "^2.8.5",
+    15→    "express": "^4.18.2",
+    16→    "express-session": "^1.17.3",
+    17→    "form-data": "^4.0.0",
+    18→    "jsonwebtoken": "^9.0.2",
+    19→    "multer": "^1.4.5-lts.1",
+    20→    "node-fetch": "^2.7.0",
+    21→    "pg": "^8.11.3",
+    22→    "uuid": "^9.0.0"
+    23→  }
+    24→}
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

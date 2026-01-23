@@ -1,0 +1,137 @@
+     1→// OmniScore API Routes
+     2→const express = require('express');
+     3→const { authMiddleware } = require('../lib/auth');
+     4→const omniscoreService = require('../services/omniscore');
+     5→
+     6→const router = express.Router();
+     7→
+     8→// Get current OmniScore
+     9→router.get('/', authMiddleware, async (req, res) => {
+    10→  try {
+    11→    const score = await omniscoreService.getOrCreateScore(req.user.id);
+    12→    const currentScores = await omniscoreService.calculateScore(req.user.id);
+    13→
+    14→    res.json({
+    15→      success: true,
+    16→      omniscore: currentScores
+    17→    });
+    18→  } catch (err) {
+    19→    console.error('Get OmniScore error:', err);
+    20→    res.status(500).json({ error: 'Failed to get OmniScore' });
+    21→  }
+    22→});
+    23→
+    24→// Get detailed score breakdown
+    25→router.get('/breakdown', authMiddleware, async (req, res) => {
+    26→  try {
+    27→    const breakdown = await omniscoreService.getScoreBreakdown(req.user.id);
+    28→
+    29→    res.json({
+    30→      success: true,
+    31→      ...breakdown
+    32→    });
+    33→  } catch (err) {
+    34→    console.error('Get score breakdown error:', err);
+    35→    res.status(500).json({ error: 'Failed to get score breakdown' });
+    36→  }
+    37→});
+    38→
+    39→// Get role-specific scores
+    40→router.get('/roles', authMiddleware, async (req, res) => {
+    41→  try {
+    42→    const roleScores = await omniscoreService.getRoleScores(req.user.id);
+    43→
+    44→    res.json({
+    45→      success: true,
+    46→      role_scores: roleScores
+    47→    });
+    48→  } catch (err) {
+    49→    console.error('Get role scores error:', err);
+    50→    res.status(500).json({ error: 'Failed to get role scores' });
+    51→  }
+    52→});
+    53→
+    54→// Get score history
+    55→router.get('/history', authMiddleware, async (req, res) => {
+    56→  try {
+    57→    const pool = require('../lib/db');
+    58→    const { limit = 20 } = req.query;
+    59→
+    60→    const result = await pool.query(`
+    61→      SELECT previous_score, new_score, change_amount, change_reason, component_type, created_at
+    62→      FROM score_history
+    63→      WHERE user_id = $1
+    64→      ORDER BY created_at DESC
+    65→      LIMIT $2
+    66→    `, [req.user.id, limit]);
+    67→
+    68→    res.json({
+    69→      success: true,
+    70→      history: result.rows
+    71→    });
+    72→  } catch (err) {
+    73→    console.error('Get score history error:', err);
+    74→    res.status(500).json({ error: 'Failed to get score history' });
+    75→  }
+    76→});
+    77→
+    78→// Get recommendations to improve score
+    79→router.get('/recommendations', authMiddleware, async (req, res) => {
+    80→  try {
+    81→    const currentScores = await omniscoreService.calculateScore(req.user.id);
+    82→    const recommendations = omniscoreService.generateRecommendations(currentScores);
+    83→
+    84→    res.json({
+    85→      success: true,
+    86→      current_score: currentScores.total_score,
+    87→      recommendations
+    88→    });
+    89→  } catch (err) {
+    90→    console.error('Get recommendations error:', err);
+    91→    res.status(500).json({ error: 'Failed to get recommendations' });
+    92→  }
+    93→});
+    94→
+    95→// Record daily login (behavior component)
+    96→router.post('/checkin', authMiddleware, async (req, res) => {
+    97→  try {
+    98→    const pool = require('../lib/db');
+    99→
+   100→    // Check if already checked in today
+   101→    const today = await pool.query(`
+   102→      SELECT id FROM score_components
+   103→      WHERE user_id = $1
+   104→        AND component_type = 'behavior'
+   105→        AND source_type = 'daily_login'
+   106→        AND DATE(created_at) = CURRENT_DATE
+   107→    `, [req.user.id]);
+   108→
+   109→    if (today.rows.length > 0) {
+   110→      return res.json({ success: true, already_checked_in: true });
+   111→    }
+   112→
+   113→    // Add daily login points
+   114→    const newScore = await omniscoreService.addBehaviorComponent(
+   115→      req.user.id,
+   116→      'daily_login',
+   117→      5, // 5 points per daily login
+   118→      10
+   119→    );
+   120→
+   121→    res.json({
+   122→      success: true,
+   123→      new_score: newScore.total_score,
+   124→      points_earned: 5
+   125→    });
+   126→  } catch (err) {
+   127→    console.error('Checkin error:', err);
+   128→    res.status(500).json({ error: 'Failed to record check-in' });
+   129→  }
+   130→});
+   131→
+   132→module.exports = router;
+   133→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

@@ -1,0 +1,31 @@
+/tmp/polsia-workspaces/company-956/agent-30/exec-24818/hireloop
+total 172
+drwxr-sr-x  17 render render  4096 Jan 23 16:04 .
+drwxr-sr-x   3 render render  4096 Jan 23 16:04 ..
+drwxr-sr-x   3 render render  4096 Jan 23 16:04 .claude
+-rw-r--r--   1 render render  3979 Jan 23 16:04 .claude.json
+-rw-r--r--   1 render render  3371 Jan 23 16:04 .claude.json.backup
+-rw-r--r--   1 render render   556 Jan 23 16:04 .env
+drwxr-sr-x   8 render render  4096 Jan 23 16:04 .git
+-rw-r--r--   1 render render    99 Jan 23 16:04 .gitignore
+-rw-r--r--   1 render render   612 Jan 23 16:04 README.md
+drwxr-sr-x   2 render render  4096 Jan 23 16:04 debug
+drwxr-sr-x   2 render render  4096 Jan 23 16:04 lib
+-rw-r--r--   1 render render  4076 Jan 23 16:04 migrate.js
+drwxr-sr-x   2 render render  4096 Jan 23 16:04 migrations
+drwxr-sr-x 142 render render  4096 Jan 23 16:04 node_modules
+-rw-r--r--   1 render render 59721 Jan 23 16:04 package-lock.json
+-rw-r--r--   1 render render   591 Jan 23 16:04 package.json
+drwxr-sr-x   8 render render  4096 Jan 23 16:04 projects
+drwxr-sr-x   4 render render  4096 Jan 23 16:04 public
+-rw-r--r--   1 render render   204 Jan 23 16:04 render.yaml
+drwxr-sr-x   2 render render  4096 Jan 23 16:04 routes
+-rw-r--r--   1 render render  1938 Jan 23 16:04 server.js
+drwxr-sr-x   2 render render  4096 Jan 23 16:04 services
+drwxr-sr-x   3 render render  4096 Jan 23 16:04 session-env
+drwxr-sr-x   2 render render  4096 Jan 23 16:04 shell-snapshots
+-rw-------   1 render render   970 Jan 23 16:04 stats-cache.json
+drwxr-sr-x   2 render render  4096 Jan 23 16:04 statsig
+drwxr-sr-x   2 render render  4096 Jan 23 16:04 test-fixtures
+drwxr-sr-x   2 render render  4096 Jan 23 16:04 todos
+-rw-r--r--   1 render render  3778 Jan 23 16:04 verify-phase2.js
