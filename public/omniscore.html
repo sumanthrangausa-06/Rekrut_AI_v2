@@ -85,6 +85,26 @@
         </div>
       </section>
 
+      <!-- Skills Graph Visualization -->
+      <section class="section">
+        <div class="section-header">
+          <h2>Skills Graph</h2>
+          <a href="/skill-assessments.html" class="btn btn-ghost btn-sm">Take Assessments</a>
+        </div>
+        <div class="skills-graph-container">
+          <div class="skills-radar" id="skills-radar">
+            <div class="loading-state">
+              <div class="spinner"></div>
+            </div>
+          </div>
+          <div class="skills-legend" id="skills-legend">
+            <div class="loading-state">
+              <div class="spinner"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Recommendations -->
       <section class="section">
         <div class="section-header">
@@ -128,6 +148,7 @@
       } catch (e) {}
 
       loadOmniScore();
+      loadSkillsGraph();
     });
 
     async function loadOmniScore() {
@@ -242,6 +263,207 @@
           ${rec.type === 'interview' ? '<a href="/interview.html" class="btn btn-primary btn-sm">Start Interview</a>' : ''}
         </div>
       `).join('');
+    }
+
+    async function loadSkillsGraph() {
+      try {
+        const data = await apiCall('/candidate/skills');
+        if (!data || !data.success || !data.skills || data.skills.length === 0) {
+          renderEmptySkillsGraph();
+          return;
+        }
+        renderSkillsGraph(data.skills);
+      } catch (err) {
+        console.error('Failed to load skills:', err);
+        renderEmptySkillsGraph();
+      }
+    }
+
+    function renderEmptySkillsGraph() {
+      document.getElementById('skills-radar').innerHTML = `
+        <div class="empty-skills-graph">
+          <div class="radar-placeholder">
+            <svg viewBox="0 0 200 200" class="radar-svg-empty">
+              <polygon points="100,20 180,70 155,160 45,160 20,70" fill="none" stroke="var(--border-color)" stroke-width="1" opacity="0.3"/>
+              <polygon points="100,50 150,82 135,135 65,135 50,82" fill="none" stroke="var(--border-color)" stroke-width="1" opacity="0.2"/>
+              <circle cx="100" cy="100" r="3" fill="var(--text-muted)"/>
+            </svg>
+          </div>
+          <p>Add skills to see your competency graph</p>
+          <a href="/candidate-profile.html#skills" class="btn btn-primary btn-sm">Add Skills</a>
+        </div>
+      `;
+      document.getElementById('skills-legend').innerHTML = '';
+    }
+
+    function renderSkillsGraph(skills) {
+      // Group skills by category and calculate average levels
+      const categories = {};
+      skills.forEach(s => {
+        const cat = s.category || 'technical';
+        if (!categories[cat]) {
+          categories[cat] = { total: 0, count: 0, verified: 0, skills: [] };
+        }
+        categories[cat].total += s.level;
+        categories[cat].count++;
+        if (s.is_verified) categories[cat].verified++;
+        categories[cat].skills.push(s);
+      });
+
+      // Calculate averages
+      const categoryData = Object.entries(categories).map(([name, data]) => ({
+        name,
+        avg: Math.round((data.total / data.count) * 20), // Convert 1-5 to percentage
+        count: data.count,
+        verified: data.verified,
+        skills: data.skills
+      }));
+
+      // Render radar chart
+      renderRadarChart(categoryData);
+
+      // Render legend with top skills
+      renderSkillsLegend(categoryData);
+    }
+
+    function renderRadarChart(categoryData) {
+      const container = document.getElementById('skills-radar');
+      const numAxes = categoryData.length;
+
+      if (numAxes < 3) {
+        // Not enough categories for radar - show bar chart instead
+        container.innerHTML = `
+          <div class="skills-bars">
+            ${categoryData.map(cat => {
+              const label = formatCategoryName(cat.name);
+              return `
+                <div class="skill-bar-item">
+                  <div class="skill-bar-header">
+                    <span class="skill-bar-label">${label}</span>
+                    <span class="skill-bar-value">${cat.avg}%</span>
+                  </div>
+                  <div class="skill-bar-track">
+                    <div class="skill-bar-fill" style="width: ${cat.avg}%"></div>
+                  </div>
+                  <span class="skill-bar-count">${cat.count} skill${cat.count !== 1 ? 's' : ''} ${cat.verified > 0 ? `(${cat.verified} verified)` : ''}</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+        return;
+      }
+
+      const cx = 100, cy = 100, radius = 70;
+      const angleStep = (2 * Math.PI) / numAxes;
+
+      // Calculate points for each level (20%, 40%, 60%, 80%, 100%)
+      const levels = [20, 40, 60, 80, 100];
+      const levelPolygons = levels.map(level => {
+        const r = (level / 100) * radius;
+        return categoryData.map((_, i) => {
+          const angle = i * angleStep - Math.PI / 2;
+          return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+        }).join(' ');
+      });
+
+      // Calculate data points
+      const dataPoints = categoryData.map((cat, i) => {
+        const r = (cat.avg / 100) * radius;
+        const angle = i * angleStep - Math.PI / 2;
+        return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+      }).join(' ');
+
+      // Axis lines
+      const axisLines = categoryData.map((_, i) => {
+        const angle = i * angleStep - Math.PI / 2;
+        return `<line x1="${cx}" y1="${cy}" x2="${cx + radius * Math.cos(angle)}" y2="${cy + radius * Math.sin(angle)}" stroke="var(--border-color)" stroke-width="1"/>`;
+      }).join('');
+
+      // Labels
+      const labels = categoryData.map((cat, i) => {
+        const angle = i * angleStep - Math.PI / 2;
+        const labelRadius = radius + 25;
+        const x = cx + labelRadius * Math.cos(angle);
+        const y = cy + labelRadius * Math.sin(angle);
+        const label = formatCategoryName(cat.name);
+        return `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" class="radar-label">${label}</text>`;
+      }).join('');
+
+      container.innerHTML = `
+        <svg viewBox="0 0 200 200" class="radar-svg">
+          <!-- Grid levels -->
+          ${levelPolygons.map((points, i) => `<polygon points="${points}" fill="none" stroke="var(--border-color)" stroke-width="1" opacity="${0.2 + i * 0.1}"/>`).join('')}
+          <!-- Axis lines -->
+          ${axisLines}
+          <!-- Data polygon -->
+          <polygon points="${dataPoints}" fill="url(#radarGradient)" stroke="var(--accent-primary)" stroke-width="2" fill-opacity="0.3"/>
+          <!-- Data points -->
+          ${categoryData.map((cat, i) => {
+            const r = (cat.avg / 100) * radius;
+            const angle = i * angleStep - Math.PI / 2;
+            const x = cx + r * Math.cos(angle);
+            const y = cy + r * Math.sin(angle);
+            return `<circle cx="${x}" cy="${y}" r="4" fill="var(--accent-primary)" class="radar-point" data-category="${cat.name}" data-value="${cat.avg}"/>`;
+          }).join('')}
+          <!-- Labels -->
+          ${labels}
+          <defs>
+            <linearGradient id="radarGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#10b981"/>
+              <stop offset="100%" style="stop-color:#06b6d4"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      `;
+    }
+
+    function renderSkillsLegend(categoryData) {
+      const container = document.getElementById('skills-legend');
+
+      container.innerHTML = `
+        <div class="legend-header">
+          <h4>Top Skills by Category</h4>
+        </div>
+        ${categoryData.map(cat => {
+          const topSkills = cat.skills
+            .sort((a, b) => b.level - a.level)
+            .slice(0, 4);
+          return `
+            <div class="legend-category">
+              <div class="legend-cat-header">
+                <span class="legend-cat-name">${formatCategoryName(cat.name)}</span>
+                <span class="legend-cat-avg">${cat.avg}% avg</span>
+              </div>
+              <div class="legend-skills">
+                ${topSkills.map(s => `
+                  <span class="legend-skill ${s.is_verified ? 'verified' : ''}">
+                    ${s.skill_name}
+                    ${s.is_verified ? '<span class="v-badge">✓</span>' : ''}
+                    <span class="s-level">${'●'.repeat(s.level)}${'○'.repeat(5-s.level)}</span>
+                  </span>
+                `).join('')}
+                ${cat.skills.length > 4 ? `<span class="more-count">+${cat.skills.length - 4} more</span>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('')}
+        <div class="legend-cta">
+          <a href="/skill-assessments.html" class="btn btn-primary btn-sm btn-full">Verify Skills with Assessment</a>
+        </div>
+      `;
+    }
+
+    function formatCategoryName(cat) {
+      const names = {
+        'technical': 'Technical',
+        'soft_skill': 'Soft Skills',
+        'tool': 'Tools',
+        'language': 'Languages',
+        'framework': 'Frameworks',
+        'database': 'Databases'
+      };
+      return names[cat] || cat.charAt(0).toUpperCase() + cat.slice(1);
     }
 
     function renderHistory(history) {
@@ -526,6 +748,188 @@
       text-align: right;
     }
 
+    /* Skills Graph Styles */
+    .skills-graph-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+    }
+
+    .skills-radar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 280px;
+    }
+
+    .radar-svg, .radar-svg-empty {
+      width: 100%;
+      max-width: 300px;
+      height: auto;
+    }
+
+    .radar-label {
+      font-size: 10px;
+      fill: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .radar-point {
+      transition: r 0.2s ease;
+      cursor: pointer;
+    }
+
+    .radar-point:hover {
+      r: 6;
+    }
+
+    .empty-skills-graph {
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .radar-placeholder {
+      width: 150px;
+      margin: 0 auto 20px;
+      opacity: 0.5;
+    }
+
+    .empty-skills-graph p {
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .skills-bars {
+      padding: 20px 0;
+    }
+
+    .skill-bar-item {
+      margin-bottom: 20px;
+    }
+
+    .skill-bar-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .skill-bar-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .skill-bar-label {
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    .skill-bar-value {
+      color: var(--accent-primary);
+      font-weight: 600;
+    }
+
+    .skill-bar-track {
+      height: 8px;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+
+    .skill-bar-fill {
+      height: 100%;
+      background: var(--accent-gradient);
+      border-radius: var(--radius-full);
+      transition: width 0.5s ease;
+    }
+
+    .skill-bar-count {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      display: block;
+    }
+
+    .skills-legend {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .legend-header h4 {
+      font-family: var(--font-display);
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+
+    .legend-category {
+      padding: 12px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+    }
+
+    .legend-cat-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .legend-cat-name {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .legend-cat-avg {
+      font-size: 13px;
+      color: var(--accent-primary);
+      font-weight: 500;
+    }
+
+    .legend-skills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .legend-skill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-full);
+      font-size: 12px;
+    }
+
+    .legend-skill.verified {
+      border-color: var(--accent-primary);
+      background: rgba(16, 185, 129, 0.1);
+    }
+
+    .v-badge {
+      color: var(--accent-primary);
+      font-size: 10px;
+    }
+
+    .s-level {
+      font-size: 7px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+    }
+
+    .more-count {
+      padding: 4px 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .legend-cta {
+      margin-top: 8px;
+    }
+
     @media (max-width: 768px) {
       .omniscore-main-card-content {
         flex-direction: column;
@@ -538,6 +942,14 @@
 
       .history-item {
         grid-template-columns: 1fr 1fr;
+      }
+
+      .skills-graph-container {
+        grid-template-columns: 1fr;
+      }
+
+      .skills-radar {
+        min-height: 220px;
       }
     }
   </style>
