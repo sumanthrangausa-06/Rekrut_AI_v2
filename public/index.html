@@ -3,11 +3,226 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rekrut AI - Your Candidate Credit Score</title>
+  <title>HireLoop - AI-Powered Hiring Platform</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    /* Dropdown Navigation Styles */
+    .nav-dropdown {
+      position: relative;
+    }
+    .nav-dropdown-toggle {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      padding: 8px 12px;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+    .nav-dropdown-toggle:hover {
+      background: rgba(255,255,255,0.1);
+    }
+    .nav-dropdown-toggle::after {
+      content: '▾';
+      font-size: 10px;
+      opacity: 0.7;
+    }
+    .nav-dropdown-menu {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      min-width: 200px;
+      background: #1a1a2e;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 8px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(10px);
+      transition: all 0.2s;
+      z-index: 100;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    }
+    .nav-dropdown:hover .nav-dropdown-menu {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    .nav-dropdown-menu a {
+      display: block;
+      padding: 10px 14px;
+      border-radius: 8px;
+      color: rgba(255,255,255,0.8);
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+    .nav-dropdown-menu a:hover {
+      background: rgba(139, 92, 246, 0.2);
+      color: #fff;
+    }
+    .nav-dropdown-menu .menu-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.4);
+      padding: 8px 14px 4px;
+      letter-spacing: 0.5px;
+    }
+
+    /* Dual CTA Hero */
+    .hero-cta-dual {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .hero-cta-dual .btn {
+      min-width: 160px;
+    }
+
+    /* Platform Showcase */
+    .platform-showcase {
+      padding: 80px 5%;
+      background: linear-gradient(180deg, #0a0a14 0%, #12121f 100%);
+    }
+    .showcase-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 60px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .showcase-column h3 {
+      font-size: 1.5rem;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .showcase-column h3 .icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+    }
+    .showcase-column.candidates h3 .icon {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    }
+    .showcase-column.recruiters h3 .icon {
+      background: linear-gradient(135deg, #10b981, #34d399);
+    }
+    .showcase-features {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .showcase-feature {
+      display: flex;
+      gap: 16px;
+      padding: 20px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+      transition: all 0.3s;
+    }
+    .showcase-feature:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.1);
+      transform: translateX(4px);
+    }
+    .showcase-feature .feature-icon {
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+    .showcase-feature h4 {
+      font-size: 1.05rem;
+      margin-bottom: 4px;
+    }
+    .showcase-feature p {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.6);
+      line-height: 1.5;
+    }
+    .showcase-feature .feature-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: #8b5cf6;
+      font-size: 0.85rem;
+      margin-top: 8px;
+      transition: gap 0.2s;
+    }
+    .showcase-feature:hover .feature-link {
+      gap: 8px;
+    }
+
+    /* Score Badges Section */
+    .score-badges-section {
+      padding: 80px 5%;
+      background: #0a0a14;
+    }
+    .score-badges-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 40px;
+      max-width: 1000px;
+      margin: 40px auto 0;
+    }
+    .score-badge-card {
+      padding: 32px;
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(99, 102, 241, 0.05));
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      border-radius: 20px;
+      text-align: center;
+    }
+    .score-badge-card.trustscore {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(52, 211, 153, 0.05));
+      border-color: rgba(16, 185, 129, 0.2);
+    }
+    .score-badge-card .score-value {
+      font-size: 4rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .score-badge-card.trustscore .score-value {
+      background: linear-gradient(135deg, #10b981, #34d399);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .score-badge-card h3 {
+      font-size: 1.5rem;
+      margin: 12px 0 8px;
+    }
+    .score-badge-card p {
+      color: rgba(255,255,255,0.6);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .showcase-grid, .score-badges-grid {
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+      .nav-links {
+        display: none;
+      }
+      .hero-cta-dual {
+        flex-direction: column;
+        align-items: center;
+      }
+    }
+  </style>
 </head>
 <body>
   <div class="app">
@@ -16,16 +231,39 @@
       <div class="nav-container">
         <a href="/" class="logo">
           <span class="logo-icon">◎</span>
-          <span>Rekrut AI</span>
+          <span>HireLoop</span>
         </a>
         <div class="nav-links" id="nav-links">
-          <a href="#features">Features</a>
-          <a href="#how-it-works">How It Works</a>
+          <!-- Candidates Dropdown -->
+          <div class="nav-dropdown">
+            <span class="nav-dropdown-toggle">For Candidates</span>
+            <div class="nav-dropdown-menu">
+              <div class="menu-label">Get Started</div>
+              <a href="/candidate-dashboard.html">📊 Dashboard</a>
+              <a href="/job-board.html">💼 Job Board</a>
+              <a href="/skill-assessments.html">🎯 Skill Assessments</a>
+              <a href="/interview.html">🎤 Mock Interviews</a>
+              <a href="/omniscore.html">⭐ Your OmniScore</a>
+            </div>
+          </div>
+
+          <!-- Recruiters Dropdown -->
+          <div class="nav-dropdown">
+            <span class="nav-dropdown-toggle">For Recruiters</span>
+            <div class="nav-dropdown-menu">
+              <div class="menu-label">Hiring Tools</div>
+              <a href="/job-create.html">📝 Post a Job</a>
+              <a href="/recruiter-dashboard.html">📊 Recruiter Dashboard</a>
+              <a href="/recruiter-trustscore.html">✅ TrustScore</a>
+              <a href="/recruiter-jobs.html">📋 Manage Jobs</a>
+            </div>
+          </div>
+
           <a href="#pricing">Pricing</a>
         </div>
         <div class="nav-auth" id="nav-auth">
           <a href="/login.html" class="btn btn-ghost">Log In</a>
-          <a href="/register.html" class="btn btn-primary">Get Started</a>
+          <a href="/register.html" class="btn btn-primary">Sign Up</a>
         </div>
       </div>
     </nav>
@@ -33,12 +271,12 @@
     <!-- Hero Section -->
     <section class="hero">
       <div class="hero-content">
-        <div class="hero-badge">🎯 Introducing OmniScore™ - Your Candidate Credit Score</div>
-        <h1>Your <span class="text-gradient">Career Score</span> Matters</h1>
-        <p class="hero-subtitle">Build your OmniScore (300-850) through AI interviews, skill assessments, and verified achievements. Show employers you're ready.</p>
-        <div class="hero-cta">
-          <a href="/register.html" class="btn btn-primary btn-large">Get Your OmniScore</a>
-          <a href="#omniscore" class="btn btn-ghost btn-large">Learn About OmniScore</a>
+        <div class="hero-badge">🚀 AI-Powered Hiring for Candidates & Recruiters</div>
+        <h1>The <span class="text-gradient">Smarter Way</span> to Hire & Get Hired</h1>
+        <p class="hero-subtitle">Candidates: Build your OmniScore through AI interviews and skill assessments. Recruiters: Find top talent fast with AI-powered matching and TrustScore verification.</p>
+        <div class="hero-cta hero-cta-dual">
+          <a href="/job-board.html" class="btn btn-primary btn-large">Find Jobs</a>
+          <a href="/recruiter-register.html" class="btn btn-ghost btn-large">Post Jobs</a>
         </div>
         <div class="hero-stats">
           <div class="stat">
@@ -46,12 +284,12 @@
             <span class="stat-label">Max OmniScore</span>
           </div>
           <div class="stat">
-            <span class="stat-value">87%</span>
-            <span class="stat-label">Hire Rate 700+</span>
+            <span class="stat-value">2.4x</span>
+            <span class="stat-label">Faster Hiring</span>
           </div>
           <div class="stat">
-            <span class="stat-value">3.2x</span>
-            <span class="stat-label">More Interviews</span>
+            <span class="stat-value">87%</span>
+            <span class="stat-label">Match Accuracy</span>
           </div>
         </div>
       </div>
@@ -61,7 +299,7 @@
             <div class="card-dots">
               <span></span><span></span><span></span>
             </div>
-            <span>OmniScore™ Dashboard</span>
+            <span>HireLoop Platform</span>
           </div>
           <div class="card-content">
             <div class="omniscore-display">
@@ -70,10 +308,10 @@
                 <span class="omniscore-label">OmniScore</span>
               </div>
               <div class="omniscore-breakdown">
-                <div class="score-factor"><span>Interview Skills</span><span class="factor-score">185/200</span></div>
-                <div class="score-factor"><span>Technical Ability</span><span class="factor-score">162/200</span></div>
-                <div class="score-factor"><span>Resume Quality</span><span class="factor-score">178/200</span></div>
-                <div class="score-factor"><span>Platform Activity</span><span class="factor-score">217/250</span></div>
+                <div class="score-factor"><span>AI Interview</span><span class="factor-score">185/200</span></div>
+                <div class="score-factor"><span>Skill Tests</span><span class="factor-score">162/200</span></div>
+                <div class="score-factor"><span>Resume</span><span class="factor-score">178/200</span></div>
+                <div class="score-factor"><span>Activity</span><span class="factor-score">217/250</span></div>
               </div>
             </div>
           </div>
@@ -86,67 +324,111 @@
       </div>
     </section>
 
-    <!-- OmniScore Section -->
-    <section class="features" id="omniscore">
+    <!-- Platform Showcase: Candidates & Recruiters -->
+    <section class="platform-showcase" id="features">
       <div class="section-header">
-        <h2>Your <span class="text-gradient">OmniScore™</span> Explained</h2>
-        <p>A comprehensive candidate credit score that employers trust</p>
+        <h2>One Platform, <span class="text-gradient">Two Experiences</span></h2>
+        <p>Everything candidates and recruiters need in one place</p>
       </div>
-      <div class="feature-grid">
-        <div class="feature-card">
-          <div class="feature-icon">🎤</div>
-          <h3>Interview Performance</h3>
-          <p>Complete AI mock interviews and earn points based on your communication, structure, and content quality. Up to 200 points.</p>
+      <div class="showcase-grid">
+        <!-- Candidate Features -->
+        <div class="showcase-column candidates">
+          <h3><span class="icon">👤</span> For Candidates</h3>
+          <div class="showcase-features">
+            <a href="/interview.html" class="showcase-feature">
+              <span class="feature-icon">🎤</span>
+              <div>
+                <h4>AI Mock Interviews</h4>
+                <p>Practice with our AI interviewer tailored to your target role. Get instant feedback and boost your OmniScore.</p>
+                <span class="feature-link">Start Interview →</span>
+              </div>
+            </a>
+            <a href="/skill-assessments.html" class="showcase-feature">
+              <span class="feature-icon">🎯</span>
+              <div>
+                <h4>Skill Assessments</h4>
+                <p>Prove your abilities with role-specific tests. Results are verified and shared with employers.</p>
+                <span class="feature-link">Take Assessment →</span>
+              </div>
+            </a>
+            <a href="/job-board.html" class="showcase-feature">
+              <span class="feature-icon">💼</span>
+              <div>
+                <h4>Smart Job Board</h4>
+                <p>Browse jobs matched to your skills. See your fit score before you apply.</p>
+                <span class="feature-link">Browse Jobs →</span>
+              </div>
+            </a>
+            <a href="/candidate-dashboard.html" class="showcase-feature">
+              <span class="feature-icon">📊</span>
+              <div>
+                <h4>Candidate Dashboard</h4>
+                <p>Track applications, OmniScore progress, and get personalized improvement tips.</p>
+                <span class="feature-link">View Dashboard →</span>
+              </div>
+            </a>
+          </div>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">💻</div>
-          <h3>Technical Assessments</h3>
-          <p>Take role-specific skill assessments to prove your abilities. Results are weighted by difficulty. Up to 200 points.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">📄</div>
-          <h3>Resume Consistency</h3>
-          <p>We analyze your resume for accuracy, consistency, and professional presentation. Up to 200 points.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">🎯</div>
-          <h3>Platform Behavior</h3>
-          <p>Regular activity, completing profiles, and consistent improvement boost your score. Up to 250 points.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">⏱️</div>
-          <h3>Time-Decayed Weighting</h3>
-          <p>Recent activities matter more. Your score reflects your current abilities, not ancient history.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">🔧</div>
-          <h3>Role-Specific Variants</h3>
-          <p>Get specialized scores for different roles—PM, Engineer, Designer. Match the job you want.</p>
+
+        <!-- Recruiter Features -->
+        <div class="showcase-column recruiters">
+          <h3><span class="icon">🏢</span> For Recruiters</h3>
+          <div class="showcase-features">
+            <a href="/job-create.html" class="showcase-feature">
+              <span class="feature-icon">📝</span>
+              <div>
+                <h4>AI Job Descriptions</h4>
+                <p>Generate compelling job posts in seconds. Our AI writes descriptions that attract the right candidates.</p>
+                <span class="feature-link">Create Job →</span>
+              </div>
+            </a>
+            <a href="/recruiter-dashboard.html" class="showcase-feature">
+              <span class="feature-icon">🏆</span>
+              <div>
+                <h4>Candidate Ranking</h4>
+                <p>See candidates ranked by OmniScore. Filter by skills, experience, and verified assessments.</p>
+                <span class="feature-link">Find Talent →</span>
+              </div>
+            </a>
+            <a href="/recruiter-trustscore.html" class="showcase-feature">
+              <span class="feature-icon">✅</span>
+              <div>
+                <h4>TrustScore Verification</h4>
+                <p>Verify candidate claims instantly. Our AI detects resume inconsistencies and red flags.</p>
+                <span class="feature-link">Learn More →</span>
+              </div>
+            </a>
+            <a href="/recruiter-jobs.html" class="showcase-feature">
+              <span class="feature-icon">📈</span>
+              <div>
+                <h4>Hiring Analytics</h4>
+                <p>Track pipeline metrics, time-to-hire, and candidate quality. Make data-driven hiring decisions.</p>
+                <span class="feature-link">View Analytics →</span>
+              </div>
+            </a>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Features Section -->
-    <section class="features" id="features">
+    <!-- Score Badges Section -->
+    <section class="score-badges-section">
       <div class="section-header">
-        <h2>Everything You Need to <span class="text-gradient">Prove Your Worth</span></h2>
-        <p>Build your OmniScore with these powerful tools</p>
+        <h2>Trust <span class="text-gradient">Built-In</span></h2>
+        <p>Our proprietary scoring systems create accountability on both sides</p>
       </div>
-      <div class="feature-grid">
-        <div class="feature-card">
-          <div class="feature-icon">🤖</div>
-          <h3>AI Mock Interviews</h3>
-          <p>Practice with our AI interviewer that adapts to your target role and provides detailed feedback.</p>
+      <div class="score-badges-grid">
+        <div class="score-badge-card">
+          <div class="score-value">742</div>
+          <h3>OmniScore™</h3>
+          <p>Your candidate credit score (300-850). Built through AI interviews, skill assessments, and verified achievements. Employers trust it because it's earned, not claimed.</p>
+          <a href="/omniscore.html" class="btn btn-ghost" style="margin-top: 16px;">Learn About OmniScore</a>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">📊</div>
-          <h3>Score Dashboard</h3>
-          <p>Track your OmniScore over time with detailed breakdowns and improvement recommendations.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">💡</div>
-          <h3>Smart Recommendations</h3>
-          <p>Get personalized tips on exactly what to improve to boost your score the fastest.</p>
+        <div class="score-badge-card trustscore">
+          <div class="score-value">94%</div>
+          <h3>TrustScore™</h3>
+          <p>Recruiter credibility score. Based on response rates, offer accuracy, and candidate feedback. Candidates know which employers are worth their time.</p>
+          <a href="/recruiter-trustscore.html" class="btn btn-ghost" style="margin-top: 16px;">Learn About TrustScore</a>
         </div>
       </div>
     </section>
@@ -154,36 +436,36 @@
     <!-- How It Works Section -->
     <section class="how-it-works" id="how-it-works">
       <div class="section-header">
-        <h2>How to Build Your <span class="text-gradient">OmniScore</span></h2>
-        <p>Four steps to a score employers trust</p>
+        <h2>Get Started in <span class="text-gradient">Minutes</span></h2>
+        <p>Whether you're hiring or job hunting</p>
       </div>
       <div class="steps">
         <div class="step">
           <div class="step-number">01</div>
           <div class="step-content">
-            <h3>Create Your Profile</h3>
-            <p>Sign up and complete your profile. Upload your resume for initial scoring.</p>
+            <h3>Create Your Account</h3>
+            <p>Sign up as a candidate or recruiter. Upload your resume or company details to get started.</p>
           </div>
         </div>
         <div class="step">
           <div class="step-number">02</div>
           <div class="step-content">
-            <h3>Complete AI Interviews</h3>
-            <p>Take mock interviews for your target roles. Each one contributes to your score.</p>
+            <h3>Build Your Profile</h3>
+            <p>Candidates: Take AI interviews and skill tests to build OmniScore. Recruiters: Post jobs and set requirements.</p>
           </div>
         </div>
         <div class="step">
           <div class="step-number">03</div>
           <div class="step-content">
-            <h3>Review Your Score Breakdown</h3>
-            <p>See exactly where your score comes from and get specific improvement recommendations.</p>
+            <h3>Get Matched</h3>
+            <p>Our AI matches candidates to jobs based on skills, experience, and culture fit. No more guessing.</p>
           </div>
         </div>
         <div class="step">
           <div class="step-number">04</div>
           <div class="step-content">
-            <h3>Share With Employers</h3>
-            <p>Include your OmniScore on applications. Stand out from candidates with no verified metrics.</p>
+            <h3>Hire with Confidence</h3>
+            <p>Verified scores, real assessments, transparent process. Make offers knowing you've found the right fit.</p>
           </div>
         </div>
       </div>
@@ -193,39 +475,54 @@
     <section class="pricing" id="pricing">
       <div class="section-header">
         <h2>Simple <span class="text-gradient">Pricing</span></h2>
-        <p>Build your OmniScore with the plan that fits you.</p>
+        <p>Plans for candidates and recruiters</p>
       </div>
       <div class="pricing-cards">
         <div class="pricing-card">
           <div class="pricing-header">
-            <h3>Starter</h3>
+            <h3>Candidate Free</h3>
             <div class="price">$0<span>/forever</span></div>
           </div>
           <ul class="pricing-features">
-            <li>✓ Basic OmniScore (limited factors)</li>
+            <li>✓ Basic OmniScore</li>
             <li>✓ 3 mock interviews per month</li>
-            <li>✓ Score breakdown dashboard</li>
-            <li class="disabled">✗ Detailed improvement tips</li>
+            <li>✓ Browse job board</li>
+            <li>✓ Apply to jobs</li>
+            <li class="disabled">✗ Unlimited interviews</li>
             <li class="disabled">✗ Role-specific scores</li>
-            <li class="disabled">✗ Shareable score badge</li>
           </ul>
           <a href="/register.html" class="btn btn-ghost btn-full">Start Free</a>
         </div>
         <div class="pricing-card featured">
           <div class="pricing-badge">Most Popular</div>
           <div class="pricing-header">
-            <h3>Pro</h3>
+            <h3>Candidate Pro</h3>
             <div class="price">$29<span>/month</span></div>
           </div>
           <ul class="pricing-features">
             <li>✓ Full OmniScore (all factors)</li>
             <li>✓ Unlimited mock interviews</li>
-            <li>✓ Detailed improvement recommendations</li>
-            <li>✓ Role-specific score variants</li>
-            <li>✓ Shareable score badge for LinkedIn</li>
-            <li>✓ Priority support</li>
+            <li>✓ All skill assessments</li>
+            <li>✓ Role-specific scores</li>
+            <li>✓ Shareable score badge</li>
+            <li>✓ Priority job matching</li>
           </ul>
           <a href="https://buy.stripe.com/5kQaEX7HUdKwfII5KWdjP3G" class="btn btn-primary btn-full">Get Pro</a>
+        </div>
+        <div class="pricing-card">
+          <div class="pricing-header">
+            <h3>Recruiter</h3>
+            <div class="price">$199<span>/month</span></div>
+          </div>
+          <ul class="pricing-features">
+            <li>✓ Unlimited job postings</li>
+            <li>✓ AI job description writer</li>
+            <li>✓ Candidate OmniScore access</li>
+            <li>✓ TrustScore verification</li>
+            <li>✓ Hiring analytics dashboard</li>
+            <li>✓ Priority support</li>
+          </ul>
+          <a href="/recruiter-register.html" class="btn btn-ghost btn-full">Start Hiring</a>
         </div>
       </div>
     </section>
@@ -233,9 +530,12 @@
     <!-- CTA Section -->
     <section class="cta">
       <div class="cta-content">
-        <h2>Ready to <span class="text-gradient">Build Your Score</span>?</h2>
-        <p>Join thousands of candidates building verifiable credentials with Rekrut AI.</p>
-        <a href="/register.html" class="btn btn-primary btn-large">Get Your OmniScore</a>
+        <h2>Ready to <span class="text-gradient">Transform Hiring</span>?</h2>
+        <p>Join thousands of candidates and recruiters using AI-powered hiring.</p>
+        <div class="hero-cta-dual">
+          <a href="/register.html" class="btn btn-primary btn-large">I'm a Candidate</a>
+          <a href="/recruiter-register.html" class="btn btn-ghost btn-large">I'm a Recruiter</a>
+        </div>
       </div>
     </section>
 
@@ -245,33 +545,36 @@
         <div class="footer-brand">
           <a href="/" class="logo">
             <span class="logo-icon">◎</span>
-            <span>Rekrut AI</span>
+            <span>HireLoop</span>
           </a>
-          <p>The candidate credit score employers trust.</p>
+          <p>AI-powered hiring for candidates and recruiters.</p>
         </div>
         <div class="footer-links">
           <div class="footer-col">
-            <h4>Candidates</h4>
-            <a href="#omniscore">OmniScore</a>
-            <a href="#features">Features</a>
-            <a href="/register.html">Get Started</a>
+            <h4>For Candidates</h4>
+            <a href="/candidate-dashboard.html">Dashboard</a>
+            <a href="/job-board.html">Job Board</a>
+            <a href="/skill-assessments.html">Skill Assessments</a>
+            <a href="/interview.html">Mock Interviews</a>
+            <a href="/omniscore.html">OmniScore</a>
           </div>
           <div class="footer-col">
-            <h4>Employers</h4>
-            <a href="/recruiter-register.html">Post Jobs</a>
-            <a href="/recruiter-register.html">TrustScore</a>
+            <h4>For Recruiters</h4>
+            <a href="/job-create.html">Post a Job</a>
             <a href="/recruiter-dashboard.html">Recruiter Dashboard</a>
+            <a href="/recruiter-trustscore.html">TrustScore</a>
+            <a href="/recruiter-jobs.html">Manage Jobs</a>
           </div>
           <div class="footer-col">
             <h4>Account</h4>
             <a href="/login.html">Log In</a>
-            <a href="/register.html">Sign Up</a>
-            <a href="/dashboard.html">Dashboard</a>
+            <a href="/register.html">Sign Up (Candidate)</a>
+            <a href="/recruiter-register.html">Sign Up (Recruiter)</a>
           </div>
         </div>
       </div>
       <div class="footer-bottom">
-        <p>&copy; 2026 Rekrut AI. All rights reserved.</p>
+        <p>&copy; 2026 HireLoop. All rights reserved.</p>
       </div>
     </footer>
   </div>
