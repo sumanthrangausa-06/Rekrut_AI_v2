@@ -349,6 +349,49 @@
   font-size: 13px;
 }
 
+/* Mobile Sidebar Toggle */
+.mobile-sidebar-toggle {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 100;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 20px;
+  min-width: 44px;
+  min-height: 44px;
+  box-shadow: var(--shadow-md);
+}
+
+.mobile-sidebar-toggle:hover {
+  background: var(--bg-elevated);
+  border-color: var(--accent-primary);
+}
+
+.sidebar.mobile-open {
+  transform: translateX(0);
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 49;
+}
+
+.sidebar-overlay.active {
+  display: block;
+}
+
 /* Responsive */
 @media (max-width: 1200px) {
   .stats-grid,
@@ -357,25 +400,122 @@
   }
 }
 
-@media (max-width: 768px) {
-  .sidebar {
-    display: none;
+@media (max-width: 1024px) {
+  .main-content {
+    padding: 24px 32px;
   }
-  
+
+  .page-header {
+    margin-bottom: 32px;
+  }
+
+  .page-header h1 {
+    font-size: 24px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .action-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .mobile-sidebar-toggle {
+    display: block;
+  }
+
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    z-index: 50;
+  }
+
   .main-content {
     margin-left: 0;
-    padding: 24px;
+    padding: 72px 20px 24px;
   }
-  
-  .stats-grid,
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .stat-card {
+    padding: 20px;
+  }
+
+  .stat-card .stat-value {
+    font-size: 24px;
+  }
+
   .action-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
-  
+
+  .action-card {
+    padding: 20px;
+  }
+
   .upgrade-banner {
     flex-direction: column;
     text-align: center;
     gap: 20px;
+    padding: 24px;
+  }
+
+  .interview-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 20px;
+  }
+
+  .interview-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .page-header h1 {
+    font-size: 22px;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: 64px 16px 20px;
+  }
+
+  .page-header h1 {
+    font-size: 20px;
+  }
+
+  .stat-card {
+    padding: 16px;
+  }
+
+  .action-card {
+    padding: 16px;
+  }
+
+  .upgrade-banner {
+    padding: 20px;
+  }
+
+  .section h2 {
+    font-size: 18px;
   }
 }
 
