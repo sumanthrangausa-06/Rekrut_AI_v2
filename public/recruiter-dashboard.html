@@ -52,14 +52,28 @@
       </nav>
 
       <div class="sidebar-footer">
-        <div class="user-info">
-          <div class="user-avatar company-avatar" id="user-avatar">?</div>
-          <div class="user-details">
-            <span class="user-name" id="user-name">Loading...</span>
-            <span class="company-name" id="company-name">Company</span>
+        <div class="user-dropdown-container">
+          <button class="user-menu-toggle" id="user-menu-toggle">
+            <div class="user-avatar company-avatar" id="user-avatar">?</div>
+            <div style="flex: 1; text-align: left;">
+              <span class="user-name" id="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
+              <span class="company-name" id="company-name" style="display: block; font-size: 12px; color: var(--text-muted);">Company</span>
+            </div>
+          </button>
+
+          <div class="user-dropdown-menu" id="user-dropdown-menu">
+            <div class="dropdown-header">
+              <span class="dropdown-user-name" id="dropdown-user-name">Loading...</span>
+              <span class="dropdown-user-email" id="dropdown-user-email">user@example.com</span>
+            </div>
+            <div class="dropdown-items">
+              <a href="/company-profile.html" class="dropdown-item">🏢 Company Profile</a>
+              <a href="/recruiter-dashboard.html" class="dropdown-item">⚙️ Settings</a>
+              <div class="dropdown-divider"></div>
+              <button onclick="handleLogout()" class="dropdown-item danger">🚪 Sign Out</button>
+            </div>
           </div>
         </div>
-        <button onclick="handleLogout()" class="btn btn-ghost btn-sm">Logout</button>
       </div>
     </aside>
 
@@ -202,6 +216,26 @@
       document.getElementById('user-name').textContent = name;
       document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
       document.getElementById('company-name').textContent = user.company_name || 'Company';
+      document.getElementById('dropdown-user-name').textContent = name;
+      document.getElementById('dropdown-user-email').textContent = user.email;
+
+      // Setup user menu dropdown
+      const userMenuToggle = document.getElementById('user-menu-toggle');
+      const userDropdownMenu = document.getElementById('user-dropdown-menu');
+      if (userMenuToggle && userDropdownMenu) {
+        userMenuToggle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          userDropdownMenu.classList.toggle('active');
+        });
+
+        document.addEventListener('click', () => {
+          userDropdownMenu.classList.remove('active');
+        });
+
+        userDropdownMenu.addEventListener('click', (e) => {
+          e.stopPropagation();
+        });
+      }
 
       // Load dashboard data
       loadRecruiterDashboard();
