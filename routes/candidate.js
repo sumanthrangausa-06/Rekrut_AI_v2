@@ -755,7 +755,7 @@ router.get('/jobs/recommended', authMiddleware, async (req, res) => {
       SELECT cp.*, u.name, os.total_score as omniscore
       FROM users u
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
-      LEFT JOIN omniscores os ON os.user_id = u.id
+      LEFT JOIN omni_scores os ON os.user_id = u.id
       WHERE u.id = $1
     `, [req.user.id]);
 
@@ -866,7 +866,7 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
       SELECT cp.*, u.name, os.total_score as omniscore
       FROM users u
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
-      LEFT JOIN omniscores os ON os.user_id = u.id
+      LEFT JOIN omni_scores os ON os.user_id = u.id
       WHERE u.id = $1
     `, [req.user.id]);
 
@@ -953,7 +953,7 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
   try {
     // Get OmniScore
     const omniscore = await pool.query(
-      'SELECT total_score, tier, tier_label FROM omniscores WHERE user_id = $1',
+      'SELECT total_score, score_tier FROM omni_scores WHERE user_id = $1',
       [req.user.id]
     );
 
