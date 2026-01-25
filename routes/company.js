@@ -192,12 +192,19 @@ router.put('/profile', authMiddleware, async (req, res) => {
 
     const {
       name, description, industry, company_size, website,
-      linkedin_url, headquarters, founded_year, logo_url
+      linkedin_url, headquarters, founded_year, logo_url,
+      culture_description, core_values, benefits, office_locations
     } = req.body;
 
     // Calculate profile completeness
-    const fields = [name, description, industry, company_size, website, logo_url, headquarters];
-    const completedFields = fields.filter(f => f && f.length > 0).length;
+    const fields = [
+      name, description, industry, company_size, website, logo_url, headquarters,
+      culture_description,
+      core_values && JSON.parse(core_values).length > 0,
+      benefits && JSON.parse(benefits).length > 0,
+      office_locations && JSON.parse(office_locations).length > 0
+    ];
+    const completedFields = fields.filter(f => f && (typeof f === 'boolean' ? f : f.length > 0)).length;
     const completenessBonus = Math.round((completedFields / fields.length) * 30);
 
     const result = await pool.query(
@@ -211,15 +218,21 @@ router.put('/profile', authMiddleware, async (req, res) => {
         headquarters = COALESCE($7, headquarters),
         founded_year = COALESCE($8, founded_year),
         logo_url = COALESCE($9, logo_url),
+        culture_description = COALESCE($10, culture_description),
+        core_values = COALESCE($11::jsonb, core_values),
+        benefits = COALESCE($12::jsonb, benefits),
+        office_locations = COALESCE($13::jsonb, office_locations),
         updated_at = NOW()
-       WHERE id = $10
+       WHERE id = $14
        RETURNING *`,
       [name, description, industry, company_size, website,
-       linkedin_url, headquarters, founded_year, logo_url, req.user.company_id]
+       linkedin_url, headquarters, founded_year, logo_url,
+       culture_description, core_values, benefits, office_locations,
+       req.user.company_id]
     );
 
     // Add behavior points for profile completeness
-    if (completedFields >= 5) {
+    if (completedFields >= 7) {
       await trustscoreService.addBehaviorComponent(
         req.user.company_id,
         'profile_complete',
@@ -231,7 +244,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
     res.json({
       success: true,
       company: result.rows[0],
-      message: completedFields >= 5 ? 'Profile updated! TrustScore bonus applied.' : 'Profile updated'
+      message: completedFields >= 7 ? 'Profile updated! TrustScore bonus applied.' : 'Profile updated'
     });
   } catch (err) {
     console.error('Update company profile error:', err);
