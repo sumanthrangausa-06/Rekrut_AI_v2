@@ -51,14 +51,28 @@
       </nav>
 
       <div class="sidebar-footer">
-        <div class="user-info">
-          <div class="user-avatar" id="user-avatar">?</div>
-          <div class="user-details">
-            <span class="user-name" id="user-name">Loading...</span>
-            <span class="user-plan" id="user-plan">Free Plan</span>
+        <div class="user-dropdown-container">
+          <button class="user-menu-toggle" id="user-menu-toggle">
+            <div class="user-avatar" id="user-avatar">?</div>
+            <div style="flex: 1; text-align: left;">
+              <span class="user-name" id="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
+              <span class="user-plan" id="user-plan" style="display: block; font-size: 12px; color: var(--text-muted);">Free Plan</span>
+            </div>
+          </button>
+
+          <div class="user-dropdown-menu" id="user-dropdown-menu">
+            <div class="dropdown-header">
+              <span class="dropdown-user-name" id="dropdown-user-name">Loading...</span>
+              <span class="dropdown-user-email" id="dropdown-user-email">user@example.com</span>
+            </div>
+            <div class="dropdown-items">
+              <a href="/candidate-profile.html" class="dropdown-item">👤 My Profile</a>
+              <a href="/candidate-dashboard.html" class="dropdown-item">⚙️ Settings</a>
+              <div class="dropdown-divider"></div>
+              <button onclick="handleLogout()" class="dropdown-item danger">🚪 Sign Out</button>
+            </div>
           </div>
         </div>
-        <button onclick="handleLogout()" class="btn btn-ghost btn-sm btn-full">Logout</button>
       </div>
     </aside>
 
@@ -219,11 +233,31 @@
       document.getElementById('greeting-name').textContent = name;
       document.getElementById('user-name').textContent = name;
       document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+      document.getElementById('dropdown-user-name').textContent = name;
+      document.getElementById('dropdown-user-email').textContent = user.email;
 
       if (user.is_paid) {
         document.getElementById('user-plan').textContent = 'Pro Plan';
         document.getElementById('user-plan').classList.add('pro');
         document.getElementById('upgrade-banner').style.display = 'none';
+      }
+
+      // Setup user menu dropdown
+      const userMenuToggle = document.getElementById('user-menu-toggle');
+      const userDropdownMenu = document.getElementById('user-dropdown-menu');
+      if (userMenuToggle && userDropdownMenu) {
+        userMenuToggle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          userDropdownMenu.classList.toggle('active');
+        });
+
+        document.addEventListener('click', () => {
+          userDropdownMenu.classList.remove('active');
+        });
+
+        userDropdownMenu.addEventListener('click', (e) => {
+          e.stopPropagation();
+        });
       }
 
       loadDashboard();

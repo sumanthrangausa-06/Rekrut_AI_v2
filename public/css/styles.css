@@ -113,6 +113,17 @@ ul {
   width: 100%;
 }
 
+.btn-outline-danger {
+  background: transparent;
+  color: #ef4444;
+  border: 1px solid #ef4444;
+}
+
+.btn-outline-danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #dc2626;
+}
+
 /* Navigation */
 .nav {
   position: fixed;
