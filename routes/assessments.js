@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../lib/db');
-const { requireAuth } = require('../lib/auth');
+const { authMiddleware } = require('../lib/auth');
 const { chat } = require('../lib/polsia-ai');
 
 // Get user's available assessments
-router.get('/available', requireAuth, async (req, res) => {
+router.get('/available', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -29,7 +29,7 @@ router.get('/available', requireAuth, async (req, res) => {
 });
 
 // Get past assessment results
-router.get('/results', requireAuth, async (req, res) => {
+router.get('/results', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -52,7 +52,7 @@ router.get('/results', requireAuth, async (req, res) => {
 });
 
 // Start new assessment
-router.post('/start', requireAuth, async (req, res) => {
+router.post('/start', authMiddleware, async (req, res) => {
   const client = await pool.connect();
   try {
     const userId = req.user.id;
@@ -121,7 +121,7 @@ router.post('/start', requireAuth, async (req, res) => {
 });
 
 // Submit answer and get next question
-router.post('/answer', requireAuth, async (req, res) => {
+router.post('/answer', authMiddleware, async (req, res) => {
   const client = await pool.connect();
   try {
     const userId = req.user.id;
@@ -277,7 +277,7 @@ router.post('/answer', requireAuth, async (req, res) => {
 });
 
 // Log anti-cheat event
-router.post('/event', requireAuth, async (req, res) => {
+router.post('/event', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const { sessionId, eventType, eventData } = req.body;
