@@ -1010,7 +1010,7 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
     res.json({
       success: true,
       stats: {
-        omniscore: omniscore.rows[0] || { total_score: 300, tier: 'needs_work', tier_label: 'New' },
+        omniscore: omniscore.rows[0] || { total_score: 300, score_tier: 'new' },
         profile_completeness: completeness,
         skills: {
           total: parseInt(skillCount.rows[0]?.count) || 0,
