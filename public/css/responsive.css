@@ -1,0 +1,575 @@
+/* ===================================
+   RESPONSIVE DESIGN - HireLoop
+   Mobile-first responsive styles
+   =================================== */
+
+/* Mobile Menu Toggle */
+.mobile-menu-toggle {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 20px;
+  transition: all 0.2s;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.mobile-menu-toggle:hover {
+  background: var(--bg-elevated);
+  border-color: var(--accent-primary);
+}
+
+/* Mobile Navigation Overlay */
+.nav-links.mobile-open {
+  display: flex !important;
+  flex-direction: column;
+  position: fixed;
+  top: 72px;
+  left: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 24px;
+  gap: 20px;
+  z-index: 99;
+  box-shadow: var(--shadow-lg);
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mobile dropdown adjustments */
+.nav-links.mobile-open .nav-dropdown {
+  width: 100%;
+}
+
+.nav-links.mobile-open .nav-dropdown-menu {
+  position: static;
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  margin-top: 8px;
+  display: none;
+}
+
+.nav-links.mobile-open .nav-dropdown.active .nav-dropdown-menu {
+  display: block;
+}
+
+/* ===================================
+   TABLET (768px - 1024px)
+   =================================== */
+@media (max-width: 1024px) {
+  /* Hero adjustments */
+  .hero {
+    flex-direction: column;
+    text-align: center;
+    padding: 120px 24px 60px;
+    gap: 48px;
+  }
+
+  .hero h1 {
+    font-size: 52px;
+  }
+
+  .hero-subtitle {
+    font-size: 18px;
+  }
+
+  .hero-cta {
+    justify-content: center;
+  }
+
+  .hero-stats {
+    justify-content: center;
+  }
+
+  .hero-visual {
+    max-width: 400px;
+  }
+
+  /* Feature grid to 2 columns */
+  .feature-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Showcase grid adjustments */
+  .showcase-grid {
+    gap: 40px;
+  }
+
+  /* Dashboard grid adjustments */
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .omniscore-card {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .omniscore-factors-mini {
+    grid-template-columns: 1fr;
+  }
+
+  .factor-mini:nth-child(odd) {
+    border-right: none;
+    padding-right: 0;
+  }
+}
+
+/* ===================================
+   MOBILE (< 768px)
+   =================================== */
+@media (max-width: 768px) {
+  /* Show hamburger, hide desktop nav */
+  .mobile-menu-toggle {
+    display: block;
+  }
+
+  .nav-links {
+    display: none;
+  }
+
+  .nav-auth {
+    gap: 8px;
+  }
+
+  .nav-auth .btn {
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+
+  /* Hero mobile */
+  .hero {
+    padding: 100px 20px 40px;
+    gap: 40px;
+  }
+
+  .hero h1 {
+    font-size: 36px;
+    line-height: 1.2;
+  }
+
+  .hero-subtitle {
+    font-size: 16px;
+  }
+
+  .hero-cta {
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .hero-cta .btn {
+    width: 100%;
+  }
+
+  .hero-cta-dual {
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .hero-cta-dual .btn {
+    width: 100%;
+    min-width: auto;
+  }
+
+  .hero-stats {
+    flex-direction: column;
+    gap: 24px;
+    text-align: center;
+  }
+
+  /* Section headers */
+  .section-header h2 {
+    font-size: 32px;
+  }
+
+  .section-header p {
+    font-size: 16px;
+  }
+
+  /* Feature grid to single column */
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .feature-card {
+    padding: 24px;
+  }
+
+  /* Showcase grid mobile */
+  .showcase-grid {
+    grid-template-columns: 1fr;
+    gap: 48px;
+  }
+
+  .showcase-feature {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .showcase-feature .feature-icon {
+    font-size: 2rem;
+  }
+
+  /* Score badges mobile */
+  .score-badges-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .score-badge-card .score-value {
+    font-size: 3rem;
+  }
+
+  /* Steps mobile */
+  .steps {
+    gap: 32px;
+  }
+
+  .step {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .step-number {
+    font-size: 36px;
+  }
+
+  .step-content h3 {
+    font-size: 20px;
+  }
+
+  .step-content p {
+    font-size: 15px;
+  }
+
+  /* Pricing cards mobile */
+  .pricing-cards {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .pricing-card {
+    padding: 32px 24px;
+  }
+
+  /* CTA mobile */
+  .cta h2 {
+    font-size: 32px;
+  }
+
+  .cta p {
+    font-size: 16px;
+  }
+
+  /* Footer mobile */
+  .footer-content {
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  .footer-links {
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  /* Dashboard mobile */
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .dashboard-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .omniscore-card {
+    flex-direction: column;
+    gap: 24px;
+    padding: 24px;
+  }
+
+  .omniscore-card .omniscore-circle {
+    width: 100px;
+    height: 100px;
+  }
+
+  .omniscore-card .omniscore-circle::before {
+    width: 80px;
+    height: 80px;
+  }
+
+  .omniscore-card .omniscore-value {
+    font-size: 28px;
+  }
+
+  /* Cards mobile */
+  .card {
+    padding: 20px;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  /* Tables mobile */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table {
+    min-width: 600px;
+  }
+
+  /* Forms mobile */
+  .form-row {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .form-group {
+    width: 100%;
+  }
+
+  /* Interview page mobile */
+  .interview-container {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .interview-sidebar {
+    width: 100%;
+    position: static;
+  }
+
+  .interview-main {
+    margin-left: 0;
+    padding: 20px;
+  }
+
+  /* Job board filters mobile */
+  .filters-bar {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .filter-group {
+    width: 100%;
+  }
+
+  /* Job cards mobile */
+  .job-card {
+    padding: 20px;
+  }
+
+  .job-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .job-meta {
+    flex-wrap: wrap;
+  }
+
+  /* Auth pages mobile */
+  .auth-container {
+    padding: 20px;
+  }
+
+  .auth-card {
+    padding: 32px 24px;
+  }
+
+  .auth-form {
+    gap: 16px;
+  }
+
+  /* Modal mobile */
+  .modal-content {
+    width: 95%;
+    max-width: 95%;
+    margin: 20px auto;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* Buttons mobile - ensure min tap target */
+  .btn {
+    min-height: 44px;
+    padding: 12px 20px;
+  }
+
+  .btn-large {
+    min-height: 48px;
+    padding: 14px 24px;
+  }
+
+  /* Input fields - ensure min tap target */
+  input,
+  select,
+  textarea,
+  button {
+    min-height: 44px;
+  }
+
+  textarea {
+    min-height: 120px;
+  }
+}
+
+/* ===================================
+   SMALL MOBILE (< 480px)
+   =================================== */
+@media (max-width: 480px) {
+  /* Extra small screens */
+  .hero h1 {
+    font-size: 28px;
+  }
+
+  .section-header h2 {
+    font-size: 26px;
+  }
+
+  .nav-container {
+    padding: 0 16px;
+  }
+
+  .hero,
+  .features,
+  .how-it-works,
+  .pricing,
+  .cta {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .omniscore-card {
+    padding: 20px;
+  }
+
+  .feature-card {
+    padding: 20px;
+  }
+
+  .pricing-card {
+    padding: 24px 20px;
+  }
+
+  .score-badge-card {
+    padding: 24px;
+  }
+
+  .score-badge-card .score-value {
+    font-size: 2.5rem;
+  }
+}
+
+/* ===================================
+   TOUCH OPTIMIZATIONS
+   =================================== */
+@media (hover: none) and (pointer: coarse) {
+  /* Touch device optimizations */
+  .btn,
+  .nav-links a,
+  .nav-dropdown-toggle,
+  a {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Remove hover effects on touch devices */
+  .feature-card:hover,
+  .showcase-feature:hover {
+    transform: none;
+  }
+
+  /* Larger tap targets for dropdowns */
+  .nav-dropdown-toggle {
+    padding: 12px 16px;
+  }
+}
+
+/* ===================================
+   LANDSCAPE MOBILE
+   =================================== */
+@media (max-width: 768px) and (orientation: landscape) {
+  .hero {
+    min-height: auto;
+    padding-top: 80px;
+    padding-bottom: 40px;
+  }
+
+  .hero h1 {
+    font-size: 32px;
+  }
+
+  .modal-content {
+    max-height: 80vh;
+  }
+}
+
+/* ===================================
+   UTILITY CLASSES
+   =================================== */
+.hide-mobile {
+  display: block;
+}
+
+.show-mobile {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none !important;
+  }
+
+  .show-mobile {
+    display: block !important;
+  }
+}
+
+/* Responsive text sizes */
+.text-responsive-xl {
+  font-size: clamp(2rem, 5vw, 4rem);
+}
+
+.text-responsive-lg {
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.text-responsive-md {
+  font-size: clamp(1.125rem, 2vw, 1.5rem);
+}
+
+/* Responsive spacing */
+.section-padding {
+  padding: clamp(40px, 8vw, 100px) clamp(16px, 4vw, 24px);
+}
