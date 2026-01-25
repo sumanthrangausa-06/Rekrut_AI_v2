@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assessment Results - Rekrut AI</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <style>
+    .results-hero {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 48px;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .score-circle {
+      width: 180px;
+      height: 180px;
+      margin: 0 auto 24px;
+      position: relative;
+    }
+
+    .score-value {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: var(--font-display);
+      font-size: 56px;
+      font-weight: 700;
+      color: var(--accent-primary);
+    }
+
+    .result-status {
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .result-subtitle {
+      color: var(--text-muted);
+      font-size: 16px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .stat-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      text-align: center;
+    }
+
+    .stat-box-value {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .stat-box-label {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .section-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 32px;
+      margin-bottom: 24px;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .integrity-score {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-md);
+      margin-bottom: 16px;
+    }
+
+    .integrity-score-value {
+      font-family: var(--font-display);
+      font-size: 48px;
+      font-weight: 700;
+      min-width: 100px;
+      text-align: center;
+    }
+
+    .integrity-score-value.excellent { color: var(--accent-primary); }
+    .integrity-score-value.good { color: #10b981; }
+    .integrity-score-value.fair { color: #fbbf24; }
+    .integrity-score-value.poor { color: #ef4444; }
+
+    .integrity-details {
+      flex: 1;
+    }
+
+    .integrity-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .integrity-item:last-child { border-bottom: none; }
+
+    .badge-earned {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent-gradient);
+      color: #000;
+      padding: 12px 20px;
+      border-radius: var(--radius-full);
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <a href="/" class="logo">
+        <span class="logo-icon">◎</span>
+        <span>Rekrut AI</span>
+      </a>
+
+      <nav class="sidebar-nav">
+        <a href="/candidate-dashboard.html" class="nav-item">
+          <span class="nav-icon">🏠</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/candidate-profile.html" class="nav-item">
+          <span class="nav-icon">👤</span>
+          <span>My Profile</span>
+        </a>
+        <a href="/omniscore.html" class="nav-item">
+          <span class="nav-icon">🎯</span>
+          <span>OmniScore</span>
+        </a>
+        <a href="/skill-assessments.html" class="nav-item active">
+          <span class="nav-icon">📝</span>
+          <span>Skill Tests</span>
+        </a>
+        <a href="/interview.html" class="nav-item">
+          <span class="nav-icon">🎤</span>
+          <span>Interview Prep</span>
+        </a>
+        <a href="/job-board.html" class="nav-item">
+          <span class="nav-icon">💼</span>
+          <span>Job Board</span>
+        </a>
+        <a href="/history.html" class="nav-item">
+          <span class="nav-icon">📁</span>
+          <span>History</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-dropdown-container">
+          <button class="user-menu-toggle" id="user-menu-toggle">
+            <div class="user-avatar" id="user-avatar">?</div>
+            <div style="flex: 1; text-align: left;">
+              <span class="user-name" id="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
+              <span class="user-plan" id="user-plan" style="display: block; font-size: 12px; color: var(--text-muted);">Free Plan</span>
+            </div>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div style="max-width: 900px; margin: 0 auto;">
+        <!-- Hero Results -->
+        <div class="results-hero" id="results-hero">
+          <div class="score-circle">
+            <svg viewBox="0 0 180 180" style="transform: rotate(-90deg);">
+              <circle cx="90" cy="90" r="80" fill="none" stroke="var(--bg-secondary)" stroke-width="12"/>
+              <circle id="score-circle" cx="90" cy="90" r="80" fill="none" 
+                      stroke="url(#gradient)" stroke-width="12" 
+                      stroke-dasharray="502" stroke-dashoffset="502"
+                      style="transition: stroke-dashoffset 1s ease;"/>
+              <defs>
+                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" style="stop-color:#10b981"/>
+                  <stop offset="100%" style="stop-color:#06b6d4"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <div class="score-value" id="score-value">--</div>
+          </div>
+          
+          <div class="result-status" id="result-status">Loading...</div>
+          <div class="result-subtitle" id="result-subtitle">Please wait...</div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-box-value" id="stat-correct">-</div>
+            <div class="stat-box-label">Correct Answers</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-value" id="stat-difficulty">-</div>
+            <div class="stat-box-label">Max Difficulty</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-value" id="stat-time">-</div>
+            <div class="stat-box-label">Time Taken</div>
+          </div>
+        </div>
+
+        <!-- Integrity Report -->
+        <div class="section-card">
+          <div class="section-title">Test Integrity Report</div>
+          
+          <div class="integrity-score">
+            <div class="integrity-score-value excellent" id="integrity-score">100</div>
+            <div class="integrity-details">
+              <div style="font-weight: 600; margin-bottom: 8px;">Assessment Integrity</div>
+              <div class="integrity-item">
+                <span>Tab Switches</span>
+                <span id="tab-switches">0</span>
+              </div>
+              <div class="integrity-item">
+                <span>Copy/Paste Attempts</span>
+                <span id="copy-paste">0</span>
+              </div>
+              <div class="integrity-item">
+                <span>Time Anomalies</span>
+                <span id="time-anomalies">0</span>
+              </div>
+            </div>
+          </div>
+
+          <p style="color: var(--text-muted); font-size: 14px; line-height: 1.6;">
+            This score reflects test-taking behavior. A high integrity score indicates a clean attempt with no suspicious activity.
+            Employers may consider this score alongside your assessment results.
+          </p>
+        </div>
+
+        <!-- Badge -->
+        <div class="section-card" id="badge-section" style="display: none;">
+          <div class="section-title">Achievement Unlocked</div>
+          <div class="badge-earned">
+            <span style="font-size: 24px;">✓</span>
+            <span id="skill-name">Skill</span> Verified
+          </div>
+          <p style="color: var(--text-muted);">
+            This skill is now verified on your profile and will be highlighted to recruiters.
+            Your OmniScore has been updated.
+          </p>
+        </div>
+
+        <!-- Actions -->
+        <div style="display: flex; gap: 16px; margin-top: 32px;">
+          <a href="/skill-assessments.html" class="btn btn-primary" style="flex: 1;">Back to Assessments</a>
+          <a href="/omniscore.html" class="btn btn-ghost" style="flex: 1;">View OmniScore</a>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/auth.js"></script>
+  <script>
+    // Load results
+    async function loadResults() {
+      await checkAuth();
+      await loadUserInfo();
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get('session');
+      const assessmentId = urlParams.get('id');
+
+      if (!sessionId && !assessmentId) {
+        alert('No results found');
+        window.location.href = '/skill-assessments.html';
+        return;
+      }
+
+      try {
+        // For now, we'll fetch session data from the results endpoint
+        // In a complete implementation, you'd have a dedicated session endpoint
+        const response = await fetch('/api/assessments/results', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+
+        if (!response.ok) throw new Error('Failed to load results');
+
+        const data = await response.json();
+        
+        // Get the most recent result (or specific one if assessmentId provided)
+        let result = assessmentId 
+          ? data.results.find(r => r.id === parseInt(assessmentId))
+          : data.results[0];
+
+        if (!result) {
+          throw new Error('Result not found');
+        }
+
+        displayResults(result);
+      } catch (error) {
+        console.error('Error loading results:', error);
+        document.getElementById('result-status').textContent = 'Error Loading Results';
+        document.getElementById('result-subtitle').textContent = 'Please try again';
+      }
+    }
+
+    // Display results
+    function displayResults(result) {
+      // Score animation
+      const score = result.score || 0;
+      const scoreCircle = document.getElementById('score-circle');
+      const circumference = 2 * Math.PI * 80;
+      const offset = circumference - (score / 100) * circumference;
+      
+      setTimeout(() => {
+        scoreCircle.style.strokeDashoffset = offset;
+      }, 100);
+
+      document.getElementById('score-value').textContent = score;
+
+      // Status
+      const passed = result.passed;
+      document.getElementById('result-status').textContent = passed ? 'Passed!' : 'Not Passed';
+      document.getElementById('result-subtitle').textContent = passed 
+        ? 'Great job! Your skill has been verified.'
+        : 'Keep practicing and try again.';
+
+      // Stats
+      const answersGiven = JSON.parse(result.answers_given || '[]');
+      const correctCount = answersGiven.filter(a => a.isCorrect).length;
+      
+      document.getElementById('stat-correct').textContent = `${correctCount}/10`;
+      document.getElementById('stat-difficulty').textContent = `${result.max_difficulty_reached || 2}/5`;
+      
+      const duration = result.duration_seconds || 0;
+      const minutes = Math.floor(duration / 60);
+      const seconds = Math.floor(duration % 60);
+      document.getElementById('stat-time').textContent = `${minutes}m ${seconds}s`;
+
+      // Integrity
+      const integrityScore = result.anti_cheat_score || 100;
+      const integrityEl = document.getElementById('integrity-score');
+      integrityEl.textContent = integrityScore;
+      
+      integrityEl.className = 'integrity-score-value';
+      if (integrityScore >= 90) integrityEl.classList.add('excellent');
+      else if (integrityScore >= 70) integrityEl.classList.add('good');
+      else if (integrityScore >= 50) integrityEl.classList.add('fair');
+      else integrityEl.classList.add('poor');
+
+      document.getElementById('tab-switches').textContent = result.tab_switches || 0;
+      document.getElementById('copy-paste').textContent = result.copy_paste_attempts || 0;
+      document.getElementById('time-anomalies').textContent = result.time_anomalies || 0;
+
+      // Badge
+      if (passed) {
+        document.getElementById('badge-section').style.display = 'block';
+        document.getElementById('skill-name').textContent = result.skill_name || 'Skill';
+      }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', loadResults);
+  </script>
+</body>
+</html>
