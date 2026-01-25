@@ -385,6 +385,56 @@ function initMobileMenu() {
   }
 }
 
+// Dashboard Mobile Sidebar Toggle
+function initDashboardSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  if (!sidebar) return; // Not on a dashboard page
+
+  // Create mobile toggle button
+  let mobileToggle = document.querySelector('.mobile-sidebar-toggle');
+  if (!mobileToggle) {
+    mobileToggle = document.createElement('button');
+    mobileToggle.className = 'mobile-sidebar-toggle';
+    mobileToggle.innerHTML = '☰';
+    mobileToggle.setAttribute('aria-label', 'Toggle sidebar');
+    document.body.appendChild(mobileToggle);
+  }
+
+  // Create overlay
+  let overlay = document.querySelector('.sidebar-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'sidebar-overlay';
+    document.body.appendChild(overlay);
+  }
+
+  // Toggle sidebar
+  mobileToggle.addEventListener('click', () => {
+    sidebar.classList.toggle('mobile-open');
+    overlay.classList.toggle('active');
+    mobileToggle.innerHTML = sidebar.classList.contains('mobile-open') ? '✕' : '☰';
+  });
+
+  // Close sidebar when clicking overlay
+  overlay.addEventListener('click', () => {
+    sidebar.classList.remove('mobile-open');
+    overlay.classList.remove('active');
+    mobileToggle.innerHTML = '☰';
+  });
+
+  // Close sidebar when clicking nav items on mobile
+  const navItems = sidebar.querySelectorAll('.nav-item');
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      if (window.innerWidth <= 768) {
+        sidebar.classList.remove('mobile-open');
+        overlay.classList.remove('active');
+        mobileToggle.innerHTML = '☰';
+      }
+    });
+  });
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
   // Handle OAuth callback tokens first
@@ -392,6 +442,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize mobile menu
   initMobileMenu();
+
+  // Initialize dashboard sidebar
+  initDashboardSidebar();
 
   // Check if on dashboard
   if (window.location.pathname === '/dashboard.html' ||
