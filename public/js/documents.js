@@ -10,16 +10,26 @@ document.addEventListener('DOMContentLoaded', () => {
   initDocTypeSelector();
 });
 
-// Auth check
+// Auth check - uses checkAuth() from main.js which handles token properly
 async function initAuth() {
   try {
-    const res = await fetch('/api/auth/me');
-    if (!res.ok) {
+    // Use checkAuth from main.js which includes proper Authorization header
+    const user = await checkAuth();
+    if (!user) {
       window.location.href = '/login.html';
       return;
     }
-    currentUser = await res.json();
-    document.getElementById('user-name').textContent = currentUser.name || 'User';
+    currentUser = user;
+
+    // Update UI
+    const userName = user.name || user.email?.split('@')[0] || 'User';
+    document.getElementById('user-name').textContent = userName;
+    document.getElementById('user-avatar').textContent = userName.charAt(0).toUpperCase();
+
+    // Check plan status
+    if (user.is_paid) {
+      document.getElementById('user-plan').textContent = 'Pro Plan';
+    }
 
     // Load stats and documents
     await Promise.all([
@@ -32,13 +42,12 @@ async function initAuth() {
   }
 }
 
-// Load document stats
+// Load document stats - uses apiCall from main.js for proper auth
 async function loadStats() {
   try {
-    const res = await fetch('/api/documents/stats/summary');
-    if (!res.ok) throw new Error('Failed to load stats');
+    const data = await apiCall('/documents/stats/summary');
+    if (!data) return;
 
-    const data = await res.json();
     const stats = data.stats;
 
     document.getElementById('total-docs').textContent = stats.total_documents || 0;
@@ -52,13 +61,12 @@ async function loadStats() {
   }
 }
 
-// Load all documents
+// Load all documents - uses apiCall from main.js for proper auth
 async function loadDocuments() {
   try {
-    const res = await fetch('/api/documents');
-    if (!res.ok) throw new Error('Failed to load documents');
+    const data = await apiCall('/documents');
+    if (!data) return;
 
-    const data = await res.json();
     documents = data.documents || [];
 
     renderDocuments();
@@ -211,8 +219,11 @@ async function handleFileUpload(file) {
 
     progressFill.style.width = '30%';
 
+    // Include auth token for file upload (can't use apiCall since it's FormData, not JSON)
+    const token = localStorage.getItem('rekrutai_token');
     const res = await fetch('/api/documents/upload', {
       method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       body: formData
     });
 
