@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../lib/db');
-const { requireAuth } = require('../lib/auth');
+const { authMiddleware } = require('../lib/auth');
 const polsiaAI = require('../lib/polsia-ai');
 
 // ============================================
@@ -9,7 +9,7 @@ const polsiaAI = require('../lib/polsia-ai');
 // ============================================
 
 // Create offer from template
-router.post('/offers', requireAuth, async (req, res) => {
+router.post('/offers', authMiddleware, async (req, res) => {
   try {
     const { candidate_id, job_id, title, salary, start_date, benefits, template_data } = req.body;
 
@@ -36,7 +36,7 @@ router.post('/offers', requireAuth, async (req, res) => {
 });
 
 // Get all offers for recruiter
-router.get('/offers', requireAuth, async (req, res) => {
+router.get('/offers', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT o.*,
@@ -59,7 +59,7 @@ router.get('/offers', requireAuth, async (req, res) => {
 });
 
 // Get candidate's offers
-router.get('/offers/me', requireAuth, async (req, res) => {
+router.get('/offers/me', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT o.*,
@@ -80,7 +80,7 @@ router.get('/offers/me', requireAuth, async (req, res) => {
 });
 
 // Send offer to candidate
-router.post('/offers/:id/send', requireAuth, async (req, res) => {
+router.post('/offers/:id/send', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
       `UPDATE offers
@@ -102,7 +102,7 @@ router.post('/offers/:id/send', requireAuth, async (req, res) => {
 });
 
 // Candidate views offer (track engagement)
-router.post('/offers/:id/view', requireAuth, async (req, res) => {
+router.post('/offers/:id/view', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
       `UPDATE offers
@@ -124,7 +124,7 @@ router.post('/offers/:id/view', requireAuth, async (req, res) => {
 });
 
 // Accept offer
-router.post('/offers/:id/accept', requireAuth, async (req, res) => {
+router.post('/offers/:id/accept', authMiddleware, async (req, res) => {
   try {
     const { signature_url } = req.body;
 
@@ -175,7 +175,7 @@ router.post('/offers/:id/accept', requireAuth, async (req, res) => {
 });
 
 // Decline offer
-router.post('/offers/:id/decline', requireAuth, async (req, res) => {
+router.post('/offers/:id/decline', authMiddleware, async (req, res) => {
   try {
     const { reason } = req.body;
 
@@ -203,7 +203,7 @@ router.post('/offers/:id/decline', requireAuth, async (req, res) => {
 // ============================================
 
 // Get candidate's checklists
-router.get('/checklists', requireAuth, async (req, res) => {
+router.get('/checklists', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT * FROM onboarding_checklists
@@ -220,7 +220,7 @@ router.get('/checklists', requireAuth, async (req, res) => {
 });
 
 // Update checklist item completion
-router.post('/checklists/:id/complete', requireAuth, async (req, res) => {
+router.post('/checklists/:id/complete', authMiddleware, async (req, res) => {
   try {
     const { item_id } = req.body;
 
@@ -269,7 +269,7 @@ router.post('/checklists/:id/complete', requireAuth, async (req, res) => {
 // ============================================
 
 // Upload onboarding document
-router.post('/documents', requireAuth, async (req, res) => {
+router.post('/documents', authMiddleware, async (req, res) => {
   try {
     const { checklist_id, document_type, document_url } = req.body;
 
@@ -289,7 +289,7 @@ router.post('/documents', requireAuth, async (req, res) => {
 });
 
 // Get documents for checklist
-router.get('/checklists/:id/documents', requireAuth, async (req, res) => {
+router.get('/checklists/:id/documents', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT * FROM onboarding_documents
@@ -310,7 +310,7 @@ router.get('/checklists/:id/documents', requireAuth, async (req, res) => {
 // ============================================
 
 // Create feedback survey (auto-scheduled by system)
-router.post('/feedback/schedule', requireAuth, async (req, res) => {
+router.post('/feedback/schedule', authMiddleware, async (req, res) => {
   try {
     const { employee_id, day_mark } = req.body;
 
@@ -355,7 +355,7 @@ router.post('/feedback/schedule', requireAuth, async (req, res) => {
 });
 
 // Get employee's pending feedback
-router.get('/feedback/pending', requireAuth, async (req, res) => {
+router.get('/feedback/pending', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT * FROM post_hire_feedback
@@ -372,7 +372,7 @@ router.get('/feedback/pending', requireAuth, async (req, res) => {
 });
 
 // Submit feedback responses
-router.post('/feedback/:id/submit', requireAuth, async (req, res) => {
+router.post('/feedback/:id/submit', authMiddleware, async (req, res) => {
   try {
     const { responses, satisfaction_score, would_recommend, comments } = req.body;
 
@@ -413,7 +413,7 @@ router.post('/feedback/:id/submit', requireAuth, async (req, res) => {
 });
 
 // Get feedback analytics for manager
-router.get('/feedback/analytics', requireAuth, async (req, res) => {
+router.get('/feedback/analytics', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT
@@ -440,7 +440,7 @@ router.get('/feedback/analytics', requireAuth, async (req, res) => {
 // ============================================
 
 // Start or continue chat session
-router.post('/assistant/chat', requireAuth, async (req, res) => {
+router.post('/assistant/chat', authMiddleware, async (req, res) => {
   try {
     const { message, checklist_id } = req.body;
 
@@ -518,7 +518,7 @@ router.post('/assistant/chat', requireAuth, async (req, res) => {
 });
 
 // Get chat history
-router.get('/assistant/history/:session_id', requireAuth, async (req, res) => {
+router.get('/assistant/history/:session_id', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT * FROM onboarding_chats
