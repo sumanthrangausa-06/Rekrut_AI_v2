@@ -13,6 +13,7 @@ const trustscoreRoutes = require('./routes/trustscore');
 const recruiterRoutes = require('./routes/recruiter');
 const candidateRoutes = require('./routes/candidate');
 const assessmentRoutes = require('./routes/assessments');
+const matchingRoutes = require('./routes/matching');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -44,6 +45,9 @@ app.use('/api/assessments', assessmentRoutes);
 app.use('/api/company', companyRoutes);
 app.use('/api/trustscore', trustscoreRoutes);
 app.use('/api/recruiter', recruiterRoutes);
+
+// API Routes - Matching Engine
+app.use('/api/matching', matchingRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
