@@ -4,6 +4,7 @@ const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const trustscoreService = require('../services/trustscore');
 const jobOptimizer = require('../services/job-optimizer');
+const { AuditLogger } = require('../services/auditLogger');
 
 const router = express.Router();
 
@@ -357,6 +358,23 @@ router.put('/applications/:id', authMiddleware, requireRecruiter, async (req, re
           [app.job_id]
         );
       }
+    }
+
+    // Audit log: Application status change
+    if (status) {
+      await AuditLogger.log({
+        actionType: 'application_status_changed',
+        userId: req.user.id,
+        targetType: 'job_application',
+        targetId: parseInt(req.params.id),
+        metadata: {
+          candidate_id: existing.rows[0].candidate_id,
+          job_id: existing.rows[0].job_id,
+          new_status: status,
+          recruiter_notes: recruiter_notes || null
+        },
+        req
+      });
     }
 
     res.json({ success: true, application: result.rows[0] });
