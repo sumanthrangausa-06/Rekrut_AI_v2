@@ -671,4 +671,103 @@ router.get('/practice/progress', authMiddleware, async (req, res) => {
   }
 });
 
+// =============== VIDEO ANALYSIS ===============
+
+// Save video analysis data
+router.post('/save-analysis', authMiddleware, async (req, res) => {
+  try {
+    const { interview_id, question_index, analysis_data, scores } = req.body;
+
+    // Verify interview belongs to user
+    const interview = await pool.query(
+      'SELECT * FROM interviews WHERE id = $1 AND user_id = $2',
+      [interview_id, req.user.id]
+    );
+
+    if (interview.rows.length === 0) {
+      return res.status(404).json({ error: 'Interview not found' });
+    }
+
+    // Insert or update analysis
+    await pool.query(
+      `INSERT INTO interview_analysis (
+        interview_id, question_index, analysis_data,
+        eye_contact_score, expression_score, body_language_score,
+        voice_score, presentation_score
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (interview_id, question_index)
+      DO UPDATE SET
+        analysis_data = $3,
+        eye_contact_score = $4,
+        expression_score = $5,
+        body_language_score = $6,
+        voice_score = $7,
+        presentation_score = $8`,
+      [
+        interview_id,
+        question_index,
+        JSON.stringify(analysis_data),
+        scores.eyeContact || 0,
+        scores.expression || 0,
+        scores.bodyLanguage || 0,
+        scores.voice || 0,
+        scores.presentation || 0
+      ]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Save analysis error:', err);
+    res.status(500).json({ error: 'Failed to save analysis' });
+  }
+});
+
+// Get video analysis for an interview
+router.get('/:id/analysis', authMiddleware, async (req, res) => {
+  try {
+    // Verify interview belongs to user
+    const interview = await pool.query(
+      'SELECT * FROM interviews WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+
+    if (interview.rows.length === 0) {
+      return res.status(404).json({ error: 'Interview not found' });
+    }
+
+    // Get all analysis data for this interview
+    const analysis = await pool.query(
+      `SELECT * FROM interview_analysis
+       WHERE interview_id = $1
+       ORDER BY question_index ASC`,
+      [req.params.id]
+    );
+
+    // Calculate aggregate presentation score for OmniScore
+    let avgPresentationScore = null;
+    if (analysis.rows.length > 0) {
+      const scores = analysis.rows.map(row => parseFloat(row.presentation_score || 0));
+      avgPresentationScore = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+    }
+
+    res.json({
+      success: true,
+      interview: interview.rows[0],
+      analysis: analysis.rows.map(row => ({
+        ...row,
+        analysis_data: typeof row.analysis_data === 'string'
+          ? JSON.parse(row.analysis_data)
+          : row.analysis_data
+      })),
+      aggregate_scores: {
+        presentation: avgPresentationScore
+      }
+    });
+  } catch (err) {
+    console.error('Get analysis error:', err);
+    res.status(500).json({ error: 'Failed to fetch analysis' });
+  }
+});
+
 module.exports = router;
