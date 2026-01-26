@@ -15,6 +15,7 @@ const candidateRoutes = require('./routes/candidate');
 const assessmentRoutes = require('./routes/assessments');
 const matchingRoutes = require('./routes/matching');
 const documentRoutes = require('./routes/documents');
+const payrollRoutes = require('./routes/payroll');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -52,6 +53,9 @@ app.use('/api/matching', matchingRoutes);
 
 // API Routes - Document Verification
 app.use('/api/documents', documentRoutes);
+
+// API Routes - Payroll
+app.use('/api/payroll', payrollRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
