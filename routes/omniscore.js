@@ -2,6 +2,7 @@
 const express = require('express');
 const { authMiddleware } = require('../lib/auth');
 const omniscoreService = require('../services/omniscore');
+const { AuditLogger } = require('../services/auditLogger');
 
 const router = express.Router();
 
@@ -10,6 +11,21 @@ router.get('/', authMiddleware, async (req, res) => {
   try {
     const score = await omniscoreService.getOrCreateScore(req.user.id);
     const currentScores = await omniscoreService.calculateScore(req.user.id);
+
+    // Audit log: Score calculation
+    await AuditLogger.log({
+      actionType: 'omniscore_calculated',
+      userId: req.user.id,
+      targetType: 'omniscore',
+      targetId: score.id,
+      metadata: {
+        overall_score: currentScores.total_score,
+        technical: currentScores.technical_score,
+        behavioral: currentScores.behavioral_score,
+        experience: currentScores.experience_score
+      },
+      req
+    });
 
     res.json({
       success: true,
@@ -117,6 +133,18 @@ router.post('/checkin', authMiddleware, async (req, res) => {
       5, // 5 points per daily login
       10
     );
+
+    // Audit log: Daily check-in
+    await AuditLogger.log({
+      actionType: 'daily_checkin',
+      userId: req.user.id,
+      targetType: 'score_component',
+      metadata: {
+        points_earned: 5,
+        new_total_score: newScore.total_score
+      },
+      req
+    });
 
     res.json({
       success: true,
