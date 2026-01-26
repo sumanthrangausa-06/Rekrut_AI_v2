@@ -27,7 +27,7 @@ async function verify() {
     // Check if tables exist
     const tableResult = await client.query(`
       SELECT tablename FROM pg_tables
-      WHERE schemaname = 'current_schema()'
+      WHERE schemaname = 'public'
       AND tablename IN ('candidate_embeddings', 'job_embeddings', 'match_results')
     `);
 
