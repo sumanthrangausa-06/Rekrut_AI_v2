@@ -970,3 +970,29 @@
 2026-01-26T16:10:17.926Z [DEBUG] [API:auth] OAuth token check complete
 2026-01-26T16:10:18.346Z [DEBUG] Stream started - received first chunk
 2026-01-26T16:10:20.089Z [DEBUG] Stream started - received first chunk
+2026-01-26T16:10:23.113Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-01-26T16:10:23.114Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-01-26T16:10:23.114Z [DEBUG] Found 1 hook matchers in settings
+2026-01-26T16:10:23.114Z [DEBUG] Matched 4 unique hooks for query "Bash" (4 before deduplication)
+2026-01-26T16:10:23.124Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-26T16:10:23.124Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-26T16:10:23.124Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-26T16:10:23.124Z [DEBUG] Hook result has permissionBehavior=allow
+2026-01-26T16:10:23.125Z [DEBUG] Hook approved tool use for Bash, bypassing permission check
+2026-01-26T16:10:23.280Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-01-26T16:10:23.281Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-26T16:10:23.281Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-26T16:10:23.281Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-26T16:10:23.282Z [DEBUG] Getting matching hook commands for PostToolUse with query: Bash
+2026-01-26T16:10:23.282Z [DEBUG] Found 0 hook matchers in settings
+2026-01-26T16:10:23.282Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-01-26T16:10:23.302Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-01-26T16:10:23.302Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-01-26T16:10:23.302Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-01-26T16:10:23.302Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-01-26T16:10:23.310Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-01-26T16:10:23.316Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-01-26T16:10:23.316Z [DEBUG] [API:auth] OAuth token check starting
+2026-01-26T16:10:23.317Z [DEBUG] [API:auth] OAuth token check complete
+2026-01-26T16:10:23.851Z [DEBUG] Stream started - received first chunk
+2026-01-26T16:10:25.137Z [DEBUG] Stream started - received first chunk
