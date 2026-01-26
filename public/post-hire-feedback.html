@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Post-Hire Feedback - Rekrut AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-4xl">
+    <div class="mb-8">
+      <h1 class="text-4xl font-bold text-white mb-2">
+        <i class="fas fa-comment-dots mr-3 text-purple-400"></i>
+        Post-Hire Check-ins
+      </h1>
+      <p class="text-gray-300">Share your experience and help us improve</p>
+    </div>
+
+    <button onclick="location.href='candidate-dashboard.html'" class="mb-6 bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg transition">
+      <i class="fas fa-arrow-left mr-2"></i>
+      Back to Dashboard
+    </button>
+
+    <!-- Pending Feedback -->
+    <div id="pendingFeedback" class="space-y-6">
+      <div class="text-center py-12 text-gray-400">
+        <i class="fas fa-spinner fa-spin text-3xl mb-4"></i>
+        <p>Loading feedback requests...</p>
+      </div>
+    </div>
+
+    <!-- Completed Feedback History -->
+    <div id="completedSection" class="mt-12 hidden">
+      <h2 class="text-2xl font-bold text-white mb-4">
+        <i class="fas fa-check-circle mr-2 text-green-400"></i>
+        Completed Check-ins
+      </h2>
+      <div id="completedFeedback" class="space-y-4"></div>
+    </div>
+  </div>
+
+  <!-- Feedback Form Modal -->
+  <div id="feedbackModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="bg-slate-800 rounded-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-6">
+        <h2 id="modalTitle" class="text-2xl font-bold text-white">Feedback Survey</h2>
+        <button onclick="closeFeedbackModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times text-2xl"></i>
+        </button>
+      </div>
+
+      <form id="feedbackForm" class="space-y-6">
+        <div id="questionsContainer"></div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">
+            Overall Satisfaction (1-10)
+          </label>
+          <div class="flex gap-2">
+            ${[...Array(10)].map((_, i) => `
+              <button
+                type="button"
+                onclick="selectSatisfaction(${i + 1})"
+                id="sat-${i + 1}"
+                class="flex-1 py-3 bg-slate-700 hover:bg-purple-600 text-white rounded-lg transition satisfaction-btn"
+              >
+                ${i + 1}
+              </button>
+            `).join('')}
+          </div>
+          <input type="hidden" id="satisfaction_score" required>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">
+            Would you recommend this company to a friend?
+          </label>
+          <div class="flex gap-4">
+            <button
+              type="button"
+              onclick="selectRecommendation(true)"
+              id="recommend-yes"
+              class="flex-1 py-3 bg-slate-700 hover:bg-green-600 text-white rounded-lg transition recommend-btn"
+            >
+              <i class="fas fa-thumbs-up mr-2"></i>
+              Yes
+            </button>
+            <button
+              type="button"
+              onclick="selectRecommendation(false)"
+              id="recommend-no"
+              class="flex-1 py-3 bg-slate-700 hover:bg-red-600 text-white rounded-lg transition recommend-btn"
+            >
+              <i class="fas fa-thumbs-down mr-2"></i>
+              No
+            </button>
+          </div>
+          <input type="hidden" id="would_recommend" required>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">
+            Additional Comments (Optional)
+          </label>
+          <textarea
+            id="comments"
+            rows="4"
+            class="w-full px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500"
+            placeholder="Share any additional thoughts..."
+          ></textarea>
+        </div>
+
+        <button
+          type="submit"
+          class="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-4 rounded-lg font-semibold transition"
+        >
+          <i class="fas fa-paper-plane mr-2"></i>
+          Submit Feedback
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let currentFeedback = null;
+    let pendingFeedbacks = [];
+
+    async function loadFeedback() {
+      try {
+        const res = await fetch('/api/onboarding/feedback/pending');
+        pendingFeedbacks = await res.json();
+
+        const pendingDiv = document.getElementById('pendingFeedback');
+
+        if (pendingFeedbacks.length === 0) {
+          pendingDiv.innerHTML = `
+            <div class="bg-white/10 backdrop-blur-lg rounded-xl p-12 text-center border border-white/20">
+              <i class="fas fa-check-circle text-6xl text-green-400 mb-4"></i>
+              <h3 class="text-xl font-bold text-white mb-2">All Caught Up!</h3>
+              <p class="text-gray-300">No pending feedback requests at the moment.</p>
+            </div>
+          `;
+          return;
+        }
+
+        pendingDiv.innerHTML = pendingFeedbacks.map(feedback => `
+          <div class="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 hover:border-purple-500 transition">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-xl font-bold text-white mb-1">
+                  ${feedback.day_mark}-Day Check-in
+                </h3>
+                <p class="text-gray-400">Sent ${new Date(feedback.sent_at).toLocaleDateString()}</p>
+              </div>
+              <div class="text-yellow-400">
+                <i class="fas fa-clock text-2xl"></i>
+              </div>
+            </div>
+
+            <p class="text-gray-300 mb-4">
+              We'd love to hear about your experience so far. This should take about 5 minutes.
+            </p>
+
+            <button
+              onclick="openFeedbackForm(${feedback.id})"
+              class="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition"
+            >
+              <i class="fas fa-edit mr-2"></i>
+              Complete Survey
+            </button>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Error loading feedback:', err);
+      }
+    }
+
+    function openFeedbackForm(feedbackId) {
+      currentFeedback = pendingFeedbacks.find(f => f.id === feedbackId);
+      if (!currentFeedback) return;
+
+      document.getElementById('modalTitle').textContent = `${currentFeedback.day_mark}-Day Check-in`;
+
+      const questionsContainer = document.getElementById('questionsContainer');
+      const questions = currentFeedback.questions || [];
+
+      questionsContainer.innerHTML = questions.map((q, i) => `
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">
+            ${q}
+          </label>
+          <textarea
+            id="answer-${i}"
+            rows="3"
+            required
+            class="w-full px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500"
+            placeholder="Your answer..."
+          ></textarea>
+        </div>
+      `).join('');
+
+      // Reset form
+      document.getElementById('feedbackForm').reset();
+      document.querySelectorAll('.satisfaction-btn').forEach(btn => btn.classList.remove('bg-purple-600'));
+      document.querySelectorAll('.recommend-btn').forEach(btn => {
+        btn.classList.remove('bg-green-600', 'bg-red-600');
+        btn.classList.add('bg-slate-700');
+      });
+
+      document.getElementById('feedbackModal').classList.remove('hidden');
+      document.getElementById('feedbackModal').classList.add('flex');
+    }
+
+    function selectSatisfaction(score) {
+      document.getElementById('satisfaction_score').value = score;
+      document.querySelectorAll('.satisfaction-btn').forEach((btn, i) => {
+        if (i + 1 <= score) {
+          btn.classList.add('bg-purple-600');
+          btn.classList.remove('bg-slate-700');
+        } else {
+          btn.classList.remove('bg-purple-600');
+          btn.classList.add('bg-slate-700');
+        }
+      });
+    }
+
+    function selectRecommendation(value) {
+      document.getElementById('would_recommend').value = value;
+      document.querySelectorAll('.recommend-btn').forEach(btn => {
+        btn.classList.remove('bg-green-600', 'bg-red-600');
+        btn.classList.add('bg-slate-700');
+      });
+
+      if (value) {
+        document.getElementById('recommend-yes').classList.remove('bg-slate-700');
+        document.getElementById('recommend-yes').classList.add('bg-green-600');
+      } else {
+        document.getElementById('recommend-no').classList.remove('bg-slate-700');
+        document.getElementById('recommend-no').classList.add('bg-red-600');
+      }
+    }
+
+    document.getElementById('feedbackForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const questions = currentFeedback.questions || [];
+      const responses = {};
+
+      questions.forEach((q, i) => {
+        responses[q] = document.getElementById(`answer-${i}`).value;
+      });
+
+      const formData = {
+        responses,
+        satisfaction_score: parseInt(document.getElementById('satisfaction_score').value),
+        would_recommend: document.getElementById('would_recommend').value === 'true',
+        comments: document.getElementById('comments').value
+      };
+
+      try {
+        const res = await fetch(`/api/onboarding/feedback/${currentFeedback.id}/submit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+
+        if (!res.ok) throw new Error('Failed to submit feedback');
+
+        alert('Thank you for your feedback!');
+        closeFeedbackModal();
+        loadFeedback();
+      } catch (err) {
+        console.error('Error submitting feedback:', err);
+        alert('Failed to submit feedback. Please try again.');
+      }
+    });
+
+    function closeFeedbackModal() {
+      document.getElementById('feedbackModal').classList.add('hidden');
+      document.getElementById('feedbackModal').classList.remove('flex');
+      currentFeedback = null;
+    }
+
+    loadFeedback();
+  </script>
+</body>
+</html>
