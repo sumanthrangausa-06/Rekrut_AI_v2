@@ -506,9 +506,9 @@ router.get('/practice/stats', authMiddleware, async (req, res) => {
     // Calculate day streak
     const streakResult = await pool.query(
       `WITH RECURSIVE date_series AS (
-        SELECT CURRENT_DATE as check_date, 0 as days_back
+        SELECT CURRENT_DATE::date as check_date, 0 as days_back
         UNION ALL
-        SELECT check_date - INTERVAL '1 day', days_back + 1
+        SELECT (check_date - INTERVAL '1 day')::date, days_back + 1
         FROM date_series
         WHERE days_back < 30
       )
