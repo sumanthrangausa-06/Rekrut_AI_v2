@@ -10,6 +10,9 @@
   <link rel="stylesheet" href="/css/styles.css">
   <link rel="stylesheet" href="/css/responsive.css">
   <link rel="stylesheet" href="/css/dashboard.css">
+  <!-- TensorFlow.js for video analysis -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.js"></script>
   <style>
     .practice-layout {
       min-height: 100vh;
@@ -424,6 +427,75 @@
       font-size: 4rem;
       margin-bottom: 1rem;
     }
+
+    .practice-mode-toggle {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      background: #f9fafb;
+      padding: 0.5rem;
+      border-radius: 12px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      color: var(--text-muted);
+    }
+
+    .mode-btn.active {
+      background: white;
+      color: #667eea;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .video-practice-area {
+      display: none;
+      margin-bottom: 1.5rem;
+    }
+
+    .video-practice-area.active {
+      display: block;
+    }
+
+    .video-preview {
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      margin-bottom: 1rem;
+      position: relative;
+    }
+
+    .video-preview video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .video-controls {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+    }
+
+    .analysis-badge {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
@@ -505,9 +577,41 @@
           </div>
         </div>
 
-        <div class="response-area">
+        <!-- Practice Mode Toggle -->
+        <div class="practice-mode-toggle">
+          <button class="mode-btn active" data-mode="text" onclick="switchPracticeMode('text')">
+            ✍️ Text Response
+          </button>
+          <button class="mode-btn" data-mode="video" onclick="switchPracticeMode('video')">
+            🎥 Video Response
+          </button>
+        </div>
+
+        <!-- Text Response Area -->
+        <div class="response-area" id="text-response-area">
           <label>Your Response</label>
           <textarea id="practice-response" placeholder="Take your time to craft a thoughtful response. Think about specific examples and use the STAR method (Situation, Task, Action, Result) for behavioral questions."></textarea>
+        </div>
+
+        <!-- Video Response Area -->
+        <div class="video-practice-area" id="video-response-area">
+          <div class="video-preview">
+            <video id="practice-video" autoplay muted playsinline></video>
+            <div id="video-analysis-badge" class="analysis-badge" style="display: none;">
+              Eye Contact: <span id="live-eye-contact">—</span>
+            </div>
+          </div>
+          <div class="video-controls">
+            <button class="btn btn-secondary" id="start-video-btn" onclick="startVideoPractice()">
+              Start Camera
+            </button>
+            <button class="btn btn-primary" id="record-video-btn" onclick="recordVideoPractice()" style="display: none;">
+              🎥 Record Response
+            </button>
+            <button class="btn btn-danger" id="stop-video-btn" onclick="stopVideoPractice()" style="display: none;">
+              ⏹️ Stop Recording
+            </button>
+          </div>
         </div>
 
         <button class="btn btn-primary btn-large btn-full" onclick="submitPracticeResponse()">
@@ -536,6 +640,247 @@
   </style>
 
   <script src="/js/main.js"></script>
+  <script src="/js/video-analyzer.js"></script>
   <script src="/js/interview-practice.js"></script>
+  <script>
+    // Video practice mode variables
+    let practiceMode = 'text';
+    let videoStream = null;
+    let videoRecorder = null;
+    let videoAnalyzer = null;
+    let recordedVideoBlob = null;
+    let practiceAnalysisData = null;
+
+    // Switch practice mode
+    function switchPracticeMode(mode) {
+      practiceMode = mode;
+
+      // Update toggle buttons
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.mode === mode) {
+          btn.classList.add('active');
+        }
+      });
+
+      // Show/hide appropriate areas
+      if (mode === 'text') {
+        document.getElementById('text-response-area').style.display = 'block';
+        document.getElementById('video-response-area').classList.remove('active');
+
+        // Stop video if running
+        if (videoStream) {
+          videoStream.getTracks().forEach(track => track.stop());
+          videoStream = null;
+        }
+      } else {
+        document.getElementById('text-response-area').style.display = 'none';
+        document.getElementById('video-response-area').classList.add('active');
+      }
+    }
+
+    // Start video practice
+    async function startVideoPractice() {
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 1280, height: 720 },
+          audio: true
+        });
+
+        document.getElementById('practice-video').srcObject = videoStream;
+
+        // Initialize video analyzer if not already done
+        if (!videoAnalyzer) {
+          videoAnalyzer = new VideoAnalyzer();
+          await videoAnalyzer.init();
+
+          videoAnalyzer.on('scores', (scores) => {
+            document.getElementById('live-eye-contact').textContent = scores.eyeContact + '%';
+            document.getElementById('video-analysis-badge').style.display = 'block';
+          });
+        }
+
+        document.getElementById('start-video-btn').style.display = 'none';
+        document.getElementById('record-video-btn').style.display = 'inline-flex';
+      } catch (err) {
+        console.error('Camera error:', err);
+        alert('Camera access required for video practice. Please allow permissions.');
+      }
+    }
+
+    // Record video practice
+    function recordVideoPractice() {
+      try {
+        videoRecorder = new MediaRecorder(videoStream, {
+          mimeType: 'video/webm;codecs=vp9'
+        });
+
+        const chunks = [];
+        videoRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
+
+        videoRecorder.onstop = () => {
+          recordedVideoBlob = new Blob(chunks, { type: 'video/webm' });
+          practiceAnalysisData = videoAnalyzer ? videoAnalyzer.getFinalAnalysis() : null;
+
+          document.getElementById('record-video-btn').style.display = 'inline-flex';
+          document.getElementById('stop-video-btn').style.display = 'none';
+          document.getElementById('video-analysis-badge').style.display = 'none';
+        };
+
+        videoRecorder.start();
+
+        if (videoAnalyzer) {
+          videoAnalyzer.reset();
+          videoAnalyzer.startAnalysis(document.getElementById('practice-video'), 500);
+        }
+
+        document.getElementById('record-video-btn').style.display = 'none';
+        document.getElementById('stop-video-btn').style.display = 'inline-flex';
+      } catch (err) {
+        console.error('Recording error:', err);
+        alert('Failed to start recording.');
+      }
+    }
+
+    // Stop video practice
+    function stopVideoPractice() {
+      if (videoRecorder && videoRecorder.state !== 'inactive') {
+        videoRecorder.stop();
+
+        if (videoAnalyzer) {
+          videoAnalyzer.stopAnalysis();
+        }
+      }
+    }
+
+    // Override submitPracticeResponse to handle video mode
+    const originalSubmit = submitPracticeResponse;
+    submitPracticeResponse = async function() {
+      if (practiceMode === 'video') {
+        if (!recordedVideoBlob) {
+          alert('Please record a video response first.');
+          return;
+        }
+
+        showLoading('AI is analyzing your video response...');
+
+        try {
+          // For now, just display coaching based on video analysis
+          hideLoading();
+          displayVideoPracticeCoaching();
+        } catch (err) {
+          hideLoading();
+          alert('Failed to analyze video: ' + err.message);
+        }
+      } else {
+        originalSubmit();
+      }
+    };
+
+    // Display video practice coaching
+    function displayVideoPracticeCoaching() {
+      if (!practiceAnalysisData) {
+        alert('No analysis data available.');
+        return;
+      }
+
+      const scores = practiceAnalysisData.scores;
+      const resultContainer = document.getElementById('coaching-result');
+
+      const insights = [];
+
+      if (scores.eyeContact >= 70) {
+        insights.push('✅ Strong eye contact maintained throughout');
+      } else {
+        insights.push('💡 Practice looking directly at the camera lens');
+      }
+
+      if (scores.bodyLanguage >= 70) {
+        insights.push('✅ Good posture and head stability');
+      } else {
+        insights.push('💡 Keep your head steady and maintain good posture');
+      }
+
+      if (scores.presentation >= 70) {
+        insights.push('✅ Excellent overall video presence');
+      } else {
+        insights.push('💡 Practice recording yourself to improve presence');
+      }
+
+      resultContainer.innerHTML = `
+        <div class="score-display">
+          <div class="score-value">${scores.presentation}/100</div>
+          <div class="score-label">Presentation Score</div>
+        </div>
+
+        <div class="coaching-section">
+          <h4>📊 Video Analysis</h4>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 1rem;">
+            <div style="text-align: center; padding: 1rem; background: white; border-radius: 12px;">
+              <div style="font-size: 2rem; font-weight: 700; color: #667eea;">${scores.eyeContact}</div>
+              <div style="font-size: 0.875rem; color: #64748b;">Eye Contact</div>
+            </div>
+            <div style="text-align: center; padding: 1rem; background: white; border-radius: 12px;">
+              <div style="font-size: 2rem; font-weight: 700; color: #667eea;">${scores.bodyLanguage}</div>
+              <div style="font-size: 0.875rem; color: #64748b;">Body Language</div>
+            </div>
+            <div style="text-align: center; padding: 1rem; background: white; border-radius: 12px;">
+              <div style="font-size: 2rem; font-weight: 700; color: #667eea;">${scores.expression}</div>
+              <div style="font-size: 0.875rem; color: #64748b;">Expression</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="coaching-section">
+          <h4>💡 Key Insights</h4>
+          <ul class="coaching-list">
+            ${insights.map(i => `<li>${i}</li>`).join('')}
+          </ul>
+        </div>
+
+        <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+          <button class="btn btn-ghost btn-large" onclick="closePracticeModal()" style="flex: 1;">
+            Close
+          </button>
+          <button class="btn btn-primary btn-large" onclick="practiceAnother()" style="flex: 1;">
+            Practice Another
+          </button>
+        </div>
+      `;
+
+      document.getElementById('practice-question-view').style.display = 'none';
+      resultContainer.style.display = 'block';
+      resultContainer.classList.add('active');
+    }
+
+    // Clean up video when modal closes
+    const originalClose = closePracticeModal;
+    closePracticeModal = function() {
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+        videoStream = null;
+      }
+
+      if (videoAnalyzer) {
+        videoAnalyzer.stopAnalysis();
+      }
+
+      recordedVideoBlob = null;
+      practiceAnalysisData = null;
+
+      // Reset UI
+      document.getElementById('start-video-btn').style.display = 'inline-flex';
+      document.getElementById('record-video-btn').style.display = 'none';
+      document.getElementById('stop-video-btn').style.display = 'none';
+      document.getElementById('video-analysis-badge').style.display = 'none';
+
+      practiceMode = 'text';
+      switchPracticeMode('text');
+
+      originalClose();
+    };
+  </script>
 </body>
 </html>
