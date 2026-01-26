@@ -41,9 +41,17 @@
           <span class="nav-icon">🎤</span>
           <span>Interview Prep</span>
         </a>
+        <a href="/interview-practice.html" class="nav-item">
+          <span class="nav-icon">🎯</span>
+          <span>AI Coaching</span>
+        </a>
         <a href="/job-board.html" class="nav-item">
           <span class="nav-icon">💼</span>
           <span>Job Board</span>
+        </a>
+        <a href="/history.html" class="nav-item">
+          <span class="nav-icon">📁</span>
+          <span>History</span>
         </a>
       </nav>
 
@@ -92,6 +100,7 @@
         <button class="tab-btn" data-tab="experience">Experience</button>
         <button class="tab-btn" data-tab="education">Education</button>
         <button class="tab-btn" data-tab="skills">Skills</button>
+        <button class="tab-btn" data-tab="interviews">Interviews</button>
         <button class="tab-btn" data-tab="portfolio">Portfolio</button>
         <button class="tab-btn" data-tab="resume">Resume</button>
       </div>
@@ -226,6 +235,69 @@
         </div>
 
         <div class="skills-list" id="skills-list"></div>
+      </section>
+
+      <!-- Interviews Tab -->
+      <section class="tab-content" id="tab-interviews">
+        <div class="section-header-inline">
+          <h3>Interview History</h3>
+          <div style="display: flex; gap: 12px;">
+            <a href="/interview.html" class="btn btn-ghost btn-sm">🎤 Mock Interview</a>
+            <a href="/interview-practice.html" class="btn btn-primary btn-sm">🎯 Practice Questions</a>
+          </div>
+        </div>
+
+        <!-- Practice Stats -->
+        <div class="interview-stats-grid" id="interview-stats">
+          <div class="stat-card-mini">
+            <span class="stat-icon">🎯</span>
+            <div>
+              <span class="stat-value" id="practice-total">0</span>
+              <span class="stat-label">Questions Practiced</span>
+            </div>
+          </div>
+          <div class="stat-card-mini">
+            <span class="stat-icon">📈</span>
+            <div>
+              <span class="stat-value" id="practice-avg">—</span>
+              <span class="stat-label">Average Score</span>
+            </div>
+          </div>
+          <div class="stat-card-mini">
+            <span class="stat-icon">🎤</span>
+            <div>
+              <span class="stat-value" id="mock-total">0</span>
+              <span class="stat-label">Mock Interviews</span>
+            </div>
+          </div>
+          <div class="stat-card-mini">
+            <span class="stat-icon">⭐</span>
+            <div>
+              <span class="stat-value" id="mock-best">—</span>
+              <span class="stat-label">Best Score</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interview History List -->
+        <div class="profile-section">
+          <h3>Mock Interviews</h3>
+          <div class="entries-list" id="interview-list">
+            <div class="loading-state">
+              <div class="spinner"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Practice History -->
+        <div class="profile-section">
+          <h3>Recent Practice Sessions</h3>
+          <div class="entries-list" id="practice-list">
+            <div class="loading-state">
+              <div class="spinner"></div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- Portfolio Tab -->
@@ -505,6 +577,11 @@
 
       document.querySelector(`[data-tab="${tab}"]`)?.classList.add('active');
       document.getElementById(`tab-${tab}`)?.classList.add('active');
+
+      // Load interviews when tab is opened
+      if (tab === 'interviews') {
+        loadInterviews();
+      }
     }
 
     async function loadProfile() {
@@ -1161,6 +1238,132 @@
     function previewProfile() {
       alert('Profile preview coming soon!');
     }
+
+    // =============== INTERVIEW HISTORY ===============
+    async function loadInterviews() {
+      try {
+        // Load practice stats
+        const practiceStats = await apiCall('/interviews/practice/stats');
+        if (practiceStats.success) {
+          document.getElementById('practice-total').textContent = practiceStats.stats.total_questions || 0;
+          document.getElementById('practice-avg').textContent = practiceStats.stats.average_score
+            ? practiceStats.stats.average_score.toFixed(1) + '/10'
+            : '—';
+        }
+
+        // Load mock interview stats
+        const mockStats = await apiCall('/interviews/stats/summary');
+        if (mockStats.stats) {
+          document.getElementById('mock-total').textContent = mockStats.stats.completed || 0;
+          document.getElementById('mock-best').textContent = mockStats.stats.best_score
+            ? mockStats.stats.best_score.toFixed(1) + '/10'
+            : '—';
+        }
+
+        // Load mock interview history
+        const interviews = await apiCall('/interviews/history?limit=10');
+        renderInterviewList(interviews.interviews || []);
+
+        // Load practice history
+        const practice = await apiCall('/interviews/practice/progress');
+        if (practice.success) {
+          renderPracticeList(practice.progress.recent_sessions || []);
+        }
+      } catch (err) {
+        console.error('Load interviews error:', err);
+      }
+    }
+
+    function renderInterviewList(interviews) {
+      const container = document.getElementById('interview-list');
+
+      if (interviews.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state" style="text-align: center; padding: 40px;">
+            <p style="color: var(--text-muted); margin-bottom: 16px;">No mock interviews yet</p>
+            <a href="/interview.html" class="btn btn-primary btn-sm">Start Your First Interview</a>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = interviews.map(interview => `
+        <div class="entry-card">
+          <div class="entry-header">
+            <div>
+              <h4>${interview.job_title || 'Mock Interview'}</h4>
+              ${interview.job_company ? `<span class="company">${interview.job_company}</span>` : ''}
+            </div>
+            <div style="text-align: right;">
+              ${interview.overall_score ? `
+                <div style="font-size: 24px; font-weight: 700; color: var(--accent-primary);">
+                  ${interview.overall_score.toFixed(1)}
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted);">Score</div>
+              ` : '<span style="color: var(--text-muted);">In Progress</span>'}
+            </div>
+          </div>
+          <div class="entry-meta">
+            <span>📅 ${new Date(interview.created_at).toLocaleDateString()}</span>
+            <span>⏱️ ${formatDuration(interview.duration_seconds)}</span>
+            <span>📝 ${(interview.responses || []).length} questions</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderPracticeList(sessions) {
+      const container = document.getElementById('practice-list');
+
+      if (sessions.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state" style="text-align: center; padding: 40px;">
+            <p style="color: var(--text-muted); margin-bottom: 16px;">No practice sessions yet</p>
+            <a href="/interview-practice.html" class="btn btn-primary btn-sm">Start Practicing</a>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = sessions.map(session => `
+        <div class="entry-card">
+          <div class="entry-header">
+            <div style="flex: 1;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span class="category-badge ${session.category}">${formatCategory(session.category)}</span>
+                <span style="font-size: 18px; font-weight: 600; color: var(--accent-primary);">
+                  ${session.score.toFixed(1)}/10
+                </span>
+              </div>
+              <p style="font-size: 14px; color: var(--text-secondary); margin: 0;">
+                ${session.question}
+              </p>
+            </div>
+          </div>
+          <div class="entry-meta">
+            <span>📅 ${new Date(session.created_at).toLocaleDateString()}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function formatCategory(cat) {
+      const labels = {
+        'behavioral': 'Behavioral',
+        'technical': 'Technical',
+        'situational': 'Situational'
+      };
+      return labels[cat] || cat;
+    }
+
+    function formatDuration(seconds) {
+      if (!seconds) return 'N/A';
+      const mins = Math.floor(seconds / 60);
+      if (mins < 60) return `${mins} min`;
+      const hours = Math.floor(mins / 60);
+      const remainMins = mins % 60;
+      return `${hours}h ${remainMins}m`;
+    }
   </script>
 
   <style>
@@ -1743,6 +1946,71 @@
       margin-top: 4px;
     }
 
+    /* Interview History */
+    .interview-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card-mini {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .stat-card-mini .stat-icon {
+      font-size: 32px;
+    }
+
+    .stat-card-mini .stat-value {
+      font-size: 20px;
+      font-weight: 700;
+      display: block;
+      color: var(--text-primary);
+    }
+
+    .stat-card-mini .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: block;
+    }
+
+    .category-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .category-badge.behavioral {
+      background: rgba(102, 126, 234, 0.2);
+      color: #667eea;
+    }
+
+    .category-badge.technical {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .category-badge.situational {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-muted);
+    }
+
     @media (max-width: 768px) {
       .form-grid {
         grid-template-columns: 1fr;
@@ -1753,6 +2021,10 @@
       }
 
       .projects-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .interview-stats-grid {
         grid-template-columns: 1fr;
       }
     }
