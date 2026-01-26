@@ -168,8 +168,13 @@
 
     document.addEventListener('DOMContentLoaded', async () => {
       const user = await checkAuth();
-      if (!user || !user.company_id) {
+      if (!user) {
         window.location.href = '/login.html';
+        return;
+      }
+      // Allow access if user has company_id OR is a recruiter
+      if (!user.company_id && user.role !== 'recruiter') {
+        window.location.href = '/dashboard.html';
         return;
       }
 

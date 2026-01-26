@@ -1,0 +1,447 @@
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/documents.js-228-        document.id,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/documents.js-229-        accessorId,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/documents.js-230-        'view',
+routes/documents.js:231:        req.session?.user?.company_id,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/documents.js-232-        req.ip
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/documents.js-233-      );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/documents.js-234-    }
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/documents.js-349-        c.name as company_name
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/documents.js-350-      FROM document_access_logs dal
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/documents.js-351-      LEFT JOIN users u ON dal.accessed_by = u.id
+routes/documents.js:352:      LEFT JOIN companies c ON dal.company_id = c.id
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/documents.js-353-      WHERE dal.document_id = $1
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/documents.js-354-      ORDER BY dal.accessed_at DESC
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/documents.js-355-    `, [id]);
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/matching.js-184-          COUNT(CASE WHEN mr.match_level = 'excellent' THEN 1 END) as excellent_matches
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/matching.js-185-        FROM jobs j
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/matching.js-186-        LEFT JOIN match_results mr ON j.id = mr.job_id
+routes/matching.js:187:        WHERE j.user_id = $1 OR j.company_id IN (
+routes/matching.js:188:          SELECT company_id FROM users WHERE id = $1
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/matching.js-189-        )
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/matching.js-190-        GROUP BY j.id, j.title
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/matching.js-191-        ORDER BY candidate_matches DESC
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-9-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-10-// Middleware to require recruiter role
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-11-function requireRecruiter(req, res, next) {
+routes/recruiter.js:12:  if (!req.user.company_id || !['recruiter', 'hiring_manager', 'admin'].includes(req.user.role)) {
+routes/recruiter.js-13-    return res.status(403).json({ error: 'Recruiter access required' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-14-  }
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-15-  next();
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-18-// Dashboard overview
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-19-router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-20-  try {
+routes/recruiter.js:21:    const companyId = req.user.company_id;
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-22-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-23-    // Get TrustScore
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-24-    const trustScore = await trustscoreService.calculateTrustScore(companyId);
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-29-        COUNT(*) FILTER (WHERE status = 'active') as active_jobs,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-30-        COUNT(*) FILTER (WHERE status = 'paused') as paused_jobs,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-31-        COUNT(*) FILTER (WHERE status = 'closed') as closed_jobs
+routes/recruiter.js:32:      FROM jobs WHERE company_id = $1
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-33-    `, [companyId]);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-34-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-35-    // Get application stats
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-41-        COUNT(*) FILTER (WHERE status = 'interviewed') as interviewed,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-42-        COUNT(*) FILTER (WHERE status = 'offered') as offered,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-43-        COUNT(*) FILTER (WHERE status = 'hired') as hired
+routes/recruiter.js:44:      FROM job_applications WHERE company_id = $1
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-45-    `, [companyId]);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-46-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-47-    // Get upcoming interviews
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-52-      FROM scheduled_interviews si
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-53-      JOIN users u ON si.candidate_id = u.id
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-54-      JOIN jobs j ON si.job_id = j.id
+routes/recruiter.js:55:      WHERE si.company_id = $1
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-56-        AND si.scheduled_at > NOW()
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-57-        AND si.status = 'scheduled'
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-58-      ORDER BY si.scheduled_at
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-67-      FROM job_applications ja
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-68-      JOIN users u ON ja.candidate_id = u.id
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-69-      JOIN jobs j ON ja.job_id = j.id
+routes/recruiter.js:70:      WHERE ja.company_id = $1
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-71-      ORDER BY ja.applied_at DESC
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-72-      LIMIT 10
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-73-    `, [companyId]);
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-98-             COALESCE(ja.interviews_scheduled, 0) as interviews
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-99-      FROM jobs j
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-100-      LEFT JOIN job_analytics ja ON j.id = ja.job_id
+routes/recruiter.js:101:      WHERE j.company_id = $1
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-102-    `;
+routes/recruiter.js:103:    const params = [req.user.company_id];
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-104-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-105-    if (status) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-106-      query += ` AND j.status = $${params.length + 1}`;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-152-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-153-    // Create job
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-154-    const result = await pool.query(
+routes/recruiter.js:155:      `INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type)
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-156-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-157-       RETURNING *`,
+routes/recruiter.js:158:      [req.user.id, req.user.company_id, title, req.user.company_name,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-159-       finalDescription, finalRequirements, location, salary_range, job_type || 'full-time']
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-160-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-161-
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-175-      });
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-176-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-177-      await trustscoreService.addJobAuthenticityComponent(
+routes/recruiter.js:178:        req.user.company_id,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-179-        job.id,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-180-        analysis.overall_score
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-181-      );
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-244-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-245-    // Verify ownership
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-246-    const existing = await pool.query(
+routes/recruiter.js:247:      'SELECT id FROM jobs WHERE id = $1 AND company_id = $2',
+routes/recruiter.js:248:      [req.params.id, req.user.company_id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-249-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-250-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-251-    if (existing.rows.length === 0) {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-279-  try {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-280-    // Verify job belongs to company
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-281-    const job = await pool.query(
+routes/recruiter.js:282:      'SELECT id, title FROM jobs WHERE id = $1 AND company_id = $2',
+routes/recruiter.js:283:      [req.params.id, req.user.company_id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-284-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-285-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-286-    if (job.rows.length === 0) {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-315-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-316-    // Verify application belongs to company
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-317-    const existing = await pool.query(
+routes/recruiter.js:318:      'SELECT id, job_id, candidate_id FROM job_applications WHERE id = $1 AND company_id = $2',
+routes/recruiter.js:319:      [req.params.id, req.user.company_id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-320-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-321-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-322-    if (existing.rows.length === 0) {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-350-        );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-351-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-352-        // Update hiring ratio score
+routes/recruiter.js:353:        await trustscoreService.updateHiringRatioScore(req.user.company_id);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-354-      } else if (status === 'hired') {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-355-        await pool.query(
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-356-          'UPDATE job_analytics SET offers_accepted = offers_accepted + 1 WHERE job_id = $1',
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-380-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-381-    // Verify job belongs to company
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-382-    const job = await pool.query(
+routes/recruiter.js:383:      'SELECT id FROM jobs WHERE id = $1 AND company_id = $2',
+routes/recruiter.js:384:      [job_id, req.user.company_id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-385-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-386-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-387-    if (job.rows.length === 0) {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-390-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-391-    const result = await pool.query(
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-392-      `INSERT INTO scheduled_interviews
+routes/recruiter.js:393:       (company_id, job_id, candidate_id, recruiter_id, scheduled_at, duration_minutes, interview_type, meeting_link, notes)
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-394-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-395-       RETURNING *`,
+routes/recruiter.js:396:      [req.user.company_id, job_id, candidate_id, req.user.id,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-397-       scheduled_at, duration_minutes, interview_type, meeting_link, notes]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-398-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-399-
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-411-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-412-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-413-    // Add behavior points for scheduling
+routes/recruiter.js:414:    await trustscoreService.addBehaviorComponent(req.user.company_id, 'interview_scheduled', 5, 10);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-415-
+routes/recruiter.js-416-    res.json({ success: true, interview: result.rows[0] });
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-417-  } catch (err) {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-432-      FROM scheduled_interviews si
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-433-      JOIN users u ON si.candidate_id = u.id
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-434-      JOIN jobs j ON si.job_id = j.id
+routes/recruiter.js:435:      WHERE si.company_id = $1
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-436-    `;
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-437-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-438-    if (upcoming_only === 'true') {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-441-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-442-    query += ` ORDER BY si.scheduled_at LIMIT $2`;
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-443-
+routes/recruiter.js:444:    const result = await pool.query(query, [req.user.company_id, limit]);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-445-
+routes/recruiter.js-446-    res.json({ interviews: result.rows });
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-447-  } catch (err) {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-461-        outcome = COALESCE($2, outcome),
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-462-        feedback = COALESCE($3, feedback),
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-463-        updated_at = NOW()
+routes/recruiter.js:464:       WHERE id = $4 AND company_id = $5
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-465-       RETURNING *`,
+routes/recruiter.js:466:      [status, outcome, feedback ? JSON.stringify(feedback) : null, req.params.id, req.user.company_id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-467-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-468-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-469-    if (result.rows.length === 0) {
+--
+routes/recruiter.js-481-router.post('/jobs:id/questions', authMiddleware, requireRecruiter, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-482-  try {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-483-    const job = await pool.query(
+routes/recruiter.js:484:      'SELECT title, description, requirements FROM jobs WHERE id = $1 AND company_id = $2',
+routes/recruiter.js:485:      [req.params.id, req.user.company_id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-486-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-487-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-488-    if (job.rows.length === 0) {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-506-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-507-    // Get job details
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-508-    const job = await pool.query(
+routes/recruiter.js:509:      'SELECT * FROM jobs WHERE id = $1 AND company_id = $2',
+routes/recruiter.js:510:      [req.params.id, req.user.company_id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-511-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-512-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/recruiter.js-513-    if (job.rows.length === 0) {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-92-      // Create recruiter user
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-93-      const password_hash = await bcrypt.hash(password, 10);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-94-      const userResult = await client.query(
+routes/company.js:95:        `INSERT INTO users (email, password_hash, name, role, company_name, company_id)
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-96-         VALUES ($1, $2, $3, 'recruiter', $4, $5)
+routes/company.js:97:         RETURNING id, email, name, role, company_name, company_id, created_at`,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-98-        [email, password_hash, name, company_name, company.id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-99-      );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-100-      const user = userResult.rows[0];
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-104-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-105-      // Initialize TrustScore
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-106-      await client.query(
+routes/company.js:107:        `INSERT INTO trust_scores (company_id, total_score, score_tier)
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-108-         VALUES ($1, $2, 'new')`,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-109-        [company.id, 500]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-110-      );
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-112-      // Add verification bonus if work email
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-113-      if (isWorkEmail) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-114-        await client.query(
+routes/company.js:115:          `INSERT INTO trust_score_components (company_id, component_type, source_type, points, max_points, metadata)
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-116-           VALUES ($1, 'verification', 'email_domain', 50, 50, $2)`,
+routes/company.js-117-          [company.id, JSON.stringify({ domain: email_domain, verified: true })]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-118-        );
+--
+routes/company.js-130-          email: user.email,
+routes/company.js-131-          name: user.name,
+routes/company.js-132-          role: 'recruiter',
+routes/company.js:133:          company_id: company.id
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-134-        },
+routes/company.js-135-        company: {
+routes/company.js-136-          id: company.id,
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-160-// Get company profile
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-161-router.get('/profile', authMiddleware, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-162-  try {
+routes/company.js:163:    if (!req.user.company_id) {
+routes/company.js-164-      return res.status(400).json({ error: 'No company associated with this account' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-165-    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-166-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-167-    const result = await pool.query(
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-168-      `SELECT c.*, ts.total_score as trust_score, ts.score_tier
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-169-       FROM companies c
+routes/company.js:170:       LEFT JOIN trust_scores ts ON c.id = ts.company_id
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-171-       WHERE c.id = $1`,
+routes/company.js:172:      [req.user.company_id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-173-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-174-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-175-    if (result.rows.length === 0) {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-186-// Update company profile
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-187-router.put('/profile', authMiddleware, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-188-  try {
+routes/company.js:189:    if (!req.user.company_id) {
+routes/company.js-190-      return res.status(400).json({ error: 'No company associated with this account' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-191-    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-192-
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-228-      [name, description, industry, company_size, website,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-229-       linkedin_url, headquarters, founded_year, logo_url,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-230-       culture_description, core_values, benefits, office_locations,
+routes/company.js:231:       req.user.company_id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-232-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-233-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-234-    // Add behavior points for profile completeness
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-235-    if (completedFields >= 7) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-236-      await trustscoreService.addBehaviorComponent(
+routes/company.js:237:        req.user.company_id,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-238-        'profile_complete',
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-239-        completenessBonus,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-240-        30
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-260-              c.company_size, c.headquarters, c.website, c.is_verified,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-261-              ts.total_score as trust_score, ts.score_tier
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-262-       FROM companies c
+routes/company.js:263:       LEFT JOIN trust_scores ts ON c.id = ts.company_id
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-264-       WHERE c.slug = $1`,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-265-      [req.params.slug]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-266-    );
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-273-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-274-    // Get active jobs count
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-275-    const jobsCount = await pool.query(
+routes/company.js:276:      `SELECT COUNT(*) as count FROM jobs WHERE company_id = $1 AND status = 'active'`,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-277-      [company.id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-278-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-279-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-280-    // Get average feedback rating
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-281-    const avgRating = await pool.query(
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-282-      `SELECT AVG(rating) as avg_rating, COUNT(*) as review_count
+routes/company.js:283:       FROM candidate_feedback WHERE company_id = $1`,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-284-      [company.id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-285-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-286-
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-301-// Verify company (manual verification request)
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-302-router.post('/verify', authMiddleware, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-303-  try {
+routes/company.js:304:    if (!req.user.company_id) {
+routes/company.js-305-      return res.status(400).json({ error: 'No company associated with this account' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-306-    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-307-
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-313-    if (linkedin_url) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-314-      await pool.query(
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-315-        'UPDATE companies SET linkedin_url = $1, updated_at = NOW() WHERE id = $2',
+routes/company.js:316:        [linkedin_url, req.user.company_id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-317-      );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-318-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-319-      await trustscoreService.addVerificationComponent(
+routes/company.js:320:        req.user.company_id,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-321-        'linkedin_added',
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-322-        30,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-323-        50
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-337-// Get company team members
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-338-router.get('/team/members', authMiddleware, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-339-  try {
+routes/company.js:340:    if (!req.user.company_id) {
+routes/company.js-341-      return res.status(400).json({ error: 'No company associated with this account' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-342-    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-343-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-344-    const result = await pool.query(
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-345-      `SELECT id, email, name, role, created_at
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-346-       FROM users
+routes/company.js:347:       WHERE company_id = $1
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-348-       ORDER BY created_at`,
+routes/company.js:349:      [req.user.company_id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-350-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-351-
+routes/company.js-352-    res.json({ members: result.rows });
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-359-// Invite team member
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-360-router.post('/team/invite', authMiddleware, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-361-  try {
+routes/company.js:362:    if (!req.user.company_id) {
+routes/company.js-363-      return res.status(400).json({ error: 'No company associated with this account' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-364-    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-365-
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-380-    const password_hash = await bcrypt.hash(tempPassword, 10);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-381-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-382-    // Get company name
+routes/company.js:383:    const company = await pool.query('SELECT name FROM companies WHERE id = $1', [req.user.company_id]);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-384-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-385-    const result = await pool.query(
+routes/company.js:386:      `INSERT INTO users (email, password_hash, name, role, company_name, company_id)
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-387-       VALUES ($1, $2, $3, $4, $5, $6)
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-388-       RETURNING id, email, name, role`,
+routes/company.js:389:      [email, password_hash, name, role, company.rows[0].name, req.user.company_id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-390-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-391-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/company.js-392-    // In production, send email with invite link
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-8-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-9-// Check if user is a recruiter
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-10-function requireRecruiter(req, res, next) {
+routes/trustscore.js:11:  if (!req.user.company_id || !['recruiter', 'hiring_manager', 'admin'].includes(req.user.role)) {
+routes/trustscore.js-12-    return res.status(403).json({ error: 'Recruiter access required' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-13-  }
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-14-  next();
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-17-// Get current TrustScore
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-18-router.get('/', authMiddleware, requireRecruiter, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-19-  try {
+routes/trustscore.js:20:    const score = await trustscoreService.getOrCreateTrustScore(req.user.company_id);
+routes/trustscore.js:21:    const currentScores = await trustscoreService.calculateTrustScore(req.user.company_id);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-22-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-23-    res.json({
+routes/trustscore.js-24-      success: true,
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-33-// Get detailed score breakdown
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-34-router.get('/breakdown', authMiddleware, requireRecruiter, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-35-  try {
+routes/trustscore.js:36:    const breakdown = await trustscoreService.getTrustScoreBreakdown(req.user.company_id);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-37-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-38-    res.json({
+routes/trustscore.js-39-      success: true,
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-53-    const result = await pool.query(`
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-54-      SELECT previous_score, new_score, change_amount, change_reason, component_type, created_at
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-55-      FROM trust_score_history
+routes/trustscore.js:56:      WHERE company_id = $1
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-57-      ORDER BY created_at DESC
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-58-      LIMIT $2
+routes/trustscore.js:59:    `, [req.user.company_id, limit]);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-60-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-61-    res.json({
+routes/trustscore.js-62-      success: true,
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-71-// Get recommendations
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-72-router.get('/recommendations', authMiddleware, requireRecruiter, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-73-  try {
+routes/trustscore.js:74:    const currentScores = await trustscoreService.calculateTrustScore(req.user.company_id);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-75-    const recommendations = trustscoreService.generateTrustRecommendations(currentScores);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-76-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-77-    res.json({
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-89-// Get hiring analytics (for TrustScore dashboard)
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-90-router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-91-  try {
+routes/trustscore.js:92:    const companyId = req.user.company_id;
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-93-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-94-    // Get overall stats
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-95-    const stats = await pool.query(`
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-102-        COALESCE(SUM(ja.offers_made), 0) as total_offers
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-103-      FROM jobs j
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-104-      LEFT JOIN job_analytics ja ON j.id = ja.job_id
+routes/trustscore.js:105:      WHERE j.company_id = $1
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-106-    `, [companyId]);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-107-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-108-    // Get recent applications
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-114-      FROM job_applications jap
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-115-      JOIN users u ON jap.candidate_id = u.id
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-116-      JOIN jobs j ON jap.job_id = j.id
+routes/trustscore.js:117:      WHERE jap.company_id = $1
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-118-      ORDER BY jap.applied_at DESC
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-119-      LIMIT 10
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-120-    `, [companyId]);
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-127-        AVG(process_rating) as avg_process,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-128-        COUNT(*) as total_reviews
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-129-      FROM candidate_feedback
+routes/trustscore.js:130:      WHERE company_id = $1
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-131-    `, [companyId]);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-132-
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-133-    // Calculate interview-to-offer ratio
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-168-             ts.job_authenticity_score, ts.feedback_score,
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-169-             c.name as company_name, c.is_verified
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-170-      FROM companies c
+routes/trustscore.js:171:      JOIN trust_scores ts ON c.id = ts.company_id
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-172-      WHERE c.slug = $1
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-173-    `, [req.params.companySlug]);
+/tmp/polsia-workspaces/company-956/agent-30/exec-32507/hireloop/routes/trustscore.js-174-

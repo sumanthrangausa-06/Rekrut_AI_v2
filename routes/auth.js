@@ -153,6 +153,7 @@ router.get('/me', authMiddleware, (req, res) => {
       email: req.user.email,
       name: req.user.name,
       role: req.user.role,
+      company_id: req.user.company_id,
       company_name: req.user.company_name,
       is_paid: req.user.is_paid,
       google_id: req.user.google_id,
