@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interview Analysis - HireLoop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      min-height: 100vh;
+      color: white;
+      margin: 0;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+      margin-bottom: 2rem;
+      padding: 0.75rem 1.5rem;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      transition: all 0.3s ease;
+    }
+
+    .back-link:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateX(-4px);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .header h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .main-card {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 24px;
+      padding: 3rem;
+      color: #1e293b;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      margin-bottom: 2rem;
+    }
+
+    .score-overview {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+
+    .score-card {
+      background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+      border-radius: 16px;
+      padding: 2rem;
+      text-align: center;
+      color: white;
+    }
+
+    .score-card.primary {
+      grid-column: span 2;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .score-value {
+      font-size: 3.5rem;
+      font-weight: 700;
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+
+    .score-label {
+      font-size: 1rem;
+      opacity: 0.9;
+    }
+
+    .section {
+      margin-bottom: 3rem;
+    }
+
+    .section-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      color: #1e293b;
+    }
+
+    .question-analysis {
+      background: #f9fafb;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+      border-left: 4px solid #3b82f6;
+    }
+
+    .question-header {
+      font-weight: 600;
+      font-size: 1.125rem;
+      margin-bottom: 1rem;
+      color: #1e293b;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .metric {
+      text-align: center;
+      padding: 1rem;
+      background: white;
+      border-radius: 12px;
+    }
+
+    .metric-number {
+      font-size: 2rem;
+      font-weight: 700;
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+
+    .metric-name {
+      font-size: 0.875rem;
+      color: #64748b;
+    }
+
+    .good { color: #10b981; }
+    .warning { color: #f59e0b; }
+    .poor { color: #ef4444; }
+
+    .insights-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .insights-list li {
+      padding: 1rem;
+      background: white;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: start;
+      gap: 0.75rem;
+    }
+
+    .insight-icon {
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .timeline {
+      position: relative;
+      padding: 1.5rem 0;
+    }
+
+    .timeline-item {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .timeline-marker {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+    }
+
+    .timeline-content {
+      flex: 1;
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+
+    .improvement-suggestions {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .improvement-suggestions h4 {
+      color: #92400e;
+      margin-bottom: 1rem;
+    }
+
+    .improvement-suggestions ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .improvement-suggestions li {
+      padding: 0.5rem 0;
+      color: #78350f;
+    }
+
+    .improvement-suggestions li::before {
+      content: "💡 ";
+    }
+
+    .loading {
+      text-align: center;
+      padding: 4rem 2rem;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/candidate-dashboard.html" class="back-link">
+      ← Back to Dashboard
+    </a>
+
+    <div class="header">
+      <h1>📊 Interview Analysis Report</h1>
+      <p>AI-powered video analysis and feedback</p>
+    </div>
+
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p>Analyzing your interview...</p>
+    </div>
+
+    <div id="content" style="display: none;">
+      <!-- Score Overview -->
+      <div class="main-card">
+        <h2 class="section-title">Overall Presentation Score</h2>
+        <div class="score-overview" id="score-overview">
+          <!-- Scores will be loaded here -->
+        </div>
+      </div>
+
+      <!-- Question-by-Question Analysis -->
+      <div class="main-card">
+        <h2 class="section-title">Question Analysis</h2>
+        <div id="question-analysis">
+          <!-- Question analysis will be loaded here -->
+        </div>
+      </div>
+
+      <!-- Key Insights & Recommendations -->
+      <div class="main-card">
+        <h2 class="section-title">Key Insights & Recommendations</h2>
+        <ul class="insights-list" id="insights-list">
+          <!-- Insights will be loaded here -->
+        </ul>
+      </div>
+    </div>
+
+    <div id="error" style="display: none;">
+      <div class="main-card">
+        <div class="empty-state">
+          <h2>No Analysis Available</h2>
+          <p>Video analysis data is not available for this interview yet.</p>
+          <p style="margin-top: 1rem;">
+            <a href="/candidate-dashboard.html" style="color: #3b82f6;">Return to Dashboard</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    let interviewData = null;
+    let analysisData = null;
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await checkAuth();
+      if (!user) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const interviewId = urlParams.get('interview_id');
+
+      if (!interviewId) {
+        showError();
+        return;
+      }
+
+      await loadAnalysis(interviewId);
+    });
+
+    async function loadAnalysis(interviewId) {
+      try {
+        const data = await apiCall(`/interviews/${interviewId}/analysis`);
+
+        if (!data.success || !data.analysis || data.analysis.length === 0) {
+          showError();
+          return;
+        }
+
+        interviewData = data.interview;
+        analysisData = data.analysis;
+
+        renderAnalysis();
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+      } catch (err) {
+        console.error('Load analysis error:', err);
+        showError();
+      }
+    }
+
+    function renderAnalysis() {
+      renderScoreOverview();
+      renderQuestionAnalysis();
+      renderInsights();
+    }
+
+    function renderScoreOverview() {
+      const container = document.getElementById('score-overview');
+
+      // Calculate aggregate scores
+      const avgScores = {
+        presentation: 0,
+        eyeContact: 0,
+        bodyLanguage: 0,
+        expression: 0
+      };
+
+      analysisData.forEach(q => {
+        avgScores.presentation += parseFloat(q.presentation_score || 0);
+        avgScores.eyeContact += parseFloat(q.eye_contact_score || 0);
+        avgScores.bodyLanguage += parseFloat(q.body_language_score || 0);
+        avgScores.expression += parseFloat(q.expression_score || 0);
+      });
+
+      const count = analysisData.length;
+      Object.keys(avgScores).forEach(key => {
+        avgScores[key] = Math.round(avgScores[key] / count);
+      });
+
+      container.innerHTML = `
+        <div class="score-card primary">
+          <span class="score-value">${avgScores.presentation}</span>
+          <span class="score-label">Presentation Score</span>
+        </div>
+        <div class="score-card">
+          <span class="score-value">${avgScores.eyeContact}</span>
+          <span class="score-label">Eye Contact</span>
+        </div>
+        <div class="score-card">
+          <span class="score-value">${avgScores.expression}</span>
+          <span class="score-label">Facial Expression</span>
+        </div>
+        <div class="score-card">
+          <span class="score-value">${avgScores.bodyLanguage}</span>
+          <span class="score-label">Body Language</span>
+        </div>
+      `;
+    }
+
+    function renderQuestionAnalysis() {
+      const container = document.getElementById('question-analysis');
+      const questions = interviewData.questions || [];
+
+      container.innerHTML = analysisData.map((analysis, index) => {
+        const question = questions[analysis.question_index] || {};
+        const data = analysis.analysis_data;
+
+        return `
+          <div class="question-analysis">
+            <div class="question-header">
+              Question ${analysis.question_index + 1}: ${question.question || 'Interview Question'}
+            </div>
+
+            <div class="metrics-grid">
+              <div class="metric">
+                <span class="metric-number ${getScoreClass(analysis.eye_contact_score)}">${Math.round(analysis.eye_contact_score)}%</span>
+                <span class="metric-name">Eye Contact</span>
+              </div>
+              <div class="metric">
+                <span class="metric-number ${getScoreClass(analysis.expression_score)}">${Math.round(analysis.expression_score)}%</span>
+                <span class="metric-name">Expression</span>
+              </div>
+              <div class="metric">
+                <span class="metric-number ${getScoreClass(analysis.body_language_score)}">${Math.round(analysis.body_language_score)}%</span>
+                <span class="metric-name">Body Language</span>
+              </div>
+              <div class="metric">
+                <span class="metric-number ${getScoreClass(analysis.presentation_score)}">${Math.round(analysis.presentation_score)}%</span>
+                <span class="metric-name">Overall</span>
+              </div>
+            </div>
+
+            ${generateImprovements(analysis)}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function generateImprovements(analysis) {
+      const suggestions = [];
+
+      if (analysis.eye_contact_score < 70) {
+        suggestions.push('Maintain more consistent eye contact with the camera');
+      }
+
+      if (analysis.expression_score < 70) {
+        suggestions.push('Show more confident facial expressions and smile naturally');
+      }
+
+      if (analysis.body_language_score < 70) {
+        suggestions.push('Keep your head steady and maintain good posture');
+      }
+
+      if (analysis.presentation_score < 60) {
+        suggestions.push('Practice in front of a mirror to improve overall presence');
+      }
+
+      if (suggestions.length === 0) {
+        return '<p style="color: #10b981; font-weight: 600;">✓ Excellent performance on this question!</p>';
+      }
+
+      return `
+        <div class="improvement-suggestions">
+          <h4>💡 Improvement Suggestions</h4>
+          <ul>
+            ${suggestions.map(s => `<li>${s}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+    }
+
+    function renderInsights() {
+      const container = document.getElementById('insights-list');
+
+      // Calculate aggregate metrics
+      const avgPresentation = analysisData.reduce((sum, a) => sum + parseFloat(a.presentation_score || 0), 0) / analysisData.length;
+      const avgEyeContact = analysisData.reduce((sum, a) => sum + parseFloat(a.eye_contact_score || 0), 0) / analysisData.length;
+      const avgBodyLanguage = analysisData.reduce((sum, a) => sum + parseFloat(a.body_language_score || 0), 0) / analysisData.length;
+
+      const insights = [];
+
+      // Generate insights based on scores
+      if (avgPresentation >= 80) {
+        insights.push({
+          icon: '🌟',
+          text: '<strong>Outstanding Presentation:</strong> Your overall video presence is excellent. You project confidence and professionalism.',
+          type: 'positive'
+        });
+      } else if (avgPresentation >= 60) {
+        insights.push({
+          icon: '👍',
+          text: '<strong>Good Presentation:</strong> Your video presence is solid. Focus on the specific improvements mentioned above to reach the next level.',
+          type: 'neutral'
+        });
+      } else {
+        insights.push({
+          icon: '📈',
+          text: '<strong>Room for Growth:</strong> Practice video interviews regularly. Record yourself and review the footage to identify areas for improvement.',
+          type: 'improvement'
+        });
+      }
+
+      if (avgEyeContact >= 75) {
+        insights.push({
+          icon: '👁️',
+          text: '<strong>Strong Eye Contact:</strong> You maintain good eye contact with the camera, which helps build connection with interviewers.',
+          type: 'positive'
+        });
+      } else {
+        insights.push({
+          icon: '🎯',
+          text: '<strong>Eye Contact Tip:</strong> Place a sticky note near your camera lens to remind you to look directly at it, not at your own video.',
+          type: 'tip'
+        });
+      }
+
+      if (avgBodyLanguage >= 75) {
+        insights.push({
+          icon: '💪',
+          text: '<strong>Excellent Posture:</strong> You maintain steady head position and good body language throughout the interview.',
+          type: 'positive'
+        });
+      } else {
+        insights.push({
+          icon: '🪑',
+          text: '<strong>Posture Tip:</strong> Sit up straight with both feet on the floor. Imagine a string pulling the top of your head toward the ceiling.',
+          type: 'tip'
+        });
+      }
+
+      container.innerHTML = insights.map(insight => `
+        <li>
+          <span class="insight-icon">${insight.icon}</span>
+          <div>${insight.text}</div>
+        </li>
+      `).join('');
+    }
+
+    function getScoreClass(score) {
+      if (score >= 70) return 'good';
+      if (score >= 50) return 'warning';
+      return 'poor';
+    }
+
+    function showError() {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('error').style.display = 'block';
+    }
+  </script>
+</body>
+</html>
