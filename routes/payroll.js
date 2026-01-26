@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../lib/db');
-const { requireAuth, requireRole } = require('../lib/auth');
+const { authMiddleware, requireRole } = require('../lib/auth');
 const payrollCalculator = require('../services/payroll-calculator');
 
 // ============== EMPLOYER ENDPOINTS ==============
@@ -10,7 +10,7 @@ const payrollCalculator = require('../services/payroll-calculator');
  * GET /api/payroll/employees
  * Get all employees for the employer's payroll
  */
-router.get('/employees', requireAuth, requireRole('employer'), async (req, res) => {
+router.get('/employees', authMiddleware, requireRole('employer'), async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
@@ -39,7 +39,7 @@ router.get('/employees', requireAuth, requireRole('employer'), async (req, res) 
  * POST /api/payroll/employees/:employeeId/onboard
  * Complete employee onboarding with payroll setup
  */
-router.post('/employees/:employeeId/onboard', requireAuth, requireRole('employer'), async (req, res) => {
+router.post('/employees/:employeeId/onboard', authMiddleware, requireRole('employer'), async (req, res) => {
   const client = await pool.connect();
   try {
     const { employeeId } = req.params;
@@ -109,7 +109,7 @@ router.post('/employees/:employeeId/onboard', requireAuth, requireRole('employer
  * GET /api/payroll/dashboard
  * Get payroll dashboard overview for employer
  */
-router.get('/dashboard', requireAuth, requireRole('employer'), async (req, res) => {
+router.get('/dashboard', authMiddleware, requireRole('employer'), async (req, res) => {
   try {
     // Get active employees count
     const employeesResult = await pool.query(
@@ -166,7 +166,7 @@ router.get('/dashboard', requireAuth, requireRole('employer'), async (req, res) 
  * POST /api/payroll/runs
  * Create a new payroll run
  */
-router.post('/runs', requireAuth, requireRole('employer'), async (req, res) => {
+router.post('/runs', authMiddleware, requireRole('employer'), async (req, res) => {
   const client = await pool.connect();
   try {
     const { pay_period_start, pay_period_end, pay_date } = req.body;
@@ -263,7 +263,7 @@ router.post('/runs', requireAuth, requireRole('employer'), async (req, res) => {
  * GET /api/payroll/runs/:runId
  * Get details of a specific payroll run
  */
-router.get('/runs/:runId', requireAuth, requireRole('employer'), async (req, res) => {
+router.get('/runs/:runId', authMiddleware, requireRole('employer'), async (req, res) => {
   try {
     const { runId } = req.params;
 
@@ -301,7 +301,7 @@ router.get('/runs/:runId', requireAuth, requireRole('employer'), async (req, res
  * POST /api/payroll/runs/:runId/process
  * Process and approve a payroll run
  */
-router.post('/runs/:runId/process', requireAuth, requireRole('employer'), async (req, res) => {
+router.post('/runs/:runId/process', authMiddleware, requireRole('employer'), async (req, res) => {
   const client = await pool.connect();
   try {
     const { runId } = req.params;
@@ -340,7 +340,7 @@ router.post('/runs/:runId/process', requireAuth, requireRole('employer'), async 
  * GET /api/payroll/employee/profile
  * Get employee's payroll profile
  */
-router.get('/employee/profile', requireAuth, async (req, res) => {
+router.get('/employee/profile', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT e.*, pc.*, u.name as employer_name
@@ -365,7 +365,7 @@ router.get('/employee/profile', requireAuth, async (req, res) => {
  * GET /api/payroll/employee/paychecks
  * Get employee's paycheck history
  */
-router.get('/employee/paychecks', requireAuth, async (req, res) => {
+router.get('/employee/paychecks', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT pc.*, pr.status as payroll_status
@@ -388,7 +388,7 @@ router.get('/employee/paychecks', requireAuth, async (req, res) => {
  * GET /api/payroll/employee/paychecks/:paycheckId
  * Get detailed pay stub for a specific paycheck
  */
-router.get('/employee/paychecks/:paycheckId', requireAuth, async (req, res) => {
+router.get('/employee/paychecks/:paycheckId', authMiddleware, async (req, res) => {
   try {
     const { paycheckId } = req.params;
 
@@ -417,7 +417,7 @@ router.get('/employee/paychecks/:paycheckId', requireAuth, async (req, res) => {
  * POST /api/payroll/employee/bank-account
  * Update employee's bank account for direct deposit
  */
-router.post('/employee/bank-account', requireAuth, async (req, res) => {
+router.post('/employee/bank-account', authMiddleware, async (req, res) => {
   try {
     const { bank_name, bank_account_last4, bank_routing_number } = req.body;
 
