@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Interview - HireLoop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      min-height: 100vh;
+      color: white;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .header h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .progress-bar {
+      background: rgba(255, 255, 255, 0.1);
+      height: 8px;
+      border-radius: 4px;
+      margin: 1rem 0;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+
+    .main-card {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 24px;
+      padding: 3rem;
+      color: #1e293b;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Question Display */
+    .question-section {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .question-number {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 1rem;
+    }
+
+    .question-text {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 1rem;
+      line-height: 1.4;
+    }
+
+    .timer {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #10b981;
+      margin: 1rem 0;
+    }
+
+    .timer.warning {
+      color: #f59e0b;
+    }
+
+    .timer.critical {
+      color: #ef4444;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Video Container */
+    .video-container {
+      position: relative;
+      background: #000;
+      border-radius: 16px;
+      overflow: hidden;
+      margin: 2rem 0;
+      aspect-ratio: 16 / 9;
+    }
+
+    .video-element {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .video-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+    }
+
+    .recording-indicator {
+      display: none;
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: #ef4444;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      animation: blink 1.5s infinite;
+    }
+
+    .recording-indicator.active {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .recording-dot {
+      width: 8px;
+      height: 8px;
+      background: white;
+      border-radius: 50%;
+    }
+
+    @keyframes blink {
+      0%, 50%, 100% { opacity: 1; }
+      25%, 75% { opacity: 0.5; }
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 1rem;
+      margin: 2rem 0;
+    }
+
+    .btn {
+      padding: 1rem 2rem;
+      border: none;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #dc2626;
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background: #64748b;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #475569;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-large {
+      padding: 1.25rem 3rem;
+      font-size: 1.125rem;
+    }
+
+    /* States */
+    .setup-state, .recording-state, .review-state, .complete-state {
+      display: none;
+    }
+
+    .setup-state.active, .recording-state.active, .review-state.active, .complete-state.active {
+      display: block;
+    }
+
+    .instructions {
+      background: #f1f5f9;
+      border-left: 4px solid #3b82f6;
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin: 2rem 0;
+    }
+
+    .instructions h3 {
+      font-size: 1.125rem;
+      margin-bottom: 0.75rem;
+      color: #1e293b;
+    }
+
+    .instructions ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .instructions li {
+      padding: 0.5rem 0;
+      color: #475569;
+      display: flex;
+      align-items: start;
+      gap: 0.5rem;
+    }
+
+    .instructions li::before {
+      content: "✓";
+      color: #10b981;
+      font-weight: 700;
+    }
+
+    .alert {
+      padding: 1rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+    }
+
+    .alert-warning {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fbbf24;
+    }
+
+    .alert-success {
+      background: #d1fae5;
+      color: #065f46;
+      border: 1px solid #10b981;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: rgba(255, 255, 255, 0.9);
+      text-decoration: none;
+      font-weight: 600;
+      margin-bottom: 2rem;
+      padding: 0.75rem 1.5rem;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      transition: all 0.3s ease;
+    }
+
+    .back-link:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateX(-4px);
+    }
+
+    .loading-spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .response-preview {
+      background: #f9fafb;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+    }
+
+    .response-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: white;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+      border: 1px solid #e5e7eb;
+    }
+
+    .response-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .response-number {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+      color: white;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .response-status {
+      flex: 1;
+      color: #64748b;
+    }
+
+    .response-status.completed {
+      color: #10b981;
+      font-weight: 600;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 1rem;
+      }
+
+      .main-card {
+        padding: 1.5rem;
+      }
+
+      .header h1 {
+        font-size: 1.75rem;
+      }
+
+      .question-text {
+        font-size: 1.25rem;
+      }
+
+      .controls {
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/candidate-dashboard.html" class="back-link">
+      ← Back to Dashboard
+    </a>
+
+    <div class="header">
+      <h1>🎥 Video Interview</h1>
+      <p>Record your responses to interview questions</p>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+      </div>
+      <p id="progress-text" style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">Question 0 of 0</p>
+    </div>
+
+    <div class="main-card">
+      <!-- Setup State -->
+      <div class="setup-state active" id="setup-state">
+        <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.75rem; margin-bottom: 1rem;">Get Ready</h2>
+        <div class="instructions">
+          <h3>Before we begin:</h3>
+          <ul>
+            <li>Find a quiet space with good lighting</li>
+            <li>Ensure your camera and microphone are working</li>
+            <li>You'll have 2 minutes to answer each question</li>
+            <li>You can retake your response once per question</li>
+            <li>Review all answers before final submission</li>
+          </ul>
+        </div>
+
+        <div class="video-container" id="preview-container">
+          <video id="preview-video" class="video-element" autoplay muted playsinline></video>
+          <div class="video-overlay" id="preview-overlay">
+            <h3 style="font-size: 1.5rem; margin-bottom: 1rem;">Camera Preview</h3>
+            <p style="margin-bottom: 1rem; opacity: 0.8;">Click "Start Interview" when ready</p>
+          </div>
+        </div>
+
+        <div class="alert alert-warning">
+          ⚠️ This interview requires camera and microphone access. Please allow permissions when prompted.
+        </div>
+
+        <div class="controls">
+          <button class="btn btn-primary btn-large" onclick="startInterview()">
+            Start Interview
+          </button>
+        </div>
+      </div>
+
+      <!-- Recording State -->
+      <div class="recording-state" id="recording-state">
+        <div class="question-section">
+          <p class="question-number" id="question-number">Question 1 of 5</p>
+          <h2 class="question-text" id="question-text">Loading question...</h2>
+          <div class="timer" id="timer">2:00</div>
+        </div>
+
+        <div class="video-container">
+          <video id="recording-video" class="video-element" autoplay muted playsinline></video>
+          <div class="recording-indicator" id="recording-indicator">
+            <div class="recording-dot"></div>
+            RECORDING
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="btn btn-primary" id="record-btn" onclick="startRecording()">
+            🎥 Start Recording
+          </button>
+          <button class="btn btn-danger" id="stop-btn" onclick="stopRecording()" style="display: none;">
+            ⏹️ Stop Recording
+          </button>
+        </div>
+      </div>
+
+      <!-- Review State -->
+      <div class="review-state" id="review-state">
+        <div class="question-section">
+          <p class="question-number" id="review-question-number">Question 1 of 5</p>
+          <h2 class="question-text" id="review-question-text">Review your response</h2>
+        </div>
+
+        <div class="video-container">
+          <video id="playback-video" class="video-element" controls playsinline></video>
+        </div>
+
+        <div class="controls">
+          <button class="btn btn-secondary" id="retake-btn" onclick="retakeResponse()">
+            🔄 Retake (1 remaining)
+          </button>
+          <button class="btn btn-primary" onclick="acceptResponse()">
+            ✓ Accept & Continue
+          </button>
+        </div>
+      </div>
+
+      <!-- Complete State -->
+      <div class="complete-state" id="complete-state">
+        <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 2rem; margin-bottom: 1rem; text-align: center;">
+          Review Your Interview
+        </h2>
+        <p style="text-align: center; color: #64748b; margin-bottom: 2rem;">
+          Check your responses before submitting
+        </p>
+
+        <div class="response-preview" id="responses-list">
+          <!-- Response items will be inserted here -->
+        </div>
+
+        <div class="alert alert-success" style="margin: 2rem 0;">
+          ✓ All questions answered! Review your responses and submit when ready.
+        </div>
+
+        <div class="controls">
+          <button class="btn btn-secondary" onclick="window.location.href='/candidate-dashboard.html'">
+            Cancel
+          </button>
+          <button class="btn btn-primary btn-large" id="submit-btn" onclick="submitInterview()">
+            Submit Interview
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    let mediaStream = null;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let currentQuestionIndex = 0;
+    let questions = [];
+    let responses = [];
+    let interviewId = null;
+    let timerInterval = null;
+    let timeRemaining = 120; // 2 minutes in seconds
+    let retakesUsed = {};
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await checkAuth();
+      if (!user) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      // Get interview ID from URL or create new
+      const urlParams = new URLSearchParams(window.location.search);
+      const jobId = urlParams.get('job_id');
+
+      // Request camera access for preview
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 1280, height: 720 },
+          audio: true
+        });
+        document.getElementById('preview-video').srcObject = mediaStream;
+        document.getElementById('preview-overlay').style.display = 'none';
+      } catch (err) {
+        console.error('Camera access error:', err);
+        alert('Camera access is required for video interviews. Please allow permissions and reload.');
+      }
+    });
+
+    async function startInterview() {
+      try {
+        // Create interview session
+        const result = await apiCall('/interviews/start', {
+          method: 'POST',
+          body: JSON.stringify({
+            interview_type: 'video',
+            job_title: 'Software Developer', // TODO: Get from URL params or selection
+            job_description: 'General software development role'
+          })
+        });
+
+        if (!result.success) {
+          throw new Error('Failed to start interview');
+        }
+
+        interviewId = result.interview.id;
+        questions = result.questions;
+        responses = new Array(questions.length).fill(null);
+
+        // Update UI
+        updateProgress();
+        showState('recording');
+        displayQuestion(0);
+      } catch (err) {
+        console.error('Start interview error:', err);
+        alert('Failed to start interview. Please try again.');
+      }
+    }
+
+    function displayQuestion(index) {
+      currentQuestionIndex = index;
+      const question = questions[index];
+
+      document.getElementById('question-number').textContent = `Question ${index + 1} of ${questions.length}`;
+      document.getElementById('question-text').textContent = question.question;
+
+      // Reset timer
+      timeRemaining = 120;
+      updateTimer();
+
+      // Update progress
+      updateProgress();
+
+      // Setup video for recording
+      if (mediaStream) {
+        document.getElementById('recording-video').srcObject = mediaStream;
+      }
+    }
+
+    function startRecording() {
+      recordedChunks = [];
+
+      try {
+        mediaRecorder = new MediaRecorder(mediaStream, {
+          mimeType: 'video/webm;codecs=vp9'
+        });
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            recordedChunks.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = handleRecordingStop;
+
+        mediaRecorder.start();
+
+        // Update UI
+        document.getElementById('record-btn').style.display = 'none';
+        document.getElementById('stop-btn').style.display = 'inline-flex';
+        document.getElementById('recording-indicator').classList.add('active');
+
+        // Start timer
+        timerInterval = setInterval(() => {
+          timeRemaining--;
+          updateTimer();
+
+          if (timeRemaining <= 0) {
+            stopRecording();
+          }
+        }, 1000);
+      } catch (err) {
+        console.error('Recording error:', err);
+        alert('Failed to start recording. Please try again.');
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        clearInterval(timerInterval);
+
+        // Update UI
+        document.getElementById('record-btn').style.display = 'inline-flex';
+        document.getElementById('stop-btn').style.display = 'none';
+        document.getElementById('recording-indicator').classList.remove('active');
+      }
+    }
+
+    function handleRecordingStop() {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const videoUrl = URL.createObjectURL(blob);
+
+      // Show review state
+      document.getElementById('review-question-number').textContent =
+        `Question ${currentQuestionIndex + 1} of ${questions.length}`;
+      document.getElementById('review-question-text').textContent = questions[currentQuestionIndex].question;
+
+      const playbackVideo = document.getElementById('playback-video');
+      playbackVideo.src = videoUrl;
+
+      // Update retake button
+      const retakeBtn = document.getElementById('retake-btn');
+      const retakesForQuestion = retakesUsed[currentQuestionIndex] || 0;
+      if (retakesForQuestion >= 1) {
+        retakeBtn.disabled = true;
+        retakeBtn.textContent = '🔄 No retakes remaining';
+      } else {
+        retakeBtn.disabled = false;
+        retakeBtn.textContent = `🔄 Retake (${1 - retakesForQuestion} remaining)`;
+      }
+
+      showState('review');
+
+      // Store the blob temporarily
+      window.currentRecordingBlob = blob;
+    }
+
+    function retakeResponse() {
+      const retakesForQuestion = retakesUsed[currentQuestionIndex] || 0;
+      if (retakesForQuestion >= 1) {
+        alert('No retakes remaining for this question.');
+        return;
+      }
+
+      retakesUsed[currentQuestionIndex] = retakesForQuestion + 1;
+      showState('recording');
+      displayQuestion(currentQuestionIndex);
+    }
+
+    async function acceptResponse() {
+      // Show loading
+      document.getElementById('submit-btn').disabled = true;
+      document.getElementById('submit-btn').innerHTML = '<span class="loading-spinner"></span> Uploading...';
+
+      try {
+        // Upload video
+        const videoUrl = await uploadVideo(window.currentRecordingBlob, currentQuestionIndex);
+
+        // Save response
+        responses[currentQuestionIndex] = {
+          question_index: currentQuestionIndex,
+          video_url: videoUrl,
+          response_text: '[Video response]',
+          recorded_at: new Date().toISOString()
+        };
+
+        // Move to next question or complete
+        if (currentQuestionIndex < questions.length - 1) {
+          showState('recording');
+          displayQuestion(currentQuestionIndex + 1);
+        } else {
+          showCompleteState();
+        }
+      } catch (err) {
+        console.error('Upload error:', err);
+        alert('Failed to upload video. Please try again.');
+      } finally {
+        document.getElementById('submit-btn').disabled = false;
+        document.getElementById('submit-btn').innerHTML = 'Submit Interview';
+      }
+    }
+
+    async function uploadVideo(blob, questionIndex) {
+      const formData = new FormData();
+      formData.append('video', blob, `interview-${interviewId}-q${questionIndex}.webm`);
+      formData.append('interview_id', interviewId);
+      formData.append('question_index', questionIndex);
+
+      const response = await apiCall('/interviews/upload-video', {
+        method: 'POST',
+        body: formData,
+        isFormData: true
+      });
+
+      if (!response.success) {
+        throw new Error(response.error || 'Upload failed');
+      }
+
+      return response.video_url;
+    }
+
+    function showCompleteState() {
+      // Build responses list
+      const responsesList = document.getElementById('responses-list');
+      responsesList.innerHTML = responses.map((r, i) => `
+        <div class="response-item">
+          <div class="response-number">${i + 1}</div>
+          <div style="flex: 1;">
+            <div style="font-weight: 600; margin-bottom: 0.25rem;">${questions[i].question}</div>
+            <div class="response-status completed">✓ Video recorded</div>
+          </div>
+        </div>
+      `).join('');
+
+      showState('complete');
+    }
+
+    async function submitInterview() {
+      document.getElementById('submit-btn').disabled = true;
+      document.getElementById('submit-btn').innerHTML = '<span class="loading-spinner"></span> Submitting...';
+
+      try {
+        // Submit all responses
+        for (let i = 0; i < responses.length; i++) {
+          if (responses[i]) {
+            await apiCall(`/interviews/${interviewId}/respond`, {
+              method: 'POST',
+              body: JSON.stringify(responses[i])
+            });
+          }
+        }
+
+        // Complete interview
+        await apiCall(`/interviews/${interviewId}/complete`, {
+          method: 'POST'
+        });
+
+        // Stop media stream
+        if (mediaStream) {
+          mediaStream.getTracks().forEach(track => track.stop());
+        }
+
+        // Redirect to results
+        alert('Interview submitted successfully!');
+        window.location.href = `/history.html?interview_id=${interviewId}`;
+      } catch (err) {
+        console.error('Submit error:', err);
+        alert('Failed to submit interview. Please try again.');
+        document.getElementById('submit-btn').disabled = false;
+        document.getElementById('submit-btn').innerHTML = 'Submit Interview';
+      }
+    }
+
+    function showState(state) {
+      document.querySelectorAll('.setup-state, .recording-state, .review-state, .complete-state')
+        .forEach(el => el.classList.remove('active'));
+
+      if (state === 'recording') {
+        document.getElementById('recording-state').classList.add('active');
+      } else if (state === 'review') {
+        document.getElementById('review-state').classList.add('active');
+      } else if (state === 'complete') {
+        document.getElementById('complete-state').classList.add('active');
+      }
+    }
+
+    function updateProgress() {
+      const completed = responses.filter(r => r !== null).length;
+      const total = questions.length;
+      const percent = total > 0 ? (completed / total) * 100 : 0;
+
+      document.getElementById('progress-fill').style.width = `${percent}%`;
+      document.getElementById('progress-text').textContent = `Question ${completed} of ${total}`;
+    }
+
+    function updateTimer() {
+      const minutes = Math.floor(timeRemaining / 60);
+      const seconds = timeRemaining % 60;
+      const timerEl = document.getElementById('timer');
+
+      timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+      if (timeRemaining <= 10) {
+        timerEl.classList.add('critical');
+      } else if (timeRemaining <= 30) {
+        timerEl.classList.add('warning');
+      } else {
+        timerEl.classList.remove('warning', 'critical');
+      }
+    }
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+    });
+  </script>
+</body>
+</html>
