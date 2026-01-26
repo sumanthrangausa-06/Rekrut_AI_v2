@@ -1,1 +1,37 @@
-[]
+[
+  {
+    "content": "Create database migration for onboarding tables",
+    "status": "completed",
+    "activeForm": "Creating database migration"
+  },
+  {
+    "content": "Build backend API routes for offers, checklists, feedback, AI assistant",
+    "status": "completed",
+    "activeForm": "Building backend routes"
+  },
+  {
+    "content": "Create offer management page for HR/recruiters",
+    "status": "completed",
+    "activeForm": "Creating offer management page"
+  },
+  {
+    "content": "Create candidate onboarding page with checklist and AI chat",
+    "status": "completed",
+    "activeForm": "Creating candidate onboarding page"
+  },
+  {
+    "content": "Create post-hire feedback page (30/60/90 day check-ins)",
+    "status": "completed",
+    "activeForm": "Creating feedback page"
+  },
+  {
+    "content": "Add navigation links to dashboards",
+    "status": "completed",
+    "activeForm": "Adding navigation links"
+  },
+  {
+    "content": "Deploy to production and verify functionality",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying"
+  }
+]
