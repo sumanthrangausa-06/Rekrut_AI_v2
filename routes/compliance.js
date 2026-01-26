@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../lib/db');
 const { AuditLogger } = require('../services/auditLogger');
 const BiasDetection = require('../services/biasDetection');
+const ScoreExplainer = require('../services/scoreExplainer');
 
 /**
  * GDPR COMPLIANCE ENDPOINTS
@@ -489,6 +490,62 @@ router.put('/retention/policies/:id', async (req, res) => {
   } catch (error) {
     console.error('Failed to update policy:', error);
     res.status(500).json({ error: 'Update failed' });
+  }
+});
+
+/**
+ * SCORE EXPLAINABILITY
+ */
+
+// Explain OmniScore
+router.get('/explain/omniscore/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const explanation = await ScoreExplainer.explainOmniScore(parseInt(userId));
+
+    await AuditLogger.log({
+      actionType: 'score_explanation_viewed',
+      userId: req.session?.userId,
+      targetType: 'user',
+      targetId: parseInt(userId),
+      metadata: { explanation_type: 'omniscore' },
+      req
+    });
+
+    res.json({
+      success: true,
+      explanation
+    });
+  } catch (error) {
+    console.error('Score explanation failed:', error);
+    res.status(500).json({ error: 'Failed to explain score' });
+  }
+});
+
+// Explain application decision
+router.get('/explain/decision/:applicationId', async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+
+    const explanation = await ScoreExplainer.explainDecision(parseInt(applicationId));
+
+    await AuditLogger.log({
+      actionType: 'decision_explanation_viewed',
+      userId: req.session?.userId,
+      targetType: 'job_application',
+      targetId: parseInt(applicationId),
+      metadata: { explanation_type: 'decision' },
+      req
+    });
+
+    res.json({
+      success: true,
+      explanation
+    });
+  } catch (error) {
+    console.error('Decision explanation failed:', error);
+    res.status(500).json({ error: 'Failed to explain decision' });
   }
 });
 
