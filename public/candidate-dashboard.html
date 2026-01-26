@@ -174,14 +174,45 @@
           </a>
           <a href="/interview.html" class="action-card">
             <div class="action-icon">🎤</div>
-            <h3>Practice Interview</h3>
-            <p>AI-powered mock interviews</p>
+            <h3>Mock Interview</h3>
+            <p>Full AI interview simulation</p>
+          </a>
+          <a href="/interview-practice.html" class="action-card highlight">
+            <div class="action-icon">🎯</div>
+            <h3>Practice Questions</h3>
+            <p>Get instant AI coaching</p>
           </a>
           <a href="/job-board.html" class="action-card">
-            <div class="action-icon">🎯</div>
+            <div class="action-icon">💼</div>
             <h3>Find Jobs</h3>
             <p>Jobs matched to your score</p>
           </a>
+        </div>
+      </section>
+
+      <!-- Interview Practice Highlight -->
+      <section class="section interview-practice-section">
+        <div class="section-header">
+          <h2>🎯 Interview Practice</h2>
+          <a href="/interview-practice.html" class="btn btn-primary btn-sm">Practice Now</a>
+        </div>
+        <div class="practice-progress-grid" id="practice-progress">
+          <div class="practice-stat">
+            <span class="practice-value" id="practice-questions">0</span>
+            <span class="practice-label">Questions Practiced</span>
+          </div>
+          <div class="practice-stat">
+            <span class="practice-value" id="practice-score">—</span>
+            <span class="practice-label">Average Score</span>
+          </div>
+          <div class="practice-stat">
+            <span class="practice-value" id="practice-improvement">—</span>
+            <span class="practice-label">Improvement</span>
+          </div>
+        </div>
+        <div class="practice-cta" id="practice-cta">
+          <p>💪 Practice makes perfect! Answer interview questions and get instant AI coaching on your responses.</p>
+          <a href="/interview-practice.html" class="btn btn-ghost">Get Started</a>
         </div>
       </section>
 
@@ -286,8 +317,33 @@
         // Load recent activity
         loadRecentActivity();
 
+        // Load interview practice stats
+        loadPracticeStats();
+
       } catch (err) {
         console.error('Dashboard load error:', err);
+      }
+    }
+
+    async function loadPracticeStats() {
+      try {
+        const practiceStats = await apiCall('/interviews/practice/stats');
+        if (practiceStats.success && practiceStats.stats) {
+          const stats = practiceStats.stats;
+
+          if (stats.total_questions > 0) {
+            document.getElementById('practice-questions').textContent = stats.total_questions;
+            document.getElementById('practice-score').textContent =
+              stats.average_score ? stats.average_score.toFixed(1) + '/10' : '—';
+            document.getElementById('practice-improvement').textContent =
+              stats.improvement ? (stats.improvement > 0 ? '+' : '') + stats.improvement.toFixed(0) + '%' : '—';
+
+            // Hide CTA if they've practiced
+            document.getElementById('practice-cta').style.display = 'none';
+          }
+        }
+      } catch (err) {
+        console.error('Practice stats error:', err);
       }
     }
 
@@ -669,8 +725,66 @@
       color: var(--text-muted);
     }
 
+    /* Interview Practice Section */
+    .interview-practice-section {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+      border: 2px solid rgba(102, 126, 234, 0.3);
+    }
+
+    .practice-progress-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .practice-stat {
+      text-align: center;
+      padding: 20px;
+      background: white;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-light);
+    }
+
+    .practice-value {
+      display: block;
+      font-size: 32px;
+      font-weight: 700;
+      font-family: var(--font-display);
+      color: var(--accent-primary);
+      margin-bottom: 8px;
+    }
+
+    .practice-label {
+      display: block;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .practice-cta {
+      text-align: center;
+      padding: 20px;
+      background: white;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-light);
+    }
+
+    .practice-cta p {
+      margin-bottom: 16px;
+      color: var(--text-secondary);
+    }
+
+    .action-card.highlight {
+      border: 2px solid var(--accent-primary);
+      background: rgba(16, 185, 129, 0.05);
+    }
+
     @media (max-width: 1024px) {
       .top-cards-row {
+        grid-template-columns: 1fr;
+      }
+
+      .practice-progress-grid {
         grid-template-columns: 1fr;
       }
     }
