@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offer Management - Rekrut AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen">
+  <div class="container mx-auto px-4 py-8">
+    <div class="mb-8">
+      <h1 class="text-4xl font-bold text-white mb-2">
+        <i class="fas fa-file-contract mr-3 text-purple-400"></i>
+        Offer Management
+      </h1>
+      <p class="text-gray-300">Create, send, and track job offers</p>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="mb-6 flex gap-4">
+      <button onclick="showCreateOfferModal()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition">
+        <i class="fas fa-plus mr-2"></i>
+        Create New Offer
+      </button>
+      <button onclick="location.href='recruiter-dashboard.html'" class="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg transition">
+        <i class="fas fa-arrow-left mr-2"></i>
+        Back to Dashboard
+      </button>
+    </div>
+
+    <!-- Offer Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+        <div class="text-gray-300 text-sm mb-2">Total Offers</div>
+        <div id="stat-total" class="text-3xl font-bold text-white">0</div>
+      </div>
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+        <div class="text-gray-300 text-sm mb-2">Pending Response</div>
+        <div id="stat-pending" class="text-3xl font-bold text-yellow-400">0</div>
+      </div>
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+        <div class="text-gray-300 text-sm mb-2">Accepted</div>
+        <div id="stat-accepted" class="text-3xl font-bold text-green-400">0</div>
+      </div>
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+        <div class="text-gray-300 text-sm mb-2">Declined</div>
+        <div id="stat-declined" class="text-3xl font-bold text-red-400">0</div>
+      </div>
+    </div>
+
+    <!-- Offers Table -->
+    <div class="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 overflow-hidden">
+      <div class="p-6 border-b border-white/20">
+        <h2 class="text-xl font-bold text-white">All Offers</h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-white/20 bg-white/5">
+              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Candidate</th>
+              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Position</th>
+              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Salary</th>
+              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Start Date</th>
+              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Status</th>
+              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="offers-tbody" class="divide-y divide-white/10">
+            <tr>
+              <td colspan="6" class="px-6 py-12 text-center text-gray-400">
+                <i class="fas fa-spinner fa-spin text-3xl mb-4"></i>
+                <p>Loading offers...</p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Offer Modal -->
+  <div id="createOfferModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="bg-slate-800 rounded-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-white">Create New Offer</h2>
+        <button onclick="closeCreateOfferModal()" class="text-gray-400 hover:text-white">
+          <i class="fas fa-times text-2xl"></i>
+        </button>
+      </div>
+
+      <form id="createOfferForm" class="space-y-6">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Candidate</label>
+          <select id="candidate_id" required class="w-full px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500">
+            <option value="">Select candidate...</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Job Position</label>
+          <select id="job_id" required class="w-full px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500">
+            <option value="">Select job...</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Job Title</label>
+          <input type="text" id="title" required class="w-full px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Annual Salary</label>
+            <input type="number" id="salary" required min="0" step="1000" class="w-full px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Start Date</label>
+            <input type="date" id="start_date" required class="w-full px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Benefits Package</label>
+          <textarea id="benefits" rows="4" class="w-full px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500" placeholder="Health insurance, 401(k), PTO, etc."></textarea>
+        </div>
+
+        <div class="flex gap-4">
+          <button type="submit" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition">
+            <i class="fas fa-save mr-2"></i>
+            Save as Draft
+          </button>
+          <button type="button" onclick="createAndSendOffer()" class="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition">
+            <i class="fas fa-paper-plane mr-2"></i>
+            Send Offer
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let offersData = [];
+    let candidatesData = [];
+    let jobsData = [];
+
+    async function loadData() {
+      try {
+        const [offersRes, candidatesRes, jobsRes] = await Promise.all([
+          fetch('/api/onboarding/offers'),
+          fetch('/api/recruiter/candidates'),
+          fetch('/api/jobs')
+        ]);
+
+        offersData = await offersRes.json();
+        candidatesData = await candidatesRes.json();
+        jobsData = await jobsRes.json();
+
+        renderOffers();
+        updateStats();
+        populateDropdowns();
+      } catch (err) {
+        console.error('Error loading data:', err);
+      }
+    }
+
+    function renderOffers() {
+      const tbody = document.getElementById('offers-tbody');
+
+      if (offersData.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="px-6 py-12 text-center text-gray-400">
+              <i class="fas fa-inbox text-4xl mb-4 block"></i>
+              <p>No offers created yet</p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = offersData.map(offer => `
+        <tr class="hover:bg-white/5 transition">
+          <td class="px-6 py-4">
+            <div class="font-medium text-white">${offer.candidate_name || 'Unknown'}</div>
+            <div class="text-sm text-gray-400">${offer.candidate_email || ''}</div>
+          </td>
+          <td class="px-6 py-4 text-gray-300">${offer.title || offer.job_title || 'N/A'}</td>
+          <td class="px-6 py-4 text-gray-300">$${parseInt(offer.salary).toLocaleString()}</td>
+          <td class="px-6 py-4 text-gray-300">${offer.start_date ? new Date(offer.start_date).toLocaleDateString() : 'TBD'}</td>
+          <td class="px-6 py-4">
+            ${getStatusBadge(offer.status)}
+          </td>
+          <td class="px-6 py-4">
+            ${getActionButtons(offer)}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function getStatusBadge(status) {
+      const badges = {
+        draft: '<span class="px-3 py-1 bg-gray-600 text-white text-xs rounded-full">Draft</span>',
+        sent: '<span class="px-3 py-1 bg-yellow-600 text-white text-xs rounded-full">Sent</span>',
+        accepted: '<span class="px-3 py-1 bg-green-600 text-white text-xs rounded-full">Accepted</span>',
+        declined: '<span class="px-3 py-1 bg-red-600 text-white text-xs rounded-full">Declined</span>'
+      };
+      return badges[status] || badges.draft;
+    }
+
+    function getActionButtons(offer) {
+      if (offer.status === 'draft') {
+        return `<button onclick="sendOffer(${offer.id})" class="text-purple-400 hover:text-purple-300"><i class="fas fa-paper-plane"></i> Send</button>`;
+      }
+      if (offer.status === 'sent') {
+        return `<span class="text-gray-400">Awaiting response</span>`;
+      }
+      return `<span class="text-gray-500">-</span>`;
+    }
+
+    function updateStats() {
+      document.getElementById('stat-total').textContent = offersData.length;
+      document.getElementById('stat-pending').textContent = offersData.filter(o => o.status === 'sent').length;
+      document.getElementById('stat-accepted').textContent = offersData.filter(o => o.status === 'accepted').length;
+      document.getElementById('stat-declined').textContent = offersData.filter(o => o.status === 'declined').length;
+    }
+
+    function populateDropdowns() {
+      const candidateSelect = document.getElementById('candidate_id');
+      const jobSelect = document.getElementById('job_id');
+
+      candidateSelect.innerHTML = '<option value="">Select candidate...</option>' +
+        candidatesData.map(c => `<option value="${c.id}">${c.name} - ${c.email}</option>`).join('');
+
+      jobSelect.innerHTML = '<option value="">Select job...</option>' +
+        jobsData.map(j => `<option value="${j.id}">${j.title}</option>`).join('');
+    }
+
+    function showCreateOfferModal() {
+      document.getElementById('createOfferModal').classList.remove('hidden');
+      document.getElementById('createOfferModal').classList.add('flex');
+    }
+
+    function closeCreateOfferModal() {
+      document.getElementById('createOfferModal').classList.add('hidden');
+      document.getElementById('createOfferModal').classList.remove('flex');
+      document.getElementById('createOfferForm').reset();
+    }
+
+    document.getElementById('createOfferForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await createOffer(false);
+    });
+
+    async function createOffer(sendImmediately) {
+      const formData = {
+        candidate_id: parseInt(document.getElementById('candidate_id').value),
+        job_id: parseInt(document.getElementById('job_id').value),
+        title: document.getElementById('title').value,
+        salary: parseFloat(document.getElementById('salary').value),
+        start_date: document.getElementById('start_date').value,
+        benefits: document.getElementById('benefits').value
+      };
+
+      try {
+        const res = await fetch('/api/onboarding/offers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+
+        if (!res.ok) throw new Error('Failed to create offer');
+
+        const offer = await res.json();
+
+        if (sendImmediately) {
+          await sendOffer(offer.id);
+        }
+
+        closeCreateOfferModal();
+        loadData();
+      } catch (err) {
+        console.error('Error creating offer:', err);
+        alert('Failed to create offer. Please try again.');
+      }
+    }
+
+    async function createAndSendOffer() {
+      await createOffer(true);
+    }
+
+    async function sendOffer(offerId) {
+      if (!confirm('Send this offer to the candidate?')) return;
+
+      try {
+        const res = await fetch(`/api/onboarding/offers/${offerId}/send`, {
+          method: 'POST'
+        });
+
+        if (!res.ok) throw new Error('Failed to send offer');
+
+        alert('Offer sent successfully!');
+        loadData();
+      } catch (err) {
+        console.error('Error sending offer:', err);
+        alert('Failed to send offer. Please try again.');
+      }
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
