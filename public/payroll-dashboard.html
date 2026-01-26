@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payroll Dashboard - HireLoop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar recruiter-sidebar">
+      <a href="/" class="logo">
+        <span class="logo-icon">◎</span>
+        <span>HireLoop</span>
+      </a>
+      <span class="sidebar-badge">Employer</span>
+
+      <nav class="sidebar-nav">
+        <a href="/recruiter-dashboard.html" class="nav-item">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/recruiter-jobs.html" class="nav-item">
+          <span class="nav-icon">💼</span>
+          <span>Manage Jobs</span>
+        </a>
+        <a href="/payroll-dashboard.html" class="nav-item active">
+          <span class="nav-icon">💰</span>
+          <span>Payroll</span>
+        </a>
+        <a href="/recruiter-profile.html" class="nav-item">
+          <span class="nav-icon">🏢</span>
+          <span>Profile</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-dropdown-container">
+          <button class="user-menu-toggle" id="user-menu-toggle">
+            <div class="user-avatar company-avatar" id="user-avatar">?</div>
+            <div style="flex: 1; text-align: left;">
+              <span class="user-name" id="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
+            </div>
+          </button>
+
+          <div class="user-dropdown-menu" id="user-dropdown-menu">
+            <div class="dropdown-items">
+              <a href="/recruiter-profile.html" class="dropdown-item">🏢 Profile</a>
+              <div class="dropdown-divider"></div>
+              <button onclick="handleLogout()" class="dropdown-item danger">🚪 Sign Out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="page-header">
+        <div>
+          <h1>💰 Payroll Dashboard</h1>
+          <p>Manage employee payroll and payments</p>
+        </div>
+        <button onclick="createPayrollRun()" class="btn btn-primary">
+          <span>+</span> Run Payroll
+        </button>
+      </header>
+
+      <!-- Stats Overview -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">👥</div>
+          <div class="stat-content">
+            <span class="stat-label">Active Employees</span>
+            <span class="stat-value" id="active-employees">-</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📅</div>
+          <div class="stat-content">
+            <span class="stat-label">Upcoming Payrolls</span>
+            <span class="stat-value" id="upcoming-count">-</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">💵</div>
+          <div class="stat-content">
+            <span class="stat-label">This Month</span>
+            <span class="stat-value" id="monthly-total">$0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Employee List -->
+      <div class="card">
+        <div class="card-header">
+          <h2>Employees</h2>
+          <span class="badge" id="employee-count">0 employees</span>
+        </div>
+        <div class="data-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Position</th>
+                <th>Salary Type</th>
+                <th>Pay Rate</th>
+                <th>Pay Frequency</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="employees-tbody">
+              <tr>
+                <td colspan="7" style="text-align: center; padding: 40px;">
+                  Loading employees...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Upcoming Payrolls -->
+      <div class="card">
+        <div class="card-header">
+          <h2>Upcoming Payrolls</h2>
+        </div>
+        <div id="upcoming-payrolls">
+          <div style="padding: 40px; text-align: center; color: var(--text-muted);">
+            Loading payroll schedule...
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Payroll History -->
+      <div class="card">
+        <div class="card-header">
+          <h2>Recent Payroll Runs</h2>
+        </div>
+        <div id="recent-payrolls">
+          <div style="padding: 40px; text-align: center; color: var(--text-muted);">
+            Loading payroll history...
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Create Payroll Run Modal -->
+  <div id="create-payroll-modal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h2>Create Payroll Run</h2>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <form id="create-payroll-form" onsubmit="handleCreatePayroll(event)">
+        <div class="form-group">
+          <label>Pay Period Start</label>
+          <input type="date" name="pay_period_start" required class="form-input">
+        </div>
+        <div class="form-group">
+          <label>Pay Period End</label>
+          <input type="date" name="pay_period_end" required class="form-input">
+        </div>
+        <div class="form-group">
+          <label>Pay Date</label>
+          <input type="date" name="pay_date" required class="form-input">
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Payroll Run</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    let dashboardData = null;
+
+    async function loadDashboard() {
+      try {
+        const response = await fetch('/api/payroll/dashboard', {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+
+        if (!response.ok) throw new Error('Failed to load dashboard');
+
+        dashboardData = await response.json();
+        renderDashboard();
+      } catch (err) {
+        console.error('Load dashboard error:', err);
+        showError('Failed to load payroll dashboard');
+      }
+    }
+
+    async function loadEmployees() {
+      try {
+        const response = await fetch('/api/payroll/employees', {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+
+        if (!response.ok) throw new Error('Failed to load employees');
+
+        const data = await response.json();
+        renderEmployees(data.employees);
+      } catch (err) {
+        console.error('Load employees error:', err);
+      }
+    }
+
+    function renderDashboard() {
+      document.getElementById('active-employees').textContent = dashboardData.activeEmployees;
+      document.getElementById('upcoming-count').textContent = dashboardData.upcomingPayrolls.length;
+      document.getElementById('monthly-total').textContent = `$${dashboardData.monthlyTotal.toLocaleString()}`;
+
+      renderUpcomingPayrolls(dashboardData.upcomingPayrolls);
+      renderRecentPayrolls(dashboardData.recentPayrolls);
+    }
+
+    function renderEmployees(employees) {
+      const tbody = document.getElementById('employees-tbody');
+      document.getElementById('employee-count').textContent = `${employees.length} employees`;
+
+      if (employees.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">
+              No employees found. Hire candidates to add them to payroll.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = employees.map(emp => `
+        <tr>
+          <td>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div class="user-avatar">${emp.employee_name?.charAt(0) || '?'}</div>
+              <div>
+                <div style="font-weight: 500;">${emp.employee_name || 'Unknown'}</div>
+                <div style="font-size: 0.85rem; color: var(--text-muted);">${emp.employee_email || ''}</div>
+              </div>
+            </div>
+          </td>
+          <td>${emp.position || '-'}</td>
+          <td><span class="badge">${emp.salary_type || '-'}</span></td>
+          <td>$${parseFloat(emp.salary_amount || 0).toLocaleString()}</td>
+          <td>${emp.pay_frequency || '-'}</td>
+          <td><span class="badge badge-success">${emp.status || 'active'}</span></td>
+          <td>
+            <button onclick="viewEmployee(${emp.id})" class="btn btn-sm">View</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function renderUpcomingPayrolls(payrolls) {
+      const container = document.getElementById('upcoming-payrolls');
+
+      if (payrolls.length === 0) {
+        container.innerHTML = `
+          <div style="padding: 40px; text-align: center; color: var(--text-muted);">
+            No upcoming payrolls scheduled.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = payrolls.map(pr => `
+        <div class="list-item">
+          <div style="flex: 1;">
+            <div style="font-weight: 500; margin-bottom: 4px;">
+              Pay Period: ${new Date(pr.pay_period_start).toLocaleDateString()} - ${new Date(pr.pay_period_end).toLocaleDateString()}
+            </div>
+            <div style="font-size: 0.9rem; color: var(--text-muted);">
+              Pay Date: ${new Date(pr.pay_date).toLocaleDateString()} • ${pr.employee_count} employees • $${parseFloat(pr.total_net || 0).toLocaleString()}
+            </div>
+          </div>
+          <span class="badge badge-warning">${pr.status}</span>
+          <button onclick="viewPayrollRun(${pr.id})" class="btn btn-sm">View</button>
+        </div>
+      `).join('');
+    }
+
+    function renderRecentPayrolls(payrolls) {
+      const container = document.getElementById('recent-payrolls');
+
+      if (payrolls.length === 0) {
+        container.innerHTML = `
+          <div style="padding: 40px; text-align: center; color: var(--text-muted);">
+            No payroll history yet.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = payrolls.map(pr => `
+        <div class="list-item">
+          <div style="flex: 1;">
+            <div style="font-weight: 500; margin-bottom: 4px;">
+              ${new Date(pr.pay_date).toLocaleDateString()}
+            </div>
+            <div style="font-size: 0.9rem; color: var(--text-muted);">
+              ${pr.employee_count} employees • $${parseFloat(pr.total_net || 0).toLocaleString()} net
+            </div>
+          </div>
+          <span class="badge badge-success">completed</span>
+          <button onclick="viewPayrollRun(${pr.id})" class="btn btn-sm">View</button>
+        </div>
+      `).join('');
+    }
+
+    function createPayrollRun() {
+      document.getElementById('create-payroll-modal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('create-payroll-modal').style.display = 'none';
+    }
+
+    async function handleCreatePayroll(e) {
+      e.preventDefault();
+      const form = e.target;
+      const formData = new FormData(form);
+
+      try {
+        const response = await fetch('/api/payroll/runs', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${getToken()}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(Object.fromEntries(formData))
+        });
+
+        if (!response.ok) throw new Error('Failed to create payroll run');
+
+        const data = await response.json();
+        showSuccess('Payroll run created successfully');
+        closeModal();
+        form.reset();
+        loadDashboard();
+      } catch (err) {
+        console.error('Create payroll error:', err);
+        showError('Failed to create payroll run');
+      }
+    }
+
+    function viewPayrollRun(runId) {
+      window.location.href = `/payroll-run.html?id=${runId}`;
+    }
+
+    function viewEmployee(employeeId) {
+      window.location.href = `/payroll-employee.html?id=${employeeId}`;
+    }
+
+    function handleLogout() {
+      localStorage.removeItem('token');
+      window.location.href = '/login.html';
+    }
+
+    function getToken() {
+      return localStorage.getItem('token');
+    }
+
+    function showSuccess(message) {
+      alert(message); // Replace with better toast notification
+    }
+
+    function showError(message) {
+      alert(message); // Replace with better toast notification
+    }
+
+    // Load data on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!getToken()) {
+        window.location.href = '/login.html';
+        return;
+      }
+      loadDashboard();
+      loadEmployees();
+    });
+  </script>
+</body>
+</html>
