@@ -3,8 +3,12 @@ const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching } = require('../lib/polsia-ai');
 const omniscoreService = require('../services/omniscore');
+const multer = require('multer');
+const fetch = require('node-fetch');
+const FormData = require('form-data');
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Start a new interview
 router.post('/start', authMiddleware, async (req, res) => {
@@ -227,6 +231,62 @@ router.get('/:id', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Get interview error:', err);
     res.status(500).json({ error: 'Failed to fetch interview' });
+  }
+});
+
+// Upload video for interview response
+router.post('/upload-video', authMiddleware, upload.single('video'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No video file provided' });
+    }
+
+    const { interview_id, question_index } = req.body;
+
+    if (!interview_id || question_index === undefined) {
+      return res.status(400).json({ error: 'Missing interview_id or question_index' });
+    }
+
+    // Verify interview belongs to user
+    const interview = await pool.query(
+      'SELECT * FROM interviews WHERE id = $1 AND user_id = $2',
+      [interview_id, req.user.id]
+    );
+
+    if (interview.rows.length === 0) {
+      return res.status(404).json({ error: 'Interview not found' });
+    }
+
+    // Upload to R2
+    const formData = new FormData();
+    formData.append('file', req.file.buffer, {
+      filename: `interview-${interview_id}-q${question_index}.webm`,
+      contentType: req.file.mimetype
+    });
+
+    const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.POLSIA_API_KEY}`,
+        ...formData.getHeaders()
+      },
+      body: formData
+    });
+
+    const result = await uploadRes.json();
+
+    if (!result.success) {
+      console.error('R2 upload error:', result.error);
+      return res.status(500).json({ error: 'Failed to upload video' });
+    }
+
+    res.json({
+      success: true,
+      video_url: result.file.url
+    });
+  } catch (err) {
+    console.error('Upload video error:', err);
+    res.status(500).json({ error: 'Failed to upload video' });
   }
 });
 
