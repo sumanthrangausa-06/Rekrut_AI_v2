@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payroll Run - HireLoop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar recruiter-sidebar">
+      <a href="/" class="logo">
+        <span class="logo-icon">◎</span>
+        <span>HireLoop</span>
+      </a>
+      <span class="sidebar-badge">Employer</span>
+
+      <nav class="sidebar-nav">
+        <a href="/recruiter-dashboard.html" class="nav-item">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/payroll-dashboard.html" class="nav-item active">
+          <span class="nav-icon">💰</span>
+          <span>Payroll</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-dropdown-container">
+          <button class="user-menu-toggle" id="user-menu-toggle">
+            <div class="user-avatar company-avatar">?</div>
+            <div style="flex: 1; text-align: left;">
+              <span class="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
+            </div>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div style="margin-bottom: 24px;">
+        <a href="/payroll-dashboard.html" class="btn btn-text">← Back to Payroll</a>
+      </div>
+
+      <header class="page-header">
+        <div>
+          <h1>Payroll Run</h1>
+          <p id="pay-period-text">Loading...</p>
+        </div>
+        <div style="display: flex; gap: 12px;" id="action-buttons">
+          <!-- Action buttons will be rendered here -->
+        </div>
+      </header>
+
+      <!-- Summary Cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-content">
+            <span class="stat-label">Total Gross Pay</span>
+            <span class="stat-value" id="total-gross">$0</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-content">
+            <span class="stat-label">Total Deductions</span>
+            <span class="stat-value" id="total-taxes">$0</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-content">
+            <span class="stat-label">Total Net Pay</span>
+            <span class="stat-value" id="total-net">$0</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-content">
+            <span class="stat-label">Employees</span>
+            <span class="stat-value" id="employee-count">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paychecks Table -->
+      <div class="card">
+        <div class="card-header">
+          <h2>Paychecks</h2>
+          <span class="badge" id="status-badge">draft</span>
+        </div>
+        <div class="data-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Employee</th>
+                <th>Hours</th>
+                <th>Gross Pay</th>
+                <th>Federal Tax</th>
+                <th>State Tax</th>
+                <th>FICA</th>
+                <th>Net Pay</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="paychecks-tbody">
+              <tr>
+                <td colspan="8" style="text-align: center; padding: 40px;">
+                  Loading paychecks...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Process Confirmation Modal -->
+  <div id="process-modal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h2>Process Payroll</h2>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div style="padding: 20px;">
+        <p>Are you sure you want to process this payroll run?</p>
+        <p style="margin-top: 12px; color: var(--text-muted);">
+          This will mark all paychecks as paid and cannot be undone.
+        </p>
+        <div style="margin-top: 20px; padding: 16px; background: var(--bg-elevated); border-radius: 8px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span>Total Net Pay:</span>
+            <strong id="confirm-total-net">$0</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--text-muted);">
+            <span>Employees:</span>
+            <span id="confirm-employee-count">0</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeModal()" class="btn btn-secondary">Cancel</button>
+        <button onclick="confirmProcessPayroll()" class="btn btn-primary">Process Payroll</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    let payrollData = null;
+    const urlParams = new URLSearchParams(window.location.search);
+    const runId = urlParams.get('id');
+
+    async function loadPayrollRun() {
+      if (!runId) {
+        showError('Invalid payroll run ID');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/payroll/runs/${runId}`, {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+
+        if (!response.ok) throw new Error('Failed to load payroll run');
+
+        payrollData = await response.json();
+        renderPayrollRun();
+      } catch (err) {
+        console.error('Load payroll run error:', err);
+        showError('Failed to load payroll run');
+      }
+    }
+
+    function renderPayrollRun() {
+      const { payrollRun, paychecks } = payrollData;
+
+      // Header
+      document.getElementById('pay-period-text').textContent =
+        `Pay Period: ${new Date(payrollRun.pay_period_start).toLocaleDateString()} - ${new Date(payrollRun.pay_period_end).toLocaleDateString()} • Pay Date: ${new Date(payrollRun.pay_date).toLocaleDateString()}`;
+
+      // Summary
+      document.getElementById('total-gross').textContent = `$${parseFloat(payrollRun.total_gross || 0).toLocaleString()}`;
+      document.getElementById('total-taxes').textContent = `$${parseFloat(payrollRun.total_taxes || 0).toLocaleString()}`;
+      document.getElementById('total-net').textContent = `$${parseFloat(payrollRun.total_net || 0).toLocaleString()}`;
+      document.getElementById('employee-count').textContent = paychecks.length;
+
+      // Status badge
+      const statusBadge = document.getElementById('status-badge');
+      statusBadge.textContent = payrollRun.status;
+      statusBadge.className = `badge ${
+        payrollRun.status === 'completed' ? 'badge-success' :
+        payrollRun.status === 'draft' ? 'badge-warning' : ''
+      }`;
+
+      // Action buttons
+      const actionButtons = document.getElementById('action-buttons');
+      if (payrollRun.status === 'draft') {
+        actionButtons.innerHTML = `
+          <button onclick="processPayroll()" class="btn btn-primary">Process Payroll</button>
+        `;
+      } else {
+        actionButtons.innerHTML = `<span style="color: var(--text-muted);">Payroll processed</span>`;
+      }
+
+      // Paychecks table
+      renderPaychecks(paychecks);
+    }
+
+    function renderPaychecks(paychecks) {
+      const tbody = document.getElementById('paychecks-tbody');
+
+      if (paychecks.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">
+              No paychecks found for this payroll run.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = paychecks.map(pc => {
+        const fica = parseFloat(pc.social_security || 0) + parseFloat(pc.medicare || 0);
+        return `
+          <tr>
+            <td>
+              <div style="font-weight: 500;">${pc.employee_name}</div>
+              <div style="font-size: 0.85rem; color: var(--text-muted);">#${pc.employee_number}</div>
+            </td>
+            <td>${pc.hours_worked || '-'}</td>
+            <td>$${parseFloat(pc.gross_pay || 0).toLocaleString()}</td>
+            <td>$${parseFloat(pc.federal_tax || 0).toLocaleString()}</td>
+            <td>$${parseFloat(pc.state_tax || 0).toLocaleString()}</td>
+            <td>$${fica.toLocaleString()}</td>
+            <td><strong>$${parseFloat(pc.net_pay || 0).toLocaleString()}</strong></td>
+            <td><span class="badge ${pc.status === 'paid' ? 'badge-success' : 'badge-warning'}">${pc.status}</span></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function processPayroll() {
+      const { payrollRun, paychecks } = payrollData;
+
+      document.getElementById('confirm-total-net').textContent = `$${parseFloat(payrollRun.total_net || 0).toLocaleString()}`;
+      document.getElementById('confirm-employee-count').textContent = paychecks.length;
+
+      document.getElementById('process-modal').style.display = 'flex';
+    }
+
+    async function confirmProcessPayroll() {
+      try {
+        const response = await fetch(`/api/payroll/runs/${runId}/process`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${getToken()}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) throw new Error('Failed to process payroll');
+
+        showSuccess('Payroll processed successfully');
+        closeModal();
+        loadPayrollRun();
+      } catch (err) {
+        console.error('Process payroll error:', err);
+        showError('Failed to process payroll');
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('process-modal').style.display = 'none';
+    }
+
+    function getToken() {
+      return localStorage.getItem('token');
+    }
+
+    function showSuccess(message) {
+      alert(message);
+    }
+
+    function showError(message) {
+      alert(message);
+    }
+
+    // Load data on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!getToken()) {
+        window.location.href = '/login.html';
+        return;
+      }
+      loadPayrollRun();
+    });
+  </script>
+</body>
+</html>
