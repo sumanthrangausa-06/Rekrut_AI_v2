@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Create interview-practice.html with question library UI",
+    "status": "completed",
+    "activeForm": "Creating interview-practice.html with question library UI"
+  },
+  {
+    "content": "Add practice question library API endpoint",
+    "status": "completed",
+    "activeForm": "Adding practice question library API endpoint"
+  },
+  {
+    "content": "Build coaching feedback with example answers",
+    "status": "completed",
+    "activeForm": "Building coaching feedback with example answers"
+  },
+  {
+    "content": "Add progress tracking dashboard",
+    "status": "completed",
+    "activeForm": "Adding progress tracking dashboard"
+  },
+  {
+    "content": "Test and deploy",
+    "status": "in_progress",
+    "activeForm": "Testing and deploying"
+  }
+]
