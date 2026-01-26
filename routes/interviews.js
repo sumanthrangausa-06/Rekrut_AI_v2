@@ -1,7 +1,7 @@
 const express = require('express');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
-const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback } = require('../lib/polsia-ai');
+const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching } = require('../lib/polsia-ai');
 const omniscoreService = require('../services/omniscore');
 
 const router = express.Router();
@@ -260,6 +260,354 @@ router.get('/stats/summary', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Get stats error:', err);
     res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+// =============== INTERVIEW PRACTICE & COACHING ===============
+
+// Get practice question library
+router.get('/practice/library', authMiddleware, async (req, res) => {
+  try {
+    // Predefined question library organized by category
+    const questionLibrary = [
+      // Behavioral Questions
+      {
+        id: 'beh-1',
+        category: 'behavioral',
+        difficulty: 'Medium',
+        question: 'Tell me about a time when you had to deal with a difficult team member. How did you handle it?',
+        key_points: ['Conflict resolution', 'Communication skills', 'Team dynamics', 'Professional approach']
+      },
+      {
+        id: 'beh-2',
+        category: 'behavioral',
+        difficulty: 'Medium',
+        question: 'Describe a situation where you failed at something. What did you learn from it?',
+        key_points: ['Self-awareness', 'Learning from mistakes', 'Growth mindset', 'Accountability']
+      },
+      {
+        id: 'beh-3',
+        category: 'behavioral',
+        difficulty: 'Hard',
+        question: 'Tell me about a time when you had to make a difficult decision with incomplete information.',
+        key_points: ['Decision-making', 'Risk assessment', 'Critical thinking', 'Taking initiative']
+      },
+      {
+        id: 'beh-4',
+        category: 'behavioral',
+        difficulty: 'Easy',
+        question: 'What motivates you to come to work every day?',
+        key_points: ['Passion', 'Career goals', 'Work ethic', 'Cultural fit']
+      },
+      {
+        id: 'beh-5',
+        category: 'behavioral',
+        difficulty: 'Medium',
+        question: 'Describe a time when you went above and beyond your job responsibilities.',
+        key_points: ['Initiative', 'Dedication', 'Problem-solving', 'Impact']
+      },
+
+      // Technical Questions
+      {
+        id: 'tech-1',
+        category: 'technical',
+        difficulty: 'Medium',
+        question: 'Walk me through how you would approach debugging a critical production issue.',
+        key_points: ['Systematic approach', 'Problem-solving', 'Communication', 'Technical knowledge']
+      },
+      {
+        id: 'tech-2',
+        category: 'technical',
+        difficulty: 'Hard',
+        question: 'How would you design a system to handle 1 million concurrent users?',
+        key_points: ['Scalability', 'Architecture', 'Trade-offs', 'Technical depth']
+      },
+      {
+        id: 'tech-3',
+        category: 'technical',
+        difficulty: 'Medium',
+        question: 'Explain a complex technical concept to someone without a technical background.',
+        key_points: ['Communication', 'Simplification', 'Analogies', 'Clarity']
+      },
+      {
+        id: 'tech-4',
+        category: 'technical',
+        difficulty: 'Easy',
+        question: 'What are your favorite tools or technologies, and why?',
+        key_points: ['Technical passion', 'Learning', 'Practical experience', 'Reasoning']
+      },
+
+      // Situational Questions
+      {
+        id: 'sit-1',
+        category: 'situational',
+        difficulty: 'Medium',
+        question: 'If you were given a project with an impossible deadline, how would you handle it?',
+        key_points: ['Time management', 'Communication', 'Prioritization', 'Stakeholder management']
+      },
+      {
+        id: 'sit-2',
+        category: 'situational',
+        difficulty: 'Hard',
+        question: 'You discover your manager is making a decision you strongly disagree with. What do you do?',
+        key_points: ['Professional disagreement', 'Communication', 'Respect', 'Problem-solving']
+      },
+      {
+        id: 'sit-3',
+        category: 'situational',
+        difficulty: 'Medium',
+        question: 'How would you handle a situation where you need to learn a new technology quickly?',
+        key_points: ['Learning agility', 'Resourcefulness', 'Time management', 'Adaptability']
+      },
+      {
+        id: 'sit-4',
+        category: 'situational',
+        difficulty: 'Easy',
+        question: 'What would you do if you noticed a coworker was struggling with their workload?',
+        key_points: ['Teamwork', 'Empathy', 'Communication', 'Collaboration']
+      }
+    ];
+
+    // Get user's practice history for this question
+    const practiceHistory = await pool.query(
+      `SELECT question_id, COUNT(*) as times_practiced,
+              MAX(score) as best_score,
+              AVG(score) as avg_score,
+              MAX(created_at) as last_practiced
+       FROM practice_sessions
+       WHERE user_id = $1
+       GROUP BY question_id`,
+      [req.user.id]
+    );
+
+    const historyMap = {};
+    practiceHistory.rows.forEach(row => {
+      historyMap[row.question_id] = {
+        times_practiced: parseInt(row.times_practiced),
+        last_score: row.best_score,
+        avg_score: parseFloat(row.avg_score),
+        last_practiced: row.last_practiced
+      };
+    });
+
+    // Enrich questions with user's practice data
+    const enrichedQuestions = questionLibrary.map(q => ({
+      ...q,
+      times_practiced: historyMap[q.id]?.times_practiced || 0,
+      last_score: historyMap[q.id]?.last_score || null,
+      avg_score: historyMap[q.id]?.avg_score || null,
+      last_practiced: historyMap[q.id]?.last_practiced || null
+    }));
+
+    res.json({
+      success: true,
+      questions: enrichedQuestions
+    });
+  } catch (err) {
+    console.error('Get practice library error:', err);
+    res.status(500).json({ error: 'Failed to fetch question library' });
+  }
+});
+
+// Submit practice response and get AI coaching
+router.post('/practice/submit', authMiddleware, async (req, res) => {
+  try {
+    const { question_id, question, category, response_text } = req.body;
+
+    if (!response_text || response_text.trim().length < 50) {
+      return res.status(400).json({ error: 'Response must be at least 50 characters' });
+    }
+
+    // First, analyze the response
+    const analysis = await analyzeInterviewResponse(
+      question,
+      response_text,
+      [], // key_points not needed for practice
+      { subscriptionId: req.user.stripe_subscription_id }
+    );
+
+    // Then, generate detailed coaching
+    const coaching = await generateInterviewCoaching(
+      question,
+      response_text,
+      analysis,
+      { subscriptionId: req.user.stripe_subscription_id }
+    );
+
+    // Combine analysis and coaching
+    const fullCoaching = {
+      score: analysis.score,
+      strengths: analysis.strengths,
+      improvements: analysis.improvements,
+      ...coaching
+    };
+
+    // Save practice session
+    await pool.query(
+      `INSERT INTO practice_sessions
+       (user_id, question_id, question, category, response_text, score, coaching_data, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+      [
+        req.user.id,
+        question_id,
+        question,
+        category,
+        response_text,
+        analysis.score,
+        JSON.stringify(fullCoaching)
+      ]
+    );
+
+    res.json({
+      success: true,
+      coaching: fullCoaching
+    });
+  } catch (err) {
+    console.error('Submit practice response error:', err);
+    res.status(500).json({ error: 'Failed to analyze response' });
+  }
+});
+
+// Get practice statistics
+router.get('/practice/stats', authMiddleware, async (req, res) => {
+  try {
+    const stats = await pool.query(
+      `SELECT
+        COUNT(*) as total_questions,
+        AVG(score) as average_score,
+        MAX(created_at) as last_practice
+       FROM practice_sessions
+       WHERE user_id = $1`,
+      [req.user.id]
+    );
+
+    // Calculate improvement (compare first half vs second half of sessions)
+    const improvement = await pool.query(
+      `WITH ordered_sessions AS (
+        SELECT score, ROW_NUMBER() OVER (ORDER BY created_at) as rn,
+               COUNT(*) OVER () as total
+        FROM practice_sessions
+        WHERE user_id = $1
+      )
+      SELECT
+        AVG(CASE WHEN rn <= total/2 THEN score END) as first_half_avg,
+        AVG(CASE WHEN rn > total/2 THEN score END) as second_half_avg
+      FROM ordered_sessions`,
+      [req.user.id]
+    );
+
+    let improvementPercent = null;
+    if (improvement.rows[0].first_half_avg && improvement.rows[0].second_half_avg) {
+      const firstHalf = parseFloat(improvement.rows[0].first_half_avg);
+      const secondHalf = parseFloat(improvement.rows[0].second_half_avg);
+      improvementPercent = ((secondHalf - firstHalf) / firstHalf) * 100;
+    }
+
+    // Calculate day streak
+    const streakResult = await pool.query(
+      `WITH RECURSIVE date_series AS (
+        SELECT CURRENT_DATE as check_date, 0 as days_back
+        UNION ALL
+        SELECT check_date - INTERVAL '1 day', days_back + 1
+        FROM date_series
+        WHERE days_back < 30
+      )
+      SELECT COUNT(*) as streak
+      FROM date_series d
+      WHERE EXISTS (
+        SELECT 1 FROM practice_sessions
+        WHERE user_id = $1 AND DATE(created_at) = d.check_date
+      )
+      AND d.check_date <= CURRENT_DATE
+      AND NOT EXISTS (
+        SELECT 1 FROM date_series d2
+        WHERE d2.check_date > d.check_date
+        AND d2.check_date <= CURRENT_DATE
+        AND NOT EXISTS (
+          SELECT 1 FROM practice_sessions
+          WHERE user_id = $1 AND DATE(created_at) = d2.check_date
+        )
+      )`,
+      [req.user.id]
+    );
+
+    res.json({
+      success: true,
+      stats: {
+        total_questions: parseInt(stats.rows[0].total_questions) || 0,
+        average_score: parseFloat(stats.rows[0].average_score) || null,
+        improvement: improvementPercent,
+        day_streak: parseInt(streakResult.rows[0].streak) || 0,
+        last_practice: stats.rows[0].last_practice
+      }
+    });
+  } catch (err) {
+    console.error('Get practice stats error:', err);
+    res.status(500).json({ error: 'Failed to fetch statistics' });
+  }
+});
+
+// Get practice progress dashboard
+router.get('/practice/progress', authMiddleware, async (req, res) => {
+  try {
+    // Progress by category
+    const byCategory = await pool.query(
+      `SELECT
+        category,
+        COUNT(*) as count,
+        AVG(score) as average_score
+       FROM practice_sessions
+       WHERE user_id = $1
+       GROUP BY category
+       ORDER BY average_score DESC`,
+      [req.user.id]
+    );
+
+    // Recent practice sessions
+    const recentSessions = await pool.query(
+      `SELECT
+        question,
+        category,
+        score,
+        coaching_data->>'improvements' as improvements,
+        created_at
+       FROM practice_sessions
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 10`,
+      [req.user.id]
+    );
+
+    // Parse improvements JSON string
+    const sessionsWithParsedData = recentSessions.rows.map(row => {
+      let improvements = [];
+      try {
+        if (row.improvements) {
+          improvements = JSON.parse(row.improvements);
+        }
+      } catch (e) {
+        console.error('Failed to parse improvements:', e);
+      }
+
+      return {
+        question: row.question,
+        category: row.category,
+        score: row.score,
+        improvements,
+        created_at: row.created_at
+      };
+    });
+
+    res.json({
+      success: true,
+      progress: {
+        by_category: byCategory.rows,
+        recent_sessions: sessionsWithParsedData
+      }
+    });
+  } catch (err) {
+    console.error('Get practice progress error:', err);
+    res.status(500).json({ error: 'Failed to fetch progress' });
   }
 });
 
