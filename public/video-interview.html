@@ -8,6 +8,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/styles.css">
+  <!-- TensorFlow.js for AI video analysis -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.js"></script>
   <style>
     * {
       margin: 0;
@@ -153,6 +156,72 @@
       align-items: center;
       gap: 0.5rem;
     }
+
+    /* Live Analysis Overlay */
+    .analysis-overlay {
+      display: none;
+      position: absolute;
+      bottom: 1rem;
+      left: 1rem;
+      right: 1rem;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 1rem;
+      color: white;
+      z-index: 10;
+    }
+
+    .analysis-overlay.active {
+      display: block;
+    }
+
+    .analysis-toggle {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      cursor: pointer;
+      z-index: 11;
+      transition: all 0.3s ease;
+    }
+
+    .analysis-toggle:hover {
+      background: rgba(0, 0, 0, 0.9);
+    }
+
+    .analysis-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 1rem;
+    }
+
+    .metric-item {
+      text-align: center;
+    }
+
+    .metric-value {
+      font-size: 2rem;
+      font-weight: 700;
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+
+    .metric-label {
+      font-size: 0.75rem;
+      opacity: 0.8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .metric-good { color: #10b981; }
+    .metric-warning { color: #f59e0b; }
+    .metric-poor { color: #ef4444; }
 
     .recording-dot {
       width: 8px;
@@ -458,6 +527,29 @@
             <div class="recording-dot"></div>
             RECORDING
           </div>
+
+          <!-- Live Analysis Toggle -->
+          <button class="analysis-toggle" id="analysis-toggle" onclick="toggleAnalysisOverlay()" style="display: none;">
+            👁️ Live Feedback
+          </button>
+
+          <!-- Live Analysis Overlay -->
+          <div class="analysis-overlay" id="analysis-overlay">
+            <div class="analysis-metrics">
+              <div class="metric-item">
+                <span class="metric-value" id="metric-eye-contact">—</span>
+                <span class="metric-label">Eye Contact</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-value" id="metric-posture">—</span>
+                <span class="metric-label">Posture</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-value" id="metric-presence">—</span>
+                <span class="metric-label">Presence</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="controls">
@@ -521,6 +613,7 @@
   </div>
 
   <script src="/js/main.js"></script>
+  <script src="/js/video-analyzer.js"></script>
   <script>
     let mediaStream = null;
     let mediaRecorder = null;
@@ -532,6 +625,9 @@
     let timerInterval = null;
     let timeRemaining = 120; // 2 minutes in seconds
     let retakesUsed = {};
+    let videoAnalyzer = null;
+    let analysisEnabled = false;
+    let questionAnalysisData = {}; // Store analysis for each question
 
     // Initialize
     document.addEventListener('DOMContentLoaded', async () => {
@@ -553,6 +649,21 @@
         });
         document.getElementById('preview-video').srcObject = mediaStream;
         document.getElementById('preview-overlay').style.display = 'none';
+
+        // Initialize video analyzer
+        videoAnalyzer = new VideoAnalyzer();
+        const initialized = await videoAnalyzer.init();
+
+        if (initialized) {
+          console.log('Video analyzer ready');
+
+          // Listen for live score updates
+          videoAnalyzer.on('scores', (scores) => {
+            updateLiveMetrics(scores);
+          });
+        } else {
+          console.warn('Video analyzer initialization failed - continuing without analysis');
+        }
       } catch (err) {
         console.error('Camera access error:', err);
         alert('Camera access is required for video interviews. Please allow permissions and reload.');
@@ -627,6 +738,13 @@
 
         mediaRecorder.start();
 
+        // Start video analysis
+        if (videoAnalyzer) {
+          videoAnalyzer.reset();
+          videoAnalyzer.startAnalysis(document.getElementById('recording-video'), 500);
+          document.getElementById('analysis-toggle').style.display = 'block';
+        }
+
         // Update UI
         document.getElementById('record-btn').style.display = 'none';
         document.getElementById('stop-btn').style.display = 'inline-flex';
@@ -651,6 +769,20 @@
       if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         mediaRecorder.stop();
         clearInterval(timerInterval);
+
+        // Stop video analysis and save data
+        if (videoAnalyzer) {
+          videoAnalyzer.stopAnalysis();
+          const analysis = videoAnalyzer.getFinalAnalysis();
+
+          if (analysis) {
+            questionAnalysisData[currentQuestionIndex] = analysis;
+            console.log('Saved analysis for question', currentQuestionIndex, analysis.scores);
+          }
+
+          document.getElementById('analysis-toggle').style.display = 'none';
+          document.getElementById('analysis-overlay').classList.remove('active');
+        }
 
         // Update UI
         document.getElementById('record-btn').style.display = 'inline-flex';
@@ -783,6 +915,9 @@
           }
         }
 
+        // Save video analysis data
+        await saveAnalysisData();
+
         // Complete interview
         await apiCall(`/interviews/${interviewId}/complete`, {
           method: 'POST'
@@ -795,7 +930,7 @@
 
         // Redirect to results
         alert('Interview submitted successfully!');
-        window.location.href = `/history.html?interview_id=${interviewId}`;
+        window.location.href = `/interview-analysis.html?interview_id=${interviewId}`;
       } catch (err) {
         console.error('Submit error:', err);
         alert('Failed to submit interview. Please try again.');
@@ -842,10 +977,72 @@
       }
     }
 
+    // Toggle analysis overlay
+    function toggleAnalysisOverlay() {
+      const overlay = document.getElementById('analysis-overlay');
+      analysisEnabled = !analysisEnabled;
+
+      if (analysisEnabled) {
+        overlay.classList.add('active');
+      } else {
+        overlay.classList.remove('active');
+      }
+    }
+
+    // Update live metrics display
+    function updateLiveMetrics(scores) {
+      const eyeContactEl = document.getElementById('metric-eye-contact');
+      const postureEl = document.getElementById('metric-posture');
+      const presenceEl = document.getElementById('metric-presence');
+
+      eyeContactEl.textContent = scores.eyeContact + '%';
+      eyeContactEl.className = 'metric-value ' + getMetricClass(scores.eyeContact);
+
+      postureEl.textContent = scores.headStability + '%';
+      postureEl.className = 'metric-value ' + getMetricClass(scores.headStability);
+
+      presenceEl.textContent = scores.presence + '%';
+      presenceEl.className = 'metric-value ' + getMetricClass(scores.presence);
+    }
+
+    function getMetricClass(score) {
+      if (score >= 70) return 'metric-good';
+      if (score >= 50) return 'metric-warning';
+      return 'metric-poor';
+    }
+
+    // Save analysis data with interview submission
+    async function saveAnalysisData() {
+      if (!interviewId || Object.keys(questionAnalysisData).length === 0) {
+        return;
+      }
+
+      try {
+        for (const [questionIndex, analysis] of Object.entries(questionAnalysisData)) {
+          await apiCall('/interviews/save-analysis', {
+            method: 'POST',
+            body: JSON.stringify({
+              interview_id: interviewId,
+              question_index: parseInt(questionIndex),
+              analysis_data: analysis,
+              scores: analysis.scores
+            })
+          });
+        }
+        console.log('Video analysis saved successfully');
+      } catch (err) {
+        console.error('Failed to save analysis:', err);
+        // Don't block submission if analysis save fails
+      }
+    }
+
     // Cleanup on page unload
     window.addEventListener('beforeunload', () => {
       if (mediaStream) {
         mediaStream.getTracks().forEach(track => track.stop());
+      }
+      if (videoAnalyzer) {
+        videoAnalyzer.stopAnalysis();
       }
     });
   </script>
