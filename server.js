@@ -14,6 +14,7 @@ const recruiterRoutes = require('./routes/recruiter');
 const candidateRoutes = require('./routes/candidate');
 const assessmentRoutes = require('./routes/assessments');
 const matchingRoutes = require('./routes/matching');
+const documentRoutes = require('./routes/documents');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -48,6 +49,9 @@ app.use('/api/recruiter', recruiterRoutes);
 
 // API Routes - Matching Engine
 app.use('/api/matching', matchingRoutes);
+
+// API Routes - Document Verification
+app.use('/api/documents', documentRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
