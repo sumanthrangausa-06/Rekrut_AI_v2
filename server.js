@@ -17,6 +17,7 @@ const matchingRoutes = require('./routes/matching');
 const documentRoutes = require('./routes/documents');
 const payrollRoutes = require('./routes/payroll');
 const complianceRoutes = require('./routes/compliance');
+const onboardingRoutes = require('./routes/onboarding');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -60,6 +61,9 @@ app.use('/api/payroll', payrollRoutes);
 
 // API Routes - Compliance & GDPR
 app.use('/api/compliance', complianceRoutes);
+
+// API Routes - Onboarding & Post-Hire
+app.use('/api/onboarding', onboardingRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
