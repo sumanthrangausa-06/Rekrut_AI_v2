@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics - Rekrut AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar recruiter-sidebar">
+      <a href="/" class="logo">
+        <span class="logo-icon">◎</span>
+        <span>Rekrut AI</span>
+      </a>
+      <span class="sidebar-badge">Employer</span>
+
+      <nav class="sidebar-nav">
+        <a href="/recruiter-dashboard.html" class="nav-item">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/recruiter-trustscore.html" class="nav-item">
+          <span class="nav-icon">🛡️</span>
+          <span>TrustScore</span>
+        </a>
+        <a href="/recruiter-jobs.html" class="nav-item">
+          <span class="nav-icon">💼</span>
+          <span>Job Postings</span>
+        </a>
+        <a href="/recruiter-applications.html" class="nav-item">
+          <span class="nav-icon">📋</span>
+          <span>Applications</span>
+        </a>
+        <a href="/recruiter-interviews.html" class="nav-item">
+          <span class="nav-icon">📅</span>
+          <span>Interviews</span>
+        </a>
+        <a href="/offer-management.html" class="nav-item">
+          <span class="nav-icon">📄</span>
+          <span>Offers</span>
+        </a>
+        <a href="/payroll-dashboard.html" class="nav-item">
+          <span class="nav-icon">💰</span>
+          <span>Payroll</span>
+        </a>
+        <a href="/compliance-dashboard.html" class="nav-item">
+          <span class="nav-icon">⚖️</span>
+          <span>Compliance</span>
+        </a>
+        <a href="/recruiter-analytics.html" class="nav-item active">
+          <span class="nav-icon">📈</span>
+          <span>Analytics</span>
+        </a>
+        <a href="/recruiter-profile.html" class="nav-item">
+          <span class="nav-icon">🏢</span>
+          <span>Company Profile</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-dropdown-container">
+          <button class="user-menu-toggle" id="user-menu-toggle">
+            <div class="user-avatar company-avatar" id="user-avatar">?</div>
+            <div style="flex: 1; text-align: left;">
+              <span class="user-name" id="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
+              <span class="company-name" id="company-name" style="display: block; font-size: 12px; color: var(--text-muted);">Company</span>
+            </div>
+          </button>
+
+          <div class="user-dropdown-menu" id="user-dropdown-menu">
+            <div class="dropdown-header">
+              <span class="dropdown-user-name" id="dropdown-user-name">Loading...</span>
+              <span class="dropdown-user-email" id="dropdown-user-email">user@example.com</span>
+            </div>
+            <div class="dropdown-items">
+              <a href="/recruiter-profile.html" class="dropdown-item">🏢 Company Profile</a>
+              <div class="dropdown-divider"></div>
+              <button onclick="handleLogout()" class="dropdown-item danger">🚪 Sign Out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <div>
+          <h1>Hiring Analytics</h1>
+          <p>Track your recruitment performance and insights</p>
+        </div>
+        <div class="header-actions">
+          <select id="time-range" class="form-select">
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last year</option>
+          </select>
+        </div>
+      </header>
+
+      <!-- Key Metrics -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">👁️</div>
+          <div class="stat-info">
+            <span class="stat-value" id="job-views">0</span>
+            <span class="stat-label">Job Views</span>
+            <span class="stat-trend positive" id="views-trend">+0%</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📥</div>
+          <div class="stat-info">
+            <span class="stat-value" id="applications-count">0</span>
+            <span class="stat-label">Applications</span>
+            <span class="stat-trend positive" id="apps-trend">+0%</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🎯</div>
+          <div class="stat-info">
+            <span class="stat-value" id="conversion-rate">0%</span>
+            <span class="stat-label">Conversion Rate</span>
+            <span class="stat-trend" id="conversion-trend">0%</span>
+          </div>
+        </div>
+        <div class="stat-card highlight purple">
+          <div class="stat-icon">⏱️</div>
+          <div class="stat-info">
+            <span class="stat-value" id="time-to-hire">0</span>
+            <span class="stat-label">Avg Days to Hire</span>
+            <span class="stat-trend negative" id="time-trend">0 days</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hiring Funnel -->
+      <section class="section">
+        <h2>Hiring Funnel</h2>
+        <div class="funnel-container">
+          <div class="funnel-step" id="funnel-views">
+            <div class="funnel-bar" style="width: 100%;">
+              <span class="funnel-value">0</span>
+            </div>
+            <span class="funnel-label">Job Views</span>
+          </div>
+          <div class="funnel-step" id="funnel-applied">
+            <div class="funnel-bar" style="width: 60%;">
+              <span class="funnel-value">0</span>
+            </div>
+            <span class="funnel-label">Applied</span>
+          </div>
+          <div class="funnel-step" id="funnel-screened">
+            <div class="funnel-bar" style="width: 40%;">
+              <span class="funnel-value">0</span>
+            </div>
+            <span class="funnel-label">Screened</span>
+          </div>
+          <div class="funnel-step" id="funnel-interviewed">
+            <div class="funnel-bar" style="width: 25%;">
+              <span class="funnel-value">0</span>
+            </div>
+            <span class="funnel-label">Interviewed</span>
+          </div>
+          <div class="funnel-step" id="funnel-offered">
+            <div class="funnel-bar" style="width: 15%;">
+              <span class="funnel-value">0</span>
+            </div>
+            <span class="funnel-label">Offered</span>
+          </div>
+          <div class="funnel-step" id="funnel-hired">
+            <div class="funnel-bar highlight" style="width: 10%;">
+              <span class="funnel-value">0</span>
+            </div>
+            <span class="funnel-label">Hired</span>
+          </div>
+        </div>
+      </section>
+
+      <div class="analytics-grid">
+        <!-- Job Performance -->
+        <section class="section">
+          <h2>Top Performing Jobs</h2>
+          <div class="job-performance-list" id="job-performance">
+            <div class="loading-state">
+              <div class="spinner"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Source Analysis -->
+        <section class="section">
+          <h2>Application Sources</h2>
+          <div class="source-list" id="source-list">
+            <div class="source-item">
+              <span class="source-name">Direct</span>
+              <div class="source-bar-container">
+                <div class="source-bar" style="width: 45%;"></div>
+              </div>
+              <span class="source-value">45%</span>
+            </div>
+            <div class="source-item">
+              <span class="source-name">LinkedIn</span>
+              <div class="source-bar-container">
+                <div class="source-bar" style="width: 30%;"></div>
+              </div>
+              <span class="source-value">30%</span>
+            </div>
+            <div class="source-item">
+              <span class="source-name">Indeed</span>
+              <div class="source-bar-container">
+                <div class="source-bar" style="width: 15%;"></div>
+              </div>
+              <span class="source-value">15%</span>
+            </div>
+            <div class="source-item">
+              <span class="source-name">Referral</span>
+              <div class="source-bar-container">
+                <div class="source-bar" style="width: 10%;"></div>
+              </div>
+              <span class="source-value">10%</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- OmniScore Distribution -->
+      <section class="section">
+        <h2>Candidate Quality (OmniScore Distribution)</h2>
+        <div class="score-distribution" id="score-distribution">
+          <div class="score-bar-group">
+            <span class="score-range">900+</span>
+            <div class="score-bar-container">
+              <div class="score-bar elite" id="score-900" style="width: 5%;"></div>
+            </div>
+            <span class="score-count" id="count-900">0</span>
+          </div>
+          <div class="score-bar-group">
+            <span class="score-range">800-899</span>
+            <div class="score-bar-container">
+              <div class="score-bar excellent" id="score-800" style="width: 15%;"></div>
+            </div>
+            <span class="score-count" id="count-800">0</span>
+          </div>
+          <div class="score-bar-group">
+            <span class="score-range">700-799</span>
+            <div class="score-bar-container">
+              <div class="score-bar good" id="score-700" style="width: 25%;"></div>
+            </div>
+            <span class="score-count" id="count-700">0</span>
+          </div>
+          <div class="score-bar-group">
+            <span class="score-range">600-699</span>
+            <div class="score-bar-container">
+              <div class="score-bar average" id="score-600" style="width: 30%;"></div>
+            </div>
+            <span class="score-count" id="count-600">0</span>
+          </div>
+          <div class="score-bar-group">
+            <span class="score-range">&lt;600</span>
+            <div class="score-bar-container">
+              <div class="score-bar below" id="score-below" style="width: 25%;"></div>
+            </div>
+            <span class="score-count" id="count-below">0</span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await checkAuth();
+      if (!user) {
+        window.location.href = '/login.html';
+        return;
+      }
+      if (!user.company_id && user.role !== 'recruiter') {
+        window.location.href = '/dashboard.html';
+        return;
+      }
+
+      const name = user.name || user.email.split('@')[0];
+      document.getElementById('user-name').textContent = name;
+      document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+      document.getElementById('company-name').textContent = user.company_name || 'Company';
+      document.getElementById('dropdown-user-name').textContent = name;
+      document.getElementById('dropdown-user-email').textContent = user.email;
+
+      // Setup user menu dropdown
+      const userMenuToggle = document.getElementById('user-menu-toggle');
+      const userDropdownMenu = document.getElementById('user-dropdown-menu');
+      if (userMenuToggle && userDropdownMenu) {
+        userMenuToggle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          userDropdownMenu.classList.toggle('active');
+        });
+        document.addEventListener('click', () => {
+          userDropdownMenu.classList.remove('active');
+        });
+      }
+
+      // Time range selector
+      document.getElementById('time-range').addEventListener('change', loadAnalytics);
+
+      loadAnalytics();
+    });
+
+    async function loadAnalytics() {
+      const days = document.getElementById('time-range').value;
+
+      try {
+        // Load dashboard data for analytics
+        const data = await apiCall('/recruiter/dashboard');
+
+        if (data) {
+          // Update key metrics
+          const jobStats = data.job_stats || {};
+          const appStats = data.application_stats || {};
+
+          document.getElementById('job-views').textContent = jobStats.total_views || 0;
+          document.getElementById('applications-count').textContent = appStats.total_applications || 0;
+
+          const convRate = jobStats.total_views > 0
+            ? ((appStats.total_applications / jobStats.total_views) * 100).toFixed(1)
+            : 0;
+          document.getElementById('conversion-rate').textContent = convRate + '%';
+
+          document.getElementById('time-to-hire').textContent = data.avg_time_to_hire || '-';
+
+          // Update funnel
+          updateFunnel(appStats);
+
+          // Load job performance
+          loadJobPerformance();
+
+          // Update OmniScore distribution
+          updateScoreDistribution(data.score_distribution || {});
+        }
+      } catch (err) {
+        console.error('Failed to load analytics:', err);
+      }
+    }
+
+    function updateFunnel(stats) {
+      const totalViews = stats.total_views || 100;
+      const applied = stats.total_applications || 0;
+      const screened = stats.reviewed || 0;
+      const interviewed = stats.interviewed || 0;
+      const offered = stats.offered || 0;
+      const hired = stats.hired || 0;
+
+      const steps = [
+        { id: 'funnel-views', value: totalViews, label: 'Job Views' },
+        { id: 'funnel-applied', value: applied, label: 'Applied' },
+        { id: 'funnel-screened', value: screened, label: 'Screened' },
+        { id: 'funnel-interviewed', value: interviewed, label: 'Interviewed' },
+        { id: 'funnel-offered', value: offered, label: 'Offered' },
+        { id: 'funnel-hired', value: hired, label: 'Hired' }
+      ];
+
+      steps.forEach((step, i) => {
+        const el = document.getElementById(step.id);
+        if (el) {
+          const bar = el.querySelector('.funnel-bar');
+          const valueEl = el.querySelector('.funnel-value');
+          const width = totalViews > 0 ? (step.value / totalViews) * 100 : 0;
+          bar.style.width = Math.max(width, 5) + '%';
+          valueEl.textContent = step.value;
+        }
+      });
+    }
+
+    async function loadJobPerformance() {
+      try {
+        const data = await apiCall('/recruiter/jobs');
+        const container = document.getElementById('job-performance');
+
+        if (!data.jobs || data.jobs.length === 0) {
+          container.innerHTML = '<div class="empty-state"><p>No job data yet</p></div>';
+          return;
+        }
+
+        // Sort by applications (or any metric)
+        const jobs = data.jobs.slice(0, 5);
+
+        container.innerHTML = jobs.map(job => `
+          <div class="job-performance-item">
+            <div class="job-perf-info">
+              <h4>${job.title}</h4>
+              <span class="job-status ${job.status}">${job.status}</span>
+            </div>
+            <div class="job-perf-stats">
+              <span class="perf-stat">
+                <strong>${job.application_count || 0}</strong>
+                <small>Applications</small>
+              </span>
+              <span class="perf-stat">
+                <strong>${job.views || 0}</strong>
+                <small>Views</small>
+              </span>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Failed to load job performance:', err);
+      }
+    }
+
+    function updateScoreDistribution(dist) {
+      const ranges = ['900', '800', '700', '600', 'below'];
+      const total = Object.values(dist).reduce((a, b) => a + b, 0) || 1;
+
+      ranges.forEach(range => {
+        const count = dist[range] || 0;
+        const pct = (count / total) * 100;
+        const bar = document.getElementById(`score-${range}`);
+        const countEl = document.getElementById(`count-${range}`);
+        if (bar) bar.style.width = Math.max(pct, 2) + '%';
+        if (countEl) countEl.textContent = count;
+      });
+    }
+  </script>
+
+  <style>
+    .recruiter-sidebar { background: linear-gradient(180deg, #1a1a24 0%, #12121a 100%); }
+    .sidebar-badge { display: inline-block; padding: 4px 10px; background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%); border-radius: var(--radius-full); font-size: 11px; font-weight: 600; color: white; margin: -12px 0 20px 0; }
+    .company-avatar { background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%) !important; }
+
+    .header-actions { display: flex; gap: 12px; }
+    .form-select {
+      padding: 10px 16px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 14px;
+    }
+
+    .stat-card.highlight.purple {
+      border-color: #8b5cf6;
+      box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
+    }
+
+    .stat-trend {
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    .stat-trend.positive { color: #10b981; }
+    .stat-trend.negative { color: #ef4444; }
+
+    /* Funnel */
+    .funnel-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+    }
+
+    .funnel-step {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .funnel-step:last-child { margin-bottom: 0; }
+
+    .funnel-label {
+      width: 100px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .funnel-bar {
+      height: 32px;
+      background: linear-gradient(90deg, #8b5cf6 0%, #a855f7 100%);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      transition: width 0.5s ease;
+      min-width: 60px;
+    }
+
+    .funnel-bar.highlight {
+      background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+    }
+
+    .funnel-value {
+      font-family: var(--font-display);
+      font-weight: 600;
+      color: white;
+      font-size: 14px;
+    }
+
+    /* Analytics Grid */
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    /* Job Performance */
+    .job-performance-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+      margin-bottom: 8px;
+    }
+
+    .job-perf-info h4 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .job-status {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      text-transform: capitalize;
+    }
+    .job-status.active { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+    .job-status.paused { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .job-status.closed { background: rgba(107, 114, 128, 0.2); color: #6b7280; }
+
+    .job-perf-stats {
+      display: flex;
+      gap: 24px;
+    }
+
+    .perf-stat {
+      text-align: center;
+    }
+    .perf-stat strong {
+      display: block;
+      font-family: var(--font-display);
+      font-size: 18px;
+    }
+    .perf-stat small {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Source List */
+    .source-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .source-item:last-child { border-bottom: none; }
+
+    .source-name {
+      width: 80px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .source-bar-container {
+      flex: 1;
+      height: 8px;
+      background: var(--bg-elevated);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .source-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #8b5cf6 0%, #a855f7 100%);
+      border-radius: 4px;
+    }
+
+    .source-value {
+      width: 40px;
+      text-align: right;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    /* Score Distribution */
+    .score-distribution {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+    }
+
+    .score-bar-group {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .score-bar-group:last-child { margin-bottom: 0; }
+
+    .score-range {
+      width: 80px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .score-bar-container {
+      flex: 1;
+      height: 24px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .score-bar {
+      height: 100%;
+      border-radius: var(--radius-md);
+      transition: width 0.5s ease;
+    }
+
+    .score-bar.elite { background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%); }
+    .score-bar.excellent { background: linear-gradient(90deg, #8b5cf6 0%, #a855f7 100%); }
+    .score-bar.good { background: linear-gradient(90deg, #10b981 0%, #34d399 100%); }
+    .score-bar.average { background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%); }
+    .score-bar.below { background: linear-gradient(90deg, #6b7280 0%, #9ca3af 100%); }
+
+    .score-count {
+      width: 40px;
+      text-align: right;
+      font-family: var(--font-display);
+      font-weight: 600;
+    }
+
+    @media (max-width: 1024px) {
+      .analytics-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</body>
+</html>
