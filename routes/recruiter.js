@@ -275,6 +275,147 @@ router.put('/jobs/:id', authMiddleware, requireRecruiter, async (req, res) => {
   }
 });
 
+// Get ALL applications for the company
+router.get('/applications', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const { status, job_id, limit = 100, offset = 0 } = req.query;
+
+    let query = `
+      SELECT ja.*,
+             u.name as candidate_name, u.email as candidate_email,
+             j.title as job_title, j.id as job_id,
+             os.total_score as current_omniscore, os.score_tier
+      FROM job_applications ja
+      JOIN users u ON ja.candidate_id = u.id
+      JOIN jobs j ON ja.job_id = j.id
+      LEFT JOIN omni_scores os ON u.id = os.user_id
+      WHERE ja.company_id = $1
+    `;
+    const params = [req.user.company_id];
+
+    if (status) {
+      query += ` AND ja.status = $${params.length + 1}`;
+      params.push(status);
+    }
+
+    if (job_id) {
+      query += ` AND ja.job_id = $${params.length + 1}`;
+      params.push(job_id);
+    }
+
+    query += ` ORDER BY ja.applied_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const result = await pool.query(query, params);
+
+    res.json({ applications: result.rows });
+  } catch (err) {
+    console.error('Get applications error:', err);
+    res.status(500).json({ error: 'Failed to fetch applications' });
+  }
+});
+
+// Update application status (alternative route)
+router.put('/applications/:id/status', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    // Verify application belongs to company
+    const existing = await pool.query(
+      'SELECT id, job_id, candidate_id FROM job_applications WHERE id = $1 AND company_id = $2',
+      [req.params.id, req.user.company_id]
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    const result = await pool.query(
+      `UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [status, req.params.id]
+    );
+
+    // Audit log
+    await AuditLogger.log({
+      actionType: 'application_status_changed',
+      userId: req.user.id,
+      targetType: 'job_application',
+      targetId: parseInt(req.params.id),
+      metadata: {
+        candidate_id: existing.rows[0].candidate_id,
+        job_id: existing.rows[0].job_id,
+        new_status: status
+      },
+      req
+    });
+
+    res.json({ success: true, application: result.rows[0] });
+  } catch (err) {
+    console.error('Update application status error:', err);
+    res.status(500).json({ error: 'Failed to update application' });
+  }
+});
+
+// Create interview (POST to /interviews)
+router.post('/interviews', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const {
+      application_id, scheduled_at, duration = 60,
+      interview_type = 'video', notes
+    } = req.body;
+
+    // Get application details
+    const app = await pool.query(
+      'SELECT ja.job_id, ja.candidate_id FROM job_applications ja WHERE ja.id = $1 AND ja.company_id = $2',
+      [application_id, req.user.company_id]
+    );
+
+    if (app.rows.length === 0) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    const { job_id, candidate_id } = app.rows[0];
+
+    const result = await pool.query(
+      `INSERT INTO scheduled_interviews
+       (company_id, job_id, candidate_id, recruiter_id, scheduled_at, duration_minutes, interview_type, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [req.user.company_id, job_id, candidate_id, req.user.id, scheduled_at, duration, interview_type, notes]
+    );
+
+    // Update application status
+    await pool.query(
+      `UPDATE job_applications SET status = 'interviewed', updated_at = NOW() WHERE id = $1`,
+      [application_id]
+    );
+
+    res.json({ success: true, interview: result.rows[0] });
+  } catch (err) {
+    console.error('Create interview error:', err);
+    res.status(500).json({ error: 'Failed to create interview' });
+  }
+});
+
+// Delete/cancel interview
+router.delete('/interviews/:id', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM scheduled_interviews WHERE id = $1 AND company_id = $2 RETURNING id',
+      [req.params.id, req.user.company_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Interview not found' });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete interview error:', err);
+    res.status(500).json({ error: 'Failed to delete interview' });
+  }
+});
+
 // Get applications for a job
 router.get('/jobs/:id/applications', authMiddleware, requireRecruiter, async (req, res) => {
   try {
