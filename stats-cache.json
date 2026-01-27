@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastComputedDate": "2026-01-25",
+  "lastComputedDate": "2026-01-26",
   "dailyActivity": [
     {
       "date": "2026-01-22",
@@ -19,6 +19,12 @@
       "messageCount": 517,
       "sessionCount": 5,
       "toolCallCount": 175
+    },
+    {
+      "date": "2026-01-26",
+      "messageCount": 1267,
+      "sessionCount": 11,
+      "toolCallCount": 420
     }
   ],
   "dailyModelTokens": [
@@ -40,24 +46,31 @@
         "claude-sonnet-4-5-20250929": 54003,
         "claude-haiku-4-5-20251001": 49281
       }
+    },
+    {
+      "date": "2026-01-26",
+      "tokensByModel": {
+        "claude-sonnet-4-5-20250929": 302326,
+        "claude-opus-4-5-20251101": 8725
+      }
     }
   ],
   "modelUsage": {
     "claude-opus-4-5-20251101": {
-      "inputTokens": 22635,
-      "outputTokens": 167208,
-      "cacheReadInputTokens": 39834740,
-      "cacheCreationInputTokens": 2347174,
+      "inputTokens": 23505,
+      "outputTokens": 175063,
+      "cacheReadInputTokens": 48434027,
+      "cacheCreationInputTokens": 3144354,
       "webSearchRequests": 0,
       "costUSD": 0,
       "contextWindow": 0,
       "maxOutputTokens": 0
     },
     "claude-sonnet-4-5-20250929": {
-      "inputTokens": 5090,
-      "outputTokens": 48913,
-      "cacheReadInputTokens": 18005277,
-      "cacheCreationInputTokens": 1079841,
+      "inputTokens": 160251,
+      "outputTokens": 196078,
+      "cacheReadInputTokens": 71734612,
+      "cacheCreationInputTokens": 3702567,
       "webSearchRequests": 0,
       "costUSD": 0,
       "contextWindow": 0,
@@ -74,8 +87,8 @@
       "maxOutputTokens": 0
     }
   },
-  "totalSessions": 12,
-  "totalMessages": 1253,
+  "totalSessions": 23,
+  "totalMessages": 2520,
   "longestSession": {
     "sessionId": "14701060-d6f1-40f2-b3f0-f4686b5c5c73",
     "duration": 728875,
@@ -85,8 +98,10 @@
   "firstSessionDate": "2026-01-22T04:11:30.680Z",
   "hourCounts": {
     "4": 4,
-    "16": 3,
-    "20": 1,
+    "16": 4,
+    "20": 2,
+    "21": 5,
+    "22": 4,
     "23": 4
   }
 }
