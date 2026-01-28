@@ -894,14 +894,17 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
       matchScore = match.match_score;
     } catch (e) {}
 
+    // Get omniscore for application
+    const omniscore = profile.rows[0]?.omniscore || null;
+
     const result = await pool.query(`
-      INSERT INTO job_applications (candidate_id, job_id, cover_letter, match_score)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO job_applications (candidate_id, job_id, company_id, cover_letter, match_score, omniscore_at_apply)
+      VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT (job_id, candidate_id) DO UPDATE SET
-        cover_letter = $3,
+        cover_letter = $4,
         updated_at = NOW()
       RETURNING *
-    `, [req.user.id, req.params.jobId, cover_letter, matchScore]);
+    `, [req.user.id, req.params.jobId, job.rows[0].company_id, cover_letter, matchScore, omniscore]);
 
     res.json({ success: true, application: result.rows[0] });
   } catch (err) {
