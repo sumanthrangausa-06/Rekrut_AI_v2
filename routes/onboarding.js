@@ -13,18 +13,18 @@ router.post('/offers', authMiddleware, async (req, res) => {
   try {
     const { candidate_id, job_id, title, salary, start_date, benefits, template_data } = req.body;
 
-    const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [job_id]);
+    const job = await pool.query('SELECT * FROM jobs WHERE id = $1 AND company_id = $2', [job_id, req.user.company_id]);
     if (job.rows.length === 0) {
       return res.status(404).json({ error: 'Job not found' });
     }
 
     const result = await pool.query(
       `INSERT INTO offers (
-        candidate_id, job_id, recruiter_id, title, company_name,
+        candidate_id, job_id, recruiter_id, company_id, title, company_name,
         salary, start_date, benefits, template_data, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *`,
-      [candidate_id, job_id, req.user.id, title, job.rows[0].company || 'Rekrut AI',
+      [candidate_id, job_id, req.user.id, req.user.company_id, title, job.rows[0].company || 'Rekrut AI',
        salary, start_date, benefits, JSON.stringify(template_data || {}), 'draft']
     );
 
@@ -35,20 +35,22 @@ router.post('/offers', authMiddleware, async (req, res) => {
   }
 });
 
-// Get all offers for recruiter
+// Get all offers for recruiter's company
 router.get('/offers', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT o.*,
         u.name as candidate_name,
         u.email as candidate_email,
-        j.title as job_title
+        j.title as job_title,
+        r.name as recruiter_name
       FROM offers o
       JOIN users u ON o.candidate_id = u.id
       LEFT JOIN jobs j ON o.job_id = j.id
-      WHERE o.recruiter_id = $1
+      LEFT JOIN users r ON o.recruiter_id = r.id
+      WHERE o.company_id = $1
       ORDER BY o.created_at DESC`,
-      [req.user.id]
+      [req.user.company_id]
     );
 
     res.json(result.rows);
@@ -85,9 +87,9 @@ router.post('/offers/:id/send', authMiddleware, async (req, res) => {
     const result = await pool.query(
       `UPDATE offers
        SET status = 'sent', sent_at = NOW(), updated_at = NOW()
-       WHERE id = $1 AND recruiter_id = $2
+       WHERE id = $1 AND company_id = $2
        RETURNING *`,
-      [req.params.id, req.user.id]
+      [req.params.id, req.user.company_id]
     );
 
     if (result.rows.length === 0) {
