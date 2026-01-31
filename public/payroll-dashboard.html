@@ -405,11 +405,24 @@
     }
 
     // Load data on page load
-    document.addEventListener('DOMContentLoaded', () => {
-      if (!getToken()) {
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await checkAuth();
+      if (!user) {
         window.location.href = '/login.html';
         return;
       }
+
+      // Verify recruiter role
+      if (!user.company_id && user.role !== 'recruiter') {
+        window.location.href = '/dashboard.html';
+        return;
+      }
+
+      // Update user info
+      const name = user.name || user.email.split('@')[0];
+      document.getElementById('user-name').textContent = name;
+      document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+
       loadDashboard();
       loadEmployees();
     });
