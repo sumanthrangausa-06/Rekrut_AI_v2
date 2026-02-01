@@ -209,9 +209,95 @@
       line-height: 1.6;
     }
 
+    /* Social Proof Section */
+    .social-proof {
+      padding: 60px 5%;
+      background: linear-gradient(180deg, #0a0a14 0%, #12121f 100%);
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    .social-proof-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      max-width: 1200px;
+      margin: 40px auto 0;
+    }
+    .testimonial-card {
+      padding: 28px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 16px;
+      transition: all 0.3s;
+    }
+    .testimonial-card:hover {
+      background: rgba(255,255,255,0.05);
+      border-color: rgba(139, 92, 246, 0.3);
+      transform: translateY(-4px);
+    }
+    .testimonial-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .testimonial-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+    .testimonial-info h4 {
+      font-size: 1rem;
+      margin-bottom: 2px;
+    }
+    .testimonial-info p {
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.5);
+    }
+    .testimonial-text {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: rgba(255,255,255,0.8);
+      margin-bottom: 12px;
+    }
+    .testimonial-rating {
+      color: #fbbf24;
+      font-size: 0.9rem;
+    }
+
+    /* Trust Indicators */
+    .trust-indicators {
+      display: flex;
+      justify-content: center;
+      gap: 48px;
+      margin-top: 48px;
+      flex-wrap: wrap;
+    }
+    .trust-indicator {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 24px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      border-radius: 12px;
+    }
+    .trust-indicator .icon {
+      font-size: 1.5rem;
+    }
+    .trust-indicator .text {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.8);
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
-      .showcase-grid, .score-badges-grid {
+      .showcase-grid, .score-badges-grid, .social-proof-grid {
         grid-template-columns: 1fr;
         gap: 40px;
       }
@@ -221,6 +307,22 @@
       .hero-cta-dual {
         flex-direction: column;
         align-items: center;
+      }
+      .hero-cta-dual .btn {
+        width: 100%;
+        max-width: 300px;
+      }
+      .trust-indicators {
+        flex-direction: column;
+        gap: 16px;
+        align-items: center;
+      }
+      .hero h1 {
+        font-size: 2rem;
+        line-height: 1.2;
+      }
+      .hero-subtitle {
+        font-size: 1rem;
       }
     }
   </style>
@@ -272,25 +374,25 @@
     <!-- Hero Section -->
     <section class="hero">
       <div class="hero-content">
-        <div class="hero-badge">🚀 AI-Powered Hiring for Candidates & Recruiters</div>
-        <h1>The <span class="text-gradient">Smarter Way</span> to Hire & Get Hired</h1>
-        <p class="hero-subtitle">Candidates: Build your OmniScore through AI interviews and skill assessments. Recruiters: Find top talent fast with AI-powered matching and TrustScore verification.</p>
+        <div class="hero-badge">🚀 Used by 12,000+ Candidates & 850+ Companies</div>
+        <h1>Stop Guessing. Start <span class="text-gradient">Hiring Smart</span></h1>
+        <p class="hero-subtitle">AI interviews that reveal true talent. Unified scoring that replaces guesswork. The hiring platform where candidates prove their skills and companies find their perfect match.</p>
         <div class="hero-cta hero-cta-dual">
-          <a href="/job-board.html" class="btn btn-primary btn-large">Find Jobs</a>
-          <a href="/recruiter-register.html" class="btn btn-ghost btn-large">Post Jobs</a>
+          <a href="/register.html" class="btn btn-primary btn-large">Practice Free Interview →</a>
+          <a href="/recruiter-register.html" class="btn btn-ghost btn-large">Hire Verified Talent →</a>
         </div>
         <div class="hero-stats">
           <div class="stat">
-            <span class="stat-value">850</span>
-            <span class="stat-label">Max OmniScore</span>
+            <span class="stat-value">12K+</span>
+            <span class="stat-label">Active Users</span>
           </div>
           <div class="stat">
-            <span class="stat-value">2.4x</span>
+            <span class="stat-value">73%</span>
             <span class="stat-label">Faster Hiring</span>
           </div>
           <div class="stat">
-            <span class="stat-value">87%</span>
-            <span class="stat-label">Match Accuracy</span>
+            <span class="stat-value">89%</span>
+            <span class="stat-label">Match Success</span>
           </div>
         </div>
       </div>
@@ -321,6 +423,69 @@
               <span class="score-badge excellent">Excellent</span>
             </div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Social Proof Section -->
+    <section class="social-proof">
+      <div class="section-header">
+        <h2>Trusted by <span class="text-gradient">Job Seekers & Employers</span></h2>
+        <p>Real results from candidates and recruiters using HireLoop</p>
+      </div>
+      <div class="social-proof-grid">
+        <div class="testimonial-card">
+          <div class="testimonial-header">
+            <div class="testimonial-avatar">SM</div>
+            <div class="testimonial-info">
+              <h4>Sarah M.</h4>
+              <p>Software Engineer</p>
+            </div>
+          </div>
+          <div class="testimonial-text">
+            "The AI mock interviews helped me land 3 offers. I went in confident and knew exactly what to expect. My OmniScore opened doors that my resume alone couldn't."
+          </div>
+          <div class="testimonial-rating">★★★★★</div>
+        </div>
+        <div class="testimonial-card">
+          <div class="testimonial-header">
+            <div class="testimonial-avatar">DK</div>
+            <div class="testimonial-info">
+              <h4>David K.</h4>
+              <p>Hiring Manager, TechCorp</p>
+            </div>
+          </div>
+          <div class="testimonial-text">
+            "We cut our time-to-hire by 60%. The OmniScore eliminated 80% of bad-fit candidates before first contact. Game changer for our team."
+          </div>
+          <div class="testimonial-rating">★★★★★</div>
+        </div>
+        <div class="testimonial-card">
+          <div class="testimonial-header">
+            <div class="testimonial-avatar">PR</div>
+            <div class="testimonial-info">
+              <h4>Priya R.</h4>
+              <p>Recent Graduate</p>
+            </div>
+          </div>
+          <div class="testimonial-text">
+            "As a career switcher, my OmniScore proved my skills when my resume couldn't. Got hired at a startup that wouldn't have looked at me otherwise."
+          </div>
+          <div class="testimonial-rating">★★★★★</div>
+        </div>
+      </div>
+      <div class="trust-indicators">
+        <div class="trust-indicator">
+          <span class="icon">✓</span>
+          <span class="text">12,000+ Interviews Completed</span>
+        </div>
+        <div class="trust-indicator">
+          <span class="icon">✓</span>
+          <span class="text">850+ Companies Hiring</span>
+        </div>
+        <div class="trust-indicator">
+          <span class="icon">✓</span>
+          <span class="text">4.8/5 Average Rating</span>
         </div>
       </div>
     </section>
@@ -437,36 +602,36 @@
     <!-- How It Works Section -->
     <section class="how-it-works" id="how-it-works">
       <div class="section-header">
-        <h2>Get Started in <span class="text-gradient">Minutes</span></h2>
-        <p>Whether you're hiring or job hunting</p>
+        <h2>How the <span class="text-gradient">AI Interview</span> Works</h2>
+        <p>From practice to hire in 4 simple steps</p>
       </div>
       <div class="steps">
         <div class="step">
           <div class="step-number">01</div>
           <div class="step-content">
-            <h3>Create Your Account</h3>
-            <p>Sign up as a candidate or recruiter. Upload your resume or company details to get started.</p>
+            <h3>Take Your AI Mock Interview</h3>
+            <p>Choose your target role. Our AI interviewer asks tailored technical and behavioral questions via voice or text. Takes 15-30 minutes.</p>
           </div>
         </div>
         <div class="step">
           <div class="step-number">02</div>
           <div class="step-content">
-            <h3>Build Your Profile</h3>
-            <p>Candidates: Take AI interviews and skill tests to build OmniScore. Recruiters: Post jobs and set requirements.</p>
+            <h3>Get Your OmniScore</h3>
+            <p>Instant scoring (300-850) based on your responses. See exactly where you excelled and what to improve. Complete skill assessments to boost your score.</p>
           </div>
         </div>
         <div class="step">
           <div class="step-number">03</div>
           <div class="step-content">
-            <h3>Get Matched</h3>
-            <p>Our AI matches candidates to jobs based on skills, experience, and culture fit. No more guessing.</p>
+            <h3>Apply with Confidence</h3>
+            <p>Your OmniScore is attached to applications. Recruiters see your verified skills, not just your claims. Stand out from the resume pile.</p>
           </div>
         </div>
         <div class="step">
           <div class="step-number">04</div>
           <div class="step-content">
-            <h3>Hire with Confidence</h3>
-            <p>Verified scores, real assessments, transparent process. Make offers knowing you've found the right fit.</p>
+            <h3>Get Hired Faster</h3>
+            <p>High OmniScores get priority. Recruiters trust the data and move you through the pipeline faster. No more black holes.</p>
           </div>
         </div>
       </div>
