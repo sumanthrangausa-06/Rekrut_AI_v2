@@ -1,1 +1,32 @@
-[]
+[
+  {
+    "content": "Create events table migration",
+    "status": "completed",
+    "activeForm": "Creating events table migration"
+  },
+  {
+    "content": "Build /api/analytics endpoints",
+    "status": "completed",
+    "activeForm": "Building /api/analytics endpoints"
+  },
+  {
+    "content": "Add analytics.js to key pages",
+    "status": "in_progress",
+    "activeForm": "Adding analytics.js to key pages"
+  },
+  {
+    "content": "Add tracking calls to buttons",
+    "status": "pending",
+    "activeForm": "Adding tracking calls to buttons"
+  },
+  {
+    "content": "Create /admin/analytics dashboard",
+    "status": "pending",
+    "activeForm": "Creating /admin/analytics dashboard"
+  },
+  {
+    "content": "Verify and deploy",
+    "status": "pending",
+    "activeForm": "Verifying and deploying"
+  }
+]
