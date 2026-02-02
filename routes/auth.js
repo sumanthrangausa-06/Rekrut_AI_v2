@@ -45,6 +45,16 @@ router.post('/register', async (req, res) => {
     const accessToken = generateToken(user);
     const { token: refreshToken } = await generateRefreshToken(user.id);
 
+    // Track signup completion
+    try {
+      await pool.query(
+        'INSERT INTO events (event_type, user_id, metadata) VALUES ($1, $2, $3)',
+        [`signup_complete_${role}`, user.id, JSON.stringify({ email: user.email, role: role })]
+      );
+    } catch (e) {
+      console.error('Failed to log signup event:', e);
+    }
+
     res.json({
       success: true,
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
