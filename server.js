@@ -18,6 +18,7 @@ const documentRoutes = require('./routes/documents');
 const payrollRoutes = require('./routes/payroll');
 const complianceRoutes = require('./routes/compliance');
 const onboardingRoutes = require('./routes/onboarding');
+const analyticsRoutes = require('./routes/analytics');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -64,6 +65,9 @@ app.use('/api/compliance', complianceRoutes);
 
 // API Routes - Onboarding & Post-Hire
 app.use('/api/onboarding', onboardingRoutes);
+
+// API Routes - Analytics
+app.use('/api/analytics', analyticsRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
