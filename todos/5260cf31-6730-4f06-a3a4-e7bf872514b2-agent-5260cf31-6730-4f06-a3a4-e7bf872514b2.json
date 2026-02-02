@@ -16,12 +16,12 @@
   },
   {
     "content": "Add tracking calls to buttons",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Adding tracking calls to buttons"
   },
   {
     "content": "Create /admin/analytics dashboard",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Creating /admin/analytics dashboard"
   },
   {
