@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics Dashboard - HireLoop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #0a0a14 0%, #1a1a2e 100%);
+      color: #fff;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .header {
+      margin-bottom: 40px;
+    }
+    .header h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 2.5rem;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header p {
+      color: rgba(255,255,255,0.6);
+      font-size: 1rem;
+    }
+    .date-filter {
+      margin-bottom: 30px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .date-filter label {
+      color: rgba(255,255,255,0.7);
+      font-size: 0.9rem;
+    }
+    .date-filter input {
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.9rem;
+    }
+    .date-filter button {
+      padding: 8px 20px;
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .date-filter button:hover {
+      transform: scale(1.05);
+    }
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+    .metric-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 24px;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .metric-card:hover {
+      background: rgba(255,255,255,0.08);
+      transform: translateY(-2px);
+    }
+    .metric-label {
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.6);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .metric-value {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .metric-change {
+      font-size: 0.85rem;
+      color: #10b981;
+    }
+    .section {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 30px;
+    }
+    .section h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.5rem;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .funnel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .funnel-step {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .funnel-bar {
+      flex: 1;
+      height: 50px;
+      background: linear-gradient(90deg, #8b5cf6, #6366f1);
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      justify-content: space-between;
+    }
+    .funnel-label {
+      font-weight: 600;
+      font-size: 0.95rem;
+      z-index: 1;
+    }
+    .funnel-value {
+      font-weight: 700;
+      font-size: 1.1rem;
+      z-index: 1;
+    }
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .table th {
+      text-align: left;
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: rgba(255,255,255,0.6);
+      font-weight: 600;
+    }
+    .table td {
+      padding: 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .table tr:hover {
+      background: rgba(255,255,255,0.02);
+    }
+    .loading {
+      text-align: center;
+      padding: 60px 20px;
+      color: rgba(255,255,255,0.5);
+    }
+    .chart-container {
+      margin-top: 24px;
+      height: 300px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      overflow-x: auto;
+    }
+    .chart-bar {
+      flex: 1;
+      min-width: 40px;
+      background: linear-gradient(180deg, #8b5cf6, #6366f1);
+      border-radius: 6px 6px 0 0;
+      position: relative;
+      transition: opacity 0.2s;
+    }
+    .chart-bar:hover {
+      opacity: 0.8;
+    }
+    .chart-bar-label {
+      position: absolute;
+      bottom: -25px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.5);
+      white-space: nowrap;
+    }
+    .chart-bar-value {
+      position: absolute;
+      top: -25px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.9);
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📊 Analytics Dashboard</h1>
+      <p>Track landing page performance and user engagement</p>
+    </div>
+
+    <div class="date-filter">
+      <label>Date Range:</label>
+      <input type="date" id="start-date" />
+      <span>to</span>
+      <input type="date" id="end-date" />
+      <button onclick="loadAnalytics()">Apply</button>
+    </div>
+
+    <div id="loading" class="loading">
+      Loading analytics data...
+    </div>
+
+    <div id="dashboard" style="display: none;">
+      <!-- Key Metrics -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Daily Visitors</div>
+          <div class="metric-value" id="metric-visitors">-</div>
+          <div class="metric-change">Last 30 days</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Total Sign-ups</div>
+          <div class="metric-value" id="metric-signups">-</div>
+          <div class="metric-change">Candidates + Recruiters</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Conversion Rate</div>
+          <div class="metric-value" id="metric-conversion">-%</div>
+          <div class="metric-change">Landing → Sign-up</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Click-Through Rate</div>
+          <div class="metric-value" id="metric-ctr">-%</div>
+          <div class="metric-change">Landing → CTA Click</div>
+        </div>
+      </div>
+
+      <!-- Signup Funnel -->
+      <div class="section">
+        <h2>🔁 Sign-up Funnel</h2>
+        <div class="funnel">
+          <div class="funnel-step">
+            <div class="funnel-bar" id="funnel-landing" style="width: 100%;">
+              <span class="funnel-label">Landing Page Views</span>
+              <span class="funnel-value" id="funnel-landing-value">0</span>
+            </div>
+          </div>
+          <div class="funnel-step">
+            <div class="funnel-bar" id="funnel-clicks" style="width: 80%; opacity: 0.9;">
+              <span class="funnel-label">Sign-up Clicks</span>
+              <span class="funnel-value" id="funnel-clicks-value">0</span>
+            </div>
+          </div>
+          <div class="funnel-step">
+            <div class="funnel-bar" id="funnel-signup-page" style="width: 60%; opacity: 0.8;">
+              <span class="funnel-label">Sign-up Page Views</span>
+              <span class="funnel-value" id="funnel-signup-page-value">0</span>
+            </div>
+          </div>
+          <div class="funnel-step">
+            <div class="funnel-bar" id="funnel-complete" style="width: 40%; opacity: 0.7;">
+              <span class="funnel-label">Sign-ups Completed</span>
+              <span class="funnel-value" id="funnel-complete-value">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Daily Visitors Chart -->
+      <div class="section">
+        <h2>📈 Daily Visitors (Last 30 Days)</h2>
+        <div class="chart-container" id="daily-chart">
+          <!-- Chart bars will be generated here -->
+        </div>
+      </div>
+
+      <!-- Feature Engagement -->
+      <div class="section">
+        <h2>⚡ Feature Engagement</h2>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>Total Uses</th>
+              <th>Unique Users</th>
+            </tr>
+          </thead>
+          <tbody id="feature-table">
+            <!-- Features will be loaded here -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Page Views -->
+      <div class="section">
+        <h2>👁️ Page Views</h2>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Page</th>
+              <th>Total Views</th>
+              <th>Unique Visitors</th>
+            </tr>
+          </thead>
+          <tbody id="page-views-table">
+            <!-- Page views will be loaded here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/analytics.js"></script>
+  <script>
+    // Set default dates (last 30 days)
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+
+    document.getElementById('start-date').valueAsDate = startDate;
+    document.getElementById('end-date').valueAsDate = endDate;
+
+    async function loadAnalytics() {
+      const start = document.getElementById('start-date').value;
+      const end = document.getElementById('end-date').value;
+
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('dashboard').style.display = 'none';
+
+      try {
+        const res = await fetch(`/api/analytics/dashboard?start_date=${start}&end_date=${end}`);
+        const data = await res.json();
+
+        if (data.success) {
+          renderDashboard(data.data);
+        } else {
+          alert('Failed to load analytics');
+        }
+      } catch (err) {
+        console.error('Analytics load error:', err);
+        alert('Failed to load analytics');
+      }
+
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+    }
+
+    function renderDashboard(data) {
+      // Key metrics
+      const totalVisitors = data.daily_visitors.reduce((sum, d) => sum + parseInt(d.visitors || 0), 0);
+      document.getElementById('metric-visitors').textContent = totalVisitors.toLocaleString();
+      document.getElementById('metric-signups').textContent = data.signup_funnel.total_signups.toLocaleString();
+      document.getElementById('metric-conversion').textContent = data.signup_funnel.conversion_rate + '%';
+      document.getElementById('metric-ctr').textContent = data.signup_funnel.click_through_rate + '%';
+
+      // Funnel
+      const maxFunnel = Math.max(
+        data.signup_funnel.landing_views,
+        data.signup_funnel.signup_clicks,
+        data.signup_funnel.signup_page_views,
+        data.signup_funnel.total_signups
+      );
+
+      document.getElementById('funnel-landing-value').textContent = data.signup_funnel.landing_views;
+      document.getElementById('funnel-landing').style.width = '100%';
+
+      document.getElementById('funnel-clicks-value').textContent = data.signup_funnel.signup_clicks;
+      const clicksPct = maxFunnel > 0 ? (data.signup_funnel.signup_clicks / maxFunnel) * 100 : 0;
+      document.getElementById('funnel-clicks').style.width = Math.max(clicksPct, 10) + '%';
+
+      document.getElementById('funnel-signup-page-value').textContent = data.signup_funnel.signup_page_views;
+      const pagePct = maxFunnel > 0 ? (data.signup_funnel.signup_page_views / maxFunnel) * 100 : 0;
+      document.getElementById('funnel-signup-page').style.width = Math.max(pagePct, 10) + '%';
+
+      document.getElementById('funnel-complete-value').textContent = data.signup_funnel.total_signups;
+      const completePct = maxFunnel > 0 ? (data.signup_funnel.total_signups / maxFunnel) * 100 : 0;
+      document.getElementById('funnel-complete').style.width = Math.max(completePct, 10) + '%';
+
+      // Daily visitors chart
+      const chartContainer = document.getElementById('daily-chart');
+      chartContainer.innerHTML = '';
+      const maxVisitors = Math.max(...data.daily_visitors.map(d => parseInt(d.visitors || 0)));
+
+      data.daily_visitors.forEach(day => {
+        const bar = document.createElement('div');
+        bar.className = 'chart-bar';
+        const height = maxVisitors > 0 ? (parseInt(day.visitors) / maxVisitors) * 100 : 0;
+        bar.style.height = Math.max(height, 5) + '%';
+
+        const label = document.createElement('span');
+        label.className = 'chart-bar-label';
+        label.textContent = new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        bar.appendChild(label);
+
+        const value = document.createElement('span');
+        value.className = 'chart-bar-value';
+        value.textContent = day.visitors;
+        bar.appendChild(value);
+
+        chartContainer.appendChild(bar);
+      });
+
+      // Feature engagement
+      const featureTable = document.getElementById('feature-table');
+      featureTable.innerHTML = '';
+      const featureNames = {
+        'mock_interview_start': '🎤 Mock Interviews',
+        'job_post_created': '📝 Job Posts Created',
+        'application_submitted': '📨 Applications Submitted',
+        'assessment_started': '📊 Assessments Started'
+      };
+
+      data.feature_engagement.forEach(feature => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${featureNames[feature.event_type] || feature.event_type}</td>
+          <td>${feature.count}</td>
+          <td>${feature.unique_users || 0}</td>
+        `;
+        featureTable.appendChild(row);
+      });
+
+      // Page views
+      const pageTable = document.getElementById('page-views-table');
+      pageTable.innerHTML = '';
+      const pageNames = {
+        'page_view_landing': '🏠 Landing Page',
+        'page_view_signup': '📝 Sign-up Page',
+        'page_view_login': '🔐 Login Page',
+        'page_view_dashboard': '📊 Dashboard',
+        'page_view_recruiter_dashboard': '💼 Recruiter Dashboard',
+        'page_view_candidate_dashboard': '👤 Candidate Dashboard',
+        'page_view_interview_practice': '🎤 Interview Practice',
+        'page_view_job_create': '📝 Create Job'
+      };
+
+      data.page_views.forEach(page => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${pageNames[page.event_type] || page.event_type}</td>
+          <td>${page.count}</td>
+          <td>${page.unique_visitors}</td>
+        `;
+        pageTable.appendChild(row);
+      });
+    }
+
+    // Load on page load
+    loadAnalytics();
+  </script>
+</body>
+</html>
