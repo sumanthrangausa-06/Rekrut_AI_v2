@@ -745,6 +745,20 @@
     </footer>
   </div>
 
+  <script src="/js/analytics.js"></script>
   <script src="/js/main.js"></script>
+  <script>
+    // Track signup button clicks
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('a[href*="register"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          Analytics.trackClick('signup_button', {
+            text: btn.textContent.trim(),
+            location: btn.closest('section')?.className || 'unknown'
+          });
+        });
+      });
+    });
+  </script>
 </body>
 </html>
