@@ -30,6 +30,16 @@ router.post('/start', authMiddleware, async (req, res) => {
       [req.user.id, job_id, interview_type, JSON.stringify(questions)]
     );
 
+    // Track mock interview start
+    try {
+      await pool.query(
+        'INSERT INTO events (event_type, user_id, metadata) VALUES ($1, $2, $3)',
+        ['mock_interview_start', req.user.id, JSON.stringify({ interview_type, job_id })]
+      );
+    } catch (e) {
+      console.error('Failed to log interview start event:', e);
+    }
+
     res.json({
       success: true,
       interview: result.rows[0],
