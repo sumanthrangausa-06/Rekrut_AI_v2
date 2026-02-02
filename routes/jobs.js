@@ -64,6 +64,16 @@ router.post('/', authMiddleware, requireRole('hiring_manager', 'admin'), async (
       [req.user.id, title, company || req.user.company_name, description, requirements, location, salary_range, job_type]
     );
 
+    // Track job post creation
+    try {
+      await pool.query(
+        'INSERT INTO events (event_type, user_id, metadata) VALUES ($1, $2, $3)',
+        ['job_post_created', req.user.id, JSON.stringify({ title, company, job_type })]
+      );
+    } catch (e) {
+      console.error('Failed to log job post event:', e);
+    }
+
     res.json({ success: true, job: result.rows[0] });
   } catch (err) {
     console.error('Create job error:', err);
