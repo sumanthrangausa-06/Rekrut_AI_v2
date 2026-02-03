@@ -3,18 +3,24 @@
     "tengu_prompt_suggestion": true
   },
   "cachedGrowthBookFeatures": {
-    "tengu_1p_event_batch_config": {},
+    "tengu_1p_event_batch_config": {
+      "scheduledDelayMillis": 5000,
+      "maxExportBatchSize": 200,
+      "maxQueueSize": 8192
+    },
     "tengu_mcp_tool_search": false,
     "tengu_scratch": false,
     "tengu_disable_bypass_permissions_mode": false,
     "tengu_log_segment_events": false,
-    "tengu_log_datadog_events": false,
+    "tengu_log_datadog_events": true,
     "tengu_event_sampling_config": {},
     "tengu_tool_pear": false,
     "tengu_thinkback": false,
     "tengu_streaming_tool_execution2": false,
-    "tengu_tool_search_unsupported_models": null,
-    "tengu_ant_attribution_header_new": false
+    "tengu_tool_search_unsupported_models": [
+      "haiku"
+    ],
+    "tengu_ant_attribution_header_new": true
   },
   "userID": "341a05986f127ac5f4e73dd335ae6d8f841ac894ccea8debe1d88d7cbe5e7244",
   "firstStartTime": "2026-01-22T04:11:22.641Z",
@@ -553,6 +559,25 @@
         "main.js"
       ],
       "exampleFilesGeneratedAt": 1769990598645
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-46251/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "server.js",
+        "routes/interviews.js",
+        "routes/auth.js",
+        "routes/candidate.js",
+        "public/js/main.js"
+      ],
+      "exampleFilesGeneratedAt": 1770077046242
     }
   }
 }
