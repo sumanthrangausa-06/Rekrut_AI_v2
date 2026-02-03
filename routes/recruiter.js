@@ -416,6 +416,25 @@ router.delete('/interviews/:id', authMiddleware, requireRecruiter, async (req, r
   }
 });
 
+// Get all candidates who have applied (for offer creation dropdown)
+router.get('/candidates', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT ON (u.id)
+        u.id, u.name, u.email
+      FROM job_applications ja
+      JOIN users u ON ja.candidate_id = u.id
+      WHERE ja.company_id = $1
+      ORDER BY u.id, ja.applied_at DESC
+    `, [req.user.company_id]);
+
+    res.json({ candidates: result.rows });
+  } catch (err) {
+    console.error('Get candidates error:', err);
+    res.status(500).json({ error: 'Failed to fetch candidates' });
+  }
+});
+
 // Get applications for a job
 router.get('/jobs/:id/applications', authMiddleware, requireRecruiter, async (req, res) => {
   try {

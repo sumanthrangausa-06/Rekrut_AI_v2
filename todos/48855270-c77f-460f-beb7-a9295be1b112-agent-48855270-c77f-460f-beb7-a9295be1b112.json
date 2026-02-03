@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Test recruiter actions: post job, review applications, send offers",
+    "status": "completed",
+    "activeForm": "Testing recruiter actions: post job, review applications, send offers"
+  },
+  {
+    "content": "Test candidate actions: apply to jobs, accept/reject offers, complete assessments",
+    "status": "in_progress",
+    "activeForm": "Testing candidate actions: apply to jobs, accept/reject offers, complete assessments"
+  },
+  {
+    "content": "Test payroll actions for recruiters",
+    "status": "pending",
+    "activeForm": "Testing payroll actions for recruiters"
+  },
+  {
+    "content": "Test bidirectional data flow between recruiter and candidate dashboards",
+    "status": "pending",
+    "activeForm": "Testing bidirectional data flow between recruiter and candidate dashboards"
+  },
+  {
+    "content": "Fix any broken functions discovered during testing",
+    "status": "in_progress",
+    "activeForm": "Fixing any broken functions discovered during testing"
+  },
+  {
+    "content": "Document findings and deploy fixes",
+    "status": "pending",
+    "activeForm": "Documenting findings and deploying fixes"
+  }
+]

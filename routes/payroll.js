@@ -10,7 +10,7 @@ const payrollCalculator = require('../services/payroll-calculator');
  * GET /api/payroll/employees
  * Get all employees for the employer's payroll
  */
-router.get('/employees', authMiddleware, requireRole('employer'), async (req, res) => {
+router.get('/employees', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
@@ -39,7 +39,7 @@ router.get('/employees', authMiddleware, requireRole('employer'), async (req, re
  * POST /api/payroll/employees/:employeeId/onboard
  * Complete employee onboarding with payroll setup
  */
-router.post('/employees/:employeeId/onboard', authMiddleware, requireRole('employer'), async (req, res) => {
+router.post('/employees/:employeeId/onboard', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
   const client = await pool.connect();
   try {
     const { employeeId } = req.params;
@@ -109,7 +109,7 @@ router.post('/employees/:employeeId/onboard', authMiddleware, requireRole('emplo
  * GET /api/payroll/dashboard
  * Get payroll dashboard overview for employer
  */
-router.get('/dashboard', authMiddleware, requireRole('employer'), async (req, res) => {
+router.get('/dashboard', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
   try {
     // Get active employees count
     const employeesResult = await pool.query(
@@ -166,7 +166,7 @@ router.get('/dashboard', authMiddleware, requireRole('employer'), async (req, re
  * POST /api/payroll/runs
  * Create a new payroll run
  */
-router.post('/runs', authMiddleware, requireRole('employer'), async (req, res) => {
+router.post('/runs', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
   const client = await pool.connect();
   try {
     const { pay_period_start, pay_period_end, pay_date } = req.body;
@@ -263,7 +263,7 @@ router.post('/runs', authMiddleware, requireRole('employer'), async (req, res) =
  * GET /api/payroll/runs/:runId
  * Get details of a specific payroll run
  */
-router.get('/runs/:runId', authMiddleware, requireRole('employer'), async (req, res) => {
+router.get('/runs/:runId', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
   try {
     const { runId } = req.params;
 
@@ -301,7 +301,7 @@ router.get('/runs/:runId', authMiddleware, requireRole('employer'), async (req, 
  * POST /api/payroll/runs/:runId/process
  * Process and approve a payroll run
  */
-router.post('/runs/:runId/process', authMiddleware, requireRole('employer'), async (req, res) => {
+router.post('/runs/:runId/process', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
   const client = await pool.connect();
   try {
     const { runId } = req.params;
