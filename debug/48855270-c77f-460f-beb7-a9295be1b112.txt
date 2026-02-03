@@ -1104,3 +1104,68 @@
 2026-02-03T23:31:56.104Z [DEBUG] [API:auth] OAuth token check complete
 2026-02-03T23:31:56.889Z [DEBUG] Stream started - received first chunk
 2026-02-03T23:31:58.878Z [DEBUG] Stream started - received first chunk
+2026-02-03T23:32:04.129Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-02-03T23:32:04.129Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-02-03T23:32:04.129Z [DEBUG] Found 1 hook matchers in settings
+2026-02-03T23:32:04.129Z [DEBUG] Matched 4 unique hooks for query "Bash" (4 before deduplication)
+2026-02-03T23:32:04.130Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-03T23:32:04.130Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-03T23:32:04.130Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-03T23:32:04.130Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-03T23:32:04.130Z [DEBUG] Hook approved tool use for Bash, bypassing permission check
+2026-02-03T23:32:04.244Z [DEBUG] Tool search disabled for model 'us.anthropic.claude-haiku-4-5-20251001-v1:0': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-02-03T23:32:04.244Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-03T23:32:04.244Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-03T23:32:04.245Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-03T23:32:04.245Z [DEBUG] Getting matching hook commands for PostToolUse with query: Bash
+2026-02-03T23:32:04.245Z [DEBUG] Found 0 hook matchers in settings
+2026-02-03T23:32:04.245Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-02-03T23:32:04.260Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-02-03T23:32:04.261Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-02-03T23:32:04.261Z [DEBUG] Found 1 hook matchers in settings
+2026-02-03T23:32:04.261Z [DEBUG] Matched 4 unique hooks for query "Bash" (4 before deduplication)
+2026-02-03T23:32:04.262Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-03T23:32:04.262Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-03T23:32:04.262Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-03T23:32:04.262Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-03T23:32:04.262Z [DEBUG] Hook approved tool use for Bash, bypassing permission check
+2026-02-03T23:32:04.364Z [DEBUG] Tool search disabled for model 'us.anthropic.claude-haiku-4-5-20251001-v1:0': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-02-03T23:32:04.364Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-03T23:32:04.364Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-03T23:32:04.364Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-03T23:32:04.364Z [DEBUG] Getting matching hook commands for PostToolUse with query: Bash
+2026-02-03T23:32:04.364Z [DEBUG] Found 0 hook matchers in settings
+2026-02-03T23:32:04.364Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-02-03T23:32:04.377Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-03T23:32:04.377Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-03T23:32:04.377Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-03T23:32:04.377Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-03T23:32:04.377Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-03T23:32:04.380Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-03T23:32:04.380Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-03T23:32:04.380Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-03T23:32:04.926Z [DEBUG] Stream started - received first chunk
+2026-02-03T23:32:05.086Z [DEBUG] Stream started - received first chunk
+2026-02-03T23:32:07.030Z [DEBUG] Stream started - received first chunk
+2026-02-03T23:32:08.131Z [DEBUG] executePreToolHooks called for tool: mcp__polsia_infra__list_instances
+2026-02-03T23:32:08.131Z [DEBUG] Getting matching hook commands for PreToolUse with query: mcp__polsia_infra__list_instances
+2026-02-03T23:32:08.131Z [DEBUG] Found 1 hook matchers in settings
+2026-02-03T23:32:08.131Z [DEBUG] Matched 4 unique hooks for query "mcp__polsia_infra__list_instances" (4 before deduplication)
+2026-02-03T23:32:08.132Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-03T23:32:08.132Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-03T23:32:08.132Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-03T23:32:08.132Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-03T23:32:08.132Z [DEBUG] Hook approved tool use for mcp__polsia_infra__list_instances, bypassing permission check
+2026-02-03T23:32:08.132Z [DEBUG] MCP server "polsia_infra": Calling MCP tool: list_instances
+2026-02-03T23:32:08.158Z [DEBUG] MCP server "polsia_infra": Tool 'list_instances' completed successfully in 26ms
+2026-02-03T23:32:08.158Z [DEBUG] Getting matching hook commands for PostToolUse with query: mcp__polsia_infra__list_instances
+2026-02-03T23:32:08.158Z [DEBUG] Found 0 hook matchers in settings
+2026-02-03T23:32:08.158Z [DEBUG] Matched 0 unique hooks for query "mcp__polsia_infra__list_instances" (0 before deduplication)
+2026-02-03T23:32:08.169Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-03T23:32:08.169Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-03T23:32:08.169Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-03T23:32:08.169Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-03T23:32:08.170Z [DEBUG] Tool search disabled: MCPSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-03T23:32:08.173Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-03T23:32:08.173Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-03T23:32:08.173Z [DEBUG] [API:auth] OAuth token check complete
