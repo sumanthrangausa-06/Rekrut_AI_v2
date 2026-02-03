@@ -1,0 +1,241 @@
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-analytics.html-277-  <script src="/js/main.js"></script>
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-analytics.html-278-  <script>
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-analytics.html-279-    document.addEventListener('DOMContentLoaded', async () => {
+public/recruiter-analytics.html:280:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-analytics.html-281-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-analytics.html-282-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-analytics.html-283-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/assessment-results.html-291-  <script>
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/assessment-results.html-292-    // Load results
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/assessment-results.html-293-    async function loadResults() {
+public/assessment-results.html:294:      await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/assessment-results.html-295-      await loadUserInfo();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/assessment-results.html-296-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/assessment-results.html-297-      const urlParams = new URLSearchParams(window.location.search);
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-jobs.html-109-    let currentFilter = 'all';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-jobs.html-110-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-jobs.html-111-    document.addEventListener('DOMContentLoaded', async () => {
+public/recruiter-jobs.html:112:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-jobs.html-113-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-jobs.html-114-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-jobs.html-115-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/candidate-profile.html-519-    let parsedResumeData = null;
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/candidate-profile.html-520-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/candidate-profile.html-521-    document.addEventListener('DOMContentLoaded', async () => {
+public/candidate-profile.html:522:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/candidate-profile.html-523-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/candidate-profile.html-524-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/candidate-profile.html-525-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-applications.html-158-    let applications = [];
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-applications.html-159-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-applications.html-160-    document.addEventListener('DOMContentLoaded', async () => {
+public/recruiter-applications.html:161:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-applications.html-162-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-applications.html-163-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-applications.html-164-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/candidate-dashboard.html-279-    let dashboardData = {};
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/candidate-dashboard.html-280-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/candidate-dashboard.html-281-    document.addEventListener('DOMContentLoaded', async () => {
+public/candidate-dashboard.html:282:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/candidate-dashboard.html-283-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/candidate-dashboard.html-284-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/candidate-dashboard.html-285-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/job-board.html-182-    let selectedJobId = null;
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/job-board.html-183-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/job-board.html-184-    document.addEventListener('DOMContentLoaded', async () => {
+public/job-board.html:185:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/job-board.html-186-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/job-board.html-187-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/job-board.html-188-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/assessment-take.html-249-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/assessment-take.html-250-    // Initialize assessment
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/assessment-take.html-251-    async function initAssessment() {
+public/assessment-take.html:252:      await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/assessment-take.html-253-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/assessment-take.html-254-      const skillId = localStorage.getItem('assessment_skill_id');
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/assessment-take.html-255-      if (!skillId) {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/jobs.html-125-    let currentUser = null;
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/jobs.html-126-    
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/jobs.html-127-    document.addEventListener('DOMContentLoaded', async () => {
+public/jobs.html:128:      currentUser = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/jobs.html-129-      if (!currentUser) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/jobs.html-130-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/jobs.html-131-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/video-interview.html-631-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/video-interview.html-632-    // Initialize
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/video-interview.html-633-    document.addEventListener('DOMContentLoaded', async () => {
+public/video-interview.html:634:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/video-interview.html-635-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/video-interview.html-636-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/video-interview.html-637-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/documents.js-10-  initDocTypeSelector();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/documents.js-11-});
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/documents.js-12-
+public/js/documents.js:13:// Auth check - uses checkAuth() from main.js which handles token properly
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/documents.js-14-async function initAuth() {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/documents.js-15-  try {
+public/js/documents.js:16:    // Use checkAuth from main.js which includes proper Authorization header
+public/js/documents.js:17:    const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/documents.js-18-    if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/documents.js-19-      window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/documents.js-20-      return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/interview.js-10-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/interview.js-11-// Initialize
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/interview.js-12-document.addEventListener('DOMContentLoaded', async () => {
+public/js/interview.js:13:  const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/interview.js-14-  if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/interview.js-15-    window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/interview.js-16-    return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/company-profile.html-228-    let companyData = null;
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/company-profile.html-229-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/company-profile.html-230-    document.addEventListener('DOMContentLoaded', async () => {
+public/company-profile.html:231:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/company-profile.html-232-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/company-profile.html-233-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/company-profile.html-234-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/interview-practice.js-8-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/interview-practice.js-9-// Initialize
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/interview-practice.js-10-document.addEventListener('DOMContentLoaded', async () => {
+public/js/interview-practice.js:11:  const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/interview-practice.js-12-  if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/interview-practice.js-13-    window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/interview-practice.js-14-    return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-interviews.html-207-    let interviews = [];
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-interviews.html-208-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-interviews.html-209-    document.addEventListener('DOMContentLoaded', async () => {
+public/recruiter-interviews.html:210:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-interviews.html-211-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-interviews.html-212-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-interviews.html-213-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-52-}
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-53-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-54-// Check auth status on page load
+public/js/main.js:55:async function checkAuth() {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-56-  // Handle OAuth callback first
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-57-  handleOAuthCallback();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-58-
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-75-    if (response.status === 401) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-76-      const newToken = await refreshAccessToken();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-77-      if (newToken) {
+public/js/main.js:78:        return await checkAuth(); // Retry with new token
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-79-      }
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-80-    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-81-  } catch (err) {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-257-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-258-// Dashboard functions
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-259-async function loadDashboard() {
+public/js/main.js:260:  const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-261-  if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-262-    window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-263-    return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-451-      window.location.pathname === '/candidate-dashboard.html') {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-452-    loadDashboard();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-453-  } else if (window.location.pathname === '/recruiter-dashboard.html') {
+public/js/main.js:454:    checkAuth().then(user => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-455-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-456-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-457-      }
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-458-    });
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-459-  } else {
+public/js/main.js:460:    checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-461-  }
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-462-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/js/main.js-463-  // Attach form handlers
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-profile.html-266-    let locations = [];
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-profile.html-267-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-profile.html-268-    document.addEventListener('DOMContentLoaded', async () => {
+public/recruiter-profile.html:269:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-profile.html-270-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-profile.html-271-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-profile.html-272-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/payroll-dashboard.html-406-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/payroll-dashboard.html-407-    // Load data on page load
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/payroll-dashboard.html-408-    document.addEventListener('DOMContentLoaded', async () => {
+public/payroll-dashboard.html:409:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/payroll-dashboard.html-410-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/payroll-dashboard.html-411-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/payroll-dashboard.html-412-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/omniscore.html-137-    let scoreData = null;
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/omniscore.html-138-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/omniscore.html-139-    document.addEventListener('DOMContentLoaded', async () => {
+public/omniscore.html:140:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/omniscore.html-141-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/omniscore.html-142-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/omniscore.html-143-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/skill-assessments.html-413-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/skill-assessments.html-414-    // Initialize
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/skill-assessments.html-415-    document.addEventListener('DOMContentLoaded', async () => {
+public/skill-assessments.html:416:      await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/skill-assessments.html-417-      await loadUserInfo();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/skill-assessments.html-418-      loadAssessments();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/skill-assessments.html-419-      loadResults();
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-trustscore.html-184-  <script src="/js/main.js"></script>
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-trustscore.html-185-  <script>
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-trustscore.html-186-    document.addEventListener('DOMContentLoaded', async () => {
+public/recruiter-trustscore.html:187:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-trustscore.html-188-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-trustscore.html-189-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-trustscore.html-190-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/job-create.html-179-    let currentAnalysis = null;
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/job-create.html-180-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/job-create.html-181-    document.addEventListener('DOMContentLoaded', async () => {
+public/job-create.html:182:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/job-create.html-183-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/job-create.html-184-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/job-create.html-185-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/dashboard.html-177-  <script>
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/dashboard.html-178-    // Initialize dashboard
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/dashboard.html-179-    document.addEventListener('DOMContentLoaded', async () => {
+public/dashboard.html:180:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/dashboard.html-181-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/dashboard.html-182-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/dashboard.html-183-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-dashboard.html-212-  <script>
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-dashboard.html-213-    // Check recruiter auth
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-dashboard.html-214-    document.addEventListener('DOMContentLoaded', async () => {
+public/recruiter-dashboard.html:215:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-dashboard.html-216-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-dashboard.html-217-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/recruiter-dashboard.html-218-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/history.html-81-  <script src="/js/main.js"></script>
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/history.html-82-  <script>
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/history.html-83-    document.addEventListener('DOMContentLoaded', async () => {
+public/history.html:84:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/history.html-85-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/history.html-86-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/history.html-87-        return;
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/interview-analysis.html-318-
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/interview-analysis.html-319-    // Initialize
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/interview-analysis.html-320-    document.addEventListener('DOMContentLoaded', async () => {
+public/interview-analysis.html:321:      const user = await checkAuth();
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/interview-analysis.html-322-      if (!user) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/interview-analysis.html-323-        window.location.href = '/login.html';
+/tmp/polsia-workspaces/company-956/agent-30/exec-47666/hireloop/public/interview-analysis.html-324-        return;
