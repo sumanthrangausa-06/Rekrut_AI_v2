@@ -299,7 +299,7 @@
     async function loadAssessments() {
       try {
         const response = await fetch('/api/assessments/available', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}` }
         });
 
         if (!response.ok) throw new Error('Failed to load assessments');
@@ -361,7 +361,7 @@
     async function loadResults() {
       try {
         const response = await fetch('/api/assessments/results', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}` }
         });
 
         if (!response.ok) throw new Error('Failed to load results');

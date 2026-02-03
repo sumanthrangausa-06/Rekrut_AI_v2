@@ -388,12 +388,13 @@
     }
 
     function handleLogout() {
-      localStorage.removeItem('token');
+      localStorage.removeItem('rekrutai_token');
+      localStorage.removeItem('rekrutai_refresh');
       window.location.href = '/login.html';
     }
 
     function getToken() {
-      return localStorage.getItem('token');
+      return localStorage.getItem('rekrutai_token');
     }
 
     function showSuccess(message) {
