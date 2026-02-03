@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pricing - HireLoop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <style>
+    /* Dropdown Navigation Styles */
+    .nav-dropdown {
+      position: relative;
+    }
+    .nav-dropdown-toggle {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      padding: 8px 12px;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+    .nav-dropdown-toggle:hover {
+      background: rgba(255,255,255,0.1);
+    }
+    .nav-dropdown-toggle::after {
+      content: '▾';
+      font-size: 10px;
+      opacity: 0.7;
+    }
+    .nav-dropdown-menu {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      min-width: 200px;
+      background: #1a1a2e;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 8px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(10px);
+      transition: all 0.2s;
+      z-index: 100;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    }
+    .nav-dropdown:hover .nav-dropdown-menu {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    .nav-dropdown-menu a {
+      display: block;
+      padding: 10px 14px;
+      border-radius: 8px;
+      color: rgba(255,255,255,0.8);
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+    .nav-dropdown-menu a:hover {
+      background: rgba(139, 92, 246, 0.2);
+      color: #fff;
+    }
+    .nav-dropdown-menu .menu-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.4);
+      padding: 8px 14px 4px;
+      letter-spacing: 0.5px;
+    }
+
+    /* Pricing Section */
+    .pricing-section {
+      padding: 120px 5% 80px;
+      background: linear-gradient(180deg, #0a0a14 0%, #12121f 100%);
+      min-height: 100vh;
+    }
+    .pricing-header {
+      text-align: center;
+      max-width: 800px;
+      margin: 0 auto 60px;
+    }
+    .pricing-header h1 {
+      font-size: 3rem;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #fff 0%, #8b5cf6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .pricing-header p {
+      font-size: 1.2rem;
+      color: rgba(255,255,255,0.7);
+    }
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 32px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .pricing-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 40px;
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .pricing-card:hover {
+      transform: translateY(-8px);
+      border-color: rgba(139, 92, 246, 0.4);
+      background: rgba(255,255,255,0.05);
+      box-shadow: 0 20px 60px rgba(139, 92, 246, 0.2);
+    }
+    .pricing-card.featured {
+      border-color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.08);
+    }
+    .pricing-card.featured::before {
+      content: 'MOST POPULAR';
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      color: white;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .pricing-card h2 {
+      font-size: 1.8rem;
+      margin-bottom: 12px;
+    }
+    .pricing-card .price {
+      font-size: 3.5rem;
+      font-weight: 700;
+      color: #8b5cf6;
+      margin: 20px 0;
+    }
+    .pricing-card .price span {
+      font-size: 1.2rem;
+      color: rgba(255,255,255,0.5);
+      font-weight: 400;
+    }
+    .pricing-card .description {
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 32px;
+      line-height: 1.6;
+    }
+    .pricing-features {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 32px 0;
+    }
+    .pricing-features li {
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .pricing-features li:last-child {
+      border-bottom: none;
+    }
+    .pricing-features li::before {
+      content: '✓';
+      color: #10b981;
+      font-weight: 700;
+      font-size: 1.2rem;
+    }
+    .btn-subscribe {
+      display: block;
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-align: center;
+      text-decoration: none;
+    }
+    .btn-subscribe:hover {
+      transform: scale(1.02);
+      box-shadow: 0 10px 30px rgba(139, 92, 246, 0.4);
+    }
+    .btn-contact {
+      display: block;
+      width: 100%;
+      padding: 16px;
+      background: rgba(255,255,255,0.05);
+      color: white;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-align: center;
+      text-decoration: none;
+    }
+    .btn-contact:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.4);
+    }
+
+    @media (max-width: 768px) {
+      .pricing-header h1 {
+        font-size: 2rem;
+      }
+      .pricing-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <nav class="nav">
+      <div class="nav-container">
+        <a href="/" class="logo">
+          <span class="logo-icon">◎</span>
+          <span>HireLoop</span>
+        </a>
+        <div class="nav-links" id="nav-links">
+          <!-- Candidates Dropdown -->
+          <div class="nav-dropdown">
+            <span class="nav-dropdown-toggle">For Candidates</span>
+            <div class="nav-dropdown-menu">
+              <div class="menu-label">Get Started</div>
+              <a href="/candidate-dashboard.html">📊 Dashboard</a>
+              <a href="/job-board.html">💼 Job Board</a>
+              <a href="/skill-assessments.html">🎯 Skill Assessments</a>
+              <a href="/interview.html">🎤 Mock Interviews</a>
+              <a href="/omniscore.html">⭐ Your OmniScore</a>
+            </div>
+          </div>
+
+          <!-- Recruiters Dropdown -->
+          <div class="nav-dropdown">
+            <span class="nav-dropdown-toggle">For Recruiters</span>
+            <div class="nav-dropdown-menu">
+              <div class="menu-label">Manage Hiring</div>
+              <a href="/recruiter-dashboard.html">📈 Dashboard</a>
+              <a href="/recruiter-jobs.html">💼 Job Management</a>
+              <a href="/recruiter-applications.html">📄 Applications</a>
+              <a href="/recruiter-interviews.html">🎤 Interviews</a>
+              <a href="/recruiter-analytics.html">📊 Analytics</a>
+            </div>
+          </div>
+
+          <a href="/pricing.html" class="nav-link">Pricing</a>
+          <a href="/login.html" class="btn btn-outline">Login</a>
+          <a href="/register.html" class="btn btn-primary">Sign Up</a>
+        </div>
+        <div class="mobile-menu-toggle" id="mobile-menu-toggle">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <section class="pricing-section">
+    <div class="pricing-header">
+      <h1>Choose Your Plan</h1>
+      <p>Start hiring smarter with AI-powered interviews and candidate matching. No credit card required to start.</p>
+    </div>
+
+    <div class="pricing-grid">
+      <!-- Starter Plan -->
+      <div class="pricing-card">
+        <h2>Starter</h2>
+        <div class="price">$49<span>/month</span></div>
+        <p class="description">Perfect for small teams and startups getting started with AI hiring.</p>
+        <ul class="pricing-features">
+          <li>Up to 10 active jobs</li>
+          <li>AI-powered interviews</li>
+          <li>Basic analytics dashboard</li>
+          <li>Candidate OmniScore</li>
+          <li>Email support</li>
+        </ul>
+        <a href="https://buy.stripe.com/bJebJ1famgWIbssb5gdjR3o" class="btn-subscribe">Subscribe Now</a>
+      </div>
+
+      <!-- Professional Plan -->
+      <div class="pricing-card featured">
+        <h2>Professional</h2>
+        <div class="price">$149<span>/month</span></div>
+        <p class="description">For growing companies that need advanced AI scoring and analytics.</p>
+        <ul class="pricing-features">
+          <li>Up to 50 active jobs</li>
+          <li>Advanced AI scoring engine</li>
+          <li>Full analytics suite</li>
+          <li>Custom interview templates</li>
+          <li>Priority support</li>
+          <li>API access</li>
+        </ul>
+        <a href="https://buy.stripe.com/3cIbJ17HU7m8eEE3COdjR3p" class="btn-subscribe">Subscribe Now</a>
+      </div>
+
+      <!-- Enterprise Plan -->
+      <div class="pricing-card">
+        <h2>Enterprise</h2>
+        <div class="price">Custom</div>
+        <p class="description">Tailored solutions for large organizations with specific needs.</p>
+        <ul class="pricing-features">
+          <li>Unlimited active jobs</li>
+          <li>Custom AI models</li>
+          <li>Dedicated support team</li>
+          <li>White-label options</li>
+          <li>SSO & advanced security</li>
+          <li>Custom integrations</li>
+          <li>SLA guarantees</li>
+        </ul>
+        <a href="mailto:hireloop@polsia.app?subject=Enterprise%20Plan%20Inquiry" class="btn-contact">Contact Sales</a>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    // Mobile menu toggle
+    const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+    const navLinks = document.getElementById('nav-links');
+
+    if (mobileMenuToggle) {
+      mobileMenuToggle.addEventListener('click', () => {
+        navLinks.classList.toggle('active');
+        mobileMenuToggle.classList.toggle('active');
+      });
+    }
+  </script>
+</body>
+</html>
