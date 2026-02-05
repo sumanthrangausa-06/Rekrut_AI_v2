@@ -1,0 +1,467 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>Applications - Rekrut AI</title>
+     7→  <link rel="preconnect" href="https://fonts.googleapis.com">
+     8→  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     9→  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    10→  <link rel="stylesheet" href="/css/styles.css">
+    11→  <link rel="stylesheet" href="/css/responsive.css">
+    12→  <link rel="stylesheet" href="/css/dashboard.css">
+    13→</head>
+    14→<body>
+    15→  <div class="dashboard-layout">
+    16→    <aside class="sidebar recruiter-sidebar">
+    17→      <a href="/" class="logo">
+    18→        <span class="logo-icon">◎</span>
+    19→        <span>Rekrut AI</span>
+    20→      </a>
+    21→      <span class="sidebar-badge">Employer</span>
+    22→
+    23→      <nav class="sidebar-nav">
+    24→        <a href="/recruiter-dashboard.html" class="nav-item">
+    25→          <span class="nav-icon">📊</span>
+    26→          <span>Dashboard</span>
+    27→        </a>
+    28→        <a href="/recruiter-trustscore.html" class="nav-item">
+    29→          <span class="nav-icon">🛡️</span>
+    30→          <span>TrustScore</span>
+    31→        </a>
+    32→        <a href="/recruiter-jobs.html" class="nav-item">
+    33→          <span class="nav-icon">💼</span>
+    34→          <span>Job Postings</span>
+    35→        </a>
+    36→        <a href="/recruiter-applications.html" class="nav-item active">
+    37→          <span class="nav-icon">📋</span>
+    38→          <span>Applications</span>
+    39→        </a>
+    40→        <a href="/recruiter-interviews.html" class="nav-item">
+    41→          <span class="nav-icon">📅</span>
+    42→          <span>Interviews</span>
+    43→        </a>
+    44→        <a href="/offer-management.html" class="nav-item">
+    45→          <span class="nav-icon">📄</span>
+    46→          <span>Offers</span>
+    47→        </a>
+    48→        <a href="/payroll-dashboard.html" class="nav-item">
+    49→          <span class="nav-icon">💰</span>
+    50→          <span>Payroll</span>
+    51→        </a>
+    52→        <a href="/compliance-dashboard.html" class="nav-item">
+    53→          <span class="nav-icon">⚖️</span>
+    54→          <span>Compliance</span>
+    55→        </a>
+    56→        <a href="/recruiter-profile.html" class="nav-item">
+    57→          <span class="nav-icon">🏢</span>
+    58→          <span>Company Profile</span>
+    59→        </a>
+    60→      </nav>
+    61→
+    62→      <div class="sidebar-footer">
+    63→        <div class="user-dropdown-container">
+    64→          <button class="user-menu-toggle" id="user-menu-toggle">
+    65→            <div class="user-avatar company-avatar" id="user-avatar">?</div>
+    66→            <div style="flex: 1; text-align: left;">
+    67→              <span class="user-name" id="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
+    68→              <span class="company-name" id="company-name" style="display: block; font-size: 12px; color: var(--text-muted);">Company</span>
+    69→            </div>
+    70→          </button>
+    71→
+    72→          <div class="user-dropdown-menu" id="user-dropdown-menu">
+    73→            <div class="dropdown-header">
+    74→              <span class="dropdown-user-name" id="dropdown-user-name">Loading...</span>
+    75→              <span class="dropdown-user-email" id="dropdown-user-email">user@example.com</span>
+    76→            </div>
+    77→            <div class="dropdown-items">
+    78→              <a href="/recruiter-profile.html" class="dropdown-item">🏢 Company Profile</a>
+    79→              <div class="dropdown-divider"></div>
+    80→              <button onclick="handleLogout()" class="dropdown-item danger">🚪 Sign Out</button>
+    81→            </div>
+    82→          </div>
+    83→        </div>
+    84→      </div>
+    85→    </aside>
+    86→
+    87→    <main class="main-content">
+    88→      <header class="page-header">
+    89→        <div>
+    90→          <h1>Applications</h1>
+    91→          <p>Review and manage candidate applications</p>
+    92→        </div>
+    93→        <div class="header-actions">
+    94→          <select id="job-filter" class="form-select">
+    95→            <option value="">All Jobs</option>
+    96→          </select>
+    97→        </div>
+    98→      </header>
+    99→
+   100→      <!-- Filter Tabs -->
+   101→      <div class="filter-tabs">
+   102→        <button class="filter-tab active" data-status="all">All</button>
+   103→        <button class="filter-tab" data-status="applied">New</button>
+   104→        <button class="filter-tab" data-status="reviewing">Reviewing</button>
+   105→        <button class="filter-tab" data-status="interviewed">Interviewed</button>
+   106→        <button class="filter-tab" data-status="offered">Offered</button>
+   107→        <button class="filter-tab" data-status="rejected">Rejected</button>
+   108→      </div>
+   109→
+   110→      <!-- Stats Overview -->
+   111→      <div class="stats-grid">
+   112→        <div class="stat-card">
+   113→          <div class="stat-icon">📥</div>
+   114→          <div class="stat-info">
+   115→            <span class="stat-value" id="total-applications">0</span>
+   116→            <span class="stat-label">Total Applications</span>
+   117→          </div>
+   118→        </div>
+   119→        <div class="stat-card">
+   120→          <div class="stat-icon">🆕</div>
+   121→          <div class="stat-info">
+   122→            <span class="stat-value" id="new-applications">0</span>
+   123→            <span class="stat-label">New Today</span>
+   124→          </div>
+   125→        </div>
+   126→        <div class="stat-card">
+   127→          <div class="stat-icon">👀</div>
+   128→          <div class="stat-info">
+   129→            <span class="stat-value" id="reviewing-count">0</span>
+   130→            <span class="stat-label">Under Review</span>
+   131→          </div>
+   132→        </div>
+   133→        <div class="stat-card highlight purple">
+   134→          <div class="stat-icon">✅</div>
+   135→          <div class="stat-info">
+   136→            <span class="stat-value" id="offered-count">0</span>
+   137→            <span class="stat-label">Offers Made</span>
+   138→          </div>
+   139→        </div>
+   140→      </div>
+   141→
+   142→      <!-- Applications List -->
+   143→      <section class="section">
+   144→        <div class="applications-list" id="applications-list">
+   145→          <div class="loading-state">
+   146→            <div class="spinner"></div>
+   147→            <p>Loading applications...</p>
+   148→          </div>
+   149→        </div>
+   150→      </section>
+   151→    </main>
+   152→  </div>
+   153→
+   154→  <script src="/js/main.js"></script>
+   155→  <script>
+   156→    let currentFilter = 'all';
+   157→    let currentJob = '';
+   158→    let applications = [];
+   159→
+   160→    document.addEventListener('DOMContentLoaded', async () => {
+   161→      const user = await checkAuth();
+   162→      if (!user) {
+   163→        window.location.href = '/login.html';
+   164→        return;
+   165→      }
+   166→      // Verify recruiter/employer role - must have company_id and appropriate role
+   167→      const allowedRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+   168→      if (!user.company_id || !allowedRoles.includes(user.role)) {
+   169→        window.location.href = '/candidate-dashboard.html';
+   170→        return;
+   171→      }
+   172→
+   173→      const name = user.name || user.email.split('@')[0];
+   174→      document.getElementById('user-name').textContent = name;
+   175→      document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+   176→      document.getElementById('company-name').textContent = user.company_name || 'Company';
+   177→      document.getElementById('dropdown-user-name').textContent = name;
+   178→      document.getElementById('dropdown-user-email').textContent = user.email;
+   179→
+   180→      // Setup user menu dropdown
+   181→      const userMenuToggle = document.getElementById('user-menu-toggle');
+   182→      const userDropdownMenu = document.getElementById('user-dropdown-menu');
+   183→      if (userMenuToggle && userDropdownMenu) {
+   184→        userMenuToggle.addEventListener('click', (e) => {
+   185→          e.stopPropagation();
+   186→          userDropdownMenu.classList.toggle('active');
+   187→        });
+   188→        document.addEventListener('click', () => {
+   189→          userDropdownMenu.classList.remove('active');
+   190→        });
+   191→      }
+   192→
+   193→      // Setup filter tabs
+   194→      document.querySelectorAll('.filter-tab').forEach(tab => {
+   195→        tab.addEventListener('click', () => {
+   196→          document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+   197→          tab.classList.add('active');
+   198→          currentFilter = tab.dataset.status;
+   199→          renderApplications();
+   200→        });
+   201→      });
+   202→
+   203→      // Setup job filter
+   204→      document.getElementById('job-filter').addEventListener('change', (e) => {
+   205→        currentJob = e.target.value;
+   206→        renderApplications();
+   207→      });
+   208→
+   209→      loadJobs();
+   210→      loadApplications();
+   211→    });
+   212→
+   213→    async function loadJobs() {
+   214→      try {
+   215→        const data = await apiCall('/recruiter/jobs');
+   216→        if (data.jobs) {
+   217→          const select = document.getElementById('job-filter');
+   218→          data.jobs.forEach(job => {
+   219→            const option = document.createElement('option');
+   220→            option.value = job.id;
+   221→            option.textContent = job.title;
+   222→            select.appendChild(option);
+   223→          });
+   224→        }
+   225→      } catch (err) {
+   226→        console.error('Failed to load jobs:', err);
+   227→      }
+   228→    }
+   229→
+   230→    async function loadApplications() {
+   231→      try {
+   232→        const data = await apiCall('/recruiter/applications');
+   233→        if (data.applications) {
+   234→          applications = data.applications;
+   235→          updateStats(applications);
+   236→          renderApplications();
+   237→        }
+   238→      } catch (err) {
+   239→        console.error('Failed to load applications:', err);
+   240→        document.getElementById('applications-list').innerHTML = `
+   241→          <div class="empty-state">
+   242→            <p>Failed to load applications</p>
+   243→          </div>
+   244→        `;
+   245→      }
+   246→    }
+   247→
+   248→    function updateStats(apps) {
+   249→      document.getElementById('total-applications').textContent = apps.length;
+   250→
+   251→      const today = new Date().toDateString();
+   252→      const newToday = apps.filter(a => new Date(a.applied_at).toDateString() === today).length;
+   253→      document.getElementById('new-applications').textContent = newToday;
+   254→
+   255→      document.getElementById('reviewing-count').textContent =
+   256→        apps.filter(a => a.status === 'reviewing').length;
+   257→      document.getElementById('offered-count').textContent =
+   258→        apps.filter(a => a.status === 'offered').length;
+   259→    }
+   260→
+   261→    function renderApplications() {
+   262→      const container = document.getElementById('applications-list');
+   263→
+   264→      let filtered = applications;
+   265→      if (currentFilter !== 'all') {
+   266→        filtered = filtered.filter(a => a.status === currentFilter);
+   267→      }
+   268→      if (currentJob) {
+   269→        filtered = filtered.filter(a => a.job_id == currentJob);
+   270→      }
+   271→
+   272→      if (filtered.length === 0) {
+   273→        container.innerHTML = `
+   274→          <div class="empty-state">
+   275→            <p>No applications found</p>
+   276→            <a href="/job-create.html" class="btn btn-primary btn-sm">Post a Job</a>
+   277→          </div>
+   278→        `;
+   279→        return;
+   280→      }
+   281→
+   282→      container.innerHTML = filtered.map(app => `
+   283→        <div class="application-card">
+   284→          <div class="application-header">
+   285→            <div class="candidate-info">
+   286→              <div class="candidate-avatar">${(app.candidate_name || 'U').charAt(0).toUpperCase()}</div>
+   287→              <div class="candidate-details">
+   288→                <h3>${app.candidate_name || 'Unknown'}</h3>
+   289→                <p>${app.job_title || 'Position'}</p>
+   290→              </div>
+   291→            </div>
+   292→            <div class="application-meta">
+   293→              ${app.omniscore_at_apply ? `<span class="omniscore-badge">${app.omniscore_at_apply} OmniScore</span>` : ''}
+   294→              <span class="status-badge ${app.status}">${app.status}</span>
+   295→            </div>
+   296→          </div>
+   297→          <div class="application-body">
+   298→            <div class="application-info">
+   299→              <span class="info-item">📧 ${app.candidate_email || 'No email'}</span>
+   300→              <span class="info-item">📅 Applied ${formatDate(app.applied_at)}</span>
+   301→            </div>
+   302→            ${app.cover_letter ? `<p class="cover-letter-preview">${app.cover_letter.substring(0, 150)}...</p>` : ''}
+   303→          </div>
+   304→          <div class="application-actions">
+   305→            <button onclick="updateStatus(${app.id}, 'reviewing')" class="btn btn-ghost btn-sm" ${app.status !== 'applied' ? 'disabled' : ''}>
+   306→              Review
+   307→            </button>
+   308→            <button onclick="scheduleInterview(${app.id})" class="btn btn-ghost btn-sm">
+   309→              Schedule Interview
+   310→            </button>
+   311→            <button onclick="updateStatus(${app.id}, 'offered')" class="btn btn-primary btn-sm" ${app.status === 'offered' ? 'disabled' : ''}>
+   312→              Make Offer
+   313→            </button>
+   314→            <button onclick="updateStatus(${app.id}, 'rejected')" class="btn btn-ghost btn-sm danger">
+   315→              Reject
+   316→            </button>
+   317→          </div>
+   318→        </div>
+   319→      `).join('');
+   320→    }
+   321→
+   322→    function formatDate(dateStr) {
+   323→      const date = new Date(dateStr);
+   324→      const now = new Date();
+   325→      const diff = now - date;
+   326→      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+   327→      if (days === 0) return 'Today';
+   328→      if (days === 1) return 'Yesterday';
+   329→      if (days < 7) return `${days} days ago`;
+   330→      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+   331→    }
+   332→
+   333→    async function updateStatus(appId, status) {
+   334→      try {
+   335→        const result = await apiCall(`/recruiter/applications/${appId}/status`, {
+   336→          method: 'PUT',
+   337→          body: JSON.stringify({ status })
+   338→        });
+   339→        if (result.success) {
+   340→          loadApplications();
+   341→        }
+   342→      } catch (err) {
+   343→        alert('Failed to update status');
+   344→      }
+   345→    }
+   346→
+   347→    function scheduleInterview(appId) {
+   348→      window.location.href = `/recruiter-interviews.html?schedule=${appId}`;
+   349→    }
+   350→  </script>
+   351→
+   352→  <style>
+   353→    .recruiter-sidebar { background: linear-gradient(180deg, #1a1a24 0%, #12121a 100%); }
+   354→    .sidebar-badge { display: inline-block; padding: 4px 10px; background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%); border-radius: var(--radius-full); font-size: 11px; font-weight: 600; color: white; margin: -12px 0 20px 0; }
+   355→    .company-avatar { background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%) !important; }
+   356→
+   357→    .header-actions { display: flex; gap: 12px; align-items: center; }
+   358→    .form-select {
+   359→      padding: 10px 16px;
+   360→      background: var(--bg-elevated);
+   361→      border: 1px solid var(--border-color);
+   362→      border-radius: var(--radius-md);
+   363→      color: var(--text-primary);
+   364→      font-size: 14px;
+   365→      min-width: 200px;
+   366→    }
+   367→
+   368→    .stat-card.highlight.purple {
+   369→      border-color: #8b5cf6;
+   370→      box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
+   371→    }
+   372→
+   373→    .application-card {
+   374→      background: var(--bg-card);
+   375→      border: 1px solid var(--border-color);
+   376→      border-radius: var(--radius-lg);
+   377→      padding: 20px;
+   378→      margin-bottom: 16px;
+   379→      transition: all 0.2s;
+   380→    }
+   381→
+   382→    .application-card:hover {
+   383→      border-color: #8b5cf6;
+   384→      box-shadow: 0 4px 20px rgba(139, 92, 246, 0.1);
+   385→    }
+   386→
+   387→    .application-header {
+   388→      display: flex;
+   389→      justify-content: space-between;
+   390→      align-items: center;
+   391→      margin-bottom: 16px;
+   392→    }
+   393→
+   394→    .candidate-info { display: flex; align-items: center; gap: 16px; }
+   395→    .candidate-avatar {
+   396→      width: 48px;
+   397→      height: 48px;
+   398→      border-radius: 50%;
+   399→      background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+   400→      display: flex;
+   401→      align-items: center;
+   402→      justify-content: center;
+   403→      font-size: 20px;
+   404→      font-weight: 600;
+   405→      color: white;
+   406→    }
+   407→
+   408→    .candidate-details h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+   409→    .candidate-details p { font-size: 13px; color: var(--text-muted); }
+   410→
+   411→    .application-meta { display: flex; align-items: center; gap: 12px; }
+   412→    .omniscore-badge {
+   413→      padding: 4px 12px;
+   414→      background: rgba(16, 185, 129, 0.2);
+   415→      border: 1px solid #10b981;
+   416→      border-radius: var(--radius-full);
+   417→      font-size: 12px;
+   418→      font-weight: 600;
+   419→      color: #10b981;
+   420→    }
+   421→
+   422→    .status-badge {
+   423→      padding: 4px 12px;
+   424→      border-radius: var(--radius-full);
+   425→      font-size: 11px;
+   426→      font-weight: 600;
+   427→      text-transform: capitalize;
+   428→    }
+   429→    .status-badge.applied { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+   430→    .status-badge.reviewing { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+   431→    .status-badge.interviewed { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; }
+   432→    .status-badge.offered { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+   433→    .status-badge.rejected { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+   434→
+   435→    .application-body { margin-bottom: 16px; }
+   436→    .application-info {
+   437→      display: flex;
+   438→      gap: 20px;
+   439→      margin-bottom: 12px;
+   440→    }
+   441→    .info-item {
+   442→      font-size: 13px;
+   443→      color: var(--text-muted);
+   444→    }
+   445→    .cover-letter-preview {
+   446→      font-size: 14px;
+   447→      color: var(--text-secondary);
+   448→      line-height: 1.5;
+   449→    }
+   450→
+   451→    .application-actions {
+   452→      display: flex;
+   453→      gap: 8px;
+   454→      padding-top: 16px;
+   455→      border-top: 1px solid var(--border-color);
+   456→    }
+   457→
+   458→    .btn.danger { color: #ef4444; }
+   459→    .btn.danger:hover { background: rgba(239, 68, 68, 0.1); }
+   460→  </style>
+   461→</body>
+   462→</html>
+   463→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

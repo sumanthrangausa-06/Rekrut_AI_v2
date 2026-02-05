@@ -1,0 +1,598 @@
+     1→const express = require('express');
+     2→const router = express.Router();
+     3→const pool = require('../lib/db');
+     4→const { authMiddleware } = require('../lib/auth');
+     5→const polsiaAI = require('../lib/polsia-ai');
+     6→
+     7→// ============================================
+     8→// OFFER GENERATION
+     9→// ============================================
+    10→
+    11→// Create offer from template
+    12→router.post('/offers', authMiddleware, async (req, res) => {
+    13→  try {
+    14→    const { candidate_id, job_id, title, salary, start_date, benefits, template_data } = req.body;
+    15→
+    16→    const job = await pool.query('SELECT * FROM jobs WHERE id = $1 AND company_id = $2', [job_id, req.user.company_id]);
+    17→    if (job.rows.length === 0) {
+    18→      return res.status(404).json({ error: 'Job not found' });
+    19→    }
+    20→
+    21→    const result = await pool.query(
+    22→      `INSERT INTO offers (
+    23→        candidate_id, job_id, recruiter_id, company_id, title, company_name,
+    24→        salary, start_date, benefits, template_data, status
+    25→      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    26→      RETURNING *`,
+    27→      [candidate_id, job_id, req.user.id, req.user.company_id, title, job.rows[0].company || 'Rekrut AI',
+    28→       salary, start_date, benefits, JSON.stringify(template_data || {}), 'draft']
+    29→    );
+    30→
+    31→    res.json(result.rows[0]);
+    32→  } catch (err) {
+    33→    console.error('Error creating offer:', err);
+    34→    res.status(500).json({ error: 'Failed to create offer' });
+    35→  }
+    36→});
+    37→
+    38→// Get all offers for recruiter's company
+    39→router.get('/offers', authMiddleware, async (req, res) => {
+    40→  try {
+    41→    const result = await pool.query(
+    42→      `SELECT o.*,
+    43→        u.name as candidate_name,
+    44→        u.email as candidate_email,
+    45→        j.title as job_title,
+    46→        r.name as recruiter_name
+    47→      FROM offers o
+    48→      JOIN users u ON o.candidate_id = u.id
+    49→      LEFT JOIN jobs j ON o.job_id = j.id
+    50→      LEFT JOIN users r ON o.recruiter_id = r.id
+    51→      WHERE o.company_id = $1
+    52→      ORDER BY o.created_at DESC`,
+    53→      [req.user.company_id]
+    54→    );
+    55→
+    56→    res.json(result.rows);
+    57→  } catch (err) {
+    58→    console.error('Error fetching offers:', err);
+    59→    res.status(500).json({ error: 'Failed to fetch offers' });
+    60→  }
+    61→});
+    62→
+    63→// Get candidate's offers
+    64→router.get('/offers/me', authMiddleware, async (req, res) => {
+    65→  try {
+    66→    const result = await pool.query(
+    67→      `SELECT o.*,
+    68→        j.title as job_title,
+    69→        j.company
+    70→      FROM offers o
+    71→      LEFT JOIN jobs j ON o.job_id = j.id
+    72→      WHERE o.candidate_id = $1
+    73→      ORDER BY o.created_at DESC`,
+    74→      [req.user.id]
+    75→    );
+    76→
+    77→    res.json(result.rows);
+    78→  } catch (err) {
+    79→    console.error('Error fetching offers:', err);
+    80→    res.status(500).json({ error: 'Failed to fetch offers' });
+    81→  }
+    82→});
+    83→
+    84→// Send offer to candidate
+    85→router.post('/offers/:id/send', authMiddleware, async (req, res) => {
+    86→  try {
+    87→    const result = await pool.query(
+    88→      `UPDATE offers
+    89→       SET status = 'sent', sent_at = NOW(), updated_at = NOW()
+    90→       WHERE id = $1 AND company_id = $2
+    91→       RETURNING *`,
+    92→      [req.params.id, req.user.company_id]
+    93→    );
+    94→
+    95→    if (result.rows.length === 0) {
+    96→      return res.status(404).json({ error: 'Offer not found' });
+    97→    }
+    98→
+    99→    res.json(result.rows[0]);
+   100→  } catch (err) {
+   101→    console.error('Error sending offer:', err);
+   102→    res.status(500).json({ error: 'Failed to send offer' });
+   103→  }
+   104→});
+   105→
+   106→// Candidate views offer (track engagement)
+   107→router.post('/offers/:id/view', authMiddleware, async (req, res) => {
+   108→  try {
+   109→    const result = await pool.query(
+   110→      `UPDATE offers
+   111→       SET viewed_at = NOW(), updated_at = NOW()
+   112→       WHERE id = $1 AND candidate_id = $2
+   113→       RETURNING *`,
+   114→      [req.params.id, req.user.id]
+   115→    );
+   116→
+   117→    if (result.rows.length === 0) {
+   118→      return res.status(404).json({ error: 'Offer not found' });
+   119→    }
+   120→
+   121→    res.json(result.rows[0]);
+   122→  } catch (err) {
+   123→    console.error('Error marking offer as viewed:', err);
+   124→    res.status(500).json({ error: 'Failed to update offer' });
+   125→  }
+   126→});
+   127→
+   128→// Accept offer
+   129→router.post('/offers/:id/accept', authMiddleware, async (req, res) => {
+   130→  try {
+   131→    const { signature_url } = req.body;
+   132→
+   133→    const result = await pool.query(
+   134→      `UPDATE offers
+   135→       SET status = 'accepted', accepted_at = NOW(), signature_url = $3, updated_at = NOW()
+   136→       WHERE id = $1 AND candidate_id = $2
+   137→       RETURNING *`,
+   138→      [req.params.id, req.user.id, signature_url]
+   139→    );
+   140→
+   141→    if (result.rows.length === 0) {
+   142→      return res.status(404).json({ error: 'Offer not found' });
+   143→    }
+   144→
+   145→    // Create default onboarding checklist
+   146→    const offer = result.rows[0];
+   147→    const defaultItems = [
+   148→      { id: 1, task: 'Complete I-9 form', required: true },
+   149→      { id: 2, task: 'Upload government-issued ID', required: true },
+   150→      { id: 3, task: 'Set up direct deposit', required: true },
+   151→      { id: 4, task: 'Complete tax withholding (W-4)', required: true },
+   152→      { id: 5, task: 'Sign employee handbook acknowledgment', required: true },
+   153→      { id: 6, task: 'Submit emergency contact information', required: true },
+   154→      { id: 7, task: 'Complete IT setup (email, laptop)', required: false },
+   155→      { id: 8, task: 'Schedule first day orientation', required: true }
+   156→    ];
+   157→
+   158→    await pool.query(
+   159→      `INSERT INTO onboarding_checklists
+   160→       (offer_id, candidate_id, title, description, items, due_date)
+   161→       VALUES ($1, $2, $3, $4, $5, $6)`,
+   162→      [
+   163→        offer.id,
+   164→        offer.candidate_id,
+   165→        'Pre-Onboarding Checklist',
+   166→        'Complete these tasks before your first day',
+   167→        JSON.stringify(defaultItems),
+   168→        offer.start_date
+   169→      ]
+   170→    );
+   171→
+   172→    res.json(result.rows[0]);
+   173→  } catch (err) {
+   174→    console.error('Error accepting offer:', err);
+   175→    res.status(500).json({ error: 'Failed to accept offer' });
+   176→  }
+   177→});
+   178→
+   179→// Decline offer
+   180→router.post('/offers/:id/decline', authMiddleware, async (req, res) => {
+   181→  try {
+   182→    const { reason } = req.body;
+   183→
+   184→    const result = await pool.query(
+   185→      `UPDATE offers
+   186→       SET status = 'declined', declined_at = NOW(), decline_reason = $3, updated_at = NOW()
+   187→       WHERE id = $1 AND candidate_id = $2
+   188→       RETURNING *`,
+   189→      [req.params.id, req.user.id, reason]
+   190→    );
+   191→
+   192→    if (result.rows.length === 0) {
+   193→      return res.status(404).json({ error: 'Offer not found' });
+   194→    }
+   195→
+   196→    res.json(result.rows[0]);
+   197→  } catch (err) {
+   198→    console.error('Error declining offer:', err);
+   199→    res.status(500).json({ error: 'Failed to decline offer' });
+   200→  }
+   201→});
+   202→
+   203→// ============================================
+   204→// ONBOARDING CHECKLISTS
+   205→// ============================================
+   206→
+   207→// Get candidate's checklists
+   208→router.get('/checklists', authMiddleware, async (req, res) => {
+   209→  try {
+   210→    const result = await pool.query(
+   211→      `SELECT * FROM onboarding_checklists
+   212→       WHERE candidate_id = $1
+   213→       ORDER BY created_at DESC`,
+   214→      [req.user.id]
+   215→    );
+   216→
+   217→    res.json(result.rows);
+   218→  } catch (err) {
+   219→    console.error('Error fetching checklists:', err);
+   220→    res.status(500).json({ error: 'Failed to fetch checklists' });
+   221→  }
+   222→});
+   223→
+   224→// Update checklist item completion
+   225→router.post('/checklists/:id/complete', authMiddleware, async (req, res) => {
+   226→  try {
+   227→    const { item_id } = req.body;
+   228→
+   229→    const checklist = await pool.query(
+   230→      'SELECT * FROM onboarding_checklists WHERE id = $1 AND candidate_id = $2',
+   231→      [req.params.id, req.user.id]
+   232→    );
+   233→
+   234→    if (checklist.rows.length === 0) {
+   235→      return res.status(404).json({ error: 'Checklist not found' });
+   236→    }
+   237→
+   238→    const completedItems = checklist.rows[0].completed_items || [];
+   239→    if (!completedItems.includes(item_id)) {
+   240→      completedItems.push(item_id);
+   241→    }
+   242→
+   243→    const items = checklist.rows[0].items || [];
+   244→    const allCompleted = items.every(item => completedItems.includes(item.id));
+   245→
+   246→    const result = await pool.query(
+   247→      `UPDATE onboarding_checklists
+   248→       SET completed_items = $1,
+   249→           status = $2,
+   250→           completed_at = $3,
+   251→           updated_at = NOW()
+   252→       WHERE id = $4
+   253→       RETURNING *`,
+   254→      [
+   255→        JSON.stringify(completedItems),
+   256→        allCompleted ? 'completed' : 'in_progress',
+   257→        allCompleted ? new Date() : null,
+   258→        req.params.id
+   259→      ]
+   260→    );
+   261→
+   262→    res.json(result.rows[0]);
+   263→  } catch (err) {
+   264→    console.error('Error updating checklist:', err);
+   265→    res.status(500).json({ error: 'Failed to update checklist' });
+   266→  }
+   267→});
+   268→
+   269→// ============================================
+   270→// DOCUMENT COLLECTION
+   271→// ============================================
+   272→
+   273→// Upload onboarding document
+   274→router.post('/documents', authMiddleware, async (req, res) => {
+   275→  try {
+   276→    const { checklist_id, document_type, document_url } = req.body;
+   277→
+   278→    const result = await pool.query(
+   279→      `INSERT INTO onboarding_documents
+   280→       (checklist_id, candidate_id, document_type, document_url, status, uploaded_at)
+   281→       VALUES ($1, $2, $3, $4, $5, NOW())
+   282→       RETURNING *`,
+   283→      [checklist_id, req.user.id, document_type, document_url, 'pending']
+   284→    );
+   285→
+   286→    res.json(result.rows[0]);
+   287→  } catch (err) {
+   288→    console.error('Error uploading document:', err);
+   289→    res.status(500).json({ error: 'Failed to upload document' });
+   290→  }
+   291→});
+   292→
+   293→// Get documents for checklist
+   294→router.get('/checklists/:id/documents', authMiddleware, async (req, res) => {
+   295→  try {
+   296→    const result = await pool.query(
+   297→      `SELECT * FROM onboarding_documents
+   298→       WHERE checklist_id = $1 AND candidate_id = $2
+   299→       ORDER BY created_at DESC`,
+   300→      [req.params.id, req.user.id]
+   301→    );
+   302→
+   303→    res.json(result.rows);
+   304→  } catch (err) {
+   305→    console.error('Error fetching documents:', err);
+   306→    res.status(500).json({ error: 'Failed to fetch documents' });
+   307→  }
+   308→});
+   309→
+   310→// ============================================
+   311→// POST-HIRE FEEDBACK
+   312→// ============================================
+   313→
+   314→// Create feedback survey (auto-scheduled by system)
+   315→router.post('/feedback/schedule', authMiddleware, async (req, res) => {
+   316→  try {
+   317→    const { employee_id, day_mark } = req.body;
+   318→
+   319→    const questions = {
+   320→      30: [
+   321→        'How would you rate your onboarding experience?',
+   322→        'Do you feel prepared to do your job?',
+   323→        'Is there anything we could improve?'
+   324→      ],
+   325→      60: [
+   326→        'How satisfied are you with your role?',
+   327→        'Do you have the resources you need to succeed?',
+   328→        'How would you rate communication with your manager?'
+   329→      ],
+   330→      90: [
+   331→        'Would you recommend this company to a friend?',
+   332→        'What has been your biggest challenge so far?',
+   333→        'What has exceeded your expectations?'
+   334→      ]
+   335→    };
+   336→
+   337→    const result = await pool.query(
+   338→      `INSERT INTO post_hire_feedback
+   339→       (employee_id, manager_id, feedback_type, day_mark, questions, status, sent_at)
+   340→       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+   341→       RETURNING *`,
+   342→      [
+   343→        employee_id,
+   344→        req.user.id,
+   345→        'check_in',
+   346→        day_mark,
+   347→        JSON.stringify(questions[day_mark] || questions[30]),
+   348→        'sent'
+   349→      ]
+   350→    );
+   351→
+   352→    res.json(result.rows[0]);
+   353→  } catch (err) {
+   354→    console.error('Error scheduling feedback:', err);
+   355→    res.status(500).json({ error: 'Failed to schedule feedback' });
+   356→  }
+   357→});
+   358→
+   359→// Get employee's pending feedback
+   360→router.get('/feedback/pending', authMiddleware, async (req, res) => {
+   361→  try {
+   362→    const result = await pool.query(
+   363→      `SELECT * FROM post_hire_feedback
+   364→       WHERE employee_id = $1 AND status = 'sent'
+   365→       ORDER BY created_at DESC`,
+   366→      [req.user.id]
+   367→    );
+   368→
+   369→    res.json(result.rows);
+   370→  } catch (err) {
+   371→    console.error('Error fetching feedback:', err);
+   372→    res.status(500).json({ error: 'Failed to fetch feedback' });
+   373→  }
+   374→});
+   375→
+   376→// Submit feedback responses
+   377→router.post('/feedback/:id/submit', authMiddleware, async (req, res) => {
+   378→  try {
+   379→    const { responses, satisfaction_score, would_recommend, comments } = req.body;
+   380→
+   381→    // Analyze feedback with AI
+   382→    const aiAnalysis = await analyzeFeedbackWithAI(responses, comments);
+   383→
+   384→    const result = await pool.query(
+   385→      `UPDATE post_hire_feedback
+   386→       SET responses = $1,
+   387→           satisfaction_score = $2,
+   388→           would_recommend = $3,
+   389→           comments = $4,
+   390→           ai_analysis = $5,
+   391→           status = 'completed',
+   392→           completed_at = NOW()
+   393→       WHERE id = $6 AND employee_id = $7
+   394→       RETURNING *`,
+   395→      [
+   396→        JSON.stringify(responses),
+   397→        satisfaction_score,
+   398→        would_recommend,
+   399→        comments,
+   400→        JSON.stringify(aiAnalysis),
+   401→        req.params.id,
+   402→        req.user.id
+   403→      ]
+   404→    );
+   405→
+   406→    if (result.rows.length === 0) {
+   407→      return res.status(404).json({ error: 'Feedback not found' });
+   408→    }
+   409→
+   410→    res.json(result.rows[0]);
+   411→  } catch (err) {
+   412→    console.error('Error submitting feedback:', err);
+   413→    res.status(500).json({ error: 'Failed to submit feedback' });
+   414→  }
+   415→});
+   416→
+   417→// Get feedback analytics for manager
+   418→router.get('/feedback/analytics', authMiddleware, async (req, res) => {
+   419→  try {
+   420→    const result = await pool.query(
+   421→      `SELECT
+   422→        day_mark,
+   423→        AVG(satisfaction_score) as avg_satisfaction,
+   424→        COUNT(*) as total_responses,
+   425→        SUM(CASE WHEN would_recommend THEN 1 ELSE 0 END) as would_recommend_count
+   426→      FROM post_hire_feedback
+   427→      WHERE manager_id = $1 AND status = 'completed'
+   428→      GROUP BY day_mark
+   429→      ORDER BY day_mark`,
+   430→      [req.user.id]
+   431→    );
+   432→
+   433→    res.json(result.rows);
+   434→  } catch (err) {
+   435→    console.error('Error fetching analytics:', err);
+   436→    res.status(500).json({ error: 'Failed to fetch analytics' });
+   437→  }
+   438→});
+   439→
+   440→// ============================================
+   441→// ONBOARDING AI ASSISTANT
+   442→// ============================================
+   443→
+   444→// Start or continue chat session
+   445→router.post('/assistant/chat', authMiddleware, async (req, res) => {
+   446→  try {
+   447→    const { message, checklist_id } = req.body;
+   448→
+   449→    // Get or create chat session
+   450→    let session = await pool.query(
+   451→      `SELECT * FROM onboarding_chats
+   452→       WHERE candidate_id = $1 AND checklist_id = $2 AND is_active = true
+   453→       ORDER BY session_started DESC LIMIT 1`,
+   454→      [req.user.id, checklist_id || null]
+   455→    );
+   456→
+   457→    let sessionId;
+   458→    let messages = [];
+   459→
+   460→    if (session.rows.length === 0) {
+   461→      const newSession = await pool.query(
+   462→        `INSERT INTO onboarding_chats (candidate_id, checklist_id, messages)
+   463→         VALUES ($1, $2, $3)
+   464→         RETURNING *`,
+   465→        [req.user.id, checklist_id || null, JSON.stringify([])]
+   466→      );
+   467→      sessionId = newSession.rows[0].id;
+   468→    } else {
+   469→      sessionId = session.rows[0].id;
+   470→      messages = session.rows[0].messages || [];
+   471→    }
+   472→
+   473→    // Get company policies for context
+   474→    const policies = await pool.query(
+   475→      `SELECT category, title, content
+   476→       FROM company_policies
+   477→       WHERE is_active = true
+   478→       ORDER BY category`
+   479→    );
+   480→
+   481→    // Build context from policies
+   482→    const policyContext = policies.rows.map(p =>
+   483→      `${p.category}: ${p.title}\n${p.content}`
+   484→    ).join('\n\n');
+   485→
+   486→    // Add user message
+   487→    messages.push({
+   488→      role: 'user',
+   489→      content: message,
+   490→      timestamp: new Date().toISOString()
+   491→    });
+   492→
+   493→    // Get AI response
+   494→    const aiResponse = await getOnboardingAssistantResponse(
+   495→      messages,
+   496→      policyContext,
+   497→      req.user
+   498→    );
+   499→
+   500→    // Add AI response
+   501→    messages.push({
+   502→      role: 'assistant',
+   503→      content: aiResponse,
+   504→      timestamp: new Date().toISOString()
+   505→    });
+   506→
+   507→    // Update session
+   508→    await pool.query(
+   509→      `UPDATE onboarding_chats
+   510→       SET messages = $1, last_activity = NOW()
+   511→       WHERE id = $2`,
+   512→      [JSON.stringify(messages), sessionId]
+   513→    );
+   514→
+   515→    res.json({ response: aiResponse, session_id: sessionId });
+   516→  } catch (err) {
+   517→    console.error('Error in assistant chat:', err);
+   518→    res.status(500).json({ error: 'Failed to process chat message' });
+   519→  }
+   520→});
+   521→
+   522→// Get chat history
+   523→router.get('/assistant/history/:session_id', authMiddleware, async (req, res) => {
+   524→  try {
+   525→    const result = await pool.query(
+   526→      `SELECT * FROM onboarding_chats
+   527→       WHERE id = $1 AND candidate_id = $2`,
+   528→      [req.params.session_id, req.user.id]
+   529→    );
+   530→
+   531→    if (result.rows.length === 0) {
+   532→      return res.status(404).json({ error: 'Session not found' });
+   533→    }
+   534→
+   535→    res.json(result.rows[0]);
+   536→  } catch (err) {
+   537→    console.error('Error fetching chat history:', err);
+   538→    res.status(500).json({ error: 'Failed to fetch chat history' });
+   539→  }
+   540→});
+   541→
+   542→// ============================================
+   543→// HELPER FUNCTIONS
+   544→// ============================================
+   545→
+   546→async function analyzeFeedbackWithAI(responses, comments) {
+   547→  try {
+   548→    const prompt = `Analyze this employee feedback and provide insights:
+   549→
+   550→Responses: ${JSON.stringify(responses)}
+   551→Comments: ${comments}
+   552→
+   553→Provide:
+   554→1. Sentiment (positive/neutral/negative)
+   555→2. Key themes identified
+   556→3. Action items for management
+   557→4. Risk level (low/medium/high) if negative patterns detected`;
+   558→
+   559→    const analysis = await polsiaAI.chat([
+   560→      { role: 'user', content: prompt }
+   561→    ], { max_tokens: 1024 });
+   562→
+   563→    return { analysis: analysis, analyzed_at: new Date().toISOString() };
+   564→  } catch (err) {
+   565→    console.error('Error analyzing feedback:', err);
+   566→    return { error: 'Analysis failed' };
+   567→  }
+   568→}
+   569→
+   570→async function getOnboardingAssistantResponse(messages, policyContext, user) {
+   571→  try {
+   572→    const systemPrompt = `You are an onboarding assistant for new employees. You help them understand company policies, complete paperwork, and answer questions about their first days.
+   573→
+   574→Company Policies and Information:
+   575→${policyContext}
+   576→
+   577→Employee name: ${user.name || 'there'}
+   578→
+   579→Be friendly, helpful, and direct. If you don't know something, say so and suggest they contact HR.`;
+   580→
+   581→    const response = await polsiaAI.chat([
+   582→      { role: 'system', content: systemPrompt },
+   583→      ...messages.map(m => ({ role: m.role, content: m.content }))
+   584→    ], { max_tokens: 512 });
+   585→
+   586→    return response;
+   587→  } catch (err) {
+   588→    console.error('Error getting AI response:', err);
+   589→    return "I'm having trouble connecting right now. Please try again or contact HR directly.";
+   590→  }
+   591→}
+   592→
+   593→module.exports = router;
+   594→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

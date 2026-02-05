@@ -1,0 +1,1055 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>Video Interview - HireLoop</title>
+     7→  <link rel="preconnect" href="https://fonts.googleapis.com">
+     8→  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     9→  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    10→  <link rel="stylesheet" href="/css/styles.css">
+    11→  <!-- TensorFlow.js for AI video analysis -->
+    12→  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+    13→  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.js"></script>
+    14→  <style>
+    15→    * {
+    16→      margin: 0;
+    17→      padding: 0;
+    18→      box-sizing: border-box;
+    19→    }
+    20→
+    21→    body {
+    22→      font-family: 'Inter', sans-serif;
+    23→      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    24→      min-height: 100vh;
+    25→      color: white;
+    26→    }
+    27→
+    28→    .container {
+    29→      max-width: 1200px;
+    30→      margin: 0 auto;
+    31→      padding: 2rem;
+    32→    }
+    33→
+    34→    .header {
+    35→      text-align: center;
+    36→      margin-bottom: 2rem;
+    37→    }
+    38→
+    39→    .header h1 {
+    40→      font-family: 'Space Grotesk', sans-serif;
+    41→      font-size: 2.5rem;
+    42→      margin-bottom: 0.5rem;
+    43→    }
+    44→
+    45→    .progress-bar {
+    46→      background: rgba(255, 255, 255, 0.1);
+    47→      height: 8px;
+    48→      border-radius: 4px;
+    49→      margin: 1rem 0;
+    50→      overflow: hidden;
+    51→    }
+    52→
+    53→    .progress-fill {
+    54→      background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);
+    55→      height: 100%;
+    56→      transition: width 0.3s ease;
+    57→    }
+    58→
+    59→    .main-card {
+    60→      background: rgba(255, 255, 255, 0.95);
+    61→      border-radius: 24px;
+    62→      padding: 3rem;
+    63→      color: #1e293b;
+    64→      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    65→    }
+    66→
+    67→    /* Question Display */
+    68→    .question-section {
+    69→      text-align: center;
+    70→      margin-bottom: 2rem;
+    71→    }
+    72→
+    73→    .question-number {
+    74→      font-size: 0.875rem;
+    75→      font-weight: 600;
+    76→      color: #64748b;
+    77→      margin-bottom: 1rem;
+    78→    }
+    79→
+    80→    .question-text {
+    81→      font-family: 'Space Grotesk', sans-serif;
+    82→      font-size: 1.75rem;
+    83→      font-weight: 600;
+    84→      color: #1e293b;
+    85→      margin-bottom: 1rem;
+    86→      line-height: 1.4;
+    87→    }
+    88→
+    89→    .timer {
+    90→      font-size: 2rem;
+    91→      font-weight: 700;
+    92→      color: #10b981;
+    93→      margin: 1rem 0;
+    94→    }
+    95→
+    96→    .timer.warning {
+    97→      color: #f59e0b;
+    98→    }
+    99→
+   100→    .timer.critical {
+   101→      color: #ef4444;
+   102→      animation: pulse 1s infinite;
+   103→    }
+   104→
+   105→    @keyframes pulse {
+   106→      0%, 100% { opacity: 1; }
+   107→      50% { opacity: 0.5; }
+   108→    }
+   109→
+   110→    /* Video Container */
+   111→    .video-container {
+   112→      position: relative;
+   113→      background: #000;
+   114→      border-radius: 16px;
+   115→      overflow: hidden;
+   116→      margin: 2rem 0;
+   117→      aspect-ratio: 16 / 9;
+   118→    }
+   119→
+   120→    .video-element {
+   121→      width: 100%;
+   122→      height: 100%;
+   123→      object-fit: cover;
+   124→    }
+   125→
+   126→    .video-overlay {
+   127→      position: absolute;
+   128→      top: 0;
+   129→      left: 0;
+   130→      right: 0;
+   131→      bottom: 0;
+   132→      background: rgba(0, 0, 0, 0.7);
+   133→      display: flex;
+   134→      flex-direction: column;
+   135→      align-items: center;
+   136→      justify-content: center;
+   137→      gap: 1rem;
+   138→    }
+   139→
+   140→    .recording-indicator {
+   141→      display: none;
+   142→      position: absolute;
+   143→      top: 1rem;
+   144→      right: 1rem;
+   145→      background: #ef4444;
+   146→      color: white;
+   147→      padding: 0.5rem 1rem;
+   148→      border-radius: 8px;
+   149→      font-weight: 600;
+   150→      font-size: 0.875rem;
+   151→      animation: blink 1.5s infinite;
+   152→    }
+   153→
+   154→    .recording-indicator.active {
+   155→      display: flex;
+   156→      align-items: center;
+   157→      gap: 0.5rem;
+   158→    }
+   159→
+   160→    /* Live Analysis Overlay */
+   161→    .analysis-overlay {
+   162→      display: none;
+   163→      position: absolute;
+   164→      bottom: 1rem;
+   165→      left: 1rem;
+   166→      right: 1rem;
+   167→      background: rgba(0, 0, 0, 0.8);
+   168→      backdrop-filter: blur(10px);
+   169→      border-radius: 12px;
+   170→      padding: 1rem;
+   171→      color: white;
+   172→      z-index: 10;
+   173→    }
+   174→
+   175→    .analysis-overlay.active {
+   176→      display: block;
+   177→    }
+   178→
+   179→    .analysis-toggle {
+   180→      position: absolute;
+   181→      top: 1rem;
+   182→      left: 1rem;
+   183→      background: rgba(0, 0, 0, 0.7);
+   184→      color: white;
+   185→      border: none;
+   186→      padding: 0.5rem 1rem;
+   187→      border-radius: 8px;
+   188→      font-size: 0.875rem;
+   189→      cursor: pointer;
+   190→      z-index: 11;
+   191→      transition: all 0.3s ease;
+   192→    }
+   193→
+   194→    .analysis-toggle:hover {
+   195→      background: rgba(0, 0, 0, 0.9);
+   196→    }
+   197→
+   198→    .analysis-metrics {
+   199→      display: grid;
+   200→      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+   201→      gap: 1rem;
+   202→    }
+   203→
+   204→    .metric-item {
+   205→      text-align: center;
+   206→    }
+   207→
+   208→    .metric-value {
+   209→      font-size: 2rem;
+   210→      font-weight: 700;
+   211→      display: block;
+   212→      margin-bottom: 0.25rem;
+   213→    }
+   214→
+   215→    .metric-label {
+   216→      font-size: 0.75rem;
+   217→      opacity: 0.8;
+   218→      text-transform: uppercase;
+   219→      letter-spacing: 0.5px;
+   220→    }
+   221→
+   222→    .metric-good { color: #10b981; }
+   223→    .metric-warning { color: #f59e0b; }
+   224→    .metric-poor { color: #ef4444; }
+   225→
+   226→    .recording-dot {
+   227→      width: 8px;
+   228→      height: 8px;
+   229→      background: white;
+   230→      border-radius: 50%;
+   231→    }
+   232→
+   233→    @keyframes blink {
+   234→      0%, 50%, 100% { opacity: 1; }
+   235→      25%, 75% { opacity: 0.5; }
+   236→    }
+   237→
+   238→    /* Controls */
+   239→    .controls {
+   240→      display: flex;
+   241→      justify-content: center;
+   242→      align-items: center;
+   243→      gap: 1rem;
+   244→      margin: 2rem 0;
+   245→    }
+   246→
+   247→    .btn {
+   248→      padding: 1rem 2rem;
+   249→      border: none;
+   250→      border-radius: 12px;
+   251→      font-weight: 600;
+   252→      font-size: 1rem;
+   253→      cursor: pointer;
+   254→      transition: all 0.3s ease;
+   255→      display: inline-flex;
+   256→      align-items: center;
+   257→      gap: 0.5rem;
+   258→    }
+   259→
+   260→    .btn-primary {
+   261→      background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+   262→      color: white;
+   263→    }
+   264→
+   265→    .btn-primary:hover {
+   266→      transform: translateY(-2px);
+   267→      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+   268→    }
+   269→
+   270→    .btn-danger {
+   271→      background: #ef4444;
+   272→      color: white;
+   273→    }
+   274→
+   275→    .btn-danger:hover {
+   276→      background: #dc2626;
+   277→      transform: translateY(-2px);
+   278→    }
+   279→
+   280→    .btn-secondary {
+   281→      background: #64748b;
+   282→      color: white;
+   283→    }
+   284→
+   285→    .btn-secondary:hover {
+   286→      background: #475569;
+   287→    }
+   288→
+   289→    .btn:disabled {
+   290→      opacity: 0.5;
+   291→      cursor: not-allowed;
+   292→      transform: none;
+   293→    }
+   294→
+   295→    .btn-large {
+   296→      padding: 1.25rem 3rem;
+   297→      font-size: 1.125rem;
+   298→    }
+   299→
+   300→    /* States */
+   301→    .setup-state, .recording-state, .review-state, .complete-state {
+   302→      display: none;
+   303→    }
+   304→
+   305→    .setup-state.active, .recording-state.active, .review-state.active, .complete-state.active {
+   306→      display: block;
+   307→    }
+   308→
+   309→    .instructions {
+   310→      background: #f1f5f9;
+   311→      border-left: 4px solid #3b82f6;
+   312→      padding: 1.5rem;
+   313→      border-radius: 8px;
+   314→      margin: 2rem 0;
+   315→    }
+   316→
+   317→    .instructions h3 {
+   318→      font-size: 1.125rem;
+   319→      margin-bottom: 0.75rem;
+   320→      color: #1e293b;
+   321→    }
+   322→
+   323→    .instructions ul {
+   324→      list-style: none;
+   325→      padding: 0;
+   326→    }
+   327→
+   328→    .instructions li {
+   329→      padding: 0.5rem 0;
+   330→      color: #475569;
+   331→      display: flex;
+   332→      align-items: start;
+   333→      gap: 0.5rem;
+   334→    }
+   335→
+   336→    .instructions li::before {
+   337→      content: "✓";
+   338→      color: #10b981;
+   339→      font-weight: 700;
+   340→    }
+   341→
+   342→    .alert {
+   343→      padding: 1rem;
+   344→      border-radius: 8px;
+   345→      margin: 1rem 0;
+   346→    }
+   347→
+   348→    .alert-warning {
+   349→      background: #fef3c7;
+   350→      color: #92400e;
+   351→      border: 1px solid #fbbf24;
+   352→    }
+   353→
+   354→    .alert-success {
+   355→      background: #d1fae5;
+   356→      color: #065f46;
+   357→      border: 1px solid #10b981;
+   358→    }
+   359→
+   360→    .back-link {
+   361→      display: inline-flex;
+   362→      align-items: center;
+   363→      gap: 0.5rem;
+   364→      color: rgba(255, 255, 255, 0.9);
+   365→      text-decoration: none;
+   366→      font-weight: 600;
+   367→      margin-bottom: 2rem;
+   368→      padding: 0.75rem 1.5rem;
+   369→      background: rgba(255, 255, 255, 0.1);
+   370→      backdrop-filter: blur(10px);
+   371→      border-radius: 12px;
+   372→      transition: all 0.3s ease;
+   373→    }
+   374→
+   375→    .back-link:hover {
+   376→      background: rgba(255, 255, 255, 0.2);
+   377→      transform: translateX(-4px);
+   378→    }
+   379→
+   380→    .loading-spinner {
+   381→      display: inline-block;
+   382→      width: 20px;
+   383→      height: 20px;
+   384→      border: 3px solid rgba(255, 255, 255, 0.3);
+   385→      border-top-color: white;
+   386→      border-radius: 50%;
+   387→      animation: spin 1s linear infinite;
+   388→    }
+   389→
+   390→    @keyframes spin {
+   391→      to { transform: rotate(360deg); }
+   392→    }
+   393→
+   394→    .response-preview {
+   395→      background: #f9fafb;
+   396→      border-radius: 12px;
+   397→      padding: 1.5rem;
+   398→      margin: 1rem 0;
+   399→    }
+   400→
+   401→    .response-item {
+   402→      display: flex;
+   403→      align-items: center;
+   404→      gap: 1rem;
+   405→      padding: 1rem;
+   406→      background: white;
+   407→      border-radius: 8px;
+   408→      margin-bottom: 0.75rem;
+   409→      border: 1px solid #e5e7eb;
+   410→    }
+   411→
+   412→    .response-item:last-child {
+   413→      margin-bottom: 0;
+   414→    }
+   415→
+   416→    .response-number {
+   417→      width: 32px;
+   418→      height: 32px;
+   419→      background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+   420→      color: white;
+   421→      border-radius: 8px;
+   422→      display: flex;
+   423→      align-items: center;
+   424→      justify-content: center;
+   425→      font-weight: 700;
+   426→      flex-shrink: 0;
+   427→    }
+   428→
+   429→    .response-status {
+   430→      flex: 1;
+   431→      color: #64748b;
+   432→    }
+   433→
+   434→    .response-status.completed {
+   435→      color: #10b981;
+   436→      font-weight: 600;
+   437→    }
+   438→
+   439→    @media (max-width: 768px) {
+   440→      .container {
+   441→        padding: 1rem;
+   442→      }
+   443→
+   444→      .main-card {
+   445→        padding: 1.5rem;
+   446→      }
+   447→
+   448→      .header h1 {
+   449→        font-size: 1.75rem;
+   450→      }
+   451→
+   452→      .question-text {
+   453→        font-size: 1.25rem;
+   454→      }
+   455→
+   456→      .controls {
+   457→        flex-direction: column;
+   458→        gap: 0.75rem;
+   459→      }
+   460→
+   461→      .btn {
+   462→        width: 100%;
+   463→      }
+   464→    }
+   465→  </style>
+   466→</head>
+   467→<body>
+   468→  <div class="container">
+   469→    <a href="/candidate-dashboard.html" class="back-link">
+   470→      ← Back to Dashboard
+   471→    </a>
+   472→
+   473→    <div class="header">
+   474→      <h1>🎥 Video Interview</h1>
+   475→      <p>Record your responses to interview questions</p>
+   476→      <div class="progress-bar">
+   477→        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+   478→      </div>
+   479→      <p id="progress-text" style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">Question 0 of 0</p>
+   480→    </div>
+   481→
+   482→    <div class="main-card">
+   483→      <!-- Setup State -->
+   484→      <div class="setup-state active" id="setup-state">
+   485→        <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.75rem; margin-bottom: 1rem;">Get Ready</h2>
+   486→        <div class="instructions">
+   487→          <h3>Before we begin:</h3>
+   488→          <ul>
+   489→            <li>Find a quiet space with good lighting</li>
+   490→            <li>Ensure your camera and microphone are working</li>
+   491→            <li>You'll have 2 minutes to answer each question</li>
+   492→            <li>You can retake your response once per question</li>
+   493→            <li>Review all answers before final submission</li>
+   494→          </ul>
+   495→        </div>
+   496→
+   497→        <div class="video-container" id="preview-container">
+   498→          <video id="preview-video" class="video-element" autoplay muted playsinline></video>
+   499→          <div class="video-overlay" id="preview-overlay">
+   500→            <h3 style="font-size: 1.5rem; margin-bottom: 1rem;">Camera Preview</h3>
+   501→            <p style="margin-bottom: 1rem; opacity: 0.8;">Click "Start Interview" when ready</p>
+   502→          </div>
+   503→        </div>
+   504→
+   505→        <div class="alert alert-warning">
+   506→          ⚠️ This interview requires camera and microphone access. Please allow permissions when prompted.
+   507→        </div>
+   508→
+   509→        <div class="controls">
+   510→          <button class="btn btn-primary btn-large" onclick="startInterview()">
+   511→            Start Interview
+   512→          </button>
+   513→        </div>
+   514→      </div>
+   515→
+   516→      <!-- Recording State -->
+   517→      <div class="recording-state" id="recording-state">
+   518→        <div class="question-section">
+   519→          <p class="question-number" id="question-number">Question 1 of 5</p>
+   520→          <h2 class="question-text" id="question-text">Loading question...</h2>
+   521→          <div class="timer" id="timer">2:00</div>
+   522→        </div>
+   523→
+   524→        <div class="video-container">
+   525→          <video id="recording-video" class="video-element" autoplay muted playsinline></video>
+   526→          <div class="recording-indicator" id="recording-indicator">
+   527→            <div class="recording-dot"></div>
+   528→            RECORDING
+   529→          </div>
+   530→
+   531→          <!-- Live Analysis Toggle -->
+   532→          <button class="analysis-toggle" id="analysis-toggle" onclick="toggleAnalysisOverlay()" style="display: none;">
+   533→            👁️ Live Feedback
+   534→          </button>
+   535→
+   536→          <!-- Live Analysis Overlay -->
+   537→          <div class="analysis-overlay" id="analysis-overlay">
+   538→            <div class="analysis-metrics">
+   539→              <div class="metric-item">
+   540→                <span class="metric-value" id="metric-eye-contact">—</span>
+   541→                <span class="metric-label">Eye Contact</span>
+   542→              </div>
+   543→              <div class="metric-item">
+   544→                <span class="metric-value" id="metric-posture">—</span>
+   545→                <span class="metric-label">Posture</span>
+   546→              </div>
+   547→              <div class="metric-item">
+   548→                <span class="metric-value" id="metric-presence">—</span>
+   549→                <span class="metric-label">Presence</span>
+   550→              </div>
+   551→            </div>
+   552→          </div>
+   553→        </div>
+   554→
+   555→        <div class="controls">
+   556→          <button class="btn btn-primary" id="record-btn" onclick="startRecording()">
+   557→            🎥 Start Recording
+   558→          </button>
+   559→          <button class="btn btn-danger" id="stop-btn" onclick="stopRecording()" style="display: none;">
+   560→            ⏹️ Stop Recording
+   561→          </button>
+   562→        </div>
+   563→      </div>
+   564→
+   565→      <!-- Review State -->
+   566→      <div class="review-state" id="review-state">
+   567→        <div class="question-section">
+   568→          <p class="question-number" id="review-question-number">Question 1 of 5</p>
+   569→          <h2 class="question-text" id="review-question-text">Review your response</h2>
+   570→        </div>
+   571→
+   572→        <div class="video-container">
+   573→          <video id="playback-video" class="video-element" controls playsinline></video>
+   574→        </div>
+   575→
+   576→        <div class="controls">
+   577→          <button class="btn btn-secondary" id="retake-btn" onclick="retakeResponse()">
+   578→            🔄 Retake (1 remaining)
+   579→          </button>
+   580→          <button class="btn btn-primary" onclick="acceptResponse()">
+   581→            ✓ Accept & Continue
+   582→          </button>
+   583→        </div>
+   584→      </div>
+   585→
+   586→      <!-- Complete State -->
+   587→      <div class="complete-state" id="complete-state">
+   588→        <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 2rem; margin-bottom: 1rem; text-align: center;">
+   589→          Review Your Interview
+   590→        </h2>
+   591→        <p style="text-align: center; color: #64748b; margin-bottom: 2rem;">
+   592→          Check your responses before submitting
+   593→        </p>
+   594→
+   595→        <div class="response-preview" id="responses-list">
+   596→          <!-- Response items will be inserted here -->
+   597→        </div>
+   598→
+   599→        <div class="alert alert-success" style="margin: 2rem 0;">
+   600→          ✓ All questions answered! Review your responses and submit when ready.
+   601→        </div>
+   602→
+   603→        <div class="controls">
+   604→          <button class="btn btn-secondary" onclick="window.location.href='/candidate-dashboard.html'">
+   605→            Cancel
+   606→          </button>
+   607→          <button class="btn btn-primary btn-large" id="submit-btn" onclick="submitInterview()">
+   608→            Submit Interview
+   609→          </button>
+   610→        </div>
+   611→      </div>
+   612→    </div>
+   613→  </div>
+   614→
+   615→  <script src="/js/main.js"></script>
+   616→  <script src="/js/video-analyzer.js"></script>
+   617→  <script>
+   618→    let mediaStream = null;
+   619→    let mediaRecorder = null;
+   620→    let recordedChunks = [];
+   621→    let currentQuestionIndex = 0;
+   622→    let questions = [];
+   623→    let responses = [];
+   624→    let interviewId = null;
+   625→    let timerInterval = null;
+   626→    let timeRemaining = 120; // 2 minutes in seconds
+   627→    let retakesUsed = {};
+   628→    let videoAnalyzer = null;
+   629→    let analysisEnabled = false;
+   630→    let questionAnalysisData = {}; // Store analysis for each question
+   631→
+   632→    // Initialize
+   633→    document.addEventListener('DOMContentLoaded', async () => {
+   634→      const user = await checkAuth();
+   635→      if (!user) {
+   636→        window.location.href = '/login.html';
+   637→        return;
+   638→      }
+   639→
+   640→      // Get interview ID from URL or create new
+   641→      const urlParams = new URLSearchParams(window.location.search);
+   642→      const jobId = urlParams.get('job_id');
+   643→
+   644→      // Request camera access for preview
+   645→      try {
+   646→        mediaStream = await navigator.mediaDevices.getUserMedia({
+   647→          video: { width: 1280, height: 720 },
+   648→          audio: true
+   649→        });
+   650→        document.getElementById('preview-video').srcObject = mediaStream;
+   651→        document.getElementById('preview-overlay').style.display = 'none';
+   652→
+   653→        // Initialize video analyzer
+   654→        videoAnalyzer = new VideoAnalyzer();
+   655→        const initialized = await videoAnalyzer.init();
+   656→
+   657→        if (initialized) {
+   658→          console.log('Video analyzer ready');
+   659→
+   660→          // Listen for live score updates
+   661→          videoAnalyzer.on('scores', (scores) => {
+   662→            updateLiveMetrics(scores);
+   663→          });
+   664→        } else {
+   665→          console.warn('Video analyzer initialization failed - continuing without analysis');
+   666→        }
+   667→      } catch (err) {
+   668→        console.error('Camera access error:', err);
+   669→        alert('Camera access is required for video interviews. Please allow permissions and reload.');
+   670→      }
+   671→    });
+   672→
+   673→    async function startInterview() {
+   674→      try {
+   675→        // Create interview session
+   676→        const result = await apiCall('/interviews/start', {
+   677→          method: 'POST',
+   678→          body: JSON.stringify({
+   679→            interview_type: 'video',
+   680→            job_title: 'Software Developer', // TODO: Get from URL params or selection
+   681→            job_description: 'General software development role'
+   682→          })
+   683→        });
+   684→
+   685→        if (!result.success) {
+   686→          throw new Error('Failed to start interview');
+   687→        }
+   688→
+   689→        interviewId = result.interview.id;
+   690→        questions = result.questions;
+   691→        responses = new Array(questions.length).fill(null);
+   692→
+   693→        // Update UI
+   694→        updateProgress();
+   695→        showState('recording');
+   696→        displayQuestion(0);
+   697→      } catch (err) {
+   698→        console.error('Start interview error:', err);
+   699→        alert('Failed to start interview. Please try again.');
+   700→      }
+   701→    }
+   702→
+   703→    function displayQuestion(index) {
+   704→      currentQuestionIndex = index;
+   705→      const question = questions[index];
+   706→
+   707→      document.getElementById('question-number').textContent = `Question ${index + 1} of ${questions.length}`;
+   708→      document.getElementById('question-text').textContent = question.question;
+   709→
+   710→      // Reset timer
+   711→      timeRemaining = 120;
+   712→      updateTimer();
+   713→
+   714→      // Update progress
+   715→      updateProgress();
+   716→
+   717→      // Setup video for recording
+   718→      if (mediaStream) {
+   719→        document.getElementById('recording-video').srcObject = mediaStream;
+   720→      }
+   721→    }
+   722→
+   723→    function startRecording() {
+   724→      recordedChunks = [];
+   725→
+   726→      try {
+   727→        mediaRecorder = new MediaRecorder(mediaStream, {
+   728→          mimeType: 'video/webm;codecs=vp9'
+   729→        });
+   730→
+   731→        mediaRecorder.ondataavailable = (event) => {
+   732→          if (event.data.size > 0) {
+   733→            recordedChunks.push(event.data);
+   734→          }
+   735→        };
+   736→
+   737→        mediaRecorder.onstop = handleRecordingStop;
+   738→
+   739→        mediaRecorder.start();
+   740→
+   741→        // Start video analysis
+   742→        if (videoAnalyzer) {
+   743→          videoAnalyzer.reset();
+   744→          videoAnalyzer.startAnalysis(document.getElementById('recording-video'), 500);
+   745→          document.getElementById('analysis-toggle').style.display = 'block';
+   746→        }
+   747→
+   748→        // Update UI
+   749→        document.getElementById('record-btn').style.display = 'none';
+   750→        document.getElementById('stop-btn').style.display = 'inline-flex';
+   751→        document.getElementById('recording-indicator').classList.add('active');
+   752→
+   753→        // Start timer
+   754→        timerInterval = setInterval(() => {
+   755→          timeRemaining--;
+   756→          updateTimer();
+   757→
+   758→          if (timeRemaining <= 0) {
+   759→            stopRecording();
+   760→          }
+   761→        }, 1000);
+   762→      } catch (err) {
+   763→        console.error('Recording error:', err);
+   764→        alert('Failed to start recording. Please try again.');
+   765→      }
+   766→    }
+   767→
+   768→    function stopRecording() {
+   769→      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+   770→        mediaRecorder.stop();
+   771→        clearInterval(timerInterval);
+   772→
+   773→        // Stop video analysis and save data
+   774→        if (videoAnalyzer) {
+   775→          videoAnalyzer.stopAnalysis();
+   776→          const analysis = videoAnalyzer.getFinalAnalysis();
+   777→
+   778→          if (analysis) {
+   779→            questionAnalysisData[currentQuestionIndex] = analysis;
+   780→            console.log('Saved analysis for question', currentQuestionIndex, analysis.scores);
+   781→          }
+   782→
+   783→          document.getElementById('analysis-toggle').style.display = 'none';
+   784→          document.getElementById('analysis-overlay').classList.remove('active');
+   785→        }
+   786→
+   787→        // Update UI
+   788→        document.getElementById('record-btn').style.display = 'inline-flex';
+   789→        document.getElementById('stop-btn').style.display = 'none';
+   790→        document.getElementById('recording-indicator').classList.remove('active');
+   791→      }
+   792→    }
+   793→
+   794→    function handleRecordingStop() {
+   795→      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+   796→      const videoUrl = URL.createObjectURL(blob);
+   797→
+   798→      // Show review state
+   799→      document.getElementById('review-question-number').textContent =
+   800→        `Question ${currentQuestionIndex + 1} of ${questions.length}`;
+   801→      document.getElementById('review-question-text').textContent = questions[currentQuestionIndex].question;
+   802→
+   803→      const playbackVideo = document.getElementById('playback-video');
+   804→      playbackVideo.src = videoUrl;
+   805→
+   806→      // Update retake button
+   807→      const retakeBtn = document.getElementById('retake-btn');
+   808→      const retakesForQuestion = retakesUsed[currentQuestionIndex] || 0;
+   809→      if (retakesForQuestion >= 1) {
+   810→        retakeBtn.disabled = true;
+   811→        retakeBtn.textContent = '🔄 No retakes remaining';
+   812→      } else {
+   813→        retakeBtn.disabled = false;
+   814→        retakeBtn.textContent = `🔄 Retake (${1 - retakesForQuestion} remaining)`;
+   815→      }
+   816→
+   817→      showState('review');
+   818→
+   819→      // Store the blob temporarily
+   820→      window.currentRecordingBlob = blob;
+   821→    }
+   822→
+   823→    function retakeResponse() {
+   824→      const retakesForQuestion = retakesUsed[currentQuestionIndex] || 0;
+   825→      if (retakesForQuestion >= 1) {
+   826→        alert('No retakes remaining for this question.');
+   827→        return;
+   828→      }
+   829→
+   830→      retakesUsed[currentQuestionIndex] = retakesForQuestion + 1;
+   831→      showState('recording');
+   832→      displayQuestion(currentQuestionIndex);
+   833→    }
+   834→
+   835→    async function acceptResponse() {
+   836→      // Show loading
+   837→      document.getElementById('submit-btn').disabled = true;
+   838→      document.getElementById('submit-btn').innerHTML = '<span class="loading-spinner"></span> Uploading...';
+   839→
+   840→      try {
+   841→        // Upload video
+   842→        const videoUrl = await uploadVideo(window.currentRecordingBlob, currentQuestionIndex);
+   843→
+   844→        // Save response
+   845→        responses[currentQuestionIndex] = {
+   846→          question_index: currentQuestionIndex,
+   847→          video_url: videoUrl,
+   848→          response_text: '[Video response]',
+   849→          recorded_at: new Date().toISOString()
+   850→        };
+   851→
+   852→        // Move to next question or complete
+   853→        if (currentQuestionIndex < questions.length - 1) {
+   854→          showState('recording');
+   855→          displayQuestion(currentQuestionIndex + 1);
+   856→        } else {
+   857→          showCompleteState();
+   858→        }
+   859→      } catch (err) {
+   860→        console.error('Upload error:', err);
+   861→        alert('Failed to upload video. Please try again.');
+   862→      } finally {
+   863→        document.getElementById('submit-btn').disabled = false;
+   864→        document.getElementById('submit-btn').innerHTML = 'Submit Interview';
+   865→      }
+   866→    }
+   867→
+   868→    async function uploadVideo(blob, questionIndex) {
+   869→      const formData = new FormData();
+   870→      formData.append('video', blob, `interview-${interviewId}-q${questionIndex}.webm`);
+   871→      formData.append('interview_id', interviewId);
+   872→      formData.append('question_index', questionIndex);
+   873→
+   874→      const response = await apiCall('/interviews/upload-video', {
+   875→        method: 'POST',
+   876→        body: formData,
+   877→        isFormData: true
+   878→      });
+   879→
+   880→      if (!response.success) {
+   881→        throw new Error(response.error || 'Upload failed');
+   882→      }
+   883→
+   884→      return response.video_url;
+   885→    }
+   886→
+   887→    function showCompleteState() {
+   888→      // Build responses list
+   889→      const responsesList = document.getElementById('responses-list');
+   890→      responsesList.innerHTML = responses.map((r, i) => `
+   891→        <div class="response-item">
+   892→          <div class="response-number">${i + 1}</div>
+   893→          <div style="flex: 1;">
+   894→            <div style="font-weight: 600; margin-bottom: 0.25rem;">${questions[i].question}</div>
+   895→            <div class="response-status completed">✓ Video recorded</div>
+   896→          </div>
+   897→        </div>
+   898→      `).join('');
+   899→
+   900→      showState('complete');
+   901→    }
+   902→
+   903→    async function submitInterview() {
+   904→      document.getElementById('submit-btn').disabled = true;
+   905→      document.getElementById('submit-btn').innerHTML = '<span class="loading-spinner"></span> Submitting...';
+   906→
+   907→      try {
+   908→        // Submit all responses
+   909→        for (let i = 0; i < responses.length; i++) {
+   910→          if (responses[i]) {
+   911→            await apiCall(`/interviews/${interviewId}/respond`, {
+   912→              method: 'POST',
+   913→              body: JSON.stringify(responses[i])
+   914→            });
+   915→          }
+   916→        }
+   917→
+   918→        // Save video analysis data
+   919→        await saveAnalysisData();
+   920→
+   921→        // Complete interview
+   922→        await apiCall(`/interviews/${interviewId}/complete`, {
+   923→          method: 'POST'
+   924→        });
+   925→
+   926→        // Stop media stream
+   927→        if (mediaStream) {
+   928→          mediaStream.getTracks().forEach(track => track.stop());
+   929→        }
+   930→
+   931→        // Redirect to results
+   932→        alert('Interview submitted successfully!');
+   933→        window.location.href = `/interview-analysis.html?interview_id=${interviewId}`;
+   934→      } catch (err) {
+   935→        console.error('Submit error:', err);
+   936→        alert('Failed to submit interview. Please try again.');
+   937→        document.getElementById('submit-btn').disabled = false;
+   938→        document.getElementById('submit-btn').innerHTML = 'Submit Interview';
+   939→      }
+   940→    }
+   941→
+   942→    function showState(state) {
+   943→      document.querySelectorAll('.setup-state, .recording-state, .review-state, .complete-state')
+   944→        .forEach(el => el.classList.remove('active'));
+   945→
+   946→      if (state === 'recording') {
+   947→        document.getElementById('recording-state').classList.add('active');
+   948→      } else if (state === 'review') {
+   949→        document.getElementById('review-state').classList.add('active');
+   950→      } else if (state === 'complete') {
+   951→        document.getElementById('complete-state').classList.add('active');
+   952→      }
+   953→    }
+   954→
+   955→    function updateProgress() {
+   956→      const completed = responses.filter(r => r !== null).length;
+   957→      const total = questions.length;
+   958→      const percent = total > 0 ? (completed / total) * 100 : 0;
+   959→
+   960→      document.getElementById('progress-fill').style.width = `${percent}%`;
+   961→      document.getElementById('progress-text').textContent = `Question ${completed} of ${total}`;
+   962→    }
+   963→
+   964→    function updateTimer() {
+   965→      const minutes = Math.floor(timeRemaining / 60);
+   966→      const seconds = timeRemaining % 60;
+   967→      const timerEl = document.getElementById('timer');
+   968→
+   969→      timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+   970→
+   971→      if (timeRemaining <= 10) {
+   972→        timerEl.classList.add('critical');
+   973→      } else if (timeRemaining <= 30) {
+   974→        timerEl.classList.add('warning');
+   975→      } else {
+   976→        timerEl.classList.remove('warning', 'critical');
+   977→      }
+   978→    }
+   979→
+   980→    // Toggle analysis overlay
+   981→    function toggleAnalysisOverlay() {
+   982→      const overlay = document.getElementById('analysis-overlay');
+   983→      analysisEnabled = !analysisEnabled;
+   984→
+   985→      if (analysisEnabled) {
+   986→        overlay.classList.add('active');
+   987→      } else {
+   988→        overlay.classList.remove('active');
+   989→      }
+   990→    }
+   991→
+   992→    // Update live metrics display
+   993→    function updateLiveMetrics(scores) {
+   994→      const eyeContactEl = document.getElementById('metric-eye-contact');
+   995→      const postureEl = document.getElementById('metric-posture');
+   996→      const presenceEl = document.getElementById('metric-presence');
+   997→
+   998→      eyeContactEl.textContent = scores.eyeContact + '%';
+   999→      eyeContactEl.className = 'metric-value ' + getMetricClass(scores.eyeContact);
+  1000→
+  1001→      postureEl.textContent = scores.headStability + '%';
+  1002→      postureEl.className = 'metric-value ' + getMetricClass(scores.headStability);
+  1003→
+  1004→      presenceEl.textContent = scores.presence + '%';
+  1005→      presenceEl.className = 'metric-value ' + getMetricClass(scores.presence);
+  1006→    }
+  1007→
+  1008→    function getMetricClass(score) {
+  1009→      if (score >= 70) return 'metric-good';
+  1010→      if (score >= 50) return 'metric-warning';
+  1011→      return 'metric-poor';
+  1012→    }
+  1013→
+  1014→    // Save analysis data with interview submission
+  1015→    async function saveAnalysisData() {
+  1016→      if (!interviewId || Object.keys(questionAnalysisData).length === 0) {
+  1017→        return;
+  1018→      }
+  1019→
+  1020→      try {
+  1021→        for (const [questionIndex, analysis] of Object.entries(questionAnalysisData)) {
+  1022→          await apiCall('/interviews/save-analysis', {
+  1023→            method: 'POST',
+  1024→            body: JSON.stringify({
+  1025→              interview_id: interviewId,
+  1026→              question_index: parseInt(questionIndex),
+  1027→              analysis_data: analysis,
+  1028→              scores: analysis.scores
+  1029→            })
+  1030→          });
+  1031→        }
+  1032→        console.log('Video analysis saved successfully');
+  1033→      } catch (err) {
+  1034→        console.error('Failed to save analysis:', err);
+  1035→        // Don't block submission if analysis save fails
+  1036→      }
+  1037→    }
+  1038→
+  1039→    // Cleanup on page unload
+  1040→    window.addEventListener('beforeunload', () => {
+  1041→      if (mediaStream) {
+  1042→        mediaStream.getTracks().forEach(track => track.stop());
+  1043→      }
+  1044→      if (videoAnalyzer) {
+  1045→        videoAnalyzer.stopAnalysis();
+  1046→      }
+  1047→    });
+  1048→  </script>
+  1049→</body>
+  1050→</html>
+  1051→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

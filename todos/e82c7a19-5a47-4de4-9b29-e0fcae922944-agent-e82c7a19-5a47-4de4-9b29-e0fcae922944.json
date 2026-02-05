@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Fix polsia-ai.js message format bug (causes AI errors)",
+    "status": "completed",
+    "activeForm": "Fixing polsia-ai.js message format bug"
+  },
+  {
+    "content": "Transform onboarding from manual checkboxes to AI-automated",
+    "status": "completed",
+    "activeForm": "Transforming onboarding to AI-automated"
+  },
+  {
+    "content": "Fix Make Offer button from applications page",
+    "status": "completed",
+    "activeForm": "Fixing Make Offer button"
+  },
+  {
+    "content": "Add video call functionality for interviews",
+    "status": "completed",
+    "activeForm": "Adding video call functionality"
+  },
+  {
+    "content": "Fix interview scheduling E2E flow",
+    "status": "completed",
+    "activeForm": "Fixing interview scheduling flow"
+  },
+  {
+    "content": "Full E2E QA for recruiter and candidate flows",
+    "status": "in_progress",
+    "activeForm": "Running full E2E QA"
+  }
+]

@@ -1,0 +1,474 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>My Onboarding - Rekrut AI</title>
+     7→  <script src="https://cdn.tailwindcss.com"></script>
+     8→  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+     9→</head>
+    10→<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen">
+    11→  <div class="container mx-auto px-4 py-8">
+    12→    <div class="mb-8">
+    13→      <h1 class="text-4xl font-bold text-white mb-2">
+    14→        <i class="fas fa-rocket mr-3 text-purple-400"></i>
+    15→        My Onboarding
+    16→      </h1>
+    17→      <p class="text-gray-300">Welcome! Complete your onboarding journey</p>
+    18→    </div>
+    19→
+    20→    <button onclick="location.href='candidate-dashboard.html'" class="mb-6 bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg transition">
+    21→      <i class="fas fa-arrow-left mr-2"></i>
+    22→      Back to Dashboard
+    23→    </button>
+    24→
+    25→    <!-- Job Offers Section -->
+    26→    <div id="offersSection" class="mb-8">
+    27→      <h2 class="text-2xl font-bold text-white mb-4">
+    28→        <i class="fas fa-envelope-open-text mr-2 text-yellow-400"></i>
+    29→        My Job Offers
+    30→      </h2>
+    31→      <div id="offersList" class="grid gap-6">
+    32→        <div class="text-center py-12 text-gray-400">
+    33→          <i class="fas fa-spinner fa-spin text-3xl mb-4"></i>
+    34→          <p>Loading offers...</p>
+    35→        </div>
+    36→      </div>
+    37→    </div>
+    38→
+    39→    <!-- Onboarding Checklists Section -->
+    40→    <div id="checklistsSection" class="hidden">
+    41→      <h2 class="text-2xl font-bold text-white mb-4">
+    42→        <i class="fas fa-tasks mr-2 text-green-400"></i>
+    43→        Onboarding Checklist
+    44→      </h2>
+    45→      <div id="checklistsList" class="grid gap-6"></div>
+    46→    </div>
+    47→
+    48→    <!-- Onboarding Assistant Section -->
+    49→    <div class="mt-8 bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
+    50→      <h2 class="text-2xl font-bold text-white mb-4">
+    51→        <i class="fas fa-robot mr-2 text-purple-400"></i>
+    52→        Onboarding Assistant
+    53→      </h2>
+    54→      <p class="text-gray-300 mb-6">Ask me anything about your onboarding, company policies, or first day!</p>
+    55→
+    56→      <div id="chatMessages" class="bg-slate-800/50 rounded-lg p-4 mb-4 h-64 overflow-y-auto space-y-3">
+    57→        <div class="text-gray-400 text-center text-sm">Start a conversation by typing a question below</div>
+    58→      </div>
+    59→
+    60→      <div class="flex gap-3">
+    61→        <input
+    62→          type="text"
+    63→          id="chatInput"
+    64→          placeholder="Ask a question..."
+    65→          class="flex-1 px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500"
+    66→          onkeypress="if(event.key === 'Enter') sendMessage()"
+    67→        >
+    68→        <button onclick="sendMessage()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition">
+    69→          <i class="fas fa-paper-plane"></i>
+    70→        </button>
+    71→      </div>
+    72→    </div>
+    73→  </div>
+    74→
+    75→  <!-- Offer Detail Modal -->
+    76→  <div id="offerModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50">
+    77→    <div class="bg-slate-800 rounded-2xl p-8 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    78→      <div class="flex justify-between items-center mb-6">
+    79→        <h2 class="text-2xl font-bold text-white">Offer Letter</h2>
+    80→        <button onclick="closeOfferModal()" class="text-gray-400 hover:text-white">
+    81→          <i class="fas fa-times text-2xl"></i>
+    82→        </button>
+    83→      </div>
+    84→
+    85→      <div id="offerContent" class="bg-white rounded-lg p-8 mb-6 text-gray-900">
+    86→        <!-- Offer content will be injected here -->
+    87→      </div>
+    88→
+    89→      <div id="offerActions" class="flex gap-4">
+    90→        <!-- Action buttons will be injected here -->
+    91→      </div>
+    92→    </div>
+    93→  </div>
+    94→
+    95→  <script>
+    96→    const TOKEN_KEY = 'rekrutai_token';
+    97→    let currentOffer = null;
+    98→    let currentSession = null;
+    99→
+   100→    function getToken() {
+   101→      return localStorage.getItem(TOKEN_KEY);
+   102→    }
+   103→
+   104→    function getAuthHeaders() {
+   105→      const token = getToken();
+   106→      return token ? { 'Authorization': `Bearer ${token}` } : {};
+   107→    }
+   108→
+   109→    async function checkAuth() {
+   110→      const token = getToken();
+   111→      if (!token) {
+   112→        window.location.href = '/login.html';
+   113→        return false;
+   114→      }
+   115→      return true;
+   116→    }
+   117→
+   118→    async function loadOffers() {
+   119→      if (!await checkAuth()) return;
+   120→
+   121→      try {
+   122→        const res = await fetch('/api/onboarding/offers/me', {
+   123→          headers: getAuthHeaders()
+   124→        });
+   125→        if (!res.ok) {
+   126→          if (res.status === 401) {
+   127→            window.location.href = '/login.html';
+   128→            return;
+   129→          }
+   130→          throw new Error('Failed to load offers');
+   131→        }
+   132→        const offers = await res.json();
+   133→
+   134→        const offersList = document.getElementById('offersList');
+   135→
+   136→        if (offers.length === 0) {
+   137→          offersList.innerHTML = `
+   138→            <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
+   139→              <i class="fas fa-inbox text-4xl text-gray-400 mb-4"></i>
+   140→              <p class="text-gray-300">No job offers yet</p>
+   141→            </div>
+   142→          `;
+   143→          return;
+   144→        }
+   145→
+   146→        offersList.innerHTML = offers.map(offer => `
+   147→          <div class="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+   148→            <div class="flex justify-between items-start mb-4">
+   149→              <div>
+   150→                <h3 class="text-xl font-bold text-white mb-1">${offer.title}</h3>
+   151→                <p class="text-gray-400">${offer.company_name}</p>
+   152→              </div>
+   153→              ${getOfferStatusBadge(offer.status)}
+   154→            </div>
+   155→
+   156→            <div class="grid grid-cols-2 gap-4 mb-4">
+   157→              <div>
+   158→                <div class="text-gray-400 text-sm">Annual Salary</div>
+   159→                <div class="text-white font-semibold text-lg">$${parseInt(offer.salary).toLocaleString()}</div>
+   160→              </div>
+   161→              <div>
+   162→                <div class="text-gray-400 text-sm">Start Date</div>
+   163→                <div class="text-white font-semibold">${offer.start_date ? new Date(offer.start_date).toLocaleDateString() : 'TBD'}</div>
+   164→              </div>
+   165→            </div>
+   166→
+   167→            <button onclick="viewOffer(${offer.id})" class="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition">
+   168→              <i class="fas fa-eye mr-2"></i>
+   169→              View Full Offer
+   170→            </button>
+   171→          </div>
+   172→        `).join('');
+   173→
+   174→        // Check if any offers accepted - show checklists
+   175→        if (offers.some(o => o.status === 'accepted')) {
+   176→          loadChecklists();
+   177→        }
+   178→      } catch (err) {
+   179→        console.error('Error loading offers:', err);
+   180→      }
+   181→    }
+   182→
+   183→    async function loadChecklists() {
+   184→      try {
+   185→        const res = await fetch('/api/onboarding/checklists', {
+   186→          headers: getAuthHeaders()
+   187→        });
+   188→        const checklists = await res.json();
+   189→
+   190→        if (checklists.length === 0) return;
+   191→
+   192→        document.getElementById('checklistsSection').classList.remove('hidden');
+   193→
+   194→        const checklistsList = document.getElementById('checklistsList');
+   195→        checklistsList.innerHTML = checklists.map(checklist => {
+   196→          const items = checklist.items || [];
+   197→          const completedItems = checklist.completed_items || [];
+   198→          const progress = items.length > 0 ? (completedItems.length / items.length * 100) : 0;
+   199→
+   200→          return `
+   201→            <div class="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+   202→              <div class="flex justify-between items-start mb-4">
+   203→                <div>
+   204→                  <h3 class="text-xl font-bold text-white mb-1">${checklist.title}</h3>
+   205→                  <p class="text-gray-400">${checklist.description || ''}</p>
+   206→                </div>
+   207→                <span class="text-sm text-gray-300">${completedItems.length}/${items.length} complete</span>
+   208→              </div>
+   209→
+   210→              <div class="mb-6">
+   211→                <div class="bg-gray-700 rounded-full h-3 overflow-hidden">
+   212→                  <div class="bg-gradient-to-r from-purple-500 to-pink-500 h-full transition-all" style="width: ${progress}%"></div>
+   213→                </div>
+   214→              </div>
+   215→
+   216→              <div class="space-y-3">
+   217→                ${items.map(item => `
+   218→                  <div class="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg">
+   219→                    <input
+   220→                      type="checkbox"
+   221→                      ${completedItems.includes(item.id) ? 'checked' : ''}
+   222→                      onchange="toggleChecklistItem(${checklist.id}, ${item.id})"
+   223→                      class="w-5 h-5 text-purple-600 rounded focus:ring-purple-500"
+   224→                    >
+   225→                    <span class="text-white ${completedItems.includes(item.id) ? 'line-through text-gray-500' : ''}">${item.task}</span>
+   226→                    ${item.required ? '<span class="ml-auto text-xs text-red-400">Required</span>' : ''}
+   227→                  </div>
+   228→                `).join('')}
+   229→              </div>
+   230→            </div>
+   231→          `;
+   232→        }).join('');
+   233→      } catch (err) {
+   234→        console.error('Error loading checklists:', err);
+   235→      }
+   236→    }
+   237→
+   238→    async function viewOffer(offerId) {
+   239→      try {
+   240→        const res = await fetch('/api/onboarding/offers/me', {
+   241→          headers: getAuthHeaders()
+   242→        });
+   243→        const offers = await res.json();
+   244→        currentOffer = offers.find(o => o.id === offerId);
+   245→
+   246→        if (!currentOffer) return;
+   247→
+   248→        // Mark as viewed
+   249→        await fetch(`/api/onboarding/offers/${offerId}/view`, {
+   250→          method: 'POST',
+   251→          headers: getAuthHeaders()
+   252→        });
+   253→
+   254→        const offerContent = document.getElementById('offerContent');
+   255→        offerContent.innerHTML = `
+   256→          <div class="text-center mb-6">
+   257→            <h3 class="text-2xl font-bold mb-2">${currentOffer.company_name}</h3>
+   258→            <h4 class="text-xl text-gray-600">Offer of Employment</h4>
+   259→          </div>
+   260→
+   261→          <div class="space-y-4">
+   262→            <p>Dear ${currentOffer.candidate_name || 'Candidate'},</p>
+   263→
+   264→            <p>We are pleased to offer you the position of <strong>${currentOffer.title}</strong> at ${currentOffer.company_name}.</p>
+   265→
+   266→            <div class="bg-gray-50 p-4 rounded-lg">
+   267→              <h5 class="font-bold mb-2">Compensation & Benefits</h5>
+   268→              <ul class="space-y-2">
+   269→                <li><strong>Annual Salary:</strong> $${parseInt(currentOffer.salary).toLocaleString()}</li>
+   270→                <li><strong>Start Date:</strong> ${currentOffer.start_date ? new Date(currentOffer.start_date).toLocaleDateString() : 'To be determined'}</li>
+   271→                ${currentOffer.benefits ? `<li><strong>Benefits:</strong> ${currentOffer.benefits}</li>` : ''}
+   272→              </ul>
+   273→            </div>
+   274→
+   275→            <p>We look forward to welcoming you to our team!</p>
+   276→
+   277→            <p class="text-sm text-gray-600 mt-6">
+   278→              This offer is contingent upon successful completion of background checks and verification of eligibility to work.
+   279→            </p>
+   280→          </div>
+   281→        `;
+   282→
+   283→        const offerActions = document.getElementById('offerActions');
+   284→        if (currentOffer.status === 'sent') {
+   285→          offerActions.innerHTML = `
+   286→            <button onclick="acceptOffer()" class="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition">
+   287→              <i class="fas fa-check mr-2"></i>
+   288→              Accept Offer
+   289→            </button>
+   290→            <button onclick="showDeclineReason()" class="flex-1 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-semibold transition">
+   291→              <i class="fas fa-times mr-2"></i>
+   292→              Decline Offer
+   293→            </button>
+   294→          `;
+   295→        } else if (currentOffer.status === 'accepted') {
+   296→          offerActions.innerHTML = `
+   297→            <div class="flex-1 text-center text-green-400">
+   298→              <i class="fas fa-check-circle mr-2"></i>
+   299→              You accepted this offer on ${new Date(currentOffer.accepted_at).toLocaleDateString()}
+   300→            </div>
+   301→          `;
+   302→        } else if (currentOffer.status === 'declined') {
+   303→          offerActions.innerHTML = `
+   304→            <div class="flex-1 text-center text-red-400">
+   305→              <i class="fas fa-times-circle mr-2"></i>
+   306→              You declined this offer on ${new Date(currentOffer.declined_at).toLocaleDateString()}
+   307→            </div>
+   308→          `;
+   309→        }
+   310→
+   311→        document.getElementById('offerModal').classList.remove('hidden');
+   312→        document.getElementById('offerModal').classList.add('flex');
+   313→      } catch (err) {
+   314→        console.error('Error viewing offer:', err);
+   315→      }
+   316→    }
+   317→
+   318→    async function acceptOffer() {
+   319→      if (!confirm('Accept this job offer?')) return;
+   320→
+   321→      try {
+   322→        const res = await fetch(`/api/onboarding/offers/${currentOffer.id}/accept`, {
+   323→          method: 'POST',
+   324→          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+   325→          body: JSON.stringify({ signature_url: 'digital_signature_placeholder' })
+   326→        });
+   327→
+   328→        if (!res.ok) throw new Error('Failed to accept offer');
+   329→
+   330→        alert('Congratulations! Offer accepted successfully.');
+   331→        closeOfferModal();
+   332→        loadOffers();
+   333→      } catch (err) {
+   334→        console.error('Error accepting offer:', err);
+   335→        alert('Failed to accept offer. Please try again.');
+   336→      }
+   337→    }
+   338→
+   339→    function showDeclineReason() {
+   340→      const reason = prompt('Please tell us why you are declining this offer (optional):');
+   341→      if (reason !== null) {
+   342→        declineOffer(reason);
+   343→      }
+   344→    }
+   345→
+   346→    async function declineOffer(reason) {
+   347→      try {
+   348→        const res = await fetch(`/api/onboarding/offers/${currentOffer.id}/decline`, {
+   349→          method: 'POST',
+   350→          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+   351→          body: JSON.stringify({ reason })
+   352→        });
+   353→
+   354→        if (!res.ok) throw new Error('Failed to decline offer');
+   355→
+   356→        alert('Offer declined.');
+   357→        closeOfferModal();
+   358→        loadOffers();
+   359→      } catch (err) {
+   360→        console.error('Error declining offer:', err);
+   361→        alert('Failed to decline offer. Please try again.');
+   362→      }
+   363→    }
+   364→
+   365→    async function toggleChecklistItem(checklistId, itemId) {
+   366→      try {
+   367→        const res = await fetch(`/api/onboarding/checklists/${checklistId}/complete`, {
+   368→          method: 'POST',
+   369→          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+   370→          body: JSON.stringify({ item_id: itemId })
+   371→        });
+   372→
+   373→        if (!res.ok) throw new Error('Failed to update checklist');
+   374→
+   375→        loadChecklists();
+   376→      } catch (err) {
+   377→        console.error('Error updating checklist:', err);
+   378→      }
+   379→    }
+   380→
+   381→    async function sendMessage() {
+   382→      const input = document.getElementById('chatInput');
+   383→      const message = input.value.trim();
+   384→      if (!message) return;
+   385→
+   386→      const messagesDiv = document.getElementById('chatMessages');
+   387→
+   388→      // Remove welcome message if present
+   389→      if (messagesDiv.querySelector('.text-center')) {
+   390→        messagesDiv.innerHTML = '';
+   391→      }
+   392→
+   393→      // Add user message
+   394→      messagesDiv.innerHTML += `
+   395→        <div class="flex justify-end">
+   396→          <div class="bg-purple-600 text-white rounded-lg px-4 py-2 max-w-xs">
+   397→            ${message}
+   398→          </div>
+   399→        </div>
+   400→      `;
+   401→
+   402→      input.value = '';
+   403→      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+   404→
+   405→      // Show loading
+   406→      messagesDiv.innerHTML += `
+   407→        <div class="flex justify-start">
+   408→          <div class="bg-slate-700 text-gray-300 rounded-lg px-4 py-2">
+   409→            <i class="fas fa-spinner fa-spin mr-2"></i>Thinking...
+   410→          </div>
+   411→        </div>
+   412→      `;
+   413→      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+   414→
+   415→      try {
+   416→        const res = await fetch('/api/onboarding/assistant/chat', {
+   417→          method: 'POST',
+   418→          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+   419→          body: JSON.stringify({ message, checklist_id: null })
+   420→        });
+   421→
+   422→        const data = await res.json();
+   423→        currentSession = data.session_id;
+   424→
+   425→        // Remove loading
+   426→        const loadingMsg = messagesDiv.querySelector('.fa-spinner').parentElement.parentElement;
+   427→        loadingMsg.remove();
+   428→
+   429→        // Add AI response
+   430→        messagesDiv.innerHTML += `
+   431→          <div class="flex justify-start">
+   432→            <div class="bg-slate-700 text-white rounded-lg px-4 py-2 max-w-md">
+   433→              ${data.response}
+   434→            </div>
+   435→          </div>
+   436→        `;
+   437→        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+   438→      } catch (err) {
+   439→        console.error('Error sending message:', err);
+   440→        messagesDiv.querySelector('.fa-spinner').parentElement.parentElement.remove();
+   441→        messagesDiv.innerHTML += `
+   442→          <div class="flex justify-start">
+   443→            <div class="bg-red-600 text-white rounded-lg px-4 py-2">
+   444→              Sorry, I'm having trouble connecting. Please try again.
+   445→            </div>
+   446→          </div>
+   447→        `;
+   448→      }
+   449→    }
+   450→
+   451→    function closeOfferModal() {
+   452→      document.getElementById('offerModal').classList.add('hidden');
+   453→      document.getElementById('offerModal').classList.remove('flex');
+   454→    }
+   455→
+   456→    function getOfferStatusBadge(status) {
+   457→      const badges = {
+   458→        draft: '<span class="px-3 py-1 bg-gray-600 text-white text-xs rounded-full">Draft</span>',
+   459→        sent: '<span class="px-3 py-1 bg-yellow-600 text-white text-xs rounded-full">Pending Response</span>',
+   460→        accepted: '<span class="px-3 py-1 bg-green-600 text-white text-xs rounded-full">Accepted</span>',
+   461→        declined: '<span class="px-3 py-1 bg-red-600 text-white text-xs rounded-full">Declined</span>'
+   462→      };
+   463→      return badges[status] || badges.draft;
+   464→    }
+   465→
+   466→    loadOffers();
+   467→  </script>
+   468→</body>
+   469→</html>
+   470→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
