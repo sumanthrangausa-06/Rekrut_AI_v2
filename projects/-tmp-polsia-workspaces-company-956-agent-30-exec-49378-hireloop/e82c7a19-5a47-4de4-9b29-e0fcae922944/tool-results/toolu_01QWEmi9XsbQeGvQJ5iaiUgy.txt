@@ -1,0 +1,787 @@
+     1→const express = require('express');
+     2→const pool = require('../lib/db');
+     3→const { authMiddleware } = require('../lib/auth');
+     4→const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching } = require('../lib/polsia-ai');
+     5→const omniscoreService = require('../services/omniscore');
+     6→const multer = require('multer');
+     7→const fetch = require('node-fetch');
+     8→const FormData = require('form-data');
+     9→
+    10→const router = express.Router();
+    11→const upload = multer({ storage: multer.memoryStorage() });
+    12→
+    13→// Start a new interview
+    14→router.post('/start', authMiddleware, async (req, res) => {
+    15→  try {
+    16→    const { job_id, job_title, job_description, interview_type = 'mock' } = req.body;
+    17→
+    18→    // Generate questions using AI
+    19→    const questions = await generateInterviewQuestions(
+    20→      job_title || 'Software Developer',
+    21→      job_description,
+    22→      5
+    23→    );
+    24→
+    25→    // Create interview record
+    26→    const result = await pool.query(
+    27→      `INSERT INTO interviews (user_id, job_id, interview_type, questions, status)
+    28→       VALUES ($1, $2, $3, $4, 'in_progress')
+    29→       RETURNING *`,
+    30→      [req.user.id, job_id, interview_type, JSON.stringify(questions)]
+    31→    );
+    32→
+    33→    // Track mock interview start
+    34→    try {
+    35→      await pool.query(
+    36→        'INSERT INTO events (event_type, user_id, metadata) VALUES ($1, $2, $3)',
+    37→        ['mock_interview_start', req.user.id, JSON.stringify({ interview_type, job_id })]
+    38→      );
+    39→    } catch (e) {
+    40→      console.error('Failed to log interview start event:', e);
+    41→    }
+    42→
+    43→    res.json({
+    44→      success: true,
+    45→      interview: result.rows[0],
+    46→      questions: questions.map((q, i) => ({
+    47→        index: i,
+    48→        question: q.question,
+    49→        category: q.category,
+    50→        difficulty: q.difficulty
+    51→      }))
+    52→    });
+    53→  } catch (err) {
+    54→    console.error('Start interview error:', err);
+    55→    res.status(500).json({ error: 'Failed to start interview' });
+    56→  }
+    57→});
+    58→
+    59→// Submit response to a question
+    60→router.post('/:id/respond', authMiddleware, async (req, res) => {
+    61→  try {
+    62→    const { question_index, response_text, video_url } = req.body;
+    63→
+    64→    // Get interview
+    65→    const interview = await pool.query(
+    66→      'SELECT * FROM interviews WHERE id = $1 AND user_id = $2',
+    67→      [req.params.id, req.user.id]
+    68→    );
+    69→
+    70→    if (interview.rows.length === 0) {
+    71→      return res.status(404).json({ error: 'Interview not found' });
+    72→    }
+    73→
+    74→    const interviewData = interview.rows[0];
+    75→    const questions = interviewData.questions;
+    76→    const question = questions[question_index];
+    77→
+    78→    if (!question) {
+    79→      return res.status(400).json({ error: 'Invalid question index' });
+    80→    }
+    81→
+    82→    // Analyze response with AI
+    83→    const analysis = await analyzeInterviewResponse(
+    84→      question.question,
+    85→      response_text,
+    86→      question.key_points || [],
+    87→      { subscriptionId: req.user.stripe_subscription_id }
+    88→    );
+    89→
+    90→    // Update responses array
+    91→    const responses = interviewData.responses || [];
+    92→    responses[question_index] = {
+    93→      question_index,
+    94→      response_text,
+    95→      video_url,
+    96→      analysis,
+    97→      submitted_at: new Date().toISOString()
+    98→    };
+    99→
+   100→    // Update video URLs if provided
+   101→    const videoUrls = interviewData.video_urls || [];
+   102→    if (video_url) {
+   103→      videoUrls[question_index] = video_url;
+   104→    }
+   105→
+   106→    await pool.query(
+   107→      `UPDATE interviews SET responses = $1, video_urls = $2, updated_at = NOW()
+   108→       WHERE id = $3`,
+   109→      [JSON.stringify(responses), JSON.stringify(videoUrls), req.params.id]
+   110→    );
+   111→
+   112→    res.json({
+   113→      success: true,
+   114→      analysis,
+   115→      questions_remaining: questions.length - responses.filter(r => r).length
+   116→    });
+   117→  } catch (err) {
+   118→    console.error('Submit response error:', err);
+   119→    res.status(500).json({ error: 'Failed to submit response' });
+   120→  }
+   121→});
+   122→
+   123→// Complete interview and get overall feedback
+   124→router.post('/:id/complete', authMiddleware, async (req, res) => {
+   125→  try {
+   126→    const interview = await pool.query(
+   127→      'SELECT * FROM interviews WHERE id = $1 AND user_id = $2',
+   128→      [req.params.id, req.user.id]
+   129→    );
+   130→
+   131→    if (interview.rows.length === 0) {
+   132→      return res.status(404).json({ error: 'Interview not found' });
+   133→    }
+   134→
+   135→    const interviewData = interview.rows[0];
+   136→    const responses = interviewData.responses || [];
+   137→    const validResponses = responses.filter(r => r && r.analysis);
+   138→
+   139→    if (validResponses.length === 0) {
+   140→      return res.status(400).json({ error: 'No responses to evaluate' });
+   141→    }
+   142→
+   143→    // Generate overall feedback
+   144→    const overallFeedback = await generateOverallFeedback(
+   145→      validResponses.map(r => r.analysis),
+   146→      { subscriptionId: req.user.stripe_subscription_id }
+   147→    );
+   148→
+   149→    // Calculate duration
+   150→    const startTime = new Date(interviewData.created_at);
+   151→    const duration = Math.floor((Date.now() - startTime.getTime()) / 1000);
+   152→
+   153→    // Update interview record
+   154→    await pool.query(
+   155→      `UPDATE interviews SET
+   156→        status = 'completed',
+   157→        ai_feedback = $1,
+   158→        overall_score = $2,
+   159→        duration_seconds = $3,
+   160→        completed_at = NOW()
+   161→       WHERE id = $4`,
+   162→      [JSON.stringify(overallFeedback), overallFeedback.overall_score, duration, req.params.id]
+   163→    );
+   164→
+   165→    // Update OmniScore with interview results
+   166→    let omniscoreUpdate = null;
+   167→    try {
+   168→      omniscoreUpdate = await omniscoreService.addInterviewComponent(
+   169→        req.user.id,
+   170→        req.params.id,
+   171→        overallFeedback.overall_score
+   172→      );
+   173→
+   174→      // Update role-specific score if job title is available
+   175→      if (interviewData.job_id) {
+   176→        const job = await pool.query('SELECT title FROM jobs WHERE id = $1', [interviewData.job_id]);
+   177→        if (job.rows.length > 0) {
+   178→          await omniscoreService.updateRoleScore(
+   179→            req.user.id,
+   180→            job.rows[0].title,
+   181→            overallFeedback.overall_score
+   182→          );
+   183→        }
+   184→      }
+   185→    } catch (scoreErr) {
+   186→      console.error('OmniScore update error:', scoreErr);
+   187→      // Don't fail the request if OmniScore update fails
+   188→    }
+   189→
+   190→    res.json({
+   191→      success: true,
+   192→      overall_feedback: overallFeedback,
+   193→      duration_seconds: duration,
+   194→      response_count: validResponses.length,
+   195→      omniscore: omniscoreUpdate
+   196→    });
+   197→  } catch (err) {
+   198→    console.error('Complete interview error:', err);
+   199→    res.status(500).json({ error: 'Failed to complete interview' });
+   200→  }
+   201→});
+   202→
+   203→// Get interview history
+   204→router.get('/history', authMiddleware, async (req, res) => {
+   205→  try {
+   206→    const { limit = 10, offset = 0 } = req.query;
+   207→
+   208→    const result = await pool.query(
+   209→      `SELECT i.*, j.title as job_title, j.company as job_company
+   210→       FROM interviews i
+   211→       LEFT JOIN jobs j ON i.job_id = j.id
+   212→       WHERE i.user_id = $1
+   213→       ORDER BY i.created_at DESC
+   214→       LIMIT $2 OFFSET $3`,
+   215→      [req.user.id, limit, offset]
+   216→    );
+   217→
+   218→    res.json({ interviews: result.rows });
+   219→  } catch (err) {
+   220→    console.error('Get history error:', err);
+   221→    res.status(500).json({ error: 'Failed to fetch history' });
+   222→  }
+   223→});
+   224→
+   225→// Get interview details
+   226→router.get('/:id', authMiddleware, async (req, res) => {
+   227→  try {
+   228→    const result = await pool.query(
+   229→      `SELECT i.*, j.title as job_title, j.company as job_company
+   230→       FROM interviews i
+   231→       LEFT JOIN jobs j ON i.job_id = j.id
+   232→       WHERE i.id = $1 AND i.user_id = $2`,
+   233→      [req.params.id, req.user.id]
+   234→    );
+   235→
+   236→    if (result.rows.length === 0) {
+   237→      return res.status(404).json({ error: 'Interview not found' });
+   238→    }
+   239→
+   240→    res.json({ interview: result.rows[0] });
+   241→  } catch (err) {
+   242→    console.error('Get interview error:', err);
+   243→    res.status(500).json({ error: 'Failed to fetch interview' });
+   244→  }
+   245→});
+   246→
+   247→// Upload video for interview response
+   248→router.post('/upload-video', authMiddleware, upload.single('video'), async (req, res) => {
+   249→  try {
+   250→    if (!req.file) {
+   251→      return res.status(400).json({ error: 'No video file provided' });
+   252→    }
+   253→
+   254→    const { interview_id, question_index } = req.body;
+   255→
+   256→    if (!interview_id || question_index === undefined) {
+   257→      return res.status(400).json({ error: 'Missing interview_id or question_index' });
+   258→    }
+   259→
+   260→    // Verify interview belongs to user
+   261→    const interview = await pool.query(
+   262→      'SELECT * FROM interviews WHERE id = $1 AND user_id = $2',
+   263→      [interview_id, req.user.id]
+   264→    );
+   265→
+   266→    if (interview.rows.length === 0) {
+   267→      return res.status(404).json({ error: 'Interview not found' });
+   268→    }
+   269→
+   270→    // Upload to R2
+   271→    const formData = new FormData();
+   272→    formData.append('file', req.file.buffer, {
+   273→      filename: `interview-${interview_id}-q${question_index}.webm`,
+   274→      contentType: req.file.mimetype
+   275→    });
+   276→
+   277→    const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
+   278→      method: 'POST',
+   279→      headers: {
+   280→        'Authorization': `Bearer ${process.env.POLSIA_API_KEY}`,
+   281→        ...formData.getHeaders()
+   282→      },
+   283→      body: formData
+   284→    });
+   285→
+   286→    const result = await uploadRes.json();
+   287→
+   288→    if (!result.success) {
+   289→      console.error('R2 upload error:', result.error);
+   290→      return res.status(500).json({ error: 'Failed to upload video' });
+   291→    }
+   292→
+   293→    res.json({
+   294→      success: true,
+   295→      video_url: result.file.url
+   296→    });
+   297→  } catch (err) {
+   298→    console.error('Upload video error:', err);
+   299→    res.status(500).json({ error: 'Failed to upload video' });
+   300→  }
+   301→});
+   302→
+   303→// Get stats for dashboard
+   304→router.get('/stats/summary', authMiddleware, async (req, res) => {
+   305→  try {
+   306→    const stats = await pool.query(
+   307→      `SELECT
+   308→        COUNT(*) as total_interviews,
+   309→        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+   310→        AVG(CASE WHEN overall_score IS NOT NULL THEN overall_score END) as avg_score,
+   311→        MAX(overall_score) as best_score
+   312→       FROM interviews
+   313→       WHERE user_id = $1`,
+   314→      [req.user.id]
+   315→    );
+   316→
+   317→    const recentScores = await pool.query(
+   318→      `SELECT overall_score, created_at
+   319→       FROM interviews
+   320→       WHERE user_id = $1 AND status = 'completed' AND overall_score IS NOT NULL
+   321→       ORDER BY created_at DESC
+   322→       LIMIT 10`,
+   323→      [req.user.id]
+   324→    );
+   325→
+   326→    res.json({
+   327→      stats: stats.rows[0],
+   328→      recent_scores: recentScores.rows
+   329→    });
+   330→  } catch (err) {
+   331→    console.error('Get stats error:', err);
+   332→    res.status(500).json({ error: 'Failed to fetch stats' });
+   333→  }
+   334→});
+   335→
+   336→// =============== INTERVIEW PRACTICE & COACHING ===============
+   337→
+   338→// Get practice question library
+   339→router.get('/practice/library', authMiddleware, async (req, res) => {
+   340→  try {
+   341→    // Predefined question library organized by category
+   342→    const questionLibrary = [
+   343→      // Behavioral Questions
+   344→      {
+   345→        id: 'beh-1',
+   346→        category: 'behavioral',
+   347→        difficulty: 'Medium',
+   348→        question: 'Tell me about a time when you had to deal with a difficult team member. How did you handle it?',
+   349→        key_points: ['Conflict resolution', 'Communication skills', 'Team dynamics', 'Professional approach']
+   350→      },
+   351→      {
+   352→        id: 'beh-2',
+   353→        category: 'behavioral',
+   354→        difficulty: 'Medium',
+   355→        question: 'Describe a situation where you failed at something. What did you learn from it?',
+   356→        key_points: ['Self-awareness', 'Learning from mistakes', 'Growth mindset', 'Accountability']
+   357→      },
+   358→      {
+   359→        id: 'beh-3',
+   360→        category: 'behavioral',
+   361→        difficulty: 'Hard',
+   362→        question: 'Tell me about a time when you had to make a difficult decision with incomplete information.',
+   363→        key_points: ['Decision-making', 'Risk assessment', 'Critical thinking', 'Taking initiative']
+   364→      },
+   365→      {
+   366→        id: 'beh-4',
+   367→        category: 'behavioral',
+   368→        difficulty: 'Easy',
+   369→        question: 'What motivates you to come to work every day?',
+   370→        key_points: ['Passion', 'Career goals', 'Work ethic', 'Cultural fit']
+   371→      },
+   372→      {
+   373→        id: 'beh-5',
+   374→        category: 'behavioral',
+   375→        difficulty: 'Medium',
+   376→        question: 'Describe a time when you went above and beyond your job responsibilities.',
+   377→        key_points: ['Initiative', 'Dedication', 'Problem-solving', 'Impact']
+   378→      },
+   379→
+   380→      // Technical Questions
+   381→      {
+   382→        id: 'tech-1',
+   383→        category: 'technical',
+   384→        difficulty: 'Medium',
+   385→        question: 'Walk me through how you would approach debugging a critical production issue.',
+   386→        key_points: ['Systematic approach', 'Problem-solving', 'Communication', 'Technical knowledge']
+   387→      },
+   388→      {
+   389→        id: 'tech-2',
+   390→        category: 'technical',
+   391→        difficulty: 'Hard',
+   392→        question: 'How would you design a system to handle 1 million concurrent users?',
+   393→        key_points: ['Scalability', 'Architecture', 'Trade-offs', 'Technical depth']
+   394→      },
+   395→      {
+   396→        id: 'tech-3',
+   397→        category: 'technical',
+   398→        difficulty: 'Medium',
+   399→        question: 'Explain a complex technical concept to someone without a technical background.',
+   400→        key_points: ['Communication', 'Simplification', 'Analogies', 'Clarity']
+   401→      },
+   402→      {
+   403→        id: 'tech-4',
+   404→        category: 'technical',
+   405→        difficulty: 'Easy',
+   406→        question: 'What are your favorite tools or technologies, and why?',
+   407→        key_points: ['Technical passion', 'Learning', 'Practical experience', 'Reasoning']
+   408→      },
+   409→
+   410→      // Situational Questions
+   411→      {
+   412→        id: 'sit-1',
+   413→        category: 'situational',
+   414→        difficulty: 'Medium',
+   415→        question: 'If you were given a project with an impossible deadline, how would you handle it?',
+   416→        key_points: ['Time management', 'Communication', 'Prioritization', 'Stakeholder management']
+   417→      },
+   418→      {
+   419→        id: 'sit-2',
+   420→        category: 'situational',
+   421→        difficulty: 'Hard',
+   422→        question: 'You discover your manager is making a decision you strongly disagree with. What do you do?',
+   423→        key_points: ['Professional disagreement', 'Communication', 'Respect', 'Problem-solving']
+   424→      },
+   425→      {
+   426→        id: 'sit-3',
+   427→        category: 'situational',
+   428→        difficulty: 'Medium',
+   429→        question: 'How would you handle a situation where you need to learn a new technology quickly?',
+   430→        key_points: ['Learning agility', 'Resourcefulness', 'Time management', 'Adaptability']
+   431→      },
+   432→      {
+   433→        id: 'sit-4',
+   434→        category: 'situational',
+   435→        difficulty: 'Easy',
+   436→        question: 'What would you do if you noticed a coworker was struggling with their workload?',
+   437→        key_points: ['Teamwork', 'Empathy', 'Communication', 'Collaboration']
+   438→      }
+   439→    ];
+   440→
+   441→    // Get user's practice history for this question
+   442→    const practiceHistory = await pool.query(
+   443→      `SELECT question_id, COUNT(*) as times_practiced,
+   444→              MAX(score) as best_score,
+   445→              AVG(score) as avg_score,
+   446→              MAX(created_at) as last_practiced
+   447→       FROM practice_sessions
+   448→       WHERE user_id = $1
+   449→       GROUP BY question_id`,
+   450→      [req.user.id]
+   451→    );
+   452→
+   453→    const historyMap = {};
+   454→    practiceHistory.rows.forEach(row => {
+   455→      historyMap[row.question_id] = {
+   456→        times_practiced: parseInt(row.times_practiced),
+   457→        last_score: row.best_score,
+   458→        avg_score: parseFloat(row.avg_score),
+   459→        last_practiced: row.last_practiced
+   460→      };
+   461→    });
+   462→
+   463→    // Enrich questions with user's practice data
+   464→    const enrichedQuestions = questionLibrary.map(q => ({
+   465→      ...q,
+   466→      times_practiced: historyMap[q.id]?.times_practiced || 0,
+   467→      last_score: historyMap[q.id]?.last_score || null,
+   468→      avg_score: historyMap[q.id]?.avg_score || null,
+   469→      last_practiced: historyMap[q.id]?.last_practiced || null
+   470→    }));
+   471→
+   472→    res.json({
+   473→      success: true,
+   474→      questions: enrichedQuestions
+   475→    });
+   476→  } catch (err) {
+   477→    console.error('Get practice library error:', err);
+   478→    res.status(500).json({ error: 'Failed to fetch question library' });
+   479→  }
+   480→});
+   481→
+   482→// Submit practice response and get AI coaching
+   483→router.post('/practice/submit', authMiddleware, async (req, res) => {
+   484→  try {
+   485→    const { question_id, question, category, response_text } = req.body;
+   486→
+   487→    if (!response_text || response_text.trim().length < 50) {
+   488→      return res.status(400).json({ error: 'Response must be at least 50 characters' });
+   489→    }
+   490→
+   491→    // First, analyze the response
+   492→    const analysis = await analyzeInterviewResponse(
+   493→      question,
+   494→      response_text,
+   495→      [], // key_points not needed for practice
+   496→      { subscriptionId: req.user.stripe_subscription_id }
+   497→    );
+   498→
+   499→    // Then, generate detailed coaching
+   500→    const coaching = await generateInterviewCoaching(
+   501→      question,
+   502→      response_text,
+   503→      analysis,
+   504→      { subscriptionId: req.user.stripe_subscription_id }
+   505→    );
+   506→
+   507→    // Combine analysis and coaching
+   508→    const fullCoaching = {
+   509→      score: analysis.score,
+   510→      strengths: analysis.strengths,
+   511→      improvements: analysis.improvements,
+   512→      ...coaching
+   513→    };
+   514→
+   515→    // Save practice session
+   516→    await pool.query(
+   517→      `INSERT INTO practice_sessions
+   518→       (user_id, question_id, question, category, response_text, score, coaching_data, created_at)
+   519→       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+   520→      [
+   521→        req.user.id,
+   522→        question_id,
+   523→        question,
+   524→        category,
+   525→        response_text,
+   526→        analysis.score,
+   527→        JSON.stringify(fullCoaching)
+   528→      ]
+   529→    );
+   530→
+   531→    res.json({
+   532→      success: true,
+   533→      coaching: fullCoaching
+   534→    });
+   535→  } catch (err) {
+   536→    console.error('Submit practice response error:', err);
+   537→    res.status(500).json({ error: 'Failed to analyze response' });
+   538→  }
+   539→});
+   540→
+   541→// Get practice statistics
+   542→router.get('/practice/stats', authMiddleware, async (req, res) => {
+   543→  try {
+   544→    const stats = await pool.query(
+   545→      `SELECT
+   546→        COUNT(*) as total_questions,
+   547→        AVG(score) as average_score,
+   548→        MAX(created_at) as last_practice
+   549→       FROM practice_sessions
+   550→       WHERE user_id = $1`,
+   551→      [req.user.id]
+   552→    );
+   553→
+   554→    // Calculate improvement (compare first half vs second half of sessions)
+   555→    const improvement = await pool.query(
+   556→      `WITH ordered_sessions AS (
+   557→        SELECT score, ROW_NUMBER() OVER (ORDER BY created_at) as rn,
+   558→               COUNT(*) OVER () as total
+   559→        FROM practice_sessions
+   560→        WHERE user_id = $1
+   561→      )
+   562→      SELECT
+   563→        AVG(CASE WHEN rn <= total/2 THEN score END) as first_half_avg,
+   564→        AVG(CASE WHEN rn > total/2 THEN score END) as second_half_avg
+   565→      FROM ordered_sessions`,
+   566→      [req.user.id]
+   567→    );
+   568→
+   569→    let improvementPercent = null;
+   570→    if (improvement.rows[0].first_half_avg && improvement.rows[0].second_half_avg) {
+   571→      const firstHalf = parseFloat(improvement.rows[0].first_half_avg);
+   572→      const secondHalf = parseFloat(improvement.rows[0].second_half_avg);
+   573→      improvementPercent = ((secondHalf - firstHalf) / firstHalf) * 100;
+   574→    }
+   575→
+   576→    // Calculate day streak
+   577→    const streakResult = await pool.query(
+   578→      `WITH RECURSIVE date_series AS (
+   579→        SELECT CURRENT_DATE::date as check_date, 0 as days_back
+   580→        UNION ALL
+   581→        SELECT (check_date - INTERVAL '1 day')::date, days_back + 1
+   582→        FROM date_series
+   583→        WHERE days_back < 30
+   584→      )
+   585→      SELECT COUNT(*) as streak
+   586→      FROM date_series d
+   587→      WHERE EXISTS (
+   588→        SELECT 1 FROM practice_sessions
+   589→        WHERE user_id = $1 AND DATE(created_at) = d.check_date
+   590→      )
+   591→      AND d.check_date <= CURRENT_DATE
+   592→      AND NOT EXISTS (
+   593→        SELECT 1 FROM date_series d2
+   594→        WHERE d2.check_date > d.check_date
+   595→        AND d2.check_date <= CURRENT_DATE
+   596→        AND NOT EXISTS (
+   597→          SELECT 1 FROM practice_sessions
+   598→          WHERE user_id = $1 AND DATE(created_at) = d2.check_date
+   599→        )
+   600→      )`,
+   601→      [req.user.id]
+   602→    );
+   603→
+   604→    res.json({
+   605→      success: true,
+   606→      stats: {
+   607→        total_questions: parseInt(stats.rows[0].total_questions) || 0,
+   608→        average_score: parseFloat(stats.rows[0].average_score) || null,
+   609→        improvement: improvementPercent,
+   610→        day_streak: parseInt(streakResult.rows[0].streak) || 0,
+   611→        last_practice: stats.rows[0].last_practice
+   612→      }
+   613→    });
+   614→  } catch (err) {
+   615→    console.error('Get practice stats error:', err);
+   616→    res.status(500).json({ error: 'Failed to fetch statistics' });
+   617→  }
+   618→});
+   619→
+   620→// Get practice progress dashboard
+   621→router.get('/practice/progress', authMiddleware, async (req, res) => {
+   622→  try {
+   623→    // Progress by category
+   624→    const byCategory = await pool.query(
+   625→      `SELECT
+   626→        category,
+   627→        COUNT(*) as count,
+   628→        AVG(score) as average_score
+   629→       FROM practice_sessions
+   630→       WHERE user_id = $1
+   631→       GROUP BY category
+   632→       ORDER BY average_score DESC`,
+   633→      [req.user.id]
+   634→    );
+   635→
+   636→    // Recent practice sessions
+   637→    const recentSessions = await pool.query(
+   638→      `SELECT
+   639→        question,
+   640→        category,
+   641→        score,
+   642→        coaching_data->>'improvements' as improvements,
+   643→        created_at
+   644→       FROM practice_sessions
+   645→       WHERE user_id = $1
+   646→       ORDER BY created_at DESC
+   647→       LIMIT 10`,
+   648→      [req.user.id]
+   649→    );
+   650→
+   651→    // Parse improvements JSON string
+   652→    const sessionsWithParsedData = recentSessions.rows.map(row => {
+   653→      let improvements = [];
+   654→      try {
+   655→        if (row.improvements) {
+   656→          improvements = JSON.parse(row.improvements);
+   657→        }
+   658→      } catch (e) {
+   659→        console.error('Failed to parse improvements:', e);
+   660→      }
+   661→
+   662→      return {
+   663→        question: row.question,
+   664→        category: row.category,
+   665→        score: row.score,
+   666→        improvements,
+   667→        created_at: row.created_at
+   668→      };
+   669→    });
+   670→
+   671→    res.json({
+   672→      success: true,
+   673→      progress: {
+   674→        by_category: byCategory.rows,
+   675→        recent_sessions: sessionsWithParsedData
+   676→      }
+   677→    });
+   678→  } catch (err) {
+   679→    console.error('Get practice progress error:', err);
+   680→    res.status(500).json({ error: 'Failed to fetch progress' });
+   681→  }
+   682→});
+   683→
+   684→// =============== VIDEO ANALYSIS ===============
+   685→
+   686→// Save video analysis data
+   687→router.post('/save-analysis', authMiddleware, async (req, res) => {
+   688→  try {
+   689→    const { interview_id, question_index, analysis_data, scores } = req.body;
+   690→
+   691→    // Verify interview belongs to user
+   692→    const interview = await pool.query(
+   693→      'SELECT * FROM interviews WHERE id = $1 AND user_id = $2',
+   694→      [interview_id, req.user.id]
+   695→    );
+   696→
+   697→    if (interview.rows.length === 0) {
+   698→      return res.status(404).json({ error: 'Interview not found' });
+   699→    }
+   700→
+   701→    // Insert or update analysis
+   702→    await pool.query(
+   703→      `INSERT INTO interview_analysis (
+   704→        interview_id, question_index, analysis_data,
+   705→        eye_contact_score, expression_score, body_language_score,
+   706→        voice_score, presentation_score
+   707→      )
+   708→      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+   709→      ON CONFLICT (interview_id, question_index)
+   710→      DO UPDATE SET
+   711→        analysis_data = $3,
+   712→        eye_contact_score = $4,
+   713→        expression_score = $5,
+   714→        body_language_score = $6,
+   715→        voice_score = $7,
+   716→        presentation_score = $8`,
+   717→      [
+   718→        interview_id,
+   719→        question_index,
+   720→        JSON.stringify(analysis_data),
+   721→        scores.eyeContact || 0,
+   722→        scores.expression || 0,
+   723→        scores.bodyLanguage || 0,
+   724→        scores.voice || 0,
+   725→        scores.presentation || 0
+   726→      ]
+   727→    );
+   728→
+   729→    res.json({ success: true });
+   730→  } catch (err) {
+   731→    console.error('Save analysis error:', err);
+   732→    res.status(500).json({ error: 'Failed to save analysis' });
+   733→  }
+   734→});
+   735→
+   736→// Get video analysis for an interview
+   737→router.get('/:id/analysis', authMiddleware, async (req, res) => {
+   738→  try {
+   739→    // Verify interview belongs to user
+   740→    const interview = await pool.query(
+   741→      'SELECT * FROM interviews WHERE id = $1 AND user_id = $2',
+   742→      [req.params.id, req.user.id]
+   743→    );
+   744→
+   745→    if (interview.rows.length === 0) {
+   746→      return res.status(404).json({ error: 'Interview not found' });
+   747→    }
+   748→
+   749→    // Get all analysis data for this interview
+   750→    const analysis = await pool.query(
+   751→      `SELECT * FROM interview_analysis
+   752→       WHERE interview_id = $1
+   753→       ORDER BY question_index ASC`,
+   754→      [req.params.id]
+   755→    );
+   756→
+   757→    // Calculate aggregate presentation score for OmniScore
+   758→    let avgPresentationScore = null;
+   759→    if (analysis.rows.length > 0) {
+   760→      const scores = analysis.rows.map(row => parseFloat(row.presentation_score || 0));
+   761→      avgPresentationScore = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+   762→    }
+   763→
+   764→    res.json({
+   765→      success: true,
+   766→      interview: interview.rows[0],
+   767→      analysis: analysis.rows.map(row => ({
+   768→        ...row,
+   769→        analysis_data: typeof row.analysis_data === 'string'
+   770→          ? JSON.parse(row.analysis_data)
+   771→          : row.analysis_data
+   772→      })),
+   773→      aggregate_scores: {
+   774→        presentation: avgPresentationScore
+   775→      }
+   776→    });
+   777→  } catch (err) {
+   778→    console.error('Get analysis error:', err);
+   779→    res.status(500).json({ error: 'Failed to fetch analysis' });
+   780→  }
+   781→});
+   782→
+   783→module.exports = router;
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
