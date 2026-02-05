@@ -413,9 +413,10 @@
         return;
       }
 
-      // Verify recruiter role
-      if (!user.company_id && user.role !== 'recruiter') {
-        window.location.href = '/dashboard.html';
+      // Verify employer/recruiter role - payroll requires employer-side access
+      const allowedRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+      if (!user.company_id || !allowedRoles.includes(user.role)) {
+        window.location.href = '/candidate-dashboard.html';
         return;
       }
 

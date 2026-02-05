@@ -140,21 +140,72 @@
   </div>
 
   <script>
+    const TOKEN_KEY = 'rekrutai_token';
     let offersData = [];
     let candidatesData = [];
     let jobsData = [];
 
+    function getToken() {
+      return localStorage.getItem(TOKEN_KEY);
+    }
+
+    async function checkAuth() {
+      const token = getToken();
+      if (!token) {
+        window.location.href = '/login.html';
+        return null;
+      }
+
+      try {
+        const response = await fetch('/api/auth/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+          window.location.href = '/login.html';
+          return null;
+        }
+
+        return await response.json();
+      } catch (err) {
+        console.error('Auth check failed:', err);
+        window.location.href = '/login.html';
+        return null;
+      }
+    }
+
     async function loadData() {
+      const token = getToken();
+      if (!token) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      const headers = { 'Authorization': `Bearer ${token}` };
+
       try {
         const [offersRes, candidatesRes, jobsRes] = await Promise.all([
-          fetch('/api/onboarding/offers'),
-          fetch('/api/recruiter/candidates'),
-          fetch('/api/jobs')
+          fetch('/api/onboarding/offers', { headers }),
+          fetch('/api/recruiter/candidates', { headers }),
+          fetch('/api/jobs', { headers })
         ]);
 
-        offersData = await offersRes.json();
-        candidatesData = await candidatesRes.json();
-        jobsData = await jobsRes.json();
+        if (!offersRes.ok || !candidatesRes.ok || !jobsRes.ok) {
+          console.error('API error - offers:', offersRes.status, 'candidates:', candidatesRes.status, 'jobs:', jobsRes.status);
+          if (offersRes.status === 401 || candidatesRes.status === 401) {
+            window.location.href = '/login.html';
+            return;
+          }
+        }
+
+        const offersJson = await offersRes.json();
+        const candidatesJson = await candidatesRes.json();
+        const jobsJson = await jobsRes.json();
+
+        // Handle both array and object responses
+        offersData = Array.isArray(offersJson) ? offersJson : (offersJson.offers || []);
+        candidatesData = Array.isArray(candidatesJson) ? candidatesJson : (candidatesJson.candidates || []);
+        jobsData = Array.isArray(jobsJson) ? jobsJson : (jobsJson.jobs || []);
 
         renderOffers();
         updateStats();
@@ -265,7 +316,10 @@
       try {
         const res = await fetch('/api/onboarding/offers', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getToken()}`
+          },
           body: JSON.stringify(formData)
         });
 
@@ -294,7 +348,10 @@
 
       try {
         const res = await fetch(`/api/onboarding/offers/${offerId}/send`, {
-          method: 'POST'
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${getToken()}`
+          }
         });
 
         if (!res.ok) throw new Error('Failed to send offer');
@@ -307,7 +364,20 @@
       }
     }
 
-    loadData();
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', async () => {
+      const authData = await checkAuth();
+      if (!authData) return;
+
+      // Verify recruiter role
+      const user = authData.user;
+      if (!user.company_id && !['recruiter', 'hiring_manager', 'admin'].includes(user.role)) {
+        window.location.href = '/candidate-dashboard.html';
+        return;
+      }
+
+      loadData();
+    });
   </script>
 </body>
 </html>

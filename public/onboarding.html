@@ -93,12 +93,42 @@
   </div>
 
   <script>
+    const TOKEN_KEY = 'rekrutai_token';
     let currentOffer = null;
     let currentSession = null;
 
+    function getToken() {
+      return localStorage.getItem(TOKEN_KEY);
+    }
+
+    function getAuthHeaders() {
+      const token = getToken();
+      return token ? { 'Authorization': `Bearer ${token}` } : {};
+    }
+
+    async function checkAuth() {
+      const token = getToken();
+      if (!token) {
+        window.location.href = '/login.html';
+        return false;
+      }
+      return true;
+    }
+
     async function loadOffers() {
+      if (!await checkAuth()) return;
+
       try {
-        const res = await fetch('/api/onboarding/offers/me');
+        const res = await fetch('/api/onboarding/offers/me', {
+          headers: getAuthHeaders()
+        });
+        if (!res.ok) {
+          if (res.status === 401) {
+            window.location.href = '/login.html';
+            return;
+          }
+          throw new Error('Failed to load offers');
+        }
         const offers = await res.json();
 
         const offersList = document.getElementById('offersList');
@@ -152,7 +182,9 @@
 
     async function loadChecklists() {
       try {
-        const res = await fetch('/api/onboarding/checklists');
+        const res = await fetch('/api/onboarding/checklists', {
+          headers: getAuthHeaders()
+        });
         const checklists = await res.json();
 
         if (checklists.length === 0) return;
@@ -205,14 +237,19 @@
 
     async function viewOffer(offerId) {
       try {
-        const res = await fetch('/api/onboarding/offers/me');
+        const res = await fetch('/api/onboarding/offers/me', {
+          headers: getAuthHeaders()
+        });
         const offers = await res.json();
         currentOffer = offers.find(o => o.id === offerId);
 
         if (!currentOffer) return;
 
         // Mark as viewed
-        await fetch(`/api/onboarding/offers/${offerId}/view`, { method: 'POST' });
+        await fetch(`/api/onboarding/offers/${offerId}/view`, {
+          method: 'POST',
+          headers: getAuthHeaders()
+        });
 
         const offerContent = document.getElementById('offerContent');
         offerContent.innerHTML = `
@@ -284,7 +321,7 @@
       try {
         const res = await fetch(`/api/onboarding/offers/${currentOffer.id}/accept`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
           body: JSON.stringify({ signature_url: 'digital_signature_placeholder' })
         });
 
@@ -310,7 +347,7 @@
       try {
         const res = await fetch(`/api/onboarding/offers/${currentOffer.id}/decline`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
           body: JSON.stringify({ reason })
         });
 
@@ -329,7 +366,7 @@
       try {
         const res = await fetch(`/api/onboarding/checklists/${checklistId}/complete`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
           body: JSON.stringify({ item_id: itemId })
         });
 
@@ -378,7 +415,7 @@
       try {
         const res = await fetch('/api/onboarding/assistant/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
           body: JSON.stringify({ message, checklist_id: null })
         });
 

@@ -1,6 +1,6 @@
 {
   "cachedStatsigGates": {
-    "tengu_prompt_suggestion": false
+    "tengu_prompt_suggestion": true
   },
   "cachedGrowthBookFeatures": {
     "tengu_1p_event_batch_config": {
@@ -597,6 +597,25 @@
         "public/js/main.js"
       ],
       "exampleFilesGeneratedAt": 1770159457813
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-47676/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "server.js",
+        "routes/interviews.js",
+        "routes/auth.js",
+        "routes/candidate.js",
+        "public/js/main.js"
+      ],
+      "exampleFilesGeneratedAt": 1770161338889
     }
   }
 }

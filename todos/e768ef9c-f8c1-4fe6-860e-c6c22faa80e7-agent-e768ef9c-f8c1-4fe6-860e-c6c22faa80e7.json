@@ -1,0 +1,47 @@
+[
+  {
+    "content": "Fix offer-management.html - add auth headers to all API calls",
+    "status": "completed",
+    "activeForm": "Fixing offer-management.html auth headers"
+  },
+  {
+    "content": "Fix payroll-dashboard.html role check logic",
+    "status": "completed",
+    "activeForm": "Fixing payroll-dashboard.html role check"
+  },
+  {
+    "content": "Test and fix recruiter-dashboard.html",
+    "status": "completed",
+    "activeForm": "Testing recruiter-dashboard.html"
+  },
+  {
+    "content": "Test and fix recruiter-jobs.html",
+    "status": "completed",
+    "activeForm": "Testing recruiter-jobs.html"
+  },
+  {
+    "content": "Test and fix recruiter-applications.html",
+    "status": "completed",
+    "activeForm": "Testing recruiter-applications.html"
+  },
+  {
+    "content": "Fix remaining recruiter pages (interviews, analytics, compliance)",
+    "status": "completed",
+    "activeForm": "Fixing remaining recruiter pages"
+  },
+  {
+    "content": "Test and fix candidate-dashboard.html",
+    "status": "completed",
+    "activeForm": "Testing candidate-dashboard.html"
+  },
+  {
+    "content": "Fix onboarding.html auth headers",
+    "status": "completed",
+    "activeForm": "Fixing onboarding.html auth headers"
+  },
+  {
+    "content": "Deploy and verify all fixes",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying fixes"
+  }
+]

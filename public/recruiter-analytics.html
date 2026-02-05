@@ -282,8 +282,10 @@
         window.location.href = '/login.html';
         return;
       }
-      if (!user.company_id && user.role !== 'recruiter') {
-        window.location.href = '/dashboard.html';
+      // Verify recruiter/employer role - must have company_id and appropriate role
+      const allowedRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+      if (!user.company_id || !allowedRoles.includes(user.role)) {
+        window.location.href = '/candidate-dashboard.html';
         return;
       }
 
