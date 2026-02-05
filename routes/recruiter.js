@@ -376,12 +376,19 @@ router.post('/interviews', authMiddleware, requireRecruiter, async (req, res) =>
 
     const { job_id, candidate_id } = app.rows[0];
 
+    // Auto-generate Jitsi meeting link for video interviews
+    let meeting_link = null;
+    if (interview_type === 'video') {
+      const roomId = `HireLoop-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
+      meeting_link = `https://meet.jit.si/${roomId}`;
+    }
+
     const result = await pool.query(
       `INSERT INTO scheduled_interviews
-       (company_id, job_id, candidate_id, recruiter_id, scheduled_at, duration_minutes, interview_type, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (company_id, job_id, candidate_id, recruiter_id, scheduled_at, duration_minutes, interview_type, meeting_link, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [req.user.company_id, job_id, candidate_id, req.user.id, scheduled_at, duration, interview_type, notes]
+      [req.user.company_id, job_id, candidate_id, req.user.id, scheduled_at, duration, interview_type, meeting_link, notes]
     );
 
     // Update application status
@@ -547,7 +554,7 @@ router.put('/applications/:id', authMiddleware, requireRecruiter, async (req, re
 // Schedule interview
 router.post('/interviews/schedule', authMiddleware, requireRecruiter, async (req, res) => {
   try {
-    const {
+    let {
       job_id, candidate_id, scheduled_at, duration_minutes = 60,
       interview_type = 'video', meeting_link, notes
     } = req.body;
@@ -564,6 +571,12 @@ router.post('/interviews/schedule', authMiddleware, requireRecruiter, async (req
 
     if (job.rows.length === 0) {
       return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // Auto-generate Jitsi meeting link for video interviews if not provided
+    if (interview_type === 'video' && !meeting_link) {
+      const roomId = `HireLoop-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
+      meeting_link = `https://meet.jit.si/${roomId}`;
     }
 
     const result = await pool.query(
@@ -631,17 +644,18 @@ router.get('/interviews', authMiddleware, requireRecruiter, async (req, res) => 
 // Update interview outcome
 router.put('/interviews/:id', authMiddleware, requireRecruiter, async (req, res) => {
   try {
-    const { status, outcome, feedback } = req.body;
+    const { status, outcome, feedback, meeting_link } = req.body;
 
     const result = await pool.query(
       `UPDATE scheduled_interviews SET
         status = COALESCE($1, status),
         outcome = COALESCE($2, outcome),
         feedback = COALESCE($3, feedback),
+        meeting_link = COALESCE($4, meeting_link),
         updated_at = NOW()
-       WHERE id = $4 AND company_id = $5
+       WHERE id = $5 AND company_id = $6
        RETURNING *`,
-      [status, outcome, feedback ? JSON.stringify(feedback) : null, req.params.id, req.user.company_id]
+      [status, outcome, feedback ? JSON.stringify(feedback) : null, meeting_link, req.params.id, req.user.company_id]
     );
 
     if (result.rows.length === 0) {

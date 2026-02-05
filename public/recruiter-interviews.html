@@ -374,7 +374,10 @@
             </div>
             <div class="interview-actions">
               ${!isPast ? `
-                <button onclick="joinInterview('${interview.id}')" class="btn btn-primary btn-sm">Join</button>
+                <button onclick="joinInterview('${interview.id}')" class="btn btn-primary btn-sm">
+                  ${interview.interview_type === 'video' ? '🎥 Join Video' : '📞 Join'}
+                </button>
+                ${interview.meeting_link ? `<button onclick="copyMeetingLink('${interview.meeting_link}')" class="btn btn-ghost btn-sm" title="Copy link">📋</button>` : ''}
                 <button onclick="reschedule('${interview.id}')" class="btn btn-ghost btn-sm">Reschedule</button>
               ` : `
                 <button onclick="markCompleted('${interview.id}')" class="btn btn-ghost btn-sm">Mark Complete</button>
@@ -433,8 +436,40 @@
     }
 
     function joinInterview(id) {
-      // For video interviews, could integrate with video service
-      alert('Video interview feature coming soon!');
+      // Find the interview to get meeting link
+      const interview = interviews.find(i => i.id == id);
+      if (!interview) {
+        alert('Interview not found');
+        return;
+      }
+
+      // If meeting link exists, open it
+      if (interview.meeting_link) {
+        window.open(interview.meeting_link, '_blank');
+        return;
+      }
+
+      // Generate a Jitsi Meet room based on interview ID
+      const roomName = `HireLoop-Interview-${id}-${Date.now().toString(36)}`;
+      const meetingLink = `https://meet.jit.si/${roomName}`;
+
+      // Update the interview with the meeting link
+      updateMeetingLink(id, meetingLink).then(() => {
+        window.open(meetingLink, '_blank');
+      });
+    }
+
+    async function updateMeetingLink(interviewId, meetingLink) {
+      try {
+        await apiCall(`/recruiter/interviews/${interviewId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ meeting_link: meetingLink })
+        });
+        // Refresh to show the link
+        loadInterviews();
+      } catch (err) {
+        console.error('Failed to save meeting link:', err);
+      }
     }
 
     function reschedule(id) {
@@ -467,6 +502,15 @@
       } catch (err) {
         alert('Failed to cancel interview');
       }
+    }
+
+    function copyMeetingLink(link) {
+      navigator.clipboard.writeText(link).then(() => {
+        alert('Meeting link copied to clipboard!');
+      }).catch(err => {
+        console.error('Failed to copy:', err);
+        prompt('Copy this link:', link);
+      });
     }
   </script>
 

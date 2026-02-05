@@ -1039,4 +1039,30 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
   }
 });
 
+// ============= SCHEDULED INTERVIEWS (from recruiters) =============
+
+router.get('/interviews/scheduled', authMiddleware, async (req, res) => {
+  try {
+    const interviews = await pool.query(`
+      SELECT
+        si.id, si.scheduled_at, si.duration_minutes, si.interview_type,
+        si.meeting_link, si.notes, si.status,
+        j.title as job_title, j.company as company_name,
+        u.name as recruiter_name
+      FROM scheduled_interviews si
+      JOIN jobs j ON si.job_id = j.id
+      LEFT JOIN users u ON si.recruiter_id = u.id
+      WHERE si.candidate_id = $1
+        AND si.status = 'scheduled'
+        AND si.scheduled_at > NOW() - INTERVAL '1 hour'
+      ORDER BY si.scheduled_at ASC
+    `, [req.user.id]);
+
+    res.json({ success: true, interviews: interviews.rows });
+  } catch (err) {
+    console.error('Get scheduled interviews error:', err);
+    res.status(500).json({ error: 'Failed to get scheduled interviews' });
+  }
+});
+
 module.exports = router;

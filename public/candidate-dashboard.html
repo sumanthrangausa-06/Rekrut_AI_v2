@@ -174,6 +174,16 @@
         </div>
       </div>
 
+      <!-- Scheduled Interviews Section -->
+      <section class="section scheduled-interviews-section" id="scheduled-interviews-section" style="display: none;">
+        <div class="section-header">
+          <h2>📅 Upcoming Interviews</h2>
+        </div>
+        <div class="scheduled-interviews-list" id="scheduled-interviews-list">
+          <!-- Will be populated by JS -->
+        </div>
+      </section>
+
       <!-- Quick Actions -->
       <section class="section">
         <h2>What would you like to do?</h2>
@@ -341,9 +351,59 @@
         // Load interview practice stats
         loadPracticeStats();
 
+        // Load scheduled interviews
+        loadScheduledInterviews();
+
       } catch (err) {
         console.error('Dashboard load error:', err);
       }
+    }
+
+    async function loadScheduledInterviews() {
+      try {
+        const result = await apiCall('/candidate/interviews/scheduled');
+        if (result.success && result.interviews && result.interviews.length > 0) {
+          document.getElementById('scheduled-interviews-section').style.display = 'block';
+          renderScheduledInterviews(result.interviews);
+        }
+      } catch (err) {
+        console.error('Scheduled interviews load error:', err);
+      }
+    }
+
+    function renderScheduledInterviews(interviews) {
+      const container = document.getElementById('scheduled-interviews-list');
+
+      container.innerHTML = interviews.map(interview => {
+        const date = new Date(interview.scheduled_at);
+        const now = new Date();
+        const isUpcoming = date > now;
+        const isSoon = date - now < 30 * 60 * 1000; // Within 30 minutes
+
+        return `
+          <div class="scheduled-interview-card ${isSoon ? 'soon' : ''}">
+            <div class="interview-time-badge">
+              <span class="interview-date">${date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+              <span class="interview-time">${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            <div class="interview-info">
+              <h3>${interview.job_title || 'Interview'}</h3>
+              <p>${interview.company_name || 'Company'}</p>
+              <span class="interview-type-badge ${interview.interview_type || 'video'}">${interview.interview_type || 'Video Interview'}</span>
+            </div>
+            <div class="interview-action">
+              ${isUpcoming ? `
+                ${interview.meeting_link ?
+                  `<a href="${interview.meeting_link}" target="_blank" class="btn btn-primary ${isSoon ? 'pulse' : ''}">
+                    ${interview.interview_type === 'video' ? '🎥 Join Video Call' : '📞 Join'}
+                  </a>` :
+                  `<span class="interview-pending">Link will be available soon</span>`
+                }
+              ` : `<span class="interview-status">Completed</span>`}
+            </div>
+          </div>
+        `;
+      }).join('');
     }
 
     async function loadPracticeStats() {
@@ -800,6 +860,108 @@
       background: rgba(16, 185, 129, 0.05);
     }
 
+    /* Scheduled Interviews Section */
+    .scheduled-interviews-section {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+      border: 2px solid rgba(59, 130, 246, 0.3);
+      border-radius: var(--radius-lg);
+    }
+
+    .scheduled-interview-card {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 20px;
+      background: white;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-light);
+      margin-bottom: 12px;
+      transition: all 0.2s;
+    }
+
+    .scheduled-interview-card:last-child {
+      margin-bottom: 0;
+    }
+
+    .scheduled-interview-card.soon {
+      border-color: #10b981;
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+    }
+
+    .interview-time-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+      min-width: 100px;
+    }
+
+    .interview-date {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .interview-time {
+      font-family: var(--font-display);
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .interview-info {
+      flex: 1;
+    }
+
+    .interview-info h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .interview-info p {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .interview-type-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+
+    .interview-type-badge.video { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+    .interview-type-badge.phone { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+    .interview-type-badge.onsite { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .interview-type-badge.technical { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; }
+
+    .interview-action .btn.pulse {
+      animation: pulse-btn 2s infinite;
+    }
+
+    @keyframes pulse-btn {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+      50% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+    }
+
+    .interview-pending {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .interview-status {
+      font-size: 13px;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+    }
+
     @media (max-width: 1024px) {
       .top-cards-row {
         grid-template-columns: 1fr;
@@ -807,6 +969,19 @@
 
       .practice-progress-grid {
         grid-template-columns: 1fr;
+      }
+
+      .scheduled-interview-card {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .interview-action {
+        width: 100%;
+      }
+
+      .interview-action .btn {
+        width: 100%;
       }
     }
   </style>

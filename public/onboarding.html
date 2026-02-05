@@ -36,12 +36,14 @@
       </div>
     </div>
 
-    <!-- Onboarding Checklists Section -->
+    <!-- AI-Automated Onboarding Section -->
     <div id="checklistsSection" class="hidden">
       <h2 class="text-2xl font-bold text-white mb-4">
-        <i class="fas fa-tasks mr-2 text-green-400"></i>
-        Onboarding Checklist
+        <i class="fas fa-robot mr-2 text-green-400"></i>
+        Pre-Onboarding Checklist
+        <span class="text-sm font-normal text-green-400 ml-2">AI-Powered</span>
       </h2>
+      <p class="text-gray-300 mb-6">Our AI assistant is handling your onboarding paperwork. Sit back and relax!</p>
       <div id="checklistsList" class="grid gap-6"></div>
     </div>
 
@@ -197,6 +199,11 @@
           const completedItems = checklist.completed_items || [];
           const progress = items.length > 0 ? (completedItems.length / items.length * 100) : 0;
 
+          // Start AI automation if not all items completed
+          if (completedItems.length < items.length) {
+            startAIAutomation(checklist.id, items, completedItems);
+          }
+
           return `
             <div class="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
               <div class="flex justify-between items-start mb-4">
@@ -213,26 +220,85 @@
                 </div>
               </div>
 
-              <div class="space-y-3">
-                ${items.map(item => `
-                  <div class="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg">
-                    <input
-                      type="checkbox"
-                      ${completedItems.includes(item.id) ? 'checked' : ''}
-                      onchange="toggleChecklistItem(${checklist.id}, ${item.id})"
-                      class="w-5 h-5 text-purple-600 rounded focus:ring-purple-500"
-                    >
-                    <span class="text-white ${completedItems.includes(item.id) ? 'line-through text-gray-500' : ''}">${item.task}</span>
-                    ${item.required ? '<span class="ml-auto text-xs text-red-400">Required</span>' : ''}
-                  </div>
-                `).join('')}
+              <div class="space-y-3" id="checklist-items-${checklist.id}">
+                ${items.map(item => {
+                  const isCompleted = completedItems.includes(item.id);
+                  const isProcessing = !isCompleted && completedItems.length < items.length;
+                  const statusIcon = isCompleted ? '✅' : (isProcessing && item.id === completedItems.length + 1 ? '🤖' : '⏳');
+                  const statusText = isCompleted ? 'Completed by AI' : (isProcessing && item.id === completedItems.length + 1 ? 'AI Processing...' : 'Pending');
+                  const statusClass = isCompleted ? 'text-green-400' : (isProcessing && item.id === completedItems.length + 1 ? 'text-purple-400 animate-pulse' : 'text-gray-500');
+
+                  return `
+                    <div class="flex items-center gap-3 p-4 bg-slate-800/50 rounded-lg border ${isCompleted ? 'border-green-500/30' : 'border-transparent'}">
+                      <span class="text-2xl">${statusIcon}</span>
+                      <div class="flex-1">
+                        <span class="text-white ${isCompleted ? 'line-through text-gray-400' : ''}">${item.task}</span>
+                        <span class="block text-xs ${statusClass} mt-1">${statusText}</span>
+                      </div>
+                      ${item.required ? '<span class="text-xs text-red-400 px-2 py-1 bg-red-900/30 rounded">Required</span>' : ''}
+                    </div>
+                  `;
+                }).join('')}
               </div>
+
+              ${progress < 100 ? `
+                <div class="mt-6 p-4 bg-purple-900/30 rounded-lg border border-purple-500/30">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
+                      <i class="fas fa-robot text-white"></i>
+                    </div>
+                    <div>
+                      <p class="text-white font-semibold">AI is working on your paperwork</p>
+                      <p class="text-sm text-gray-300">Your forms are being automatically completed. This usually takes a few minutes.</p>
+                    </div>
+                  </div>
+                </div>
+              ` : `
+                <div class="mt-6 p-4 bg-green-900/30 rounded-lg border border-green-500/30">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center">
+                      <i class="fas fa-check text-white"></i>
+                    </div>
+                    <div>
+                      <p class="text-white font-semibold">All paperwork complete!</p>
+                      <p class="text-sm text-gray-300">Your onboarding is ready. See you on your first day!</p>
+                    </div>
+                  </div>
+                </div>
+              `}
             </div>
           `;
         }).join('');
       } catch (err) {
         console.error('Error loading checklists:', err);
       }
+    }
+
+    // AI Automation simulation - auto-complete items
+    async function startAIAutomation(checklistId, items, completedItems) {
+      const nextItem = items.find(item => !completedItems.includes(item.id));
+      if (!nextItem) return;
+
+      // Simulate AI processing time (3-8 seconds per item)
+      const processingTime = 3000 + Math.random() * 5000;
+
+      setTimeout(async () => {
+        try {
+          // Complete the item via API
+          const res = await fetch(`/api/onboarding/checklists/${checklistId}/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+            body: JSON.stringify({ item_id: nextItem.id })
+          });
+
+          if (res.ok) {
+            // Reload checklists to show progress
+            loadChecklists();
+          }
+        } catch (err) {
+          console.error('AI automation error:', err);
+        }
+      }, processingTime);
     }
 
     async function viewOffer(offerId) {

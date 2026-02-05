@@ -151,6 +151,44 @@
     </main>
   </div>
 
+  <!-- Make Offer Modal -->
+  <div class="modal-overlay" id="offer-modal" style="display: none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Make Job Offer</h2>
+        <button onclick="closeOfferModal()" class="modal-close">&times;</button>
+      </div>
+      <form id="offer-form" onsubmit="submitOffer(event)">
+        <div class="form-group">
+          <label>Candidate</label>
+          <p id="offer-candidate-name" style="font-weight: 600; padding: 12px 16px; background: var(--bg-elevated); border-radius: var(--radius-md);">-</p>
+        </div>
+        <div class="form-group">
+          <label for="offer-job-title">Job Title</label>
+          <input type="text" id="offer-job-title" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="offer-salary">Annual Salary ($)</label>
+            <input type="number" id="offer-salary" required min="0" step="1000" placeholder="75000">
+          </div>
+          <div class="form-group">
+            <label for="offer-start-date">Start Date</label>
+            <input type="date" id="offer-start-date" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="offer-benefits">Benefits Package</label>
+          <textarea id="offer-benefits" rows="3" placeholder="Health insurance, 401(k) matching, PTO, etc."></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" onclick="closeOfferModal()" class="btn btn-ghost">Cancel</button>
+          <button type="submit" class="btn btn-primary">Send Offer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="/js/main.js"></script>
   <script>
     let currentFilter = 'all';
@@ -308,7 +346,7 @@
             <button onclick="scheduleInterview(${app.id})" class="btn btn-ghost btn-sm">
               Schedule Interview
             </button>
-            <button onclick="updateStatus(${app.id}, 'offered')" class="btn btn-primary btn-sm" ${app.status === 'offered' ? 'disabled' : ''}>
+            <button onclick="makeOffer(${app.id}, ${app.candidate_id}, '${(app.candidate_name || '').replace(/'/g, "\\'")}', '${(app.candidate_email || '').replace(/'/g, "\\'")}', ${app.job_id}, '${(app.job_title || '').replace(/'/g, "\\'")}')" class="btn btn-primary btn-sm" ${app.status === 'offered' || app.status === 'hired' ? 'disabled' : ''}>
               Make Offer
             </button>
             <button onclick="updateStatus(${app.id}, 'rejected')" class="btn btn-ghost btn-sm danger">
@@ -346,6 +384,76 @@
 
     function scheduleInterview(appId) {
       window.location.href = `/recruiter-interviews.html?schedule=${appId}`;
+    }
+
+    // Make Offer functionality
+    let currentOfferData = null;
+
+    function makeOffer(appId, candidateId, candidateName, candidateEmail, jobId, jobTitle) {
+      currentOfferData = { appId, candidateId, candidateName, candidateEmail, jobId, jobTitle };
+
+      // Pre-fill the modal
+      document.getElementById('offer-candidate-name').textContent = candidateName;
+      document.getElementById('offer-job-title').value = jobTitle;
+
+      // Set default start date to 2 weeks from now
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() + 14);
+      document.getElementById('offer-start-date').value = startDate.toISOString().split('T')[0];
+
+      // Show modal
+      document.getElementById('offer-modal').style.display = 'flex';
+    }
+
+    function closeOfferModal() {
+      document.getElementById('offer-modal').style.display = 'none';
+      document.getElementById('offer-form').reset();
+      currentOfferData = null;
+    }
+
+    async function submitOffer(e) {
+      e.preventDefault();
+
+      if (!currentOfferData) return;
+
+      const offerData = {
+        candidate_id: currentOfferData.candidateId,
+        job_id: currentOfferData.jobId,
+        title: document.getElementById('offer-job-title').value,
+        salary: parseFloat(document.getElementById('offer-salary').value),
+        start_date: document.getElementById('offer-start-date').value,
+        benefits: document.getElementById('offer-benefits').value
+      };
+
+      try {
+        // Create the offer
+        const createResult = await apiCall('/onboarding/offers', {
+          method: 'POST',
+          body: JSON.stringify(offerData)
+        });
+
+        if (!createResult || createResult.error) {
+          throw new Error(createResult?.error || 'Failed to create offer');
+        }
+
+        // Send the offer immediately
+        const sendResult = await apiCall(`/onboarding/offers/${createResult.id}/send`, {
+          method: 'POST'
+        });
+
+        // Update application status
+        await apiCall(`/recruiter/applications/${currentOfferData.appId}/status`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'offered' })
+        });
+
+        alert('Offer sent successfully to ' + currentOfferData.candidateName + '!');
+        closeOfferModal();
+        loadApplications();
+      } catch (err) {
+        console.error('Error creating offer:', err);
+        alert('Failed to create offer: ' + err.message);
+      }
     }
   </script>
 
@@ -457,6 +565,91 @@
 
     .btn.danger { color: #ef4444; }
     .btn.danger:hover { background: rgba(239, 68, 68, 0.1); }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 500px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-header h2 {
+      font-family: var(--font-display);
+      font-size: 20px;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .modal form {
+      padding: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 12px 16px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 15px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-color);
+    }
   </style>
 </body>
 </html>
