@@ -694,9 +694,5 @@
       "exampleFilesGeneratedAt": 1770421503601
     }
   },
-  "opusProMigrationComplete": true,
-  "clientDataCache": {
-    "data": null,
-    "timestamp": 1770421505358
-  }
+  "opusProMigrationComplete": true
 }
