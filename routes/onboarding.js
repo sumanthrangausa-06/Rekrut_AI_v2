@@ -540,6 +540,125 @@ router.get('/assistant/history/:session_id', authMiddleware, async (req, res) =>
 });
 
 // ============================================
+// RECRUITER - ONBOARDING DOCUMENTS VISIBILITY
+// ============================================
+
+// Get all onboarding documents for recruiter's company (all candidates)
+router.get('/recruiter/documents', authMiddleware, async (req, res) => {
+  try {
+    // Verify user is a recruiter with company_id
+    if (!req.user.company_id) {
+      return res.status(403).json({ error: 'Only recruiters can view onboarding documents' });
+    }
+
+    const result = await pool.query(
+      `SELECT
+        od.*,
+        u.name as candidate_name,
+        u.email as candidate_email,
+        oc.title as checklist_title,
+        oc.status as checklist_status,
+        oc.due_date
+      FROM onboarding_documents od
+      JOIN users u ON od.candidate_id = u.id
+      LEFT JOIN onboarding_checklists oc ON od.checklist_id = oc.id
+      WHERE od.company_id = $1 OR oc.offer_id IN (
+        SELECT id FROM offers WHERE company_id = $2
+      )
+      ORDER BY od.created_at DESC`,
+      [req.user.company_id, req.user.company_id]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching recruiter onboarding documents:', err);
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+// Get onboarding documents for a specific candidate (recruiter view)
+router.get('/recruiter/candidate/:candidate_id/documents', authMiddleware, async (req, res) => {
+  try {
+    // Verify user is a recruiter
+    if (!req.user.company_id) {
+      return res.status(403).json({ error: 'Only recruiters can view onboarding documents' });
+    }
+
+    // Verify candidate is associated with recruiter's company
+    const candidateCheck = await pool.query(
+      `SELECT id FROM offers WHERE candidate_id = $1 AND company_id = $2 LIMIT 1`,
+      [req.params.candidate_id, req.user.company_id]
+    );
+
+    if (candidateCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Candidate not associated with your company' });
+    }
+
+    const result = await pool.query(
+      `SELECT od.*,
+        u.name as candidate_name,
+        u.email as candidate_email,
+        oc.title as checklist_title,
+        oc.status as checklist_status,
+        oc.due_date,
+        o.salary,
+        o.start_date,
+        j.title as job_title
+      FROM onboarding_documents od
+      JOIN users u ON od.candidate_id = u.id
+      LEFT JOIN onboarding_checklists oc ON od.checklist_id = oc.id
+      LEFT JOIN offers o ON oc.offer_id = o.id
+      LEFT JOIN jobs j ON o.job_id = j.id
+      WHERE od.candidate_id = $1
+      ORDER BY od.created_at DESC`,
+      [req.params.candidate_id]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching candidate onboarding documents:', err);
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+// Get onboarding summary for recruiter dashboard (candidates with pending docs)
+router.get('/recruiter/summary', authMiddleware, async (req, res) => {
+  try {
+    // Verify user is a recruiter
+    if (!req.user.company_id) {
+      return res.status(403).json({ error: 'Only recruiters can view onboarding documents' });
+    }
+
+    const result = await pool.query(
+      `SELECT
+        u.id as candidate_id,
+        u.name as candidate_name,
+        u.email as candidate_email,
+        COUNT(od.id) as total_documents,
+        SUM(CASE WHEN od.status = 'completed' OR od.signed_at IS NOT NULL THEN 1 ELSE 0 END) as signed_documents,
+        MAX(od.created_at) as last_activity,
+        oc.status as onboarding_status,
+        oc.due_date,
+        j.title as job_title
+      FROM users u
+      JOIN offers o ON u.id = o.candidate_id
+      LEFT JOIN onboarding_checklists oc ON u.id = oc.candidate_id
+      LEFT JOIN onboarding_documents od ON u.id = od.candidate_id
+      LEFT JOIN jobs j ON o.job_id = j.id
+      WHERE o.company_id = $1 AND o.status IN ('accepted', 'completed')
+      GROUP BY u.id, u.name, u.email, oc.status, oc.due_date, j.title
+      ORDER BY u.created_at DESC`,
+      [req.user.company_id]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching onboarding summary:', err);
+    res.status(500).json({ error: 'Failed to fetch summary' });
+  }
+});
+
+// ============================================
 // HELPER FUNCTIONS
 // ============================================
 
