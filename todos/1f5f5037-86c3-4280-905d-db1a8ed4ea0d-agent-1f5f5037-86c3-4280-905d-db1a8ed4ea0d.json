@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Explore codebase - understand React setup and jobs API",
+    "status": "completed",
+    "activeForm": "Exploring codebase structure"
+  },
+  {
+    "content": "Fix recruiter job form API route and add applicants-per-job page",
+    "status": "completed",
+    "activeForm": "Fixing job form route and adding applicants page"
+  },
+  {
+    "content": "Polish candidate and recruiter job pages",
+    "status": "completed",
+    "activeForm": "Polishing job pages"
+  },
+  {
+    "content": "Build, deploy, and verify live",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying"
+  }
+]
