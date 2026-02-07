@@ -3529,3 +3529,50 @@ Context7 Documentation MCP Server v2.1.1 running on stdio
 2026-02-07T10:21:40.798Z [DEBUG] [API:auth] OAuth token check starting
 2026-02-07T10:21:40.799Z [DEBUG] [API:auth] OAuth token check complete
 2026-02-07T10:21:43.117Z [DEBUG] Stream started - received first chunk
+2026-02-07T10:21:46.608Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-02-07T10:21:46.608Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-02-07T10:21:46.608Z [DEBUG] Found 1 hook matchers in settings
+2026-02-07T10:21:46.608Z [DEBUG] Matched 4 unique hooks for query "Bash" (4 before deduplication)
+2026-02-07T10:21:46.611Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-07T10:21:46.611Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-07T10:21:46.611Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-07T10:21:46.611Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-07T10:21:46.611Z [DEBUG] Hook approved tool use for Bash, bypassing permission check
+2026-02-07T10:21:46.774Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-02-07T10:21:46.775Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-07T10:21:46.775Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-07T10:21:46.775Z [DEBUG] Getting matching hook commands for PostToolUse with query: Bash
+2026-02-07T10:21:46.775Z [DEBUG] Found 5 hook matchers in settings
+2026-02-07T10:21:46.775Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-02-07T10:21:46.775Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-07T10:21:46.779Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-07T10:21:46.779Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-07T10:21:46.779Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-07T10:21:46.779Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-07T10:21:46.780Z [DEBUG] autocompact: tokens=163105 threshold=167000 effectiveWindow=180000
+2026-02-07T10:21:46.780Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-07T10:21:46.796Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-07T10:21:46.796Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-07T10:21:46.797Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-07T10:21:47.200Z [DEBUG] Stream started - received first chunk
+2026-02-07T10:21:49.622Z [DEBUG] Stream started - received first chunk
+2026-02-07T10:21:50.369Z [DEBUG] executePreToolHooks called for tool: mcp__polsia_infra__push_to_remote
+2026-02-07T10:21:50.369Z [DEBUG] Getting matching hook commands for PreToolUse with query: mcp__polsia_infra__push_to_remote
+2026-02-07T10:21:50.369Z [DEBUG] Found 1 hook matchers in settings
+2026-02-07T10:21:50.369Z [DEBUG] Matched 4 unique hooks for query "mcp__polsia_infra__push_to_remote" (4 before deduplication)
+2026-02-07T10:21:50.371Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-07T10:21:50.371Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-07T10:21:50.371Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-07T10:21:50.371Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-07T10:21:50.371Z [DEBUG] Hook approved tool use for mcp__polsia_infra__push_to_remote, bypassing permission check
+2026-02-07T10:21:50.371Z [DEBUG] MCP server "polsia_infra": Calling MCP tool: push_to_remote
+2026-02-07T10:21:50.372Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 763s uptime
+2026-02-07T10:21:50.372Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected token 'I', "[Infra MCP]"... is not valid JSON
+2026-02-07T10:21:50.372Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 763s uptime
+2026-02-07T10:21:50.372Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected token 'I', "[Infra MCP]"... is not valid JSON
+2026-02-07T10:21:50.372Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 763s uptime
+2026-02-07T10:21:50.372Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected token 'I', "[Infra MCP]"... is not valid JSON
+2026-02-07T10:21:50.372Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 763s uptime
+2026-02-07T10:21:50.372Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected token 'I', "[Infra MCP]"... is not valid JSON
+2026-02-07T10:21:50.391Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 763s uptime
+2026-02-07T10:21:50.391Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected non-whitespace character after JSON at position 4 (line 1 column 5)
