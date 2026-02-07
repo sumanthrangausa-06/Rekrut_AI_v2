@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Explore current onboarding codebase (routes, pages, DB schema)",
+    "status": "completed",
+    "activeForm": "Exploring current onboarding codebase"
+  },
+  {
+    "content": "Fix bugs: branding, W-4 filing, step 4 retry",
+    "status": "completed",
+    "activeForm": "Fixing bugs in existing code"
+  },
+  {
+    "content": "Add document download/export for HR dashboard",
+    "status": "completed",
+    "activeForm": "Adding document download for HR"
+  },
+  {
+    "content": "Enhance recruiter docs view with richer previews",
+    "status": "completed",
+    "activeForm": "Enhancing recruiter document views"
+  },
+  {
+    "content": "Deploy and test E2E flow",
+    "status": "in_progress",
+    "activeForm": "Deploying and testing E2E flow"
+  }
+]
