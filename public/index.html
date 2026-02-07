@@ -3,762 +3,238 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HireLoop - AI-Powered Hiring Platform</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/styles.css">
-  <link rel="stylesheet" href="/css/responsive.css">
+  <title>HireLoop — AI-Powered Recruitment Platform</title>
+  <meta name="description" content="Streamline your hiring with AI-powered interviews, skill assessments, and candidate matching.">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.1/dist/tailwind.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="/css/globals.css">
   <style>
-    /* Dropdown Navigation Styles */
-    .nav-dropdown {
-      position: relative;
-    }
-    .nav-dropdown-toggle {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      cursor: pointer;
-      padding: 8px 12px;
-      border-radius: 8px;
-      transition: background 0.2s;
-    }
-    .nav-dropdown-toggle:hover {
-      background: rgba(255,255,255,0.1);
-    }
-    .nav-dropdown-toggle::after {
-      content: '▾';
-      font-size: 10px;
-      opacity: 0.7;
-    }
-    .nav-dropdown-menu {
-      position: absolute;
-      top: 100%;
-      left: 0;
-      min-width: 200px;
-      background: #1a1a2e;
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 12px;
-      padding: 8px;
-      opacity: 0;
-      visibility: hidden;
-      transform: translateY(10px);
-      transition: all 0.2s;
-      z-index: 100;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-    }
-    .nav-dropdown:hover .nav-dropdown-menu {
-      opacity: 1;
-      visibility: visible;
-      transform: translateY(0);
-    }
-    .nav-dropdown-menu a {
-      display: block;
-      padding: 10px 14px;
-      border-radius: 8px;
-      color: rgba(255,255,255,0.8);
-      font-size: 0.9rem;
-      transition: all 0.2s;
-    }
-    .nav-dropdown-menu a:hover {
-      background: rgba(139, 92, 246, 0.2);
-      color: #fff;
-    }
-    .nav-dropdown-menu .menu-label {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      color: rgba(255,255,255,0.4);
-      padding: 8px 14px 4px;
-      letter-spacing: 0.5px;
-    }
-
-    /* Dual CTA Hero */
-    .hero-cta-dual {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-    .hero-cta-dual .btn {
-      min-width: 160px;
-    }
-
-    /* Platform Showcase */
-    .platform-showcase {
-      padding: 80px 5%;
-      background: linear-gradient(180deg, #0a0a14 0%, #12121f 100%);
-    }
-    .showcase-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 60px;
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-    .showcase-column h3 {
-      font-size: 1.5rem;
-      margin-bottom: 24px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .showcase-column h3 .icon {
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.2rem;
-    }
-    .showcase-column.candidates h3 .icon {
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    }
-    .showcase-column.recruiters h3 .icon {
-      background: linear-gradient(135deg, #10b981, #34d399);
-    }
-    .showcase-features {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-    .showcase-feature {
-      display: flex;
-      gap: 16px;
-      padding: 20px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 12px;
-      transition: all 0.3s;
-    }
-    .showcase-feature:hover {
-      background: rgba(255,255,255,0.06);
-      border-color: rgba(255,255,255,0.1);
-      transform: translateX(4px);
-    }
-    .showcase-feature .feature-icon {
-      font-size: 1.5rem;
-      flex-shrink: 0;
-    }
-    .showcase-feature h4 {
-      font-size: 1.05rem;
-      margin-bottom: 4px;
-    }
-    .showcase-feature p {
-      font-size: 0.9rem;
-      color: rgba(255,255,255,0.6);
-      line-height: 1.5;
-    }
-    .showcase-feature .feature-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      color: #8b5cf6;
-      font-size: 0.85rem;
-      margin-top: 8px;
-      transition: gap 0.2s;
-    }
-    .showcase-feature:hover .feature-link {
-      gap: 8px;
-    }
-
-    /* Score Badges Section */
-    .score-badges-section {
-      padding: 80px 5%;
-      background: #0a0a14;
-    }
-    .score-badges-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 40px;
-      max-width: 1000px;
-      margin: 40px auto 0;
-    }
-    .score-badge-card {
-      padding: 32px;
-      background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(99, 102, 241, 0.05));
-      border: 1px solid rgba(139, 92, 246, 0.2);
-      border-radius: 20px;
-      text-align: center;
-    }
-    .score-badge-card.trustscore {
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(52, 211, 153, 0.05));
-      border-color: rgba(16, 185, 129, 0.2);
-    }
-    .score-badge-card .score-value {
-      font-size: 4rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, #8b5cf6, #6366f1);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .score-badge-card.trustscore .score-value {
-      background: linear-gradient(135deg, #10b981, #34d399);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .score-badge-card h3 {
-      font-size: 1.5rem;
-      margin: 12px 0 8px;
-    }
-    .score-badge-card p {
-      color: rgba(255,255,255,0.6);
-      font-size: 0.95rem;
-      line-height: 1.6;
-    }
-
-    /* Social Proof Section */
-    .social-proof {
-      padding: 60px 5%;
-      background: linear-gradient(180deg, #0a0a14 0%, #12121f 100%);
-      border-top: 1px solid rgba(255,255,255,0.05);
-    }
-    .social-proof-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 32px;
-      max-width: 1200px;
-      margin: 40px auto 0;
-    }
-    .testimonial-card {
-      padding: 28px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 16px;
-      transition: all 0.3s;
-    }
-    .testimonial-card:hover {
-      background: rgba(255,255,255,0.05);
-      border-color: rgba(139, 92, 246, 0.3);
-      transform: translateY(-4px);
-    }
-    .testimonial-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-    .testimonial-avatar {
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #8b5cf6, #6366f1);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.2rem;
-      font-weight: 600;
-    }
-    .testimonial-info h4 {
-      font-size: 1rem;
-      margin-bottom: 2px;
-    }
-    .testimonial-info p {
-      font-size: 0.85rem;
-      color: rgba(255,255,255,0.5);
-    }
-    .testimonial-text {
-      font-size: 0.95rem;
-      line-height: 1.6;
-      color: rgba(255,255,255,0.8);
-      margin-bottom: 12px;
-    }
-    .testimonial-rating {
-      color: #fbbf24;
-      font-size: 0.9rem;
-    }
-
-    /* Trust Indicators */
-    .trust-indicators {
-      display: flex;
-      justify-content: center;
-      gap: 48px;
-      margin-top: 48px;
-      flex-wrap: wrap;
-    }
-    .trust-indicator {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 24px;
-      background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.2);
-      border-radius: 12px;
-    }
-    .trust-indicator .icon {
-      font-size: 1.5rem;
-    }
-    .trust-indicator .text {
-      font-size: 0.9rem;
-      color: rgba(255,255,255,0.8);
-    }
-
-    /* Responsive */
-    @media (max-width: 768px) {
-      .showcase-grid, .score-badges-grid, .social-proof-grid {
-        grid-template-columns: 1fr;
-        gap: 40px;
-      }
-      .nav-links {
-        display: none;
-      }
-      .hero-cta-dual {
-        flex-direction: column;
-        align-items: center;
-      }
-      .hero-cta-dual .btn {
-        width: 100%;
-        max-width: 300px;
-      }
-      .trust-indicators {
-        flex-direction: column;
-        gap: 16px;
-        align-items: center;
-      }
-      .hero h1 {
-        font-size: 2rem;
-        line-height: 1.2;
-      }
-      .hero-subtitle {
-        font-size: 1rem;
-      }
-    }
+    .hero-gradient { background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 40%, #faf5ff 100%); }
+    .feature-icon { width: 3rem; height: 3rem; border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; }
+    .nav-blur { backdrop-filter: blur(12px); background: rgba(255,255,255,0.85); }
   </style>
 </head>
-<body>
-  <div class="app">
-    <!-- Navigation -->
-    <nav class="nav">
-      <div class="nav-container">
-        <a href="/" class="logo">
-          <span class="logo-icon">◎</span>
-          <span>HireLoop</span>
+<body class="bg-white">
+  <!-- Navigation -->
+  <nav class="nav-blur fixed top-0 left-0 right-0 z-50 border-b border-slate-200/60">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2">
+        <span style="font-size:1.375rem;font-weight:800;color:#0f172a;">Hire<span style="color:#4f46e5;">Loop</span></span>
+      </a>
+      <div class="hidden md:flex items-center gap-8">
+        <a href="#features" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition">Features</a>
+        <a href="#how-it-works" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition">How It Works</a>
+        <a href="#pricing" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition">Pricing</a>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="/login.html" class="btn btn-ghost text-sm">Sign In</a>
+        <a href="/register.html" class="btn btn-primary text-sm">Get Started</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero-gradient pt-32 pb-20 px-6">
+    <div class="max-w-4xl mx-auto text-center">
+      <div class="inline-flex items-center gap-2 bg-indigo-50 text-indigo-700 rounded-full px-4 py-1.5 text-sm font-medium mb-6">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        AI-Powered Recruitment
+      </div>
+      <h1 class="text-5xl md:text-6xl font-extrabold text-slate-900 leading-tight mb-6">
+        Hire smarter.<br><span class="text-indigo-600">Not harder.</span>
+      </h1>
+      <p class="text-lg text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed">
+        From job posting to onboarding — HireLoop streamlines your entire recruitment pipeline with AI-powered interviews, intelligent matching, and automated assessments.
+      </p>
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+        <a href="/register.html?role=recruiter" class="btn btn-primary btn-lg px-8">
+          Start Hiring
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
         </a>
-        <div class="nav-links" id="nav-links">
-          <!-- Candidates Dropdown -->
-          <div class="nav-dropdown">
-            <span class="nav-dropdown-toggle">For Candidates</span>
-            <div class="nav-dropdown-menu">
-              <div class="menu-label">Get Started</div>
-              <a href="/candidate-dashboard.html">📊 Dashboard</a>
-              <a href="/job-board.html">💼 Job Board</a>
-              <a href="/skill-assessments.html">🎯 Skill Assessments</a>
-              <a href="/interview.html">🎤 Mock Interviews</a>
-              <a href="/omniscore.html">⭐ Your OmniScore</a>
-            </div>
-          </div>
+        <a href="/register.html?role=candidate" class="btn btn-secondary btn-lg px-8">Find Your Next Role</a>
+      </div>
+      <p class="text-xs text-slate-400 mt-4">Free to start. No credit card required.</p>
+    </div>
+  </section>
 
-          <!-- Recruiters Dropdown -->
-          <div class="nav-dropdown">
-            <span class="nav-dropdown-toggle">For Recruiters</span>
-            <div class="nav-dropdown-menu">
-              <div class="menu-label">Hiring Tools</div>
-              <a href="/job-create.html">📝 Post a Job</a>
-              <a href="/recruiter-dashboard.html">📊 Recruiter Dashboard</a>
-              <a href="/recruiter-trustscore.html">✅ TrustScore</a>
-              <a href="/recruiter-jobs.html">📋 Manage Jobs</a>
-            </div>
-          </div>
+  <!-- Stats -->
+  <section class="py-12 border-b border-slate-100">
+    <div class="max-w-5xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+      <div><div class="text-3xl font-bold text-slate-900">2,500+</div><div class="text-sm text-slate-500 mt-1">Candidates Matched</div></div>
+      <div><div class="text-3xl font-bold text-slate-900">85%</div><div class="text-sm text-slate-500 mt-1">Faster Hiring</div></div>
+      <div><div class="text-3xl font-bold text-slate-900">12k+</div><div class="text-sm text-slate-500 mt-1">AI Interviews</div></div>
+      <div><div class="text-3xl font-bold text-slate-900">94%</div><div class="text-sm text-slate-500 mt-1">Satisfaction Rate</div></div>
+    </div>
+  </section>
 
-          <a href="#pricing">Pricing</a>
+  <!-- Features -->
+  <section id="features" class="py-20 px-6">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl font-bold text-slate-900 mb-4">Everything you need to hire</h2>
+        <p class="text-slate-600 max-w-xl mx-auto">One platform for your entire recruitment workflow. AI handles the heavy lifting.</p>
+      </div>
+      <div class="grid md:grid-cols-3 gap-8">
+        <div class="card card-hover p-8">
+          <div class="feature-icon bg-indigo-50 text-indigo-600 mb-4"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+          <h3 class="text-lg font-semibold text-slate-900 mb-2">AI Interview Coach</h3>
+          <p class="text-sm text-slate-600 leading-relaxed">Practice with AI that gives real-time feedback on your answers, body language, and personalized coaching tips.</p>
         </div>
-        <div class="nav-auth" id="nav-auth">
-          <a href="/login.html" class="btn btn-ghost">Log In</a>
-          <a href="/register.html" class="btn btn-primary">Sign Up</a>
+        <div class="card card-hover p-8">
+          <div class="feature-icon bg-emerald-50 text-emerald-600 mb-4"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+          <h3 class="text-lg font-semibold text-slate-900 mb-2">Intelligent Matching</h3>
+          <p class="text-sm text-slate-600 leading-relaxed">AI analyzes skills, experience, and culture fit to match candidates with the perfect roles.</p>
+        </div>
+        <div class="card card-hover p-8">
+          <div class="feature-icon bg-violet-50 text-violet-600 mb-4"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+          <h3 class="text-lg font-semibold text-slate-900 mb-2">Skill Assessments</h3>
+          <p class="text-sm text-slate-600 leading-relaxed">AI-generated assessments for any skill with detailed scoring via OmniScore.</p>
+        </div>
+        <div class="card card-hover p-8">
+          <div class="feature-icon bg-amber-50 text-amber-600 mb-4"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+          <h3 class="text-lg font-semibold text-slate-900 mb-2">OmniScore</h3>
+          <p class="text-sm text-slate-600 leading-relaxed">Comprehensive candidate scoring combining skills, experience, assessments, and interview performance.</p>
+        </div>
+        <div class="card card-hover p-8">
+          <div class="feature-icon bg-rose-50 text-rose-600 mb-4"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></div>
+          <h3 class="text-lg font-semibold text-slate-900 mb-2">AI Onboarding</h3>
+          <p class="text-sm text-slate-600 leading-relaxed">Automated document collection, e-signatures, and compliance. Onboard in hours, not weeks.</p>
+        </div>
+        <div class="card card-hover p-8">
+          <div class="feature-icon bg-cyan-50 text-cyan-600 mb-4"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <h3 class="text-lg font-semibold text-slate-900 mb-2">Payroll Ready</h3>
+          <p class="text-sm text-slate-600 leading-relaxed">Built-in payroll with tax calculations, direct deposit, and compliance tracking.</p>
         </div>
       </div>
-    </nav>
+    </div>
+  </section>
 
-    <!-- Hero Section -->
-    <section class="hero">
-      <div class="hero-content">
-        <div class="hero-badge">🚀 Used by 12,000+ Candidates & 850+ Companies</div>
-        <h1>Stop Guessing. Start <span class="text-gradient">Hiring Smart</span></h1>
-        <p class="hero-subtitle">AI interviews that reveal true talent. Unified scoring that replaces guesswork. The hiring platform where candidates prove their skills and companies find their perfect match.</p>
-        <div class="hero-cta hero-cta-dual">
-          <a href="/register.html" class="btn btn-primary btn-large">Practice Free Interview →</a>
-          <a href="/recruiter-register.html" class="btn btn-ghost btn-large">Hire Verified Talent →</a>
+  <!-- How It Works -->
+  <section id="how-it-works" class="py-20 px-6 bg-slate-50">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl font-bold text-slate-900 mb-4">How it works</h2>
+        <p class="text-slate-600">Three steps to better hiring.</p>
+      </div>
+      <div class="grid md:grid-cols-3 gap-12">
+        <div class="text-center">
+          <div class="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center text-lg font-bold mx-auto mb-4">1</div>
+          <h3 class="text-lg font-semibold text-slate-900 mb-2">Post &amp; Attract</h3>
+          <p class="text-sm text-slate-600">Create job listings with AI-optimized descriptions. Candidates find you through our job board.</p>
         </div>
-        <div class="hero-stats">
-          <div class="stat">
-            <span class="stat-value">12K+</span>
-            <span class="stat-label">Active Users</span>
-          </div>
-          <div class="stat">
-            <span class="stat-value">73%</span>
-            <span class="stat-label">Faster Hiring</span>
-          </div>
-          <div class="stat">
-            <span class="stat-value">89%</span>
-            <span class="stat-label">Match Success</span>
-          </div>
+        <div class="text-center">
+          <div class="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center text-lg font-bold mx-auto mb-4">2</div>
+          <h3 class="text-lg font-semibold text-slate-900 mb-2">Assess &amp; Match</h3>
+          <p class="text-sm text-slate-600">AI screens candidates, runs skill assessments, and ranks applicants by match quality.</p>
+        </div>
+        <div class="text-center">
+          <div class="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center text-lg font-bold mx-auto mb-4">3</div>
+          <h3 class="text-lg font-semibold text-slate-900 mb-2">Hire &amp; Onboard</h3>
+          <p class="text-sm text-slate-600">Make offers, handle compliance, and onboard new hires — all automated by AI.</p>
         </div>
       </div>
-      <div class="hero-visual">
-        <div class="interview-card omniscore-preview">
-          <div class="card-header">
-            <div class="card-dots">
-              <span></span><span></span><span></span>
-            </div>
-            <span>HireLoop Platform</span>
-          </div>
-          <div class="card-content">
-            <div class="omniscore-display">
-              <div class="omniscore-circle">
-                <span class="omniscore-value">742</span>
-                <span class="omniscore-label">OmniScore</span>
-              </div>
-              <div class="omniscore-breakdown">
-                <div class="score-factor"><span>AI Interview</span><span class="factor-score">185/200</span></div>
-                <div class="score-factor"><span>Skill Tests</span><span class="factor-score">162/200</span></div>
-                <div class="score-factor"><span>Resume</span><span class="factor-score">178/200</span></div>
-                <div class="score-factor"><span>Activity</span><span class="factor-score">217/250</span></div>
-              </div>
-            </div>
-          </div>
-          <div class="card-footer">
-            <div class="score-preview">
-              <span class="score-badge excellent">Excellent</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+    </div>
+  </section>
 
-    <!-- Social Proof Section -->
-    <section class="social-proof">
-      <div class="section-header">
-        <h2>Trusted by <span class="text-gradient">Job Seekers & Employers</span></h2>
-        <p>Real results from candidates and recruiters using HireLoop</p>
+  <!-- Dual CTA -->
+  <section class="py-20 px-6">
+    <div class="max-w-5xl mx-auto grid md:grid-cols-2 gap-8">
+      <div class="card p-8 border-2 border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-white">
+        <div class="text-3xl mb-4">&#128188;</div>
+        <h3 class="text-xl font-bold text-slate-900 mb-2">For Recruiters</h3>
+        <p class="text-sm text-slate-600 mb-6 leading-relaxed">Post jobs, screen candidates with AI, run assessments, schedule interviews, and manage offers — all from one dashboard.</p>
+        <ul class="text-sm text-slate-700 space-y-2 mb-6">
+          <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> AI-powered candidate matching</li>
+          <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Automated skill assessments</li>
+          <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Onboarding &amp; payroll built-in</li>
+        </ul>
+        <a href="/register.html?role=recruiter" class="btn btn-primary btn-full">Start Hiring Free</a>
       </div>
-      <div class="social-proof-grid">
-        <div class="testimonial-card">
-          <div class="testimonial-header">
-            <div class="testimonial-avatar">SM</div>
-            <div class="testimonial-info">
-              <h4>Sarah M.</h4>
-              <p>Software Engineer</p>
-            </div>
-          </div>
-          <div class="testimonial-text">
-            "The AI mock interviews helped me land 3 offers. I went in confident and knew exactly what to expect. My OmniScore opened doors that my resume alone couldn't."
-          </div>
-          <div class="testimonial-rating">★★★★★</div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-header">
-            <div class="testimonial-avatar">DK</div>
-            <div class="testimonial-info">
-              <h4>David K.</h4>
-              <p>Hiring Manager, TechCorp</p>
-            </div>
-          </div>
-          <div class="testimonial-text">
-            "We cut our time-to-hire by 60%. The OmniScore eliminated 80% of bad-fit candidates before first contact. Game changer for our team."
-          </div>
-          <div class="testimonial-rating">★★★★★</div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-header">
-            <div class="testimonial-avatar">PR</div>
-            <div class="testimonial-info">
-              <h4>Priya R.</h4>
-              <p>Recent Graduate</p>
-            </div>
-          </div>
-          <div class="testimonial-text">
-            "As a career switcher, my OmniScore proved my skills when my resume couldn't. Got hired at a startup that wouldn't have looked at me otherwise."
-          </div>
-          <div class="testimonial-rating">★★★★★</div>
-        </div>
+      <div class="card p-8 border-2 border-emerald-100 bg-gradient-to-br from-emerald-50/50 to-white">
+        <div class="text-3xl mb-4">&#127919;</div>
+        <h3 class="text-xl font-bold text-slate-900 mb-2">For Candidates</h3>
+        <p class="text-sm text-slate-600 mb-6 leading-relaxed">Find your dream job, practice interviews with AI, build your OmniScore, and get matched to perfect-fit roles.</p>
+        <ul class="text-sm text-slate-700 space-y-2 mb-6">
+          <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> AI interview coaching</li>
+          <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Skills-based matching</li>
+          <li class="flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Comprehensive OmniScore</li>
+        </ul>
+        <a href="/register.html?role=candidate" class="btn btn-full" style="background:#059669;color:white;">Find Jobs Free</a>
       </div>
-      <div class="trust-indicators">
-        <div class="trust-indicator">
-          <span class="icon">✓</span>
-          <span class="text">12,000+ Interviews Completed</span>
-        </div>
-        <div class="trust-indicator">
-          <span class="icon">✓</span>
-          <span class="text">850+ Companies Hiring</span>
-        </div>
-        <div class="trust-indicator">
-          <span class="icon">✓</span>
-          <span class="text">4.8/5 Average Rating</span>
-        </div>
-      </div>
-    </section>
+    </div>
+  </section>
 
-    <!-- Platform Showcase: Candidates & Recruiters -->
-    <section class="platform-showcase" id="features">
-      <div class="section-header">
-        <h2>One Platform, <span class="text-gradient">Two Experiences</span></h2>
-        <p>Everything candidates and recruiters need in one place</p>
+  <!-- Pricing -->
+  <section id="pricing" class="py-20 px-6 bg-slate-50">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl font-bold text-slate-900 mb-4">Simple pricing</h2>
+        <p class="text-slate-600">Free for candidates. Affordable plans for teams.</p>
       </div>
-      <div class="showcase-grid">
-        <!-- Candidate Features -->
-        <div class="showcase-column candidates">
-          <h3><span class="icon">👤</span> For Candidates</h3>
-          <div class="showcase-features">
-            <a href="/interview.html" class="showcase-feature">
-              <span class="feature-icon">🎤</span>
-              <div>
-                <h4>AI Mock Interviews</h4>
-                <p>Practice with our AI interviewer tailored to your target role. Get instant feedback and boost your OmniScore.</p>
-                <span class="feature-link">Start Interview →</span>
-              </div>
-            </a>
-            <a href="/skill-assessments.html" class="showcase-feature">
-              <span class="feature-icon">🎯</span>
-              <div>
-                <h4>Skill Assessments</h4>
-                <p>Prove your abilities with role-specific tests. Results are verified and shared with employers.</p>
-                <span class="feature-link">Take Assessment →</span>
-              </div>
-            </a>
-            <a href="/job-board.html" class="showcase-feature">
-              <span class="feature-icon">💼</span>
-              <div>
-                <h4>Smart Job Board</h4>
-                <p>Browse jobs matched to your skills. See your fit score before you apply.</p>
-                <span class="feature-link">Browse Jobs →</span>
-              </div>
-            </a>
-            <a href="/candidate-dashboard.html" class="showcase-feature">
-              <span class="feature-icon">📊</span>
-              <div>
-                <h4>Candidate Dashboard</h4>
-                <p>Track applications, OmniScore progress, and get personalized improvement tips.</p>
-                <span class="feature-link">View Dashboard →</span>
-              </div>
-            </a>
-          </div>
-        </div>
-
-        <!-- Recruiter Features -->
-        <div class="showcase-column recruiters">
-          <h3><span class="icon">🏢</span> For Recruiters</h3>
-          <div class="showcase-features">
-            <a href="/job-create.html" class="showcase-feature">
-              <span class="feature-icon">📝</span>
-              <div>
-                <h4>AI Job Descriptions</h4>
-                <p>Generate compelling job posts in seconds. Our AI writes descriptions that attract the right candidates.</p>
-                <span class="feature-link">Create Job →</span>
-              </div>
-            </a>
-            <a href="/recruiter-dashboard.html" class="showcase-feature">
-              <span class="feature-icon">🏆</span>
-              <div>
-                <h4>Candidate Ranking</h4>
-                <p>See candidates ranked by OmniScore. Filter by skills, experience, and verified assessments.</p>
-                <span class="feature-link">Find Talent →</span>
-              </div>
-            </a>
-            <a href="/recruiter-trustscore.html" class="showcase-feature">
-              <span class="feature-icon">✅</span>
-              <div>
-                <h4>TrustScore Verification</h4>
-                <p>Verify candidate claims instantly. Our AI detects resume inconsistencies and red flags.</p>
-                <span class="feature-link">Learn More →</span>
-              </div>
-            </a>
-            <a href="/recruiter-jobs.html" class="showcase-feature">
-              <span class="feature-icon">📈</span>
-              <div>
-                <h4>Hiring Analytics</h4>
-                <p>Track pipeline metrics, time-to-hire, and candidate quality. Make data-driven hiring decisions.</p>
-                <span class="feature-link">View Analytics →</span>
-              </div>
-            </a>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Score Badges Section -->
-    <section class="score-badges-section">
-      <div class="section-header">
-        <h2>Trust <span class="text-gradient">Built-In</span></h2>
-        <p>Our proprietary scoring systems create accountability on both sides</p>
-      </div>
-      <div class="score-badges-grid">
-        <div class="score-badge-card">
-          <div class="score-value">742</div>
-          <h3>OmniScore™</h3>
-          <p>Your candidate credit score (300-850). Built through AI interviews, skill assessments, and verified achievements. Employers trust it because it's earned, not claimed.</p>
-          <a href="/omniscore.html" class="btn btn-ghost" style="margin-top: 16px;">Learn About OmniScore</a>
-        </div>
-        <div class="score-badge-card trustscore">
-          <div class="score-value">94%</div>
-          <h3>TrustScore™</h3>
-          <p>Recruiter credibility score. Based on response rates, offer accuracy, and candidate feedback. Candidates know which employers are worth their time.</p>
-          <a href="/recruiter-trustscore.html" class="btn btn-ghost" style="margin-top: 16px;">Learn About TrustScore</a>
-        </div>
-      </div>
-    </section>
-
-    <!-- How It Works Section -->
-    <section class="how-it-works" id="how-it-works">
-      <div class="section-header">
-        <h2>How the <span class="text-gradient">AI Interview</span> Works</h2>
-        <p>From practice to hire in 4 simple steps</p>
-      </div>
-      <div class="steps">
-        <div class="step">
-          <div class="step-number">01</div>
-          <div class="step-content">
-            <h3>Take Your AI Mock Interview</h3>
-            <p>Choose your target role. Our AI interviewer asks tailored technical and behavioral questions via voice or text. Takes 15-30 minutes.</p>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-number">02</div>
-          <div class="step-content">
-            <h3>Get Your OmniScore</h3>
-            <p>Instant scoring (300-850) based on your responses. See exactly where you excelled and what to improve. Complete skill assessments to boost your score.</p>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-number">03</div>
-          <div class="step-content">
-            <h3>Apply with Confidence</h3>
-            <p>Your OmniScore is attached to applications. Recruiters see your verified skills, not just your claims. Stand out from the resume pile.</p>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-number">04</div>
-          <div class="step-content">
-            <h3>Get Hired Faster</h3>
-            <p>High OmniScores get priority. Recruiters trust the data and move you through the pipeline faster. No more black holes.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Pricing Section -->
-    <section class="pricing" id="pricing">
-      <div class="section-header">
-        <h2>Simple <span class="text-gradient">Pricing</span></h2>
-        <p>Plans for candidates and recruiters</p>
-      </div>
-      <div class="pricing-cards">
-        <div class="pricing-card">
-          <div class="pricing-header">
-            <h3>Candidate Free</h3>
-            <div class="price">$0<span>/forever</span></div>
-          </div>
-          <ul class="pricing-features">
-            <li>✓ Basic OmniScore</li>
-            <li>✓ 3 mock interviews per month</li>
-            <li>✓ Browse job board</li>
-            <li>✓ Apply to jobs</li>
-            <li class="disabled">✗ Unlimited interviews</li>
-            <li class="disabled">✗ Role-specific scores</li>
+      <div class="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+        <div class="card p-8 text-center">
+          <h3 class="text-lg font-semibold text-slate-900 mb-1">Starter</h3>
+          <div class="text-4xl font-bold text-slate-900 mb-1">$49<span class="text-base font-normal text-slate-500">/mo</span></div>
+          <p class="text-sm text-slate-500 mb-6">For small teams</p>
+          <ul class="text-sm text-slate-600 space-y-3 mb-8 text-left">
+            <li class="flex items-start gap-2"><svg class="mt-0.5 flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Up to 10 job postings</li>
+            <li class="flex items-start gap-2"><svg class="mt-0.5 flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> AI candidate matching</li>
+            <li class="flex items-start gap-2"><svg class="mt-0.5 flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Basic assessments</li>
           </ul>
-          <a href="/register.html" class="btn btn-ghost btn-full">Start Free</a>
+          <a href="/register.html?role=recruiter" class="btn btn-secondary btn-full">Get Started</a>
         </div>
-        <div class="pricing-card featured">
-          <div class="pricing-badge">Most Popular</div>
-          <div class="pricing-header">
-            <h3>Candidate Pro</h3>
-            <div class="price">$29<span>/month</span></div>
-          </div>
-          <ul class="pricing-features">
-            <li>✓ Full OmniScore (all factors)</li>
-            <li>✓ Unlimited mock interviews</li>
-            <li>✓ All skill assessments</li>
-            <li>✓ Role-specific scores</li>
-            <li>✓ Shareable score badge</li>
-            <li>✓ Priority job matching</li>
+        <div class="card p-8 text-center border-2 border-indigo-200 relative">
+          <div class="absolute -top-3 left-1/2 -translate-x-1/2"><span class="badge badge-primary px-3 py-1">Popular</span></div>
+          <h3 class="text-lg font-semibold text-slate-900 mb-1">Professional</h3>
+          <div class="text-4xl font-bold text-slate-900 mb-1">$149<span class="text-base font-normal text-slate-500">/mo</span></div>
+          <p class="text-sm text-slate-500 mb-6">For growing teams</p>
+          <ul class="text-sm text-slate-600 space-y-3 mb-8 text-left">
+            <li class="flex items-start gap-2"><svg class="mt-0.5 flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Unlimited job postings</li>
+            <li class="flex items-start gap-2"><svg class="mt-0.5 flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Advanced AI matching</li>
+            <li class="flex items-start gap-2"><svg class="mt-0.5 flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Video interviews</li>
+            <li class="flex items-start gap-2"><svg class="mt-0.5 flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Onboarding + payroll</li>
           </ul>
-          <a href="https://buy.stripe.com/5kQaEX7HUdKwfII5KWdjP3G" class="btn btn-primary btn-full">Get Pro</a>
+          <a href="/register.html?role=recruiter" class="btn btn-primary btn-full">Get Started</a>
         </div>
-        <div class="pricing-card">
-          <div class="pricing-header">
-            <h3>Recruiter</h3>
-            <div class="price">$199<span>/month</span></div>
-          </div>
-          <ul class="pricing-features">
-            <li>✓ Unlimited job postings</li>
-            <li>✓ AI job description writer</li>
-            <li>✓ Candidate OmniScore access</li>
-            <li>✓ TrustScore verification</li>
-            <li>✓ Hiring analytics dashboard</li>
-            <li>✓ Priority support</li>
+        <div class="card p-8 text-center">
+          <h3 class="text-lg font-semibold text-slate-900 mb-1">Enterprise</h3>
+          <div class="text-4xl font-bold text-slate-900 mb-1">Custom</div>
+          <p class="text-sm text-slate-500 mb-6">For large organizations</p>
+          <ul class="text-sm text-slate-600 space-y-3 mb-8 text-left">
+            <li class="flex items-start gap-2"><svg class="mt-0.5 flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Everything in Professional</li>
+            <li class="flex items-start gap-2"><svg class="mt-0.5 flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Custom integrations</li>
+            <li class="flex items-start gap-2"><svg class="mt-0.5 flex-shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Dedicated support</li>
           </ul>
-          <a href="/recruiter-register.html" class="btn btn-ghost btn-full">Start Hiring</a>
+          <a href="mailto:hello@hireloop.com" class="btn btn-secondary btn-full">Contact Sales</a>
         </div>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <!-- CTA Section -->
-    <section class="cta">
-      <div class="cta-content">
-        <h2>Ready to <span class="text-gradient">Transform Hiring</span>?</h2>
-        <p>Join thousands of candidates and recruiters using AI-powered hiring.</p>
-        <div class="hero-cta-dual">
-          <a href="/register.html" class="btn btn-primary btn-large">I'm a Candidate</a>
-          <a href="/recruiter-register.html" class="btn btn-ghost btn-large">I'm a Recruiter</a>
-        </div>
-      </div>
-    </section>
+  <!-- Final CTA -->
+  <section class="py-20 px-6">
+    <div class="max-w-3xl mx-auto text-center">
+      <h2 class="text-3xl font-bold text-slate-900 mb-4">Ready to transform your hiring?</h2>
+      <p class="text-slate-600 mb-8">Join thousands of companies using AI to hire smarter.</p>
+      <a href="/register.html" class="btn btn-primary btn-lg px-10">Get Started Free</a>
+    </div>
+  </section>
 
-    <!-- Footer -->
-    <footer class="footer">
-      <div class="footer-content">
-        <div class="footer-brand">
-          <a href="/" class="logo">
-            <span class="logo-icon">◎</span>
-            <span>HireLoop</span>
-          </a>
-          <p>AI-powered hiring for candidates and recruiters.</p>
-        </div>
-        <div class="footer-links">
-          <div class="footer-col">
-            <h4>For Candidates</h4>
-            <a href="/candidate-dashboard.html">Dashboard</a>
-            <a href="/job-board.html">Job Board</a>
-            <a href="/skill-assessments.html">Skill Assessments</a>
-            <a href="/interview.html">Mock Interviews</a>
-            <a href="/omniscore.html">OmniScore</a>
-          </div>
-          <div class="footer-col">
-            <h4>For Recruiters</h4>
-            <a href="/job-create.html">Post a Job</a>
-            <a href="/recruiter-dashboard.html">Recruiter Dashboard</a>
-            <a href="/recruiter-trustscore.html">TrustScore</a>
-            <a href="/recruiter-jobs.html">Manage Jobs</a>
-          </div>
-          <div class="footer-col">
-            <h4>Account</h4>
-            <a href="/login.html">Log In</a>
-            <a href="/register.html">Sign Up (Candidate)</a>
-            <a href="/recruiter-register.html">Sign Up (Recruiter)</a>
-          </div>
-        </div>
+  <!-- Footer -->
+  <footer class="border-t border-slate-200 py-12 px-6">
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <span style="font-size:1.125rem;font-weight:800;color:#0f172a;">Hire<span style="color:#4f46e5;">Loop</span></span>
+        <span class="text-sm text-slate-400 ml-4">&copy; 2026 HireLoop. All rights reserved.</span>
       </div>
-      <div class="footer-bottom">
-        <p>&copy; 2026 HireLoop. All rights reserved.</p>
+      <div class="flex items-center gap-6 text-sm text-slate-500">
+        <a href="#" class="hover:text-slate-700">Privacy</a>
+        <a href="#" class="hover:text-slate-700">Terms</a>
+        <a href="mailto:hello@hireloop.com" class="hover:text-slate-700">Contact</a>
       </div>
-    </footer>
-  </div>
+    </div>
+  </footer>
 
-  <script src="/js/analytics.js"></script>
-  <script src="/js/main.js"></script>
-  <script>
-    // Track signup button clicks
-    document.addEventListener('DOMContentLoaded', () => {
-      document.querySelectorAll('a[href*="register"]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          Analytics.trackClick('signup_button', {
-            text: btn.textContent.trim(),
-            location: btn.closest('section')?.className || 'unknown'
-          });
-        });
-      });
-    });
-  </script>
+  <script src="/js/core.js"></script>
+  <script defer src="https://polsia.com/analytics.js" data-slug="hireloop"></script>
 </body>
 </html>
