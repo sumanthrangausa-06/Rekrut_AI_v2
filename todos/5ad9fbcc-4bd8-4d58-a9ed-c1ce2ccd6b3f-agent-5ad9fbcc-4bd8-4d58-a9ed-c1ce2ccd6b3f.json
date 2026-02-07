@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Remove duplicate const TOKEN_KEY declaration from onboarding.html",
+    "status": "completed",
+    "activeForm": "Fixing duplicate variable declaration"
+  },
+  {
+    "content": "Fix sidebar user info to use correct response format",
+    "status": "completed",
+    "activeForm": "Fixing sidebar user info"
+  },
+  {
+    "content": "Check for same issue on other pages",
+    "status": "completed",
+    "activeForm": "Checking other pages for same bug"
+  },
+  {
+    "content": "Deploy and verify fix",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying"
+  }
+]
