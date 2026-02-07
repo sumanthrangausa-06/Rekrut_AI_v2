@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   ArrowLeft, Users, Star, Calendar, MessageSquare,
-  GraduationCap, Mail, FileText, Send, CheckCircle, Clock,
+  GraduationCap, Mail, FileText, Send, CheckCircle, Clock, Gift,
 } from 'lucide-react'
 
 interface JobInfo {
@@ -359,6 +359,18 @@ export function RecruiterJobApplicantsPage() {
                 Save & Close
               </Button>
             </div>
+
+            {/* Make Offer button */}
+            {!['rejected', 'offered', 'hired'].includes(selected.status) && (
+              <Button
+                className="w-full gap-2"
+                onClick={() => {
+                  navigate(`/recruiter/offers?create=1&candidateId=${selected.candidate_id}&jobId=${id}`)
+                }}
+              >
+                <Gift className="h-4 w-4" /> Make Offer to {selected.candidate_name?.split(' ')[0] || 'Candidate'}
+              </Button>
+            )}
           </div>
         </Dialog>
       )}

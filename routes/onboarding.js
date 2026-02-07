@@ -205,17 +205,39 @@ router.post('/offers/:id/accept', authMiddleware, async (req, res) => {
   }
 });
 
+// Withdraw offer (recruiter-side)
+router.post('/offers/:id/withdraw', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE offers
+       SET status = 'withdrawn', updated_at = NOW()
+       WHERE id = $1 AND company_id = $2 AND status IN ('draft', 'sent', 'viewed')
+       RETURNING *`,
+      [req.params.id, req.user.company_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Offer not found or cannot be withdrawn' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error withdrawing offer:', err);
+    res.status(500).json({ error: 'Failed to withdraw offer' });
+  }
+});
+
 // Decline offer
 router.post('/offers/:id/decline', authMiddleware, async (req, res) => {
   try {
-    const { reason } = req.body;
+    const { reason, decline_reason } = req.body;
 
     const result = await pool.query(
       `UPDATE offers
        SET status = 'declined', declined_at = NOW(), decline_reason = $3, updated_at = NOW()
        WHERE id = $1 AND candidate_id = $2
        RETURNING *`,
-      [req.params.id, req.user.id, reason]
+      [req.params.id, req.user.id, decline_reason || reason || null]
     );
 
     if (result.rows.length === 0) {

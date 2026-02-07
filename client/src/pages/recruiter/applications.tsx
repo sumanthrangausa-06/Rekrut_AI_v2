@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
+import { useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { apiCall } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,7 @@ import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import {
   FileText, Users, Star, Calendar, MessageSquare, Eye, ChevronDown,
-  GraduationCap, CheckCircle,
+  GraduationCap, CheckCircle, Gift,
 } from 'lucide-react'
 
 interface Application {
@@ -49,6 +49,7 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
 
 export function RecruiterApplicationsPage() {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [applications, setApplications] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
@@ -335,6 +336,18 @@ export function RecruiterApplicationsPage() {
                 Save & Close
               </Button>
             </div>
+
+            {/* Make Offer button */}
+            {!['rejected', 'offered', 'hired'].includes(selected.status) && (
+              <Button
+                className="w-full gap-2"
+                onClick={() => {
+                  navigate(`/recruiter/offers?create=1&candidateId=${selected.candidate_id}&jobId=${selected.job_id}`)
+                }}
+              >
+                <Gift className="h-4 w-4" /> Make Offer to {selected.candidate_name?.split(' ')[0] || 'Candidate'}
+              </Button>
+            )}
           </div>
         </Dialog>
       )}

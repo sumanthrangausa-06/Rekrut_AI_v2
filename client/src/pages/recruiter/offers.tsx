@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { apiCall } from '@/lib/api'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -9,7 +10,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
-  Gift, Plus, Send, DollarSign, Calendar, Users, CheckCircle, XCircle, Clock, Eye,
+  Gift, Plus, Send, DollarSign, Calendar, CheckCircle, XCircle, Clock, Eye,
+  Ban, FileText, User, Briefcase, Building2,
 } from 'lucide-react'
 
 interface Offer {
@@ -51,9 +53,11 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
   viewed: { label: 'Viewed', variant: 'default', icon: Eye },
   accepted: { label: 'Accepted', variant: 'success', icon: CheckCircle },
   declined: { label: 'Declined', variant: 'destructive', icon: XCircle },
+  withdrawn: { label: 'Withdrawn', variant: 'secondary', icon: Ban },
 }
 
 export function RecruiterOffersPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [offers, setOffers] = useState<Offer[]>([])
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [jobs, setJobs] = useState<Job[]>([])
@@ -61,6 +65,9 @@ export function RecruiterOffersPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [saving, setSaving] = useState(false)
   const [sending, setSending] = useState<number | null>(null)
+  const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null)
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [statusFilter, setStatusFilter] = useState('')
 
   // Form fields
   const [candidateId, setCandidateId] = useState('')
@@ -73,6 +80,22 @@ export function RecruiterOffersPage() {
   useEffect(() => {
     loadData()
   }, [])
+
+  // Handle query params for pre-filled offer creation
+  useEffect(() => {
+    const create = searchParams.get('create')
+    const cId = searchParams.get('candidateId')
+    const jId = searchParams.get('jobId')
+    const cName = searchParams.get('candidateName')
+
+    if (create === '1') {
+      if (cId) setCandidateId(cId)
+      if (jId) setJobId(jId)
+      setShowCreate(true)
+      // Clean up URL params
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams])
 
   async function loadData() {
     try {
@@ -119,15 +142,33 @@ export function RecruiterOffersPage() {
     }
   }
 
-  async function sendOffer(id: number) {
+  async function sendOffer(id: number, e?: React.MouseEvent) {
+    e?.stopPropagation()
     setSending(id)
     try {
       await apiCall(`/onboarding/offers/${id}/send`, { method: 'POST' })
       loadData()
+      if (selectedOffer?.id === id) {
+        setSelectedOffer(prev => prev ? { ...prev, status: 'sent', sent_at: new Date().toISOString() } : null)
+      }
     } catch {
       // silent
     } finally {
       setSending(null)
+    }
+  }
+
+  async function withdrawOffer(id: number) {
+    if (!confirm('Are you sure you want to withdraw this offer?')) return
+    setWithdrawing(true)
+    try {
+      await apiCall(`/onboarding/offers/${id}/withdraw`, { method: 'POST' })
+      setSelectedOffer(null)
+      loadData()
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to withdraw offer')
+    } finally {
+      setWithdrawing(false)
     }
   }
 
@@ -140,9 +181,17 @@ export function RecruiterOffersPage() {
     setBenefits('')
   }
 
-  const draftOffers = offers.filter(o => o.status === 'draft')
-  const sentOffers = offers.filter(o => ['sent', 'viewed'].includes(o.status))
-  const resolvedOffers = offers.filter(o => ['accepted', 'declined'].includes(o.status))
+  const allStatuses = ['draft', 'sent', 'viewed', 'accepted', 'declined', 'withdrawn']
+  const statusCounts = allStatuses.reduce((acc, s) => {
+    acc[s] = offers.filter(o => o.status === s).length
+    return acc
+  }, {} as Record<string, number>)
+
+  const filtered = offers.filter(o => !statusFilter || o.status === statusFilter)
+
+  const draftOffers = filtered.filter(o => o.status === 'draft')
+  const pendingOffers = filtered.filter(o => ['sent', 'viewed'].includes(o.status))
+  const resolvedOffers = filtered.filter(o => ['accepted', 'declined', 'withdrawn'].includes(o.status))
 
   return (
     <div className="space-y-6">
@@ -166,7 +215,9 @@ export function RecruiterOffersPage() {
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-amber-600">{sentOffers.length}</p>
+            <p className="text-2xl font-bold text-amber-600">
+              {offers.filter(o => ['sent', 'viewed'].includes(o.status)).length}
+            </p>
             <p className="text-xs text-muted-foreground">Pending</p>
           </CardContent>
         </Card>
@@ -188,18 +239,45 @@ export function RecruiterOffersPage() {
         </Card>
       </div>
 
+      {/* Status filter pills */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={!statusFilter ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setStatusFilter('')}
+        >
+          All ({offers.length})
+        </Button>
+        {allStatuses.map(s => (
+          statusCounts[s] > 0 ? (
+            <Button
+              key={s}
+              variant={statusFilter === s ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter(s)}
+            >
+              {statusConfig[s]?.label || s} ({statusCounts[s]})
+            </Button>
+          ) : null
+        ))}
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
-      ) : offers.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
             <Gift className="mx-auto mb-3 h-10 w-10 opacity-30" />
-            <p className="text-muted-foreground mb-4">No offers created yet</p>
-            <Button onClick={() => setShowCreate(true)} className="gap-2">
-              <Plus className="h-4 w-4" /> Create Your First Offer
-            </Button>
+            <p className="text-muted-foreground mb-4">
+              {offers.length === 0 ? 'No offers created yet' : 'No offers match this filter'}
+            </p>
+            {offers.length === 0 && (
+              <Button onClick={() => setShowCreate(true)} className="gap-2">
+                <Plus className="h-4 w-4" /> Create Your First Offer
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -215,23 +293,24 @@ export function RecruiterOffersPage() {
                   <OfferRow
                     key={offer.id}
                     offer={offer}
-                    onSend={() => sendOffer(offer.id)}
+                    onSend={(e) => sendOffer(offer.id, e)}
                     sending={sending === offer.id}
+                    onClick={() => setSelectedOffer(offer)}
                   />
                 ))}
               </div>
             </div>
           )}
 
-          {/* Sent/Viewed */}
-          {sentOffers.length > 0 && (
+          {/* Pending */}
+          {pendingOffers.length > 0 && (
             <div>
               <h2 className="font-medium text-sm text-muted-foreground mb-3">
-                Pending Response ({sentOffers.length})
+                Pending Response ({pendingOffers.length})
               </h2>
               <div className="space-y-2">
-                {sentOffers.map(offer => (
-                  <OfferRow key={offer.id} offer={offer} />
+                {pendingOffers.map(offer => (
+                  <OfferRow key={offer.id} offer={offer} onClick={() => setSelectedOffer(offer)} />
                 ))}
               </div>
             </div>
@@ -245,7 +324,7 @@ export function RecruiterOffersPage() {
               </h2>
               <div className="space-y-2">
                 {resolvedOffers.map(offer => (
-                  <OfferRow key={offer.id} offer={offer} />
+                  <OfferRow key={offer.id} offer={offer} onClick={() => setSelectedOffer(offer)} />
                 ))}
               </div>
             </div>
@@ -253,8 +332,161 @@ export function RecruiterOffersPage() {
         </div>
       )}
 
+      {/* Offer detail dialog */}
+      {selectedOffer && (
+        <Dialog open={true} onClose={() => setSelectedOffer(null)} className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Gift className="h-5 w-5 text-primary" />
+              Offer Details
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Status badge */}
+            {(() => {
+              const config = statusConfig[selectedOffer.status] || { label: selectedOffer.status, variant: 'secondary' as const, icon: Clock }
+              const Icon = config.icon
+              return (
+                <Badge variant={config.variant} className="gap-1 w-fit">
+                  <Icon className="h-3 w-3" /> {config.label}
+                </Badge>
+              )
+            })()}
+
+            {/* Details grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <User className="h-3 w-3" /> Candidate
+                </p>
+                <p className="font-medium">{selectedOffer.candidate_name || 'Unknown'}</p>
+                <p className="text-xs text-muted-foreground">{selectedOffer.candidate_email}</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Briefcase className="h-3 w-3" /> Position
+                </p>
+                <p className="font-medium">{selectedOffer.job_title || selectedOffer.title}</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <DollarSign className="h-3 w-3" /> Salary
+                </p>
+                <p className="font-medium text-emerald-600">
+                  ${Number(selectedOffer.salary).toLocaleString()}/yr
+                </p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Calendar className="h-3 w-3" /> Start Date
+                </p>
+                <p className="font-medium">
+                  {selectedOffer.start_date
+                    ? new Date(selectedOffer.start_date).toLocaleDateString()
+                    : 'TBD'}
+                </p>
+              </div>
+            </div>
+
+            {/* Benefits */}
+            {selectedOffer.benefits && (
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground mb-1">Benefits</p>
+                <p className="text-sm whitespace-pre-wrap">{selectedOffer.benefits}</p>
+              </div>
+            )}
+
+            {/* Timeline */}
+            <div className="rounded-lg border p-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Timeline</p>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Created</span>
+                  <span>{new Date(selectedOffer.created_at).toLocaleDateString()}</span>
+                </div>
+                {selectedOffer.sent_at && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Sent</span>
+                    <span>{new Date(selectedOffer.sent_at).toLocaleDateString()}</span>
+                  </div>
+                )}
+                {selectedOffer.viewed_at && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Viewed</span>
+                    <span>{new Date(selectedOffer.viewed_at).toLocaleDateString()}</span>
+                  </div>
+                )}
+                {selectedOffer.accepted_at && (
+                  <div className="flex justify-between text-emerald-600">
+                    <span>Accepted</span>
+                    <span>{new Date(selectedOffer.accepted_at).toLocaleDateString()}</span>
+                  </div>
+                )}
+                {selectedOffer.declined_at && (
+                  <div className="flex justify-between text-destructive">
+                    <span>Declined</span>
+                    <span>{new Date(selectedOffer.declined_at).toLocaleDateString()}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Decline reason */}
+            {selectedOffer.decline_reason && (
+              <div className="rounded-lg bg-destructive/10 p-3">
+                <p className="text-xs text-muted-foreground mb-1">Decline Reason</p>
+                <p className="text-sm">{selectedOffer.decline_reason}</p>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-2">
+              {selectedOffer.status === 'draft' && (
+                <>
+                  <Button
+                    onClick={() => sendOffer(selectedOffer.id)}
+                    disabled={sending === selectedOffer.id}
+                    className="gap-2 flex-1"
+                  >
+                    {sending === selectedOffer.id ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    Send to Candidate
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => withdrawOffer(selectedOffer.id)}
+                    disabled={withdrawing}
+                    className="gap-2"
+                  >
+                    <Ban className="h-4 w-4" /> Delete
+                  </Button>
+                </>
+              )}
+              {['sent', 'viewed'].includes(selectedOffer.status) && (
+                <Button
+                  variant="outline"
+                  onClick={() => withdrawOffer(selectedOffer.id)}
+                  disabled={withdrawing}
+                  className="gap-2 text-destructive"
+                >
+                  {withdrawing ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  ) : (
+                    <Ban className="h-4 w-4" />
+                  )}
+                  Withdraw Offer
+                </Button>
+              )}
+            </div>
+          </div>
+        </Dialog>
+      )}
+
       {/* Create offer dialog */}
-      <Dialog open={showCreate} onClose={() => setShowCreate(false)} className="max-w-lg">
+      <Dialog open={showCreate} onClose={() => { setShowCreate(false); resetForm() }} className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Create New Offer</DialogTitle>
         </DialogHeader>
@@ -288,7 +520,7 @@ export function RecruiterOffersPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Annual Salary *</Label>
+              <Label>Annual Salary ($) *</Label>
               <Input
                 type="number"
                 value={salary}
@@ -326,7 +558,7 @@ export function RecruiterOffersPage() {
               )}
               Create Offer
             </Button>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setShowCreate(false); resetForm() }}>Cancel</Button>
           </div>
         </div>
       </Dialog>
@@ -334,16 +566,17 @@ export function RecruiterOffersPage() {
   )
 }
 
-function OfferRow({ offer, onSend, sending }: {
+function OfferRow({ offer, onSend, sending, onClick }: {
   offer: Offer
-  onSend?: () => void
+  onSend?: (e: React.MouseEvent) => void
   sending?: boolean
+  onClick?: () => void
 }) {
   const config = statusConfig[offer.status] || { label: offer.status, variant: 'secondary' as const, icon: Clock }
   const Icon = config.icon
 
   return (
-    <Card>
+    <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={onClick}>
       <CardContent className="p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
@@ -354,7 +587,10 @@ function OfferRow({ offer, onSend, sending }: {
               </Badge>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <span>{offer.job_title || offer.title}</span>
+              <span className="flex items-center gap-1">
+                <Briefcase className="h-3 w-3" />
+                {offer.job_title || offer.title}
+              </span>
               <span className="flex items-center gap-1">
                 <DollarSign className="h-3 w-3" />
                 ${Number(offer.salary).toLocaleString()}/yr
@@ -370,16 +606,18 @@ function OfferRow({ offer, onSend, sending }: {
               )}
             </div>
           </div>
-          {offer.status === 'draft' && onSend && (
-            <Button size="sm" onClick={onSend} disabled={sending} className="gap-1 shrink-0">
-              {sending ? (
-                <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              ) : (
-                <Send className="h-3 w-3" />
-              )}
-              Send to Candidate
-            </Button>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {offer.status === 'draft' && onSend && (
+              <Button size="sm" onClick={onSend} disabled={sending} className="gap-1">
+                {sending ? (
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                ) : (
+                  <Send className="h-3 w-3" />
+                )}
+                Send
+              </Button>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
