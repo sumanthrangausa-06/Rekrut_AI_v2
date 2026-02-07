@@ -2,6 +2,9 @@
 
 let practiceState = {
   currentQuestion: null,
+  allQuestions: [],
+  filteredQuestions: [],
+  activeFilter: 'all',
   stats: null,
   user: null
 };
@@ -19,9 +22,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Setup tabs
   setupTabs();
 
-  // Load initial data
-  await loadStats();
-  await loadQuestionLibrary();
+  // Load initial data in parallel
+  await Promise.all([
+    loadStats(),
+    loadQuestionLibrary()
+  ]);
 });
 
 // Setup tab switching
@@ -46,6 +51,28 @@ function setupTabs() {
       }
     });
   });
+}
+
+// Filter questions by category
+function filterQuestions(category) {
+  practiceState.activeFilter = category;
+
+  // Update filter pill active states
+  document.querySelectorAll('.filter-pill').forEach(pill => {
+    pill.classList.remove('active');
+    if (pill.dataset.category === category) {
+      pill.classList.add('active');
+    }
+  });
+
+  // Filter and render
+  if (category === 'all') {
+    practiceState.filteredQuestions = practiceState.allQuestions;
+  } else {
+    practiceState.filteredQuestions = practiceState.allQuestions.filter(q => q.category === category);
+  }
+
+  renderQuestionLibrary(practiceState.filteredQuestions);
 }
 
 // Load practice stats
@@ -84,6 +111,12 @@ async function loadQuestionLibrary() {
     const data = await apiCall('/interviews/practice/library');
 
     if (data && data.questions) {
+      practiceState.allQuestions = data.questions;
+      practiceState.filteredQuestions = data.questions;
+
+      // Update category counts in filter pills
+      updateFilterCounts(data.questions);
+
       renderQuestionLibrary(data.questions);
     }
 
@@ -95,11 +128,31 @@ async function loadQuestionLibrary() {
     document.getElementById('question-library').innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">📚</div>
-        <h3>Question Library</h3>
+        <h3 style="color: #1a1a2e; margin-bottom: 0.5rem;">Question Library</h3>
         <p>Unable to load questions. Please try again later.</p>
+        <button class="btn btn-primary" onclick="loadQuestionLibrary()" style="margin-top: 1rem;">Try Again</button>
       </div>
     `;
   }
+}
+
+// Update filter pill question counts
+function updateFilterCounts(questions) {
+  const counts = { all: questions.length, behavioral: 0, technical: 0, situational: 0 };
+  questions.forEach(q => {
+    if (counts[q.category] !== undefined) counts[q.category]++;
+  });
+
+  document.querySelectorAll('.filter-pill').forEach(pill => {
+    const cat = pill.dataset.category;
+    const existingBadge = pill.querySelector('.question-count-badge');
+    if (existingBadge) existingBadge.remove();
+
+    const badge = document.createElement('span');
+    badge.className = 'question-count-badge';
+    badge.textContent = counts[cat] || 0;
+    pill.appendChild(badge);
+  });
 }
 
 // Render question library
@@ -107,26 +160,39 @@ function renderQuestionLibrary(questions) {
   const container = document.getElementById('question-library');
 
   if (questions.length === 0) {
+    const isFiltered = practiceState.activeFilter !== 'all';
     container.innerHTML = `
       <div class="empty-state">
-        <div class="empty-state-icon">📚</div>
-        <h3>No Questions Available</h3>
-        <p>Check back soon for practice questions!</p>
+        <div class="empty-state-icon">${isFiltered ? '🔍' : '📚'}</div>
+        <h3 style="color: #1a1a2e; margin-bottom: 0.5rem;">${isFiltered ? 'No Questions in This Category' : 'No Questions Available'}</h3>
+        <p>${isFiltered ? 'Try selecting a different category.' : 'Check back soon for practice questions!'}</p>
+        ${isFiltered ? '<button class="btn btn-ghost" onclick="filterQuestions(\'all\')" style="margin-top: 1rem;">Show All Questions</button>' : ''}
       </div>
     `;
     return;
   }
 
+  const categoryIcons = { behavioral: '🧠', technical: '⚙️', situational: '💡' };
+  const difficultyColors = { Easy: '#10b981', Medium: '#f59e0b', Hard: '#ef4444' };
+
   container.innerHTML = questions.map((q, idx) => `
-    <div class="question-card" data-question-idx="${idx}">
-      <span class="question-category-badge category-${q.category}">
-        ${q.category.charAt(0).toUpperCase() + q.category.slice(1)}
-      </span>
+    <div class="question-card" data-question-idx="${idx}" data-category="${q.category}">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+        <span class="question-category-badge category-${q.category}">
+          ${categoryIcons[q.category] || '📝'} ${q.category.charAt(0).toUpperCase() + q.category.slice(1)}
+        </span>
+        <span style="font-size: 0.8rem; font-weight: 600; color: ${difficultyColors[q.difficulty] || '#6b7280'}; padding: 0.3rem 0.75rem; background: ${difficultyColors[q.difficulty] || '#6b7280'}15; border-radius: 6px;">
+          ${q.difficulty}
+        </span>
+      </div>
       <div class="question-text">${q.question}</div>
       <div class="question-meta">
-        <span>💪 ${q.difficulty}</span>
-        ${q.times_practiced ? `<span>📝 Practiced ${q.times_practiced} times</span>` : ''}
-        ${q.last_score ? `<span>⭐ Last score: ${q.last_score}/10</span>` : ''}
+        ${q.times_practiced ? `<span>📝 Practiced ${q.times_practiced}x</span>` : '<span style="color: #667eea;">✨ New</span>'}
+        ${q.last_score ? `<span>⭐ Best: ${q.last_score}/10</span>` : ''}
+        ${q.key_points ? `<span>📋 ${q.key_points.length} key points</span>` : ''}
+      </div>
+      <div style="margin-top: 1rem; text-align: right;">
+        <span style="color: #667eea; font-weight: 600; font-size: 0.875rem;">Start Practice →</span>
       </div>
     </div>
   `).join('');
@@ -147,6 +213,18 @@ function openPracticeModal(question) {
   document.getElementById('modal-question-text').textContent = question.question;
   document.getElementById('modal-category-badge').textContent =
     `${question.category.charAt(0).toUpperCase() + question.category.slice(1)} • ${question.difficulty}`;
+
+  // Show key points hint
+  const hintEl = document.getElementById('modal-key-points');
+  if (hintEl && question.key_points && question.key_points.length > 0) {
+    hintEl.innerHTML = `
+      <div style="margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.15); border-radius: 12px; font-size: 0.9rem;">
+        <strong>💡 Key areas to address:</strong> ${question.key_points.join(' • ')}
+      </div>
+    `;
+  } else if (hintEl) {
+    hintEl.innerHTML = '';
+  }
 
   document.getElementById('practice-response').value = '';
   document.getElementById('practice-question-view').style.display = 'block';
@@ -209,10 +287,14 @@ async function submitPracticeResponse() {
 function displayCoachingResult(coaching) {
   const resultContainer = document.getElementById('coaching-result');
 
+  // Color based on score
+  const scoreColor = coaching.score >= 7 ? '#10b981' : coaching.score >= 5 ? '#f59e0b' : '#ef4444';
+  const scoreLabel = coaching.score >= 8 ? 'Excellent!' : coaching.score >= 6 ? 'Good work!' : coaching.score >= 4 ? 'Keep practicing!' : 'Room to grow';
+
   resultContainer.innerHTML = `
-    <div class="score-display">
+    <div class="score-display" style="background: linear-gradient(135deg, ${scoreColor} 0%, ${scoreColor}dd 100%);">
       <div class="score-value">${coaching.score}/10</div>
-      <div class="score-label">Your Score</div>
+      <div class="score-label">${scoreLabel}</div>
     </div>
 
     ${coaching.strengths && coaching.strengths.length > 0 ? `
@@ -245,7 +327,7 @@ function displayCoachingResult(coaching) {
     ${coaching.improved_response ? `
       <div class="coaching-section">
         <h4>📝 Example Strong Response</h4>
-        <p style="margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.875rem;">
+        <p style="margin-bottom: 0.5rem; color: #6b7280; font-size: 0.875rem;">
           Here's how you could strengthen your response:
         </p>
         <div class="improved-response">
@@ -257,7 +339,7 @@ function displayCoachingResult(coaching) {
     ${coaching.common_mistake ? `
       <div class="coaching-section">
         <h4>⚠️ Common Mistake to Avoid</h4>
-        <p style="color: var(--text-secondary);">${coaching.common_mistake}</p>
+        <p style="color: #4b5563;">${coaching.common_mistake}</p>
       </div>
     ` : ''}
 
@@ -273,12 +355,12 @@ function displayCoachingResult(coaching) {
     ${coaching.practice_prompt ? `
       <div class="coaching-section">
         <h4>🎓 Next Practice Question</h4>
-        <p style="color: var(--text-secondary);">${coaching.practice_prompt}</p>
+        <p style="color: #4b5563;">${coaching.practice_prompt}</p>
       </div>
     ` : ''}
 
     <div style="display: flex; gap: 1rem; margin-top: 2rem;">
-      <button class="btn btn-ghost btn-large" onclick="closePracticeModal()" style="flex: 1;">
+      <button class="btn btn-ghost btn-large" onclick="closePracticeModal()" style="flex: 1; color: #4b5563; border-color: #e5e7eb;">
         Close
       </button>
       <button class="btn btn-primary btn-large" onclick="practiceAnother()" style="flex: 1;">
@@ -329,7 +411,9 @@ function renderCategoryProgress(categoryData) {
   if (categoryData.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <p>No practice data yet. Start practicing to see your progress!</p>
+        <div class="empty-state-icon">📊</div>
+        <h3 style="color: #1a1a2e; margin-bottom: 0.5rem;">No Data Yet</h3>
+        <p>Practice some questions to see your progress by category!</p>
       </div>
     `;
     return;
@@ -339,10 +423,10 @@ function renderCategoryProgress(categoryData) {
     <div class="progress-item">
       <div class="progress-label">
         <span>${cat.category.charAt(0).toUpperCase() + cat.category.slice(1)}</span>
-        <span>${cat.average_score ? cat.average_score.toFixed(1) : '0'}/10 (${cat.count} practiced)</span>
+        <span>${cat.average_score ? parseFloat(cat.average_score).toFixed(1) : '0'}/10 (${cat.count} practiced)</span>
       </div>
       <div class="progress-bar-container">
-        <div class="progress-bar-fill" style="width: ${(cat.average_score || 0) * 10}%;"></div>
+        <div class="progress-bar-fill" style="width: ${(parseFloat(cat.average_score) || 0) * 10}%;"></div>
       </div>
     </div>
   `).join('');
@@ -355,7 +439,9 @@ function renderRecentSessions(sessions) {
   if (sessions.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <p>No practice sessions yet. Start practicing!</p>
+        <div class="empty-state-icon">🏋️</div>
+        <h3 style="color: #1a1a2e; margin-bottom: 0.5rem;">No Sessions Yet</h3>
+        <p>Complete your first practice to see it here!</p>
       </div>
     `;
     return;
@@ -367,10 +453,10 @@ function renderRecentSessions(sessions) {
         <div style="background: #f9fafb; padding: 1.5rem; border-radius: 12px; border-left: 4px solid #667eea;">
           <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
             <div style="flex: 1;">
-              <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">
+              <div style="font-weight: 600; color: #1a1a2e; margin-bottom: 0.25rem;">
                 ${session.question.substring(0, 80)}${session.question.length > 80 ? '...' : ''}
               </div>
-              <div style="font-size: 0.875rem; color: var(--text-muted);">
+              <div style="font-size: 0.875rem; color: #6b7280;">
                 ${session.category} • ${formatDate(session.created_at)}
               </div>
             </div>
@@ -379,7 +465,7 @@ function renderRecentSessions(sessions) {
             </div>
           </div>
           ${session.improvements && session.improvements.length > 0 ? `
-            <div style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem;">
+            <div style="font-size: 0.875rem; color: #4b5563; margin-top: 0.5rem;">
               <strong>Key improvement:</strong> ${session.improvements[0]}
             </div>
           ` : ''}
