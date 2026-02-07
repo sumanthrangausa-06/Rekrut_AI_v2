@@ -1,0 +1,726 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>Onboarding Documents - HireLoop</title>
+     7→  <link rel="preconnect" href="https://fonts.googleapis.com">
+     8→  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     9→  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    10→  <link rel="stylesheet" href="/css/styles.css">
+    11→  <link rel="stylesheet" href="/css/responsive.css">
+    12→  <link rel="stylesheet" href="/css/dashboard.css">
+    13→  <style>
+    14→    .docs-container {
+    15→      display: grid;
+    16→      grid-template-columns: 1fr;
+    17→      gap: 24px;
+    18→    }
+    19→
+    20→    .section-header {
+    21→      margin-bottom: 24px;
+    22→    }
+    23→
+    24→    .section-header h2 {
+    25→      font-size: 20px;
+    26→      font-weight: 600;
+    27→      margin-bottom: 8px;
+    28→      color: var(--text-primary);
+    29→    }
+    30→
+    31→    .section-header p {
+    32→      color: var(--text-muted);
+    33→      font-size: 14px;
+    34→    }
+    35→
+    36→    .candidates-grid {
+    37→      display: grid;
+    38→      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    39→      gap: 16px;
+    40→      margin-bottom: 32px;
+    41→    }
+    42→
+    43→    .candidate-card {
+    44→      background: var(--card-bg);
+    45→      border: 1px solid var(--border-color);
+    46→      border-radius: 12px;
+    47→      padding: 20px;
+    48→      cursor: pointer;
+    49→      transition: all 0.3s ease;
+    50→    }
+    51→
+    52→    .candidate-card:hover {
+    53→      border-color: var(--accent-color);
+    54→      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    55→    }
+    56→
+    57→    .candidate-header {
+    58→      display: flex;
+    59→      justify-content: space-between;
+    60→      align-items: start;
+    61→      margin-bottom: 16px;
+    62→    }
+    63→
+    64→    .candidate-info h3 {
+    65→      font-size: 16px;
+    66→      font-weight: 600;
+    67→      margin-bottom: 4px;
+    68→      color: var(--text-primary);
+    69→    }
+    70→
+    71→    .candidate-email {
+    72→      font-size: 13px;
+    73→      color: var(--text-muted);
+    74→    }
+    75→
+    76→    .candidate-job {
+    77→      font-size: 13px;
+    78→      color: var(--text-secondary);
+    79→      margin-top: 4px;
+    80→    }
+    81→
+    82→    .onboarding-status {
+    83→      display: inline-block;
+    84→      padding: 4px 8px;
+    85→      border-radius: 4px;
+    86→      font-size: 12px;
+    87→      font-weight: 500;
+    88→    }
+    89→
+    90→    .status-pending {
+    91→      background: #fee;
+    92→      color: #c33;
+    93→    }
+    94→
+    95→    .status-in-progress {
+    96→      background: #fef3cd;
+    97→      color: #856404;
+    98→    }
+    99→
+   100→    .status-completed {
+   101→      background: #d4edda;
+   102→      color: #155724;
+   103→    }
+   104→
+   105→    .docs-summary {
+   106→      display: grid;
+   107→      grid-template-columns: repeat(2, 1fr);
+   108→      gap: 12px;
+   109→      margin-top: 12px;
+   110→      padding-top: 12px;
+   111→      border-top: 1px solid var(--border-color);
+   112→    }
+   113→
+   114→    .summary-item {
+   115→      display: flex;
+   116→      align-items: center;
+   117→      gap: 8px;
+   118→      font-size: 13px;
+   119→    }
+   120→
+   121→    .summary-item strong {
+   122→      color: var(--text-primary);
+   123→    }
+   124→
+   125→    .summary-item span {
+   126→      color: var(--text-muted);
+   127→    }
+   128→
+   129→    .documents-list {
+   130→      display: flex;
+   131→      flex-direction: column;
+   132→      gap: 12px;
+   133→    }
+   134→
+   135→    .document-row {
+   136→      display: flex;
+   137→      align-items: center;
+   138→      justify-content: space-between;
+   139→      padding: 12px;
+   140→      background: var(--input-bg);
+   141→      border-radius: 8px;
+   142→      font-size: 13px;
+   143→    }
+   144→
+   145→    .document-type {
+   146→      font-weight: 500;
+   147→      color: var(--text-primary);
+   148→      flex: 1;
+   149→    }
+   150→
+   151→    .document-status {
+   152→      display: inline-block;
+   153→      padding: 2px 6px;
+   154→      border-radius: 3px;
+   155→      font-size: 11px;
+   156→      margin-right: 8px;
+   157→    }
+   158→
+   159→    .status-signed {
+   160→      background: #d4edda;
+   161→      color: #155724;
+   162→    }
+   163→
+   164→    .status-uploaded {
+   165→      background: #d1ecf1;
+   166→      color: #0c5460;
+   167→    }
+   168→
+   169→    .status-pending-doc {
+   170→      background: #f8f9fa;
+   171→      color: #6c757d;
+   172→    }
+   173→
+   174→    .timestamp {
+   175→      color: var(--text-muted);
+   176→      font-size: 12px;
+   177→    }
+   178→
+   179→    .modal {
+   180→      display: none;
+   181→      position: fixed;
+   182→      top: 0;
+   183→      left: 0;
+   184→      right: 0;
+   185→      bottom: 0;
+   186→      background: rgba(0,0,0,0.5);
+   187→      z-index: 1000;
+   188→      align-items: center;
+   189→      justify-content: center;
+   190→    }
+   191→
+   192→    .modal.active {
+   193→      display: flex;
+   194→    }
+   195→
+   196→    .modal-content {
+   197→      background: var(--card-bg);
+   198→      border-radius: 12px;
+   199→      max-width: 600px;
+   200→      width: 90%;
+   201→      max-height: 80vh;
+   202→      overflow-y: auto;
+   203→      padding: 32px;
+   204→    }
+   205→
+   206→    .modal-header {
+   207→      display: flex;
+   208→      justify-content: space-between;
+   209→      align-items: center;
+   210→      margin-bottom: 24px;
+   211→    }
+   212→
+   213→    .modal-header h2 {
+   214→      font-size: 20px;
+   215→      font-weight: 600;
+   216→    }
+   217→
+   218→    .close-btn {
+   219→      background: none;
+   220→      border: none;
+   221→      font-size: 24px;
+   222→      cursor: pointer;
+   223→      color: var(--text-muted);
+   224→    }
+   225→
+   226→    .modal-documents {
+   227→      display: flex;
+   228→      flex-direction: column;
+   229→      gap: 16px;
+   230→    }
+   231→
+   232→    .doc-item {
+   233→      padding: 16px;
+   234→      background: var(--input-bg);
+   235→      border-radius: 8px;
+   236→      border-left: 3px solid var(--accent-color);
+   237→    }
+   238→
+   239→    .doc-item-header {
+   240→      display: flex;
+   241→      justify-content: space-between;
+   242→      align-items: start;
+   243→      margin-bottom: 8px;
+   244→    }
+   245→
+   246→    .doc-item-type {
+   247→      font-weight: 600;
+   248→      color: var(--text-primary);
+   249→    }
+   250→
+   251→    .doc-item-date {
+   252→      font-size: 12px;
+   253→      color: var(--text-muted);
+   254→    }
+   255→
+   256→    .loading {
+   257→      text-align: center;
+   258→      padding: 32px;
+   259→      color: var(--text-muted);
+   260→    }
+   261→
+   262→    .empty-state {
+   263→      text-align: center;
+   264→      padding: 48px 24px;
+   265→      color: var(--text-muted);
+   266→    }
+   267→
+   268→    .empty-state-icon {
+   269→      font-size: 48px;
+   270→      margin-bottom: 16px;
+   271→      opacity: 0.5;
+   272→    }
+   273→
+   274→    .view-link {
+   275→      color: var(--accent-color);
+   276→      text-decoration: none;
+   277→      cursor: pointer;
+   278→      font-size: 12px;
+   279→      font-weight: 500;
+   280→    }
+   281→
+   282→    .view-link:hover {
+   283→      text-decoration: underline;
+   284→    }
+   285→
+   286→    @media (max-width: 768px) {
+   287→      .candidates-grid {
+   288→        grid-template-columns: 1fr;
+   289→      }
+   290→
+   291→      .docs-summary {
+   292→        grid-template-columns: 1fr;
+   293→      }
+   294→
+   295→      .modal-content {
+   296→        width: 95%;
+   297→        padding: 20px;
+   298→      }
+   299→    }
+   300→  </style>
+   301→</head>
+   302→<body>
+   303→  <div class="dashboard-layout">
+   304→    <!-- Sidebar -->
+   305→    <aside class="sidebar recruiter-sidebar">
+   306→      <a href="/" class="logo">
+   307→        <span class="logo-icon">◎</span>
+   308→        <span>HireLoop</span>
+   309→      </a>
+   310→      <span class="sidebar-badge">Employer</span>
+   311→
+   312→      <nav class="sidebar-nav">
+   313→        <a href="/recruiter-dashboard.html" class="nav-item">
+   314→          <span class="nav-icon">📊</span>
+   315→          <span>Dashboard</span>
+   316→        </a>
+   317→        <a href="/recruiter-trustscore.html" class="nav-item">
+   318→          <span class="nav-icon">🛡️</span>
+   319→          <span>TrustScore</span>
+   320→        </a>
+   321→        <a href="/recruiter-jobs.html" class="nav-item">
+   322→          <span class="nav-icon">💼</span>
+   323→          <span>Job Postings</span>
+   324→        </a>
+   325→        <a href="/recruiter-applications.html" class="nav-item">
+   326→          <span class="nav-icon">📋</span>
+   327→          <span>Applications</span>
+   328→        </a>
+   329→        <a href="/recruiter-interviews.html" class="nav-item">
+   330→          <span class="nav-icon">📅</span>
+   331→          <span>Interviews</span>
+   332→        </a>
+   333→        <a href="/offer-management.html" class="nav-item">
+   334→          <span class="nav-icon">📄</span>
+   335→          <span>Offers</span>
+   336→        </a>
+   337→        <a href="/payroll-dashboard.html" class="nav-item">
+   338→          <span class="nav-icon">💰</span>
+   339→          <span>Payroll</span>
+   340→        </a>
+   341→        <a href="/recruiter-onboarding-docs.html" class="nav-item active">
+   342→          <span class="nav-icon">📂</span>
+   343→          <span>Onboarding Docs</span>
+   344→        </a>
+   345→        <a href="/compliance-dashboard.html" class="nav-item">
+   346→          <span class="nav-icon">⚖️</span>
+   347→          <span>Compliance</span>
+   348→        </a>
+   349→        <a href="/recruiter-analytics.html" class="nav-item">
+   350→          <span class="nav-icon">📈</span>
+   351→          <span>Analytics</span>
+   352→        </a>
+   353→        <a href="/recruiter-profile.html" class="nav-item">
+   354→          <span class="nav-icon">🏢</span>
+   355→          <span>Company Profile</span>
+   356→        </a>
+   357→      </nav>
+   358→
+   359→      <div class="sidebar-footer">
+   360→        <div class="user-dropdown-container">
+   361→          <button class="user-menu-toggle" id="user-menu-toggle">
+   362→            <div class="user-avatar company-avatar" id="user-avatar">?</div>
+   363→            <div style="flex: 1; text-align: left;">
+   364→              <span class="user-name" id="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
+   365→              <span class="company-name" id="company-name" style="display: block; font-size: 12px; color: var(--text-muted);">Company</span>
+   366→            </div>
+   367→          </button>
+   368→
+   369→          <div class="user-dropdown-menu" id="user-dropdown-menu">
+   370→            <div class="dropdown-header">
+   371→              <span class="dropdown-user-name" id="dropdown-user-name">Loading...</span>
+   372→              <span class="dropdown-user-email" id="dropdown-user-email">user@example.com</span>
+   373→            </div>
+   374→            <a href="/recruiter-profile.html" class="dropdown-item">Manage Company</a>
+   375→            <hr class="dropdown-divider">
+   376→            <button class="dropdown-item" id="logout-btn" style="width: 100%; text-align: left; background: none; border: none; cursor: pointer;">Logout</button>
+   377→          </div>
+   378→        </div>
+   379→      </div>
+   380→    </aside>
+   381→
+   382→    <!-- Main Content -->
+   383→    <main class="main-content">
+   384→      <div class="dashboard-header">
+   385→        <div>
+   386→          <h1>Onboarding Documents</h1>
+   387→          <p>Track candidate onboarding completion and document signatures</p>
+   388→        </div>
+   389→      </div>
+   390→
+   391→      <div class="dashboard-content">
+   392→        <div class="docs-container">
+   393→          <!-- Summary Section -->
+   394→          <div class="section-header">
+   395→            <h2>Candidate Onboarding Status</h2>
+   396→            <p>View documents and signatures for all accepted offers</p>
+   397→          </div>
+   398→
+   399→          <div id="candidates-container" class="candidates-grid">
+   400→            <div class="loading">
+   401→              <p>Loading onboarding data...</p>
+   402→            </div>
+   403→          </div>
+   404→
+   405→          <div id="empty-state" class="empty-state" style="display: none;">
+   406→            <div class="empty-state-icon">📂</div>
+   407→            <h3>No Candidates Yet</h3>
+   408→            <p>Once candidates accept offers, their onboarding documents will appear here.</p>
+   409→          </div>
+   410→        </div>
+   411→      </div>
+   412→    </main>
+   413→  </div>
+   414→
+   415→  <!-- Modal for candidate details -->
+   416→  <div id="modal" class="modal">
+   417→    <div class="modal-content">
+   418→      <div class="modal-header">
+   419→        <div>
+   420→          <h2 id="modal-candidate-name">Candidate Name</h2>
+   421→          <p style="color: var(--text-muted); font-size: 13px; margin-top: 4px;" id="modal-candidate-email">email@example.com</p>
+   422→        </div>
+   423→        <button class="close-btn" onclick="closeModal()">✕</button>
+   424→      </div>
+   425→
+   426→      <div id="modal-details" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--border-color);">
+   427→        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; font-size: 13px;">
+   428→          <div>
+   429→            <span style="color: var(--text-muted);">Job Title</span>
+   430→            <p id="modal-job" style="font-weight: 500; margin-top: 4px;">—</p>
+   431→          </div>
+   432→          <div>
+   433→            <span style="color: var(--text-muted);">Start Date</span>
+   434→            <p id="modal-start-date" style="font-weight: 500; margin-top: 4px;">—</p>
+   435→          </div>
+   436→        </div>
+   437→      </div>
+   438→
+   439→      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+   440→        <h3 style="font-size: 14px; font-weight: 600;">Documents</h3>
+   441→        <button id="download-all-btn" onclick="downloadAllDocs()" style="background: #10b981; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; display: none;">
+   442→          ⬇ Download All
+   443→        </button>
+   444→      </div>
+   445→      <div id="modal-documents" class="modal-documents">
+   446→        <p style="color: var(--text-muted);">Loading documents...</p>
+   447→      </div>
+   448→    </div>
+   449→  </div>
+   450→
+   451→  <script src="/js/auth.js"></script>
+   452→  <script>
+   453→    const BACKEND_URL = '/api';
+   454→    let currentCandidateId = null;
+   455→
+   456→    async function loadOnboardingDocuments() {
+   457→      try {
+   458→        const response = await fetch(`${BACKEND_URL}/onboarding/recruiter/summary`, {
+   459→          headers: { 'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}` }
+   460→        });
+   461→
+   462→        if (!response.ok) throw new Error('Failed to load documents');
+   463→
+   464→        const data = await response.json();
+   465→        displayCandidates(data);
+   466→      } catch (error) {
+   467→        console.error('Error:', error);
+   468→        document.getElementById('empty-state').style.display = 'block';
+   469→        document.getElementById('candidates-container').innerHTML = '';
+   470→      }
+   471→    }
+   472→
+   473→    function displayCandidates(candidates) {
+   474→      const container = document.getElementById('candidates-container');
+   475→
+   476→      if (!candidates || candidates.length === 0) {
+   477→        document.getElementById('empty-state').style.display = 'block';
+   478→        container.innerHTML = '';
+   479→        return;
+   480→      }
+   481→
+   482→      document.getElementById('empty-state').style.display = 'none';
+   483→
+   484→      container.innerHTML = candidates.map(candidate => {
+   485→        const total = parseInt(candidate.total_documents) || 0;
+   486→        const signed = parseInt(candidate.signed_documents) || 0;
+   487→        const pct = total > 0 ? Math.round((signed / total) * 100) : 0;
+   488→        const barColor = pct === 100 ? '#10b981' : pct > 0 ? '#f59e0b' : '#e5e7eb';
+   489→
+   490→        return `
+   491→        <div class="candidate-card" onclick="viewCandidateDetails(${candidate.candidate_id})">
+   492→          <div class="candidate-header">
+   493→            <div class="candidate-info">
+   494→              <h3>${escapeHtml(candidate.candidate_name)}</h3>
+   495→              <div class="candidate-email">${escapeHtml(candidate.candidate_email)}</div>
+   496→              ${candidate.job_title ? `<div class="candidate-job">${escapeHtml(candidate.job_title)}</div>` : ''}
+   497→            </div>
+   498→            <span class="onboarding-status status-${candidate.onboarding_status || 'pending'}">
+   499→              ${formatStatus(candidate.onboarding_status)}
+   500→            </span>
+   501→          </div>
+   502→
+   503→          <!-- Progress bar -->
+   504→          <div style="margin-top: 12px;">
+   505→            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+   506→              <span style="font-size: 12px; color: var(--text-muted);">Document Progress</span>
+   507→              <span style="font-size: 12px; font-weight: 600; color: ${barColor};">${pct}%</span>
+   508→            </div>
+   509→            <div style="height: 6px; background: var(--border-color); border-radius: 3px; overflow: hidden;">
+   510→              <div style="height: 100%; width: ${pct}%; background: ${barColor}; border-radius: 3px; transition: width 0.3s;"></div>
+   511→            </div>
+   512→          </div>
+   513→
+   514→          <div class="docs-summary">
+   515→            <div class="summary-item">
+   516→              <strong>${signed}</strong>
+   517→              <span>Signed</span>
+   518→            </div>
+   519→            <div class="summary-item">
+   520→              <strong>${total}</strong>
+   521→              <span>Total Docs</span>
+   522→            </div>
+   523→          </div>
+   524→
+   525→          ${candidate.due_date ? `
+   526→            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color); font-size: 12px; color: var(--text-muted);">
+   527→              Due: ${formatDate(candidate.due_date)}
+   528→            </div>
+   529→          ` : ''}
+   530→
+   531→          <div style="margin-top: 12px; text-align: right;">
+   532→            <a class="view-link" onclick="event.stopPropagation(); viewCandidateDetails(${candidate.candidate_id})">View Details →</a>
+   533→          </div>
+   534→        </div>
+   535→      `}).join('');
+   536→    }
+   537→
+   538→    async function viewCandidateDetails(candidateId) {
+   539→      currentCandidateId = candidateId;
+   540→
+   541→      try {
+   542→        // Load candidate details and documents
+   543→        const response = await fetch(
+   544→          `${BACKEND_URL}/onboarding/recruiter/candidate/${candidateId}/documents`,
+   545→          { headers: { 'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}` } }
+   546→        );
+   547→
+   548→        if (!response.ok) throw new Error('Failed to load documents');
+   549→
+   550→        const documents = await response.json();
+   551→        const candidateData = documents[0];
+   552→
+   553→        // Update modal header
+   554→        document.getElementById('modal-candidate-name').textContent = candidateData.candidate_name;
+   555→        document.getElementById('modal-candidate-email').textContent = candidateData.candidate_email;
+   556→
+   557→        // Update details
+   558→        document.getElementById('modal-job').textContent = candidateData.job_title || '—';
+   559→        document.getElementById('modal-start-date').textContent = candidateData.start_date ? formatDate(candidateData.start_date) : '—';
+   560→
+   561→        // Display documents
+   562→        const docsContainer = document.getElementById('modal-documents');
+   563→        if (documents.length === 0) {
+   564→          docsContainer.innerHTML = '<p style="color: var(--text-muted);">No documents yet</p>';
+   565→        } else {
+   566→          docsContainer.innerHTML = documents.map(doc => `
+   567→            <div class="doc-item" style="border-left-color: ${doc.signed_at ? '#10b981' : doc.uploaded_at ? '#3b82f6' : '#e5e7eb'};">
+   568→              <div class="doc-item-header">
+   569→                <span class="doc-item-type">${escapeHtml(doc.document_type)}</span>
+   570→                <span class="doc-item-date">${formatDate(doc.created_at)}</span>
+   571→              </div>
+   572→              <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px;">
+   573→                <div>
+   574→                  ${doc.signed_at ? `
+   575→                    <span class="document-status status-signed">✓ Signed ${formatDate(doc.signed_at)}</span>
+   576→                  ` : doc.uploaded_at ? `
+   577→                    <span class="document-status status-uploaded">✓ Generated</span>
+   578→                  ` : `
+   579→                    <span class="document-status status-pending-doc">Pending</span>
+   580→                  `}
+   581→                </div>
+   582→                <div style="display: flex; gap: 8px;">
+   583→                  ${doc.document_content ? `<a class="view-link" onclick="viewDocContent(${doc.id}, '${escapeHtml(doc.document_type)}')">View Details</a>` : ''}
+   584→                  ${doc.document_content ? `<a class="view-link" href="/api/onboarding/recruiter/document/${doc.id}/download" target="_blank" style="color: #10b981;">⬇ Download</a>` : ''}
+   585→                  ${doc.document_url ? `<a href="${doc.document_url}" target="_blank" class="view-link">Open File</a>` : ''}
+   586→                </div>
+   587→              </div>
+   588→              ${doc.content_summary ? `<p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">${escapeHtml(doc.content_summary)}</p>` : ''}
+   589→              ${doc.signer_ip ? `<p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Audit: IP ${escapeHtml(doc.signer_ip)} | ${formatDate(doc.signed_at)}</p>` : ''}
+   590→            </div>
+   591→          `).join('');
+   592→
+   593→          // Store docs for preview
+   594→          window._currentDocs = documents;
+   595→
+   596→          // Show download all button if docs have content
+   597→          const hasContent = documents.some(d => d.document_content);
+   598→          const dlBtn = document.getElementById('download-all-btn');
+   599→          if (dlBtn) dlBtn.style.display = hasContent ? 'inline-block' : 'none';
+   600→        }
+   601→
+   602→        // Show modal
+   603→        document.getElementById('modal').classList.add('active');
+   604→      } catch (error) {
+   605→        console.error('Error:', error);
+   606→        alert('Failed to load candidate details');
+   607→      }
+   608→    }
+   609→
+   610→    function closeModal() {
+   611→      document.getElementById('modal').classList.remove('active');
+   612→      currentCandidateId = null;
+   613→    }
+   614→
+   615→    function formatStatus(status) {
+   616→      const statuses = {
+   617→        'pending': 'Pending',
+   618→        'in_progress': 'In Progress',
+   619→        'completed': 'Completed'
+   620→      };
+   621→      return statuses[status] || 'Unknown';
+   622→    }
+   623→
+   624→    function formatDate(dateString) {
+   625→      if (!dateString) return '—';
+   626→      const date = new Date(dateString);
+   627→      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+   628→    }
+   629→
+   630→    function escapeHtml(text) {
+   631→      if (!text) return '';
+   632→      const map = {
+   633→        '&': '&amp;',
+   634→        '<': '&lt;',
+   635→        '>': '&gt;',
+   636→        '"': '&quot;',
+   637→        "'": '&#039;'
+   638→      };
+   639→      return text.replace(/[&<>"']/g, m => map[m]);
+   640→    }
+   641→
+   642→    function viewDocContent(docId, docType) {
+   643→      const doc = (window._currentDocs || []).find(d => d.id === docId);
+   644→      if (!doc || !doc.document_content) return;
+   645→
+   646→      const content = typeof doc.document_content === 'string' ? JSON.parse(doc.document_content) : doc.document_content;
+   647→      let bodyHtml = '';
+   648→
+   649→      if (content.form_type === 'I-9') {
+   650→        bodyHtml = `
+   651→          <p style="font-weight: 600; text-align: center; margin-bottom: 12px;">Employment Eligibility Verification</p>
+   652→          <p><strong>Name:</strong> ${escapeHtml(content.employee_name || '')}</p>
+   653→          <p><strong>DOB:</strong> ${content.date_of_birth ? new Date(content.date_of_birth).toLocaleDateString() : ''}</p>
+   654→          <p><strong>Address:</strong> ${escapeHtml(content.address || '')}, ${escapeHtml(content.city || '')}, ${escapeHtml(content.state || '')} ${escapeHtml(content.zip || '')}</p>
+   655→          <p><strong>SSN:</strong> ${content.ssn_last_four}</p>
+   656→          <p><strong>Employer:</strong> ${escapeHtml(content.company || '')}</p>
+   657→        `;
+   658→      } else if (content.form_type === 'W-4') {
+   659→        bodyHtml = `
+   660→          <p style="font-weight: 600; text-align: center; margin-bottom: 12px;">W-4 Tax Withholding</p>
+   661→          <p><strong>Name:</strong> ${escapeHtml(content.employee_name || '')}</p>
+   662→          <p><strong>Address:</strong> ${escapeHtml(content.city_state_zip || '')}</p>
+   663→          <p><strong>Filing Status:</strong> ${escapeHtml(content.filing_status || 'Single')}</p>
+   664→        `;
+   665→      } else if (content.form_type === 'Direct Deposit Authorization') {
+   666→        bodyHtml = `
+   667→          <p style="font-weight: 600; text-align: center; margin-bottom: 12px;">Direct Deposit</p>
+   668→          <p><strong>Name:</strong> ${escapeHtml(content.employee_name || '')}</p>
+   669→          <p><strong>Bank:</strong> ${escapeHtml(content.bank_name || '')}</p>
+   670→          <p><strong>Account Type:</strong> ${escapeHtml(content.account_type || '')}</p>
+   671→        `;
+   672→      } else {
+   673→        bodyHtml = `<pre style="white-space: pre-wrap; font-size: 12px;">${JSON.stringify(content, null, 2)}</pre>`;
+   674→      }
+   675→
+   676→      if (doc.signed_at) {
+   677→        bodyHtml += `<hr style="margin: 12px 0;"><p style="color: #10b981; font-weight: 600;">✓ Signed on ${new Date(doc.signed_at).toLocaleString()}</p>`;
+   678→        if (doc.signer_ip) bodyHtml += `<p style="font-size: 11px; color: #888;">IP: ${escapeHtml(doc.signer_ip)}</p>`;
+   679→      }
+   680→
+   681→      const overlay = document.createElement('div');
+   682→      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;display:flex;align-items:center;justify-content:center;';
+   683→      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+   684→      overlay.innerHTML = `
+   685→        <div style="background:var(--card-bg);border-radius:12px;max-width:500px;width:90%;padding:24px;max-height:80vh;overflow-y:auto;">
+   686→          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+   687→            <h3 style="font-size:16px;font-weight:600;">${escapeHtml(docType)}</h3>
+   688→            <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);">✕</button>
+   689→          </div>
+   690→          <div style="font-size:13px;line-height:1.7;">${bodyHtml}</div>
+   691→        </div>
+   692→      `;
+   693→      document.body.appendChild(overlay);
+   694→    }
+   695→
+   696→    function downloadAllDocs() {
+   697→      const docs = window._currentDocs || [];
+   698→      docs.forEach((doc, i) => {
+   699→        if (doc.document_content) {
+   700→          setTimeout(() => {
+   701→            window.open(`/api/onboarding/recruiter/document/${doc.id}/download`, '_blank');
+   702→          }, i * 500);
+   703→        }
+   704→      });
+   705→    }
+   706→
+   707→    // Modal close on click outside
+   708→    document.getElementById('modal').addEventListener('click', (e) => {
+   709→      if (e.target.id === 'modal') closeModal();
+   710→    });
+   711→
+   712→    // Initialize
+   713→    document.addEventListener('DOMContentLoaded', () => {
+   714→      loadOnboardingDocuments();
+   715→      setupUserMenu();
+   716→      // Auto-refresh every 30 seconds for real-time updates
+   717→      setInterval(loadOnboardingDocuments, 30000);
+   718→    });
+   719→  </script>
+   720→</body>
+   721→</html>
+   722→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
