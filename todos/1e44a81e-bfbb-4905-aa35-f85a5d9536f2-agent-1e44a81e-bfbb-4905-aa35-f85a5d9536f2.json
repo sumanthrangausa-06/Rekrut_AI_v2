@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Understand current AI Coaching page state and identify the page",
+    "status": "completed",
+    "activeForm": "Exploring AI Coaching page"
+  },
+  {
+    "content": "Diagnose why page shows no functionality - check routes, CSS, JS errors",
+    "status": "completed",
+    "activeForm": "Diagnosing page issues"
+  },
+  {
+    "content": "Fix CSS variable conflict causing invisible text on white backgrounds",
+    "status": "completed",
+    "activeForm": "Fixing invisible text bug"
+  },
+  {
+    "content": "Enhance the coaching page with better UX and category filters",
+    "status": "completed",
+    "activeForm": "Enhancing coaching page"
+  },
+  {
+    "content": "Deploy and verify the fix in production",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying"
+  }
+]
