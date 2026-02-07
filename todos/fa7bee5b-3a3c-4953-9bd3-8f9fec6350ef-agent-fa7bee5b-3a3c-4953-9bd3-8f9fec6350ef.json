@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Explore existing React client structure and API routes",
+    "status": "completed",
+    "activeForm": "Exploring existing codebase"
+  },
+  {
+    "content": "Add withdraw API endpoint for candidate applications",
+    "status": "completed",
+    "activeForm": "Adding withdraw API endpoint"
+  },
+  {
+    "content": "Enhance candidate applications page (withdraw + improvements)",
+    "status": "completed",
+    "activeForm": "Enhancing candidate applications page"
+  },
+  {
+    "content": "Enhance recruiter applications page (job filter + improvements)",
+    "status": "completed",
+    "activeForm": "Enhancing recruiter applications page"
+  },
+  {
+    "content": "Build, deploy, and verify",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying"
+  }
+]
