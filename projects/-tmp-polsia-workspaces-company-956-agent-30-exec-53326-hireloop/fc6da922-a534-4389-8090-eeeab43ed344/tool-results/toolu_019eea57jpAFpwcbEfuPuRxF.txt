@@ -1,0 +1,139 @@
+     1→const { Pool } = require('pg');
+     2→const fs = require('fs');
+     3→const path = require('path');
+     4→
+     5→const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+     6→
+     7→async function migrate() {
+     8→  const client = await pool.connect();
+     9→  try {
+    10→    // Create migrations tracking table
+    11→    await client.query(`
+    12→      CREATE TABLE IF NOT EXISTS _migrations (
+    13→        id SERIAL PRIMARY KEY,
+    14→        name VARCHAR(255) UNIQUE NOT NULL,
+    15→        applied_at TIMESTAMP DEFAULT NOW()
+    16→      )
+    17→    `);
+    18→
+    19→    // Core tables
+    20→    await client.query(`
+    21→      CREATE TABLE IF NOT EXISTS users (
+    22→        id SERIAL PRIMARY KEY,
+    23→        email VARCHAR(255) UNIQUE NOT NULL,
+    24→        password_hash VARCHAR(255),
+    25→        name VARCHAR(255),
+    26→        role VARCHAR(50) DEFAULT 'candidate',
+    27→        company_name VARCHAR(255),
+    28→        github_username VARCHAR(255),
+    29→        avatar_url TEXT,
+    30→        is_paid BOOLEAN DEFAULT false,
+    31→        stripe_subscription_id VARCHAR(255),
+    32→        created_at TIMESTAMP DEFAULT NOW(),
+    33→        updated_at TIMESTAMP DEFAULT NOW()
+    34→      )
+    35→    `);
+    36→
+    37→    await client.query(`
+    38→      CREATE TABLE IF NOT EXISTS jobs (
+    39→        id SERIAL PRIMARY KEY,
+    40→        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    41→        title VARCHAR(255) NOT NULL,
+    42→        company VARCHAR(255),
+    43→        description TEXT,
+    44→        requirements TEXT,
+    45→        location VARCHAR(255),
+    46→        salary_range VARCHAR(100),
+    47→        job_type VARCHAR(50) DEFAULT 'full-time',
+    48→        status VARCHAR(50) DEFAULT 'active',
+    49→        created_at TIMESTAMP DEFAULT NOW(),
+    50→        updated_at TIMESTAMP DEFAULT NOW()
+    51→      )
+    52→    `);
+    53→
+    54→    await client.query(`
+    55→      CREATE TABLE IF NOT EXISTS interviews (
+    56→        id SERIAL PRIMARY KEY,
+    57→        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    58→        job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+    59→        interview_type VARCHAR(50) DEFAULT 'mock',
+    60→        status VARCHAR(50) DEFAULT 'pending',
+    61→        questions JSONB DEFAULT '[]',
+    62→        responses JSONB DEFAULT '[]',
+    63→        ai_feedback JSONB,
+    64→        overall_score INTEGER,
+    65→        duration_seconds INTEGER,
+    66→        video_urls JSONB DEFAULT '[]',
+    67→        created_at TIMESTAMP DEFAULT NOW(),
+    68→        completed_at TIMESTAMP
+    69→      )
+    70→    `);
+    71→
+    72→    await client.query(`
+    73→      CREATE TABLE IF NOT EXISTS interview_questions (
+    74→        id SERIAL PRIMARY KEY,
+    75→        category VARCHAR(100),
+    76→        difficulty VARCHAR(50) DEFAULT 'medium',
+    77→        question_text TEXT NOT NULL,
+    78→        ideal_answer_points JSONB DEFAULT '[]',
+    79→        created_at TIMESTAMP DEFAULT NOW()
+    80→      )
+    81→    `);
+    82→
+    83→    await client.query(`
+    84→      CREATE TABLE IF NOT EXISTS agent_data (
+    85→        id SERIAL PRIMARY KEY,
+    86→        type VARCHAR(100) NOT NULL,
+    87→        data JSONB NOT NULL,
+    88→        created_at TIMESTAMP DEFAULT NOW()
+    89→      )
+    90→    `);
+    91→
+    92→    // Run migration files from migrations folder
+    93→    const migrationsDir = path.join(__dirname, 'migrations');
+    94→    if (fs.existsSync(migrationsDir)) {
+    95→      const files = fs.readdirSync(migrationsDir)
+    96→        .filter(f => f.endsWith('.js'))
+    97→        .sort();
+    98→      
+    99→      for (const file of files) {
+   100→        const migration = require(path.join(migrationsDir, file));
+   101→        const existing = await client.query(
+   102→          'SELECT id FROM _migrations WHERE name = $1',
+   103→          [migration.name]
+   104→        );
+   105→        
+   106→        if (existing.rows.length === 0) {
+   107→          console.log(`Running migration: ${migration.name}`);
+   108→          await client.query('BEGIN');
+   109→          try {
+   110→            await migration.up(client);
+   111→            await client.query(
+   112→              'INSERT INTO _migrations (name) VALUES ($1)',
+   113→              [migration.name]
+   114→            );
+   115→            await client.query('COMMIT');
+   116→            console.log(`Migration ${migration.name} completed`);
+   117→          } catch (err) {
+   118→            await client.query('ROLLBACK');
+   119→            throw err;
+   120→          }
+   121→        }
+   122→      }
+   123→    }
+   124→
+   125→    console.log('All migrations completed successfully');
+   126→  } catch (err) {
+   127→    console.error('Migration error:', err);
+   128→    process.exit(1);
+   129→  } finally {
+   130→    client.release();
+   131→    await pool.end();
+   132→  }
+   133→}
+   134→
+   135→migrate();
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

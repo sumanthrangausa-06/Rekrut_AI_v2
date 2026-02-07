@@ -1,0 +1,42 @@
+[
+  {
+    "content": "Audit current codebase - understand all routes, pages, and DB schema",
+    "status": "completed",
+    "activeForm": "Auditing current codebase structure"
+  },
+  {
+    "content": "Fix company registration - add refresh token generation",
+    "status": "completed",
+    "activeForm": "Fixing company registration refresh token"
+  },
+  {
+    "content": "Fix auth.js - add token refresh, fix logout, fix authApiCall",
+    "status": "completed",
+    "activeForm": "Fixing auth.js token refresh and logout"
+  },
+  {
+    "content": "Fix document routes - add authMiddleware for security",
+    "status": "completed",
+    "activeForm": "Fixing document routes security"
+  },
+  {
+    "content": "Fix frontend pages - interview redirects, viewDocument, XSS",
+    "status": "completed",
+    "activeForm": "Fixing frontend page issues"
+  },
+  {
+    "content": "Fix recruiter-register frontend - store refresh token",
+    "status": "completed",
+    "activeForm": "Fixing recruiter register frontend"
+  },
+  {
+    "content": "Fix apiCall error handling and analytics tracking",
+    "status": "completed",
+    "activeForm": "Fixing API call error handling"
+  },
+  {
+    "content": "Test all flows and deploy",
+    "status": "in_progress",
+    "activeForm": "Testing all flows and deploying"
+  }
+]

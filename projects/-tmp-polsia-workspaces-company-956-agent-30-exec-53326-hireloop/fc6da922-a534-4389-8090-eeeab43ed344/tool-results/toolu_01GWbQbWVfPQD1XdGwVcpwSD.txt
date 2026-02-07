@@ -1,0 +1,1499 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>Onboarding - HireLoop</title>
+     7→  <link rel="preconnect" href="https://fonts.googleapis.com">
+     8→  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     9→  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    10→  <link rel="stylesheet" href="/css/styles.css">
+    11→  <link rel="stylesheet" href="/css/responsive.css">
+    12→  <link rel="stylesheet" href="/css/dashboard.css">
+    13→  <style>
+    14→    .wizard-container {
+    15→      max-width: 720px;
+    16→      margin: 0 auto;
+    17→    }
+    18→
+    19→    /* Step indicator */
+    20→    .step-indicator {
+    21→      display: flex;
+    22→      align-items: center;
+    23→      justify-content: center;
+    24→      gap: 0;
+    25→      margin-bottom: 36px;
+    26→      position: relative;
+    27→    }
+    28→
+    29→    .step-dot-wrapper {
+    30→      display: flex;
+    31→      flex-direction: column;
+    32→      align-items: center;
+    33→      position: relative;
+    34→      z-index: 2;
+    35→    }
+    36→
+    37→    .step-dot {
+    38→      width: 40px;
+    39→      height: 40px;
+    40→      border-radius: 50%;
+    41→      display: flex;
+    42→      align-items: center;
+    43→      justify-content: center;
+    44→      font-weight: 600;
+    45→      font-size: 14px;
+    46→      border: 2px solid var(--border-color);
+    47→      background: var(--card-bg);
+    48→      color: var(--text-muted);
+    49→      transition: all 0.3s ease;
+    50→    }
+    51→
+    52→    .step-dot.active {
+    53→      border-color: #6366f1;
+    54→      background: #6366f1;
+    55→      color: white;
+    56→      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+    57→    }
+    58→
+    59→    .step-dot.completed {
+    60→      border-color: #10b981;
+    61→      background: #10b981;
+    62→      color: white;
+    63→    }
+    64→
+    65→    .step-label {
+    66→      font-size: 11px;
+    67→      margin-top: 6px;
+    68→      color: var(--text-muted);
+    69→      white-space: nowrap;
+    70→    }
+    71→
+    72→    .step-dot-wrapper.active .step-label {
+    73→      color: #6366f1;
+    74→      font-weight: 600;
+    75→    }
+    76→
+    77→    .step-dot-wrapper.completed .step-label {
+    78→      color: #10b981;
+    79→    }
+    80→
+    81→    .step-connector {
+    82→      width: 60px;
+    83→      height: 2px;
+    84→      background: var(--border-color);
+    85→      margin: 0 4px;
+    86→      margin-bottom: 22px;
+    87→      transition: background 0.3s;
+    88→    }
+    89→
+    90→    .step-connector.completed {
+    91→      background: #10b981;
+    92→    }
+    93→
+    94→    /* Form styles */
+    95→    .wizard-card {
+    96→      background: var(--card-bg);
+    97→      border: 1px solid var(--border-color);
+    98→      border-radius: 16px;
+    99→      padding: 32px;
+   100→      margin-bottom: 24px;
+   101→    }
+   102→
+   103→    .wizard-card h2 {
+   104→      font-size: 22px;
+   105→      font-weight: 700;
+   106→      margin-bottom: 4px;
+   107→      color: var(--text-primary);
+   108→    }
+   109→
+   110→    .wizard-card .subtitle {
+   111→      color: var(--text-muted);
+   112→      font-size: 14px;
+   113→      margin-bottom: 24px;
+   114→    }
+   115→
+   116→    .form-row {
+   117→      display: grid;
+   118→      grid-template-columns: 1fr 1fr;
+   119→      gap: 16px;
+   120→      margin-bottom: 16px;
+   121→    }
+   122→
+   123→    .form-row.three-col {
+   124→      grid-template-columns: 1fr 1fr 1fr;
+   125→    }
+   126→
+   127→    .form-group {
+   128→      display: flex;
+   129→      flex-direction: column;
+   130→      gap: 6px;
+   131→      margin-bottom: 16px;
+   132→    }
+   133→
+   134→    .form-group.full-width {
+   135→      grid-column: 1 / -1;
+   136→    }
+   137→
+   138→    .form-group label {
+   139→      font-size: 13px;
+   140→      font-weight: 500;
+   141→      color: var(--text-secondary);
+   142→    }
+   143→
+   144→    .form-group label .required {
+   145→      color: #ef4444;
+   146→    }
+   147→
+   148→    .form-group input,
+   149→    .form-group select {
+   150→      padding: 10px 14px;
+   151→      border: 1px solid var(--border-color);
+   152→      border-radius: 8px;
+   153→      font-size: 14px;
+   154→      background: var(--input-bg);
+   155→      color: var(--text-primary);
+   156→      transition: border-color 0.2s;
+   157→    }
+   158→
+   159→    .form-group input:focus,
+   160→    .form-group select:focus {
+   161→      outline: none;
+   162→      border-color: #6366f1;
+   163→      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+   164→    }
+   165→
+   166→    .form-group input.error {
+   167→      border-color: #ef4444;
+   168→    }
+   169→
+   170→    .error-text {
+   171→      color: #ef4444;
+   172→      font-size: 12px;
+   173→      display: none;
+   174→    }
+   175→
+   176→    .wizard-nav {
+   177→      display: flex;
+   178→      justify-content: space-between;
+   179→      gap: 12px;
+   180→      margin-top: 24px;
+   181→    }
+   182→
+   183→    .btn {
+   184→      padding: 12px 28px;
+   185→      border-radius: 10px;
+   186→      font-weight: 600;
+   187→      font-size: 14px;
+   188→      cursor: pointer;
+   189→      border: none;
+   190→      transition: all 0.2s;
+   191→    }
+   192→
+   193→    .btn-primary {
+   194→      background: #6366f1;
+   195→      color: white;
+   196→    }
+   197→
+   198→    .btn-primary:hover {
+   199→      background: #4f46e5;
+   200→    }
+   201→
+   202→    .btn-primary:disabled {
+   203→      background: #6366f1;
+   204→      opacity: 0.5;
+   205→      cursor: not-allowed;
+   206→    }
+   207→
+   208→    .btn-secondary {
+   209→      background: var(--input-bg);
+   210→      color: var(--text-primary);
+   211→      border: 1px solid var(--border-color);
+   212→    }
+   213→
+   214→    .btn-secondary:hover {
+   215→      background: var(--border-color);
+   216→    }
+   217→
+   218→    .btn-success {
+   219→      background: #10b981;
+   220→      color: white;
+   221→    }
+   222→
+   223→    .btn-success:hover {
+   224→      background: #059669;
+   225→    }
+   226→
+   227→    /* Offer info banner */
+   228→    .offer-banner {
+   229→      background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(16,185,129,0.1));
+   230→      border: 1px solid rgba(99,102,241,0.2);
+   231→      border-radius: 12px;
+   232→      padding: 20px 24px;
+   233→      margin-bottom: 28px;
+   234→      display: flex;
+   235→      align-items: center;
+   236→      gap: 16px;
+   237→    }
+   238→
+   239→    .offer-banner-icon {
+   240→      font-size: 36px;
+   241→    }
+   242→
+   243→    .offer-banner h3 {
+   244→      font-size: 16px;
+   245→      font-weight: 600;
+   246→      margin-bottom: 2px;
+   247→      color: var(--text-primary);
+   248→    }
+   249→
+   250→    .offer-banner p {
+   251→      font-size: 13px;
+   252→      color: var(--text-muted);
+   253→    }
+   254→
+   255→    /* Document review section */
+   256→    .document-card {
+   257→      border: 1px solid var(--border-color);
+   258→      border-radius: 10px;
+   259→      padding: 16px 20px;
+   260→      margin-bottom: 12px;
+   261→      display: flex;
+   262→      justify-content: space-between;
+   263→      align-items: center;
+   264→      transition: border-color 0.2s;
+   265→    }
+   266→
+   267→    .document-card.signed {
+   268→      border-color: #10b981;
+   269→      background: rgba(16,185,129,0.05);
+   270→    }
+   271→
+   272→    .doc-info {
+   273→      display: flex;
+   274→      align-items: center;
+   275→      gap: 12px;
+   276→    }
+   277→
+   278→    .doc-icon {
+   279→      width: 40px;
+   280→      height: 40px;
+   281→      border-radius: 8px;
+   282→      display: flex;
+   283→      align-items: center;
+   284→      justify-content: center;
+   285→      font-size: 18px;
+   286→      background: rgba(99,102,241,0.1);
+   287→    }
+   288→
+   289→    .doc-name {
+   290→      font-weight: 600;
+   291→      font-size: 14px;
+   292→      color: var(--text-primary);
+   293→    }
+   294→
+   295→    .doc-status {
+   296→      font-size: 12px;
+   297→      color: var(--text-muted);
+   298→    }
+   299→
+   300→    .doc-action {
+   301→      display: flex;
+   302→      align-items: center;
+   303→      gap: 8px;
+   304→    }
+   305→
+   306→    .badge {
+   307→      padding: 4px 10px;
+   308→      border-radius: 6px;
+   309→      font-size: 11px;
+   310→      font-weight: 600;
+   311→    }
+   312→
+   313→    .badge-pending {
+   314→      background: #fef3c7;
+   315→      color: #92400e;
+   316→    }
+   317→
+   318→    .badge-signed {
+   319→      background: #d1fae5;
+   320→      color: #065f46;
+   321→    }
+   322→
+   323→    /* Signature pad */
+   324→    .signature-area {
+   325→      border: 2px dashed var(--border-color);
+   326→      border-radius: 12px;
+   327→      padding: 24px;
+   328→      text-align: center;
+   329→      margin: 16px 0;
+   330→      position: relative;
+   331→    }
+   332→
+   333→    .signature-canvas {
+   334→      width: 100%;
+   335→      height: 150px;
+   336→      border: 1px solid var(--border-color);
+   337→      border-radius: 8px;
+   338→      cursor: crosshair;
+   339→      background: white;
+   340→    }
+   341→
+   342→    .signature-actions {
+   343→      display: flex;
+   344→      justify-content: center;
+   345→      gap: 12px;
+   346→      margin-top: 12px;
+   347→    }
+   348→
+   349→    /* Completion section */
+   350→    .completion-card {
+   351→      text-align: center;
+   352→      padding: 48px 24px;
+   353→    }
+   354→
+   355→    .completion-icon {
+   356→      font-size: 64px;
+   357→      margin-bottom: 16px;
+   358→    }
+   359→
+   360→    .completion-card h2 {
+   361→      font-size: 28px;
+   362→      color: #10b981;
+   363→      margin-bottom: 8px;
+   364→    }
+   365→
+   366→    .completion-card p {
+   367→      color: var(--text-muted);
+   368→      font-size: 15px;
+   369→      max-width: 460px;
+   370→      margin: 0 auto 24px;
+   371→    }
+   372→
+   373→    .completion-docs {
+   374→      text-align: left;
+   375→      max-width: 500px;
+   376→      margin: 0 auto;
+   377→    }
+   378→
+   379→    .completion-doc-item {
+   380→      display: flex;
+   381→      justify-content: space-between;
+   382→      align-items: center;
+   383→      padding: 10px 0;
+   384→      border-bottom: 1px solid var(--border-color);
+   385→      font-size: 13px;
+   386→    }
+   387→
+   388→    /* No onboarding state */
+   389→    .no-onboarding {
+   390→      text-align: center;
+   391→      padding: 64px 24px;
+   392→    }
+   393→
+   394→    .no-onboarding-icon {
+   395→      font-size: 64px;
+   396→      margin-bottom: 16px;
+   397→      opacity: 0.5;
+   398→    }
+   399→
+   400→    .no-onboarding h2 {
+   401→      font-size: 22px;
+   402→      color: var(--text-primary);
+   403→      margin-bottom: 8px;
+   404→    }
+   405→
+   406→    .no-onboarding p {
+   407→      color: var(--text-muted);
+   408→      max-width: 400px;
+   409→      margin: 0 auto;
+   410→    }
+   411→
+   412→    /* Loading */
+   413→    .loading-state {
+   414→      text-align: center;
+   415→      padding: 64px 24px;
+   416→      color: var(--text-muted);
+   417→    }
+   418→
+   419→    .spinner {
+   420→      width: 40px;
+   421→      height: 40px;
+   422→      border: 3px solid var(--border-color);
+   423→      border-top-color: #6366f1;
+   424→      border-radius: 50%;
+   425→      animation: spin 0.7s linear infinite;
+   426→      margin: 0 auto 16px;
+   427→    }
+   428→
+   429→    @keyframes spin {
+   430→      to { transform: rotate(360deg); }
+   431→    }
+   432→
+   433→    .saving-indicator {
+   434→      position: fixed;
+   435→      top: 16px;
+   436→      right: 16px;
+   437→      background: #6366f1;
+   438→      color: white;
+   439→      padding: 8px 16px;
+   440→      border-radius: 8px;
+   441→      font-size: 13px;
+   442→      font-weight: 500;
+   443→      z-index: 100;
+   444→      display: none;
+   445→      animation: fadeIn 0.3s;
+   446→    }
+   447→
+   448→    @keyframes fadeIn {
+   449→      from { opacity: 0; transform: translateY(-10px); }
+   450→      to { opacity: 1; transform: translateY(0); }
+   451→    }
+   452→
+   453→    @media (max-width: 640px) {
+   454→      .form-row { grid-template-columns: 1fr; }
+   455→      .form-row.three-col { grid-template-columns: 1fr; }
+   456→      .wizard-card { padding: 20px; }
+   457→      .step-connector { width: 30px; }
+   458→      .step-label { font-size: 10px; }
+   459→    }
+   460→  </style>
+   461→</head>
+   462→<body>
+   463→  <div class="dashboard-layout">
+   464→    <!-- Sidebar -->
+   465→    <aside class="sidebar">
+   466→      <a href="/" class="logo">
+   467→        <span class="logo-icon">◎</span>
+   468→        <span>HireLoop</span>
+   469→      </a>
+   470→
+   471→      <nav class="sidebar-nav">
+   472→        <a href="/candidate-dashboard.html" class="nav-item">
+   473→          <span class="nav-icon">🏠</span>
+   474→          <span>Dashboard</span>
+   475→        </a>
+   476→        <a href="/candidate-profile.html" class="nav-item">
+   477→          <span class="nav-icon">👤</span>
+   478→          <span>My Profile</span>
+   479→        </a>
+   480→        <a href="/omniscore.html" class="nav-item">
+   481→          <span class="nav-icon">🎯</span>
+   482→          <span>OmniScore</span>
+   483→        </a>
+   484→        <a href="/documents.html" class="nav-item">
+   485→          <span class="nav-icon">📄</span>
+   486→          <span>Documents</span>
+   487→        </a>
+   488→        <a href="/skill-assessments.html" class="nav-item">
+   489→          <span class="nav-icon">📝</span>
+   490→          <span>Skill Tests</span>
+   491→        </a>
+   492→        <a href="/interview.html" class="nav-item">
+   493→          <span class="nav-icon">🎤</span>
+   494→          <span>Interview Prep</span>
+   495→        </a>
+   496→        <a href="/video-interview.html" class="nav-item">
+   497→          <span class="nav-icon">🎥</span>
+   498→          <span>Video Interview</span>
+   499→        </a>
+   500→        <a href="/interview-practice.html" class="nav-item">
+   501→          <span class="nav-icon">🎯</span>
+   502→          <span>AI Coaching</span>
+   503→        </a>
+   504→        <a href="/job-board.html" class="nav-item">
+   505→          <span class="nav-icon">💼</span>
+   506→          <span>Job Board</span>
+   507→        </a>
+   508→        <a href="/onboarding.html" class="nav-item active">
+   509→          <span class="nav-icon">🚀</span>
+   510→          <span>Onboarding</span>
+   511→        </a>
+   512→      </nav>
+   513→
+   514→      <div class="sidebar-footer">
+   515→        <div class="user-dropdown-container">
+   516→          <button class="user-menu-toggle" id="user-menu-toggle">
+   517→            <div class="user-avatar" id="user-avatar">?</div>
+   518→            <div style="flex: 1; text-align: left;">
+   519→              <span class="user-name" id="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
+   520→              <span class="user-plan" id="user-plan" style="display: block; font-size: 12px; color: var(--text-muted);">Candidate</span>
+   521→            </div>
+   522→          </button>
+   523→          <div class="user-dropdown-menu" id="user-dropdown-menu">
+   524→            <div class="dropdown-header">
+   525→              <span class="dropdown-user-name" id="dropdown-user-name">Loading...</span>
+   526→              <span class="dropdown-user-email" id="dropdown-user-email">user@example.com</span>
+   527→            </div>
+   528→            <a href="/candidate-profile.html" class="dropdown-item">My Profile</a>
+   529→            <hr class="dropdown-divider">
+   530→            <button class="dropdown-item" id="logout-btn" style="width: 100%; text-align: left; background: none; border: none; cursor: pointer;">Logout</button>
+   531→          </div>
+   532→        </div>
+   533→      </div>
+   534→    </aside>
+   535→
+   536→    <!-- Main Content -->
+   537→    <main class="main-content">
+   538→      <div class="dashboard-header">
+   539→        <div>
+   540→          <h1>Onboarding</h1>
+   541→          <p>Complete your pre-employment paperwork</p>
+   542→        </div>
+   543→      </div>
+   544→
+   545→      <div class="dashboard-content">
+   546→        <!-- Saving indicator -->
+   547→        <div class="saving-indicator" id="savingIndicator">Saving...</div>
+   548→
+   549→        <!-- Loading state -->
+   550→        <div id="loadingState" class="loading-state">
+   551→          <div class="spinner"></div>
+   552→          <p>Loading your onboarding...</p>
+   553→        </div>
+   554→
+   555→        <!-- No onboarding state -->
+   556→        <div id="noOnboarding" class="no-onboarding" style="display: none;">
+   557→          <div class="no-onboarding-icon">📋</div>
+   558→          <h2>No Onboarding Yet</h2>
+   559→          <p>Once you accept a job offer, your onboarding wizard will appear here. Check your <a href="/onboarding.html" style="color: #6366f1;">offers</a> to get started.</p>
+   560→          <div id="offersArea" style="margin-top: 24px;"></div>
+   561→        </div>
+   562→
+   563→        <!-- Wizard content -->
+   564→        <div id="wizardContent" class="wizard-container" style="display: none;">
+   565→          <!-- Offer banner -->
+   566→          <div class="offer-banner" id="offerBanner">
+   567→            <div class="offer-banner-icon">🎉</div>
+   568→            <div>
+   569→              <h3 id="offerTitle">Welcome aboard!</h3>
+   570→              <p id="offerDetail">Complete these steps to finalize your onboarding</p>
+   571→            </div>
+   572→          </div>
+   573→
+   574→          <!-- Step indicator -->
+   575→          <div class="step-indicator" id="stepIndicator"></div>
+   576→
+   577→          <!-- Step content -->
+   578→          <div id="stepContent"></div>
+   579→        </div>
+   580→      </div>
+   581→    </main>
+   582→  </div>
+   583→
+   584→  <script src="/js/main.js"></script>
+   585→  <script>
+   586→    const TOKEN_KEY = 'rekrutai_token';
+   587→    let wizardState = null;
+   588→    let checklistData = null;
+   589→    let documentsData = [];
+   590→    let currentStep = 1;
+   591→    let signatureCanvas = null;
+   592→    let signatureCtx = null;
+   593→    let isDrawing = false;
+   594→    let hasSigned = false;
+   595→
+   596→    const STEPS = [
+   597→      { num: 1, label: 'Personal Info' },
+   598→      { num: 2, label: 'Emergency Contact' },
+   599→      { num: 3, label: 'Direct Deposit' },
+   600→      { num: 4, label: 'Review & Sign' },
+   601→      { num: 5, label: 'Complete' }
+   602→    ];
+   603→
+   604→    function getToken() {
+   605→      return localStorage.getItem(TOKEN_KEY);
+   606→    }
+   607→
+   608→    function getAuthHeaders() {
+   609→      const token = getToken();
+   610→      return token ? {
+   611→        'Authorization': `Bearer ${token}`,
+   612→        'Content-Type': 'application/json'
+   613→      } : {};
+   614→    }
+   615→
+   616→    // Initialize
+   617→    document.addEventListener('DOMContentLoaded', async () => {
+   618→      const token = getToken();
+   619→      if (!token) {
+   620→        window.location.href = '/login.html';
+   621→        return;
+   622→      }
+   623→
+   624→      // Load user info for sidebar
+   625→      try {
+   626→        const userRes = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
+   627→        if (userRes.ok) {
+   628→          const userData = await userRes.json();
+   629→          document.getElementById('user-name').textContent = userData.name || 'User';
+   630→          document.getElementById('user-avatar').textContent = (userData.name || 'U')[0].toUpperCase();
+   631→          if (document.getElementById('dropdown-user-name')) {
+   632→            document.getElementById('dropdown-user-name').textContent = userData.name || 'User';
+   633→            document.getElementById('dropdown-user-email').textContent = userData.email || '';
+   634→          }
+   635→        }
+   636→      } catch(e) { /* ignore */ }
+   637→
+   638→      // Setup user dropdown
+   639→      const toggle = document.getElementById('user-menu-toggle');
+   640→      const menu = document.getElementById('user-dropdown-menu');
+   641→      if (toggle && menu) {
+   642→        toggle.addEventListener('click', () => menu.classList.toggle('active'));
+   643→        document.addEventListener('click', (e) => {
+   644→          if (!toggle.contains(e.target) && !menu.contains(e.target)) menu.classList.remove('active');
+   645→        });
+   646→      }
+   647→
+   648→      const logoutBtn = document.getElementById('logout-btn');
+   649→      if (logoutBtn) {
+   650→        logoutBtn.addEventListener('click', () => {
+   651→          localStorage.removeItem(TOKEN_KEY);
+   652→          localStorage.removeItem('rekrutai_refresh');
+   653→          window.location.href = '/login.html';
+   654→        });
+   655→      }
+   656→
+   657→      await loadWizardProgress();
+   658→    });
+   659→
+   660→    async function loadWizardProgress() {
+   661→      try {
+   662→        const res = await fetch('/api/onboarding/wizard/progress', {
+   663→          headers: { 'Authorization': `Bearer ${getToken()}` }
+   664→        });
+   665→
+   666→        if (!res.ok) {
+   667→          if (res.status === 401) {
+   668→            window.location.href = '/login.html';
+   669→            return;
+   670→          }
+   671→          throw new Error('Failed to load progress');
+   672→        }
+   673→
+   674→        const data = await res.json();
+   675→
+   676→        document.getElementById('loadingState').style.display = 'none';
+   677→
+   678→        if (!data.has_onboarding) {
+   679→          document.getElementById('noOnboarding').style.display = 'block';
+   680→          await loadOffers();
+   681→          return;
+   682→        }
+   683→
+   684→        checklistData = data.checklist;
+   685→        wizardState = data.wizard;
+   686→        documentsData = data.documents || [];
+   687→
+   688→        // Determine current step
+   689→        const stepsCompleted = wizardState.steps_completed || [];
+   690→        if (wizardState.wizard_status === 'completed') {
+   691→          currentStep = 5;
+   692→        } else {
+   693→          currentStep = wizardState.current_step || 1;
+   694→        }
+   695→
+   696→        // Show wizard
+   697→        document.getElementById('wizardContent').style.display = 'block';
+   698→
+   699→        // Set offer banner
+   700→        document.getElementById('offerTitle').textContent =
+   701→          `Welcome to ${checklistData.company_name || 'the team'}!`;
+   702→        document.getElementById('offerDetail').textContent =
+   703→          `${checklistData.offer_title || 'Position'} — Starting ${checklistData.start_date ? new Date(checklistData.start_date).toLocaleDateString() : 'soon'}`;
+   704→
+   705→        renderStep();
+   706→      } catch (err) {
+   707→        console.error('Error loading wizard:', err);
+   708→        document.getElementById('loadingState').innerHTML =
+   709→          '<p style="color: #ef4444;">Failed to load onboarding. Please refresh.</p>';
+   710→      }
+   711→    }
+   712→
+   713→    async function loadOffers() {
+   714→      try {
+   715→        const res = await fetch('/api/onboarding/offers/me', {
+   716→          headers: { 'Authorization': `Bearer ${getToken()}` }
+   717→        });
+   718→        const offers = await res.json();
+   719→        const pendingOffers = offers.filter(o => o.status === 'sent');
+   720→
+   721→        if (pendingOffers.length > 0) {
+   722→          const area = document.getElementById('offersArea');
+   723→          area.innerHTML = pendingOffers.map(o => `
+   724→            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 12px; text-align: left;">
+   725→              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+   726→                <div>
+   727→                  <strong style="color: var(--text-primary);">${escapeHtml(o.title)}</strong>
+   728→                  <span style="color: var(--text-muted); font-size: 13px;"> at ${escapeHtml(o.company_name)}</span>
+   729→                </div>
+   730→                <span class="badge badge-pending">Pending</span>
+   731→              </div>
+   732→              <div style="display: flex; gap: 8px;">
+   733→                <button onclick="acceptOffer(${o.id})" class="btn btn-success" style="flex:1;">Accept Offer</button>
+   734→                <button onclick="declineOffer(${o.id})" class="btn btn-secondary" style="flex:1;">Decline</button>
+   735→              </div>
+   736→            </div>
+   737→          `).join('');
+   738→          document.querySelector('.no-onboarding h2').textContent = 'You Have Pending Offers';
+   739→          document.querySelector('.no-onboarding p').textContent = 'Accept an offer below to start your onboarding.';
+   740→        }
+   741→      } catch(e) {
+   742→        console.error('Error loading offers:', e);
+   743→      }
+   744→    }
+   745→
+   746→    async function acceptOffer(offerId) {
+   747→      if (!confirm('Accept this job offer?')) return;
+   748→      try {
+   749→        const res = await fetch(`/api/onboarding/offers/${offerId}/accept`, {
+   750→          method: 'POST',
+   751→          headers: getAuthHeaders(),
+   752→          body: JSON.stringify({ signature_url: 'digital_acceptance' })
+   753→        });
+   754→        if (!res.ok) throw new Error('Failed to accept');
+   755→        window.location.reload();
+   756→      } catch(e) {
+   757→        alert('Failed to accept offer. Please try again.');
+   758→      }
+   759→    }
+   760→
+   761→    async function declineOffer(offerId) {
+   762→      const reason = prompt('Why are you declining? (optional)');
+   763→      if (reason === null) return;
+   764→      try {
+   765→        await fetch(`/api/onboarding/offers/${offerId}/decline`, {
+   766→          method: 'POST',
+   767→          headers: getAuthHeaders(),
+   768→          body: JSON.stringify({ reason })
+   769→        });
+   770→        window.location.reload();
+   771→      } catch(e) {
+   772→        alert('Failed to decline offer.');
+   773→      }
+   774→    }
+   775→
+   776→    function renderStep() {
+   777→      renderStepIndicator();
+   778→      const container = document.getElementById('stepContent');
+   779→
+   780→      switch (currentStep) {
+   781→        case 1: container.innerHTML = renderStep1(); break;
+   782→        case 2: container.innerHTML = renderStep2(); break;
+   783→        case 3: container.innerHTML = renderStep3(); break;
+   784→        case 4: container.innerHTML = renderStep4(); break;
+   785→        case 5: container.innerHTML = renderStep5(); break;
+   786→      }
+   787→
+   788→      if (currentStep === 4) {
+   789→        initSignatureCanvas();
+   790→      }
+   791→    }
+   792→
+   793→    function renderStepIndicator() {
+   794→      const stepsCompleted = wizardState ? (wizardState.steps_completed || []) : [];
+   795→      const indicator = document.getElementById('stepIndicator');
+   796→      indicator.innerHTML = STEPS.map((s, i) => {
+   797→        const isCompleted = stepsCompleted.includes(String(s.num)) || stepsCompleted.includes(s.num) || s.num < currentStep;
+   798→        const isActive = s.num === currentStep;
+   799→        const dotClass = isCompleted && !isActive ? 'completed' : (isActive ? 'active' : '');
+   800→        const wrapperClass = isCompleted && !isActive ? 'completed' : (isActive ? 'active' : '');
+   801→        const connector = i < STEPS.length - 1
+   802→          ? `<div class="step-connector ${isCompleted ? 'completed' : ''}"></div>`
+   803→          : '';
+   804→        return `
+   805→          <div class="step-dot-wrapper ${wrapperClass}">
+   806→            <div class="step-dot ${dotClass}">
+   807→              ${isCompleted && !isActive ? '✓' : s.num}
+   808→            </div>
+   809→            <span class="step-label">${s.label}</span>
+   810→          </div>
+   811→          ${connector}
+   812→        `;
+   813→      }).join('');
+   814→    }
+   815→
+   816→    // ====== STEP 1: Personal Information ======
+   817→    function renderStep1() {
+   818→      const w = wizardState || {};
+   819→      return `
+   820→        <div class="wizard-card">
+   821→          <h2>Personal Information</h2>
+   822→          <p class="subtitle">We need your legal name and address for employment documents.</p>
+   823→
+   824→          <div class="form-row">
+   825→            <div class="form-group">
+   826→              <label>First Name <span class="required">*</span></label>
+   827→              <input type="text" id="f_first" value="${escapeHtml(w.legal_first_name || '')}" placeholder="Legal first name" required>
+   828→            </div>
+   829→            <div class="form-group">
+   830→              <label>Middle Name</label>
+   831→              <input type="text" id="f_middle" value="${escapeHtml(w.legal_middle_name || '')}" placeholder="Optional">
+   832→            </div>
+   833→          </div>
+   834→
+   835→          <div class="form-row">
+   836→            <div class="form-group">
+   837→              <label>Last Name <span class="required">*</span></label>
+   838→              <input type="text" id="f_last" value="${escapeHtml(w.legal_last_name || '')}" placeholder="Legal last name" required>
+   839→            </div>
+   840→            <div class="form-group">
+   841→              <label>Date of Birth <span class="required">*</span></label>
+   842→              <input type="date" id="f_dob" value="${w.date_of_birth ? w.date_of_birth.split('T')[0] : ''}" required>
+   843→            </div>
+   844→          </div>
+   845→
+   846→          <div class="form-row">
+   847→            <div class="form-group">
+   848→              <label>Social Security Number <span class="required">*</span></label>
+   849→              <input type="password" id="f_ssn" placeholder="XXX-XX-XXXX" maxlength="11" autocomplete="off">
+   850→              <span style="font-size: 11px; color: var(--text-muted);">Encrypted & secured. Required for tax forms.</span>
+   851→            </div>
+   852→            <div class="form-group">
+   853→              <label>Phone <span class="required">*</span></label>
+   854→              <input type="tel" id="f_phone" value="${escapeHtml(w.phone || '')}" placeholder="(555) 123-4567">
+   855→            </div>
+   856→          </div>
+   857→
+   858→          <div class="form-group">
+   859→            <label>Address Line 1 <span class="required">*</span></label>
+   860→            <input type="text" id="f_addr1" value="${escapeHtml(w.address_line1 || '')}" placeholder="Street address">
+   861→          </div>
+   862→
+   863→          <div class="form-group">
+   864→            <label>Address Line 2</label>
+   865→            <input type="text" id="f_addr2" value="${escapeHtml(w.address_line2 || '')}" placeholder="Apt, suite, unit (optional)">
+   866→          </div>
+   867→
+   868→          <div class="form-row three-col">
+   869→            <div class="form-group">
+   870→              <label>City <span class="required">*</span></label>
+   871→              <input type="text" id="f_city" value="${escapeHtml(w.city || '')}" placeholder="City">
+   872→            </div>
+   873→            <div class="form-group">
+   874→              <label>State <span class="required">*</span></label>
+   875→              <select id="f_state">
+   876→                <option value="">Select...</option>
+   877→                ${US_STATES.map(s => `<option value="${s}" ${w.state === s ? 'selected' : ''}>${s}</option>`).join('')}
+   878→              </select>
+   879→            </div>
+   880→            <div class="form-group">
+   881→              <label>ZIP Code <span class="required">*</span></label>
+   882→              <input type="text" id="f_zip" value="${escapeHtml(w.zip_code || '')}" placeholder="12345" maxlength="10">
+   883→            </div>
+   884→          </div>
+   885→
+   886→          <div class="wizard-nav">
+   887→            <div></div>
+   888→            <button class="btn btn-primary" onclick="saveStep1()">
+   889→              Continue →
+   890→            </button>
+   891→          </div>
+   892→        </div>
+   893→      `;
+   894→    }
+   895→
+   896→    async function saveStep1() {
+   897→      const fields = {
+   898→        legal_first_name: document.getElementById('f_first').value.trim(),
+   899→        legal_last_name: document.getElementById('f_last').value.trim(),
+   900→        legal_middle_name: document.getElementById('f_middle').value.trim(),
+   901→        date_of_birth: document.getElementById('f_dob').value,
+   902→        ssn: document.getElementById('f_ssn').value.replace(/[^0-9]/g, ''),
+   903→        phone: document.getElementById('f_phone').value.trim(),
+   904→        address_line1: document.getElementById('f_addr1').value.trim(),
+   905→        address_line2: document.getElementById('f_addr2').value.trim(),
+   906→        city: document.getElementById('f_city').value.trim(),
+   907→        state: document.getElementById('f_state').value,
+   908→        zip_code: document.getElementById('f_zip').value.trim()
+   909→      };
+   910→
+   911→      // Validation
+   912→      if (!fields.legal_first_name || !fields.legal_last_name || !fields.date_of_birth ||
+   913→          !fields.phone || !fields.address_line1 || !fields.city || !fields.state || !fields.zip_code) {
+   914→        alert('Please fill in all required fields.');
+   915→        return;
+   916→      }
+   917→
+   918→      if (!fields.ssn || fields.ssn.length < 9) {
+   919→        alert('Please enter a valid 9-digit SSN.');
+   920→        return;
+   921→      }
+   922→
+   923→      await saveWizardStep(1, fields);
+   924→    }
+   925→
+   926→    // ====== STEP 2: Emergency Contact ======
+   927→    function renderStep2() {
+   928→      const w = wizardState || {};
+   929→      return `
+   930→        <div class="wizard-card">
+   931→          <h2>Emergency Contact</h2>
+   932→          <p class="subtitle">In case of an emergency at work, who should we contact?</p>
+   933→
+   934→          <div class="form-row">
+   935→            <div class="form-group">
+   936→              <label>Contact Name <span class="required">*</span></label>
+   937→              <input type="text" id="f_ec_name" value="${escapeHtml(w.emergency_contact_name || '')}" placeholder="Full name">
+   938→            </div>
+   939→            <div class="form-group">
+   940→              <label>Relationship <span class="required">*</span></label>
+   941→              <select id="f_ec_rel">
+   942→                <option value="">Select...</option>
+   943→                ${['Spouse', 'Parent', 'Sibling', 'Child', 'Friend', 'Other'].map(r =>
+   944→                  `<option value="${r}" ${w.emergency_contact_relationship === r ? 'selected' : ''}>${r}</option>`
+   945→                ).join('')}
+   946→              </select>
+   947→            </div>
+   948→          </div>
+   949→
+   950→          <div class="form-row">
+   951→            <div class="form-group">
+   952→              <label>Phone Number <span class="required">*</span></label>
+   953→              <input type="tel" id="f_ec_phone" value="${escapeHtml(w.emergency_contact_phone || '')}" placeholder="(555) 123-4567">
+   954→            </div>
+   955→            <div class="form-group">
+   956→              <label>Email</label>
+   957→              <input type="email" id="f_ec_email" value="${escapeHtml(w.emergency_contact_email || '')}" placeholder="Optional">
+   958→            </div>
+   959→          </div>
+   960→
+   961→          <div class="wizard-nav">
+   962→            <button class="btn btn-secondary" onclick="goToStep(1)">← Back</button>
+   963→            <button class="btn btn-primary" onclick="saveStep2()">Continue →</button>
+   964→          </div>
+   965→        </div>
+   966→      `;
+   967→    }
+   968→
+   969→    async function saveStep2() {
+   970→      const fields = {
+   971→        emergency_contact_name: document.getElementById('f_ec_name').value.trim(),
+   972→        emergency_contact_relationship: document.getElementById('f_ec_rel').value,
+   973→        emergency_contact_phone: document.getElementById('f_ec_phone').value.trim(),
+   974→        emergency_contact_email: document.getElementById('f_ec_email').value.trim()
+   975→      };
+   976→
+   977→      if (!fields.emergency_contact_name || !fields.emergency_contact_relationship || !fields.emergency_contact_phone) {
+   978→        alert('Please fill in all required fields.');
+   979→        return;
+   980→      }
+   981→
+   982→      await saveWizardStep(2, fields);
+   983→    }
+   984→
+   985→    // ====== STEP 3: Direct Deposit & Tax Info ======
+   986→    function renderStep3() {
+   987→      const w = wizardState || {};
+   988→      return `
+   989→        <div class="wizard-card">
+   990→          <h2>Banking & Tax Information</h2>
+   991→          <p class="subtitle">Set up direct deposit and provide your tax filing status for W-4.</p>
+   992→
+   993→          <div style="background: rgba(99,102,241,0.08); border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;">
+   994→            <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">📋 W-4 Tax Filing Status</h3>
+   995→            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">This determines your federal income tax withholding.</p>
+   996→            <div class="form-group" style="margin-bottom: 0;">
+   997→              <label>Filing Status <span class="required">*</span></label>
+   998→              <select id="f_filing_status">
+   999→                <option value="">Select...</option>
+  1000→                <option value="single" ${w.w4_filing_status === 'single' ? 'selected' : ''}>Single or Married filing separately</option>
+  1001→                <option value="married_jointly" ${w.w4_filing_status === 'married_jointly' ? 'selected' : ''}>Married filing jointly</option>
+  1002→                <option value="head_of_household" ${w.w4_filing_status === 'head_of_household' ? 'selected' : ''}>Head of household</option>
+  1003→              </select>
+  1004→            </div>
+  1005→          </div>
+  1006→
+  1007→          <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">🏦 Direct Deposit Setup</h3>
+  1008→
+  1009→          <div class="form-group">
+  1010→            <label>Bank Name <span class="required">*</span></label>
+  1011→            <input type="text" id="f_bank" value="${escapeHtml(w.bank_name || '')}" placeholder="e.g. Chase, Wells Fargo, Bank of America">
+  1012→          </div>
+  1013→
+  1014→          <div class="form-row">
+  1015→            <div class="form-group">
+  1016→              <label>Routing Number <span class="required">*</span></label>
+  1017→              <input type="password" id="f_routing" placeholder="9-digit routing number" maxlength="9" autocomplete="off">
+  1018→              <span style="font-size: 11px; color: var(--text-muted);">Found at the bottom of your checks</span>
+  1019→            </div>
+  1020→            <div class="form-group">
+  1021→              <label>Account Number <span class="required">*</span></label>
+  1022→              <input type="password" id="f_account" placeholder="Account number" autocomplete="off">
+  1023→              <span style="font-size: 11px; color: var(--text-muted);">Encrypted & secured</span>
+  1024→            </div>
+  1025→          </div>
+  1026→
+  1027→          <div class="form-group">
+  1028→            <label>Account Type <span class="required">*</span></label>
+  1029→            <select id="f_acct_type">
+  1030→              <option value="">Select...</option>
+  1031→              <option value="checking" ${w.account_type === 'checking' ? 'selected' : ''}>Checking</option>
+  1032→              <option value="savings" ${w.account_type === 'savings' ? 'selected' : ''}>Savings</option>
+  1033→            </select>
+  1034→          </div>
+  1035→
+  1036→          <div class="wizard-nav">
+  1037→            <button class="btn btn-secondary" onclick="goToStep(2)">← Back</button>
+  1038→            <button class="btn btn-primary" onclick="saveStep3()">Continue →</button>
+  1039→          </div>
+  1040→        </div>
+  1041→      `;
+  1042→    }
+  1043→
+  1044→    async function saveStep3() {
+  1045→      const fields = {
+  1046→        bank_name: document.getElementById('f_bank').value.trim(),
+  1047→        routing_number: document.getElementById('f_routing').value.replace(/[^0-9]/g, ''),
+  1048→        account_number: document.getElementById('f_account').value.trim(),
+  1049→        account_type: document.getElementById('f_acct_type').value,
+  1050→        w4_filing_status: document.getElementById('f_filing_status').value
+  1051→      };
+  1052→
+  1053→      if (!fields.w4_filing_status) {
+  1054→        alert('Please select your W-4 filing status.');
+  1055→        return;
+  1056→      }
+  1057→
+  1058→      if (!fields.bank_name || !fields.routing_number || !fields.account_number || !fields.account_type) {
+  1059→        alert('Please fill in all required bank details.');
+  1060→        return;
+  1061→      }
+  1062→
+  1063→      if (fields.routing_number.length !== 9) {
+  1064→        alert('Routing number must be 9 digits.');
+  1065→        return;
+  1066→      }
+  1067→
+  1068→      await saveWizardStep(3, fields);
+  1069→    }
+  1070→
+  1071→    // ====== STEP 4: Review & Sign ======
+  1072→    function renderStep4() {
+  1073→      const docs = documentsData || [];
+  1074→      const allSigned = docs.length > 0 && docs.every(d => d.signed_at);
+  1075→
+  1076→      return `
+  1077→        <div class="wizard-card">
+  1078→          <h2>Review & Sign Documents</h2>
+  1079→          <p class="subtitle">Review your generated documents and sign them electronically.</p>
+  1080→
+  1081→          ${docs.length === 0 ? `
+  1082→            <div style="text-align: center; padding: 24px;" id="docGenArea">
+  1083→              <div class="spinner" id="docSpinner"></div>
+  1084→              <p style="color: var(--text-muted);" id="docGenMsg">Generating your documents...</p>
+  1085→              <button class="btn btn-primary" id="retryGenBtn" style="display: none; margin-top: 16px;" onclick="retryGenerateDocuments()">
+  1086→                🔄 Retry Document Generation
+  1087→              </button>
+  1088→            </div>
+  1089→            <script>
+  1090→              // Auto-generate if not already done
+  1091→              (async () => {
+  1092→                try {
+  1093→                  await generateDocuments();
+  1094→                  if (documentsData && documentsData.length > 0) {
+  1095→                    renderStep();
+  1096→                  } else {
+  1097→                    document.getElementById('docSpinner').style.display = 'none';
+  1098→                    document.getElementById('docGenMsg').textContent = 'Documents could not be generated. Please retry.';
+  1099→                    document.getElementById('docGenMsg').style.color = '#ef4444';
+  1100→                    document.getElementById('retryGenBtn').style.display = 'inline-block';
+  1101→                  }
+  1102→                } catch(e) {
+  1103→                  document.getElementById('docSpinner').style.display = 'none';
+  1104→                  document.getElementById('docGenMsg').textContent = 'Error generating documents. Please retry.';
+  1105→                  document.getElementById('docGenMsg').style.color = '#ef4444';
+  1106→                  document.getElementById('retryGenBtn').style.display = 'inline-block';
+  1107→                }
+  1108→              })();
+  1109→            </script>
+  1110→          ` : `
+  1111→            <div style="margin-bottom: 24px;">
+  1112→              ${docs.map(doc => `
+  1113→                <div class="document-card ${doc.signed_at ? 'signed' : ''}">
+  1114→                  <div class="doc-info">
+  1115→                    <div class="doc-icon">${getDocIcon(doc.document_type)}</div>
+  1116→                    <div>
+  1117→                      <div class="doc-name">${escapeHtml(doc.document_type)}</div>
+  1118→                      <div class="doc-status">
+  1119→                        ${doc.signed_at
+  1120→                          ? `Signed ${new Date(doc.signed_at).toLocaleString()}`
+  1121→                          : 'Awaiting signature'}
+  1122→                      </div>
+  1123→                    </div>
+  1124→                  </div>
+  1125→                  <div class="doc-action">
+  1126→                    ${doc.signed_at
+  1127→                      ? '<span class="badge badge-signed">✓ Signed</span>'
+  1128→                      : '<span class="badge badge-pending">Pending</span>'}
+  1129→                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="previewDocument(${doc.id})">Preview</button>
+  1130→                  </div>
+  1131→                </div>
+  1132→              `).join('')}
+  1133→            </div>
+  1134→
+  1135→            ${!allSigned ? `
+  1136→              <div class="signature-area">
+  1137→                <p style="font-weight: 600; margin-bottom: 8px; color: var(--text-primary);">Sign Below</p>
+  1138→                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+  1139→                  Draw your signature to sign all documents. Your IP address and timestamp will be recorded.
+  1140→                </p>
+  1141→                <canvas id="signatureCanvas" class="signature-canvas"></canvas>
+  1142→                <div class="signature-actions">
+  1143→                  <button class="btn btn-secondary" style="padding: 6px 16px; font-size: 13px;" onclick="clearSignature()">Clear</button>
+  1144→                  <button class="btn btn-primary" style="padding: 6px 16px; font-size: 13px;" onclick="typeSignature()">Type Instead</button>
+  1145→                </div>
+  1146→              </div>
+  1147→
+  1148→              <div class="wizard-nav">
+  1149→                <button class="btn btn-secondary" onclick="goToStep(3)">← Back</button>
+  1150→                <button class="btn btn-success" id="signAllBtn" onclick="signAllDocuments()" ${!hasSigned ? 'disabled' : ''}>
+  1151→                  ✍️ Sign All Documents
+  1152→                </button>
+  1153→              </div>
+  1154→            ` : `
+  1155→              <div style="text-align: center; padding: 16px; background: rgba(16,185,129,0.1); border-radius: 12px; border: 1px solid rgba(16,185,129,0.3);">
+  1156→                <p style="color: #10b981; font-weight: 600;">✅ All documents signed!</p>
+  1157→              </div>
+  1158→              <div class="wizard-nav">
+  1159→                <div></div>
+  1160→                <button class="btn btn-success" onclick="completeOnboarding()">Complete Onboarding →</button>
+  1161→              </div>
+  1162→            `}
+  1163→          `}
+  1164→        </div>
+  1165→      `;
+  1166→    }
+  1167→
+  1168→    function getDocIcon(type) {
+  1169→      if (type.includes('I-9')) return '📋';
+  1170→      if (type.includes('W-4')) return '📊';
+  1171→      if (type.includes('Direct Deposit')) return '🏦';
+  1172→      if (type.includes('Handbook')) return '📖';
+  1173→      return '📄';
+  1174→    }
+  1175→
+  1176→    function previewDocument(docId) {
+  1177→      const doc = documentsData.find(d => d.id === docId);
+  1178→      if (!doc) return;
+  1179→
+  1180→      const content = doc.document_content || {};
+  1181→      let html = `
+  1182→        <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center;" onclick="if(event.target===this) this.remove()">
+  1183→          <div style="background: white; border-radius: 16px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; padding: 32px; color: #111;">
+  1184→            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+  1185→              <h2 style="font-size: 20px; font-weight: 700;">${escapeHtml(doc.document_type)}</h2>
+  1186→              <button onclick="this.closest('[style*=fixed]').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+  1187→            </div>
+  1188→            <div style="font-size: 14px; line-height: 1.6;">
+  1189→      `;
+  1190→
+  1191→      if (content.form_type === 'I-9') {
+  1192→        html += `
+  1193→          <p style="font-weight: 600; text-align: center; margin-bottom: 16px;">Employment Eligibility Verification<br>Department of Homeland Security<br>U.S. Citizenship and Immigration Services</p>
+  1194→          <hr style="margin: 16px 0;">
+  1195→          <p><strong>Employee Name:</strong> ${escapeHtml(content.employee_name || '')}</p>
+  1196→          <p><strong>Date of Birth:</strong> ${content.date_of_birth ? new Date(content.date_of_birth).toLocaleDateString() : ''}</p>
+  1197→          <p><strong>Address:</strong> ${escapeHtml(content.address || '')}, ${escapeHtml(content.city || '')}, ${escapeHtml(content.state || '')} ${escapeHtml(content.zip || '')}</p>
+  1198→          <p><strong>SSN:</strong> ${content.ssn_last_four}</p>
+  1199→          <p><strong>Employer:</strong> ${escapeHtml(content.company || '')}</p>
+  1200→          <p style="margin-top: 16px; font-size: 12px; color: #666;">Generated: ${new Date(content.generated_at).toLocaleString()}</p>
+  1201→        `;
+  1202→      } else if (content.form_type === 'W-4') {
+  1203→        html += `
+  1204→          <p style="font-weight: 600; text-align: center; margin-bottom: 16px;">Employee's Withholding Certificate<br>Department of the Treasury<br>Internal Revenue Service</p>
+  1205→          <hr style="margin: 16px 0;">
+  1206→          <p><strong>Employee Name:</strong> ${escapeHtml(content.employee_name || '')}</p>
+  1207→          <p><strong>SSN:</strong> ${content.ssn_last_four}</p>
+  1208→          <p><strong>Address:</strong> ${escapeHtml(content.address || '')}</p>
+  1209→          <p><strong>City, State, ZIP:</strong> ${escapeHtml(content.city_state_zip || '')}</p>
+  1210→          <p><strong>Filing Status:</strong> ${escapeHtml(content.filing_status || 'Single')}</p>
+  1211→          <p style="margin-top: 16px; font-size: 12px; color: #666;">Generated: ${new Date(content.generated_at).toLocaleString()}</p>
+  1212→        `;
+  1213→      } else if (content.form_type === 'Direct Deposit Authorization') {
+  1214→        html += `
+  1215→          <p style="font-weight: 600; text-align: center; margin-bottom: 16px;">Direct Deposit Authorization Form</p>
+  1216→          <hr style="margin: 16px 0;">
+  1217→          <p><strong>Employee Name:</strong> ${escapeHtml(content.employee_name || '')}</p>
+  1218→          <p><strong>Bank:</strong> ${escapeHtml(content.bank_name || '')}</p>
+  1219→          <p><strong>Routing Number:</strong> ${content.routing_last_four}</p>
+  1220→          <p><strong>Account Number:</strong> ${content.account_last_four}</p>
+  1221→          <p><strong>Account Type:</strong> ${escapeHtml(content.account_type || '')}</p>
+  1222→          <p style="margin-top: 16px; font-size: 12px; color: #666;">Generated: ${new Date(content.generated_at).toLocaleString()}</p>
+  1223→        `;
+  1224→      } else if (content.form_type === 'Employee Handbook Acknowledgment') {
+  1225→        html += `
+  1226→          <p style="font-weight: 600; text-align: center; margin-bottom: 16px;">Employee Handbook Acknowledgment</p>
+  1227→          <hr style="margin: 16px 0;">
+  1228→          <p>${escapeHtml(content.acknowledgment_text || '')}</p>
+  1229→          <p style="margin-top: 16px; font-size: 12px; color: #666;">Generated: ${new Date(content.generated_at).toLocaleString()}</p>
+  1230→        `;
+  1231→      } else {
+  1232→        html += `<pre style="white-space: pre-wrap;">${JSON.stringify(content, null, 2)}</pre>`;
+  1233→      }
+  1234→
+  1235→      html += `
+  1236→            </div>
+  1237→          </div>
+  1238→        </div>
+  1239→      `;
+  1240→
+  1241→      document.body.insertAdjacentHTML('beforeend', html);
+  1242→    }
+  1243→
+  1244→    // ====== STEP 5: Complete ======
+  1245→    function renderStep5() {
+  1246→      const docs = documentsData || [];
+  1247→      return `
+  1248→        <div class="wizard-card completion-card">
+  1249→          <div class="completion-icon">🎉</div>
+  1250→          <h2>Onboarding Complete!</h2>
+  1251→          <p>All your pre-employment paperwork has been submitted and signed. Your HR team has been notified and can review your documents.</p>
+  1252→
+  1253→          <div class="completion-docs">
+  1254→            <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">Signed Documents</h3>
+  1255→            ${docs.map(doc => `
+  1256→              <div class="completion-doc-item">
+  1257→                <span>${getDocIcon(doc.document_type)} ${escapeHtml(doc.document_type)}</span>
+  1258→                <span class="badge badge-signed">✓ Signed</span>
+  1259→              </div>
+  1260→            `).join('')}
+  1261→          </div>
+  1262→
+  1263→          <div style="margin-top: 32px;">
+  1264→            <a href="/candidate-dashboard.html" class="btn btn-primary" style="text-decoration: none; display: inline-block;">
+  1265→              ← Back to Dashboard
+  1266→            </a>
+  1267→          </div>
+  1268→        </div>
+  1269→      `;
+  1270→    }
+  1271→
+  1272→    // ====== Signature Canvas ======
+  1273→    function initSignatureCanvas() {
+  1274→      const canvas = document.getElementById('signatureCanvas');
+  1275→      if (!canvas) return;
+  1276→
+  1277→      signatureCanvas = canvas;
+  1278→      signatureCtx = canvas.getContext('2d');
+  1279→
+  1280→      // Set canvas size
+  1281→      const rect = canvas.parentElement.getBoundingClientRect();
+  1282→      canvas.width = rect.width - 48;
+  1283→      canvas.height = 150;
+  1284→
+  1285→      signatureCtx.strokeStyle = '#1a1a2e';
+  1286→      signatureCtx.lineWidth = 2;
+  1287→      signatureCtx.lineCap = 'round';
+  1288→      signatureCtx.lineJoin = 'round';
+  1289→
+  1290→      canvas.addEventListener('mousedown', startDrawing);
+  1291→      canvas.addEventListener('mousemove', draw);
+  1292→      canvas.addEventListener('mouseup', stopDrawing);
+  1293→      canvas.addEventListener('mouseleave', stopDrawing);
+  1294→
+  1295→      // Touch support
+  1296→      canvas.addEventListener('touchstart', (e) => {
+  1297→        e.preventDefault();
+  1298→        const touch = e.touches[0];
+  1299→        const rect = canvas.getBoundingClientRect();
+  1300→        startDrawing({ offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top });
+  1301→      });
+  1302→      canvas.addEventListener('touchmove', (e) => {
+  1303→        e.preventDefault();
+  1304→        const touch = e.touches[0];
+  1305→        const rect = canvas.getBoundingClientRect();
+  1306→        draw({ offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top });
+  1307→      });
+  1308→      canvas.addEventListener('touchend', stopDrawing);
+  1309→    }
+  1310→
+  1311→    function startDrawing(e) {
+  1312→      isDrawing = true;
+  1313→      signatureCtx.beginPath();
+  1314→      signatureCtx.moveTo(e.offsetX, e.offsetY);
+  1315→    }
+  1316→
+  1317→    function draw(e) {
+  1318→      if (!isDrawing) return;
+  1319→      signatureCtx.lineTo(e.offsetX, e.offsetY);
+  1320→      signatureCtx.stroke();
+  1321→      hasSigned = true;
+  1322→      const btn = document.getElementById('signAllBtn');
+  1323→      if (btn) btn.disabled = false;
+  1324→    }
+  1325→
+  1326→    function stopDrawing() {
+  1327→      isDrawing = false;
+  1328→    }
+  1329→
+  1330→    function clearSignature() {
+  1331→      if (!signatureCanvas || !signatureCtx) return;
+  1332→      signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+  1333→      hasSigned = false;
+  1334→      const btn = document.getElementById('signAllBtn');
+  1335→      if (btn) btn.disabled = true;
+  1336→    }
+  1337→
+  1338→    function typeSignature() {
+  1339→      const name = prompt('Type your full legal name as your signature:');
+  1340→      if (!name || !name.trim()) return;
+  1341→
+  1342→      if (!signatureCanvas || !signatureCtx) return;
+  1343→      signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+  1344→      signatureCtx.font = 'italic 32px "Times New Roman", serif';
+  1345→      signatureCtx.fillStyle = '#1a1a2e';
+  1346→      signatureCtx.textAlign = 'center';
+  1347→      signatureCtx.fillText(name.trim(), signatureCanvas.width / 2, 90);
+  1348→      hasSigned = true;
+  1349→      const btn = document.getElementById('signAllBtn');
+  1350→      if (btn) btn.disabled = false;
+  1351→    }
+  1352→
+  1353→    // ====== Navigation & Save ======
+  1354→    function goToStep(step) {
+  1355→      currentStep = step;
+  1356→      renderStep();
+  1357→      window.scrollTo({ top: 0, behavior: 'smooth' });
+  1358→    }
+  1359→
+  1360→    async function saveWizardStep(step, data) {
+  1361→      showSaving();
+  1362→      try {
+  1363→        const res = await fetch('/api/onboarding/wizard/save-step', {
+  1364→          method: 'POST',
+  1365→          headers: getAuthHeaders(),
+  1366→          body: JSON.stringify({
+  1367→            checklist_id: checklistData.id,
+  1368→            step: step,
+  1369→            data: data
+  1370→          })
+  1371→        });
+  1372→
+  1373→        if (!res.ok) throw new Error('Failed to save');
+  1374→
+  1375→        const result = await res.json();
+  1376→        wizardState = result.wizard;
+  1377→
+  1378→        hideSaving();
+  1379→
+  1380→        // If step 3 just completed, generate documents
+  1381→        if (step === 3) {
+  1382→          await generateDocuments();
+  1383→        }
+  1384→
+  1385→        currentStep = step + 1;
+  1386→        renderStep();
+  1387→        window.scrollTo({ top: 0, behavior: 'smooth' });
+  1388→      } catch (err) {
+  1389→        hideSaving();
+  1390→        console.error('Error saving step:', err);
+  1391→        alert('Failed to save. Please try again.');
+  1392→      }
+  1393→    }
+  1394→
+  1395→    async function generateDocuments() {
+  1396→      try {
+  1397→        const res = await fetch('/api/onboarding/wizard/generate-documents', {
+  1398→          method: 'POST',
+  1399→          headers: getAuthHeaders(),
+  1400→          body: JSON.stringify({ checklist_id: checklistData.id })
+  1401→        });
+  1402→
+  1403→        if (!res.ok) throw new Error('Failed to generate');
+  1404→
+  1405→        const result = await res.json();
+  1406→        documentsData = result.documents;
+  1407→      } catch (err) {
+  1408→        console.error('Error generating documents:', err);
+  1409→      }
+  1410→    }
+  1411→
+  1412→    async function retryGenerateDocuments() {
+  1413→      const btn = document.getElementById('retryGenBtn');
+  1414→      const msg = document.getElementById('docGenMsg');
+  1415→      const spinner = document.getElementById('docSpinner');
+  1416→      if (btn) btn.style.display = 'none';
+  1417→      if (spinner) spinner.style.display = 'block';
+  1418→      if (msg) { msg.textContent = 'Retrying document generation...'; msg.style.color = 'var(--text-muted)'; }
+  1419→
+  1420→      await generateDocuments();
+  1421→      if (documentsData && documentsData.length > 0) {
+  1422→        renderStep();
+  1423→      } else {
+  1424→        if (spinner) spinner.style.display = 'none';
+  1425→        if (msg) { msg.textContent = 'Still unable to generate. Please try again.'; msg.style.color = '#ef4444'; }
+  1426→        if (btn) btn.style.display = 'inline-block';
+  1427→      }
+  1428→    }
+  1429→
+  1430→    async function signAllDocuments() {
+  1431→      if (!hasSigned) {
+  1432→        alert('Please draw or type your signature first.');
+  1433→        return;
+  1434→      }
+  1435→
+  1436→      const signatureDataUrl = signatureCanvas ? signatureCanvas.toDataURL('image/png') : 'typed_signature';
+  1437→
+  1438→      showSaving();
+  1439→      try {
+  1440→        const res = await fetch('/api/onboarding/wizard/sign-all', {
+  1441→          method: 'POST',
+  1442→          headers: getAuthHeaders(),
+  1443→          body: JSON.stringify({
+  1444→            checklist_id: checklistData.id,
+  1445→            signature_data: signatureDataUrl
+  1446→          })
+  1447→        });
+  1448→
+  1449→        if (!res.ok) throw new Error('Failed to sign');
+  1450→
+  1451→        const result = await res.json();
+  1452→        documentsData = result.signed_documents;
+  1453→
+  1454→        hideSaving();
+  1455→
+  1456→        // Move to completion
+  1457→        currentStep = 5;
+  1458→        if (wizardState) wizardState.wizard_status = 'completed';
+  1459→        renderStep();
+  1460→        window.scrollTo({ top: 0, behavior: 'smooth' });
+  1461→      } catch (err) {
+  1462→        hideSaving();
+  1463→        console.error('Error signing:', err);
+  1464→        alert('Failed to sign documents. Please try again.');
+  1465→      }
+  1466→    }
+  1467→
+  1468→    function completeOnboarding() {
+  1469→      currentStep = 5;
+  1470→      renderStep();
+  1471→    }
+  1472→
+  1473→    function showSaving() {
+  1474→      document.getElementById('savingIndicator').style.display = 'block';
+  1475→    }
+  1476→
+  1477→    function hideSaving() {
+  1478→      document.getElementById('savingIndicator').style.display = 'none';
+  1479→    }
+  1480→
+  1481→    function escapeHtml(text) {
+  1482→      if (!text) return '';
+  1483→      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+  1484→      return String(text).replace(/[&<>"']/g, m => map[m]);
+  1485→    }
+  1486→
+  1487→    const US_STATES = [
+  1488→      'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS',
+  1489→      'KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY',
+  1490→      'NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'
+  1491→    ];
+  1492→  </script>
+  1493→</body>
+  1494→</html>
+  1495→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

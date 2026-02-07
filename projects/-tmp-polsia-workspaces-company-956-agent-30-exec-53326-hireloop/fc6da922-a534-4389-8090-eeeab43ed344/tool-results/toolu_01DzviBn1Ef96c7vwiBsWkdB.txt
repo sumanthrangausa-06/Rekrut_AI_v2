@@ -1,0 +1,128 @@
+     1→const express = require('express');
+     2→const router = express.Router();
+     3→const pool = require('../lib/db');
+     4→
+     5→// Log an event (client-side tracking)
+     6→router.post('/events', async (req, res) => {
+     7→  try {
+     8→    const { event_type, metadata = {} } = req.body;
+     9→    const user_id = req.session?.userId || null;
+    10→    const session_id = req.sessionID;
+    11→
+    12→    if (!event_type) {
+    13→      return res.status(400).json({ error: 'event_type is required' });
+    14→    }
+    15→
+    16→    await pool.query(
+    17→      'INSERT INTO events (event_type, user_id, session_id, metadata) VALUES ($1, $2, $3, $4)',
+    18→      [event_type, user_id, session_id, JSON.stringify(metadata)]
+    19→    );
+    20→
+    21→    res.json({ success: true });
+    22→  } catch (error) {
+    23→    console.error('Error logging event:', error);
+    24→    res.status(500).json({ error: 'Failed to log event' });
+    25→  }
+    26→});
+    27→
+    28→// Get analytics dashboard data
+    29→router.get('/dashboard', async (req, res) => {
+    30→  try {
+    31→    const { start_date, end_date } = req.query;
+    32→
+    33→    // Default to last 30 days if no dates provided
+    34→    const startDate = start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    35→    const endDate = end_date || new Date().toISOString();
+    36→
+    37→    // Page views by type
+    38→    const pageViewsResult = await pool.query(`
+    39→      SELECT
+    40→        event_type,
+    41→        COUNT(*) as count,
+    42→        COUNT(DISTINCT session_id) as unique_visitors
+    43→      FROM events
+    44→      WHERE event_type LIKE 'page_view%'
+    45→        AND created_at >= $1
+    46→        AND created_at <= $2
+    47→      GROUP BY event_type
+    48→      ORDER BY count DESC
+    49→    `, [startDate, endDate]);
+    50→
+    51→    // Sign-up funnel
+    52→    const signupFunnelResult = await pool.query(`
+    53→      SELECT
+    54→        event_type,
+    55→        COUNT(DISTINCT session_id) as sessions
+    56→      FROM events
+    57→      WHERE event_type IN ('page_view_landing', 'page_view_signup', 'signup_click', 'signup_complete_candidate', 'signup_complete_recruiter')
+    58→        AND created_at >= $1
+    59→        AND created_at <= $2
+    60→      GROUP BY event_type
+    61→    `, [startDate, endDate]);
+    62→
+    63→    // Feature engagement
+    64→    const featureEngagementResult = await pool.query(`
+    65→      SELECT
+    66→        event_type,
+    67→        COUNT(*) as count,
+    68→        COUNT(DISTINCT user_id) as unique_users
+    69→      FROM events
+    70→      WHERE event_type IN ('mock_interview_start', 'job_post_created', 'application_submitted', 'assessment_started')
+    71→        AND created_at >= $1
+    72→        AND created_at <= $2
+    73→      GROUP BY event_type
+    74→      ORDER BY count DESC
+    75→    `, [startDate, endDate]);
+    76→
+    77→    // Daily visitors (last 30 days)
+    78→    const dailyVisitorsResult = await pool.query(`
+    79→      SELECT
+    80→        DATE(created_at) as date,
+    81→        COUNT(DISTINCT session_id) as visitors
+    82→      FROM events
+    83→      WHERE event_type LIKE 'page_view%'
+    84→        AND created_at >= $1
+    85→        AND created_at <= $2
+    86→      GROUP BY DATE(created_at)
+    87→      ORDER BY date ASC
+    88→    `, [startDate, endDate]);
+    89→
+    90→    // Conversion rates
+    91→    const landingViews = pageViewsResult.rows.find(r => r.event_type === 'page_view_landing')?.unique_visitors || 0;
+    92→    const signupPageViews = pageViewsResult.rows.find(r => r.event_type === 'page_view_signup')?.unique_visitors || 0;
+    93→    const signupClicks = signupFunnelResult.rows.find(r => r.event_type === 'signup_click')?.sessions || 0;
+    94→    const candidateSignups = signupFunnelResult.rows.find(r => r.event_type === 'signup_complete_candidate')?.sessions || 0;
+    95→    const recruiterSignups = signupFunnelResult.rows.find(r => r.event_type === 'signup_complete_recruiter')?.sessions || 0;
+    96→    const totalSignups = candidateSignups + recruiterSignups;
+    97→
+    98→    res.json({
+    99→      success: true,
+   100→      data: {
+   101→        page_views: pageViewsResult.rows,
+   102→        signup_funnel: {
+   103→          landing_views: landingViews,
+   104→          signup_page_views: signupPageViews,
+   105→          signup_clicks: signupClicks,
+   106→          candidate_signups: candidateSignups,
+   107→          recruiter_signups: recruiterSignups,
+   108→          total_signups: totalSignups,
+   109→          conversion_rate: landingViews > 0 ? ((totalSignups / landingViews) * 100).toFixed(2) : '0.00',
+   110→          click_through_rate: landingViews > 0 ? ((signupClicks / landingViews) * 100).toFixed(2) : '0.00'
+   111→        },
+   112→        feature_engagement: featureEngagementResult.rows,
+   113→        daily_visitors: dailyVisitorsResult.rows,
+   114→        date_range: { start: startDate, end: endDate }
+   115→      }
+   116→    });
+   117→  } catch (error) {
+   118→    console.error('Error fetching analytics:', error);
+   119→    res.status(500).json({ error: 'Failed to fetch analytics data' });
+   120→  }
+   121→});
+   122→
+   123→module.exports = router;
+   124→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

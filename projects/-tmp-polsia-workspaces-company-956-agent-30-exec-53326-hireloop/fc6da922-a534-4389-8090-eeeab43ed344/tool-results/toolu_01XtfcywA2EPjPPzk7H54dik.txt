@@ -1,0 +1,1232 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>Video Interview - HireLoop</title>
+     7→  <link rel="preconnect" href="https://fonts.googleapis.com">
+     8→  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     9→  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    10→  <link rel="stylesheet" href="/css/styles.css">
+    11→  <!-- TensorFlow.js for AI video analysis -->
+    12→  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+    13→  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.js"></script>
+    14→  <style>
+    15→    * {
+    16→      margin: 0;
+    17→      padding: 0;
+    18→      box-sizing: border-box;
+    19→    }
+    20→
+    21→    body {
+    22→      font-family: 'Inter', sans-serif;
+    23→      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    24→      min-height: 100vh;
+    25→      color: white;
+    26→    }
+    27→
+    28→    .container {
+    29→      max-width: 1200px;
+    30→      margin: 0 auto;
+    31→      padding: 2rem;
+    32→    }
+    33→
+    34→    .header {
+    35→      text-align: center;
+    36→      margin-bottom: 2rem;
+    37→    }
+    38→
+    39→    .header h1 {
+    40→      font-family: 'Space Grotesk', sans-serif;
+    41→      font-size: 2.5rem;
+    42→      margin-bottom: 0.5rem;
+    43→    }
+    44→
+    45→    .progress-bar {
+    46→      background: rgba(255, 255, 255, 0.1);
+    47→      height: 8px;
+    48→      border-radius: 4px;
+    49→      margin: 1rem 0;
+    50→      overflow: hidden;
+    51→    }
+    52→
+    53→    .progress-fill {
+    54→      background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);
+    55→      height: 100%;
+    56→      transition: width 0.3s ease;
+    57→    }
+    58→
+    59→    .main-card {
+    60→      background: rgba(255, 255, 255, 0.95);
+    61→      border-radius: 24px;
+    62→      padding: 3rem;
+    63→      color: #1e293b;
+    64→      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    65→    }
+    66→
+    67→    /* Question Display */
+    68→    .question-section {
+    69→      text-align: center;
+    70→      margin-bottom: 2rem;
+    71→    }
+    72→
+    73→    .question-number {
+    74→      font-size: 0.875rem;
+    75→      font-weight: 600;
+    76→      color: #64748b;
+    77→      margin-bottom: 1rem;
+    78→    }
+    79→
+    80→    .question-text {
+    81→      font-family: 'Space Grotesk', sans-serif;
+    82→      font-size: 1.75rem;
+    83→      font-weight: 600;
+    84→      color: #1e293b;
+    85→      margin-bottom: 1rem;
+    86→      line-height: 1.4;
+    87→    }
+    88→
+    89→    .timer {
+    90→      font-size: 2rem;
+    91→      font-weight: 700;
+    92→      color: #10b981;
+    93→      margin: 1rem 0;
+    94→    }
+    95→
+    96→    .timer.warning {
+    97→      color: #f59e0b;
+    98→    }
+    99→
+   100→    .timer.critical {
+   101→      color: #ef4444;
+   102→      animation: pulse 1s infinite;
+   103→    }
+   104→
+   105→    @keyframes pulse {
+   106→      0%, 100% { opacity: 1; }
+   107→      50% { opacity: 0.5; }
+   108→    }
+   109→
+   110→    /* Video Container */
+   111→    .video-container {
+   112→      position: relative;
+   113→      background: #000;
+   114→      border-radius: 16px;
+   115→      overflow: hidden;
+   116→      margin: 2rem 0;
+   117→      aspect-ratio: 16 / 9;
+   118→    }
+   119→
+   120→    .video-element {
+   121→      width: 100%;
+   122→      height: 100%;
+   123→      object-fit: cover;
+   124→    }
+   125→
+   126→    .video-overlay {
+   127→      position: absolute;
+   128→      top: 0;
+   129→      left: 0;
+   130→      right: 0;
+   131→      bottom: 0;
+   132→      background: rgba(0, 0, 0, 0.7);
+   133→      display: flex;
+   134→      flex-direction: column;
+   135→      align-items: center;
+   136→      justify-content: center;
+   137→      gap: 1rem;
+   138→    }
+   139→
+   140→    .recording-indicator {
+   141→      display: none;
+   142→      position: absolute;
+   143→      top: 1rem;
+   144→      right: 1rem;
+   145→      background: #ef4444;
+   146→      color: white;
+   147→      padding: 0.5rem 1rem;
+   148→      border-radius: 8px;
+   149→      font-weight: 600;
+   150→      font-size: 0.875rem;
+   151→      animation: blink 1.5s infinite;
+   152→    }
+   153→
+   154→    .recording-indicator.active {
+   155→      display: flex;
+   156→      align-items: center;
+   157→      gap: 0.5rem;
+   158→    }
+   159→
+   160→    /* Live Analysis Overlay */
+   161→    .analysis-overlay {
+   162→      display: none;
+   163→      position: absolute;
+   164→      bottom: 1rem;
+   165→      left: 1rem;
+   166→      right: 1rem;
+   167→      background: rgba(0, 0, 0, 0.8);
+   168→      backdrop-filter: blur(10px);
+   169→      border-radius: 12px;
+   170→      padding: 1rem;
+   171→      color: white;
+   172→      z-index: 10;
+   173→    }
+   174→
+   175→    .analysis-overlay.active {
+   176→      display: block;
+   177→    }
+   178→
+   179→    .analysis-toggle {
+   180→      position: absolute;
+   181→      top: 1rem;
+   182→      left: 1rem;
+   183→      background: rgba(0, 0, 0, 0.7);
+   184→      color: white;
+   185→      border: none;
+   186→      padding: 0.5rem 1rem;
+   187→      border-radius: 8px;
+   188→      font-size: 0.875rem;
+   189→      cursor: pointer;
+   190→      z-index: 11;
+   191→      transition: all 0.3s ease;
+   192→    }
+   193→
+   194→    .analysis-toggle:hover {
+   195→      background: rgba(0, 0, 0, 0.9);
+   196→    }
+   197→
+   198→    .analysis-metrics {
+   199→      display: grid;
+   200→      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+   201→      gap: 1rem;
+   202→    }
+   203→
+   204→    .metric-item {
+   205→      text-align: center;
+   206→    }
+   207→
+   208→    .metric-value {
+   209→      font-size: 2rem;
+   210→      font-weight: 700;
+   211→      display: block;
+   212→      margin-bottom: 0.25rem;
+   213→    }
+   214→
+   215→    .metric-label {
+   216→      font-size: 0.75rem;
+   217→      opacity: 0.8;
+   218→      text-transform: uppercase;
+   219→      letter-spacing: 0.5px;
+   220→    }
+   221→
+   222→    .metric-good { color: #10b981; }
+   223→    .metric-warning { color: #f59e0b; }
+   224→    .metric-poor { color: #ef4444; }
+   225→
+   226→    .recording-dot {
+   227→      width: 8px;
+   228→      height: 8px;
+   229→      background: white;
+   230→      border-radius: 50%;
+   231→    }
+   232→
+   233→    /* Microphone Level Indicator */
+   234→    .mic-status {
+   235→      display: flex;
+   236→      align-items: center;
+   237→      gap: 0.75rem;
+   238→      padding: 0.75rem 1.25rem;
+   239→      background: #f1f5f9;
+   240→      border-radius: 12px;
+   241→      margin: 1rem 0;
+   242→    }
+   243→
+   244→    .mic-status.active {
+   245→      background: #d1fae5;
+   246→    }
+   247→
+   248→    .mic-status.error {
+   249→      background: #fee2e2;
+   250→    }
+   251→
+   252→    .mic-icon {
+   253→      font-size: 1.25rem;
+   254→    }
+   255→
+   256→    .mic-label {
+   257→      font-weight: 600;
+   258→      font-size: 0.875rem;
+   259→      color: #1e293b;
+   260→    }
+   261→
+   262→    .mic-level-bar {
+   263→      flex: 1;
+   264→      height: 6px;
+   265→      background: #e2e8f0;
+   266→      border-radius: 3px;
+   267→      overflow: hidden;
+   268→    }
+   269→
+   270→    .mic-level-fill {
+   271→      height: 100%;
+   272→      background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);
+   273→      border-radius: 3px;
+   274→      width: 0%;
+   275→      transition: width 0.1s ease;
+   276→    }
+   277→
+   278→    .mic-status.error .mic-level-fill {
+   279→      background: #ef4444;
+   280→    }
+   281→
+   282→    @keyframes blink {
+   283→      0%, 50%, 100% { opacity: 1; }
+   284→      25%, 75% { opacity: 0.5; }
+   285→    }
+   286→
+   287→    /* Controls */
+   288→    .controls {
+   289→      display: flex;
+   290→      justify-content: center;
+   291→      align-items: center;
+   292→      gap: 1rem;
+   293→      margin: 2rem 0;
+   294→    }
+   295→
+   296→    .btn {
+   297→      padding: 1rem 2rem;
+   298→      border: none;
+   299→      border-radius: 12px;
+   300→      font-weight: 600;
+   301→      font-size: 1rem;
+   302→      cursor: pointer;
+   303→      transition: all 0.3s ease;
+   304→      display: inline-flex;
+   305→      align-items: center;
+   306→      gap: 0.5rem;
+   307→    }
+   308→
+   309→    .btn-primary {
+   310→      background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+   311→      color: white;
+   312→    }
+   313→
+   314→    .btn-primary:hover {
+   315→      transform: translateY(-2px);
+   316→      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+   317→    }
+   318→
+   319→    .btn-danger {
+   320→      background: #ef4444;
+   321→      color: white;
+   322→    }
+   323→
+   324→    .btn-danger:hover {
+   325→      background: #dc2626;
+   326→      transform: translateY(-2px);
+   327→    }
+   328→
+   329→    .btn-secondary {
+   330→      background: #64748b;
+   331→      color: white;
+   332→    }
+   333→
+   334→    .btn-secondary:hover {
+   335→      background: #475569;
+   336→    }
+   337→
+   338→    .btn:disabled {
+   339→      opacity: 0.5;
+   340→      cursor: not-allowed;
+   341→      transform: none;
+   342→    }
+   343→
+   344→    .btn-large {
+   345→      padding: 1.25rem 3rem;
+   346→      font-size: 1.125rem;
+   347→    }
+   348→
+   349→    /* States */
+   350→    .setup-state, .recording-state, .review-state, .complete-state {
+   351→      display: none;
+   352→    }
+   353→
+   354→    .setup-state.active, .recording-state.active, .review-state.active, .complete-state.active {
+   355→      display: block;
+   356→    }
+   357→
+   358→    .instructions {
+   359→      background: #f1f5f9;
+   360→      border-left: 4px solid #3b82f6;
+   361→      padding: 1.5rem;
+   362→      border-radius: 8px;
+   363→      margin: 2rem 0;
+   364→    }
+   365→
+   366→    .instructions h3 {
+   367→      font-size: 1.125rem;
+   368→      margin-bottom: 0.75rem;
+   369→      color: #1e293b;
+   370→    }
+   371→
+   372→    .instructions ul {
+   373→      list-style: none;
+   374→      padding: 0;
+   375→    }
+   376→
+   377→    .instructions li {
+   378→      padding: 0.5rem 0;
+   379→      color: #475569;
+   380→      display: flex;
+   381→      align-items: start;
+   382→      gap: 0.5rem;
+   383→    }
+   384→
+   385→    .instructions li::before {
+   386→      content: "✓";
+   387→      color: #10b981;
+   388→      font-weight: 700;
+   389→    }
+   390→
+   391→    .alert {
+   392→      padding: 1rem;
+   393→      border-radius: 8px;
+   394→      margin: 1rem 0;
+   395→    }
+   396→
+   397→    .alert-warning {
+   398→      background: #fef3c7;
+   399→      color: #92400e;
+   400→      border: 1px solid #fbbf24;
+   401→    }
+   402→
+   403→    .alert-success {
+   404→      background: #d1fae5;
+   405→      color: #065f46;
+   406→      border: 1px solid #10b981;
+   407→    }
+   408→
+   409→    .back-link {
+   410→      display: inline-flex;
+   411→      align-items: center;
+   412→      gap: 0.5rem;
+   413→      color: rgba(255, 255, 255, 0.9);
+   414→      text-decoration: none;
+   415→      font-weight: 600;
+   416→      margin-bottom: 2rem;
+   417→      padding: 0.75rem 1.5rem;
+   418→      background: rgba(255, 255, 255, 0.1);
+   419→      backdrop-filter: blur(10px);
+   420→      border-radius: 12px;
+   421→      transition: all 0.3s ease;
+   422→    }
+   423→
+   424→    .back-link:hover {
+   425→      background: rgba(255, 255, 255, 0.2);
+   426→      transform: translateX(-4px);
+   427→    }
+   428→
+   429→    .loading-spinner {
+   430→      display: inline-block;
+   431→      width: 20px;
+   432→      height: 20px;
+   433→      border: 3px solid rgba(255, 255, 255, 0.3);
+   434→      border-top-color: white;
+   435→      border-radius: 50%;
+   436→      animation: spin 1s linear infinite;
+   437→    }
+   438→
+   439→    @keyframes spin {
+   440→      to { transform: rotate(360deg); }
+   441→    }
+   442→
+   443→    .response-preview {
+   444→      background: #f9fafb;
+   445→      border-radius: 12px;
+   446→      padding: 1.5rem;
+   447→      margin: 1rem 0;
+   448→    }
+   449→
+   450→    .response-item {
+   451→      display: flex;
+   452→      align-items: center;
+   453→      gap: 1rem;
+   454→      padding: 1rem;
+   455→      background: white;
+   456→      border-radius: 8px;
+   457→      margin-bottom: 0.75rem;
+   458→      border: 1px solid #e5e7eb;
+   459→    }
+   460→
+   461→    .response-item:last-child {
+   462→      margin-bottom: 0;
+   463→    }
+   464→
+   465→    .response-number {
+   466→      width: 32px;
+   467→      height: 32px;
+   468→      background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+   469→      color: white;
+   470→      border-radius: 8px;
+   471→      display: flex;
+   472→      align-items: center;
+   473→      justify-content: center;
+   474→      font-weight: 700;
+   475→      flex-shrink: 0;
+   476→    }
+   477→
+   478→    .response-status {
+   479→      flex: 1;
+   480→      color: #64748b;
+   481→    }
+   482→
+   483→    .response-status.completed {
+   484→      color: #10b981;
+   485→      font-weight: 600;
+   486→    }
+   487→
+   488→    @media (max-width: 768px) {
+   489→      .container {
+   490→        padding: 1rem;
+   491→      }
+   492→
+   493→      .main-card {
+   494→        padding: 1.5rem;
+   495→      }
+   496→
+   497→      .header h1 {
+   498→        font-size: 1.75rem;
+   499→      }
+   500→
+   501→      .question-text {
+   502→        font-size: 1.25rem;
+   503→      }
+   504→
+   505→      .controls {
+   506→        flex-direction: column;
+   507→        gap: 0.75rem;
+   508→      }
+   509→
+   510→      .btn {
+   511→        width: 100%;
+   512→      }
+   513→    }
+   514→  </style>
+   515→</head>
+   516→<body>
+   517→  <div class="container">
+   518→    <a href="/candidate-dashboard.html" class="back-link">
+   519→      ← Back to Dashboard
+   520→    </a>
+   521→
+   522→    <div class="header">
+   523→      <h1>🎥 Video Interview</h1>
+   524→      <p>Record your responses to interview questions</p>
+   525→      <div class="progress-bar">
+   526→        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+   527→      </div>
+   528→      <p id="progress-text" style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">Question 0 of 0</p>
+   529→    </div>
+   530→
+   531→    <div class="main-card">
+   532→      <!-- Setup State -->
+   533→      <div class="setup-state active" id="setup-state">
+   534→        <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.75rem; margin-bottom: 1rem;">Get Ready</h2>
+   535→        <div class="instructions">
+   536→          <h3>Before we begin:</h3>
+   537→          <ul>
+   538→            <li>Find a quiet space with good lighting</li>
+   539→            <li>Ensure your camera and microphone are working</li>
+   540→            <li>You'll have 2 minutes to answer each question</li>
+   541→            <li>You can retake your response once per question</li>
+   542→            <li>Review all answers before final submission</li>
+   543→          </ul>
+   544→        </div>
+   545→
+   546→        <div class="video-container" id="preview-container">
+   547→          <video id="preview-video" class="video-element" autoplay muted playsinline></video>
+   548→          <div class="video-overlay" id="preview-overlay">
+   549→            <h3 style="font-size: 1.5rem; margin-bottom: 1rem;">Camera Preview</h3>
+   550→            <p style="margin-bottom: 1rem; opacity: 0.8;">Click "Start Interview" when ready</p>
+   551→          </div>
+   552→        </div>
+   553→
+   554→        <div class="alert alert-warning">
+   555→          ⚠️ This interview requires camera and microphone access. Please allow permissions when prompted.
+   556→        </div>
+   557→
+   558→        <!-- Microphone Status Indicator -->
+   559→        <div class="mic-status" id="mic-status">
+   560→          <span class="mic-icon">🎤</span>
+   561→          <span class="mic-label" id="mic-label">Microphone: Checking...</span>
+   562→          <div class="mic-level-bar">
+   563→            <div class="mic-level-fill" id="mic-level-fill"></div>
+   564→          </div>
+   565→        </div>
+   566→
+   567→        <div class="controls">
+   568→          <button class="btn btn-primary btn-large" onclick="startInterview()">
+   569→            Start Interview
+   570→          </button>
+   571→        </div>
+   572→      </div>
+   573→
+   574→      <!-- Recording State -->
+   575→      <div class="recording-state" id="recording-state">
+   576→        <div class="question-section">
+   577→          <p class="question-number" id="question-number">Question 1 of 5</p>
+   578→          <h2 class="question-text" id="question-text">Loading question...</h2>
+   579→          <div class="timer" id="timer">2:00</div>
+   580→        </div>
+   581→
+   582→        <div class="video-container">
+   583→          <video id="recording-video" class="video-element" autoplay muted playsinline></video>
+   584→          <div class="recording-indicator" id="recording-indicator">
+   585→            <div class="recording-dot"></div>
+   586→            RECORDING
+   587→          </div>
+   588→
+   589→          <!-- Live Analysis Toggle -->
+   590→          <button class="analysis-toggle" id="analysis-toggle" onclick="toggleAnalysisOverlay()" style="display: none;">
+   591→            👁️ Live Feedback
+   592→          </button>
+   593→
+   594→          <!-- Live Analysis Overlay -->
+   595→          <div class="analysis-overlay" id="analysis-overlay">
+   596→            <div class="analysis-metrics">
+   597→              <div class="metric-item">
+   598→                <span class="metric-value" id="metric-eye-contact">—</span>
+   599→                <span class="metric-label">Eye Contact</span>
+   600→              </div>
+   601→              <div class="metric-item">
+   602→                <span class="metric-value" id="metric-posture">—</span>
+   603→                <span class="metric-label">Posture</span>
+   604→              </div>
+   605→              <div class="metric-item">
+   606→                <span class="metric-value" id="metric-presence">—</span>
+   607→                <span class="metric-label">Presence</span>
+   608→              </div>
+   609→            </div>
+   610→          </div>
+   611→        </div>
+   612→
+   613→        <!-- Recording Mic Status -->
+   614→        <div class="mic-status active" id="recording-mic-status">
+   615→          <span class="mic-icon">🎤</span>
+   616→          <span class="mic-label" id="recording-mic-label">Mic Active</span>
+   617→          <div class="mic-level-bar">
+   618→            <div class="mic-level-fill" id="recording-mic-level"></div>
+   619→          </div>
+   620→        </div>
+   621→
+   622→        <div class="controls">
+   623→          <button class="btn btn-primary" id="record-btn" onclick="startRecording()">
+   624→            🎥 Start Recording
+   625→          </button>
+   626→          <button class="btn btn-danger" id="stop-btn" onclick="stopRecording()" style="display: none;">
+   627→            ⏹️ Stop Recording
+   628→          </button>
+   629→        </div>
+   630→      </div>
+   631→
+   632→      <!-- Review State -->
+   633→      <div class="review-state" id="review-state">
+   634→        <div class="question-section">
+   635→          <p class="question-number" id="review-question-number">Question 1 of 5</p>
+   636→          <h2 class="question-text" id="review-question-text">Review your response</h2>
+   637→        </div>
+   638→
+   639→        <div class="video-container">
+   640→          <video id="playback-video" class="video-element" controls playsinline></video>
+   641→        </div>
+   642→
+   643→        <div class="controls">
+   644→          <button class="btn btn-secondary" id="retake-btn" onclick="retakeResponse()">
+   645→            🔄 Retake (1 remaining)
+   646→          </button>
+   647→          <button class="btn btn-primary" onclick="acceptResponse()">
+   648→            ✓ Accept & Continue
+   649→          </button>
+   650→        </div>
+   651→      </div>
+   652→
+   653→      <!-- Complete State -->
+   654→      <div class="complete-state" id="complete-state">
+   655→        <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 2rem; margin-bottom: 1rem; text-align: center;">
+   656→          Review Your Interview
+   657→        </h2>
+   658→        <p style="text-align: center; color: #64748b; margin-bottom: 2rem;">
+   659→          Check your responses before submitting
+   660→        </p>
+   661→
+   662→        <div class="response-preview" id="responses-list">
+   663→          <!-- Response items will be inserted here -->
+   664→        </div>
+   665→
+   666→        <div class="alert alert-success" style="margin: 2rem 0;">
+   667→          ✓ All questions answered! Review your responses and submit when ready.
+   668→        </div>
+   669→
+   670→        <div class="controls">
+   671→          <button class="btn btn-secondary" onclick="window.location.href='/candidate-dashboard.html'">
+   672→            Cancel
+   673→          </button>
+   674→          <button class="btn btn-primary btn-large" id="submit-btn" onclick="submitInterview()">
+   675→            Submit Interview
+   676→          </button>
+   677→        </div>
+   678→      </div>
+   679→    </div>
+   680→  </div>
+   681→
+   682→  <script src="/js/main.js"></script>
+   683→  <script src="/js/video-analyzer.js"></script>
+   684→  <script>
+   685→    let mediaStream = null;
+   686→    let mediaRecorder = null;
+   687→    let recordedChunks = [];
+   688→    let currentQuestionIndex = 0;
+   689→    let questions = [];
+   690→    let responses = [];
+   691→    let interviewId = null;
+   692→    let timerInterval = null;
+   693→    let timeRemaining = 120; // 2 minutes in seconds
+   694→    let retakesUsed = {};
+   695→    let videoAnalyzer = null;
+   696→    let analysisEnabled = false;
+   697→    let questionAnalysisData = {}; // Store analysis for each question
+   698→    let audioContext = null;
+   699→    let audioAnalyser = null;
+   700→    let micLevelAnimationId = null;
+   701→
+   702→    // Initialize
+   703→    document.addEventListener('DOMContentLoaded', async () => {
+   704→      const user = await checkAuth();
+   705→      if (!user) {
+   706→        window.location.href = '/login.html';
+   707→        return;
+   708→      }
+   709→
+   710→      // Get interview ID from URL or create new
+   711→      const urlParams = new URLSearchParams(window.location.search);
+   712→      const jobId = urlParams.get('job_id');
+   713→
+   714→      // Request camera AND microphone access
+   715→      try {
+   716→        mediaStream = await navigator.mediaDevices.getUserMedia({
+   717→          video: { width: 1280, height: 720 },
+   718→          audio: {
+   719→            echoCancellation: true,
+   720→            noiseSuppression: true,
+   721→            autoGainControl: true
+   722→          }
+   723→        });
+   724→        document.getElementById('preview-video').srcObject = mediaStream;
+   725→        document.getElementById('preview-overlay').style.display = 'none';
+   726→
+   727→        // Verify audio tracks are present and active
+   728→        const audioTracks = mediaStream.getAudioTracks();
+   729→        if (audioTracks.length === 0) {
+   730→          console.error('No audio tracks in stream');
+   731→          updateMicStatus('error', 'Microphone not detected');
+   732→        } else {
+   733→          const audioTrack = audioTracks[0];
+   734→          console.log('Audio track:', audioTrack.label, 'enabled:', audioTrack.enabled, 'muted:', audioTrack.muted);
+   735→
+   736→          if (!audioTrack.enabled) {
+   737→            audioTrack.enabled = true;
+   738→          }
+   739→
+   740→          updateMicStatus('active', `Mic: ${audioTrack.label || 'Active'}`);
+   741→
+   742→          // Start audio level visualization
+   743→          startAudioLevelMeter(mediaStream);
+   744→        }
+   745→
+   746→        // Initialize video analyzer
+   747→        videoAnalyzer = new VideoAnalyzer();
+   748→        const initialized = await videoAnalyzer.init();
+   749→
+   750→        if (initialized) {
+   751→          console.log('Video analyzer ready');
+   752→
+   753→          // Listen for live score updates
+   754→          videoAnalyzer.on('scores', (scores) => {
+   755→            updateLiveMetrics(scores);
+   756→          });
+   757→        } else {
+   758→          console.warn('Video analyzer initialization failed - continuing without analysis');
+   759→        }
+   760→      } catch (err) {
+   761→        console.error('Camera/microphone access error:', err);
+   762→        if (err.name === 'NotAllowedError') {
+   763→          alert('Camera and microphone access is required for video interviews. Please allow both permissions and reload the page.');
+   764→        } else if (err.name === 'NotFoundError') {
+   765→          alert('Camera or microphone not found. Please connect your devices and reload.');
+   766→        } else {
+   767→          alert('Failed to access camera and microphone: ' + err.message);
+   768→        }
+   769→        updateMicStatus('error', 'Microphone access denied');
+   770→      }
+   771→    });
+   772→
+   773→    // Microphone status helpers
+   774→    function updateMicStatus(status, label) {
+   775→      const micStatusEl = document.getElementById('mic-status');
+   776→      const micLabelEl = document.getElementById('mic-label');
+   777→
+   778→      micStatusEl.className = 'mic-status ' + status;
+   779→      micLabelEl.textContent = label;
+   780→    }
+   781→
+   782→    // Audio level meter using Web Audio API
+   783→    function startAudioLevelMeter(stream) {
+   784→      try {
+   785→        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+   786→        const source = audioContext.createMediaStreamSource(stream);
+   787→        audioAnalyser = audioContext.createAnalyser();
+   788→        audioAnalyser.fftSize = 256;
+   789→        audioAnalyser.smoothingTimeConstant = 0.8;
+   790→        source.connect(audioAnalyser);
+   791→
+   792→        const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+   793→
+   794→        function updateLevel() {
+   795→          if (!audioAnalyser) return;
+   796→
+   797→          audioAnalyser.getByteFrequencyData(dataArray);
+   798→
+   799→          // Calculate average level
+   800→          let sum = 0;
+   801→          for (let i = 0; i < dataArray.length; i++) {
+   802→            sum += dataArray[i];
+   803→          }
+   804→          const avg = sum / dataArray.length;
+   805→          const level = Math.min(100, (avg / 128) * 100);
+   806→
+   807→          // Update both mic level bars
+   808→          const previewFill = document.getElementById('mic-level-fill');
+   809→          const recordingFill = document.getElementById('recording-mic-level');
+   810→
+   811→          if (previewFill) previewFill.style.width = level + '%';
+   812→          if (recordingFill) recordingFill.style.width = level + '%';
+   813→
+   814→          micLevelAnimationId = requestAnimationFrame(updateLevel);
+   815→        }
+   816→
+   817→        updateLevel();
+   818→      } catch (err) {
+   819→        console.warn('Audio level meter not available:', err);
+   820→      }
+   821→    }
+   822→
+   823→    async function startInterview() {
+   824→      try {
+   825→        // Create interview session
+   826→        const result = await apiCall('/interviews/start', {
+   827→          method: 'POST',
+   828→          body: JSON.stringify({
+   829→            interview_type: 'video',
+   830→            job_title: 'Software Developer', // TODO: Get from URL params or selection
+   831→            job_description: 'General software development role'
+   832→          })
+   833→        });
+   834→
+   835→        if (!result.success) {
+   836→          throw new Error('Failed to start interview');
+   837→        }
+   838→
+   839→        interviewId = result.interview.id;
+   840→        questions = result.questions;
+   841→        responses = new Array(questions.length).fill(null);
+   842→
+   843→        // Update UI
+   844→        updateProgress();
+   845→        showState('recording');
+   846→        displayQuestion(0);
+   847→      } catch (err) {
+   848→        console.error('Start interview error:', err);
+   849→        alert('Failed to start interview. Please try again.');
+   850→      }
+   851→    }
+   852→
+   853→    function displayQuestion(index) {
+   854→      currentQuestionIndex = index;
+   855→      const question = questions[index];
+   856→
+   857→      document.getElementById('question-number').textContent = `Question ${index + 1} of ${questions.length}`;
+   858→      document.getElementById('question-text').textContent = question.question;
+   859→
+   860→      // Reset timer
+   861→      timeRemaining = 120;
+   862→      updateTimer();
+   863→
+   864→      // Update progress
+   865→      updateProgress();
+   866→
+   867→      // Setup video for recording
+   868→      if (mediaStream) {
+   869→        document.getElementById('recording-video').srcObject = mediaStream;
+   870→      }
+   871→    }
+   872→
+   873→    function startRecording() {
+   874→      recordedChunks = [];
+   875→
+   876→      try {
+   877→        // Use mimeType with both video AND audio codecs
+   878→        let mimeType = 'video/webm;codecs=vp9,opus';
+   879→        if (!MediaRecorder.isTypeSupported(mimeType)) {
+   880→          mimeType = 'video/webm;codecs=vp8,opus';
+   881→        }
+   882→        if (!MediaRecorder.isTypeSupported(mimeType)) {
+   883→          mimeType = 'video/webm';
+   884→        }
+   885→        console.log('Recording with mimeType:', mimeType);
+   886→
+   887→        // Verify audio tracks before recording
+   888→        const audioTracks = mediaStream.getAudioTracks();
+   889→        if (audioTracks.length === 0 || !audioTracks[0].enabled) {
+   890→          alert('Microphone is not active. Please check your mic permissions and try again.');
+   891→          return;
+   892→        }
+   893→
+   894→        mediaRecorder = new MediaRecorder(mediaStream, { mimeType });
+   895→
+   896→        mediaRecorder.ondataavailable = (event) => {
+   897→          if (event.data.size > 0) {
+   898→            recordedChunks.push(event.data);
+   899→          }
+   900→        };
+   901→
+   902→        mediaRecorder.onstop = handleRecordingStop;
+   903→
+   904→        mediaRecorder.start();
+   905→
+   906→        // Start video analysis
+   907→        if (videoAnalyzer) {
+   908→          videoAnalyzer.reset();
+   909→          videoAnalyzer.startAnalysis(document.getElementById('recording-video'), 500);
+   910→          document.getElementById('analysis-toggle').style.display = 'block';
+   911→        }
+   912→
+   913→        // Update UI
+   914→        document.getElementById('record-btn').style.display = 'none';
+   915→        document.getElementById('stop-btn').style.display = 'inline-flex';
+   916→        document.getElementById('recording-indicator').classList.add('active');
+   917→
+   918→        // Start timer
+   919→        timerInterval = setInterval(() => {
+   920→          timeRemaining--;
+   921→          updateTimer();
+   922→
+   923→          if (timeRemaining <= 0) {
+   924→            stopRecording();
+   925→          }
+   926→        }, 1000);
+   927→      } catch (err) {
+   928→        console.error('Recording error:', err);
+   929→        alert('Failed to start recording. Please try again.');
+   930→      }
+   931→    }
+   932→
+   933→    function stopRecording() {
+   934→      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+   935→        mediaRecorder.stop();
+   936→        clearInterval(timerInterval);
+   937→
+   938→        // Stop video analysis and save data
+   939→        if (videoAnalyzer) {
+   940→          videoAnalyzer.stopAnalysis();
+   941→          const analysis = videoAnalyzer.getFinalAnalysis();
+   942→
+   943→          if (analysis) {
+   944→            questionAnalysisData[currentQuestionIndex] = analysis;
+   945→            console.log('Saved analysis for question', currentQuestionIndex, analysis.scores);
+   946→          }
+   947→
+   948→          document.getElementById('analysis-toggle').style.display = 'none';
+   949→          document.getElementById('analysis-overlay').classList.remove('active');
+   950→        }
+   951→
+   952→        // Update UI
+   953→        document.getElementById('record-btn').style.display = 'inline-flex';
+   954→        document.getElementById('stop-btn').style.display = 'none';
+   955→        document.getElementById('recording-indicator').classList.remove('active');
+   956→      }
+   957→    }
+   958→
+   959→    function handleRecordingStop() {
+   960→      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+   961→      const videoUrl = URL.createObjectURL(blob);
+   962→
+   963→      // Show review state
+   964→      document.getElementById('review-question-number').textContent =
+   965→        `Question ${currentQuestionIndex + 1} of ${questions.length}`;
+   966→      document.getElementById('review-question-text').textContent = questions[currentQuestionIndex].question;
+   967→
+   968→      const playbackVideo = document.getElementById('playback-video');
+   969→      playbackVideo.src = videoUrl;
+   970→
+   971→      // Update retake button
+   972→      const retakeBtn = document.getElementById('retake-btn');
+   973→      const retakesForQuestion = retakesUsed[currentQuestionIndex] || 0;
+   974→      if (retakesForQuestion >= 1) {
+   975→        retakeBtn.disabled = true;
+   976→        retakeBtn.textContent = '🔄 No retakes remaining';
+   977→      } else {
+   978→        retakeBtn.disabled = false;
+   979→        retakeBtn.textContent = `🔄 Retake (${1 - retakesForQuestion} remaining)`;
+   980→      }
+   981→
+   982→      showState('review');
+   983→
+   984→      // Store the blob temporarily
+   985→      window.currentRecordingBlob = blob;
+   986→    }
+   987→
+   988→    function retakeResponse() {
+   989→      const retakesForQuestion = retakesUsed[currentQuestionIndex] || 0;
+   990→      if (retakesForQuestion >= 1) {
+   991→        alert('No retakes remaining for this question.');
+   992→        return;
+   993→      }
+   994→
+   995→      retakesUsed[currentQuestionIndex] = retakesForQuestion + 1;
+   996→      showState('recording');
+   997→      displayQuestion(currentQuestionIndex);
+   998→    }
+   999→
+  1000→    async function acceptResponse() {
+  1001→      // Show loading
+  1002→      document.getElementById('submit-btn').disabled = true;
+  1003→      document.getElementById('submit-btn').innerHTML = '<span class="loading-spinner"></span> Uploading...';
+  1004→
+  1005→      try {
+  1006→        // Upload video
+  1007→        const videoUrl = await uploadVideo(window.currentRecordingBlob, currentQuestionIndex);
+  1008→
+  1009→        // Save response
+  1010→        responses[currentQuestionIndex] = {
+  1011→          question_index: currentQuestionIndex,
+  1012→          video_url: videoUrl,
+  1013→          response_text: '[Video response]',
+  1014→          recorded_at: new Date().toISOString()
+  1015→        };
+  1016→
+  1017→        // Move to next question or complete
+  1018→        if (currentQuestionIndex < questions.length - 1) {
+  1019→          showState('recording');
+  1020→          displayQuestion(currentQuestionIndex + 1);
+  1021→        } else {
+  1022→          showCompleteState();
+  1023→        }
+  1024→      } catch (err) {
+  1025→        console.error('Upload error:', err);
+  1026→        alert('Failed to upload video. Please try again.');
+  1027→      } finally {
+  1028→        document.getElementById('submit-btn').disabled = false;
+  1029→        document.getElementById('submit-btn').innerHTML = 'Submit Interview';
+  1030→      }
+  1031→    }
+  1032→
+  1033→    async function uploadVideo(blob, questionIndex) {
+  1034→      const formData = new FormData();
+  1035→      formData.append('video', blob, `interview-${interviewId}-q${questionIndex}.webm`);
+  1036→      formData.append('interview_id', interviewId);
+  1037→      formData.append('question_index', questionIndex);
+  1038→
+  1039→      const response = await apiCall('/interviews/upload-video', {
+  1040→        method: 'POST',
+  1041→        body: formData,
+  1042→        isFormData: true
+  1043→      });
+  1044→
+  1045→      if (!response.success) {
+  1046→        throw new Error(response.error || 'Upload failed');
+  1047→      }
+  1048→
+  1049→      return response.video_url;
+  1050→    }
+  1051→
+  1052→    function showCompleteState() {
+  1053→      // Build responses list
+  1054→      const responsesList = document.getElementById('responses-list');
+  1055→      responsesList.innerHTML = responses.map((r, i) => `
+  1056→        <div class="response-item">
+  1057→          <div class="response-number">${i + 1}</div>
+  1058→          <div style="flex: 1;">
+  1059→            <div style="font-weight: 600; margin-bottom: 0.25rem;">${questions[i].question}</div>
+  1060→            <div class="response-status completed">✓ Video recorded</div>
+  1061→          </div>
+  1062→        </div>
+  1063→      `).join('');
+  1064→
+  1065→      showState('complete');
+  1066→    }
+  1067→
+  1068→    async function submitInterview() {
+  1069→      document.getElementById('submit-btn').disabled = true;
+  1070→      document.getElementById('submit-btn').innerHTML = '<span class="loading-spinner"></span> Submitting...';
+  1071→
+  1072→      try {
+  1073→        // Submit all responses
+  1074→        for (let i = 0; i < responses.length; i++) {
+  1075→          if (responses[i]) {
+  1076→            await apiCall(`/interviews/${interviewId}/respond`, {
+  1077→              method: 'POST',
+  1078→              body: JSON.stringify(responses[i])
+  1079→            });
+  1080→          }
+  1081→        }
+  1082→
+  1083→        // Save video analysis data
+  1084→        await saveAnalysisData();
+  1085→
+  1086→        // Complete interview
+  1087→        await apiCall(`/interviews/${interviewId}/complete`, {
+  1088→          method: 'POST'
+  1089→        });
+  1090→
+  1091→        // Stop media stream and audio context
+  1092→        if (micLevelAnimationId) {
+  1093→          cancelAnimationFrame(micLevelAnimationId);
+  1094→        }
+  1095→        if (audioContext) {
+  1096→          audioContext.close();
+  1097→        }
+  1098→        if (mediaStream) {
+  1099→          mediaStream.getTracks().forEach(track => track.stop());
+  1100→        }
+  1101→
+  1102→        // Redirect to results
+  1103→        alert('Interview submitted successfully!');
+  1104→        window.location.href = `/interview-analysis.html?interview_id=${interviewId}`;
+  1105→      } catch (err) {
+  1106→        console.error('Submit error:', err);
+  1107→        alert('Failed to submit interview. Please try again.');
+  1108→        document.getElementById('submit-btn').disabled = false;
+  1109→        document.getElementById('submit-btn').innerHTML = 'Submit Interview';
+  1110→      }
+  1111→    }
+  1112→
+  1113→    function showState(state) {
+  1114→      document.querySelectorAll('.setup-state, .recording-state, .review-state, .complete-state')
+  1115→        .forEach(el => el.classList.remove('active'));
+  1116→
+  1117→      if (state === 'recording') {
+  1118→        document.getElementById('recording-state').classList.add('active');
+  1119→      } else if (state === 'review') {
+  1120→        document.getElementById('review-state').classList.add('active');
+  1121→      } else if (state === 'complete') {
+  1122→        document.getElementById('complete-state').classList.add('active');
+  1123→      }
+  1124→    }
+  1125→
+  1126→    function updateProgress() {
+  1127→      const completed = responses.filter(r => r !== null).length;
+  1128→      const total = questions.length;
+  1129→      const percent = total > 0 ? (completed / total) * 100 : 0;
+  1130→
+  1131→      document.getElementById('progress-fill').style.width = `${percent}%`;
+  1132→      document.getElementById('progress-text').textContent = `Question ${completed} of ${total}`;
+  1133→    }
+  1134→
+  1135→    function updateTimer() {
+  1136→      const minutes = Math.floor(timeRemaining / 60);
+  1137→      const seconds = timeRemaining % 60;
+  1138→      const timerEl = document.getElementById('timer');
+  1139→
+  1140→      timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  1141→
+  1142→      if (timeRemaining <= 10) {
+  1143→        timerEl.classList.add('critical');
+  1144→      } else if (timeRemaining <= 30) {
+  1145→        timerEl.classList.add('warning');
+  1146→      } else {
+  1147→        timerEl.classList.remove('warning', 'critical');
+  1148→      }
+  1149→    }
+  1150→
+  1151→    // Toggle analysis overlay
+  1152→    function toggleAnalysisOverlay() {
+  1153→      const overlay = document.getElementById('analysis-overlay');
+  1154→      analysisEnabled = !analysisEnabled;
+  1155→
+  1156→      if (analysisEnabled) {
+  1157→        overlay.classList.add('active');
+  1158→      } else {
+  1159→        overlay.classList.remove('active');
+  1160→      }
+  1161→    }
+  1162→
+  1163→    // Update live metrics display
+  1164→    function updateLiveMetrics(scores) {
+  1165→      const eyeContactEl = document.getElementById('metric-eye-contact');
+  1166→      const postureEl = document.getElementById('metric-posture');
+  1167→      const presenceEl = document.getElementById('metric-presence');
+  1168→
+  1169→      eyeContactEl.textContent = scores.eyeContact + '%';
+  1170→      eyeContactEl.className = 'metric-value ' + getMetricClass(scores.eyeContact);
+  1171→
+  1172→      postureEl.textContent = scores.headStability + '%';
+  1173→      postureEl.className = 'metric-value ' + getMetricClass(scores.headStability);
+  1174→
+  1175→      presenceEl.textContent = scores.presence + '%';
+  1176→      presenceEl.className = 'metric-value ' + getMetricClass(scores.presence);
+  1177→    }
+  1178→
+  1179→    function getMetricClass(score) {
+  1180→      if (score >= 70) return 'metric-good';
+  1181→      if (score >= 50) return 'metric-warning';
+  1182→      return 'metric-poor';
+  1183→    }
+  1184→
+  1185→    // Save analysis data with interview submission
+  1186→    async function saveAnalysisData() {
+  1187→      if (!interviewId || Object.keys(questionAnalysisData).length === 0) {
+  1188→        return;
+  1189→      }
+  1190→
+  1191→      try {
+  1192→        for (const [questionIndex, analysis] of Object.entries(questionAnalysisData)) {
+  1193→          await apiCall('/interviews/save-analysis', {
+  1194→            method: 'POST',
+  1195→            body: JSON.stringify({
+  1196→              interview_id: interviewId,
+  1197→              question_index: parseInt(questionIndex),
+  1198→              analysis_data: analysis,
+  1199→              scores: analysis.scores
+  1200→            })
+  1201→          });
+  1202→        }
+  1203→        console.log('Video analysis saved successfully');
+  1204→      } catch (err) {
+  1205→        console.error('Failed to save analysis:', err);
+  1206→        // Don't block submission if analysis save fails
+  1207→      }
+  1208→    }
+  1209→
+  1210→    // Cleanup on page unload
+  1211→    window.addEventListener('beforeunload', () => {
+  1212→      if (micLevelAnimationId) {
+  1213→        cancelAnimationFrame(micLevelAnimationId);
+  1214→      }
+  1215→      if (audioContext) {
+  1216→        audioContext.close();
+  1217→      }
+  1218→      if (mediaStream) {
+  1219→        mediaStream.getTracks().forEach(track => track.stop());
+  1220→      }
+  1221→      if (videoAnalyzer) {
+  1222→        videoAnalyzer.stopAnalysis();
+  1223→      }
+  1224→    });
+  1225→  </script>
+  1226→</body>
+  1227→</html>
+  1228→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

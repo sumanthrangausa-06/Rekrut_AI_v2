@@ -1,0 +1,90 @@
+     1→const express = require('express');
+     2→const session = require('express-session');
+     3→const cookieParser = require('cookie-parser');
+     4→const cors = require('cors');
+     5→const path = require('path');
+     6→const pool = require('./lib/db');
+     7→const authRoutes = require('./routes/auth');
+     8→const jobRoutes = require('./routes/jobs');
+     9→const interviewRoutes = require('./routes/interviews');
+    10→const omniscoreRoutes = require('./routes/omniscore');
+    11→const companyRoutes = require('./routes/company');
+    12→const trustscoreRoutes = require('./routes/trustscore');
+    13→const recruiterRoutes = require('./routes/recruiter');
+    14→const candidateRoutes = require('./routes/candidate');
+    15→const assessmentRoutes = require('./routes/assessments');
+    16→const matchingRoutes = require('./routes/matching');
+    17→const documentRoutes = require('./routes/documents');
+    18→const payrollRoutes = require('./routes/payroll');
+    19→const complianceRoutes = require('./routes/compliance');
+    20→const onboardingRoutes = require('./routes/onboarding');
+    21→const analyticsRoutes = require('./routes/analytics');
+    22→
+    23→const app = express();
+    24→const PORT = process.env.PORT || 3000;
+    25→
+    26→// Middleware
+    27→app.use(cors());
+    28→app.use(express.json());
+    29→app.use(express.urlencoded({ extended: true }));
+    30→app.use(cookieParser());
+    31→app.use(session({
+    32→  secret: process.env.SESSION_SECRET || 'rekrutai-secret-key-change-in-prod',
+    33→  resave: false,
+    34→  saveUninitialized: false,
+    35→  cookie: { secure: process.env.NODE_ENV === 'production', maxAge: 7 * 24 * 60 * 60 * 1000 }
+    36→}));
+    37→
+    38→// Serve static files
+    39→app.use(express.static(path.join(__dirname, 'public')));
+    40→
+    41→// API Routes - Candidate side
+    42→app.use('/api/auth', authRoutes);
+    43→app.use('/api/jobs', jobRoutes);
+    44→app.use('/api/interviews', interviewRoutes);
+    45→app.use('/api/omniscore', omniscoreRoutes);
+    46→app.use('/api/candidate', candidateRoutes);
+    47→app.use('/api/assessments', assessmentRoutes);
+    48→
+    49→// API Routes - Recruiter/Company side
+    50→app.use('/api/company', companyRoutes);
+    51→app.use('/api/trustscore', trustscoreRoutes);
+    52→app.use('/api/recruiter', recruiterRoutes);
+    53→
+    54→// API Routes - Matching Engine
+    55→app.use('/api/matching', matchingRoutes);
+    56→
+    57→// API Routes - Document Verification
+    58→app.use('/api/documents', documentRoutes);
+    59→
+    60→// API Routes - Payroll
+    61→app.use('/api/payroll', payrollRoutes);
+    62→
+    63→// API Routes - Compliance & GDPR
+    64→app.use('/api/compliance', complianceRoutes);
+    65→
+    66→// API Routes - Onboarding & Post-Hire
+    67→app.use('/api/onboarding', onboardingRoutes);
+    68→
+    69→// API Routes - Analytics
+    70→app.use('/api/analytics', analyticsRoutes);
+    71→
+    72→// Health check
+    73→app.get('/health', (req, res) => {
+    74→  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    75→});
+    76→
+    77→// SPA fallback for client-side routing
+    78→app.get('*', (req, res) => {
+    79→  if (!req.path.startsWith('/api')) {
+    80→    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    81→  }
+    82→});
+    83→
+    84→app.listen(PORT, () => {
+    85→  console.log(`Rekrut AI running on port ${PORT}`);
+    86→});
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

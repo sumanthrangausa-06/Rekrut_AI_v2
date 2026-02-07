@@ -1,0 +1,2038 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>My Profile - Rekrut AI</title>
+     7→  <link rel="preconnect" href="https://fonts.googleapis.com">
+     8→  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     9→  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    10→  <link rel="stylesheet" href="/css/styles.css">
+    11→  <link rel="stylesheet" href="/css/responsive.css">
+    12→  <link rel="stylesheet" href="/css/dashboard.css">
+    13→</head>
+    14→<body>
+    15→  <div class="dashboard-layout">
+    16→    <!-- Sidebar -->
+    17→    <aside class="sidebar">
+    18→      <a href="/" class="logo">
+    19→        <span class="logo-icon">◎</span>
+    20→        <span>Rekrut AI</span>
+    21→      </a>
+    22→
+    23→      <nav class="sidebar-nav">
+    24→        <a href="/candidate-dashboard.html" class="nav-item">
+    25→          <span class="nav-icon">🏠</span>
+    26→          <span>Dashboard</span>
+    27→        </a>
+    28→        <a href="/candidate-profile.html" class="nav-item active">
+    29→          <span class="nav-icon">👤</span>
+    30→          <span>My Profile</span>
+    31→        </a>
+    32→        <a href="/omniscore.html" class="nav-item">
+    33→          <span class="nav-icon">🎯</span>
+    34→          <span>OmniScore</span>
+    35→        </a>
+    36→        <a href="/skill-assessments.html" class="nav-item">
+    37→          <span class="nav-icon">📝</span>
+    38→          <span>Skill Tests</span>
+    39→        </a>
+    40→        <a href="/interview.html" class="nav-item">
+    41→          <span class="nav-icon">🎤</span>
+    42→          <span>Interview Prep</span>
+    43→        </a>
+    44→        <a href="/interview-practice.html" class="nav-item">
+    45→          <span class="nav-icon">🎯</span>
+    46→          <span>AI Coaching</span>
+    47→        </a>
+    48→        <a href="/job-board.html" class="nav-item">
+    49→          <span class="nav-icon">💼</span>
+    50→          <span>Job Board</span>
+    51→        </a>
+    52→        <a href="/history.html" class="nav-item">
+    53→          <span class="nav-icon">📁</span>
+    54→          <span>History</span>
+    55→        </a>
+    56→      </nav>
+    57→
+    58→      <div class="sidebar-footer">
+    59→        <div class="user-dropdown-container">
+    60→          <button class="user-menu-toggle" id="user-menu-toggle">
+    61→            <div class="user-avatar" id="user-avatar">?</div>
+    62→            <div style="flex: 1; text-align: left;">
+    63→              <span class="user-name" id="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
+    64→              <span class="user-plan" id="user-plan" style="display: block; font-size: 12px; color: var(--text-muted);">Free Plan</span>
+    65→            </div>
+    66→          </button>
+    67→
+    68→          <div class="user-dropdown-menu" id="user-dropdown-menu">
+    69→            <div class="dropdown-header">
+    70→              <span class="dropdown-user-name" id="dropdown-user-name">Loading...</span>
+    71→              <span class="dropdown-user-email" id="dropdown-user-email">user@example.com</span>
+    72→            </div>
+    73→            <div class="dropdown-items">
+    74→              <a href="/candidate-profile.html" class="dropdown-item">👤 My Profile</a>
+    75→              <a href="/candidate-dashboard.html" class="dropdown-item">⚙️ Settings</a>
+    76→              <div class="dropdown-divider"></div>
+    77→              <button onclick="handleLogout()" class="dropdown-item danger">🚪 Sign Out</button>
+    78→            </div>
+    79→          </div>
+    80→        </div>
+    81→      </div>
+    82→    </aside>
+    83→
+    84→    <!-- Main Content -->
+    85→    <main class="main-content profile-page">
+    86→      <header class="page-header">
+    87→        <div>
+    88→          <h1>My Profile</h1>
+    89→          <p>Build your professional profile to stand out</p>
+    90→        </div>
+    91→        <div class="header-actions">
+    92→          <button class="btn btn-ghost" onclick="previewProfile()">Preview</button>
+    93→          <button class="btn btn-primary" id="save-btn" onclick="saveAllChanges()">Save Changes</button>
+    94→        </div>
+    95→      </header>
+    96→
+    97→      <!-- Profile Tabs -->
+    98→      <div class="profile-tabs">
+    99→        <button class="tab-btn active" data-tab="basic">Basic Info</button>
+   100→        <button class="tab-btn" data-tab="experience">Experience</button>
+   101→        <button class="tab-btn" data-tab="education">Education</button>
+   102→        <button class="tab-btn" data-tab="skills">Skills</button>
+   103→        <button class="tab-btn" data-tab="interviews">Interviews</button>
+   104→        <button class="tab-btn" data-tab="portfolio">Portfolio</button>
+   105→        <button class="tab-btn" data-tab="resume">Resume</button>
+   106→      </div>
+   107→
+   108→      <!-- Basic Info Tab -->
+   109→      <section class="tab-content active" id="tab-basic">
+   110→        <div class="profile-section">
+   111→          <div class="profile-photo-section">
+   112→            <div class="photo-upload" id="photo-preview">
+   113→              <span class="photo-placeholder">👤</span>
+   114→            </div>
+   115→            <input type="file" id="photo-input" accept="image/*" hidden>
+   116→            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('photo-input').click()">Upload Photo</button>
+   117→          </div>
+   118→
+   119→          <div class="form-grid">
+   120→            <div class="form-group">
+   121→              <label>Full Name</label>
+   122→              <input type="text" id="name" placeholder="John Doe">
+   123→            </div>
+   124→            <div class="form-group">
+   125→              <label>Professional Headline</label>
+   126→              <input type="text" id="headline" placeholder="Senior Software Engineer | Full Stack Developer">
+   127→            </div>
+   128→            <div class="form-group full-width">
+   129→              <label>Bio / Summary</label>
+   130→              <textarea id="bio" rows="4" placeholder="Write a brief professional summary..."></textarea>
+   131→            </div>
+   132→            <div class="form-group">
+   133→              <label>Location</label>
+   134→              <input type="text" id="location" placeholder="San Francisco, CA">
+   135→            </div>
+   136→            <div class="form-group">
+   137→              <label>Phone</label>
+   138→              <input type="tel" id="phone" placeholder="+1 (555) 123-4567">
+   139→            </div>
+   140→            <div class="form-group">
+   141→              <label>LinkedIn URL</label>
+   142→              <input type="url" id="linkedin_url" placeholder="https://linkedin.com/in/yourprofile">
+   143→            </div>
+   144→            <div class="form-group">
+   145→              <label>GitHub URL</label>
+   146→              <input type="url" id="github_url" placeholder="https://github.com/yourusername">
+   147→            </div>
+   148→            <div class="form-group">
+   149→              <label>Portfolio Website</label>
+   150→              <input type="url" id="portfolio_url" placeholder="https://yourportfolio.com">
+   151→            </div>
+   152→            <div class="form-group">
+   153→              <label>Years of Experience</label>
+   154→              <input type="number" id="years_experience" min="0" max="50" placeholder="5">
+   155→            </div>
+   156→          </div>
+   157→        </div>
+   158→
+   159→        <div class="profile-section">
+   160→          <h3>Job Preferences</h3>
+   161→          <div class="form-grid">
+   162→            <div class="form-group">
+   163→              <label>Availability</label>
+   164→              <select id="availability">
+   165→                <option value="immediately">Immediately</option>
+   166→                <option value="2_weeks">2 Weeks Notice</option>
+   167→                <option value="1_month">1 Month Notice</option>
+   168→                <option value="not_looking">Not Currently Looking</option>
+   169→              </select>
+   170→            </div>
+   171→            <div class="form-group">
+   172→              <label>Remote Preference</label>
+   173→              <select id="remote_preference">
+   174→                <option value="remote">Remote Only</option>
+   175→                <option value="hybrid">Hybrid</option>
+   176→                <option value="onsite">On-site</option>
+   177→                <option value="flexible">Flexible</option>
+   178→              </select>
+   179→            </div>
+   180→            <div class="form-group">
+   181→              <label>Minimum Salary ($)</label>
+   182→              <input type="number" id="salary_min" placeholder="80000">
+   183→            </div>
+   184→            <div class="form-group">
+   185→              <label>Maximum Salary ($)</label>
+   186→              <input type="number" id="salary_max" placeholder="150000">
+   187→            </div>
+   188→          </div>
+   189→        </div>
+   190→
+   191→        <div class="profile-section account-section">
+   192→          <h3>Account</h3>
+   193→          <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 16px;">Manage your account and session</p>
+   194→          <button onclick="handleLogout()" class="btn btn-outline-danger btn-full">🚪 Sign Out</button>
+   195→        </div>
+   196→      </section>
+   197→
+   198→      <!-- Experience Tab -->
+   199→      <section class="tab-content" id="tab-experience">
+   200→        <div class="section-header-inline">
+   201→          <h3>Work Experience</h3>
+   202→          <button class="btn btn-primary btn-sm" onclick="showAddExperienceModal()">+ Add Experience</button>
+   203→        </div>
+   204→        <div class="entries-list" id="experience-list">
+   205→          <div class="loading-state">
+   206→            <div class="spinner"></div>
+   207→          </div>
+   208→        </div>
+   209→      </section>
+   210→
+   211→      <!-- Education Tab -->
+   212→      <section class="tab-content" id="tab-education">
+   213→        <div class="section-header-inline">
+   214→          <h3>Education</h3>
+   215→          <button class="btn btn-primary btn-sm" onclick="showAddEducationModal()">+ Add Education</button>
+   216→        </div>
+   217→        <div class="entries-list" id="education-list">
+   218→          <div class="loading-state">
+   219→            <div class="spinner"></div>
+   220→          </div>
+   221→        </div>
+   222→      </section>
+   223→
+   224→      <!-- Skills Tab -->
+   225→      <section class="tab-content" id="tab-skills">
+   226→        <div class="section-header-inline">
+   227→          <h3>Skills</h3>
+   228→          <button class="btn btn-primary btn-sm" onclick="showAddSkillModal()">+ Add Skill</button>
+   229→        </div>
+   230→
+   231→        <div class="skills-graph" id="skills-graph">
+   232→          <div class="loading-state">
+   233→            <div class="spinner"></div>
+   234→          </div>
+   235→        </div>
+   236→
+   237→        <div class="skills-list" id="skills-list"></div>
+   238→      </section>
+   239→
+   240→      <!-- Interviews Tab -->
+   241→      <section class="tab-content" id="tab-interviews">
+   242→        <div class="section-header-inline">
+   243→          <h3>Interview History</h3>
+   244→          <div style="display: flex; gap: 12px;">
+   245→            <a href="/interview.html" class="btn btn-ghost btn-sm">🎤 Mock Interview</a>
+   246→            <a href="/interview-practice.html" class="btn btn-primary btn-sm">🎯 Practice Questions</a>
+   247→          </div>
+   248→        </div>
+   249→
+   250→        <!-- Practice Stats -->
+   251→        <div class="interview-stats-grid" id="interview-stats">
+   252→          <div class="stat-card-mini">
+   253→            <span class="stat-icon">🎯</span>
+   254→            <div>
+   255→              <span class="stat-value" id="practice-total">0</span>
+   256→              <span class="stat-label">Questions Practiced</span>
+   257→            </div>
+   258→          </div>
+   259→          <div class="stat-card-mini">
+   260→            <span class="stat-icon">📈</span>
+   261→            <div>
+   262→              <span class="stat-value" id="practice-avg">—</span>
+   263→              <span class="stat-label">Average Score</span>
+   264→            </div>
+   265→          </div>
+   266→          <div class="stat-card-mini">
+   267→            <span class="stat-icon">🎤</span>
+   268→            <div>
+   269→              <span class="stat-value" id="mock-total">0</span>
+   270→              <span class="stat-label">Mock Interviews</span>
+   271→            </div>
+   272→          </div>
+   273→          <div class="stat-card-mini">
+   274→            <span class="stat-icon">⭐</span>
+   275→            <div>
+   276→              <span class="stat-value" id="mock-best">—</span>
+   277→              <span class="stat-label">Best Score</span>
+   278→            </div>
+   279→          </div>
+   280→        </div>
+   281→
+   282→        <!-- Interview History List -->
+   283→        <div class="profile-section">
+   284→          <h3>Mock Interviews</h3>
+   285→          <div class="entries-list" id="interview-list">
+   286→            <div class="loading-state">
+   287→              <div class="spinner"></div>
+   288→            </div>
+   289→          </div>
+   290→        </div>
+   291→
+   292→        <!-- Practice History -->
+   293→        <div class="profile-section">
+   294→          <h3>Recent Practice Sessions</h3>
+   295→          <div class="entries-list" id="practice-list">
+   296→            <div class="loading-state">
+   297→              <div class="spinner"></div>
+   298→            </div>
+   299→          </div>
+   300→        </div>
+   301→      </section>
+   302→
+   303→      <!-- Portfolio Tab -->
+   304→      <section class="tab-content" id="tab-portfolio">
+   305→        <div class="section-header-inline">
+   306→          <h3>Portfolio Projects</h3>
+   307→          <button class="btn btn-primary btn-sm" onclick="showAddProjectModal()">+ Add Project</button>
+   308→        </div>
+   309→        <div class="projects-grid" id="projects-list">
+   310→          <div class="loading-state">
+   311→            <div class="spinner"></div>
+   312→          </div>
+   313→        </div>
+   314→      </section>
+   315→
+   316→      <!-- Resume Tab -->
+   317→      <section class="tab-content" id="tab-resume">
+   318→        <div class="resume-upload-section">
+   319→          <div class="upload-zone" id="resume-dropzone">
+   320→            <div class="upload-icon">📄</div>
+   321→            <h3>Upload Your Resume</h3>
+   322→            <p>PDF or DOCX • AI will parse and populate your profile</p>
+   323→            <input type="file" id="resume-input" accept=".pdf,.docx,.doc" hidden>
+   324→            <button class="btn btn-primary" onclick="document.getElementById('resume-input').click()">Choose File</button>
+   325→          </div>
+   326→
+   327→          <div class="current-resume" id="current-resume" style="display: none;">
+   328→            <div class="resume-info">
+   329→              <span class="resume-icon">📄</span>
+   330→              <div>
+   331→                <span class="resume-name" id="resume-name">resume.pdf</span>
+   332→                <a href="#" id="resume-link" target="_blank" class="resume-view">View Resume</a>
+   333→              </div>
+   334→            </div>
+   335→            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('resume-input').click()">Replace</button>
+   336→          </div>
+   337→        </div>
+   338→
+   339→        <div class="parsed-preview" id="parsed-preview" style="display: none;">
+   340→          <div class="parsed-header">
+   341→            <h3>✨ AI Parsed Data</h3>
+   342→            <p>Review and apply the extracted information to your profile</p>
+   343→          </div>
+   344→          <div class="parsed-sections" id="parsed-sections"></div>
+   345→          <div class="parsed-actions">
+   346→            <button class="btn btn-ghost" onclick="dismissParsedData()">Dismiss</button>
+   347→            <button class="btn btn-primary" onclick="applyParsedData()">Apply to Profile</button>
+   348→          </div>
+   349→        </div>
+   350→      </section>
+   351→    </main>
+   352→  </div>
+   353→
+   354→  <!-- Modals -->
+   355→  <div class="modal-overlay" id="modal-overlay" onclick="closeModal()"></div>
+   356→
+   357→  <div class="modal" id="experience-modal">
+   358→    <div class="modal-header">
+   359→      <h3 id="experience-modal-title">Add Experience</h3>
+   360→      <button class="modal-close" onclick="closeModal()">&times;</button>
+   361→    </div>
+   362→    <div class="modal-body">
+   363→      <input type="hidden" id="exp-id">
+   364→      <div class="form-group">
+   365→        <label>Company Name *</label>
+   366→        <input type="text" id="exp-company" required>
+   367→      </div>
+   368→      <div class="form-group">
+   369→        <label>Job Title *</label>
+   370→        <input type="text" id="exp-title" required>
+   371→      </div>
+   372→      <div class="form-group">
+   373→        <label>Location</label>
+   374→        <input type="text" id="exp-location">
+   375→      </div>
+   376→      <div class="form-row">
+   377→        <div class="form-group">
+   378→          <label>Start Date</label>
+   379→          <input type="month" id="exp-start">
+   380→        </div>
+   381→        <div class="form-group">
+   382→          <label>End Date</label>
+   383→          <input type="month" id="exp-end">
+   384→        </div>
+   385→      </div>
+   386→      <div class="form-group checkbox-group">
+   387→        <label><input type="checkbox" id="exp-current"> I currently work here</label>
+   388→      </div>
+   389→      <div class="form-group">
+   390→        <label>Description</label>
+   391→        <textarea id="exp-description" rows="4"></textarea>
+   392→      </div>
+   393→    </div>
+   394→    <div class="modal-footer">
+   395→      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+   396→      <button class="btn btn-primary" onclick="saveExperience()">Save</button>
+   397→    </div>
+   398→  </div>
+   399→
+   400→  <div class="modal" id="education-modal">
+   401→    <div class="modal-header">
+   402→      <h3 id="education-modal-title">Add Education</h3>
+   403→      <button class="modal-close" onclick="closeModal()">&times;</button>
+   404→    </div>
+   405→    <div class="modal-body">
+   406→      <input type="hidden" id="edu-id">
+   407→      <div class="form-group">
+   408→        <label>Institution *</label>
+   409→        <input type="text" id="edu-institution" required>
+   410→      </div>
+   411→      <div class="form-group">
+   412→        <label>Degree</label>
+   413→        <input type="text" id="edu-degree" placeholder="Bachelor of Science">
+   414→      </div>
+   415→      <div class="form-group">
+   416→        <label>Field of Study</label>
+   417→        <input type="text" id="edu-field" placeholder="Computer Science">
+   418→      </div>
+   419→      <div class="form-row">
+   420→        <div class="form-group">
+   421→          <label>Start Year</label>
+   422→          <input type="number" id="edu-start" min="1950" max="2030">
+   423→        </div>
+   424→        <div class="form-group">
+   425→          <label>End Year</label>
+   426→          <input type="number" id="edu-end" min="1950" max="2030">
+   427→        </div>
+   428→      </div>
+   429→      <div class="form-group">
+   430→        <label>GPA (optional)</label>
+   431→        <input type="number" id="edu-gpa" step="0.01" min="0" max="4">
+   432→      </div>
+   433→    </div>
+   434→    <div class="modal-footer">
+   435→      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+   436→      <button class="btn btn-primary" onclick="saveEducation()">Save</button>
+   437→    </div>
+   438→  </div>
+   439→
+   440→  <div class="modal" id="skill-modal">
+   441→    <div class="modal-header">
+   442→      <h3>Add Skill</h3>
+   443→      <button class="modal-close" onclick="closeModal()">&times;</button>
+   444→    </div>
+   445→    <div class="modal-body">
+   446→      <div class="form-group">
+   447→        <label>Skill Name *</label>
+   448→        <input type="text" id="skill-name" placeholder="JavaScript">
+   449→      </div>
+   450→      <div class="form-group">
+   451→        <label>Category</label>
+   452→        <select id="skill-category">
+   453→          <option value="technical">Technical</option>
+   454→          <option value="soft_skill">Soft Skill</option>
+   455→          <option value="tool">Tool</option>
+   456→          <option value="language">Language</option>
+   457→        </select>
+   458→      </div>
+   459→      <div class="form-group">
+   460→        <label>Proficiency Level: <span id="skill-level-display">3</span>/5</label>
+   461→        <input type="range" id="skill-level" min="1" max="5" value="3">
+   462→        <div class="level-labels">
+   463→          <span>Beginner</span>
+   464→          <span>Expert</span>
+   465→        </div>
+   466→      </div>
+   467→      <div class="form-group">
+   468→        <label>Years of Experience</label>
+   469→        <input type="number" id="skill-years" min="0" max="30" step="0.5">
+   470→      </div>
+   471→    </div>
+   472→    <div class="modal-footer">
+   473→      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+   474→      <button class="btn btn-primary" onclick="saveSkill()">Add Skill</button>
+   475→    </div>
+   476→  </div>
+   477→
+   478→  <div class="modal" id="project-modal">
+   479→    <div class="modal-header">
+   480→      <h3 id="project-modal-title">Add Project</h3>
+   481→      <button class="modal-close" onclick="closeModal()">&times;</button>
+   482→    </div>
+   483→    <div class="modal-body">
+   484→      <input type="hidden" id="proj-id">
+   485→      <div class="form-group">
+   486→        <label>Project Title *</label>
+   487→        <input type="text" id="proj-title" required>
+   488→      </div>
+   489→      <div class="form-group">
+   490→        <label>Description</label>
+   491→        <textarea id="proj-description" rows="3"></textarea>
+   492→      </div>
+   493→      <div class="form-group">
+   494→        <label>Project URL</label>
+   495→        <input type="url" id="proj-url" placeholder="https://...">
+   496→      </div>
+   497→      <div class="form-group">
+   498→        <label>GitHub URL</label>
+   499→        <input type="url" id="proj-github" placeholder="https://github.com/...">
+   500→      </div>
+   501→      <div class="form-group">
+   502→        <label>Technologies (comma separated)</label>
+   503→        <input type="text" id="proj-tech" placeholder="React, Node.js, PostgreSQL">
+   504→      </div>
+   505→      <div class="form-group">
+   506→        <label>Your Role</label>
+   507→        <input type="text" id="proj-role" placeholder="Lead Developer">
+   508→      </div>
+   509→    </div>
+   510→    <div class="modal-footer">
+   511→      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+   512→      <button class="btn btn-primary" onclick="saveProject()">Save</button>
+   513→    </div>
+   514→  </div>
+   515→
+   516→  <script src="/js/main.js"></script>
+   517→  <script>
+   518→    let profileData = {};
+   519→    let parsedResumeData = null;
+   520→
+   521→    document.addEventListener('DOMContentLoaded', async () => {
+   522→      const user = await checkAuth();
+   523→      if (!user) {
+   524→        window.location.href = '/login.html';
+   525→        return;
+   526→      }
+   527→
+   528→      // Update user info
+   529→      const name = user.name || user.email.split('@')[0];
+   530→      document.getElementById('user-name').textContent = name;
+   531→      document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+   532→      document.getElementById('dropdown-user-name').textContent = name;
+   533→      document.getElementById('dropdown-user-email').textContent = user.email;
+   534→
+   535→      // Setup user menu dropdown
+   536→      const userMenuToggle = document.getElementById('user-menu-toggle');
+   537→      const userDropdownMenu = document.getElementById('user-dropdown-menu');
+   538→      if (userMenuToggle && userDropdownMenu) {
+   539→        userMenuToggle.addEventListener('click', (e) => {
+   540→          e.stopPropagation();
+   541→          userDropdownMenu.classList.toggle('active');
+   542→        });
+   543→
+   544→        document.addEventListener('click', () => {
+   545→          userDropdownMenu.classList.remove('active');
+   546→        });
+   547→
+   548→        userDropdownMenu.addEventListener('click', (e) => {
+   549→          e.stopPropagation();
+   550→        });
+   551→      }
+   552→
+   553→      // Setup tabs
+   554→      document.querySelectorAll('.tab-btn').forEach(btn => {
+   555→        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+   556→      });
+   557→
+   558→      // Setup file inputs
+   559→      document.getElementById('photo-input').addEventListener('change', uploadPhoto);
+   560→      document.getElementById('resume-input').addEventListener('change', uploadResume);
+   561→
+   562→      // Setup skill level slider
+   563→      document.getElementById('skill-level').addEventListener('input', (e) => {
+   564→        document.getElementById('skill-level-display').textContent = e.target.value;
+   565→      });
+   566→
+   567→      // Handle hash navigation
+   568→      const hash = window.location.hash.replace('#', '');
+   569→      if (hash) switchTab(hash);
+   570→
+   571→      loadProfile();
+   572→    });
+   573→
+   574→    function switchTab(tab) {
+   575→      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+   576→      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+   577→
+   578→      document.querySelector(`[data-tab="${tab}"]`)?.classList.add('active');
+   579→      document.getElementById(`tab-${tab}`)?.classList.add('active');
+   580→
+   581→      // Load interviews when tab is opened
+   582→      if (tab === 'interviews') {
+   583→        loadInterviews();
+   584→      }
+   585→    }
+   586→
+   587→    async function loadProfile() {
+   588→      try {
+   589→        const data = await apiCall('/candidate/profile');
+   590→        if (data.success) {
+   591→          profileData = data;
+   592→          renderBasicInfo(data.profile);
+   593→          renderExperience(data.experience);
+   594→          renderEducation(data.education);
+   595→          renderSkills(data.skills);
+   596→          renderProjects(data.projects);
+   597→        }
+   598→      } catch (err) {
+   599→        console.error('Load profile error:', err);
+   600→      }
+   601→    }
+   602→
+   603→    function renderBasicInfo(profile) {
+   604→      if (!profile) return;
+   605→
+   606→      document.getElementById('name').value = profile.name || '';
+   607→      document.getElementById('headline').value = profile.headline || '';
+   608→      document.getElementById('bio').value = profile.bio || '';
+   609→      document.getElementById('location').value = profile.location || '';
+   610→      document.getElementById('phone').value = profile.phone || '';
+   611→      document.getElementById('linkedin_url').value = profile.linkedin_url || '';
+   612→      document.getElementById('github_url').value = profile.github_url || '';
+   613→      document.getElementById('portfolio_url').value = profile.portfolio_url || '';
+   614→      document.getElementById('years_experience').value = profile.years_experience || '';
+   615→      document.getElementById('availability').value = profile.availability || 'immediately';
+   616→      document.getElementById('remote_preference').value = profile.remote_preference || 'hybrid';
+   617→      document.getElementById('salary_min').value = profile.salary_min || '';
+   618→      document.getElementById('salary_max').value = profile.salary_max || '';
+   619→
+   620→      if (profile.photo_url || profile.avatar_url) {
+   621→        document.getElementById('photo-preview').innerHTML = `
+   622→          <img src="${profile.photo_url || profile.avatar_url}" alt="Profile photo">
+   623→        `;
+   624→      }
+   625→
+   626→      if (profile.resume_url) {
+   627→        document.getElementById('current-resume').style.display = 'flex';
+   628→        document.getElementById('resume-link').href = profile.resume_url;
+   629→        document.getElementById('resume-name').textContent = 'Current Resume';
+   630→      }
+   631→    }
+   632→
+   633→    function renderExperience(experience) {
+   634→      const container = document.getElementById('experience-list');
+   635→      if (!experience || experience.length === 0) {
+   636→        container.innerHTML = `
+   637→          <div class="empty-state">
+   638→            <p>No work experience added yet</p>
+   639→          </div>
+   640→        `;
+   641→        return;
+   642→      }
+   643→
+   644→      container.innerHTML = experience.map(exp => `
+   645→        <div class="entry-card">
+   646→          <div class="entry-header">
+   647→            <div>
+   648→              <h4>${exp.title}</h4>
+   649→              <p class="company">${exp.company_name}</p>
+   650→            </div>
+   651→            <div class="entry-actions">
+   652→              <button class="btn btn-ghost btn-sm" onclick="editExperience(${exp.id})">Edit</button>
+   653→              <button class="btn btn-ghost btn-sm danger" onclick="deleteExperience(${exp.id})">Delete</button>
+   654→            </div>
+   655→          </div>
+   656→          <div class="entry-meta">
+   657→            ${exp.location ? `<span>📍 ${exp.location}</span>` : ''}
+   658→            <span>📅 ${formatDateRange(exp.start_date, exp.end_date, exp.is_current)}</span>
+   659→          </div>
+   660→          ${exp.description ? `<p class="entry-description">${exp.description}</p>` : ''}
+   661→          ${exp.skills_used && exp.skills_used.length > 0 ? `
+   662→            <div class="entry-skills">
+   663→              ${exp.skills_used.map(s => `<span class="skill-chip">${s}</span>`).join('')}
+   664→            </div>
+   665→          ` : ''}
+   666→        </div>
+   667→      `).join('');
+   668→    }
+   669→
+   670→    function renderEducation(education) {
+   671→      const container = document.getElementById('education-list');
+   672→      if (!education || education.length === 0) {
+   673→        container.innerHTML = `
+   674→          <div class="empty-state">
+   675→            <p>No education added yet</p>
+   676→          </div>
+   677→        `;
+   678→        return;
+   679→      }
+   680→
+   681→      container.innerHTML = education.map(edu => `
+   682→        <div class="entry-card">
+   683→          <div class="entry-header">
+   684→            <div>
+   685→              <h4>${edu.institution}</h4>
+   686→              <p class="company">${[edu.degree, edu.field_of_study].filter(Boolean).join(' in ')}</p>
+   687→            </div>
+   688→            <div class="entry-actions">
+   689→              <button class="btn btn-ghost btn-sm" onclick="editEducation(${edu.id})">Edit</button>
+   690→              <button class="btn btn-ghost btn-sm danger" onclick="deleteEducation(${edu.id})">Delete</button>
+   691→            </div>
+   692→          </div>
+   693→          <div class="entry-meta">
+   694→            <span>📅 ${formatDateRange(edu.start_date, edu.end_date, edu.is_current)}</span>
+   695→            ${edu.gpa ? `<span>📊 GPA: ${edu.gpa}</span>` : ''}
+   696→          </div>
+   697→        </div>
+   698→      `).join('');
+   699→    }
+   700→
+   701→    function renderSkills(skills) {
+   702→      const graphContainer = document.getElementById('skills-graph');
+   703→      const listContainer = document.getElementById('skills-list');
+   704→
+   705→      if (!skills || skills.length === 0) {
+   706→        graphContainer.innerHTML = `
+   707→          <div class="empty-state">
+   708→            <p>No skills added yet. Add skills to see your skill graph!</p>
+   709→          </div>
+   710→        `;
+   711→        listContainer.innerHTML = '';
+   712→        return;
+   713→      }
+   714→
+   715→      // Group by category
+   716→      const categories = {};
+   717→      skills.forEach(s => {
+   718→        const cat = s.category || 'technical';
+   719→        if (!categories[cat]) categories[cat] = [];
+   720→        categories[cat].push(s);
+   721→      });
+   722→
+   723→      // Render visual skill graph
+   724→      graphContainer.innerHTML = `
+   725→        <div class="skill-graph-visual">
+   726→          ${Object.entries(categories).map(([cat, catSkills]) => `
+   727→            <div class="skill-category-section">
+   728→              <h4>${formatCategory(cat)}</h4>
+   729→              <div class="skill-bars">
+   730→                ${catSkills.map(s => `
+   731→                  <div class="skill-bar-item">
+   732→                    <div class="skill-bar-header">
+   733→                      <span class="skill-bar-name">
+   734→                        ${s.skill_name}
+   735→                        ${s.is_verified ? '<span class="verified-icon" title="Verified">✓</span>' : ''}
+   736→                      </span>
+   737→                      <span class="skill-bar-level">Level ${s.level}/5</span>
+   738→                    </div>
+   739→                    <div class="skill-bar-track">
+   740→                      <div class="skill-bar-fill ${s.is_verified ? 'verified' : ''}" style="width: ${s.level * 20}%"></div>
+   741→                    </div>
+   742→                  </div>
+   743→                `).join('')}
+   744→              </div>
+   745→            </div>
+   746→          `).join('')}
+   747→        </div>
+   748→      `;
+   749→
+   750→      // Render skills list with actions
+   751→      listContainer.innerHTML = `
+   752→        <h4>Manage Skills</h4>
+   753→        <div class="skills-manage-list">
+   754→          ${skills.map(s => `
+   755→            <div class="skill-manage-item">
+   756→              <span class="skill-name">${s.skill_name}</span>
+   757→              <span class="skill-category-badge">${s.category || 'technical'}</span>
+   758→              ${s.is_verified ? '<span class="verified-badge">Verified ✓</span>' : `
+   759→                <a href="/skill-assessments.html?skill=${encodeURIComponent(s.skill_name)}&id=${s.id}" class="btn btn-ghost btn-xs">Verify</a>
+   760→              `}
+   761→              <button class="btn btn-ghost btn-xs danger" onclick="deleteSkill(${s.id})">×</button>
+   762→            </div>
+   763→          `).join('')}
+   764→        </div>
+   765→      `;
+   766→    }
+   767→
+   768→    function formatCategory(cat) {
+   769→      const labels = {
+   770→        'technical': '💻 Technical',
+   771→        'soft_skill': '🤝 Soft Skills',
+   772→        'tool': '🔧 Tools',
+   773→        'language': '🌍 Languages'
+   774→      };
+   775→      return labels[cat] || cat;
+   776→    }
+   777→
+   778→    function renderProjects(projects) {
+   779→      const container = document.getElementById('projects-list');
+   780→      if (!projects || projects.length === 0) {
+   781→        container.innerHTML = `
+   782→          <div class="empty-state">
+   783→            <p>No portfolio projects added yet</p>
+   784→          </div>
+   785→        `;
+   786→        return;
+   787→      }
+   788→
+   789→      container.innerHTML = projects.map(proj => `
+   790→        <div class="project-card">
+   791→          ${proj.image_url ? `<img src="${proj.image_url}" alt="${proj.title}" class="project-image">` : ''}
+   792→          <div class="project-content">
+   793→            <h4>${proj.title}</h4>
+   794→            ${proj.description ? `<p>${proj.description}</p>` : ''}
+   795→            ${proj.technologies && proj.technologies.length > 0 ? `
+   796→              <div class="project-tech">
+   797→                ${proj.technologies.map(t => `<span class="tech-chip">${t}</span>`).join('')}
+   798→              </div>
+   799→            ` : ''}
+   800→            <div class="project-links">
+   801→              ${proj.project_url ? `<a href="${proj.project_url}" target="_blank" class="btn btn-ghost btn-xs">View Project</a>` : ''}
+   802→              ${proj.github_url ? `<a href="${proj.github_url}" target="_blank" class="btn btn-ghost btn-xs">GitHub</a>` : ''}
+   803→            </div>
+   804→          </div>
+   805→          <div class="project-actions">
+   806→            <button class="btn btn-ghost btn-sm" onclick="editProject(${proj.id})">Edit</button>
+   807→            <button class="btn btn-ghost btn-sm danger" onclick="deleteProject(${proj.id})">Delete</button>
+   808→          </div>
+   809→        </div>
+   810→      `).join('');
+   811→    }
+   812→
+   813→    function formatDateRange(start, end, isCurrent) {
+   814→      const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '';
+   815→      const startStr = formatDate(start);
+   816→      const endStr = isCurrent ? 'Present' : formatDate(end);
+   817→      if (!startStr && !endStr) return '';
+   818→      return `${startStr} - ${endStr}`;
+   819→    }
+   820→
+   821→    // Modal functions
+   822→    function showModal(id) {
+   823→      document.getElementById('modal-overlay').classList.add('active');
+   824→      document.getElementById(id).classList.add('active');
+   825→    }
+   826→
+   827→    function closeModal() {
+   828→      document.getElementById('modal-overlay').classList.remove('active');
+   829→      document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+   830→    }
+   831→
+   832→    // Experience CRUD
+   833→    function showAddExperienceModal() {
+   834→      document.getElementById('experience-modal-title').textContent = 'Add Experience';
+   835→      document.getElementById('exp-id').value = '';
+   836→      document.getElementById('exp-company').value = '';
+   837→      document.getElementById('exp-title').value = '';
+   838→      document.getElementById('exp-location').value = '';
+   839→      document.getElementById('exp-start').value = '';
+   840→      document.getElementById('exp-end').value = '';
+   841→      document.getElementById('exp-current').checked = false;
+   842→      document.getElementById('exp-description').value = '';
+   843→      showModal('experience-modal');
+   844→    }
+   845→
+   846→    function editExperience(id) {
+   847→      const exp = profileData.experience.find(e => e.id === id);
+   848→      if (!exp) return;
+   849→
+   850→      document.getElementById('experience-modal-title').textContent = 'Edit Experience';
+   851→      document.getElementById('exp-id').value = id;
+   852→      document.getElementById('exp-company').value = exp.company_name || '';
+   853→      document.getElementById('exp-title').value = exp.title || '';
+   854→      document.getElementById('exp-location').value = exp.location || '';
+   855→      document.getElementById('exp-start').value = exp.start_date ? exp.start_date.substring(0, 7) : '';
+   856→      document.getElementById('exp-end').value = exp.end_date ? exp.end_date.substring(0, 7) : '';
+   857→      document.getElementById('exp-current').checked = exp.is_current;
+   858→      document.getElementById('exp-description').value = exp.description || '';
+   859→      showModal('experience-modal');
+   860→    }
+   861→
+   862→    async function saveExperience() {
+   863→      const id = document.getElementById('exp-id').value;
+   864→      const data = {
+   865→        company_name: document.getElementById('exp-company').value,
+   866→        title: document.getElementById('exp-title').value,
+   867→        location: document.getElementById('exp-location').value,
+   868→        start_date: document.getElementById('exp-start').value || null,
+   869→        end_date: document.getElementById('exp-current').checked ? null : document.getElementById('exp-end').value || null,
+   870→        is_current: document.getElementById('exp-current').checked,
+   871→        description: document.getElementById('exp-description').value
+   872→      };
+   873→
+   874→      try {
+   875→        if (id) {
+   876→          await apiCall(`/candidate/experience/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+   877→        } else {
+   878→          await apiCall('/candidate/experience', { method: 'POST', body: JSON.stringify(data) });
+   879→        }
+   880→        closeModal();
+   881→        loadProfile();
+   882→      } catch (err) {
+   883→        alert('Failed to save experience');
+   884→      }
+   885→    }
+   886→
+   887→    async function deleteExperience(id) {
+   888→      if (!confirm('Delete this experience?')) return;
+   889→      try {
+   890→        await apiCall(`/candidate/experience/${id}`, { method: 'DELETE' });
+   891→        loadProfile();
+   892→      } catch (err) {
+   893→        alert('Failed to delete');
+   894→      }
+   895→    }
+   896→
+   897→    // Education CRUD
+   898→    function showAddEducationModal() {
+   899→      document.getElementById('education-modal-title').textContent = 'Add Education';
+   900→      document.getElementById('edu-id').value = '';
+   901→      document.getElementById('edu-institution').value = '';
+   902→      document.getElementById('edu-degree').value = '';
+   903→      document.getElementById('edu-field').value = '';
+   904→      document.getElementById('edu-start').value = '';
+   905→      document.getElementById('edu-end').value = '';
+   906→      document.getElementById('edu-gpa').value = '';
+   907→      showModal('education-modal');
+   908→    }
+   909→
+   910→    function editEducation(id) {
+   911→      const edu = profileData.education.find(e => e.id === id);
+   912→      if (!edu) return;
+   913→
+   914→      document.getElementById('education-modal-title').textContent = 'Edit Education';
+   915→      document.getElementById('edu-id').value = id;
+   916→      document.getElementById('edu-institution').value = edu.institution || '';
+   917→      document.getElementById('edu-degree').value = edu.degree || '';
+   918→      document.getElementById('edu-field').value = edu.field_of_study || '';
+   919→      document.getElementById('edu-start').value = edu.start_date ? new Date(edu.start_date).getFullYear() : '';
+   920→      document.getElementById('edu-end').value = edu.end_date ? new Date(edu.end_date).getFullYear() : '';
+   921→      document.getElementById('edu-gpa').value = edu.gpa || '';
+   922→      showModal('education-modal');
+   923→    }
+   924→
+   925→    async function saveEducation() {
+   926→      const id = document.getElementById('edu-id').value;
+   927→      const data = {
+   928→        institution: document.getElementById('edu-institution').value,
+   929→        degree: document.getElementById('edu-degree').value,
+   930→        field_of_study: document.getElementById('edu-field').value,
+   931→        start_date: document.getElementById('edu-start').value ? `${document.getElementById('edu-start').value}-01-01` : null,
+   932→        end_date: document.getElementById('edu-end').value ? `${document.getElementById('edu-end').value}-01-01` : null,
+   933→        gpa: document.getElementById('edu-gpa').value || null
+   934→      };
+   935→
+   936→      try {
+   937→        if (id) {
+   938→          await apiCall(`/candidate/education/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+   939→        } else {
+   940→          await apiCall('/candidate/education', { method: 'POST', body: JSON.stringify(data) });
+   941→        }
+   942→        closeModal();
+   943→        loadProfile();
+   944→      } catch (err) {
+   945→        alert('Failed to save education');
+   946→      }
+   947→    }
+   948→
+   949→    async function deleteEducation(id) {
+   950→      if (!confirm('Delete this education?')) return;
+   951→      try {
+   952→        await apiCall(`/candidate/education/${id}`, { method: 'DELETE' });
+   953→        loadProfile();
+   954→      } catch (err) {
+   955→        alert('Failed to delete');
+   956→      }
+   957→    }
+   958→
+   959→    // Skills CRUD
+   960→    function showAddSkillModal() {
+   961→      document.getElementById('skill-name').value = '';
+   962→      document.getElementById('skill-category').value = 'technical';
+   963→      document.getElementById('skill-level').value = 3;
+   964→      document.getElementById('skill-level-display').textContent = '3';
+   965→      document.getElementById('skill-years').value = '';
+   966→      showModal('skill-modal');
+   967→    }
+   968→
+   969→    async function saveSkill() {
+   970→      const data = {
+   971→        skill_name: document.getElementById('skill-name').value,
+   972→        category: document.getElementById('skill-category').value,
+   973→        level: parseInt(document.getElementById('skill-level').value),
+   974→        years_experience: parseFloat(document.getElementById('skill-years').value) || 0
+   975→      };
+   976→
+   977→      try {
+   978→        await apiCall('/candidate/skills', { method: 'POST', body: JSON.stringify(data) });
+   979→        closeModal();
+   980→        loadProfile();
+   981→      } catch (err) {
+   982→        alert('Failed to add skill');
+   983→      }
+   984→    }
+   985→
+   986→    async function deleteSkill(id) {
+   987→      if (!confirm('Delete this skill?')) return;
+   988→      try {
+   989→        await apiCall(`/candidate/skills/${id}`, { method: 'DELETE' });
+   990→        loadProfile();
+   991→      } catch (err) {
+   992→        alert('Failed to delete');
+   993→      }
+   994→    }
+   995→
+   996→    // Projects CRUD
+   997→    function showAddProjectModal() {
+   998→      document.getElementById('project-modal-title').textContent = 'Add Project';
+   999→      document.getElementById('proj-id').value = '';
+  1000→      document.getElementById('proj-title').value = '';
+  1001→      document.getElementById('proj-description').value = '';
+  1002→      document.getElementById('proj-url').value = '';
+  1003→      document.getElementById('proj-github').value = '';
+  1004→      document.getElementById('proj-tech').value = '';
+  1005→      document.getElementById('proj-role').value = '';
+  1006→      showModal('project-modal');
+  1007→    }
+  1008→
+  1009→    function editProject(id) {
+  1010→      const proj = profileData.projects.find(p => p.id === id);
+  1011→      if (!proj) return;
+  1012→
+  1013→      document.getElementById('project-modal-title').textContent = 'Edit Project';
+  1014→      document.getElementById('proj-id').value = id;
+  1015→      document.getElementById('proj-title').value = proj.title || '';
+  1016→      document.getElementById('proj-description').value = proj.description || '';
+  1017→      document.getElementById('proj-url').value = proj.project_url || '';
+  1018→      document.getElementById('proj-github').value = proj.github_url || '';
+  1019→      document.getElementById('proj-tech').value = (proj.technologies || []).join(', ');
+  1020→      document.getElementById('proj-role').value = proj.role || '';
+  1021→      showModal('project-modal');
+  1022→    }
+  1023→
+  1024→    async function saveProject() {
+  1025→      const id = document.getElementById('proj-id').value;
+  1026→      const data = {
+  1027→        title: document.getElementById('proj-title').value,
+  1028→        description: document.getElementById('proj-description').value,
+  1029→        project_url: document.getElementById('proj-url').value,
+  1030→        github_url: document.getElementById('proj-github').value,
+  1031→        technologies: document.getElementById('proj-tech').value.split(',').map(t => t.trim()).filter(Boolean),
+  1032→        role: document.getElementById('proj-role').value
+  1033→      };
+  1034→
+  1035→      try {
+  1036→        if (id) {
+  1037→          await apiCall(`/candidate/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  1038→        } else {
+  1039→          await apiCall('/candidate/projects', { method: 'POST', body: JSON.stringify(data) });
+  1040→        }
+  1041→        closeModal();
+  1042→        loadProfile();
+  1043→      } catch (err) {
+  1044→        alert('Failed to save project');
+  1045→      }
+  1046→    }
+  1047→
+  1048→    async function deleteProject(id) {
+  1049→      if (!confirm('Delete this project?')) return;
+  1050→      try {
+  1051→        await apiCall(`/candidate/projects/${id}`, { method: 'DELETE' });
+  1052→        loadProfile();
+  1053→      } catch (err) {
+  1054→        alert('Failed to delete');
+  1055→      }
+  1056→    }
+  1057→
+  1058→    // Photo upload
+  1059→    async function uploadPhoto(e) {
+  1060→      const file = e.target.files[0];
+  1061→      if (!file) return;
+  1062→
+  1063→      const formData = new FormData();
+  1064→      formData.append('photo', file);
+  1065→
+  1066→      try {
+  1067→        const response = await fetch('/api/candidate/profile/photo', {
+  1068→          method: 'POST',
+  1069→          credentials: 'include',
+  1070→          body: formData
+  1071→        });
+  1072→        const data = await response.json();
+  1073→        if (data.success) {
+  1074→          document.getElementById('photo-preview').innerHTML = `
+  1075→            <img src="${data.photo_url}" alt="Profile photo">
+  1076→          `;
+  1077→        }
+  1078→      } catch (err) {
+  1079→        alert('Failed to upload photo');
+  1080→      }
+  1081→    }
+  1082→
+  1083→    // Resume upload
+  1084→    async function uploadResume(e) {
+  1085→      const file = e.target.files[0];
+  1086→      if (!file) return;
+  1087→
+  1088→      const formData = new FormData();
+  1089→      formData.append('resume', file);
+  1090→
+  1091→      document.getElementById('resume-dropzone').innerHTML = `
+  1092→        <div class="spinner"></div>
+  1093→        <p>Uploading and parsing resume...</p>
+  1094→      `;
+  1095→
+  1096→      try {
+  1097→        const response = await fetch('/api/candidate/resume/upload', {
+  1098→          method: 'POST',
+  1099→          credentials: 'include',
+  1100→          body: formData
+  1101→        });
+  1102→        const data = await response.json();
+  1103→
+  1104→        if (data.success) {
+  1105→          document.getElementById('resume-dropzone').innerHTML = `
+  1106→            <div class="upload-icon">✅</div>
+  1107→            <h3>Resume Uploaded!</h3>
+  1108→            <p>AI has parsed your resume</p>
+  1109→            <input type="file" id="resume-input" accept=".pdf,.docx,.doc" hidden>
+  1110→            <button class="btn btn-ghost" onclick="document.getElementById('resume-input').click()">Upload Different</button>
+  1111→          `;
+  1112→          document.getElementById('resume-input').addEventListener('change', uploadResume);
+  1113→
+  1114→          document.getElementById('current-resume').style.display = 'flex';
+  1115→          document.getElementById('resume-link').href = data.resume_url;
+  1116→          document.getElementById('resume-name').textContent = file.name;
+  1117→
+  1118→          if (data.parsed_data) {
+  1119→            parsedResumeData = data.parsed_data;
+  1120→            showParsedPreview(data.parsed_data);
+  1121→          }
+  1122→        }
+  1123→      } catch (err) {
+  1124→        document.getElementById('resume-dropzone').innerHTML = `
+  1125→          <div class="upload-icon">❌</div>
+  1126→          <h3>Upload Failed</h3>
+  1127→          <p>Please try again</p>
+  1128→          <input type="file" id="resume-input" accept=".pdf,.docx,.doc" hidden>
+  1129→          <button class="btn btn-primary" onclick="document.getElementById('resume-input').click()">Try Again</button>
+  1130→        `;
+  1131→        document.getElementById('resume-input').addEventListener('change', uploadResume);
+  1132→      }
+  1133→    }
+  1134→
+  1135→    function showParsedPreview(data) {
+  1136→      const container = document.getElementById('parsed-sections');
+  1137→      document.getElementById('parsed-preview').style.display = 'block';
+  1138→
+  1139→      let html = '';
+  1140→
+  1141→      if (data.contact) {
+  1142→        html += `<div class="parsed-section">
+  1143→          <h4>📋 Contact Info</h4>
+  1144→          <p>Name: ${data.contact.name || 'Not found'}</p>
+  1145→          <p>Location: ${data.contact.location || 'Not found'}</p>
+  1146→        </div>`;
+  1147→      }
+  1148→
+  1149→      if (data.experience && data.experience.length > 0) {
+  1150→        html += `<div class="parsed-section">
+  1151→          <h4>💼 Experience (${data.experience.length} positions)</h4>
+  1152→          ${data.experience.slice(0, 3).map(e => `<p>• ${e.title} at ${e.company}</p>`).join('')}
+  1153→        </div>`;
+  1154→      }
+  1155→
+  1156→      if (data.education && data.education.length > 0) {
+  1157→        html += `<div class="parsed-section">
+  1158→          <h4>🎓 Education (${data.education.length} entries)</h4>
+  1159→          ${data.education.slice(0, 2).map(e => `<p>• ${e.degree || ''} at ${e.institution}</p>`).join('')}
+  1160→        </div>`;
+  1161→      }
+  1162→
+  1163→      if (data.skills && data.skills.length > 0) {
+  1164→        html += `<div class="parsed-section">
+  1165→          <h4>💡 Skills (${data.skills.length} found)</h4>
+  1166→          <p>${data.skills.slice(0, 10).map(s => s.name).join(', ')}</p>
+  1167→        </div>`;
+  1168→      }
+  1169→
+  1170→      container.innerHTML = html;
+  1171→    }
+  1172→
+  1173→    async function applyParsedData() {
+  1174→      if (!parsedResumeData) return;
+  1175→
+  1176→      try {
+  1177→        await apiCall('/candidate/resume/apply', {
+  1178→          method: 'POST',
+  1179→          body: JSON.stringify({
+  1180→            parsed_data: parsedResumeData,
+  1181→            apply_sections: ['profile', 'experience', 'education', 'skills']
+  1182→          })
+  1183→        });
+  1184→
+  1185→        document.getElementById('parsed-preview').style.display = 'none';
+  1186→        loadProfile();
+  1187→        alert('Resume data applied to your profile!');
+  1188→      } catch (err) {
+  1189→        alert('Failed to apply resume data');
+  1190→      }
+  1191→    }
+  1192→
+  1193→    function dismissParsedData() {
+  1194→      document.getElementById('parsed-preview').style.display = 'none';
+  1195→      parsedResumeData = null;
+  1196→    }
+  1197→
+  1198→    // Save basic profile
+  1199→    async function saveAllChanges() {
+  1200→      const data = {
+  1201→        name: document.getElementById('name').value,
+  1202→        headline: document.getElementById('headline').value,
+  1203→        bio: document.getElementById('bio').value,
+  1204→        location: document.getElementById('location').value,
+  1205→        phone: document.getElementById('phone').value,
+  1206→        linkedin_url: document.getElementById('linkedin_url').value,
+  1207→        github_url: document.getElementById('github_url').value,
+  1208→        portfolio_url: document.getElementById('portfolio_url').value,
+  1209→        years_experience: parseInt(document.getElementById('years_experience').value) || 0,
+  1210→        availability: document.getElementById('availability').value,
+  1211→        remote_preference: document.getElementById('remote_preference').value,
+  1212→        salary_min: parseInt(document.getElementById('salary_min').value) || null,
+  1213→        salary_max: parseInt(document.getElementById('salary_max').value) || null
+  1214→      };
+  1215→
+  1216→      try {
+  1217→        const btn = document.getElementById('save-btn');
+  1218→        btn.textContent = 'Saving...';
+  1219→        btn.disabled = true;
+  1220→
+  1221→        await apiCall('/candidate/profile', {
+  1222→          method: 'PUT',
+  1223→          body: JSON.stringify(data)
+  1224→        });
+  1225→
+  1226→        btn.textContent = 'Saved!';
+  1227→        setTimeout(() => {
+  1228→          btn.textContent = 'Save Changes';
+  1229→          btn.disabled = false;
+  1230→        }, 2000);
+  1231→      } catch (err) {
+  1232→        alert('Failed to save profile');
+  1233→        document.getElementById('save-btn').textContent = 'Save Changes';
+  1234→        document.getElementById('save-btn').disabled = false;
+  1235→      }
+  1236→    }
+  1237→
+  1238→    function previewProfile() {
+  1239→      alert('Profile preview coming soon!');
+  1240→    }
+  1241→
+  1242→    // =============== INTERVIEW HISTORY ===============
+  1243→    async function loadInterviews() {
+  1244→      try {
+  1245→        // Load practice stats
+  1246→        const practiceStats = await apiCall('/interviews/practice/stats');
+  1247→        if (practiceStats.success) {
+  1248→          document.getElementById('practice-total').textContent = practiceStats.stats.total_questions || 0;
+  1249→          document.getElementById('practice-avg').textContent = practiceStats.stats.average_score
+  1250→            ? practiceStats.stats.average_score.toFixed(1) + '/10'
+  1251→            : '—';
+  1252→        }
+  1253→
+  1254→        // Load mock interview stats
+  1255→        const mockStats = await apiCall('/interviews/stats/summary');
+  1256→        if (mockStats.stats) {
+  1257→          document.getElementById('mock-total').textContent = mockStats.stats.completed || 0;
+  1258→          document.getElementById('mock-best').textContent = mockStats.stats.best_score
+  1259→            ? mockStats.stats.best_score.toFixed(1) + '/10'
+  1260→            : '—';
+  1261→        }
+  1262→
+  1263→        // Load mock interview history
+  1264→        const interviews = await apiCall('/interviews/history?limit=10');
+  1265→        renderInterviewList(interviews.interviews || []);
+  1266→
+  1267→        // Load practice history
+  1268→        const practice = await apiCall('/interviews/practice/progress');
+  1269→        if (practice.success) {
+  1270→          renderPracticeList(practice.progress.recent_sessions || []);
+  1271→        }
+  1272→      } catch (err) {
+  1273→        console.error('Load interviews error:', err);
+  1274→      }
+  1275→    }
+  1276→
+  1277→    function renderInterviewList(interviews) {
+  1278→      const container = document.getElementById('interview-list');
+  1279→
+  1280→      if (interviews.length === 0) {
+  1281→        container.innerHTML = `
+  1282→          <div class="empty-state" style="text-align: center; padding: 40px;">
+  1283→            <p style="color: var(--text-muted); margin-bottom: 16px;">No mock interviews yet</p>
+  1284→            <a href="/interview.html" class="btn btn-primary btn-sm">Start Your First Interview</a>
+  1285→          </div>
+  1286→        `;
+  1287→        return;
+  1288→      }
+  1289→
+  1290→      container.innerHTML = interviews.map(interview => `
+  1291→        <div class="entry-card">
+  1292→          <div class="entry-header">
+  1293→            <div>
+  1294→              <h4>${interview.job_title || 'Mock Interview'}</h4>
+  1295→              ${interview.job_company ? `<span class="company">${interview.job_company}</span>` : ''}
+  1296→            </div>
+  1297→            <div style="text-align: right;">
+  1298→              ${interview.overall_score ? `
+  1299→                <div style="font-size: 24px; font-weight: 700; color: var(--accent-primary);">
+  1300→                  ${interview.overall_score.toFixed(1)}
+  1301→                </div>
+  1302→                <div style="font-size: 11px; color: var(--text-muted);">Score</div>
+  1303→              ` : '<span style="color: var(--text-muted);">In Progress</span>'}
+  1304→            </div>
+  1305→          </div>
+  1306→          <div class="entry-meta">
+  1307→            <span>📅 ${new Date(interview.created_at).toLocaleDateString()}</span>
+  1308→            <span>⏱️ ${formatDuration(interview.duration_seconds)}</span>
+  1309→            <span>📝 ${(interview.responses || []).length} questions</span>
+  1310→          </div>
+  1311→        </div>
+  1312→      `).join('');
+  1313→    }
+  1314→
+  1315→    function renderPracticeList(sessions) {
+  1316→      const container = document.getElementById('practice-list');
+  1317→
+  1318→      if (sessions.length === 0) {
+  1319→        container.innerHTML = `
+  1320→          <div class="empty-state" style="text-align: center; padding: 40px;">
+  1321→            <p style="color: var(--text-muted); margin-bottom: 16px;">No practice sessions yet</p>
+  1322→            <a href="/interview-practice.html" class="btn btn-primary btn-sm">Start Practicing</a>
+  1323→          </div>
+  1324→        `;
+  1325→        return;
+  1326→      }
+  1327→
+  1328→      container.innerHTML = sessions.map(session => `
+  1329→        <div class="entry-card">
+  1330→          <div class="entry-header">
+  1331→            <div style="flex: 1;">
+  1332→              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+  1333→                <span class="category-badge ${session.category}">${formatCategory(session.category)}</span>
+  1334→                <span style="font-size: 18px; font-weight: 600; color: var(--accent-primary);">
+  1335→                  ${session.score.toFixed(1)}/10
+  1336→                </span>
+  1337→              </div>
+  1338→              <p style="font-size: 14px; color: var(--text-secondary); margin: 0;">
+  1339→                ${session.question}
+  1340→              </p>
+  1341→            </div>
+  1342→          </div>
+  1343→          <div class="entry-meta">
+  1344→            <span>📅 ${new Date(session.created_at).toLocaleDateString()}</span>
+  1345→          </div>
+  1346→        </div>
+  1347→      `).join('');
+  1348→    }
+  1349→
+  1350→    function formatCategory(cat) {
+  1351→      const labels = {
+  1352→        'behavioral': 'Behavioral',
+  1353→        'technical': 'Technical',
+  1354→        'situational': 'Situational'
+  1355→      };
+  1356→      return labels[cat] || cat;
+  1357→    }
+  1358→
+  1359→    function formatDuration(seconds) {
+  1360→      if (!seconds) return 'N/A';
+  1361→      const mins = Math.floor(seconds / 60);
+  1362→      if (mins < 60) return `${mins} min`;
+  1363→      const hours = Math.floor(mins / 60);
+  1364→      const remainMins = mins % 60;
+  1365→      return `${hours}h ${remainMins}m`;
+  1366→    }
+  1367→  </script>
+  1368→
+  1369→  <style>
+  1370→    .profile-page {
+  1371→      max-width: 900px;
+  1372→    }
+  1373→
+  1374→    .header-actions {
+  1375→      display: flex;
+  1376→      gap: 12px;
+  1377→    }
+  1378→
+  1379→    .profile-tabs {
+  1380→      display: flex;
+  1381→      gap: 8px;
+  1382→      margin-bottom: 32px;
+  1383→      border-bottom: 1px solid var(--border-color);
+  1384→      padding-bottom: 16px;
+  1385→      flex-wrap: wrap;
+  1386→    }
+  1387→
+  1388→    .tab-btn {
+  1389→      padding: 8px 16px;
+  1390→      background: transparent;
+  1391→      border: 1px solid var(--border-color);
+  1392→      border-radius: var(--radius-full);
+  1393→      color: var(--text-secondary);
+  1394→      font-size: 14px;
+  1395→      cursor: pointer;
+  1396→      transition: all 0.2s;
+  1397→    }
+  1398→
+  1399→    .tab-btn:hover {
+  1400→      border-color: var(--accent-primary);
+  1401→      color: var(--text-primary);
+  1402→    }
+  1403→
+  1404→    .tab-btn.active {
+  1405→      background: var(--accent-primary);
+  1406→      border-color: var(--accent-primary);
+  1407→      color: #000;
+  1408→    }
+  1409→
+  1410→    .tab-content {
+  1411→      display: none;
+  1412→    }
+  1413→
+  1414→    .tab-content.active {
+  1415→      display: block;
+  1416→    }
+  1417→
+  1418→    .profile-section {
+  1419→      background: var(--bg-card);
+  1420→      border: 1px solid var(--border-color);
+  1421→      border-radius: var(--radius-lg);
+  1422→      padding: 24px;
+  1423→      margin-bottom: 24px;
+  1424→    }
+  1425→
+  1426→    .profile-section h3 {
+  1427→      font-family: var(--font-display);
+  1428→      font-size: 18px;
+  1429→      margin-bottom: 20px;
+  1430→    }
+  1431→
+  1432→    .profile-photo-section {
+  1433→      display: flex;
+  1434→      align-items: center;
+  1435→      gap: 20px;
+  1436→      margin-bottom: 24px;
+  1437→    }
+  1438→
+  1439→    .photo-upload {
+  1440→      width: 100px;
+  1441→      height: 100px;
+  1442→      border-radius: 50%;
+  1443→      background: var(--bg-elevated);
+  1444→      border: 2px dashed var(--border-light);
+  1445→      display: flex;
+  1446→      align-items: center;
+  1447→      justify-content: center;
+  1448→      overflow: hidden;
+  1449→    }
+  1450→
+  1451→    .photo-upload img {
+  1452→      width: 100%;
+  1453→      height: 100%;
+  1454→      object-fit: cover;
+  1455→    }
+  1456→
+  1457→    .photo-placeholder {
+  1458→      font-size: 40px;
+  1459→      opacity: 0.5;
+  1460→    }
+  1461→
+  1462→    .form-grid {
+  1463→      display: grid;
+  1464→      grid-template-columns: repeat(2, 1fr);
+  1465→      gap: 20px;
+  1466→    }
+  1467→
+  1468→    .form-group {
+  1469→      display: flex;
+  1470→      flex-direction: column;
+  1471→      gap: 8px;
+  1472→    }
+  1473→
+  1474→    .form-group.full-width {
+  1475→      grid-column: span 2;
+  1476→    }
+  1477→
+  1478→    .form-group label {
+  1479→      font-size: 13px;
+  1480→      font-weight: 500;
+  1481→      color: var(--text-secondary);
+  1482→    }
+  1483→
+  1484→    .form-group input,
+  1485→    .form-group select,
+  1486→    .form-group textarea {
+  1487→      padding: 12px;
+  1488→      background: var(--bg-elevated);
+  1489→      border: 1px solid var(--border-color);
+  1490→      border-radius: var(--radius-md);
+  1491→      color: var(--text-primary);
+  1492→      font-size: 14px;
+  1493→    }
+  1494→
+  1495→    .form-group input:focus,
+  1496→    .form-group select:focus,
+  1497→    .form-group textarea:focus {
+  1498→      outline: none;
+  1499→      border-color: var(--accent-primary);
+  1500→    }
+  1501→
+  1502→    .form-row {
+  1503→      display: flex;
+  1504→      gap: 16px;
+  1505→    }
+  1506→
+  1507→    .form-row .form-group {
+  1508→      flex: 1;
+  1509→    }
+  1510→
+  1511→    .checkbox-group label {
+  1512→      display: flex;
+  1513→      align-items: center;
+  1514→      gap: 8px;
+  1515→      cursor: pointer;
+  1516→    }
+  1517→
+  1518→    .section-header-inline {
+  1519→      display: flex;
+  1520→      justify-content: space-between;
+  1521→      align-items: center;
+  1522→      margin-bottom: 20px;
+  1523→    }
+  1524→
+  1525→    .section-header-inline h3 {
+  1526→      font-family: var(--font-display);
+  1527→      font-size: 18px;
+  1528→    }
+  1529→
+  1530→    .entries-list {
+  1531→      display: flex;
+  1532→      flex-direction: column;
+  1533→      gap: 16px;
+  1534→    }
+  1535→
+  1536→    .entry-card {
+  1537→      background: var(--bg-card);
+  1538→      border: 1px solid var(--border-color);
+  1539→      border-radius: var(--radius-lg);
+  1540→      padding: 20px;
+  1541→    }
+  1542→
+  1543→    .entry-header {
+  1544→      display: flex;
+  1545→      justify-content: space-between;
+  1546→      align-items: flex-start;
+  1547→      margin-bottom: 12px;
+  1548→    }
+  1549→
+  1550→    .entry-header h4 {
+  1551→      font-family: var(--font-display);
+  1552→      font-size: 16px;
+  1553→      margin-bottom: 4px;
+  1554→    }
+  1555→
+  1556→    .entry-header .company {
+  1557→      color: var(--text-secondary);
+  1558→      font-size: 14px;
+  1559→    }
+  1560→
+  1561→    .entry-actions {
+  1562→      display: flex;
+  1563→      gap: 8px;
+  1564→    }
+  1565→
+  1566→    .entry-meta {
+  1567→      display: flex;
+  1568→      gap: 16px;
+  1569→      font-size: 13px;
+  1570→      color: var(--text-muted);
+  1571→      margin-bottom: 12px;
+  1572→    }
+  1573→
+  1574→    .entry-description {
+  1575→      font-size: 14px;
+  1576→      color: var(--text-secondary);
+  1577→      line-height: 1.6;
+  1578→    }
+  1579→
+  1580→    .entry-skills {
+  1581→      display: flex;
+  1582→      flex-wrap: wrap;
+  1583→      gap: 8px;
+  1584→      margin-top: 12px;
+  1585→    }
+  1586→
+  1587→    .skill-chip, .tech-chip {
+  1588→      padding: 4px 10px;
+  1589→      background: var(--bg-elevated);
+  1590→      border-radius: var(--radius-full);
+  1591→      font-size: 12px;
+  1592→    }
+  1593→
+  1594→    /* Skill Graph */
+  1595→    .skill-graph-visual {
+  1596→      display: flex;
+  1597→      flex-direction: column;
+  1598→      gap: 24px;
+  1599→    }
+  1600→
+  1601→    .skill-category-section h4 {
+  1602→      font-size: 14px;
+  1603→      color: var(--text-secondary);
+  1604→      margin-bottom: 12px;
+  1605→    }
+  1606→
+  1607→    .skill-bars {
+  1608→      display: flex;
+  1609→      flex-direction: column;
+  1610→      gap: 12px;
+  1611→    }
+  1612→
+  1613→    .skill-bar-item {
+  1614→      display: flex;
+  1615→      flex-direction: column;
+  1616→      gap: 6px;
+  1617→    }
+  1618→
+  1619→    .skill-bar-header {
+  1620→      display: flex;
+  1621→      justify-content: space-between;
+  1622→      font-size: 13px;
+  1623→    }
+  1624→
+  1625→    .skill-bar-name {
+  1626→      font-weight: 500;
+  1627→    }
+  1628→
+  1629→    .verified-icon {
+  1630→      color: var(--accent-primary);
+  1631→      margin-left: 4px;
+  1632→    }
+  1633→
+  1634→    .skill-bar-level {
+  1635→      color: var(--text-muted);
+  1636→    }
+  1637→
+  1638→    .skill-bar-track {
+  1639→      height: 8px;
+  1640→      background: var(--bg-elevated);
+  1641→      border-radius: var(--radius-full);
+  1642→      overflow: hidden;
+  1643→    }
+  1644→
+  1645→    .skill-bar-fill {
+  1646→      height: 100%;
+  1647→      background: var(--accent-gradient);
+  1648→      border-radius: var(--radius-full);
+  1649→      transition: width 0.3s ease;
+  1650→    }
+  1651→
+  1652→    .skill-bar-fill.verified {
+  1653→      box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+  1654→    }
+  1655→
+  1656→    .skills-manage-list {
+  1657→      display: flex;
+  1658→      flex-direction: column;
+  1659→      gap: 8px;
+  1660→      margin-top: 16px;
+  1661→    }
+  1662→
+  1663→    .skill-manage-item {
+  1664→      display: flex;
+  1665→      align-items: center;
+  1666→      gap: 12px;
+  1667→      padding: 12px;
+  1668→      background: var(--bg-card);
+  1669→      border: 1px solid var(--border-color);
+  1670→      border-radius: var(--radius-md);
+  1671→    }
+  1672→
+  1673→    .skill-manage-item .skill-name {
+  1674→      flex: 1;
+  1675→      font-weight: 500;
+  1676→    }
+  1677→
+  1678→    .skill-category-badge {
+  1679→      padding: 4px 8px;
+  1680→      background: var(--bg-elevated);
+  1681→      border-radius: var(--radius-full);
+  1682→      font-size: 11px;
+  1683→      color: var(--text-muted);
+  1684→    }
+  1685→
+  1686→    .verified-badge {
+  1687→      color: var(--accent-primary);
+  1688→      font-size: 12px;
+  1689→    }
+  1690→
+  1691→    /* Projects */
+  1692→    .projects-grid {
+  1693→      display: grid;
+  1694→      grid-template-columns: repeat(2, 1fr);
+  1695→      gap: 20px;
+  1696→    }
+  1697→
+  1698→    .project-card {
+  1699→      background: var(--bg-card);
+  1700→      border: 1px solid var(--border-color);
+  1701→      border-radius: var(--radius-lg);
+  1702→      overflow: hidden;
+  1703→    }
+  1704→
+  1705→    .project-image {
+  1706→      width: 100%;
+  1707→      height: 150px;
+  1708→      object-fit: cover;
+  1709→    }
+  1710→
+  1711→    .project-content {
+  1712→      padding: 20px;
+  1713→    }
+  1714→
+  1715→    .project-content h4 {
+  1716→      font-family: var(--font-display);
+  1717→      font-size: 16px;
+  1718→      margin-bottom: 8px;
+  1719→    }
+  1720→
+  1721→    .project-content p {
+  1722→      font-size: 13px;
+  1723→      color: var(--text-secondary);
+  1724→      margin-bottom: 12px;
+  1725→    }
+  1726→
+  1727→    .project-tech {
+  1728→      display: flex;
+  1729→      flex-wrap: wrap;
+  1730→      gap: 6px;
+  1731→      margin-bottom: 12px;
+  1732→    }
+  1733→
+  1734→    .project-links {
+  1735→      display: flex;
+  1736→      gap: 8px;
+  1737→    }
+  1738→
+  1739→    .project-actions {
+  1740→      display: flex;
+  1741→      gap: 8px;
+  1742→      padding: 12px 20px;
+  1743→      border-top: 1px solid var(--border-color);
+  1744→    }
+  1745→
+  1746→    /* Resume Upload */
+  1747→    .resume-upload-section {
+  1748→      margin-bottom: 24px;
+  1749→    }
+  1750→
+  1751→    .upload-zone {
+  1752→      border: 2px dashed var(--border-light);
+  1753→      border-radius: var(--radius-lg);
+  1754→      padding: 60px 40px;
+  1755→      text-align: center;
+  1756→      background: var(--bg-card);
+  1757→      transition: all 0.2s;
+  1758→    }
+  1759→
+  1760→    .upload-zone:hover {
+  1761→      border-color: var(--accent-primary);
+  1762→    }
+  1763→
+  1764→    .upload-icon {
+  1765→      font-size: 48px;
+  1766→      margin-bottom: 16px;
+  1767→    }
+  1768→
+  1769→    .upload-zone h3 {
+  1770→      font-family: var(--font-display);
+  1771→      margin-bottom: 8px;
+  1772→    }
+  1773→
+  1774→    .upload-zone p {
+  1775→      color: var(--text-muted);
+  1776→      margin-bottom: 20px;
+  1777→    }
+  1778→
+  1779→    .current-resume {
+  1780→      display: flex;
+  1781→      align-items: center;
+  1782→      justify-content: space-between;
+  1783→      padding: 16px 20px;
+  1784→      background: var(--bg-card);
+  1785→      border: 1px solid var(--border-color);
+  1786→      border-radius: var(--radius-md);
+  1787→      margin-top: 16px;
+  1788→    }
+  1789→
+  1790→    .resume-info {
+  1791→      display: flex;
+  1792→      align-items: center;
+  1793→      gap: 12px;
+  1794→    }
+  1795→
+  1796→    .resume-icon {
+  1797→      font-size: 24px;
+  1798→    }
+  1799→
+  1800→    .resume-name {
+  1801→      font-weight: 500;
+  1802→      display: block;
+  1803→    }
+  1804→
+  1805→    .resume-view {
+  1806→      font-size: 13px;
+  1807→      color: var(--accent-primary);
+  1808→    }
+  1809→
+  1810→    .parsed-preview {
+  1811→      background: var(--bg-card);
+  1812→      border: 1px solid var(--accent-primary);
+  1813→      border-radius: var(--radius-lg);
+  1814→      padding: 24px;
+  1815→    }
+  1816→
+  1817→    .parsed-header h3 {
+  1818→      font-family: var(--font-display);
+  1819→      margin-bottom: 4px;
+  1820→    }
+  1821→
+  1822→    .parsed-header p {
+  1823→      color: var(--text-muted);
+  1824→      font-size: 14px;
+  1825→      margin-bottom: 20px;
+  1826→    }
+  1827→
+  1828→    .parsed-section {
+  1829→      margin-bottom: 16px;
+  1830→      padding-bottom: 16px;
+  1831→      border-bottom: 1px solid var(--border-color);
+  1832→    }
+  1833→
+  1834→    .parsed-section:last-child {
+  1835→      border-bottom: none;
+  1836→    }
+  1837→
+  1838→    .parsed-section h4 {
+  1839→      font-size: 14px;
+  1840→      margin-bottom: 8px;
+  1841→    }
+  1842→
+  1843→    .parsed-section p {
+  1844→      font-size: 13px;
+  1845→      color: var(--text-secondary);
+  1846→    }
+  1847→
+  1848→    .parsed-actions {
+  1849→      display: flex;
+  1850→      justify-content: flex-end;
+  1851→      gap: 12px;
+  1852→      margin-top: 20px;
+  1853→    }
+  1854→
+  1855→    /* Modals */
+  1856→    .modal-overlay {
+  1857→      position: fixed;
+  1858→      top: 0;
+  1859→      left: 0;
+  1860→      right: 0;
+  1861→      bottom: 0;
+  1862→      background: rgba(0, 0, 0, 0.7);
+  1863→      z-index: 100;
+  1864→      display: none;
+  1865→    }
+  1866→
+  1867→    .modal-overlay.active {
+  1868→      display: block;
+  1869→    }
+  1870→
+  1871→    .modal {
+  1872→      position: fixed;
+  1873→      top: 50%;
+  1874→      left: 50%;
+  1875→      transform: translate(-50%, -50%);
+  1876→      background: var(--bg-card);
+  1877→      border: 1px solid var(--border-color);
+  1878→      border-radius: var(--radius-lg);
+  1879→      width: 90%;
+  1880→      max-width: 500px;
+  1881→      max-height: 90vh;
+  1882→      overflow-y: auto;
+  1883→      z-index: 101;
+  1884→      display: none;
+  1885→    }
+  1886→
+  1887→    .modal.active {
+  1888→      display: block;
+  1889→    }
+  1890→
+  1891→    .modal-header {
+  1892→      display: flex;
+  1893→      justify-content: space-between;
+  1894→      align-items: center;
+  1895→      padding: 20px 24px;
+  1896→      border-bottom: 1px solid var(--border-color);
+  1897→    }
+  1898→
+  1899→    .modal-header h3 {
+  1900→      font-family: var(--font-display);
+  1901→      font-size: 18px;
+  1902→    }
+  1903→
+  1904→    .modal-close {
+  1905→      background: none;
+  1906→      border: none;
+  1907→      font-size: 24px;
+  1908→      color: var(--text-muted);
+  1909→      cursor: pointer;
+  1910→    }
+  1911→
+  1912→    .modal-body {
+  1913→      padding: 24px;
+  1914→    }
+  1915→
+  1916→    .modal-body .form-group {
+  1917→      margin-bottom: 16px;
+  1918→    }
+  1919→
+  1920→    .modal-footer {
+  1921→      display: flex;
+  1922→      justify-content: flex-end;
+  1923→      gap: 12px;
+  1924→      padding: 20px 24px;
+  1925→      border-top: 1px solid var(--border-color);
+  1926→    }
+  1927→
+  1928→    .btn-xs {
+  1929→      padding: 4px 8px;
+  1930→      font-size: 11px;
+  1931→    }
+  1932→
+  1933→    .btn.danger {
+  1934→      color: #ef4444;
+  1935→    }
+  1936→
+  1937→    .btn.danger:hover {
+  1938→      background: rgba(239, 68, 68, 0.1);
+  1939→    }
+  1940→
+  1941→    .level-labels {
+  1942→      display: flex;
+  1943→      justify-content: space-between;
+  1944→      font-size: 11px;
+  1945→      color: var(--text-muted);
+  1946→      margin-top: 4px;
+  1947→    }
+  1948→
+  1949→    /* Interview History */
+  1950→    .interview-stats-grid {
+  1951→      display: grid;
+  1952→      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  1953→      gap: 16px;
+  1954→      margin-bottom: 24px;
+  1955→    }
+  1956→
+  1957→    .stat-card-mini {
+  1958→      background: var(--bg-card);
+  1959→      border: 1px solid var(--border-color);
+  1960→      border-radius: var(--radius-lg);
+  1961→      padding: 16px;
+  1962→      display: flex;
+  1963→      align-items: center;
+  1964→      gap: 12px;
+  1965→    }
+  1966→
+  1967→    .stat-card-mini .stat-icon {
+  1968→      font-size: 32px;
+  1969→    }
+  1970→
+  1971→    .stat-card-mini .stat-value {
+  1972→      font-size: 20px;
+  1973→      font-weight: 700;
+  1974→      display: block;
+  1975→      color: var(--text-primary);
+  1976→    }
+  1977→
+  1978→    .stat-card-mini .stat-label {
+  1979→      font-size: 12px;
+  1980→      color: var(--text-muted);
+  1981→      display: block;
+  1982→    }
+  1983→
+  1984→    .category-badge {
+  1985→      display: inline-block;
+  1986→      padding: 4px 10px;
+  1987→      border-radius: var(--radius-full);
+  1988→      font-size: 11px;
+  1989→      font-weight: 600;
+  1990→      text-transform: uppercase;
+  1991→    }
+  1992→
+  1993→    .category-badge.behavioral {
+  1994→      background: rgba(102, 126, 234, 0.2);
+  1995→      color: #667eea;
+  1996→    }
+  1997→
+  1998→    .category-badge.technical {
+  1999→      background: rgba(239, 68, 68, 0.2);
+  2000→      color: #ef4444;
+  2001→    }
+  2002→
+  2003→    .category-badge.situational {
+  2004→      background: rgba(59, 130, 246, 0.2);
+  2005→      color: #3b82f6;
+  2006→    }
+  2007→
+  2008→    .empty-state {
+  2009→      text-align: center;
+  2010→      padding: 40px;
+  2011→      color: var(--text-muted);
+  2012→    }
+  2013→
+  2014→    @media (max-width: 768px) {
+  2015→      .form-grid {
+  2016→        grid-template-columns: 1fr;
+  2017→      }
+  2018→
+  2019→      .form-group.full-width {
+  2020→        grid-column: span 1;
+  2021→      }
+  2022→
+  2023→      .projects-grid {
+  2024→        grid-template-columns: 1fr;
+  2025→      }
+  2026→
+  2027→      .interview-stats-grid {
+  2028→        grid-template-columns: 1fr;
+  2029→      }
+  2030→    }
+  2031→  </style>
+  2032→</body>
+  2033→</html>
+  2034→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

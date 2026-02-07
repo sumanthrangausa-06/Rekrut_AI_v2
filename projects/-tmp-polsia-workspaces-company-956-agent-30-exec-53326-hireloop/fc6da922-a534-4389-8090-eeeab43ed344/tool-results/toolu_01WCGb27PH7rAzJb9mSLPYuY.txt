@@ -1,0 +1,428 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>Skill Assessments - Rekrut AI</title>
+     7→  <link rel="preconnect" href="https://fonts.googleapis.com">
+     8→  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     9→  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    10→  <link rel="stylesheet" href="/css/styles.css">
+    11→  <link rel="stylesheet" href="/css/responsive.css">
+    12→  <link rel="stylesheet" href="/css/dashboard.css">
+    13→  <style>
+    14→    .assessment-grid {
+    15→      display: grid;
+    16→      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    17→      gap: 20px;
+    18→      margin-top: 24px;
+    19→    }
+    20→
+    21→    .assessment-card {
+    22→      background: var(--bg-card);
+    23→      border: 1px solid var(--border-color);
+    24→      border-radius: var(--radius-md);
+    25→      padding: 24px;
+    26→      transition: all 0.2s ease;
+    27→      cursor: pointer;
+    28→    }
+    29→
+    30→    .assessment-card:hover {
+    31→      border-color: var(--accent-primary);
+    32→      transform: translateY(-2px);
+    33→    }
+    34→
+    35→    .assessment-card.verified {
+    36→      border-color: var(--accent-primary);
+    37→      background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(6, 182, 212, 0.05) 100%);
+    38→    }
+    39→
+    40→    .assessment-header {
+    41→      display: flex;
+    42→      justify-content: space-between;
+    43→      align-items: start;
+    44→      margin-bottom: 16px;
+    45→    }
+    46→
+    47→    .assessment-title {
+    48→      font-family: var(--font-display);
+    49→      font-size: 18px;
+    50→      font-weight: 600;
+    51→      color: var(--text-primary);
+    52→      margin-bottom: 4px;
+    53→    }
+    54→
+    55→    .assessment-category {
+    56→      font-size: 13px;
+    57→      color: var(--text-muted);
+    58→      text-transform: uppercase;
+    59→      letter-spacing: 0.5px;
+    60→    }
+    61→
+    62→    .verified-badge {
+    63→      background: var(--accent-gradient);
+    64→      color: #000;
+    65→      font-size: 11px;
+    66→      font-weight: 600;
+    67→      padding: 4px 12px;
+    68→      border-radius: var(--radius-full);
+    69→      text-transform: uppercase;
+    70→      letter-spacing: 0.5px;
+    71→    }
+    72→
+    73→    .assessment-stats {
+    74→      display: flex;
+    75→      gap: 16px;
+    76→      margin-bottom: 20px;
+    77→      padding: 12px 0;
+    78→      border-top: 1px solid var(--border-color);
+    79→      border-bottom: 1px solid var(--border-color);
+    80→    }
+    81→
+    82→    .stat-item {
+    83→      flex: 1;
+    84→      text-align: center;
+    85→    }
+    86→
+    87→    .stat-value {
+    88→      display: block;
+    89→      font-family: var(--font-display);
+    90→      font-size: 24px;
+    91→      font-weight: 600;
+    92→      color: var(--accent-primary);
+    93→    }
+    94→
+    95→    .stat-label {
+    96→      display: block;
+    97→      font-size: 12px;
+    98→      color: var(--text-muted);
+    99→      margin-top: 4px;
+   100→    }
+   101→
+   102→    .assessment-actions {
+   103→      display: flex;
+   104→      gap: 12px;
+   105→    }
+   106→
+   107→    .results-section {
+   108→      margin-top: 40px;
+   109→    }
+   110→
+   111→    .results-list {
+   112→      display: flex;
+   113→      flex-direction: column;
+   114→      gap: 16px;
+   115→      margin-top: 20px;
+   116→    }
+   117→
+   118→    .result-item {
+   119→      background: var(--bg-card);
+   120→      border: 1px solid var(--border-color);
+   121→      border-radius: var(--radius-md);
+   122→      padding: 20px;
+   123→      display: flex;
+   124→      align-items: center;
+   125→      gap: 20px;
+   126→    }
+   127→
+   128→    .result-score {
+   129→      font-family: var(--font-display);
+   130→      font-size: 32px;
+   131→      font-weight: 700;
+   132→      color: var(--accent-primary);
+   133→      min-width: 80px;
+   134→      text-align: center;
+   135→    }
+   136→
+   137→    .result-info {
+   138→      flex: 1;
+   139→    }
+   140→
+   141→    .result-title {
+   142→      font-family: var(--font-display);
+   143→      font-weight: 600;
+   144→      font-size: 16px;
+   145→      margin-bottom: 4px;
+   146→    }
+   147→
+   148→    .result-meta {
+   149→      font-size: 13px;
+   150→      color: var(--text-muted);
+   151→    }
+   152→
+   153→    .result-badges {
+   154→      display: flex;
+   155→      gap: 8px;
+   156→      margin-top: 8px;
+   157→    }
+   158→
+   159→    .badge {
+   160→      font-size: 11px;
+   161→      padding: 4px 10px;
+   162→      border-radius: var(--radius-full);
+   163→      background: var(--bg-elevated);
+   164→      color: var(--text-secondary);
+   165→    }
+   166→
+   167→    .badge.passed {
+   168→      background: rgba(16, 185, 129, 0.2);
+   169→      color: var(--accent-primary);
+   170→    }
+   171→
+   172→    .badge.warning {
+   173→      background: rgba(251, 191, 36, 0.2);
+   174→      color: #fbbf24;
+   175→    }
+   176→
+   177→    .empty-state {
+   178→      text-align: center;
+   179→      padding: 60px 20px;
+   180→      color: var(--text-muted);
+   181→    }
+   182→
+   183→    .empty-state-icon {
+   184→      font-size: 64px;
+   185→      margin-bottom: 16px;
+   186→    }
+   187→  </style>
+   188→</head>
+   189→<body>
+   190→  <div class="dashboard-layout">
+   191→    <!-- Sidebar -->
+   192→    <aside class="sidebar">
+   193→      <a href="/" class="logo">
+   194→        <span class="logo-icon">◎</span>
+   195→        <span>Rekrut AI</span>
+   196→      </a>
+   197→
+   198→      <nav class="sidebar-nav">
+   199→        <a href="/candidate-dashboard.html" class="nav-item">
+   200→          <span class="nav-icon">🏠</span>
+   201→          <span>Dashboard</span>
+   202→        </a>
+   203→        <a href="/candidate-profile.html" class="nav-item">
+   204→          <span class="nav-icon">👤</span>
+   205→          <span>My Profile</span>
+   206→        </a>
+   207→        <a href="/omniscore.html" class="nav-item">
+   208→          <span class="nav-icon">🎯</span>
+   209→          <span>OmniScore</span>
+   210→        </a>
+   211→        <a href="/skill-assessments.html" class="nav-item active">
+   212→          <span class="nav-icon">📝</span>
+   213→          <span>Skill Tests</span>
+   214→        </a>
+   215→        <a href="/interview.html" class="nav-item">
+   216→          <span class="nav-icon">🎤</span>
+   217→          <span>Interview Prep</span>
+   218→        </a>
+   219→        <a href="/job-board.html" class="nav-item">
+   220→          <span class="nav-icon">💼</span>
+   221→          <span>Job Board</span>
+   222→        </a>
+   223→        <a href="/history.html" class="nav-item">
+   224→          <span class="nav-icon">📁</span>
+   225→          <span>History</span>
+   226→        </a>
+   227→      </nav>
+   228→
+   229→      <div class="sidebar-footer">
+   230→        <div class="user-dropdown-container">
+   231→          <button class="user-menu-toggle" id="user-menu-toggle">
+   232→            <div class="user-avatar" id="user-avatar">?</div>
+   233→            <div style="flex: 1; text-align: left;">
+   234→              <span class="user-name" id="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
+   235→              <span class="user-plan" id="user-plan" style="display: block; font-size: 12px; color: var(--text-muted);">Free Plan</span>
+   236→            </div>
+   237→          </button>
+   238→
+   239→          <div class="user-dropdown-menu" id="user-dropdown-menu">
+   240→            <div class="dropdown-header">
+   241→              <span class="dropdown-user-name" id="dropdown-user-name">Loading...</span>
+   242→              <span class="dropdown-user-email" id="dropdown-user-email">user@example.com</span>
+   243→            </div>
+   244→            <div class="dropdown-items">
+   245→              <a href="/candidate-profile.html" class="dropdown-item">👤 My Profile</a>
+   246→              <a href="/candidate-dashboard.html" class="dropdown-item">⚙️ Settings</a>
+   247→              <div class="dropdown-divider"></div>
+   248→              <button onclick="handleLogout()" class="dropdown-item danger">🚪 Sign Out</button>
+   249→            </div>
+   250→          </div>
+   251→        </div>
+   252→      </div>
+   253→    </aside>
+   254→
+   255→    <!-- Main Content -->
+   256→    <main class="main-content">
+   257→      <header class="page-header">
+   258→        <div>
+   259→          <h1>Skill Assessments</h1>
+   260→          <p>Verify your skills with AI-powered adaptive tests</p>
+   261→        </div>
+   262→      </header>
+   263→
+   264→      <!-- Available Assessments -->
+   265→      <section>
+   266→        <h2 style="font-family: var(--font-display); font-size: 20px; margin-bottom: 8px;">Available Tests</h2>
+   267→        <p style="color: var(--text-muted); margin-bottom: 20px;">
+   268→          Take skill assessments to verify your expertise and boost your OmniScore
+   269→        </p>
+   270→
+   271→        <div class="assessment-grid" id="assessments-grid">
+   272→          <div class="empty-state">
+   273→            <div class="empty-state-icon">⏳</div>
+   274→            <p>Loading assessments...</p>
+   275→          </div>
+   276→        </div>
+   277→      </section>
+   278→
+   279→      <!-- Past Results -->
+   280→      <section class="results-section">
+   281→        <h2 style="font-family: var(--font-display); font-size: 20px; margin-bottom: 8px;">Past Results</h2>
+   282→        <p style="color: var(--text-muted); margin-bottom: 20px;">
+   283→          Your completed assessments and scores
+   284→        </p>
+   285→
+   286→        <div class="results-list" id="results-list">
+   287→          <div class="empty-state">
+   288→            <div class="empty-state-icon">📊</div>
+   289→            <p>No completed assessments yet</p>
+   290→          </div>
+   291→        </div>
+   292→      </section>
+   293→    </main>
+   294→  </div>
+   295→
+   296→  <script src="/js/auth.js"></script>
+   297→  <script>
+   298→    // Load available assessments
+   299→    async function loadAssessments() {
+   300→      try {
+   301→        const response = await fetch('/api/assessments/available', {
+   302→          headers: { 'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}` }
+   303→        });
+   304→
+   305→        if (!response.ok) throw new Error('Failed to load assessments');
+   306→
+   307→        const data = await response.json();
+   308→        const grid = document.getElementById('assessments-grid');
+   309→
+   310→        if (data.skills.length === 0) {
+   311→          grid.innerHTML = `
+   312→            <div class="empty-state">
+   313→              <div class="empty-state-icon">📝</div>
+   314→              <p>No skills found. Add skills to your profile to unlock assessments.</p>
+   315→              <a href="/candidate-profile.html" class="btn btn-primary" style="margin-top: 16px;">Add Skills</a>
+   316→            </div>
+   317→          `;
+   318→          return;
+   319→        }
+   320→
+   321→        grid.innerHTML = data.skills.map(skill => `
+   322→          <div class="assessment-card ${skill.is_verified ? 'verified' : ''}" onclick="startAssessment(${skill.id})">
+   323→            <div class="assessment-header">
+   324→              <div>
+   325→                <div class="assessment-title">${skill.skill_name}</div>
+   326→                <div class="assessment-category">${skill.category}</div>
+   327→              </div>
+   328→              ${skill.is_verified ? '<span class="verified-badge">✓ Verified</span>' : ''}
+   329→            </div>
+   330→
+   331→            <div class="assessment-stats">
+   332→              <div class="stat-item">
+   333→                <span class="stat-value">${skill.assessment_count || 0}</span>
+   334→                <span class="stat-label">Attempts</span>
+   335→              </div>
+   336→              <div class="stat-item">
+   337→                <span class="stat-value">${skill.best_score || '-'}</span>
+   338→                <span class="stat-label">Best Score</span>
+   339→              </div>
+   340→            </div>
+   341→
+   342→            <div class="assessment-actions">
+   343→              <button class="btn ${skill.is_verified ? 'btn-ghost' : 'btn-primary'}" style="flex: 1;">
+   344→                ${skill.is_verified ? '🔄 Retake' : '▶️ Start Test'}
+   345→              </button>
+   346→            </div>
+   347→          </div>
+   348→        `).join('');
+   349→      } catch (error) {
+   350→        console.error('Error loading assessments:', error);
+   351→        document.getElementById('assessments-grid').innerHTML = `
+   352→          <div class="empty-state">
+   353→            <div class="empty-state-icon">❌</div>
+   354→            <p>Failed to load assessments</p>
+   355→          </div>
+   356→        `;
+   357→      }
+   358→    }
+   359→
+   360→    // Load past results
+   361→    async function loadResults() {
+   362→      try {
+   363→        const response = await fetch('/api/assessments/results', {
+   364→          headers: { 'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}` }
+   365→        });
+   366→
+   367→        if (!response.ok) throw new Error('Failed to load results');
+   368→
+   369→        const data = await response.json();
+   370→        const list = document.getElementById('results-list');
+   371→
+   372→        if (data.results.length === 0) {
+   373→          list.innerHTML = `
+   374→            <div class="empty-state">
+   375→              <div class="empty-state-icon">📊</div>
+   376→              <p>No completed assessments yet</p>
+   377→            </div>
+   378→          `;
+   379→          return;
+   380→        }
+   381→
+   382→        list.innerHTML = data.results.map(result => {
+   383→          const date = new Date(result.completed_at);
+   384→          const hasWarnings = result.tab_switches > 0 || result.copy_paste_attempts > 0;
+   385→
+   386→          return `
+   387→            <div class="result-item">
+   388→              <div class="result-score">${result.score}</div>
+   389→              <div class="result-info">
+   390→                <div class="result-title">${result.skill_name}</div>
+   391→                <div class="result-meta">
+   392→                  Completed ${date.toLocaleDateString()} • Difficulty: ${result.max_difficulty_reached || 2}/5
+   393→                </div>
+   394→                <div class="result-badges">
+   395→                  <span class="badge ${result.passed ? 'passed' : ''}">${result.passed ? '✓ Passed' : '✗ Failed'}</span>
+   396→                  ${hasWarnings ? '<span class="badge warning">⚠️ Behavioral flags</span>' : '<span class="badge">✓ Clean attempt</span>'}
+   397→                </div>
+   398→              </div>
+   399→              <a href="/assessment-results.html?id=${result.id}" class="btn btn-ghost">View Details</a>
+   400→            </div>
+   401→          `;
+   402→        }).join('');
+   403→      } catch (error) {
+   404→        console.error('Error loading results:', error);
+   405→      }
+   406→    }
+   407→
+   408→    // Start assessment
+   409→    function startAssessment(skillId) {
+   410→      localStorage.setItem('assessment_skill_id', skillId);
+   411→      window.location.href = '/assessment-take.html';
+   412→    }
+   413→
+   414→    // Initialize
+   415→    document.addEventListener('DOMContentLoaded', async () => {
+   416→      await checkAuth();
+   417→      await loadUserInfo();
+   418→      loadAssessments();
+   419→      loadResults();
+   420→    });
+   421→  </script>
+   422→</body>
+   423→</html>
+   424→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

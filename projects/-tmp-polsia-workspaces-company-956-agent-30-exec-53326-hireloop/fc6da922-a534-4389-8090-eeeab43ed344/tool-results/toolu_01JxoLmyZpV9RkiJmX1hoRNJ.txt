@@ -1,0 +1,668 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>Applications - Rekrut AI</title>
+     7→  <link rel="preconnect" href="https://fonts.googleapis.com">
+     8→  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     9→  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    10→  <link rel="stylesheet" href="/css/styles.css">
+    11→  <link rel="stylesheet" href="/css/responsive.css">
+    12→  <link rel="stylesheet" href="/css/dashboard.css">
+    13→</head>
+    14→<body>
+    15→  <div class="dashboard-layout">
+    16→    <aside class="sidebar recruiter-sidebar">
+    17→      <a href="/" class="logo">
+    18→        <span class="logo-icon">◎</span>
+    19→        <span>Rekrut AI</span>
+    20→      </a>
+    21→      <span class="sidebar-badge">Employer</span>
+    22→
+    23→      <nav class="sidebar-nav">
+    24→        <a href="/recruiter-dashboard.html" class="nav-item">
+    25→          <span class="nav-icon">📊</span>
+    26→          <span>Dashboard</span>
+    27→        </a>
+    28→        <a href="/recruiter-trustscore.html" class="nav-item">
+    29→          <span class="nav-icon">🛡️</span>
+    30→          <span>TrustScore</span>
+    31→        </a>
+    32→        <a href="/recruiter-jobs.html" class="nav-item">
+    33→          <span class="nav-icon">💼</span>
+    34→          <span>Job Postings</span>
+    35→        </a>
+    36→        <a href="/recruiter-applications.html" class="nav-item active">
+    37→          <span class="nav-icon">📋</span>
+    38→          <span>Applications</span>
+    39→        </a>
+    40→        <a href="/recruiter-interviews.html" class="nav-item">
+    41→          <span class="nav-icon">📅</span>
+    42→          <span>Interviews</span>
+    43→        </a>
+    44→        <a href="/offer-management.html" class="nav-item">
+    45→          <span class="nav-icon">📄</span>
+    46→          <span>Offers</span>
+    47→        </a>
+    48→        <a href="/payroll-dashboard.html" class="nav-item">
+    49→          <span class="nav-icon">💰</span>
+    50→          <span>Payroll</span>
+    51→        </a>
+    52→        <a href="/recruiter-onboarding-docs.html" class="nav-item">
+    53→          <span class="nav-icon">📂</span>
+    54→          <span>Onboarding Docs</span>
+    55→        </a>
+    56→        <a href="/compliance-dashboard.html" class="nav-item">
+    57→          <span class="nav-icon">⚖️</span>
+    58→          <span>Compliance</span>
+    59→        </a>
+    60→        <a href="/recruiter-analytics.html" class="nav-item">
+    61→          <span class="nav-icon">📈</span>
+    62→          <span>Analytics</span>
+    63→        </a>
+    64→        <a href="/recruiter-profile.html" class="nav-item">
+    65→          <span class="nav-icon">🏢</span>
+    66→          <span>Company Profile</span>
+    67→        </a>
+    68→      </nav>
+    69→
+    70→      <div class="sidebar-footer">
+    71→        <div class="user-dropdown-container">
+    72→          <button class="user-menu-toggle" id="user-menu-toggle">
+    73→            <div class="user-avatar company-avatar" id="user-avatar">?</div>
+    74→            <div style="flex: 1; text-align: left;">
+    75→              <span class="user-name" id="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
+    76→              <span class="company-name" id="company-name" style="display: block; font-size: 12px; color: var(--text-muted);">Company</span>
+    77→            </div>
+    78→          </button>
+    79→
+    80→          <div class="user-dropdown-menu" id="user-dropdown-menu">
+    81→            <div class="dropdown-header">
+    82→              <span class="dropdown-user-name" id="dropdown-user-name">Loading...</span>
+    83→              <span class="dropdown-user-email" id="dropdown-user-email">user@example.com</span>
+    84→            </div>
+    85→            <div class="dropdown-items">
+    86→              <a href="/recruiter-profile.html" class="dropdown-item">🏢 Company Profile</a>
+    87→              <div class="dropdown-divider"></div>
+    88→              <button onclick="handleLogout()" class="dropdown-item danger">🚪 Sign Out</button>
+    89→            </div>
+    90→          </div>
+    91→        </div>
+    92→      </div>
+    93→    </aside>
+    94→
+    95→    <main class="main-content">
+    96→      <header class="page-header">
+    97→        <div>
+    98→          <h1>Applications</h1>
+    99→          <p>Review and manage candidate applications</p>
+   100→        </div>
+   101→        <div class="header-actions">
+   102→          <select id="job-filter" class="form-select">
+   103→            <option value="">All Jobs</option>
+   104→          </select>
+   105→        </div>
+   106→      </header>
+   107→
+   108→      <!-- Filter Tabs -->
+   109→      <div class="filter-tabs">
+   110→        <button class="filter-tab active" data-status="all">All</button>
+   111→        <button class="filter-tab" data-status="applied">New</button>
+   112→        <button class="filter-tab" data-status="reviewing">Reviewing</button>
+   113→        <button class="filter-tab" data-status="interviewed">Interviewed</button>
+   114→        <button class="filter-tab" data-status="offered">Offered</button>
+   115→        <button class="filter-tab" data-status="rejected">Rejected</button>
+   116→      </div>
+   117→
+   118→      <!-- Stats Overview -->
+   119→      <div class="stats-grid">
+   120→        <div class="stat-card">
+   121→          <div class="stat-icon">📥</div>
+   122→          <div class="stat-info">
+   123→            <span class="stat-value" id="total-applications">0</span>
+   124→            <span class="stat-label">Total Applications</span>
+   125→          </div>
+   126→        </div>
+   127→        <div class="stat-card">
+   128→          <div class="stat-icon">🆕</div>
+   129→          <div class="stat-info">
+   130→            <span class="stat-value" id="new-applications">0</span>
+   131→            <span class="stat-label">New Today</span>
+   132→          </div>
+   133→        </div>
+   134→        <div class="stat-card">
+   135→          <div class="stat-icon">👀</div>
+   136→          <div class="stat-info">
+   137→            <span class="stat-value" id="reviewing-count">0</span>
+   138→            <span class="stat-label">Under Review</span>
+   139→          </div>
+   140→        </div>
+   141→        <div class="stat-card highlight purple">
+   142→          <div class="stat-icon">✅</div>
+   143→          <div class="stat-info">
+   144→            <span class="stat-value" id="offered-count">0</span>
+   145→            <span class="stat-label">Offers Made</span>
+   146→          </div>
+   147→        </div>
+   148→      </div>
+   149→
+   150→      <!-- Applications List -->
+   151→      <section class="section">
+   152→        <div class="applications-list" id="applications-list">
+   153→          <div class="loading-state">
+   154→            <div class="spinner"></div>
+   155→            <p>Loading applications...</p>
+   156→          </div>
+   157→        </div>
+   158→      </section>
+   159→    </main>
+   160→  </div>
+   161→
+   162→  <!-- Make Offer Modal -->
+   163→  <div class="modal-overlay" id="offer-modal" style="display: none;">
+   164→    <div class="modal">
+   165→      <div class="modal-header">
+   166→        <h2>Make Job Offer</h2>
+   167→        <button onclick="closeOfferModal()" class="modal-close">&times;</button>
+   168→      </div>
+   169→      <form id="offer-form" onsubmit="submitOffer(event)">
+   170→        <div class="form-group">
+   171→          <label>Candidate</label>
+   172→          <p id="offer-candidate-name" style="font-weight: 600; padding: 12px 16px; background: var(--bg-elevated); border-radius: var(--radius-md);">-</p>
+   173→        </div>
+   174→        <div class="form-group">
+   175→          <label for="offer-job-title">Job Title</label>
+   176→          <input type="text" id="offer-job-title" required>
+   177→        </div>
+   178→        <div class="form-row">
+   179→          <div class="form-group">
+   180→            <label for="offer-salary">Annual Salary ($)</label>
+   181→            <input type="number" id="offer-salary" required min="0" step="1000" placeholder="75000">
+   182→          </div>
+   183→          <div class="form-group">
+   184→            <label for="offer-start-date">Start Date</label>
+   185→            <input type="date" id="offer-start-date" required>
+   186→          </div>
+   187→        </div>
+   188→        <div class="form-group">
+   189→          <label for="offer-benefits">Benefits Package</label>
+   190→          <textarea id="offer-benefits" rows="3" placeholder="Health insurance, 401(k) matching, PTO, etc."></textarea>
+   191→        </div>
+   192→        <div class="form-actions">
+   193→          <button type="button" onclick="closeOfferModal()" class="btn btn-ghost">Cancel</button>
+   194→          <button type="submit" class="btn btn-primary">Send Offer</button>
+   195→        </div>
+   196→      </form>
+   197→    </div>
+   198→  </div>
+   199→
+   200→  <script src="/js/main.js"></script>
+   201→  <script>
+   202→    let currentFilter = 'all';
+   203→    let currentJob = '';
+   204→    let applications = [];
+   205→
+   206→    document.addEventListener('DOMContentLoaded', async () => {
+   207→      const user = await checkAuth();
+   208→      if (!user) {
+   209→        window.location.href = '/login.html';
+   210→        return;
+   211→      }
+   212→      // Verify recruiter/employer role - must have company_id and appropriate role
+   213→      const allowedRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+   214→      if (!user.company_id || !allowedRoles.includes(user.role)) {
+   215→        window.location.href = '/candidate-dashboard.html';
+   216→        return;
+   217→      }
+   218→
+   219→      const name = user.name || user.email.split('@')[0];
+   220→      document.getElementById('user-name').textContent = name;
+   221→      document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+   222→      document.getElementById('company-name').textContent = user.company_name || 'Company';
+   223→      document.getElementById('dropdown-user-name').textContent = name;
+   224→      document.getElementById('dropdown-user-email').textContent = user.email;
+   225→
+   226→      // Setup user menu dropdown
+   227→      const userMenuToggle = document.getElementById('user-menu-toggle');
+   228→      const userDropdownMenu = document.getElementById('user-dropdown-menu');
+   229→      if (userMenuToggle && userDropdownMenu) {
+   230→        userMenuToggle.addEventListener('click', (e) => {
+   231→          e.stopPropagation();
+   232→          userDropdownMenu.classList.toggle('active');
+   233→        });
+   234→        document.addEventListener('click', () => {
+   235→          userDropdownMenu.classList.remove('active');
+   236→        });
+   237→      }
+   238→
+   239→      // Setup filter tabs
+   240→      document.querySelectorAll('.filter-tab').forEach(tab => {
+   241→        tab.addEventListener('click', () => {
+   242→          document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+   243→          tab.classList.add('active');
+   244→          currentFilter = tab.dataset.status;
+   245→          renderApplications();
+   246→        });
+   247→      });
+   248→
+   249→      // Setup job filter
+   250→      document.getElementById('job-filter').addEventListener('change', (e) => {
+   251→        currentJob = e.target.value;
+   252→        renderApplications();
+   253→      });
+   254→
+   255→      loadJobs();
+   256→      loadApplications();
+   257→    });
+   258→
+   259→    async function loadJobs() {
+   260→      try {
+   261→        const data = await apiCall('/recruiter/jobs');
+   262→        if (data.jobs) {
+   263→          const select = document.getElementById('job-filter');
+   264→          data.jobs.forEach(job => {
+   265→            const option = document.createElement('option');
+   266→            option.value = job.id;
+   267→            option.textContent = job.title;
+   268→            select.appendChild(option);
+   269→          });
+   270→        }
+   271→      } catch (err) {
+   272→        console.error('Failed to load jobs:', err);
+   273→      }
+   274→    }
+   275→
+   276→    async function loadApplications() {
+   277→      try {
+   278→        const data = await apiCall('/recruiter/applications');
+   279→        if (data.applications) {
+   280→          applications = data.applications;
+   281→          updateStats(applications);
+   282→          renderApplications();
+   283→        }
+   284→      } catch (err) {
+   285→        console.error('Failed to load applications:', err);
+   286→        document.getElementById('applications-list').innerHTML = `
+   287→          <div class="empty-state">
+   288→            <p>Failed to load applications</p>
+   289→          </div>
+   290→        `;
+   291→      }
+   292→    }
+   293→
+   294→    function updateStats(apps) {
+   295→      document.getElementById('total-applications').textContent = apps.length;
+   296→
+   297→      const today = new Date().toDateString();
+   298→      const newToday = apps.filter(a => new Date(a.applied_at).toDateString() === today).length;
+   299→      document.getElementById('new-applications').textContent = newToday;
+   300→
+   301→      document.getElementById('reviewing-count').textContent =
+   302→        apps.filter(a => a.status === 'reviewing').length;
+   303→      document.getElementById('offered-count').textContent =
+   304→        apps.filter(a => a.status === 'offered').length;
+   305→    }
+   306→
+   307→    function renderApplications() {
+   308→      const container = document.getElementById('applications-list');
+   309→
+   310→      let filtered = applications;
+   311→      if (currentFilter !== 'all') {
+   312→        filtered = filtered.filter(a => a.status === currentFilter);
+   313→      }
+   314→      if (currentJob) {
+   315→        filtered = filtered.filter(a => a.job_id == currentJob);
+   316→      }
+   317→
+   318→      if (filtered.length === 0) {
+   319→        container.innerHTML = `
+   320→          <div class="empty-state">
+   321→            <p>No applications found</p>
+   322→            <a href="/job-create.html" class="btn btn-primary btn-sm">Post a Job</a>
+   323→          </div>
+   324→        `;
+   325→        return;
+   326→      }
+   327→
+   328→      container.innerHTML = filtered.map(app => `
+   329→        <div class="application-card">
+   330→          <div class="application-header">
+   331→            <div class="candidate-info">
+   332→              <div class="candidate-avatar">${(app.candidate_name || 'U').charAt(0).toUpperCase()}</div>
+   333→              <div class="candidate-details">
+   334→                <h3>${app.candidate_name || 'Unknown'}</h3>
+   335→                <p>${app.job_title || 'Position'}</p>
+   336→              </div>
+   337→            </div>
+   338→            <div class="application-meta">
+   339→              ${app.omniscore_at_apply ? `<span class="omniscore-badge">${app.omniscore_at_apply} OmniScore</span>` : ''}
+   340→              <span class="status-badge ${app.status}">${app.status}</span>
+   341→            </div>
+   342→          </div>
+   343→          <div class="application-body">
+   344→            <div class="application-info">
+   345→              <span class="info-item">📧 ${app.candidate_email || 'No email'}</span>
+   346→              <span class="info-item">📅 Applied ${formatDate(app.applied_at)}</span>
+   347→            </div>
+   348→            ${app.cover_letter ? `<p class="cover-letter-preview">${app.cover_letter.substring(0, 150)}...</p>` : ''}
+   349→          </div>
+   350→          <div class="application-actions">
+   351→            <button onclick="updateStatus(${app.id}, 'reviewing')" class="btn btn-ghost btn-sm" ${app.status !== 'applied' ? 'disabled' : ''}>
+   352→              Review
+   353→            </button>
+   354→            <button onclick="scheduleInterview(${app.id})" class="btn btn-ghost btn-sm">
+   355→              Schedule Interview
+   356→            </button>
+   357→            <button onclick="makeOffer(${app.id}, ${app.candidate_id}, '${(app.candidate_name || '').replace(/'/g, "\\'")}', '${(app.candidate_email || '').replace(/'/g, "\\'")}', ${app.job_id}, '${(app.job_title || '').replace(/'/g, "\\'")}')" class="btn btn-primary btn-sm" ${app.status === 'offered' || app.status === 'hired' ? 'disabled' : ''}>
+   358→              Make Offer
+   359→            </button>
+   360→            <button onclick="updateStatus(${app.id}, 'rejected')" class="btn btn-ghost btn-sm danger">
+   361→              Reject
+   362→            </button>
+   363→          </div>
+   364→        </div>
+   365→      `).join('');
+   366→    }
+   367→
+   368→    function formatDate(dateStr) {
+   369→      const date = new Date(dateStr);
+   370→      const now = new Date();
+   371→      const diff = now - date;
+   372→      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+   373→      if (days === 0) return 'Today';
+   374→      if (days === 1) return 'Yesterday';
+   375→      if (days < 7) return `${days} days ago`;
+   376→      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+   377→    }
+   378→
+   379→    async function updateStatus(appId, status) {
+   380→      try {
+   381→        const result = await apiCall(`/recruiter/applications/${appId}/status`, {
+   382→          method: 'PUT',
+   383→          body: JSON.stringify({ status })
+   384→        });
+   385→        if (result.success) {
+   386→          loadApplications();
+   387→        }
+   388→      } catch (err) {
+   389→        alert('Failed to update status');
+   390→      }
+   391→    }
+   392→
+   393→    function scheduleInterview(appId) {
+   394→      window.location.href = `/recruiter-interviews.html?schedule=${appId}`;
+   395→    }
+   396→
+   397→    // Make Offer functionality
+   398→    let currentOfferData = null;
+   399→
+   400→    function makeOffer(appId, candidateId, candidateName, candidateEmail, jobId, jobTitle) {
+   401→      currentOfferData = { appId, candidateId, candidateName, candidateEmail, jobId, jobTitle };
+   402→
+   403→      // Pre-fill the modal
+   404→      document.getElementById('offer-candidate-name').textContent = candidateName;
+   405→      document.getElementById('offer-job-title').value = jobTitle;
+   406→
+   407→      // Set default start date to 2 weeks from now
+   408→      const startDate = new Date();
+   409→      startDate.setDate(startDate.getDate() + 14);
+   410→      document.getElementById('offer-start-date').value = startDate.toISOString().split('T')[0];
+   411→
+   412→      // Show modal
+   413→      document.getElementById('offer-modal').style.display = 'flex';
+   414→    }
+   415→
+   416→    function closeOfferModal() {
+   417→      document.getElementById('offer-modal').style.display = 'none';
+   418→      document.getElementById('offer-form').reset();
+   419→      currentOfferData = null;
+   420→    }
+   421→
+   422→    async function submitOffer(e) {
+   423→      e.preventDefault();
+   424→
+   425→      if (!currentOfferData) return;
+   426→
+   427→      const offerData = {
+   428→        candidate_id: currentOfferData.candidateId,
+   429→        job_id: currentOfferData.jobId,
+   430→        title: document.getElementById('offer-job-title').value,
+   431→        salary: parseFloat(document.getElementById('offer-salary').value),
+   432→        start_date: document.getElementById('offer-start-date').value,
+   433→        benefits: document.getElementById('offer-benefits').value
+   434→      };
+   435→
+   436→      try {
+   437→        // Create the offer
+   438→        const createResult = await apiCall('/onboarding/offers', {
+   439→          method: 'POST',
+   440→          body: JSON.stringify(offerData)
+   441→        });
+   442→
+   443→        if (!createResult || createResult.error) {
+   444→          throw new Error(createResult?.error || 'Failed to create offer');
+   445→        }
+   446→
+   447→        // Send the offer immediately
+   448→        const sendResult = await apiCall(`/onboarding/offers/${createResult.id}/send`, {
+   449→          method: 'POST'
+   450→        });
+   451→
+   452→        // Update application status
+   453→        await apiCall(`/recruiter/applications/${currentOfferData.appId}/status`, {
+   454→          method: 'PUT',
+   455→          body: JSON.stringify({ status: 'offered' })
+   456→        });
+   457→
+   458→        alert('Offer sent successfully to ' + currentOfferData.candidateName + '!');
+   459→        closeOfferModal();
+   460→        loadApplications();
+   461→      } catch (err) {
+   462→        console.error('Error creating offer:', err);
+   463→        alert('Failed to create offer: ' + err.message);
+   464→      }
+   465→    }
+   466→  </script>
+   467→
+   468→  <style>
+   469→    .recruiter-sidebar { background: linear-gradient(180deg, #1a1a24 0%, #12121a 100%); }
+   470→    .sidebar-badge { display: inline-block; padding: 4px 10px; background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%); border-radius: var(--radius-full); font-size: 11px; font-weight: 600; color: white; margin: -12px 0 20px 0; }
+   471→    .company-avatar { background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%) !important; }
+   472→
+   473→    .header-actions { display: flex; gap: 12px; align-items: center; }
+   474→    .form-select {
+   475→      padding: 10px 16px;
+   476→      background: var(--bg-elevated);
+   477→      border: 1px solid var(--border-color);
+   478→      border-radius: var(--radius-md);
+   479→      color: var(--text-primary);
+   480→      font-size: 14px;
+   481→      min-width: 200px;
+   482→    }
+   483→
+   484→    .stat-card.highlight.purple {
+   485→      border-color: #8b5cf6;
+   486→      box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
+   487→    }
+   488→
+   489→    .application-card {
+   490→      background: var(--bg-card);
+   491→      border: 1px solid var(--border-color);
+   492→      border-radius: var(--radius-lg);
+   493→      padding: 20px;
+   494→      margin-bottom: 16px;
+   495→      transition: all 0.2s;
+   496→    }
+   497→
+   498→    .application-card:hover {
+   499→      border-color: #8b5cf6;
+   500→      box-shadow: 0 4px 20px rgba(139, 92, 246, 0.1);
+   501→    }
+   502→
+   503→    .application-header {
+   504→      display: flex;
+   505→      justify-content: space-between;
+   506→      align-items: center;
+   507→      margin-bottom: 16px;
+   508→    }
+   509→
+   510→    .candidate-info { display: flex; align-items: center; gap: 16px; }
+   511→    .candidate-avatar {
+   512→      width: 48px;
+   513→      height: 48px;
+   514→      border-radius: 50%;
+   515→      background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+   516→      display: flex;
+   517→      align-items: center;
+   518→      justify-content: center;
+   519→      font-size: 20px;
+   520→      font-weight: 600;
+   521→      color: white;
+   522→    }
+   523→
+   524→    .candidate-details h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+   525→    .candidate-details p { font-size: 13px; color: var(--text-muted); }
+   526→
+   527→    .application-meta { display: flex; align-items: center; gap: 12px; }
+   528→    .omniscore-badge {
+   529→      padding: 4px 12px;
+   530→      background: rgba(16, 185, 129, 0.2);
+   531→      border: 1px solid #10b981;
+   532→      border-radius: var(--radius-full);
+   533→      font-size: 12px;
+   534→      font-weight: 600;
+   535→      color: #10b981;
+   536→    }
+   537→
+   538→    .status-badge {
+   539→      padding: 4px 12px;
+   540→      border-radius: var(--radius-full);
+   541→      font-size: 11px;
+   542→      font-weight: 600;
+   543→      text-transform: capitalize;
+   544→    }
+   545→    .status-badge.applied { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+   546→    .status-badge.reviewing { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+   547→    .status-badge.interviewed { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; }
+   548→    .status-badge.offered { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+   549→    .status-badge.rejected { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+   550→
+   551→    .application-body { margin-bottom: 16px; }
+   552→    .application-info {
+   553→      display: flex;
+   554→      gap: 20px;
+   555→      margin-bottom: 12px;
+   556→    }
+   557→    .info-item {
+   558→      font-size: 13px;
+   559→      color: var(--text-muted);
+   560→    }
+   561→    .cover-letter-preview {
+   562→      font-size: 14px;
+   563→      color: var(--text-secondary);
+   564→      line-height: 1.5;
+   565→    }
+   566→
+   567→    .application-actions {
+   568→      display: flex;
+   569→      gap: 8px;
+   570→      padding-top: 16px;
+   571→      border-top: 1px solid var(--border-color);
+   572→    }
+   573→
+   574→    .btn.danger { color: #ef4444; }
+   575→    .btn.danger:hover { background: rgba(239, 68, 68, 0.1); }
+   576→
+   577→    /* Modal */
+   578→    .modal-overlay {
+   579→      position: fixed;
+   580→      top: 0;
+   581→      left: 0;
+   582→      right: 0;
+   583→      bottom: 0;
+   584→      background: rgba(0, 0, 0, 0.7);
+   585→      display: flex;
+   586→      align-items: center;
+   587→      justify-content: center;
+   588→      z-index: 1000;
+   589→    }
+   590→
+   591→    .modal {
+   592→      background: var(--bg-card);
+   593→      border-radius: var(--radius-lg);
+   594→      width: 100%;
+   595→      max-width: 500px;
+   596→      max-height: 90vh;
+   597→      overflow-y: auto;
+   598→    }
+   599→
+   600→    .modal-header {
+   601→      display: flex;
+   602→      justify-content: space-between;
+   603→      align-items: center;
+   604→      padding: 20px 24px;
+   605→      border-bottom: 1px solid var(--border-color);
+   606→    }
+   607→
+   608→    .modal-header h2 {
+   609→      font-family: var(--font-display);
+   610→      font-size: 20px;
+   611→    }
+   612→
+   613→    .modal-close {
+   614→      background: none;
+   615→      border: none;
+   616→      font-size: 24px;
+   617→      color: var(--text-muted);
+   618→      cursor: pointer;
+   619→    }
+   620→
+   621→    .modal form {
+   622→      padding: 24px;
+   623→    }
+   624→
+   625→    .form-group {
+   626→      margin-bottom: 20px;
+   627→    }
+   628→
+   629→    .form-group label {
+   630→      display: block;
+   631→      font-weight: 500;
+   632→      margin-bottom: 8px;
+   633→      font-size: 14px;
+   634→    }
+   635→
+   636→    .form-group input,
+   637→    .form-group select,
+   638→    .form-group textarea {
+   639→      width: 100%;
+   640→      padding: 12px 16px;
+   641→      background: var(--bg-elevated);
+   642→      border: 1px solid var(--border-color);
+   643→      border-radius: var(--radius-md);
+   644→      color: var(--text-primary);
+   645→      font-size: 15px;
+   646→    }
+   647→
+   648→    .form-row {
+   649→      display: grid;
+   650→      grid-template-columns: 1fr 1fr;
+   651→      gap: 16px;
+   652→    }
+   653→
+   654→    .form-actions {
+   655→      display: flex;
+   656→      justify-content: flex-end;
+   657→      gap: 12px;
+   658→      padding-top: 16px;
+   659→      border-top: 1px solid var(--border-color);
+   660→    }
+   661→  </style>
+   662→</body>
+   663→</html>
+   664→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

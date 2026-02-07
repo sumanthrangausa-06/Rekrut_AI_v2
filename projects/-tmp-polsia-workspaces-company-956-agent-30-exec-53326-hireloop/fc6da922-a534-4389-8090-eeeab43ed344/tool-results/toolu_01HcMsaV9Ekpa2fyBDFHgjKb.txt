@@ -1,0 +1,399 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>Assessment Results - Rekrut AI</title>
+     7→  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+     8→  <link rel="stylesheet" href="/css/styles.css">
+     9→  <link rel="stylesheet" href="/css/dashboard.css">
+    10→  <style>
+    11→    .results-hero {
+    12→      background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%);
+    13→      border: 1px solid var(--border-color);
+    14→      border-radius: var(--radius-lg);
+    15→      padding: 48px;
+    16→      text-align: center;
+    17→      margin-bottom: 40px;
+    18→    }
+    19→
+    20→    .score-circle {
+    21→      width: 180px;
+    22→      height: 180px;
+    23→      margin: 0 auto 24px;
+    24→      position: relative;
+    25→    }
+    26→
+    27→    .score-value {
+    28→      position: absolute;
+    29→      top: 50%;
+    30→      left: 50%;
+    31→      transform: translate(-50%, -50%);
+    32→      font-family: var(--font-display);
+    33→      font-size: 56px;
+    34→      font-weight: 700;
+    35→      color: var(--accent-primary);
+    36→    }
+    37→
+    38→    .result-status {
+    39→      font-family: var(--font-display);
+    40→      font-size: 28px;
+    41→      font-weight: 700;
+    42→      margin-bottom: 8px;
+    43→    }
+    44→
+    45→    .result-subtitle {
+    46→      color: var(--text-muted);
+    47→      font-size: 16px;
+    48→    }
+    49→
+    50→    .stats-grid {
+    51→      display: grid;
+    52→      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    53→      gap: 20px;
+    54→      margin-bottom: 40px;
+    55→    }
+    56→
+    57→    .stat-box {
+    58→      background: var(--bg-card);
+    59→      border: 1px solid var(--border-color);
+    60→      border-radius: var(--radius-md);
+    61→      padding: 24px;
+    62→      text-align: center;
+    63→    }
+    64→
+    65→    .stat-box-value {
+    66→      font-family: var(--font-display);
+    67→      font-size: 32px;
+    68→      font-weight: 700;
+    69→      color: var(--text-primary);
+    70→      margin-bottom: 8px;
+    71→    }
+    72→
+    73→    .stat-box-label {
+    74→      font-size: 13px;
+    75→      color: var(--text-muted);
+    76→      text-transform: uppercase;
+    77→      letter-spacing: 0.5px;
+    78→    }
+    79→
+    80→    .section-card {
+    81→      background: var(--bg-card);
+    82→      border: 1px solid var(--border-color);
+    83→      border-radius: var(--radius-md);
+    84→      padding: 32px;
+    85→      margin-bottom: 24px;
+    86→    }
+    87→
+    88→    .section-title {
+    89→      font-family: var(--font-display);
+    90→      font-size: 20px;
+    91→      font-weight: 600;
+    92→      margin-bottom: 20px;
+    93→    }
+    94→
+    95→    .integrity-score {
+    96→      display: flex;
+    97→      align-items: center;
+    98→      gap: 16px;
+    99→      padding: 16px;
+   100→      background: var(--bg-secondary);
+   101→      border-radius: var(--radius-md);
+   102→      margin-bottom: 16px;
+   103→    }
+   104→
+   105→    .integrity-score-value {
+   106→      font-family: var(--font-display);
+   107→      font-size: 48px;
+   108→      font-weight: 700;
+   109→      min-width: 100px;
+   110→      text-align: center;
+   111→    }
+   112→
+   113→    .integrity-score-value.excellent { color: var(--accent-primary); }
+   114→    .integrity-score-value.good { color: #10b981; }
+   115→    .integrity-score-value.fair { color: #fbbf24; }
+   116→    .integrity-score-value.poor { color: #ef4444; }
+   117→
+   118→    .integrity-details {
+   119→      flex: 1;
+   120→    }
+   121→
+   122→    .integrity-item {
+   123→      display: flex;
+   124→      justify-content: space-between;
+   125→      padding: 8px 0;
+   126→      border-bottom: 1px solid var(--border-color);
+   127→    }
+   128→
+   129→    .integrity-item:last-child { border-bottom: none; }
+   130→
+   131→    .badge-earned {
+   132→      display: inline-flex;
+   133→      align-items: center;
+   134→      gap: 8px;
+   135→      background: var(--accent-gradient);
+   136→      color: #000;
+   137→      padding: 12px 20px;
+   138→      border-radius: var(--radius-full);
+   139→      font-weight: 600;
+   140→      margin-bottom: 16px;
+   141→    }
+   142→  </style>
+   143→</head>
+   144→<body>
+   145→  <div class="dashboard-layout">
+   146→    <!-- Sidebar -->
+   147→    <aside class="sidebar">
+   148→      <a href="/" class="logo">
+   149→        <span class="logo-icon">◎</span>
+   150→        <span>Rekrut AI</span>
+   151→      </a>
+   152→
+   153→      <nav class="sidebar-nav">
+   154→        <a href="/candidate-dashboard.html" class="nav-item">
+   155→          <span class="nav-icon">🏠</span>
+   156→          <span>Dashboard</span>
+   157→        </a>
+   158→        <a href="/candidate-profile.html" class="nav-item">
+   159→          <span class="nav-icon">👤</span>
+   160→          <span>My Profile</span>
+   161→        </a>
+   162→        <a href="/omniscore.html" class="nav-item">
+   163→          <span class="nav-icon">🎯</span>
+   164→          <span>OmniScore</span>
+   165→        </a>
+   166→        <a href="/skill-assessments.html" class="nav-item active">
+   167→          <span class="nav-icon">📝</span>
+   168→          <span>Skill Tests</span>
+   169→        </a>
+   170→        <a href="/interview.html" class="nav-item">
+   171→          <span class="nav-icon">🎤</span>
+   172→          <span>Interview Prep</span>
+   173→        </a>
+   174→        <a href="/job-board.html" class="nav-item">
+   175→          <span class="nav-icon">💼</span>
+   176→          <span>Job Board</span>
+   177→        </a>
+   178→        <a href="/history.html" class="nav-item">
+   179→          <span class="nav-icon">📁</span>
+   180→          <span>History</span>
+   181→        </a>
+   182→      </nav>
+   183→
+   184→      <div class="sidebar-footer">
+   185→        <div class="user-dropdown-container">
+   186→          <button class="user-menu-toggle" id="user-menu-toggle">
+   187→            <div class="user-avatar" id="user-avatar">?</div>
+   188→            <div style="flex: 1; text-align: left;">
+   189→              <span class="user-name" id="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
+   190→              <span class="user-plan" id="user-plan" style="display: block; font-size: 12px; color: var(--text-muted);">Free Plan</span>
+   191→            </div>
+   192→          </button>
+   193→        </div>
+   194→      </div>
+   195→    </aside>
+   196→
+   197→    <!-- Main Content -->
+   198→    <main class="main-content">
+   199→      <div style="max-width: 900px; margin: 0 auto;">
+   200→        <!-- Hero Results -->
+   201→        <div class="results-hero" id="results-hero">
+   202→          <div class="score-circle">
+   203→            <svg viewBox="0 0 180 180" style="transform: rotate(-90deg);">
+   204→              <circle cx="90" cy="90" r="80" fill="none" stroke="var(--bg-secondary)" stroke-width="12"/>
+   205→              <circle id="score-circle" cx="90" cy="90" r="80" fill="none" 
+   206→                      stroke="url(#gradient)" stroke-width="12" 
+   207→                      stroke-dasharray="502" stroke-dashoffset="502"
+   208→                      style="transition: stroke-dashoffset 1s ease;"/>
+   209→              <defs>
+   210→                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+   211→                  <stop offset="0%" style="stop-color:#10b981"/>
+   212→                  <stop offset="100%" style="stop-color:#06b6d4"/>
+   213→                </linearGradient>
+   214→              </defs>
+   215→            </svg>
+   216→            <div class="score-value" id="score-value">--</div>
+   217→          </div>
+   218→          
+   219→          <div class="result-status" id="result-status">Loading...</div>
+   220→          <div class="result-subtitle" id="result-subtitle">Please wait...</div>
+   221→        </div>
+   222→
+   223→        <!-- Stats Grid -->
+   224→        <div class="stats-grid">
+   225→          <div class="stat-box">
+   226→            <div class="stat-box-value" id="stat-correct">-</div>
+   227→            <div class="stat-box-label">Correct Answers</div>
+   228→          </div>
+   229→          <div class="stat-box">
+   230→            <div class="stat-box-value" id="stat-difficulty">-</div>
+   231→            <div class="stat-box-label">Max Difficulty</div>
+   232→          </div>
+   233→          <div class="stat-box">
+   234→            <div class="stat-box-value" id="stat-time">-</div>
+   235→            <div class="stat-box-label">Time Taken</div>
+   236→          </div>
+   237→        </div>
+   238→
+   239→        <!-- Integrity Report -->
+   240→        <div class="section-card">
+   241→          <div class="section-title">Test Integrity Report</div>
+   242→          
+   243→          <div class="integrity-score">
+   244→            <div class="integrity-score-value excellent" id="integrity-score">100</div>
+   245→            <div class="integrity-details">
+   246→              <div style="font-weight: 600; margin-bottom: 8px;">Assessment Integrity</div>
+   247→              <div class="integrity-item">
+   248→                <span>Tab Switches</span>
+   249→                <span id="tab-switches">0</span>
+   250→              </div>
+   251→              <div class="integrity-item">
+   252→                <span>Copy/Paste Attempts</span>
+   253→                <span id="copy-paste">0</span>
+   254→              </div>
+   255→              <div class="integrity-item">
+   256→                <span>Time Anomalies</span>
+   257→                <span id="time-anomalies">0</span>
+   258→              </div>
+   259→            </div>
+   260→          </div>
+   261→
+   262→          <p style="color: var(--text-muted); font-size: 14px; line-height: 1.6;">
+   263→            This score reflects test-taking behavior. A high integrity score indicates a clean attempt with no suspicious activity.
+   264→            Employers may consider this score alongside your assessment results.
+   265→          </p>
+   266→        </div>
+   267→
+   268→        <!-- Badge -->
+   269→        <div class="section-card" id="badge-section" style="display: none;">
+   270→          <div class="section-title">Achievement Unlocked</div>
+   271→          <div class="badge-earned">
+   272→            <span style="font-size: 24px;">✓</span>
+   273→            <span id="skill-name">Skill</span> Verified
+   274→          </div>
+   275→          <p style="color: var(--text-muted);">
+   276→            This skill is now verified on your profile and will be highlighted to recruiters.
+   277→            Your OmniScore has been updated.
+   278→          </p>
+   279→        </div>
+   280→
+   281→        <!-- Actions -->
+   282→        <div style="display: flex; gap: 16px; margin-top: 32px;">
+   283→          <a href="/skill-assessments.html" class="btn btn-primary" style="flex: 1;">Back to Assessments</a>
+   284→          <a href="/omniscore.html" class="btn btn-ghost" style="flex: 1;">View OmniScore</a>
+   285→        </div>
+   286→      </div>
+   287→    </main>
+   288→  </div>
+   289→
+   290→  <script src="/js/auth.js"></script>
+   291→  <script>
+   292→    // Load results
+   293→    async function loadResults() {
+   294→      await checkAuth();
+   295→      await loadUserInfo();
+   296→
+   297→      const urlParams = new URLSearchParams(window.location.search);
+   298→      const sessionId = urlParams.get('session');
+   299→      const assessmentId = urlParams.get('id');
+   300→
+   301→      if (!sessionId && !assessmentId) {
+   302→        alert('No results found');
+   303→        window.location.href = '/skill-assessments.html';
+   304→        return;
+   305→      }
+   306→
+   307→      try {
+   308→        // For now, we'll fetch session data from the results endpoint
+   309→        // In a complete implementation, you'd have a dedicated session endpoint
+   310→        const response = await fetch('/api/assessments/results', {
+   311→          headers: { 'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}` }
+   312→        });
+   313→
+   314→        if (!response.ok) throw new Error('Failed to load results');
+   315→
+   316→        const data = await response.json();
+   317→        
+   318→        // Get the most recent result (or specific one if assessmentId provided)
+   319→        let result = assessmentId 
+   320→          ? data.results.find(r => r.id === parseInt(assessmentId))
+   321→          : data.results[0];
+   322→
+   323→        if (!result) {
+   324→          throw new Error('Result not found');
+   325→        }
+   326→
+   327→        displayResults(result);
+   328→      } catch (error) {
+   329→        console.error('Error loading results:', error);
+   330→        document.getElementById('result-status').textContent = 'Error Loading Results';
+   331→        document.getElementById('result-subtitle').textContent = 'Please try again';
+   332→      }
+   333→    }
+   334→
+   335→    // Display results
+   336→    function displayResults(result) {
+   337→      // Score animation
+   338→      const score = result.score || 0;
+   339→      const scoreCircle = document.getElementById('score-circle');
+   340→      const circumference = 2 * Math.PI * 80;
+   341→      const offset = circumference - (score / 100) * circumference;
+   342→      
+   343→      setTimeout(() => {
+   344→        scoreCircle.style.strokeDashoffset = offset;
+   345→      }, 100);
+   346→
+   347→      document.getElementById('score-value').textContent = score;
+   348→
+   349→      // Status
+   350→      const passed = result.passed;
+   351→      document.getElementById('result-status').textContent = passed ? 'Passed!' : 'Not Passed';
+   352→      document.getElementById('result-subtitle').textContent = passed 
+   353→        ? 'Great job! Your skill has been verified.'
+   354→        : 'Keep practicing and try again.';
+   355→
+   356→      // Stats
+   357→      const answersGiven = JSON.parse(result.answers_given || '[]');
+   358→      const correctCount = answersGiven.filter(a => a.isCorrect).length;
+   359→      
+   360→      document.getElementById('stat-correct').textContent = `${correctCount}/10`;
+   361→      document.getElementById('stat-difficulty').textContent = `${result.max_difficulty_reached || 2}/5`;
+   362→      
+   363→      const duration = result.duration_seconds || 0;
+   364→      const minutes = Math.floor(duration / 60);
+   365→      const seconds = Math.floor(duration % 60);
+   366→      document.getElementById('stat-time').textContent = `${minutes}m ${seconds}s`;
+   367→
+   368→      // Integrity
+   369→      const integrityScore = result.anti_cheat_score || 100;
+   370→      const integrityEl = document.getElementById('integrity-score');
+   371→      integrityEl.textContent = integrityScore;
+   372→      
+   373→      integrityEl.className = 'integrity-score-value';
+   374→      if (integrityScore >= 90) integrityEl.classList.add('excellent');
+   375→      else if (integrityScore >= 70) integrityEl.classList.add('good');
+   376→      else if (integrityScore >= 50) integrityEl.classList.add('fair');
+   377→      else integrityEl.classList.add('poor');
+   378→
+   379→      document.getElementById('tab-switches').textContent = result.tab_switches || 0;
+   380→      document.getElementById('copy-paste').textContent = result.copy_paste_attempts || 0;
+   381→      document.getElementById('time-anomalies').textContent = result.time_anomalies || 0;
+   382→
+   383→      // Badge
+   384→      if (passed) {
+   385→        document.getElementById('badge-section').style.display = 'block';
+   386→        document.getElementById('skill-name').textContent = result.skill_name || 'Skill';
+   387→      }
+   388→    }
+   389→
+   390→    // Initialize
+   391→    document.addEventListener('DOMContentLoaded', loadResults);
+   392→  </script>
+   393→</body>
+   394→</html>
+   395→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

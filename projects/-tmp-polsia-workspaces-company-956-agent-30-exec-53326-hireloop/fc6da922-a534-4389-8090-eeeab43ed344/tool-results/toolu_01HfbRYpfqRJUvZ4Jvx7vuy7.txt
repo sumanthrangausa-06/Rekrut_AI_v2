@@ -1,0 +1,508 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>Assessment - Rekrut AI</title>
+     7→  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+     8→  <link rel="stylesheet" href="/css/styles.css">
+     9→  <style>
+    10→    body { background: var(--bg-primary); margin: 0; padding: 0; overflow: hidden; }
+    11→    
+    12→    .assessment-container { height: 100vh; display: flex; flex-direction: column; }
+    13→    
+    14→    .assessment-header {
+    15→      background: var(--bg-card);
+    16→      border-bottom: 1px solid var(--border-color);
+    17→      padding: 16px 24px;
+    18→      display: flex;
+    19→      justify-content: space-between;
+    20→      align-items: center;
+    21→    }
+    22→    
+    23→    .progress-bar {
+    24→      flex: 1;
+    25→      height: 6px;
+    26→      background: var(--bg-secondary);
+    27→      border-radius: 3px;
+    28→      margin: 0 24px;
+    29→      overflow: hidden;
+    30→    }
+    31→    
+    32→    .progress-fill {
+    33→      height: 100%;
+    34→      background: var(--accent-gradient);
+    35→      transition: width 0.3s ease;
+    36→    }
+    37→    
+    38→    .timer {
+    39→      font-family: var(--font-display);
+    40→      font-size: 18px;
+    41→      font-weight: 600;
+    42→      color: var(--accent-primary);
+    43→    }
+    44→    
+    45→    .timer.warning { color: #fbbf24; }
+    46→    .timer.danger { color: #ef4444; }
+    47→    
+    48→    .assessment-content {
+    49→      flex: 1;
+    50→      display: flex;
+    51→      justify-content: center;
+    52→      align-items: center;
+    53→      padding: 40px;
+    54→      overflow-y: auto;
+    55→    }
+    56→    
+    57→    .question-card {
+    58→      background: var(--bg-card);
+    59→      border: 1px solid var(--border-color);
+    60→      border-radius: var(--radius-lg);
+    61→      padding: 48px;
+    62→      max-width: 800px;
+    63→      width: 100%;
+    64→    }
+    65→    
+    66→    .question-number {
+    67→      font-size: 14px;
+    68→      color: var(--text-muted);
+    69→      margin-bottom: 24px;
+    70→    }
+    71→    
+    72→    .question-text {
+    73→      font-family: var(--font-display);
+    74→      font-size: 24px;
+    75→      font-weight: 600;
+    76→      color: var(--text-primary);
+    77→      margin-bottom: 32px;
+    78→      line-height: 1.4;
+    79→    }
+    80→    
+    81→    .options-grid {
+    82→      display: flex;
+    83→      flex-direction: column;
+    84→      gap: 16px;
+    85→      margin-bottom: 32px;
+    86→    }
+    87→    
+    88→    .option-button {
+    89→      background: var(--bg-secondary);
+    90→      border: 2px solid var(--border-color);
+    91→      border-radius: var(--radius-md);
+    92→      padding: 20px 24px;
+    93→      text-align: left;
+    94→      font-size: 16px;
+    95→      color: var(--text-primary);
+    96→      cursor: pointer;
+    97→      transition: all 0.2s ease;
+    98→    }
+    99→    
+   100→    .option-button:hover {
+   101→      border-color: var(--accent-primary);
+   102→      background: var(--bg-elevated);
+   103→    }
+   104→    
+   105→    .option-button.selected {
+   106→      border-color: var(--accent-primary);
+   107→      background: rgba(16, 185, 129, 0.1);
+   108→    }
+   109→    
+   110→    .textarea-answer {
+   111→      width: 100%;
+   112→      min-height: 200px;
+   113→      background: var(--bg-secondary);
+   114→      border: 2px solid var(--border-color);
+   115→      border-radius: var(--radius-md);
+   116→      padding: 16px;
+   117→      color: var(--text-primary);
+   118→      font-family: var(--font-body);
+   119→      font-size: 15px;
+   120→      line-height: 1.6;
+   121→      resize: vertical;
+   122→      margin-bottom: 24px;
+   123→    }
+   124→    
+   125→    .textarea-answer:focus {
+   126→      outline: none;
+   127→      border-color: var(--accent-primary);
+   128→    }
+   129→    
+   130→    .feedback-modal {
+   131→      display: none;
+   132→      position: fixed;
+   133→      top: 0;
+   134→      left: 0;
+   135→      right: 0;
+   136→      bottom: 0;
+   137→      background: rgba(0, 0, 0, 0.8);
+   138→      z-index: 1000;
+   139→      align-items: center;
+   140→      justify-content: center;
+   141→      padding: 20px;
+   142→    }
+   143→    
+   144→    .feedback-modal.show { display: flex; }
+   145→    
+   146→    .feedback-content {
+   147→      background: var(--bg-card);
+   148→      border: 1px solid var(--border-color);
+   149→      border-radius: var(--radius-lg);
+   150→      padding: 40px;
+   151→      max-width: 600px;
+   152→      width: 100%;
+   153→      text-align: center;
+   154→    }
+   155→    
+   156→    .feedback-icon {
+   157→      font-size: 64px;
+   158→      margin-bottom: 16px;
+   159→    }
+   160→    
+   161→    .feedback-title {
+   162→      font-family: var(--font-display);
+   163→      font-size: 28px;
+   164→      font-weight: 700;
+   165→      margin-bottom: 12px;
+   166→    }
+   167→    
+   168→    .feedback-text {
+   169→      color: var(--text-secondary);
+   170→      margin-bottom: 24px;
+   171→      line-height: 1.6;
+   172→    }
+   173→    
+   174→    .proctoring-warning {
+   175→      background: rgba(251, 191, 36, 0.1);
+   176→      border: 1px solid rgba(251, 191, 36, 0.3);
+   177→      border-radius: var(--radius-md);
+   178→      padding: 12px 16px;
+   179→      margin-bottom: 24px;
+   180→      display: none;
+   181→      align-items: center;
+   182→      gap: 12px;
+   183→      font-size: 14px;
+   184→      color: #fbbf24;
+   185→    }
+   186→    
+   187→    .proctoring-warning.show { display: flex; }
+   188→  </style>
+   189→</head>
+   190→<body>
+   191→  <div class="assessment-container">
+   192→    <!-- Header -->
+   193→    <div class="assessment-header">
+   194→      <div style="display: flex; align-items: center; gap: 16px;">
+   195→        <span style="font-family: var(--font-display); font-weight: 600; font-size: 16px;">Question <span id="question-num">1</span> of <span id="total-questions">10</span></span>
+   196→      </div>
+   197→      <div class="progress-bar">
+   198→        <div class="progress-fill" id="progress-fill" style="width: 10%"></div>
+   199→      </div>
+   200→      <div class="timer" id="timer">2:00</div>
+   201→    </div>
+   202→
+   203→    <!-- Proctoring Warning -->
+   204→    <div class="proctoring-warning" id="proctoring-warning">
+   205→      <span>⚠️</span>
+   206→      <span>Please stay in this tab. Tab switches are being monitored.</span>
+   207→    </div>
+   208→
+   209→    <!-- Question Content -->
+   210→    <div class="assessment-content">
+   211→      <div class="question-card">
+   212→        <div class="question-number" id="difficulty-indicator">Medium Difficulty</div>
+   213→        <div class="question-text" id="question-text">Loading...</div>
+   214→        
+   215→        <div id="answer-area">
+   216→          <!-- Multiple choice options or textarea will be inserted here -->
+   217→        </div>
+   218→
+   219→        <button class="btn btn-primary" id="submit-btn" style="width: 100%;" onclick="submitAnswer()">
+   220→          Submit Answer
+   221→        </button>
+   222→      </div>
+   223→    </div>
+   224→  </div>
+   225→
+   226→  <!-- Feedback Modal -->
+   227→  <div class="feedback-modal" id="feedback-modal">
+   228→    <div class="feedback-content">
+   229→      <div class="feedback-icon" id="feedback-icon">✅</div>
+   230→      <div class="feedback-title" id="feedback-title">Correct!</div>
+   231→      <div class="feedback-text" id="feedback-text"></div>
+   232→      <button class="btn btn-primary" onclick="nextQuestion()">Continue</button>
+   233→    </div>
+   234→  </div>
+   235→
+   236→  <script src="/js/auth.js"></script>
+   237→  <script>
+   238→    let sessionId = null;
+   239→    let currentQuestion = null;
+   240→    let selectedAnswer = null;
+   241→    let questionStartTime = Date.now();
+   242→    let timerInterval = null;
+   243→    let timeRemaining = 120; // seconds
+   244→
+   245→    // Anti-cheat tracking
+   246→    let isTabActive = true;
+   247→    let tabSwitchCount = 0;
+   248→    let copyPasteCount = 0;
+   249→
+   250→    // Initialize assessment
+   251→    async function initAssessment() {
+   252→      await checkAuth();
+   253→
+   254→      const skillId = localStorage.getItem('assessment_skill_id');
+   255→      if (!skillId) {
+   256→        alert('No assessment selected');
+   257→        window.location.href = '/skill-assessments.html';
+   258→        return;
+   259→      }
+   260→
+   261→      try {
+   262→        const response = await fetch('/api/assessments/start', {
+   263→          method: 'POST',
+   264→          headers: {
+   265→            'Content-Type': 'application/json',
+   266→            'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}`
+   267→          },
+   268→          body: JSON.stringify({ skillId: parseInt(skillId) })
+   269→        });
+   270→
+   271→        if (!response.ok) throw new Error('Failed to start assessment');
+   272→
+   273→        const data = await response.json();
+   274→        sessionId = data.sessionId;
+   275→        currentQuestion = data.question;
+   276→        
+   277→        displayQuestion();
+   278→        startTimer(currentQuestion.timeLimit);
+   279→      } catch (error) {
+   280→        console.error('Error starting assessment:', error);
+   281→        alert('Failed to start assessment');
+   282→        window.location.href = '/skill-assessments.html';
+   283→      }
+   284→    }
+   285→
+   286→    // Display current question
+   287→    function displayQuestion() {
+   288→      document.getElementById('question-num').textContent = currentQuestion.questionNumber;
+   289→      document.getElementById('total-questions').textContent = currentQuestion.totalQuestions;
+   290→      document.getElementById('question-text').textContent = currentQuestion.text;
+   291→      
+   292→      // Update progress bar
+   293→      const progress = (currentQuestion.questionNumber / currentQuestion.totalQuestions) * 100;
+   294→      document.getElementById('progress-fill').style.width = `${progress}%`;
+   295→
+   296→      // Render answer area based on question type
+   297→      const answerArea = document.getElementById('answer-area');
+   298→      
+   299→      if (currentQuestion.type === 'multiple_choice') {
+   300→        answerArea.innerHTML = `
+   301→          <div class="options-grid">
+   302→            ${currentQuestion.options.map((option, index) => `
+   303→              <button class="option-button" data-value="${option}" onclick="selectOption(this)">
+   304→                ${option}
+   305→              </button>
+   306→            `).join('')}
+   307→          </div>
+   308→        `;
+   309→      } else if (currentQuestion.type === 'short_answer') {
+   310→        answerArea.innerHTML = `
+   311→          <textarea class="textarea-answer" id="short-answer" placeholder="Type your answer here..."
+   312→                    onpaste="logCopyPaste(event)"></textarea>
+   313→        `;
+   314→      }
+   315→
+   316→      // Reset state
+   317→      selectedAnswer = null;
+   318→      questionStartTime = Date.now();
+   319→    }
+   320→
+   321→    // Select multiple choice option
+   322→    function selectOption(button) {
+   323→      document.querySelectorAll('.option-button').forEach(btn => {
+   324→        btn.classList.remove('selected');
+   325→      });
+   326→      button.classList.add('selected');
+   327→      selectedAnswer = button.dataset.value;
+   328→    }
+   329→
+   330→    // Submit answer
+   331→    async function submitAnswer() {
+   332→      // Get answer
+   333→      if (currentQuestion.type === 'multiple_choice') {
+   334→        if (!selectedAnswer) {
+   335→          alert('Please select an answer');
+   336→          return;
+   337→        }
+   338→      } else {
+   339→        const textarea = document.getElementById('short-answer');
+   340→        selectedAnswer = textarea.value.trim();
+   341→        if (!selectedAnswer) {
+   342→          alert('Please provide an answer');
+   343→          return;
+   344→        }
+   345→      }
+   346→
+   347→      // Calculate time taken
+   348→      const timeTaken = Math.floor((Date.now() - questionStartTime) / 1000);
+   349→
+   350→      // Stop timer
+   351→      clearInterval(timerInterval);
+   352→
+   353→      // Submit to API
+   354→      try {
+   355→        const response = await fetch('/api/assessments/answer', {
+   356→          method: 'POST',
+   357→          headers: {
+   358→            'Content-Type': 'application/json',
+   359→            'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}`
+   360→          },
+   361→          body: JSON.stringify({
+   362→            sessionId,
+   363→            questionId: currentQuestion.id,
+   364→            answer: selectedAnswer,
+   365→            timeTaken
+   366→          })
+   367→        });
+   368→
+   369→        if (!response.ok) throw new Error('Failed to submit answer');
+   370→
+   371→        const data = await response.json();
+   372→
+   373→        // Show feedback
+   374→        showFeedback(data);
+   375→
+   376→        // Store next question if not completed
+   377→        if (!data.completed) {
+   378→          currentQuestion = data.nextQuestion;
+   379→        } else {
+   380→          // Assessment completed
+   381→          setTimeout(() => {
+   382→            window.location.href = `/assessment-results.html?session=${sessionId}`;
+   383→          }, 3000);
+   384→        }
+   385→      } catch (error) {
+   386→        console.error('Error submitting answer:', error);
+   387→        alert('Failed to submit answer');
+   388→      }
+   389→    }
+   390→
+   391→    // Show feedback modal
+   392→    function showFeedback(data) {
+   393→      const modal = document.getElementById('feedback-modal');
+   394→      const icon = document.getElementById('feedback-icon');
+   395→      const title = document.getElementById('feedback-title');
+   396→      const text = document.getElementById('feedback-text');
+   397→
+   398→      const isCorrect = data.feedback === 'Correct!';
+   399→      icon.textContent = isCorrect ? '✅' : '❌';
+   400→      title.textContent = data.feedback;
+   401→      
+   402→      let feedbackHTML = data.explanation ? `<p>${data.explanation}</p>` : '';
+   403→      if (data.aiFeedback) {
+   404→        feedbackHTML += `<p style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color);">${data.aiFeedback}</p>`;
+   405→      }
+   406→      text.innerHTML = feedbackHTML;
+   407→
+   408→      modal.classList.add('show');
+   409→    }
+   410→
+   411→    // Next question
+   412→    function nextQuestion() {
+   413→      document.getElementById('feedback-modal').classList.remove('show');
+   414→      displayQuestion();
+   415→      timeRemaining = currentQuestion.timeLimit;
+   416→      startTimer(currentQuestion.timeLimit);
+   417→    }
+   418→
+   419→    // Timer
+   420→    function startTimer(seconds) {
+   421→      timeRemaining = seconds;
+   422→      updateTimerDisplay();
+   423→
+   424→      timerInterval = setInterval(() => {
+   425→        timeRemaining--;
+   426→        updateTimerDisplay();
+   427→
+   428→        if (timeRemaining <= 0) {
+   429→          clearInterval(timerInterval);
+   430→          // Auto-submit empty answer
+   431→          submitAnswer();
+   432→        }
+   433→      }, 1000);
+   434→    }
+   435→
+   436→    function updateTimerDisplay() {
+   437→      const minutes = Math.floor(timeRemaining / 60);
+   438→      const seconds = timeRemaining % 60;
+   439→      const display = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+   440→      
+   441→      const timerEl = document.getElementById('timer');
+   442→      timerEl.textContent = display;
+   443→      
+   444→      timerEl.className = 'timer';
+   445→      if (timeRemaining <= 10) {
+   446→        timerEl.classList.add('danger');
+   447→      } else if (timeRemaining <= 30) {
+   448→        timerEl.classList.add('warning');
+   449→      }
+   450→    }
+   451→
+   452→    // Anti-cheat: Tab visibility
+   453→    document.addEventListener('visibilitychange', () => {
+   454→      if (document.hidden) {
+   455→        isTabActive = false;
+   456→        tabSwitchCount++;
+   457→        
+   458→        // Log event
+   459→        logEvent('tab_switch', { count: tabSwitchCount });
+   460→        
+   461→        // Show warning
+   462→        const warning = document.getElementById('proctoring-warning');
+   463→        warning.classList.add('show');
+   464→        setTimeout(() => warning.classList.remove('show'), 3000);
+   465→      } else {
+   466→        isTabActive = true;
+   467→      }
+   468→    });
+   469→
+   470→    // Anti-cheat: Copy/paste detection
+   471→    function logCopyPaste(event) {
+   472→      copyPasteCount++;
+   473→      logEvent('copy_paste', { count: copyPasteCount });
+   474→    }
+   475→
+   476→    // Log anti-cheat event
+   477→    async function logEvent(eventType, eventData) {
+   478→      try {
+   479→        await fetch('/api/assessments/event', {
+   480→          method: 'POST',
+   481→          headers: {
+   482→            'Content-Type': 'application/json',
+   483→            'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}`
+   484→          },
+   485→          body: JSON.stringify({
+   486→            sessionId,
+   487→            eventType,
+   488→            eventData
+   489→          })
+   490→        });
+   491→      } catch (error) {
+   492→        console.error('Failed to log event:', error);
+   493→      }
+   494→    }
+   495→
+   496→    // Prevent right-click (basic anti-cheat)
+   497→    document.addEventListener('contextmenu', e => e.preventDefault());
+   498→
+   499→    // Initialize on load
+   500→    document.addEventListener('DOMContentLoaded', initAssessment);
+   501→  </script>
+   502→</body>
+   503→</html>
+   504→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

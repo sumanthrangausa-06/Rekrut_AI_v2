@@ -1,0 +1,389 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>Offer Management - Rekrut AI</title>
+     7→  <script src="https://cdn.tailwindcss.com"></script>
+     8→  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+     9→</head>
+    10→<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen">
+    11→  <div class="container mx-auto px-4 py-8">
+    12→    <div class="mb-8">
+    13→      <h1 class="text-4xl font-bold text-white mb-2">
+    14→        <i class="fas fa-file-contract mr-3 text-purple-400"></i>
+    15→        Offer Management
+    16→      </h1>
+    17→      <p class="text-gray-300">Create, send, and track job offers</p>
+    18→    </div>
+    19→
+    20→    <!-- Action Buttons -->
+    21→    <div class="mb-6 flex gap-4">
+    22→      <button onclick="showCreateOfferModal()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition">
+    23→        <i class="fas fa-plus mr-2"></i>
+    24→        Create New Offer
+    25→      </button>
+    26→      <button onclick="location.href='recruiter-dashboard.html'" class="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg transition">
+    27→        <i class="fas fa-arrow-left mr-2"></i>
+    28→        Back to Dashboard
+    29→      </button>
+    30→    </div>
+    31→
+    32→    <!-- Offer Stats -->
+    33→    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    34→      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+    35→        <div class="text-gray-300 text-sm mb-2">Total Offers</div>
+    36→        <div id="stat-total" class="text-3xl font-bold text-white">0</div>
+    37→      </div>
+    38→      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+    39→        <div class="text-gray-300 text-sm mb-2">Pending Response</div>
+    40→        <div id="stat-pending" class="text-3xl font-bold text-yellow-400">0</div>
+    41→      </div>
+    42→      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+    43→        <div class="text-gray-300 text-sm mb-2">Accepted</div>
+    44→        <div id="stat-accepted" class="text-3xl font-bold text-green-400">0</div>
+    45→      </div>
+    46→      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
+    47→        <div class="text-gray-300 text-sm mb-2">Declined</div>
+    48→        <div id="stat-declined" class="text-3xl font-bold text-red-400">0</div>
+    49→      </div>
+    50→    </div>
+    51→
+    52→    <!-- Offers Table -->
+    53→    <div class="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 overflow-hidden">
+    54→      <div class="p-6 border-b border-white/20">
+    55→        <h2 class="text-xl font-bold text-white">All Offers</h2>
+    56→      </div>
+    57→      <div class="overflow-x-auto">
+    58→        <table class="w-full">
+    59→          <thead>
+    60→            <tr class="border-b border-white/20 bg-white/5">
+    61→              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Candidate</th>
+    62→              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Position</th>
+    63→              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Salary</th>
+    64→              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Start Date</th>
+    65→              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Status</th>
+    66→              <th class="px-6 py-4 text-left text-sm font-semibold text-gray-300">Actions</th>
+    67→            </tr>
+    68→          </thead>
+    69→          <tbody id="offers-tbody" class="divide-y divide-white/10">
+    70→            <tr>
+    71→              <td colspan="6" class="px-6 py-12 text-center text-gray-400">
+    72→                <i class="fas fa-spinner fa-spin text-3xl mb-4"></i>
+    73→                <p>Loading offers...</p>
+    74→              </td>
+    75→            </tr>
+    76→          </tbody>
+    77→        </table>
+    78→      </div>
+    79→    </div>
+    80→  </div>
+    81→
+    82→  <!-- Create Offer Modal -->
+    83→  <div id="createOfferModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50">
+    84→    <div class="bg-slate-800 rounded-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    85→      <div class="flex justify-between items-center mb-6">
+    86→        <h2 class="text-2xl font-bold text-white">Create New Offer</h2>
+    87→        <button onclick="closeCreateOfferModal()" class="text-gray-400 hover:text-white">
+    88→          <i class="fas fa-times text-2xl"></i>
+    89→        </button>
+    90→      </div>
+    91→
+    92→      <form id="createOfferForm" class="space-y-6">
+    93→        <div>
+    94→          <label class="block text-sm font-medium text-gray-300 mb-2">Candidate</label>
+    95→          <select id="candidate_id" required class="w-full px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500">
+    96→            <option value="">Select candidate...</option>
+    97→          </select>
+    98→        </div>
+    99→
+   100→        <div>
+   101→          <label class="block text-sm font-medium text-gray-300 mb-2">Job Position</label>
+   102→          <select id="job_id" required class="w-full px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500">
+   103→            <option value="">Select job...</option>
+   104→          </select>
+   105→        </div>
+   106→
+   107→        <div>
+   108→          <label class="block text-sm font-medium text-gray-300 mb-2">Job Title</label>
+   109→          <input type="text" id="title" required class="w-full px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500">
+   110→        </div>
+   111→
+   112→        <div class="grid grid-cols-2 gap-4">
+   113→          <div>
+   114→            <label class="block text-sm font-medium text-gray-300 mb-2">Annual Salary</label>
+   115→            <input type="number" id="salary" required min="0" step="1000" class="w-full px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500">
+   116→          </div>
+   117→          <div>
+   118→            <label class="block text-sm font-medium text-gray-300 mb-2">Start Date</label>
+   119→            <input type="date" id="start_date" required class="w-full px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500">
+   120→          </div>
+   121→        </div>
+   122→
+   123→        <div>
+   124→          <label class="block text-sm font-medium text-gray-300 mb-2">Benefits Package</label>
+   125→          <textarea id="benefits" rows="4" class="w-full px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500" placeholder="Health insurance, 401(k), PTO, etc."></textarea>
+   126→        </div>
+   127→
+   128→        <div class="flex gap-4">
+   129→          <button type="submit" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition">
+   130→            <i class="fas fa-save mr-2"></i>
+   131→            Save as Draft
+   132→          </button>
+   133→          <button type="button" onclick="createAndSendOffer()" class="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition">
+   134→            <i class="fas fa-paper-plane mr-2"></i>
+   135→            Send Offer
+   136→          </button>
+   137→        </div>
+   138→      </form>
+   139→    </div>
+   140→  </div>
+   141→
+   142→  <script>
+   143→    const TOKEN_KEY = 'rekrutai_token';
+   144→    let offersData = [];
+   145→    let candidatesData = [];
+   146→    let jobsData = [];
+   147→
+   148→    function getToken() {
+   149→      return localStorage.getItem(TOKEN_KEY);
+   150→    }
+   151→
+   152→    async function checkAuth() {
+   153→      const token = getToken();
+   154→      if (!token) {
+   155→        window.location.href = '/login.html';
+   156→        return null;
+   157→      }
+   158→
+   159→      try {
+   160→        const response = await fetch('/api/auth/me', {
+   161→          headers: { 'Authorization': `Bearer ${token}` }
+   162→        });
+   163→
+   164→        if (!response.ok) {
+   165→          window.location.href = '/login.html';
+   166→          return null;
+   167→        }
+   168→
+   169→        return await response.json();
+   170→      } catch (err) {
+   171→        console.error('Auth check failed:', err);
+   172→        window.location.href = '/login.html';
+   173→        return null;
+   174→      }
+   175→    }
+   176→
+   177→    async function loadData() {
+   178→      const token = getToken();
+   179→      if (!token) {
+   180→        window.location.href = '/login.html';
+   181→        return;
+   182→      }
+   183→
+   184→      const headers = { 'Authorization': `Bearer ${token}` };
+   185→
+   186→      try {
+   187→        const [offersRes, candidatesRes, jobsRes] = await Promise.all([
+   188→          fetch('/api/onboarding/offers', { headers }),
+   189→          fetch('/api/recruiter/candidates', { headers }),
+   190→          fetch('/api/jobs', { headers })
+   191→        ]);
+   192→
+   193→        if (!offersRes.ok || !candidatesRes.ok || !jobsRes.ok) {
+   194→          console.error('API error - offers:', offersRes.status, 'candidates:', candidatesRes.status, 'jobs:', jobsRes.status);
+   195→          if (offersRes.status === 401 || candidatesRes.status === 401) {
+   196→            window.location.href = '/login.html';
+   197→            return;
+   198→          }
+   199→        }
+   200→
+   201→        const offersJson = await offersRes.json();
+   202→        const candidatesJson = await candidatesRes.json();
+   203→        const jobsJson = await jobsRes.json();
+   204→
+   205→        // Handle both array and object responses
+   206→        offersData = Array.isArray(offersJson) ? offersJson : (offersJson.offers || []);
+   207→        candidatesData = Array.isArray(candidatesJson) ? candidatesJson : (candidatesJson.candidates || []);
+   208→        jobsData = Array.isArray(jobsJson) ? jobsJson : (jobsJson.jobs || []);
+   209→
+   210→        renderOffers();
+   211→        updateStats();
+   212→        populateDropdowns();
+   213→      } catch (err) {
+   214→        console.error('Error loading data:', err);
+   215→      }
+   216→    }
+   217→
+   218→    function renderOffers() {
+   219→      const tbody = document.getElementById('offers-tbody');
+   220→
+   221→      if (offersData.length === 0) {
+   222→        tbody.innerHTML = `
+   223→          <tr>
+   224→            <td colspan="6" class="px-6 py-12 text-center text-gray-400">
+   225→              <i class="fas fa-inbox text-4xl mb-4 block"></i>
+   226→              <p>No offers created yet</p>
+   227→            </td>
+   228→          </tr>
+   229→        `;
+   230→        return;
+   231→      }
+   232→
+   233→      tbody.innerHTML = offersData.map(offer => `
+   234→        <tr class="hover:bg-white/5 transition">
+   235→          <td class="px-6 py-4">
+   236→            <div class="font-medium text-white">${offer.candidate_name || 'Unknown'}</div>
+   237→            <div class="text-sm text-gray-400">${offer.candidate_email || ''}</div>
+   238→          </td>
+   239→          <td class="px-6 py-4 text-gray-300">${offer.title || offer.job_title || 'N/A'}</td>
+   240→          <td class="px-6 py-4 text-gray-300">$${parseInt(offer.salary).toLocaleString()}</td>
+   241→          <td class="px-6 py-4 text-gray-300">${offer.start_date ? new Date(offer.start_date).toLocaleDateString() : 'TBD'}</td>
+   242→          <td class="px-6 py-4">
+   243→            ${getStatusBadge(offer.status)}
+   244→          </td>
+   245→          <td class="px-6 py-4">
+   246→            ${getActionButtons(offer)}
+   247→          </td>
+   248→        </tr>
+   249→      `).join('');
+   250→    }
+   251→
+   252→    function getStatusBadge(status) {
+   253→      const badges = {
+   254→        draft: '<span class="px-3 py-1 bg-gray-600 text-white text-xs rounded-full">Draft</span>',
+   255→        sent: '<span class="px-3 py-1 bg-yellow-600 text-white text-xs rounded-full">Sent</span>',
+   256→        accepted: '<span class="px-3 py-1 bg-green-600 text-white text-xs rounded-full">Accepted</span>',
+   257→        declined: '<span class="px-3 py-1 bg-red-600 text-white text-xs rounded-full">Declined</span>'
+   258→      };
+   259→      return badges[status] || badges.draft;
+   260→    }
+   261→
+   262→    function getActionButtons(offer) {
+   263→      if (offer.status === 'draft') {
+   264→        return `<button onclick="sendOffer(${offer.id})" class="text-purple-400 hover:text-purple-300"><i class="fas fa-paper-plane"></i> Send</button>`;
+   265→      }
+   266→      if (offer.status === 'sent') {
+   267→        return `<span class="text-gray-400">Awaiting response</span>`;
+   268→      }
+   269→      return `<span class="text-gray-500">-</span>`;
+   270→    }
+   271→
+   272→    function updateStats() {
+   273→      document.getElementById('stat-total').textContent = offersData.length;
+   274→      document.getElementById('stat-pending').textContent = offersData.filter(o => o.status === 'sent').length;
+   275→      document.getElementById('stat-accepted').textContent = offersData.filter(o => o.status === 'accepted').length;
+   276→      document.getElementById('stat-declined').textContent = offersData.filter(o => o.status === 'declined').length;
+   277→    }
+   278→
+   279→    function populateDropdowns() {
+   280→      const candidateSelect = document.getElementById('candidate_id');
+   281→      const jobSelect = document.getElementById('job_id');
+   282→
+   283→      candidateSelect.innerHTML = '<option value="">Select candidate...</option>' +
+   284→        candidatesData.map(c => `<option value="${c.id}">${c.name} - ${c.email}</option>`).join('');
+   285→
+   286→      jobSelect.innerHTML = '<option value="">Select job...</option>' +
+   287→        jobsData.map(j => `<option value="${j.id}">${j.title}</option>`).join('');
+   288→    }
+   289→
+   290→    function showCreateOfferModal() {
+   291→      document.getElementById('createOfferModal').classList.remove('hidden');
+   292→      document.getElementById('createOfferModal').classList.add('flex');
+   293→    }
+   294→
+   295→    function closeCreateOfferModal() {
+   296→      document.getElementById('createOfferModal').classList.add('hidden');
+   297→      document.getElementById('createOfferModal').classList.remove('flex');
+   298→      document.getElementById('createOfferForm').reset();
+   299→    }
+   300→
+   301→    document.getElementById('createOfferForm').addEventListener('submit', async (e) => {
+   302→      e.preventDefault();
+   303→      await createOffer(false);
+   304→    });
+   305→
+   306→    async function createOffer(sendImmediately) {
+   307→      const formData = {
+   308→        candidate_id: parseInt(document.getElementById('candidate_id').value),
+   309→        job_id: parseInt(document.getElementById('job_id').value),
+   310→        title: document.getElementById('title').value,
+   311→        salary: parseFloat(document.getElementById('salary').value),
+   312→        start_date: document.getElementById('start_date').value,
+   313→        benefits: document.getElementById('benefits').value
+   314→      };
+   315→
+   316→      try {
+   317→        const res = await fetch('/api/onboarding/offers', {
+   318→          method: 'POST',
+   319→          headers: {
+   320→            'Content-Type': 'application/json',
+   321→            'Authorization': `Bearer ${getToken()}`
+   322→          },
+   323→          body: JSON.stringify(formData)
+   324→        });
+   325→
+   326→        if (!res.ok) throw new Error('Failed to create offer');
+   327→
+   328→        const offer = await res.json();
+   329→
+   330→        if (sendImmediately) {
+   331→          await sendOffer(offer.id);
+   332→        }
+   333→
+   334→        closeCreateOfferModal();
+   335→        loadData();
+   336→      } catch (err) {
+   337→        console.error('Error creating offer:', err);
+   338→        alert('Failed to create offer. Please try again.');
+   339→      }
+   340→    }
+   341→
+   342→    async function createAndSendOffer() {
+   343→      await createOffer(true);
+   344→    }
+   345→
+   346→    async function sendOffer(offerId) {
+   347→      if (!confirm('Send this offer to the candidate?')) return;
+   348→
+   349→      try {
+   350→        const res = await fetch(`/api/onboarding/offers/${offerId}/send`, {
+   351→          method: 'POST',
+   352→          headers: {
+   353→            'Authorization': `Bearer ${getToken()}`
+   354→          }
+   355→        });
+   356→
+   357→        if (!res.ok) throw new Error('Failed to send offer');
+   358→
+   359→        alert('Offer sent successfully!');
+   360→        loadData();
+   361→      } catch (err) {
+   362→        console.error('Error sending offer:', err);
+   363→        alert('Failed to send offer. Please try again.');
+   364→      }
+   365→    }
+   366→
+   367→    // Initialize page
+   368→    document.addEventListener('DOMContentLoaded', async () => {
+   369→      const authData = await checkAuth();
+   370→      if (!authData) return;
+   371→
+   372→      // Verify recruiter role - need BOTH company_id AND recruiter-type role
+   373→      const user = authData.user;
+   374→      const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+   375→      if (!recruiterRoles.includes(user.role)) {
+   376→        window.location.href = '/candidate-dashboard.html';
+   377→        return;
+   378→      }
+   379→
+   380→      loadData();
+   381→    });
+   382→  </script>
+   383→</body>
+   384→</html>
+   385→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
