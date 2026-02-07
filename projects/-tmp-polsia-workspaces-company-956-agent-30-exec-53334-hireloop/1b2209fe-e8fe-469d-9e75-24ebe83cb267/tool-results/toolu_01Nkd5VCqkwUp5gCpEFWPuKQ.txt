@@ -1,0 +1,420 @@
+     1→const Anthropic = require('@anthropic-ai/sdk');
+     2→
+     3→const anthropic = new Anthropic({
+     4→  baseURL: process.env.POLSIA_API_URL || 'https://polsia.com/api/proxy/ai',
+     5→  apiKey: process.env.POLSIA_API_KEY,
+     6→});
+     7→
+     8→async function chat(message, options = {}) {
+     9→  // Handle both string messages and arrays of message objects
+    10→  let messages;
+    11→  if (Array.isArray(message)) {
+    12→    // Filter out system messages and extract them
+    13→    const systemMessages = message.filter(m => m.role === 'system');
+    14→    const nonSystemMessages = message.filter(m => m.role !== 'system');
+    15→
+    16→    // Use the first system message content as the system prompt if not already set
+    17→    if (systemMessages.length > 0 && !options.system) {
+    18→      options.system = systemMessages[0].content;
+    19→    }
+    20→
+    21→    // Ensure messages have proper format (content must be string or array)
+    22→    messages = nonSystemMessages.map(m => ({
+    23→      role: m.role,
+    24→      content: typeof m.content === 'string' ? m.content : String(m.content)
+    25→    }));
+    26→  } else {
+    27→    // Simple string message
+    28→    messages = [{ role: 'user', content: String(message) }];
+    29→  }
+    30→
+    31→  // Ensure we have at least one message
+    32→  if (messages.length === 0) {
+    33→    messages = [{ role: 'user', content: 'Hello' }];
+    34→  }
+    35→
+    36→  const response = await anthropic.messages.create({
+    37→    max_tokens: options.maxTokens || options.max_tokens || 8192,
+    38→    messages: messages,
+    39→    system: options.system,
+    40→  }, {
+    41→    headers: options.subscriptionId ? { 'X-Subscription-ID': options.subscriptionId } : {}
+    42→  });
+    43→  return response.content[0].text;
+    44→}
+    45→
+    46→async function generateInterviewQuestions(jobTitle, jobDescription, count = 5) {
+    47→  const prompt = `Generate ${count} interview questions for a ${jobTitle} position.
+    48→
+    49→Job Description:
+    50→${jobDescription || 'General ' + jobTitle + ' role'}
+    51→
+    52→Return a JSON array with objects containing:
+    53→- question: The interview question
+    54→- category: behavioral/technical/situational
+    55→- difficulty: easy/medium/hard
+    56→- key_points: Array of 3-5 key points to look for in a good answer
+    57→
+    58→Only return the JSON array, no other text.`;
+    59→
+    60→  const response = await chat(prompt, {
+    61→    system: 'You are an expert interviewer. Generate thoughtful, role-specific interview questions. Always return valid JSON.'
+    62→  });
+    63→
+    64→  try {
+    65→    return JSON.parse(response);
+    66→  } catch (e) {
+    67→    const match = response.match(/\[.*\]/s);
+    68→    if (match) {
+    69→      return JSON.parse(match[0]);
+    70→    }
+    71→    throw new Error('Failed to parse interview questions');
+    72→  }
+    73→}
+    74→
+    75→async function analyzeInterviewResponse(question, response, keyPoints, options = {}) {
+    76→  const prompt = `Analyze this interview response:
+    77→
+    78→Question: ${question}
+    79→
+    80→Candidate's Response:
+    81→${response}
+    82→
+    83→Key points to evaluate:
+    84→${keyPoints.map((p, i) => `${i + 1}. ${p}`).join('\n')}
+    85→
+    86→Provide a JSON object with:
+    87→- score: 1-10 rating
+    88→- strengths: Array of 2-3 strengths
+    89→- improvements: Array of 2-3 areas for improvement
+    90→- covered_points: Array of which key points were addressed
+    91→- missed_points: Array of key points that were missed
+    92→- detailed_feedback: A 2-3 sentence constructive feedback paragraph
+    93→
+    94→Only return the JSON object, no other text.`;
+    95→
+    96→  const result = await chat(prompt, {
+    97→    system: 'You are an expert interview coach providing constructive, actionable feedback. Be encouraging but honest. Always return valid JSON.',
+    98→    subscriptionId: options.subscriptionId
+    99→  });
+   100→
+   101→  try {
+   102→    return JSON.parse(result);
+   103→  } catch (e) {
+   104→    const match = result.match(/\{.*\}/s);
+   105→    if (match) {
+   106→      return JSON.parse(match[0]);
+   107→    }
+   108→    throw new Error('Failed to parse analysis');
+   109→  }
+   110→}
+   111→
+   112→async function generateOverallFeedback(questionResults, options = {}) {
+   113→  const avgScore = questionResults.reduce((sum, r) => sum + r.score, 0) / questionResults.length;
+   114→  
+   115→  const prompt = `Based on these interview question results, provide overall feedback:
+   116→
+   117→Results:
+   118→${questionResults.map((r, i) => `Q${i + 1}: Score ${r.score}/10 - ${r.detailed_feedback}`).join('\n\n')}
+   119→
+   120→Average Score: ${avgScore.toFixed(1)}/10
+   121→
+   122→Provide a JSON object with:
+   123→- overall_score: Rounded average (1-10)
+   124→- summary: 2-3 sentence overall assessment
+   125→- top_strengths: Array of 3 key strengths demonstrated
+   126→- priority_improvements: Array of 3 highest priority areas to work on
+   127→- recommended_practice: Array of 3 specific practice recommendations
+   128→- interview_readiness: "ready"/"almost_ready"/"needs_work" based on score
+   129→
+   130→Only return the JSON object.`;
+   131→
+   132→  const result = await chat(prompt, {
+   133→    system: 'You are a supportive career coach. Provide actionable, encouraging feedback. Always return valid JSON.',
+   134→    subscriptionId: options.subscriptionId
+   135→  });
+   136→
+   137→  try {
+   138→    return JSON.parse(result);
+   139→  } catch (e) {
+   140→    const match = result.match(/\{.*\}/s);
+   141→    if (match) {
+   142→      return JSON.parse(match[0]);
+   143→    }
+   144→    return {
+   145→      overall_score: Math.round(avgScore),
+   146→      summary: 'Your interview performance has been evaluated.',
+   147→      interview_readiness: avgScore >= 7 ? 'ready' : avgScore >= 5 ? 'almost_ready' : 'needs_work'
+   148→    };
+   149→  }
+   150→}
+   151→
+   152→async function parseResume(resumeText, options = {}) {
+   153→  const prompt = `Parse this resume and extract structured information:
+   154→
+   155→${resumeText}
+   156→
+   157→Return a JSON object with:
+   158→{
+   159→  "contact": {
+   160→    "name": "Full name",
+   161→    "email": "Email if found",
+   162→    "phone": "Phone if found",
+   163→    "location": "Location if found",
+   164→    "linkedin": "LinkedIn URL if found",
+   165→    "github": "GitHub URL if found",
+   166→    "portfolio": "Portfolio URL if found"
+   167→  },
+   168→  "headline": "A professional headline/title (max 100 chars)",
+   169→  "bio": "A professional summary (2-3 sentences, max 300 chars)",
+   170→  "experience": [
+   171→    {
+   172→      "company": "Company name",
+   173→      "title": "Job title",
+   174→      "location": "Location",
+   175→      "start_date": "YYYY-MM or YYYY",
+   176→      "end_date": "YYYY-MM or 'Present'",
+   177→      "is_current": boolean,
+   178→      "description": "Role description",
+   179→      "achievements": ["Achievement 1", "Achievement 2"],
+   180→      "skills_used": ["Skill 1", "Skill 2"]
+   181→    }
+   182→  ],
+   183→  "education": [
+   184→    {
+   185→      "institution": "School name",
+   186→      "degree": "Degree type",
+   187→      "field": "Field of study",
+   188→      "start_date": "YYYY",
+   189→      "end_date": "YYYY or 'Present'",
+   190→      "gpa": number or null,
+   191→      "achievements": ["Honor 1", "Activity 1"]
+   192→    }
+   193→  ],
+   194→  "skills": [
+   195→    {
+   196→      "name": "Skill name",
+   197→      "category": "technical|soft_skill|tool|language",
+   198→      "level": 1-5 (inferred from context, 3 is intermediate)
+   199→    }
+   200→  ],
+   201→  "certifications": ["Cert 1", "Cert 2"],
+   202→  "years_experience": total years of work experience
+   203→}
+   204→
+   205→Only return the JSON object, no other text.`;
+   206→
+   207→  const result = await chat(prompt, {
+   208→    system: 'You are an expert resume parser. Extract accurate, structured data from resumes. Always return valid JSON. Be thorough but do not fabricate information.',
+   209→    subscriptionId: options.subscriptionId
+   210→  });
+   211→
+   212→  try {
+   213→    return JSON.parse(result);
+   214→  } catch (e) {
+   215→    const match = result.match(/\{[\s\S]*\}/);
+   216→    if (match) {
+   217→      return JSON.parse(match[0]);
+   218→    }
+   219→    throw new Error('Failed to parse resume data');
+   220→  }
+   221→}
+   222→
+   223→async function generateSkillAssessment(skillName, skillLevel, category, options = {}) {
+   224→  const difficultyMap = { 1: 'beginner', 2: 'intermediate', 3: 'intermediate', 4: 'advanced', 5: 'expert' };
+   225→  const difficulty = difficultyMap[skillLevel] || 'intermediate';
+   226→
+   227→  const prompt = `Generate a skill assessment for ${skillName} at ${difficulty} level.
+   228→
+   229→Category: ${category}
+   230→
+   231→Create 5 multiple-choice questions that test practical knowledge.
+   232→
+   233→Return a JSON array:
+   234→[
+   235→  {
+   236→    "question": "The question text",
+   237→    "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
+   238→    "correct_answer": "A",
+   239→    "explanation": "Brief explanation of why this is correct",
+   240→    "difficulty": "easy|medium|hard"
+   241→  }
+   242→]
+   243→
+   244→Make questions progressively harder. Include at least one scenario-based question.
+   245→Only return the JSON array, no other text.`;
+   246→
+   247→  const result = await chat(prompt, {
+   248→    system: 'You are an expert technical interviewer. Create fair, practical assessment questions that test real-world knowledge. Always return valid JSON.',
+   249→    subscriptionId: options.subscriptionId
+   250→  });
+   251→
+   252→  try {
+   253→    return JSON.parse(result);
+   254→  } catch (e) {
+   255→    const match = result.match(/\[[\s\S]*\]/);
+   256→    if (match) {
+   257→      return JSON.parse(match[0]);
+   258→    }
+   259→    throw new Error('Failed to generate assessment');
+   260→  }
+   261→}
+   262→
+   263→async function evaluateSkillAssessment(questions, responses, skillName, options = {}) {
+   264→  const prompt = `Evaluate these skill assessment responses for ${skillName}:
+   265→
+   266→Questions and Responses:
+   267→${questions.map((q, i) => `
+   268→Q${i + 1}: ${q.question}
+   269→Options: ${q.options.join(', ')}
+   270→Correct Answer: ${q.correct_answer}
+   271→User Answer: ${responses[i] || 'No answer'}
+   272→Explanation: ${q.explanation}
+   273→`).join('\n')}
+   274→
+   275→Calculate the score and provide feedback.
+   276→
+   277→Return a JSON object:
+   278→{
+   279→  "score": percentage correct (0-100),
+   280→  "passed": boolean (70+ is passing),
+   281→  "correct_count": number of correct answers,
+   282→  "total_questions": total number of questions,
+   283→  "question_results": [
+   284→    {
+   285→      "question_index": 0,
+   286→      "is_correct": boolean,
+   287→      "user_answer": "A",
+   288→      "correct_answer": "B",
+   289→      "explanation": "Why the correct answer is right"
+   290→    }
+   291→  ],
+   292→  "strengths": ["Strength 1", "Strength 2"],
+   293→  "areas_to_improve": ["Area 1", "Area 2"],
+   294→  "recommended_level": 1-5 skill level based on performance,
+   295→  "feedback_summary": "2-3 sentence overall feedback"
+   296→}
+   297→
+   298→Only return the JSON object.`;
+   299→
+   300→  const result = await chat(prompt, {
+   301→    system: 'You are an expert assessor. Provide fair, constructive evaluation. Always return valid JSON.',
+   302→    subscriptionId: options.subscriptionId
+   303→  });
+   304→
+   305→  try {
+   306→    return JSON.parse(result);
+   307→  } catch (e) {
+   308→    const match = result.match(/\{[\s\S]*\}/);
+   309→    if (match) {
+   310→      return JSON.parse(match[0]);
+   311→    }
+   312→    throw new Error('Failed to evaluate assessment');
+   313→  }
+   314→}
+   315→
+   316→async function generateJobMatchScore(candidateProfile, job, options = {}) {
+   317→  const prompt = `Calculate how well this candidate matches this job:
+   318→
+   319→CANDIDATE PROFILE:
+   320→- Skills: ${candidateProfile.skills?.map(s => s.skill_name).join(', ') || 'None listed'}
+   321→- Experience: ${candidateProfile.years_experience || 0} years
+   322→- Location: ${candidateProfile.location || 'Not specified'}
+   323→- OmniScore: ${candidateProfile.omniscore || 300}
+   324→- Recent titles: ${candidateProfile.titles?.join(', ') || 'Not specified'}
+   325→
+   326→JOB POSTING:
+   327→- Title: ${job.title}
+   328→- Company: ${job.company}
+   329→- Requirements: ${job.requirements || 'Not specified'}
+   330→- Location: ${job.location || 'Not specified'}
+   331→- Description: ${job.description?.substring(0, 500) || 'Not specified'}
+   332→
+   333→Calculate a match score and explain why.
+   334→
+   335→Return a JSON object:
+   336→{
+   337→  "match_score": 0-100,
+   338→  "match_level": "excellent|good|fair|poor",
+   339→  "matching_skills": ["skill1", "skill2"],
+   340→  "missing_skills": ["skill1", "skill2"],
+   341→  "strengths": ["Why this candidate is a good fit"],
+   342→  "gaps": ["Potential concerns"],
+   343→  "recommendation": "1-2 sentence recommendation"
+   344→}
+   345→
+   346→Only return the JSON object.`;
+   347→
+   348→  const result = await chat(prompt, {
+   349→    system: 'You are an expert recruiter matching candidates to jobs. Be fair and accurate. Always return valid JSON.',
+   350→    subscriptionId: options.subscriptionId
+   351→  });
+   352→
+   353→  try {
+   354→    return JSON.parse(result);
+   355→  } catch (e) {
+   356→    const match = result.match(/\{[\s\S]*\}/);
+   357→    if (match) {
+   358→      return JSON.parse(match[0]);
+   359→    }
+   360→    return { match_score: 50, match_level: 'fair', recommendation: 'Unable to calculate detailed match' };
+   361→  }
+   362→}
+   363→
+   364→async function generateInterviewCoaching(question, response, feedback, options = {}) {
+   365→  const prompt = `Provide personalized coaching for this interview response:
+   366→
+   367→QUESTION: ${question}
+   368→
+   369→CANDIDATE'S RESPONSE: ${response}
+   370→
+   371→INITIAL FEEDBACK: ${JSON.stringify(feedback)}
+   372→
+   373→Provide detailed coaching:
+   374→
+   375→Return a JSON object:
+   376→{
+   377→  "improved_response": "A better version of their response using the STAR method if applicable",
+   378→  "specific_tips": [
+   379→    "Specific tip 1 for this response",
+   380→    "Specific tip 2"
+   381→  ],
+   382→  "body_language_tips": ["Tip about delivery"],
+   383→  "common_mistake": "What mistake they made and how to avoid it",
+   384→  "practice_prompt": "A follow-up question they should practice"
+   385→}
+   386→
+   387→Only return the JSON object.`;
+   388→
+   389→  const result = await chat(prompt, {
+   390→    system: 'You are an expert interview coach. Be supportive, specific, and actionable. Always return valid JSON.',
+   391→    subscriptionId: options.subscriptionId
+   392→  });
+   393→
+   394→  try {
+   395→    return JSON.parse(result);
+   396→  } catch (e) {
+   397→    const match = result.match(/\{[\s\S]*\}/);
+   398→    if (match) {
+   399→      return JSON.parse(match[0]);
+   400→    }
+   401→    throw new Error('Failed to generate coaching');
+   402→  }
+   403→}
+   404→
+   405→module.exports = {
+   406→  anthropic,
+   407→  chat,
+   408→  generateInterviewQuestions,
+   409→  analyzeInterviewResponse,
+   410→  generateOverallFeedback,
+   411→  parseResume,
+   412→  generateSkillAssessment,
+   413→  evaluateSkillAssessment,
+   414→  generateJobMatchScore,
+   415→  generateInterviewCoaching
+   416→};
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

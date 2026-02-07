@@ -859,7 +859,7 @@ router.get('/jobs/saved', authMiddleware, async (req, res) => {
 // Apply to a job
 router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
   try {
-    const { cover_letter } = req.body;
+    const { cover_letter, screening_answers } = req.body;
 
     // Get match score
     const profile = await pool.query(`
@@ -898,13 +898,14 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
     const omniscore = profile.rows[0]?.omniscore || null;
 
     const result = await pool.query(`
-      INSERT INTO job_applications (candidate_id, job_id, company_id, cover_letter, match_score, omniscore_at_apply)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO job_applications (candidate_id, job_id, company_id, cover_letter, match_score, omniscore_at_apply, screening_answers)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (job_id, candidate_id) DO UPDATE SET
         cover_letter = $4,
+        screening_answers = $7,
         updated_at = NOW()
       RETURNING *
-    `, [req.user.id, req.params.jobId, job.rows[0].company_id, cover_letter, matchScore, omniscore]);
+    `, [req.user.id, req.params.jobId, job.rows[0].company_id, cover_letter, matchScore, omniscore, JSON.stringify(screening_answers || {})]);
 
     res.json({ success: true, application: result.rows[0] });
   } catch (err) {

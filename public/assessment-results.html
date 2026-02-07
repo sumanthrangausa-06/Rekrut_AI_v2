@@ -315,10 +315,16 @@
 
         const data = await response.json();
         
-        // Get the most recent result (or specific one if assessmentId provided)
-        let result = assessmentId 
-          ? data.results.find(r => r.id === parseInt(assessmentId))
-          : data.results[0];
+        // Find the correct result based on available params
+        let result;
+        if (assessmentId) {
+          result = data.results.find(r => r.id === parseInt(assessmentId));
+        } else if (sessionId) {
+          result = data.results.find(r => r.session_id === parseInt(sessionId));
+        }
+        if (!result) {
+          result = data.results[0]; // fallback to most recent
+        }
 
         if (!result) {
           throw new Error('Result not found');
@@ -354,7 +360,9 @@
         : 'Keep practicing and try again.';
 
       // Stats
-      const answersGiven = JSON.parse(result.answers_given || '[]');
+      const answersGiven = typeof result.answers_given === 'string'
+        ? JSON.parse(result.answers_given || '[]')
+        : (result.answers_given || []);
       const correctCount = answersGiven.filter(a => a.isCorrect).length;
       
       document.getElementById('stat-correct').textContent = `${correctCount}/10`;

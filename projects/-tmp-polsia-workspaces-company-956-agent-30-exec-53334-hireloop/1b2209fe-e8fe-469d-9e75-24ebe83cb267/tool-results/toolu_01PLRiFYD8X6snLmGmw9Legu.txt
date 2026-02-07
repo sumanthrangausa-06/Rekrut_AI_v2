@@ -1,0 +1,920 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>Interview Practice & Coaching - HireLoop</title>
+     7→  <link rel="preconnect" href="https://fonts.googleapis.com">
+     8→  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     9→  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    10→  <link rel="stylesheet" href="/css/styles.css">
+    11→  <link rel="stylesheet" href="/css/responsive.css">
+    12→  <link rel="stylesheet" href="/css/dashboard.css">
+    13→  <!-- TensorFlow.js for video analysis -->
+    14→  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+    15→  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.js"></script>
+    16→  <style>
+    17→    .practice-layout {
+    18→      min-height: 100vh;
+    19→      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    20→      padding: 2rem;
+    21→    }
+    22→
+    23→    .practice-container {
+    24→      max-width: 1200px;
+    25→      margin: 0 auto;
+    26→    }
+    27→
+    28→    .practice-header {
+    29→      background: rgba(255, 255, 255, 0.95);
+    30→      backdrop-filter: blur(10px);
+    31→      border-radius: 24px;
+    32→      padding: 3rem;
+    33→      margin-bottom: 2rem;
+    34→      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+    35→    }
+    36→
+    37→    .practice-header h1 {
+    38→      font-family: 'Space Grotesk', sans-serif;
+    39→      font-size: 3rem;
+    40→      font-weight: 700;
+    41→      margin-bottom: 1rem;
+    42→      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    43→      -webkit-background-clip: text;
+    44→      -webkit-text-fill-color: transparent;
+    45→      background-clip: text;
+    46→    }
+    47→
+    48→    .practice-header p {
+    49→      font-size: 1.25rem;
+    50→      color: var(--text-muted);
+    51→      margin-bottom: 2rem;
+    52→    }
+    53→
+    54→    .stats-grid {
+    55→      display: grid;
+    56→      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    57→      gap: 1.5rem;
+    58→      margin-top: 2rem;
+    59→    }
+    60→
+    61→    .stat-card {
+    62→      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    63→      border-radius: 16px;
+    64→      padding: 1.5rem;
+    65→      color: white;
+    66→      text-align: center;
+    67→    }
+    68→
+    69→    .stat-value {
+    70→      font-size: 2.5rem;
+    71→      font-weight: 700;
+    72→      display: block;
+    73→      margin-bottom: 0.5rem;
+    74→    }
+    75→
+    76→    .stat-label {
+    77→      font-size: 0.875rem;
+    78→      opacity: 0.9;
+    79→    }
+    80→
+    81→    .tabs-container {
+    82→      background: white;
+    83→      border-radius: 24px;
+    84→      padding: 2rem;
+    85→      margin-bottom: 2rem;
+    86→      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+    87→    }
+    88→
+    89→    .tabs {
+    90→      display: flex;
+    91→      gap: 1rem;
+    92→      margin-bottom: 2rem;
+    93→      border-bottom: 2px solid #eee;
+    94→    }
+    95→
+    96→    .tab {
+    97→      padding: 1rem 2rem;
+    98→      font-weight: 600;
+    99→      color: var(--text-muted);
+   100→      cursor: pointer;
+   101→      border: none;
+   102→      background: none;
+   103→      position: relative;
+   104→      transition: all 0.3s ease;
+   105→    }
+   106→
+   107→    .tab:hover {
+   108→      color: #667eea;
+   109→    }
+   110→
+   111→    .tab.active {
+   112→      color: #667eea;
+   113→    }
+   114→
+   115→    .tab.active::after {
+   116→      content: '';
+   117→      position: absolute;
+   118→      bottom: -2px;
+   119→      left: 0;
+   120→      right: 0;
+   121→      height: 2px;
+   122→      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+   123→    }
+   124→
+   125→    .tab-content {
+   126→      display: none;
+   127→    }
+   128→
+   129→    .tab-content.active {
+   130→      display: block;
+   131→    }
+   132→
+   133→    .question-library {
+   134→      display: grid;
+   135→      gap: 1.5rem;
+   136→    }
+   137→
+   138→    .question-card {
+   139→      background: white;
+   140→      border: 2px solid #eee;
+   141→      border-radius: 16px;
+   142→      padding: 2rem;
+   143→      cursor: pointer;
+   144→      transition: all 0.3s ease;
+   145→    }
+   146→
+   147→    .question-card:hover {
+   148→      border-color: #667eea;
+   149→      transform: translateY(-2px);
+   150→      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
+   151→    }
+   152→
+   153→    .question-category-badge {
+   154→      display: inline-block;
+   155→      padding: 0.5rem 1rem;
+   156→      border-radius: 8px;
+   157→      font-size: 0.875rem;
+   158→      font-weight: 600;
+   159→      margin-bottom: 1rem;
+   160→    }
+   161→
+   162→    .category-behavioral {
+   163→      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+   164→      color: white;
+   165→    }
+   166→
+   167→    .category-technical {
+   168→      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+   169→      color: white;
+   170→    }
+   171→
+   172→    .category-situational {
+   173→      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+   174→      color: white;
+   175→    }
+   176→
+   177→    .question-text {
+   178→      font-size: 1.125rem;
+   179→      font-weight: 600;
+   180→      color: var(--text-primary);
+   181→      margin-bottom: 1rem;
+   182→    }
+   183→
+   184→    .question-meta {
+   185→      display: flex;
+   186→      gap: 1.5rem;
+   187→      color: var(--text-muted);
+   188→      font-size: 0.875rem;
+   189→    }
+   190→
+   191→    .practice-modal {
+   192→      display: none;
+   193→      position: fixed;
+   194→      inset: 0;
+   195→      background: rgba(0, 0, 0, 0.7);
+   196→      backdrop-filter: blur(4px);
+   197→      z-index: 1000;
+   198→      align-items: center;
+   199→      justify-content: center;
+   200→      padding: 2rem;
+   201→    }
+   202→
+   203→    .practice-modal.active {
+   204→      display: flex;
+   205→    }
+   206→
+   207→    .modal-content {
+   208→      background: white;
+   209→      border-radius: 24px;
+   210→      max-width: 900px;
+   211→      width: 100%;
+   212→      max-height: 90vh;
+   213→      overflow-y: auto;
+   214→      padding: 3rem;
+   215→      position: relative;
+   216→    }
+   217→
+   218→    .modal-close {
+   219→      position: absolute;
+   220→      top: 1.5rem;
+   221→      right: 1.5rem;
+   222→      background: none;
+   223→      border: none;
+   224→      font-size: 2rem;
+   225→      cursor: pointer;
+   226→      color: var(--text-muted);
+   227→      width: 40px;
+   228→      height: 40px;
+   229→      display: flex;
+   230→      align-items: center;
+   231→      justify-content: center;
+   232→      border-radius: 50%;
+   233→      transition: all 0.2s;
+   234→    }
+   235→
+   236→    .modal-close:hover {
+   237→      background: #f5f5f5;
+   238→      color: var(--text-primary);
+   239→    }
+   240→
+   241→    .modal-question {
+   242→      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+   243→      color: white;
+   244→      padding: 2rem;
+   245→      border-radius: 16px;
+   246→      margin-bottom: 2rem;
+   247→    }
+   248→
+   249→    .modal-question h3 {
+   250→      font-size: 1.5rem;
+   251→      margin-bottom: 1rem;
+   252→    }
+   253→
+   254→    .response-area {
+   255→      margin-bottom: 2rem;
+   256→    }
+   257→
+   258→    .response-area label {
+   259→      display: block;
+   260→      font-weight: 600;
+   261→      margin-bottom: 0.75rem;
+   262→      color: var(--text-primary);
+   263→    }
+   264→
+   265→    .response-area textarea {
+   266→      width: 100%;
+   267→      min-height: 200px;
+   268→      padding: 1rem;
+   269→      border: 2px solid #eee;
+   270→      border-radius: 12px;
+   271→      font-family: 'Inter', sans-serif;
+   272→      font-size: 1rem;
+   273→      resize: vertical;
+   274→      transition: border-color 0.3s ease;
+   275→    }
+   276→
+   277→    .response-area textarea:focus {
+   278→      outline: none;
+   279→      border-color: #667eea;
+   280→    }
+   281→
+   282→    .coaching-result {
+   283→      display: none;
+   284→      animation: fadeIn 0.5s ease;
+   285→    }
+   286→
+   287→    .coaching-result.active {
+   288→      display: block;
+   289→    }
+   290→
+   291→    @keyframes fadeIn {
+   292→      from { opacity: 0; transform: translateY(20px); }
+   293→      to { opacity: 1; transform: translateY(0); }
+   294→    }
+   295→
+   296→    .score-display {
+   297→      text-align: center;
+   298→      padding: 2rem;
+   299→      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+   300→      color: white;
+   301→      border-radius: 16px;
+   302→      margin-bottom: 2rem;
+   303→    }
+   304→
+   305→    .score-value {
+   306→      font-size: 4rem;
+   307→      font-weight: 700;
+   308→    }
+   309→
+   310→    .score-label {
+   311→      font-size: 1.25rem;
+   312→      opacity: 0.9;
+   313→    }
+   314→
+   315→    .coaching-section {
+   316→      background: #f9fafb;
+   317→      border-radius: 16px;
+   318→      padding: 2rem;
+   319→      margin-bottom: 1.5rem;
+   320→    }
+   321→
+   322→    .coaching-section h4 {
+   323→      font-size: 1.25rem;
+   324→      margin-bottom: 1rem;
+   325→      color: var(--text-primary);
+   326→    }
+   327→
+   328→    .coaching-list {
+   329→      list-style: none;
+   330→      padding: 0;
+   331→    }
+   332→
+   333→    .coaching-list li {
+   334→      padding: 0.75rem 0;
+   335→      border-bottom: 1px solid #eee;
+   336→      color: var(--text-secondary);
+   337→    }
+   338→
+   339→    .coaching-list li:last-child {
+   340→      border-bottom: none;
+   341→    }
+   342→
+   343→    .improved-response {
+   344→      background: white;
+   345→      border: 2px solid #667eea;
+   346→      border-radius: 12px;
+   347→      padding: 1.5rem;
+   348→      margin-top: 1rem;
+   349→      font-style: italic;
+   350→      color: var(--text-secondary);
+   351→    }
+   352→
+   353→    .progress-chart {
+   354→      background: white;
+   355→      border-radius: 16px;
+   356→      padding: 2rem;
+   357→      margin-bottom: 2rem;
+   358→    }
+   359→
+   360→    .chart-title {
+   361→      font-size: 1.5rem;
+   362→      font-weight: 700;
+   363→      margin-bottom: 1.5rem;
+   364→      color: var(--text-primary);
+   365→    }
+   366→
+   367→    .progress-bars {
+   368→      display: flex;
+   369→      flex-direction: column;
+   370→      gap: 1.5rem;
+   371→    }
+   372→
+   373→    .progress-item {
+   374→      display: flex;
+   375→      flex-direction: column;
+   376→      gap: 0.5rem;
+   377→    }
+   378→
+   379→    .progress-label {
+   380→      display: flex;
+   381→      justify-content: space-between;
+   382→      font-weight: 600;
+   383→      color: var(--text-secondary);
+   384→    }
+   385→
+   386→    .progress-bar-container {
+   387→      height: 12px;
+   388→      background: #eee;
+   389→      border-radius: 6px;
+   390→      overflow: hidden;
+   391→    }
+   392→
+   393→    .progress-bar-fill {
+   394→      height: 100%;
+   395→      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+   396→      border-radius: 6px;
+   397→      transition: width 0.5s ease;
+   398→    }
+   399→
+   400→    .back-link {
+   401→      display: inline-flex;
+   402→      align-items: center;
+   403→      gap: 0.5rem;
+   404→      color: white;
+   405→      text-decoration: none;
+   406→      font-weight: 600;
+   407→      margin-bottom: 2rem;
+   408→      padding: 0.75rem 1.5rem;
+   409→      background: rgba(255, 255, 255, 0.2);
+   410→      backdrop-filter: blur(10px);
+   411→      border-radius: 12px;
+   412→      transition: all 0.3s ease;
+   413→    }
+   414→
+   415→    .back-link:hover {
+   416→      background: rgba(255, 255, 255, 0.3);
+   417→      transform: translateX(-4px);
+   418→    }
+   419→
+   420→    .empty-state {
+   421→      text-align: center;
+   422→      padding: 4rem 2rem;
+   423→      color: var(--text-muted);
+   424→    }
+   425→
+   426→    .empty-state-icon {
+   427→      font-size: 4rem;
+   428→      margin-bottom: 1rem;
+   429→    }
+   430→
+   431→    .practice-mode-toggle {
+   432→      display: flex;
+   433→      gap: 0.5rem;
+   434→      margin-bottom: 1.5rem;
+   435→      background: #f9fafb;
+   436→      padding: 0.5rem;
+   437→      border-radius: 12px;
+   438→    }
+   439→
+   440→    .mode-btn {
+   441→      flex: 1;
+   442→      padding: 0.75rem 1.5rem;
+   443→      border: none;
+   444→      background: transparent;
+   445→      border-radius: 8px;
+   446→      font-weight: 600;
+   447→      cursor: pointer;
+   448→      transition: all 0.3s ease;
+   449→      color: var(--text-muted);
+   450→    }
+   451→
+   452→    .mode-btn.active {
+   453→      background: white;
+   454→      color: #667eea;
+   455→      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+   456→    }
+   457→
+   458→    .video-practice-area {
+   459→      display: none;
+   460→      margin-bottom: 1.5rem;
+   461→    }
+   462→
+   463→    .video-practice-area.active {
+   464→      display: block;
+   465→    }
+   466→
+   467→    .video-preview {
+   468→      background: #000;
+   469→      border-radius: 12px;
+   470→      overflow: hidden;
+   471→      aspect-ratio: 16 / 9;
+   472→      margin-bottom: 1rem;
+   473→      position: relative;
+   474→    }
+   475→
+   476→    .video-preview video {
+   477→      width: 100%;
+   478→      height: 100%;
+   479→      object-fit: cover;
+   480→    }
+   481→
+   482→    .video-controls {
+   483→      display: flex;
+   484→      justify-content: center;
+   485→      gap: 1rem;
+   486→    }
+   487→
+   488→    .analysis-badge {
+   489→      position: absolute;
+   490→      bottom: 1rem;
+   491→      right: 1rem;
+   492→      background: rgba(0, 0, 0, 0.8);
+   493→      color: white;
+   494→      padding: 0.5rem 1rem;
+   495→      border-radius: 8px;
+   496→      font-size: 0.875rem;
+   497→      font-weight: 600;
+   498→    }
+   499→  </style>
+   500→</head>
+   501→<body>
+   502→  <div class="practice-layout">
+   503→    <div class="practice-container">
+   504→      <a href="/candidate-dashboard.html" class="back-link">
+   505→        ← Back to Dashboard
+   506→      </a>
+   507→
+   508→      <!-- Header with Stats -->
+   509→      <div class="practice-header">
+   510→        <h1>🎯 Interview Coaching</h1>
+   511→        <p>Practice with AI-powered feedback and track your progress</p>
+   512→
+   513→        <div class="stats-grid" id="stats-grid">
+   514→          <div class="stat-card">
+   515→            <span class="stat-value" id="stat-total">0</span>
+   516→            <span class="stat-label">Questions Practiced</span>
+   517→          </div>
+   518→          <div class="stat-card">
+   519→            <span class="stat-value" id="stat-avg">—</span>
+   520→            <span class="stat-label">Average Score</span>
+   521→          </div>
+   522→          <div class="stat-card">
+   523→            <span class="stat-value" id="stat-improvement">—</span>
+   524→            <span class="stat-label">Improvement</span>
+   525→          </div>
+   526→          <div class="stat-card">
+   527→            <span class="stat-value" id="stat-streak">0</span>
+   528→            <span class="stat-label">Day Streak</span>
+   529→          </div>
+   530→        </div>
+   531→      </div>
+   532→
+   533→      <!-- Tabs -->
+   534→      <div class="tabs-container">
+   535→        <div class="tabs">
+   536→          <button class="tab active" data-tab="library">📚 Question Library</button>
+   537→          <button class="tab" data-tab="progress">📊 Progress Dashboard</button>
+   538→        </div>
+   539→
+   540→        <!-- Question Library Tab -->
+   541→        <div class="tab-content active" id="library-content">
+   542→          <div class="question-library" id="question-library">
+   543→            <!-- Questions will be loaded here -->
+   544→          </div>
+   545→        </div>
+   546→
+   547→        <!-- Progress Dashboard Tab -->
+   548→        <div class="tab-content" id="progress-content">
+   549→          <div class="progress-chart">
+   550→            <h3 class="chart-title">Performance by Category</h3>
+   551→            <div class="progress-bars" id="category-progress">
+   552→              <!-- Progress bars will be loaded here -->
+   553→            </div>
+   554→          </div>
+   555→
+   556→          <div class="progress-chart">
+   557→            <h3 class="chart-title">Recent Practice Sessions</h3>
+   558→            <div id="recent-sessions">
+   559→              <!-- Recent sessions will be loaded here -->
+   560→            </div>
+   561→          </div>
+   562→        </div>
+   563→      </div>
+   564→    </div>
+   565→  </div>
+   566→
+   567→  <!-- Practice Modal -->
+   568→  <div class="practice-modal" id="practice-modal">
+   569→    <div class="modal-content">
+   570→      <button class="modal-close" onclick="closePracticeModal()">×</button>
+   571→
+   572→      <div id="practice-question-view">
+   573→        <div class="modal-question">
+   574→          <h3 id="modal-question-text">Question will appear here</h3>
+   575→          <div style="margin-top: 1rem; opacity: 0.9;">
+   576→            <span id="modal-category-badge"></span>
+   577→          </div>
+   578→        </div>
+   579→
+   580→        <!-- Practice Mode Toggle -->
+   581→        <div class="practice-mode-toggle">
+   582→          <button class="mode-btn active" data-mode="text" onclick="switchPracticeMode('text')">
+   583→            ✍️ Text Response
+   584→          </button>
+   585→          <button class="mode-btn" data-mode="video" onclick="switchPracticeMode('video')">
+   586→            🎥 Video Response
+   587→          </button>
+   588→        </div>
+   589→
+   590→        <!-- Text Response Area -->
+   591→        <div class="response-area" id="text-response-area">
+   592→          <label>Your Response</label>
+   593→          <textarea id="practice-response" placeholder="Take your time to craft a thoughtful response. Think about specific examples and use the STAR method (Situation, Task, Action, Result) for behavioral questions."></textarea>
+   594→        </div>
+   595→
+   596→        <!-- Video Response Area -->
+   597→        <div class="video-practice-area" id="video-response-area">
+   598→          <div class="video-preview">
+   599→            <video id="practice-video" autoplay muted playsinline></video>
+   600→            <div id="video-analysis-badge" class="analysis-badge" style="display: none;">
+   601→              Eye Contact: <span id="live-eye-contact">—</span>
+   602→            </div>
+   603→          </div>
+   604→          <div class="video-controls">
+   605→            <button class="btn btn-secondary" id="start-video-btn" onclick="startVideoPractice()">
+   606→              Start Camera
+   607→            </button>
+   608→            <button class="btn btn-primary" id="record-video-btn" onclick="recordVideoPractice()" style="display: none;">
+   609→              🎥 Record Response
+   610→            </button>
+   611→            <button class="btn btn-danger" id="stop-video-btn" onclick="stopVideoPractice()" style="display: none;">
+   612→              ⏹️ Stop Recording
+   613→            </button>
+   614→          </div>
+   615→        </div>
+   616→
+   617→        <button class="btn btn-primary btn-large btn-full" onclick="submitPracticeResponse()">
+   618→          Get AI Coaching
+   619→        </button>
+   620→      </div>
+   621→
+   622→      <div id="coaching-result" class="coaching-result">
+   623→        <!-- Coaching results will be shown here -->
+   624→      </div>
+   625→    </div>
+   626→  </div>
+   627→
+   628→  <!-- Loading Overlay -->
+   629→  <div class="loading-overlay" id="loading-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 2000; display: flex; align-items: center; justify-content: center;">
+   630→    <div style="background: white; padding: 2rem; border-radius: 16px; text-align: center;">
+   631→      <div class="spinner-large" style="width: 48px; height: 48px; border: 4px solid #eee; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+   632→      <p id="loading-text" style="color: var(--text-primary); font-weight: 600;">Loading...</p>
+   633→    </div>
+   634→  </div>
+   635→
+   636→  <style>
+   637→    @keyframes spin {
+   638→      to { transform: rotate(360deg); }
+   639→    }
+   640→  </style>
+   641→
+   642→  <script src="/js/main.js"></script>
+   643→  <script src="/js/video-analyzer.js"></script>
+   644→  <script src="/js/interview-practice.js"></script>
+   645→  <script>
+   646→    // Video practice mode variables
+   647→    let practiceMode = 'text';
+   648→    let videoStream = null;
+   649→    let videoRecorder = null;
+   650→    let videoAnalyzer = null;
+   651→    let recordedVideoBlob = null;
+   652→    let practiceAnalysisData = null;
+   653→
+   654→    // Switch practice mode
+   655→    function switchPracticeMode(mode) {
+   656→      practiceMode = mode;
+   657→
+   658→      // Update toggle buttons
+   659→      document.querySelectorAll('.mode-btn').forEach(btn => {
+   660→        btn.classList.remove('active');
+   661→        if (btn.dataset.mode === mode) {
+   662→          btn.classList.add('active');
+   663→        }
+   664→      });
+   665→
+   666→      // Show/hide appropriate areas
+   667→      if (mode === 'text') {
+   668→        document.getElementById('text-response-area').style.display = 'block';
+   669→        document.getElementById('video-response-area').classList.remove('active');
+   670→
+   671→        // Stop video if running
+   672→        if (videoStream) {
+   673→          videoStream.getTracks().forEach(track => track.stop());
+   674→          videoStream = null;
+   675→        }
+   676→      } else {
+   677→        document.getElementById('text-response-area').style.display = 'none';
+   678→        document.getElementById('video-response-area').classList.add('active');
+   679→      }
+   680→    }
+   681→
+   682→    // Start video practice
+   683→    async function startVideoPractice() {
+   684→      try {
+   685→        videoStream = await navigator.mediaDevices.getUserMedia({
+   686→          video: { width: 1280, height: 720 },
+   687→          audio: {
+   688→            echoCancellation: true,
+   689→            noiseSuppression: true,
+   690→            autoGainControl: true
+   691→          }
+   692→        });
+   693→
+   694→        document.getElementById('practice-video').srcObject = videoStream;
+   695→
+   696→        // Verify audio tracks
+   697→        const audioTracks = videoStream.getAudioTracks();
+   698→        if (audioTracks.length === 0) {
+   699→          console.error('No audio tracks in practice video stream');
+   700→          alert('Microphone not detected. Video will record without audio.');
+   701→        } else {
+   702→          const track = audioTracks[0];
+   703→          if (!track.enabled) track.enabled = true;
+   704→          console.log('Practice mic active:', track.label);
+   705→        }
+   706→
+   707→        // Initialize video analyzer if not already done
+   708→        if (!videoAnalyzer) {
+   709→          videoAnalyzer = new VideoAnalyzer();
+   710→          await videoAnalyzer.init();
+   711→
+   712→          videoAnalyzer.on('scores', (scores) => {
+   713→            document.getElementById('live-eye-contact').textContent = scores.eyeContact + '%';
+   714→            document.getElementById('video-analysis-badge').style.display = 'block';
+   715→          });
+   716→        }
+   717→
+   718→        document.getElementById('start-video-btn').style.display = 'none';
+   719→        document.getElementById('record-video-btn').style.display = 'inline-flex';
+   720→      } catch (err) {
+   721→        console.error('Camera/microphone error:', err);
+   722→        alert('Camera and microphone access required for video practice. Please allow both permissions.');
+   723→      }
+   724→    }
+   725→
+   726→    // Record video practice
+   727→    function recordVideoPractice() {
+   728→      try {
+   729→        // Use mimeType with both video AND audio codecs
+   730→        let mimeType = 'video/webm;codecs=vp9,opus';
+   731→        if (!MediaRecorder.isTypeSupported(mimeType)) {
+   732→          mimeType = 'video/webm;codecs=vp8,opus';
+   733→        }
+   734→        if (!MediaRecorder.isTypeSupported(mimeType)) {
+   735→          mimeType = 'video/webm';
+   736→        }
+   737→
+   738→        // Verify audio tracks before recording
+   739→        const audioTracks = videoStream.getAudioTracks();
+   740→        if (audioTracks.length === 0 || !audioTracks[0].enabled) {
+   741→          alert('Microphone is not active. Please check your mic permissions.');
+   742→          return;
+   743→        }
+   744→
+   745→        videoRecorder = new MediaRecorder(videoStream, { mimeType });
+   746→
+   747→        const chunks = [];
+   748→        videoRecorder.ondataavailable = (e) => {
+   749→          if (e.data.size > 0) chunks.push(e.data);
+   750→        };
+   751→
+   752→        videoRecorder.onstop = () => {
+   753→          recordedVideoBlob = new Blob(chunks, { type: 'video/webm' });
+   754→          practiceAnalysisData = videoAnalyzer ? videoAnalyzer.getFinalAnalysis() : null;
+   755→
+   756→          document.getElementById('record-video-btn').style.display = 'inline-flex';
+   757→          document.getElementById('stop-video-btn').style.display = 'none';
+   758→          document.getElementById('video-analysis-badge').style.display = 'none';
+   759→        };
+   760→
+   761→        videoRecorder.start();
+   762→
+   763→        if (videoAnalyzer) {
+   764→          videoAnalyzer.reset();
+   765→          videoAnalyzer.startAnalysis(document.getElementById('practice-video'), 500);
+   766→        }
+   767→
+   768→        document.getElementById('record-video-btn').style.display = 'none';
+   769→        document.getElementById('stop-video-btn').style.display = 'inline-flex';
+   770→      } catch (err) {
+   771→        console.error('Recording error:', err);
+   772→        alert('Failed to start recording.');
+   773→      }
+   774→    }
+   775→
+   776→    // Stop video practice
+   777→    function stopVideoPractice() {
+   778→      if (videoRecorder && videoRecorder.state !== 'inactive') {
+   779→        videoRecorder.stop();
+   780→
+   781→        if (videoAnalyzer) {
+   782→          videoAnalyzer.stopAnalysis();
+   783→        }
+   784→      }
+   785→    }
+   786→
+   787→    // Override submitPracticeResponse to handle video mode
+   788→    const originalSubmit = submitPracticeResponse;
+   789→    submitPracticeResponse = async function() {
+   790→      if (practiceMode === 'video') {
+   791→        if (!recordedVideoBlob) {
+   792→          alert('Please record a video response first.');
+   793→          return;
+   794→        }
+   795→
+   796→        showLoading('AI is analyzing your video response...');
+   797→
+   798→        try {
+   799→          // For now, just display coaching based on video analysis
+   800→          hideLoading();
+   801→          displayVideoPracticeCoaching();
+   802→        } catch (err) {
+   803→          hideLoading();
+   804→          alert('Failed to analyze video: ' + err.message);
+   805→        }
+   806→      } else {
+   807→        originalSubmit();
+   808→      }
+   809→    };
+   810→
+   811→    // Display video practice coaching
+   812→    function displayVideoPracticeCoaching() {
+   813→      if (!practiceAnalysisData) {
+   814→        alert('No analysis data available.');
+   815→        return;
+   816→      }
+   817→
+   818→      const scores = practiceAnalysisData.scores;
+   819→      const resultContainer = document.getElementById('coaching-result');
+   820→
+   821→      const insights = [];
+   822→
+   823→      if (scores.eyeContact >= 70) {
+   824→        insights.push('✅ Strong eye contact maintained throughout');
+   825→      } else {
+   826→        insights.push('💡 Practice looking directly at the camera lens');
+   827→      }
+   828→
+   829→      if (scores.bodyLanguage >= 70) {
+   830→        insights.push('✅ Good posture and head stability');
+   831→      } else {
+   832→        insights.push('💡 Keep your head steady and maintain good posture');
+   833→      }
+   834→
+   835→      if (scores.presentation >= 70) {
+   836→        insights.push('✅ Excellent overall video presence');
+   837→      } else {
+   838→        insights.push('💡 Practice recording yourself to improve presence');
+   839→      }
+   840→
+   841→      resultContainer.innerHTML = `
+   842→        <div class="score-display">
+   843→          <div class="score-value">${scores.presentation}/100</div>
+   844→          <div class="score-label">Presentation Score</div>
+   845→        </div>
+   846→
+   847→        <div class="coaching-section">
+   848→          <h4>📊 Video Analysis</h4>
+   849→          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 1rem;">
+   850→            <div style="text-align: center; padding: 1rem; background: white; border-radius: 12px;">
+   851→              <div style="font-size: 2rem; font-weight: 700; color: #667eea;">${scores.eyeContact}</div>
+   852→              <div style="font-size: 0.875rem; color: #64748b;">Eye Contact</div>
+   853→            </div>
+   854→            <div style="text-align: center; padding: 1rem; background: white; border-radius: 12px;">
+   855→              <div style="font-size: 2rem; font-weight: 700; color: #667eea;">${scores.bodyLanguage}</div>
+   856→              <div style="font-size: 0.875rem; color: #64748b;">Body Language</div>
+   857→            </div>
+   858→            <div style="text-align: center; padding: 1rem; background: white; border-radius: 12px;">
+   859→              <div style="font-size: 2rem; font-weight: 700; color: #667eea;">${scores.expression}</div>
+   860→              <div style="font-size: 0.875rem; color: #64748b;">Expression</div>
+   861→            </div>
+   862→          </div>
+   863→        </div>
+   864→
+   865→        <div class="coaching-section">
+   866→          <h4>💡 Key Insights</h4>
+   867→          <ul class="coaching-list">
+   868→            ${insights.map(i => `<li>${i}</li>`).join('')}
+   869→          </ul>
+   870→        </div>
+   871→
+   872→        <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+   873→          <button class="btn btn-ghost btn-large" onclick="closePracticeModal()" style="flex: 1;">
+   874→            Close
+   875→          </button>
+   876→          <button class="btn btn-primary btn-large" onclick="practiceAnother()" style="flex: 1;">
+   877→            Practice Another
+   878→          </button>
+   879→        </div>
+   880→      `;
+   881→
+   882→      document.getElementById('practice-question-view').style.display = 'none';
+   883→      resultContainer.style.display = 'block';
+   884→      resultContainer.classList.add('active');
+   885→    }
+   886→
+   887→    // Clean up video when modal closes
+   888→    const originalClose = closePracticeModal;
+   889→    closePracticeModal = function() {
+   890→      if (videoStream) {
+   891→        videoStream.getTracks().forEach(track => track.stop());
+   892→        videoStream = null;
+   893→      }
+   894→
+   895→      if (videoAnalyzer) {
+   896→        videoAnalyzer.stopAnalysis();
+   897→      }
+   898→
+   899→      recordedVideoBlob = null;
+   900→      practiceAnalysisData = null;
+   901→
+   902→      // Reset UI
+   903→      document.getElementById('start-video-btn').style.display = 'inline-flex';
+   904→      document.getElementById('record-video-btn').style.display = 'none';
+   905→      document.getElementById('stop-video-btn').style.display = 'none';
+   906→      document.getElementById('video-analysis-badge').style.display = 'none';
+   907→
+   908→      practiceMode = 'text';
+   909→      switchPracticeMode('text');
+   910→
+   911→      originalClose();
+   912→    };
+   913→  </script>
+   914→</body>
+   915→</html>
+   916→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

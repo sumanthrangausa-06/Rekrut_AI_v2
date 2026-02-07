@@ -132,6 +132,36 @@
               <textarea id="requirements" name="requirements" rows="6" placeholder="List required skills, experience, and qualifications..."></textarea>
             </div>
 
+            <!-- Screening Questions Section -->
+            <div class="screening-section">
+              <label style="font-size: 16px; font-weight: 600; margin-bottom: 12px; display: block;">
+                📋 Pre-Screening Questions
+                <span style="font-size: 13px; color: var(--text-muted); font-weight: 400; display: block; margin-top: 4px;">
+                  Ask candidates questions before they can apply. Answers are visible on each application.
+                </span>
+              </label>
+
+              <div id="screening-questions-list"></div>
+
+              <div class="add-question-area">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="addScreeningQuestion('yes_no')">+ Yes/No</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="addScreeningQuestion('select')">+ Multiple Choice</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="addScreeningQuestion('text')">+ Short Answer</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="addScreeningQuestion('number')">+ Numeric</button>
+              </div>
+
+              <div class="common-questions" style="margin-top: 12px;">
+                <span style="font-size: 12px; color: var(--text-muted);">Quick add:</span>
+                <button type="button" class="btn btn-ghost btn-xs" onclick="addCommonQuestion('work_auth')">Work Authorization</button>
+                <button type="button" class="btn btn-ghost btn-xs" onclick="addCommonQuestion('sponsorship')">Visa Sponsorship</button>
+                <button type="button" class="btn btn-ghost btn-xs" onclick="addCommonQuestion('experience')">Years of Experience</button>
+                <button type="button" class="btn btn-ghost btn-xs" onclick="addCommonQuestion('salary')">Salary Expectations</button>
+                <button type="button" class="btn btn-ghost btn-xs" onclick="addCommonQuestion('start_date')">Start Date</button>
+                <button type="button" class="btn btn-ghost btn-xs" onclick="addCommonQuestion('remote')">Remote Preference</button>
+                <button type="button" class="btn btn-ghost btn-xs" onclick="addCommonQuestion('relocation')">Willing to Relocate</button>
+              </div>
+            </div>
+
             <div class="form-actions">
               <button type="button" class="btn btn-ghost" onclick="analyzeJob()">
                 🔍 Analyze Posting
@@ -181,9 +211,125 @@
   <script src="/js/main.js"></script>
   <script>
     let currentAnalysis = null;
-
     let editMode = false;
     let editJobId = null;
+    let screeningQuestions = [];
+    let questionCounter = 0;
+
+    const COMMON_QUESTIONS = {
+      work_auth: { type: 'yes_no', question: 'Are you legally authorized to work in the United States?', required: true },
+      sponsorship: { type: 'yes_no', question: 'Will you now or in the future require visa sponsorship?', required: true },
+      experience: { type: 'number', question: 'How many years of relevant experience do you have?', required: true, placeholder: 'e.g. 5' },
+      salary: { type: 'text', question: 'What are your salary expectations for this role?', required: false, placeholder: 'e.g. $120,000 - $150,000' },
+      start_date: { type: 'text', question: 'When is the earliest you could start?', required: false, placeholder: 'e.g. 2 weeks notice' },
+      remote: { type: 'select', question: 'What is your preferred work arrangement?', required: true, options: ['On-site', 'Hybrid', 'Remote only', 'Flexible'] },
+      relocation: { type: 'yes_no', question: 'Are you willing to relocate for this position?', required: false }
+    };
+
+    function addCommonQuestion(key) {
+      const q = COMMON_QUESTIONS[key];
+      if (!q) return;
+      // Don't add duplicate common questions
+      if (screeningQuestions.some(sq => sq.question === q.question)) return;
+      screeningQuestions.push({ ...q, id: `sq_${++questionCounter}` });
+      renderScreeningQuestions();
+    }
+
+    function addScreeningQuestion(type) {
+      screeningQuestions.push({
+        id: `sq_${++questionCounter}`,
+        type,
+        question: '',
+        required: true,
+        options: type === 'select' ? ['Option 1', 'Option 2'] : undefined,
+        placeholder: type === 'number' ? 'Enter a number' : ''
+      });
+      renderScreeningQuestions();
+    }
+
+    function removeScreeningQuestion(id) {
+      screeningQuestions = screeningQuestions.filter(q => q.id !== id);
+      renderScreeningQuestions();
+    }
+
+    function renderScreeningQuestions() {
+      const container = document.getElementById('screening-questions-list');
+      if (screeningQuestions.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px; padding: 12px 0;">No screening questions added yet.</p>';
+        return;
+      }
+
+      container.innerHTML = screeningQuestions.map((q, i) => `
+        <div class="screening-question-item" data-id="${q.id}">
+          <div class="sq-header">
+            <span class="sq-number">${i + 1}</span>
+            <span class="sq-type-badge">${q.type === 'yes_no' ? 'Yes/No' : q.type === 'select' ? 'Multiple Choice' : q.type === 'number' ? 'Numeric' : 'Short Answer'}</span>
+            <label class="sq-required-toggle">
+              <input type="checkbox" ${q.required ? 'checked' : ''} onchange="toggleRequired('${q.id}', this.checked)">
+              <span>Required</span>
+            </label>
+            <button type="button" class="sq-remove" onclick="removeScreeningQuestion('${q.id}')" title="Remove">✕</button>
+          </div>
+          <input type="text" class="sq-question-input" value="${(q.question || '').replace(/"/g, '&quot;')}"
+                 placeholder="Enter your question..."
+                 onchange="updateQuestion('${q.id}', 'question', this.value)">
+          ${q.type === 'select' ? `
+            <div class="sq-options">
+              ${(q.options || []).map((opt, oi) => `
+                <div class="sq-option-row">
+                  <input type="text" value="${opt.replace(/"/g, '&quot;')}" placeholder="Option ${oi + 1}"
+                         onchange="updateOption('${q.id}', ${oi}, this.value)">
+                  <button type="button" class="sq-option-remove" onclick="removeOption('${q.id}', ${oi})">✕</button>
+                </div>
+              `).join('')}
+              <button type="button" class="btn btn-ghost btn-xs" onclick="addOption('${q.id}')">+ Add Option</button>
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+    function toggleRequired(id, val) {
+      const q = screeningQuestions.find(q => q.id === id);
+      if (q) q.required = val;
+    }
+
+    function updateQuestion(id, field, value) {
+      const q = screeningQuestions.find(q => q.id === id);
+      if (q) q[field] = value;
+    }
+
+    function updateOption(id, index, value) {
+      const q = screeningQuestions.find(q => q.id === id);
+      if (q && q.options) q.options[index] = value;
+    }
+
+    function addOption(id) {
+      const q = screeningQuestions.find(q => q.id === id);
+      if (q && q.options) {
+        q.options.push('');
+        renderScreeningQuestions();
+      }
+    }
+
+    function removeOption(id, index) {
+      const q = screeningQuestions.find(q => q.id === id);
+      if (q && q.options && q.options.length > 2) {
+        q.options.splice(index, 1);
+        renderScreeningQuestions();
+      }
+    }
+
+    function getScreeningQuestionsData() {
+      return screeningQuestions.filter(q => q.question && q.question.trim()).map(q => ({
+        id: q.id,
+        type: q.type,
+        question: q.question.trim(),
+        required: q.required,
+        options: q.options,
+        placeholder: q.placeholder
+      }));
+    }
 
     document.addEventListener('DOMContentLoaded', async () => {
       const user = await checkAuth();
@@ -201,6 +347,8 @@
       document.getElementById('user-name').textContent = name;
       document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
       document.getElementById('company-name').textContent = user.company_name || 'Company';
+
+      renderScreeningQuestions();
 
       // Check for edit mode
       const params = new URLSearchParams(window.location.search);
@@ -227,6 +375,12 @@
           document.getElementById('salary_range').value = job.salary_range || '';
           document.getElementById('description').value = job.description || '';
           document.getElementById('requirements').value = job.requirements || '';
+
+          // Load screening questions
+          if (job.screening_questions && Array.isArray(job.screening_questions)) {
+            screeningQuestions = job.screening_questions.map(q => ({ ...q, id: q.id || `sq_${++questionCounter}` }));
+            renderScreeningQuestions();
+          }
         }
       } catch (err) {
         console.error('Failed to load job for edit:', err);
@@ -253,6 +407,7 @@
         location: form.location.value,
         salary_range: form.salary_range.value,
         job_type: form.job_type.value,
+        screening_questions: getScreeningQuestionsData(),
         optimize
       };
 
@@ -810,6 +965,131 @@
     .badge.high { background: rgba(16, 185, 129, 0.2); color: #10b981; }
     .badge.medium { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
     .badge.low { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+    /* Screening Questions */
+    .screening-section {
+      margin-bottom: 24px;
+      padding: 24px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color);
+    }
+
+    .screening-question-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .sq-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .sq-number {
+      width: 24px;
+      height: 24px;
+      background: #8b5cf6;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .sq-type-badge {
+      background: rgba(139, 92, 246, 0.15);
+      color: #a78bfa;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .sq-required-toggle {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-left: auto;
+      cursor: pointer;
+    }
+
+    .sq-required-toggle input { width: 14px; height: 14px; }
+
+    .sq-remove {
+      background: none;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .sq-remove:hover { background: rgba(239, 68, 68, 0.1); }
+
+    .sq-question-input {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 14px;
+    }
+
+    .sq-options { margin-top: 10px; }
+
+    .sq-option-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .sq-option-row input {
+      flex: 1;
+      padding: 8px 12px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 13px;
+    }
+
+    .sq-option-remove {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .add-question-area {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .common-questions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .btn-xs {
+      padding: 4px 10px;
+      font-size: 11px;
+    }
 
     @media (max-width: 1200px) {
       .job-create-container {

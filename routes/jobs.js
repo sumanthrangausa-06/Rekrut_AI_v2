@@ -51,17 +51,17 @@ router.get('/:id', optionalAuth, async (req, res) => {
 // Create job (hiring managers and recruiters)
 router.post('/', authMiddleware, requireRole('hiring_manager', 'admin', 'recruiter', 'employer'), async (req, res) => {
   try {
-    const { title, company, description, requirements, location, salary_range, job_type } = req.body;
+    const { title, company, description, requirements, location, salary_range, job_type, screening_questions } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Job title is required' });
     }
 
     const result = await pool.query(
-      `INSERT INTO jobs (user_id, title, company, description, requirements, location, salary_range, job_type)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO jobs (user_id, title, company, description, requirements, location, salary_range, job_type, screening_questions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [req.user.id, title, company || req.user.company_name, description, requirements, location, salary_range, job_type]
+      [req.user.id, title, company || req.user.company_name, description, requirements, location, salary_range, job_type, JSON.stringify(screening_questions || [])]
     );
 
     // Track job post creation
@@ -84,7 +84,7 @@ router.post('/', authMiddleware, requireRole('hiring_manager', 'admin', 'recruit
 // Update job
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
-    const { title, description, requirements, location, salary_range, job_type, status } = req.body;
+    const { title, description, requirements, location, salary_range, job_type, status, screening_questions } = req.body;
 
     // Check ownership
     const existing = await pool.query('SELECT user_id FROM jobs WHERE id = $1', [req.params.id]);
@@ -104,10 +104,11 @@ router.put('/:id', authMiddleware, async (req, res) => {
         salary_range = COALESCE($5, salary_range),
         job_type = COALESCE($6, job_type),
         status = COALESCE($7, status),
+        screening_questions = COALESCE($8, screening_questions),
         updated_at = NOW()
-       WHERE id = $8
+       WHERE id = $9
        RETURNING *`,
-      [title, description, requirements, location, salary_range, job_type, status, req.params.id]
+      [title, description, requirements, location, salary_range, job_type, status, screening_questions ? JSON.stringify(screening_questions) : null, req.params.id]
     );
 
     res.json({ success: true, job: result.rows[0] });

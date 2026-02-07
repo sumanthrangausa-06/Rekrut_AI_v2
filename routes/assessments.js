@@ -36,7 +36,7 @@ router.get('/results', authMiddleware, async (req, res) => {
     const result = await pool.query(`
       SELECT sa.*, cs.skill_name, cs.category,
              ass.tab_switches, ass.copy_paste_attempts, ass.time_anomalies,
-             ass.max_difficulty_reached
+             ass.max_difficulty_reached, ass.answers_given
       FROM skill_assessments sa
       LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
       LEFT JOIN assessment_sessions ass ON sa.session_id = ass.id
