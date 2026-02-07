@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams, Link, useNavigate } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { apiCall } from '@/lib/api'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select } from '@/components/ui/select'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  FileText, Users, Star, Calendar, MessageSquare, Eye, ChevronDown,
-  GraduationCap, CheckCircle, Gift,
+  FileText, Users, Star, Calendar, MessageSquare, Eye,
+  GraduationCap, Gift, Briefcase, Filter, X,
 } from 'lucide-react'
 
 interface Application {
@@ -35,6 +35,13 @@ interface Application {
   completed_interviews?: number
 }
 
+interface Job {
+  id: number
+  title: string
+  status: string
+  application_count?: number
+}
+
 const statuses = ['applied', 'reviewing', 'shortlisted', 'interviewed', 'offered', 'hired', 'rejected']
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' }> = {
@@ -48,9 +55,10 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
 }
 
 export function RecruiterApplicationsPage() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const [applications, setApplications] = useState<Application[]>([])
+  const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
   const [selected, setSelected] = useState<Application | null>(null)
@@ -60,15 +68,26 @@ export function RecruiterApplicationsPage() {
   const jobFilter = searchParams.get('job') || ''
 
   useEffect(() => {
-    loadApplications()
+    loadData()
   }, [jobFilter])
 
-  async function loadApplications() {
+  async function loadData() {
     try {
-      let url = '/recruiter/applications?limit=200'
-      if (jobFilter) url += `&job_id=${jobFilter}`
-      const data = await apiCall<{ applications: Application[] }>(url)
-      setApplications(data.applications || [])
+      const [appsPromise, jobsPromise] = await Promise.allSettled([
+        (async () => {
+          let url = '/recruiter/applications?limit=200'
+          if (jobFilter) url += `&job_id=${jobFilter}`
+          return apiCall<{ applications: Application[] }>(url)
+        })(),
+        apiCall<{ jobs: Job[] }>('/recruiter/jobs'),
+      ])
+
+      if (appsPromise.status === 'fulfilled') {
+        setApplications(appsPromise.value.applications || [])
+      }
+      if (jobsPromise.status === 'fulfilled') {
+        setJobs(jobsPromise.value.jobs || [])
+      }
     } catch {
       // silent
     } finally {
@@ -83,7 +102,10 @@ export function RecruiterApplicationsPage() {
         method: 'PUT',
         body: { status: newStatus, recruiter_notes: notes || undefined },
       })
-      loadApplications()
+      // Update local state
+      setApplications(prev =>
+        prev.map(a => a.id === appId ? { ...a, status: newStatus } : a)
+      )
       if (selected?.id === appId) {
         setSelected(prev => prev ? { ...prev, status: newStatus } : null)
       }
@@ -91,6 +113,32 @@ export function RecruiterApplicationsPage() {
       // silent
     } finally {
       setUpdating(false)
+    }
+  }
+
+  async function saveNotes() {
+    if (!selected) return
+    setUpdating(true)
+    try {
+      await apiCall(`/recruiter/applications/${selected.id}`, {
+        method: 'PUT',
+        body: { recruiter_notes: notes },
+      })
+      setApplications(prev =>
+        prev.map(a => a.id === selected.id ? { ...a, recruiter_notes: notes } : a)
+      )
+    } catch {
+      // silent
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  function setJobFilter(jId: string) {
+    if (jId) {
+      setSearchParams({ job: jId }, { replace: true })
+    } else {
+      setSearchParams({}, { replace: true })
     }
   }
 
@@ -102,6 +150,8 @@ export function RecruiterApplicationsPage() {
     return acc
   }, {} as Record<string, number>)
 
+  const selectedJob = jobs.find(j => j.id === Number(jobFilter))
+
   function openDetail(app: Application) {
     setSelected(app)
     setNotes(app.recruiter_notes || '')
@@ -109,12 +159,78 @@ export function RecruiterApplicationsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-heading text-2xl font-bold">Applications</h1>
-        <p className="text-muted-foreground">
-          Review and manage candidate applications
-          {jobFilter && <span className="text-primary"> (filtered by job)</span>}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-heading text-2xl font-bold">Applications</h1>
+          <p className="text-muted-foreground">
+            Review and manage candidate applications
+          </p>
+        </div>
+        {/* Job filter dropdown */}
+        <div className="shrink-0 w-56">
+          <Select
+            value={jobFilter}
+            onChange={e => setJobFilter(e.target.value)}
+            className="text-sm"
+          >
+            <option value="">All Jobs</option>
+            {jobs.map(j => (
+              <option key={j.id} value={j.id}>{j.title}</option>
+            ))}
+          </Select>
+        </div>
+      </div>
+
+      {/* Active job filter banner */}
+      {jobFilter && selectedJob && (
+        <div className="flex items-center gap-2 rounded-lg bg-primary/5 border border-primary/20 px-4 py-2">
+          <Briefcase className="h-4 w-4 text-primary" />
+          <span className="text-sm">
+            Showing applications for: <strong>{selectedJob.title}</strong>
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setJobFilter('')}
+            className="ml-auto gap-1 h-7"
+          >
+            <X className="h-3 w-3" /> Clear
+          </Button>
+        </div>
+      )}
+
+      {/* Stats */}
+      <div className="grid gap-3 sm:grid-cols-4">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold">{applications.length}</p>
+            <p className="text-xs text-muted-foreground">Total</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-blue-600">
+              {applications.filter(a => a.status === 'applied').length}
+            </p>
+            <p className="text-xs text-muted-foreground">New</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-amber-600">
+              {applications.filter(a => ['reviewing', 'shortlisted', 'interviewed'].includes(a.status)).length}
+            </p>
+            <p className="text-xs text-muted-foreground">In Pipeline</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-emerald-600">
+              {applications.filter(a => ['offered', 'hired'].includes(a.status)).length}
+            </p>
+            <p className="text-xs text-muted-foreground">Offered / Hired</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Status filter pills */}
@@ -148,7 +264,9 @@ export function RecruiterApplicationsPage() {
         <Card>
           <CardContent className="py-16 text-center">
             <FileText className="mx-auto mb-3 h-10 w-10 opacity-30" />
-            <p className="text-muted-foreground">No applications found</p>
+            <p className="text-muted-foreground">
+              {applications.length === 0 ? 'No applications yet' : 'No applications match this filter'}
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -169,7 +287,10 @@ export function RecruiterApplicationsPage() {
                         <Badge variant={config.variant}>{config.label}</Badge>
                       </div>
                       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                        <span>{app.job_title}</span>
+                        <span className="flex items-center gap-1">
+                          <Briefcase className="h-3 w-3" />
+                          {app.job_title}
+                        </span>
                         <span>{app.candidate_email}</span>
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
@@ -241,7 +362,7 @@ export function RecruiterApplicationsPage() {
             {selected.cover_letter && (
               <div>
                 <h4 className="font-medium text-sm mb-1">Cover Letter</h4>
-                <div className="rounded-lg bg-muted/50 p-3 text-sm whitespace-pre-wrap">
+                <div className="rounded-lg bg-muted/50 p-3 text-sm whitespace-pre-wrap max-h-40 overflow-y-auto">
                   {selected.cover_letter}
                 </div>
               </div>
@@ -312,7 +433,7 @@ export function RecruiterApplicationsPage() {
               />
             </div>
 
-            {/* Status change */}
+            {/* Status change + actions */}
             <div className="flex items-center gap-3 pt-2">
               <span className="text-sm font-medium">Status:</span>
               <Select
@@ -327,8 +448,9 @@ export function RecruiterApplicationsPage() {
               </Select>
               <Button
                 size="sm"
+                variant="outline"
                 onClick={() => {
-                  updateStatus(selected.id, selected.status)
+                  saveNotes()
                   setSelected(null)
                 }}
                 disabled={updating}

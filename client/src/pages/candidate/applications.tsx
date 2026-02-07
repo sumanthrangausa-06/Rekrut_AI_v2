@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiCall } from '@/lib/api'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import {
-  FileText, Building2, MapPin, Calendar, Clock, ExternalLink,
+  FileText, Building2, MapPin, Calendar, ExternalLink, XCircle, AlertTriangle,
+  Clock, CheckCircle, Briefcase, DollarSign, Filter,
 } from 'lucide-react'
 
 interface Application {
@@ -37,6 +39,10 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
 export function CandidateApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([])
   const [loading, setLoading] = useState(true)
+  const [statusFilter, setStatusFilter] = useState('')
+  const [withdrawTarget, setWithdrawTarget] = useState<Application | null>(null)
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [selectedApp, setSelectedApp] = useState<Application | null>(null)
 
   useEffect(() => {
     loadApplications()
@@ -53,6 +59,26 @@ export function CandidateApplicationsPage() {
     }
   }
 
+  async function withdrawApplication() {
+    if (!withdrawTarget) return
+    setWithdrawing(true)
+    try {
+      await apiCall(`/candidate/applications/${withdrawTarget.id}/withdraw`, {
+        method: 'PUT',
+      })
+      // Update local state
+      setApplications(prev =>
+        prev.map(a => a.id === withdrawTarget.id ? { ...a, status: 'withdrawn' } : a)
+      )
+      setWithdrawTarget(null)
+      setSelectedApp(null)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to withdraw application')
+    } finally {
+      setWithdrawing(false)
+    }
+  }
+
   function timeAgo(dateStr: string) {
     const diff = Date.now() - new Date(dateStr).getTime()
     const days = Math.floor(diff / 86400000)
@@ -63,19 +89,27 @@ export function CandidateApplicationsPage() {
     return `${Math.floor(days / 30)} months ago`
   }
 
+  const statuses = ['applied', 'reviewing', 'shortlisted', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn']
+  const statusCounts = statuses.reduce((acc, s) => {
+    acc[s] = applications.filter(a => a.status === s).length
+    return acc
+  }, {} as Record<string, number>)
+
+  const filtered = applications.filter(a => !statusFilter || a.status === statusFilter)
+
   // Group by status
-  const active = applications.filter(a => !['rejected', 'withdrawn', 'hired'].includes(a.status))
-  const completed = applications.filter(a => ['rejected', 'withdrawn', 'hired'].includes(a.status))
+  const active = filtered.filter(a => !['rejected', 'withdrawn', 'hired'].includes(a.status))
+  const completed = filtered.filter(a => ['rejected', 'withdrawn', 'hired'].includes(a.status))
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="font-heading text-2xl font-bold">My Applications</h1>
-        <p className="text-muted-foreground">Track your job application status</p>
+        <p className="text-muted-foreground">Track your job application status and manage active applications</p>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-4">
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-bold">{applications.length}</p>
@@ -84,8 +118,18 @@ export function CandidateApplicationsPage() {
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-blue-600">{active.length}</p>
+            <p className="text-2xl font-bold text-blue-600">
+              {applications.filter(a => !['rejected', 'withdrawn', 'hired'].includes(a.status)).length}
+            </p>
             <p className="text-xs text-muted-foreground">Active</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-amber-600">
+              {applications.filter(a => ['reviewing', 'interviewed'].includes(a.status)).length}
+            </p>
+            <p className="text-xs text-muted-foreground">In Progress</p>
           </CardContent>
         </Card>
         <Card>
@@ -96,6 +140,29 @@ export function CandidateApplicationsPage() {
             <p className="text-xs text-muted-foreground">Offers / Hired</p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Status filter pills */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={!statusFilter ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setStatusFilter('')}
+        >
+          All ({applications.length})
+        </Button>
+        {statuses.map(s => (
+          statusCounts[s] > 0 ? (
+            <Button
+              key={s}
+              variant={statusFilter === s ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter(s)}
+            >
+              {statusConfig[s]?.label || s} ({statusCounts[s]})
+            </Button>
+          ) : null
+        ))}
       </div>
 
       {loading ? (
@@ -112,6 +179,13 @@ export function CandidateApplicationsPage() {
             </Link>
           </CardContent>
         </Card>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <CardContent className="py-16 text-center">
+            <Filter className="mx-auto mb-3 h-10 w-10 opacity-30" />
+            <p className="text-muted-foreground">No applications match this filter</p>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-6">
           {active.length > 0 && (
@@ -119,7 +193,13 @@ export function CandidateApplicationsPage() {
               <h2 className="font-medium text-sm text-muted-foreground mb-3">Active Applications ({active.length})</h2>
               <div className="space-y-3">
                 {active.map(app => (
-                  <ApplicationCard key={app.id} app={app} timeAgo={timeAgo} />
+                  <ApplicationCard
+                    key={app.id}
+                    app={app}
+                    timeAgo={timeAgo}
+                    onWithdraw={() => setWithdrawTarget(app)}
+                    onClick={() => setSelectedApp(app)}
+                  />
                 ))}
               </div>
             </div>
@@ -130,21 +210,208 @@ export function CandidateApplicationsPage() {
               <h2 className="font-medium text-sm text-muted-foreground mb-3">Completed ({completed.length})</h2>
               <div className="space-y-3">
                 {completed.map(app => (
-                  <ApplicationCard key={app.id} app={app} timeAgo={timeAgo} />
+                  <ApplicationCard
+                    key={app.id}
+                    app={app}
+                    timeAgo={timeAgo}
+                    onClick={() => setSelectedApp(app)}
+                  />
                 ))}
               </div>
             </div>
           )}
         </div>
       )}
+
+      {/* Application detail dialog */}
+      {selectedApp && (
+        <Dialog open={true} onClose={() => setSelectedApp(null)} className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{selectedApp.title}</DialogTitle>
+            <DialogDescription>
+              {selectedApp.company || selectedApp.posted_by_company || 'Company'}
+              {selectedApp.location ? ` • ${selectedApp.location}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Status */}
+            {(() => {
+              const config = statusConfig[selectedApp.status] || { label: selectedApp.status, variant: 'secondary' as const }
+              return <Badge variant={config.variant} className="w-fit">{config.label}</Badge>
+            })()}
+
+            {/* Details grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Calendar className="h-3 w-3" /> Applied
+                </p>
+                <p className="font-medium">{new Date(selectedApp.applied_at).toLocaleDateString()}</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Clock className="h-3 w-3" /> Last Update
+                </p>
+                <p className="font-medium">{timeAgo(selectedApp.updated_at)}</p>
+              </div>
+              {selectedApp.salary_range && (
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <DollarSign className="h-3 w-3" /> Salary
+                  </p>
+                  <p className="font-medium">{selectedApp.salary_range}</p>
+                </div>
+              )}
+              {selectedApp.match_score && (
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <p className="text-xs text-muted-foreground">Match Score</p>
+                  <p className="font-medium text-primary">{selectedApp.match_score}%</p>
+                </div>
+              )}
+            </div>
+
+            {/* Progress timeline */}
+            <ApplicationTimeline status={selectedApp.status} />
+
+            {/* Cover letter */}
+            {selectedApp.cover_letter && (
+              <div>
+                <h4 className="font-medium text-sm mb-1">Your Cover Letter</h4>
+                <div className="rounded-lg bg-muted/50 p-3 text-sm whitespace-pre-wrap max-h-40 overflow-y-auto">
+                  {selectedApp.cover_letter}
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-2">
+              <Link to={`/candidate/jobs/${selectedApp.job_id}`} className="flex-1">
+                <Button variant="outline" className="gap-2 w-full">
+                  <ExternalLink className="h-4 w-4" /> View Job
+                </Button>
+              </Link>
+              {!['rejected', 'withdrawn', 'hired'].includes(selectedApp.status) && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedApp(null)
+                    setWithdrawTarget(selectedApp)
+                  }}
+                  className="gap-2 text-destructive hover:text-destructive"
+                >
+                  <XCircle className="h-4 w-4" /> Withdraw
+                </Button>
+              )}
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      {/* Withdraw confirmation dialog */}
+      {withdrawTarget && (
+        <Dialog open={true} onClose={() => !withdrawing && setWithdrawTarget(null)} className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Withdraw Application?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to withdraw your application for{' '}
+              <strong>{withdrawTarget.title}</strong> at{' '}
+              <strong>{withdrawTarget.company || withdrawTarget.posted_by_company || 'this company'}</strong>?
+            </p>
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+              This action cannot be undone. You may need to reapply if you change your mind.
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setWithdrawTarget(null)}
+                disabled={withdrawing}
+                className="flex-1"
+              >
+                Keep Application
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={withdrawApplication}
+                disabled={withdrawing}
+                className="gap-2 flex-1"
+              >
+                {withdrawing ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                ) : (
+                  <XCircle className="h-4 w-4" />
+                )}
+                Withdraw
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
     </div>
   )
 }
 
-function ApplicationCard({ app, timeAgo }: { app: Application; timeAgo: (d: string) => string }) {
+function ApplicationTimeline({ status }: { status: string }) {
+  const steps = [
+    { key: 'applied', label: 'Applied', icon: FileText },
+    { key: 'reviewing', label: 'Review', icon: Clock },
+    { key: 'interviewed', label: 'Interview', icon: Briefcase },
+    { key: 'offered', label: 'Offer', icon: CheckCircle },
+  ]
+
+  const stepIndex = {
+    applied: 0, reviewing: 1, shortlisted: 1, interviewed: 2,
+    offered: 3, hired: 4, rejected: -1, withdrawn: -1,
+  }[status] ?? 0
+
+  if (stepIndex < 0) return null
+
+  return (
+    <div>
+      <h4 className="font-medium text-sm mb-3">Progress</h4>
+      <div className="flex items-center gap-1">
+        {steps.map((step, i) => {
+          const isComplete = i <= stepIndex
+          const Icon = step.icon
+          return (
+            <div key={step.key} className="flex items-center gap-1 flex-1">
+              <div className={`flex items-center gap-1.5 ${isComplete ? 'text-primary' : 'text-muted-foreground/50'}`}>
+                <div className={`flex h-7 w-7 items-center justify-center rounded-full border-2 ${
+                  isComplete ? 'border-primary bg-primary/10' : 'border-muted'
+                }`}>
+                  <Icon className="h-3.5 w-3.5" />
+                </div>
+                <span className="text-[11px] font-medium hidden sm:inline">{step.label}</span>
+              </div>
+              {i < steps.length - 1 && (
+                <div className={`h-0.5 flex-1 mx-1 ${i < stepIndex ? 'bg-primary' : 'bg-muted'}`} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ApplicationCard({
+  app,
+  timeAgo,
+  onWithdraw,
+  onClick,
+}: {
+  app: Application
+  timeAgo: (d: string) => string
+  onWithdraw?: () => void
+  onClick?: () => void
+}) {
   const config = statusConfig[app.status] || { label: app.status, variant: 'secondary' as const }
 
-  // Build timeline steps
+  // Progress steps
   const steps = ['Applied', 'Reviewing', 'Interview', 'Offer']
   const currentStep = {
     applied: 0, reviewing: 1, shortlisted: 1, interviewed: 2,
@@ -152,7 +419,10 @@ function ApplicationCard({ app, timeAgo }: { app: Application; timeAgo: (d: stri
   }[app.status] ?? 0
 
   return (
-    <Card>
+    <Card
+      className="cursor-pointer transition-shadow hover:shadow-md"
+      onClick={onClick}
+    >
       <CardContent className="p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
@@ -175,6 +445,12 @@ function ApplicationCard({ app, timeAgo }: { app: Application; timeAgo: (d: stri
                 <Calendar className="h-3.5 w-3.5" />
                 Applied {timeAgo(app.applied_at)}
               </span>
+              {app.salary_range && (
+                <span className="flex items-center gap-1">
+                  <DollarSign className="h-3.5 w-3.5" />
+                  {app.salary_range}
+                </span>
+              )}
             </div>
 
             {/* Progress timeline */}
@@ -194,11 +470,29 @@ function ApplicationCard({ app, timeAgo }: { app: Application; timeAgo: (d: stri
               </div>
             )}
           </div>
-          <Link to={`/candidate/jobs/${app.job_id}`}>
-            <Button variant="ghost" size="sm" className="gap-1 shrink-0">
-              View Job <ExternalLink className="h-3 w-3" />
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2 shrink-0">
+            {onWithdraw && !['rejected', 'withdrawn', 'hired'].includes(app.status) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={e => {
+                  e.stopPropagation()
+                  onWithdraw()
+                }}
+                className="gap-1 text-muted-foreground hover:text-destructive"
+              >
+                <XCircle className="h-3.5 w-3.5" /> Withdraw
+              </Button>
+            )}
+            <Link
+              to={`/candidate/jobs/${app.job_id}`}
+              onClick={e => e.stopPropagation()}
+            >
+              <Button variant="ghost" size="sm" className="gap-1 shrink-0">
+                View Job <ExternalLink className="h-3 w-3" />
+              </Button>
+            </Link>
+          </div>
         </div>
       </CardContent>
     </Card>
