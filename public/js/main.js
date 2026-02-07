@@ -2,6 +2,7 @@
 
 // Auth state
 let currentUser = null;
+let _checkAuthPromise = null; // Prevent race conditions with double checkAuth() calls
 const TOKEN_KEY = 'rekrutai_token';
 const REFRESH_KEY = 'rekrutai_refresh';
 
@@ -52,7 +53,20 @@ async function refreshAccessToken() {
 }
 
 // Check auth status on page load
+// Uses a promise guard to prevent race conditions when called from multiple DOMContentLoaded handlers
 async function checkAuth() {
+  // If already running, return the existing promise (prevents double token refresh)
+  if (_checkAuthPromise) return _checkAuthPromise;
+
+  _checkAuthPromise = _doCheckAuth();
+  try {
+    return await _checkAuthPromise;
+  } finally {
+    _checkAuthPromise = null;
+  }
+}
+
+async function _doCheckAuth() {
   // Handle OAuth callback first
   handleOAuthCallback();
 
@@ -75,7 +89,9 @@ async function checkAuth() {
     if (response.status === 401) {
       const newToken = await refreshAccessToken();
       if (newToken) {
-        return await checkAuth(); // Retry with new token
+        // Retry with new token (reset promise guard for retry)
+        _checkAuthPromise = null;
+        return await checkAuth();
       }
     }
   } catch (err) {

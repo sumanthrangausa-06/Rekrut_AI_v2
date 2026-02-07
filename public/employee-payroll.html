@@ -420,8 +420,9 @@
     }
 
     // Load data on page load
-    document.addEventListener('DOMContentLoaded', () => {
-      if (!getToken()) {
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await checkAuth();
+      if (!user) {
         window.location.href = '/login.html';
         return;
       }

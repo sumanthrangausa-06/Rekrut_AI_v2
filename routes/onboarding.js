@@ -169,6 +169,35 @@ router.post('/offers/:id/accept', authMiddleware, async (req, res) => {
       ]
     );
 
+    // Auto-create employee record for payroll (bridges hiring → payroll pipeline)
+    try {
+      const empNum = 'EMP-' + String(offer.candidate_id).padStart(4, '0');
+      const empResult = await pool.query(`
+        INSERT INTO employees (user_id, employer_id, company_id, employee_number, position, employment_type, start_date, status)
+        VALUES ($1, $2, $3, $4, $5, 'full-time', $6, 'active')
+        ON CONFLICT DO NOTHING
+        RETURNING id
+      `, [
+        offer.candidate_id,
+        offer.recruiter_id,
+        offer.company_id,
+        empNum,
+        offer.title,
+        offer.start_date || new Date()
+      ]);
+
+      if (empResult.rows.length > 0) {
+        const annualSalary = parseFloat(offer.salary || 50000);
+        await pool.query(`
+          INSERT INTO payroll_configs (employee_id, salary_type, salary_amount, pay_frequency, payment_method, tax_filing_status)
+          VALUES ($1, 'salary', $2, 'bi-weekly', 'direct_deposit', 'single')
+          ON CONFLICT (employee_id) DO NOTHING
+        `, [empResult.rows[0].id, annualSalary]);
+      }
+    } catch (empErr) {
+      console.error('Auto-create employee record failed (non-blocking):', empErr.message);
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error accepting offer:', err);

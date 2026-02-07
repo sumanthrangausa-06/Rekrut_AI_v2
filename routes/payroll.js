@@ -4,14 +4,24 @@ const pool = require('../lib/db');
 const { authMiddleware, requireRole } = require('../lib/auth');
 const payrollCalculator = require('../services/payroll-calculator');
 
+// Helper: get company_id for the current user (works for any recruiter/hiring_manager in same company)
+function getCompanyId(user) {
+  return user.company_id || null;
+}
+
 // ============== EMPLOYER ENDPOINTS ==============
 
 /**
  * GET /api/payroll/employees
- * Get all employees for the employer's payroll
+ * Get all employees for the company's payroll
  */
 router.get('/employees', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
   try {
+    const companyId = getCompanyId(req.user);
+    if (!companyId) {
+      return res.status(400).json({ error: 'No company associated with your account. Please contact support.' });
+    }
+
     const result = await pool.query(`
       SELECT
         e.*,
@@ -24,9 +34,9 @@ router.get('/employees', authMiddleware, requireRole('employer', 'recruiter', 'h
       FROM employees e
       LEFT JOIN users u ON e.user_id = u.id
       LEFT JOIN payroll_configs pc ON e.id = pc.employee_id
-      WHERE e.employer_id = $1 AND e.status = 'active'
+      WHERE e.company_id = $1 AND e.status = 'active'
       ORDER BY u.name
-    `, [req.user.id]);
+    `, [companyId]);
 
     res.json({ employees: result.rows });
   } catch (err) {
@@ -43,6 +53,7 @@ router.post('/employees/:employeeId/onboard', authMiddleware, requireRole('emplo
   const client = await pool.connect();
   try {
     const { employeeId } = req.params;
+    const companyId = getCompanyId(req.user);
     const {
       salary_type,
       salary_amount,
@@ -57,10 +68,10 @@ router.post('/employees/:employeeId/onboard', authMiddleware, requireRole('emplo
 
     await client.query('BEGIN');
 
-    // Verify employee belongs to this employer
+    // Verify employee belongs to this company
     const empCheck = await client.query(
-      'SELECT id FROM employees WHERE id = $1 AND employer_id = $2',
-      [employeeId, req.user.id]
+      'SELECT id FROM employees WHERE id = $1 AND company_id = $2',
+      [employeeId, companyId]
     );
 
     if (empCheck.rows.length === 0) {
@@ -107,48 +118,58 @@ router.post('/employees/:employeeId/onboard', authMiddleware, requireRole('emplo
 
 /**
  * GET /api/payroll/dashboard
- * Get payroll dashboard overview for employer
+ * Get payroll dashboard overview for the company
  */
 router.get('/dashboard', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
   try {
-    // Get active employees count
+    const companyId = getCompanyId(req.user);
+    if (!companyId) {
+      return res.json({
+        activeEmployees: 0,
+        upcomingPayrolls: [],
+        recentPayrolls: [],
+        monthlyTotal: 0
+      });
+    }
+
+    // Get active employees count (by company_id)
     const employeesResult = await pool.query(
-      'SELECT COUNT(*) as count FROM employees WHERE employer_id = $1 AND status = $2',
-      [req.user.id, 'active']
+      'SELECT COUNT(*) as count FROM employees WHERE company_id = $1 AND status = $2',
+      [companyId, 'active']
     );
 
-    // Get upcoming payroll runs
+    // Get upcoming payroll runs (by company_id via employer's company)
     const upcomingResult = await pool.query(`
       SELECT pr.*, COUNT(pc.id) as employee_count
       FROM payroll_runs pr
       LEFT JOIN paychecks pc ON pr.id = pc.payroll_run_id
-      WHERE pr.employer_id = $1
+      WHERE pr.company_id = $1
         AND pr.pay_date >= CURRENT_DATE
         AND pr.status != 'cancelled'
       GROUP BY pr.id
       ORDER BY pr.pay_date ASC
       LIMIT 3
-    `, [req.user.id]);
+    `, [companyId]);
 
     // Get recent payroll history
     const recentResult = await pool.query(`
       SELECT pr.*, COUNT(pc.id) as employee_count
       FROM payroll_runs pr
       LEFT JOIN paychecks pc ON pr.id = pc.payroll_run_id
-      WHERE pr.employer_id = $1 AND pr.status = 'completed'
+      WHERE pr.company_id = $1 AND pr.status = 'completed'
       GROUP BY pr.id
       ORDER BY pr.pay_date DESC
       LIMIT 5
-    `, [req.user.id]);
+    `, [companyId]);
 
     // Get monthly total
     const monthlyResult = await pool.query(`
       SELECT COALESCE(SUM(total_net), 0) as total
       FROM payroll_runs
-      WHERE employer_id = $1
+      WHERE company_id = $1
         AND status = 'completed'
         AND pay_date >= DATE_TRUNC('month', CURRENT_DATE)
-    `, [req.user.id]);
+    `, [companyId]);
 
     res.json({
       activeEmployees: parseInt(employeesResult.rows[0].count),
@@ -169,29 +190,34 @@ router.get('/dashboard', authMiddleware, requireRole('employer', 'recruiter', 'h
 router.post('/runs', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
   const client = await pool.connect();
   try {
+    const companyId = getCompanyId(req.user);
+    if (!companyId) {
+      return res.status(400).json({ error: 'No company associated with your account' });
+    }
+
     const { pay_period_start, pay_period_end, pay_date } = req.body;
 
     await client.query('BEGIN');
 
-    // Create payroll run
+    // Create payroll run with company_id
     const runResult = await client.query(`
       INSERT INTO payroll_runs (
-        employer_id, pay_period_start, pay_period_end, pay_date, status
+        employer_id, company_id, pay_period_start, pay_period_end, pay_date, status
       )
-      VALUES ($1, $2, $3, $4, 'draft')
+      VALUES ($1, $2, $3, $4, $5, 'draft')
       RETURNING *
-    `, [req.user.id, pay_period_start, pay_period_end, pay_date]);
+    `, [req.user.id, companyId, pay_period_start, pay_period_end, pay_date]);
 
     const payrollRun = runResult.rows[0];
 
-    // Get all active employees with payroll configs
+    // Get all active employees with payroll configs (by company_id)
     const employeesResult = await client.query(`
       SELECT e.*, u.name, pc.*
       FROM employees e
       JOIN users u ON e.user_id = u.id
       JOIN payroll_configs pc ON e.id = pc.employee_id
-      WHERE e.employer_id = $1 AND e.status = 'active'
-    `, [req.user.id]);
+      WHERE e.company_id = $1 AND e.status = 'active'
+    `, [companyId]);
 
     let totalGross = 0;
     let totalNet = 0;
@@ -213,7 +239,7 @@ router.post('/runs', authMiddleware, requireRole('employer', 'recruiter', 'hirin
       const paycheck = payrollCalculator.calculatePaycheck(
         emp,
         emp,
-        emp.salary_type === 'hourly' ? 80 : null, // Default 80 hours for hourly
+        emp.salary_type === 'hourly' ? 80 : null,
         ytdGross
       );
 
@@ -266,11 +292,12 @@ router.post('/runs', authMiddleware, requireRole('employer', 'recruiter', 'hirin
 router.get('/runs/:runId', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
   try {
     const { runId } = req.params;
+    const companyId = getCompanyId(req.user);
 
-    // Get payroll run
+    // Get payroll run (by company_id)
     const runResult = await pool.query(
-      'SELECT * FROM payroll_runs WHERE id = $1 AND employer_id = $2',
-      [runId, req.user.id]
+      'SELECT * FROM payroll_runs WHERE id = $1 AND company_id = $2',
+      [runId, companyId]
     );
 
     if (runResult.rows.length === 0) {
@@ -305,15 +332,22 @@ router.post('/runs/:runId/process', authMiddleware, requireRole('employer', 'rec
   const client = await pool.connect();
   try {
     const { runId } = req.params;
+    const companyId = getCompanyId(req.user);
 
     await client.query('BEGIN');
 
-    // Update payroll run status
-    await client.query(`
+    // Update payroll run status (by company_id)
+    const updateResult = await client.query(`
       UPDATE payroll_runs
       SET status = 'completed', processed_at = NOW(), processed_by = $1, updated_at = NOW()
-      WHERE id = $2 AND employer_id = $3 AND status = 'draft'
-    `, [req.user.id, runId, req.user.id]);
+      WHERE id = $2 AND company_id = $3 AND status = 'draft'
+      RETURNING id
+    `, [req.user.id, runId, companyId]);
+
+    if (updateResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Payroll run not found or already processed' });
+    }
 
     // Update all paychecks in this run
     await client.query(`
