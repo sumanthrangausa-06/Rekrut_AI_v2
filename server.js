@@ -3,6 +3,7 @@ const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const pool = require('./lib/db');
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
@@ -34,9 +35,6 @@ app.use(session({
   saveUninitialized: false,
   cookie: { secure: process.env.NODE_ENV === 'production', maxAge: 7 * 24 * 60 * 60 * 1000 }
 }));
-
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
 
 // API Routes - Candidate side
 app.use('/api/auth', authRoutes);
@@ -74,12 +72,31 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// SPA fallback for client-side routing
-app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-  }
-});
+// Determine which frontend to serve
+const reactBuildPath = path.join(__dirname, 'client', 'dist');
+const legacyPublicPath = path.join(__dirname, 'public');
+const useReactApp = fs.existsSync(path.join(reactBuildPath, 'index.html'));
+
+if (useReactApp) {
+  console.log('[server] Serving React SPA from client/dist');
+  app.use(express.static(reactBuildPath));
+
+  // SPA fallback - serve index.html for all non-API routes
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(reactBuildPath, 'index.html'));
+    }
+  });
+} else {
+  console.log('[server] React build not found, serving legacy public/');
+  app.use(express.static(legacyPublicPath));
+
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(legacyPublicPath, 'index.html'));
+    }
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`HireLoop running on port ${PORT}`);

@@ -4,3 +4,6 @@ node_modules/
 
 # Polsia test fixtures (auto-injected, do not commit)
 test-fixtures/
+
+# Client build is committed for deployment
+# client/node_modules/ is excluded via top-level node_modules/ rule
