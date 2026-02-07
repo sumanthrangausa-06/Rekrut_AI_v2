@@ -1,0 +1,37 @@
+[
+  {
+    "content": "Set up React + Vite + TypeScript client foundation",
+    "status": "completed",
+    "activeForm": "Setting up React + Vite + TypeScript client foundation"
+  },
+  {
+    "content": "Configure Tailwind CSS + shadcn/ui components",
+    "status": "completed",
+    "activeForm": "Configuring Tailwind CSS + shadcn/ui components"
+  },
+  {
+    "content": "Build auth system (context, hooks, login/register)",
+    "status": "completed",
+    "activeForm": "Building auth system"
+  },
+  {
+    "content": "Create shared layout (sidebar, header, mobile nav)",
+    "status": "completed",
+    "activeForm": "Creating shared layout components"
+  },
+  {
+    "content": "Build candidate + recruiter dashboard shells",
+    "status": "completed",
+    "activeForm": "Building dashboard shells"
+  },
+  {
+    "content": "Update Express server + deploy pipeline",
+    "status": "completed",
+    "activeForm": "Updating Express server + deploy pipeline"
+  },
+  {
+    "content": "Deploy and verify",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying"
+  }
+]
