@@ -16,7 +16,7 @@
     "tengu_event_sampling_config": {},
     "tengu_tool_pear": false,
     "tengu_thinkback": false,
-    "tengu_streaming_tool_execution2": false,
+    "tengu_streaming_tool_execution2": true,
     "tengu_tool_search_unsupported_models": [
       "haiku"
     ],
@@ -34,7 +34,11 @@
     "tengu_copper_lantern": false,
     "tengu_pid_based_version_locking": true,
     "tengu_marble_lantern_disabled": false,
-    "tengu_vinteuil_phrase": true
+    "tengu_vinteuil_phrase": true,
+    "tengu_coral_fern": false,
+    "tengu_cache_plum_violet": false,
+    "tengu_marble_kite": false,
+    "tengu_plan_mode_interview_phase": false
   },
   "userID": "341a05986f127ac5f4e73dd335ae6d8f841ac894ccea8debe1d88d7cbe5e7244",
   "firstStartTime": "2026-01-22T04:11:22.641Z",

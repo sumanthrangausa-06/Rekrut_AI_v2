@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Explore current onboarding codebase (routes, pages, DB schema)",
+    "status": "completed",
+    "activeForm": "Exploring current onboarding codebase"
+  },
+  {
+    "content": "Create migration for candidate_onboarding_data table + document signatures",
+    "status": "completed",
+    "activeForm": "Creating database migration"
+  },
+  {
+    "content": "Build backend APIs for wizard data collection and document generation",
+    "status": "completed",
+    "activeForm": "Building backend APIs for onboarding"
+  },
+  {
+    "content": "Build candidate onboarding wizard UI (step-by-step flow)",
+    "status": "completed",
+    "activeForm": "Building candidate onboarding wizard UI"
+  },
+  {
+    "content": "Fix HR dashboard auth token + link to real document data",
+    "status": "completed",
+    "activeForm": "Fixing HR dashboard integration"
+  },
+  {
+    "content": "Deploy and verify E2E flow",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying E2E flow"
+  }
+]
