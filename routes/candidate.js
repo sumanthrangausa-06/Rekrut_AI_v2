@@ -966,6 +966,38 @@ router.get('/applications', authMiddleware, async (req, res) => {
   }
 });
 
+// Withdraw an application
+router.put('/applications/:id/withdraw', authMiddleware, async (req, res) => {
+  try {
+    const { reason } = req.body;
+
+    // Verify application belongs to candidate and is withdrawable
+    const existing = await pool.query(
+      `SELECT id, status FROM job_applications WHERE id = $1 AND candidate_id = $2`,
+      [req.params.id, req.user.id]
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    const app = existing.rows[0];
+    if (['withdrawn', 'hired', 'rejected'].includes(app.status)) {
+      return res.status(400).json({ error: `Cannot withdraw an application with status: ${app.status}` });
+    }
+
+    const result = await pool.query(
+      `UPDATE job_applications SET status = 'withdrawn', updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [req.params.id]
+    );
+
+    res.json({ success: true, application: result.rows[0] });
+  } catch (err) {
+    console.error('Withdraw application error:', err);
+    res.status(500).json({ error: 'Failed to withdraw application' });
+  }
+});
+
 // ============= INTERVIEW COACHING =============
 
 router.post('/coaching', authMiddleware, async (req, res) => {
