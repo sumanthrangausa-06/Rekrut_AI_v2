@@ -95,13 +95,13 @@ router.get('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
     let query = `
       SELECT j.*,
              COALESCE(ja.views, 0) as views,
-             COALESCE(ja.applications, 0) as application_count,
+             COALESCE((SELECT COUNT(*) FROM job_applications japp WHERE japp.job_id = j.id), 0) as application_count,
              COALESCE(ja.interviews_scheduled, 0) as interviews
       FROM jobs j
       LEFT JOIN job_analytics ja ON j.id = ja.job_id
-      WHERE j.company_id = $1
+      WHERE (j.company_id = $1 OR j.user_id = $2)
     `;
-    const params = [req.user.company_id];
+    const params = [req.user.company_id, req.user.id];
 
     if (status) {
       query += ` AND j.status = $${params.length + 1}`;
@@ -125,6 +125,7 @@ router.post('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
   try {
     const {
       title, description, requirements, location, salary_range, job_type,
+      screening_questions,
       optimize = false // Flag to run AI optimization
     } = req.body;
 
@@ -153,11 +154,12 @@ router.post('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
 
     // Create job
     const result = await pool.query(
-      `INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [req.user.id, req.user.company_id, title, req.user.company_name,
-       finalDescription, finalRequirements, location, salary_range, job_type || 'full-time']
+       finalDescription, finalRequirements, location, salary_range, job_type || 'full-time',
+       screening_questions ? JSON.stringify(screening_questions) : null]
     );
 
     const job = result.rows[0];
@@ -241,12 +243,12 @@ router.get('/salary-insights', authMiddleware, requireRecruiter, async (req, res
 // Update job
 router.put('/jobs/:id', authMiddleware, requireRecruiter, async (req, res) => {
   try {
-    const { title, description, requirements, location, salary_range, job_type, status } = req.body;
+    const { title, description, requirements, location, salary_range, job_type, status, screening_questions } = req.body;
 
-    // Verify ownership
+    // Verify ownership (company_id or user_id)
     const existing = await pool.query(
-      'SELECT id FROM jobs WHERE id = $1 AND company_id = $2',
-      [req.params.id, req.user.company_id]
+      'SELECT id FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+      [req.params.id, req.user.company_id, req.user.id]
     );
 
     if (existing.rows.length === 0) {
@@ -262,10 +264,11 @@ router.put('/jobs/:id', authMiddleware, requireRecruiter, async (req, res) => {
         salary_range = COALESCE($5, salary_range),
         job_type = COALESCE($6, job_type),
         status = COALESCE($7, status),
+        screening_questions = COALESCE($8, screening_questions),
         updated_at = NOW()
-       WHERE id = $8
+       WHERE id = $9
        RETURNING *`,
-      [title, description, requirements, location, salary_range, job_type, status, req.params.id]
+      [title, description, requirements, location, salary_range, job_type, status, screening_questions || null, req.params.id]
     );
 
     res.json({ success: true, job: result.rows[0] });
@@ -449,10 +452,10 @@ router.get('/candidates', authMiddleware, requireRecruiter, async (req, res) => 
 // Get applications for a job
 router.get('/jobs/:id/applications', authMiddleware, requireRecruiter, async (req, res) => {
   try {
-    // Verify job belongs to company
+    // Verify job belongs to company or user
     const job = await pool.query(
-      'SELECT id, title FROM jobs WHERE id = $1 AND company_id = $2',
-      [req.params.id, req.user.company_id]
+      'SELECT id, title FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+      [req.params.id, req.user.company_id, req.user.id]
     );
 
     if (job.rows.length === 0) {

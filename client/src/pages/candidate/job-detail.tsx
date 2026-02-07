@@ -44,6 +44,7 @@ export function CandidateJobDetailPage() {
 
   useEffect(() => {
     loadJob()
+    checkIfApplied()
   }, [id])
 
   async function loadJob() {
@@ -54,6 +55,17 @@ export function CandidateJobDetailPage() {
       // silent
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function checkIfApplied() {
+    try {
+      const data = await apiCall<{ success: boolean; applications: { job_id: number }[] }>('/candidate/applications')
+      if (data.applications?.some(a => a.job_id === Number(id))) {
+        setApplied(true)
+      }
+    } catch {
+      // silent - not critical
     }
   }
 

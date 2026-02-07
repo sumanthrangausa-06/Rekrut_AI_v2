@@ -71,7 +71,7 @@ export function RecruiterJobFormPage() {
           body: { title, description, requirements, location, salary_range: salaryRange, job_type: jobType, screening_questions: JSON.stringify(screeningQuestions) },
         })
       } else {
-        await apiCall('/jobs', {
+        await apiCall('/recruiter/jobs', {
           method: 'POST',
           body: { title, description, requirements, location, salary_range: salaryRange, job_type: jobType, screening_questions: screeningQuestions },
         })

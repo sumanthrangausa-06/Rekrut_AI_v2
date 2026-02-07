@@ -13,6 +13,7 @@ import { CandidateJobsPage } from '@/pages/candidate/jobs'
 import { CandidateJobDetailPage } from '@/pages/candidate/job-detail'
 import { RecruiterJobsPage } from '@/pages/recruiter/jobs'
 import { RecruiterJobFormPage } from '@/pages/recruiter/job-form'
+import { RecruiterJobApplicantsPage } from '@/pages/recruiter/job-applicants'
 
 // Applications
 import { CandidateApplicationsPage } from '@/pages/candidate/applications'
@@ -65,7 +66,9 @@ function AppRoutes() {
         <Route index element={<RecruiterDashboard />} />
         <Route path="jobs" element={<RecruiterJobsPage />} />
         <Route path="jobs/new" element={<RecruiterJobFormPage />} />
-        <Route path="jobs/:id" element={<RecruiterJobFormPage />} />
+        <Route path="jobs/:id/applicants" element={<RecruiterJobApplicantsPage />} />
+        <Route path="jobs/:id/edit" element={<RecruiterJobFormPage />} />
+        <Route path="jobs/:id" element={<RecruiterJobApplicantsPage />} />
         <Route path="applications" element={<RecruiterApplicationsPage />} />
         <Route path="candidates" element={<PlaceholderPage />} />
         <Route path="interviews" element={<PlaceholderPage />} />

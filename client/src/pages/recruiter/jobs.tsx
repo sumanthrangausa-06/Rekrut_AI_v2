@@ -162,7 +162,7 @@ export function RecruiterJobsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => navigate(`/recruiter/applications?job=${job.id}`)}
+                      onClick={() => navigate(`/recruiter/jobs/${job.id}/applicants`)}
                       className="gap-1"
                     >
                       <Users className="h-3.5 w-3.5" />
@@ -171,7 +171,7 @@ export function RecruiterJobsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => navigate(`/recruiter/jobs/${job.id}`)}
+                      onClick={() => navigate(`/recruiter/jobs/${job.id}/edit`)}
                     >
                       <Edit className="h-3.5 w-3.5" />
                     </Button>
