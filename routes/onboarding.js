@@ -637,21 +637,52 @@ router.get('/recruiter/summary', authMiddleware, async (req, res) => {
         COUNT(od.id) as total_documents,
         SUM(CASE WHEN od.status = 'completed' OR od.signed_at IS NOT NULL THEN 1 ELSE 0 END) as signed_documents,
         MAX(od.created_at) as last_activity,
-        oc.status as onboarding_status,
+        oc.status as checklist_status,
         oc.due_date,
-        j.title as job_title
+        j.title as job_title,
+        cod.wizard_status,
+        cod.current_step as wizard_step
       FROM users u
       JOIN offers o ON u.id = o.candidate_id
       LEFT JOIN onboarding_checklists oc ON u.id = oc.candidate_id
       LEFT JOIN onboarding_documents od ON u.id = od.candidate_id
       LEFT JOIN jobs j ON o.job_id = j.id
+      LEFT JOIN candidate_onboarding_data cod ON u.id = cod.candidate_id AND cod.checklist_id = oc.id
       WHERE o.company_id = $1 AND o.status IN ('accepted', 'completed')
-      GROUP BY u.id, u.name, u.email, oc.status, oc.due_date, j.title
+      GROUP BY u.id, u.name, u.email, oc.status, oc.due_date, j.title, cod.wizard_status, cod.current_step
       ORDER BY u.created_at DESC`,
       [req.user.company_id]
     );
 
-    res.json(result.rows);
+    // Derive real status from actual document progress (not checklist which may be fake-completed)
+    const candidates = result.rows.map(r => {
+      const totalDocs = parseInt(r.total_documents) || 0;
+      const signedDocs = parseInt(r.signed_documents) || 0;
+      let onboarding_status;
+
+      if (r.wizard_status === 'completed' && totalDocs > 0 && signedDocs === totalDocs) {
+        onboarding_status = 'completed';
+      } else if (totalDocs > 0 || r.wizard_step > 1) {
+        onboarding_status = 'in_progress';
+      } else {
+        onboarding_status = 'pending';
+      }
+
+      return {
+        candidate_id: r.candidate_id,
+        candidate_name: r.candidate_name,
+        candidate_email: r.candidate_email,
+        total_documents: r.total_documents,
+        signed_documents: r.signed_documents,
+        last_activity: r.last_activity,
+        onboarding_status,
+        due_date: r.due_date,
+        job_title: r.job_title,
+        wizard_step: r.wizard_step
+      };
+    });
+
+    res.json(candidates);
   } catch (err) {
     console.error('Error fetching onboarding summary:', err);
     res.status(500).json({ error: 'Failed to fetch summary' });
