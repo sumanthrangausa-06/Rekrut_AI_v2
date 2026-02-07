@@ -1,0 +1,1086 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>Candidate Dashboard - Rekrut AI</title>
+     7→  <link rel="preconnect" href="https://fonts.googleapis.com">
+     8→  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     9→  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    10→  <link rel="stylesheet" href="/css/styles.css">
+    11→  <link rel="stylesheet" href="/css/responsive.css">
+    12→  <link rel="stylesheet" href="/css/dashboard.css">
+    13→</head>
+    14→<body>
+    15→  <div class="dashboard-layout">
+    16→    <!-- Sidebar -->
+    17→    <aside class="sidebar">
+    18→      <a href="/" class="logo">
+    19→        <span class="logo-icon">◎</span>
+    20→        <span>Rekrut AI</span>
+    21→      </a>
+    22→
+    23→      <nav class="sidebar-nav">
+    24→        <a href="/candidate-dashboard.html" class="nav-item active">
+    25→          <span class="nav-icon">🏠</span>
+    26→          <span>Dashboard</span>
+    27→        </a>
+    28→        <a href="/candidate-profile.html" class="nav-item">
+    29→          <span class="nav-icon">👤</span>
+    30→          <span>My Profile</span>
+    31→        </a>
+    32→        <a href="/omniscore.html" class="nav-item">
+    33→          <span class="nav-icon">🎯</span>
+    34→          <span>OmniScore</span>
+    35→        </a>
+    36→        <a href="/documents.html" class="nav-item">
+    37→          <span class="nav-icon">📄</span>
+    38→          <span>Documents</span>
+    39→        </a>
+    40→        <a href="/skill-assessments.html" class="nav-item">
+    41→          <span class="nav-icon">📝</span>
+    42→          <span>Skill Tests</span>
+    43→        </a>
+    44→        <a href="/interview.html" class="nav-item">
+    45→          <span class="nav-icon">🎤</span>
+    46→          <span>Interview Prep</span>
+    47→        </a>
+    48→        <a href="/video-interview.html" class="nav-item">
+    49→          <span class="nav-icon">🎥</span>
+    50→          <span>Video Interview</span>
+    51→        </a>
+    52→        <a href="/interview-practice.html" class="nav-item">
+    53→          <span class="nav-icon">🎯</span>
+    54→          <span>AI Coaching</span>
+    55→        </a>
+    56→        <a href="/job-board.html" class="nav-item">
+    57→          <span class="nav-icon">💼</span>
+    58→          <span>Job Board</span>
+    59→        </a>
+    60→        <a href="/history.html" class="nav-item">
+    61→          <span class="nav-icon">📁</span>
+    62→          <span>History</span>
+    63→        </a>
+    64→        <a href="/onboarding.html" class="nav-item">
+    65→          <span class="nav-icon">📋</span>
+    66→          <span>Offers & Onboarding</span>
+    67→        </a>
+    68→        <a href="/post-hire-feedback.html" class="nav-item">
+    69→          <span class="nav-icon">💬</span>
+    70→          <span>Feedback</span>
+    71→        </a>
+    72→      </nav>
+    73→
+    74→      <div class="sidebar-footer">
+    75→        <div class="user-dropdown-container">
+    76→          <button class="user-menu-toggle" id="user-menu-toggle">
+    77→            <div class="user-avatar" id="user-avatar">?</div>
+    78→            <div style="flex: 1; text-align: left;">
+    79→              <span class="user-name" id="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
+    80→              <span class="user-plan" id="user-plan" style="display: block; font-size: 12px; color: var(--text-muted);">Free Plan</span>
+    81→            </div>
+    82→          </button>
+    83→
+    84→          <div class="user-dropdown-menu" id="user-dropdown-menu">
+    85→            <div class="dropdown-header">
+    86→              <span class="dropdown-user-name" id="dropdown-user-name">Loading...</span>
+    87→              <span class="dropdown-user-email" id="dropdown-user-email">user@example.com</span>
+    88→            </div>
+    89→            <div class="dropdown-items">
+    90→              <a href="/candidate-profile.html" class="dropdown-item">👤 My Profile</a>
+    91→              <a href="/candidate-dashboard.html" class="dropdown-item">⚙️ Settings</a>
+    92→              <div class="dropdown-divider"></div>
+    93→              <button onclick="handleLogout()" class="dropdown-item danger">🚪 Sign Out</button>
+    94→            </div>
+    95→          </div>
+    96→        </div>
+    97→      </div>
+    98→    </aside>
+    99→
+   100→    <!-- Main Content -->
+   101→    <main class="main-content">
+   102→      <header class="page-header">
+   103→        <div>
+   104→          <h1>Welcome back, <span id="greeting-name">there</span>!</h1>
+   105→          <p>Your career journey at a glance</p>
+   106→        </div>
+   107→        <a href="/candidate-profile.html" class="btn btn-primary">
+   108→          <span>✨</span> Complete Profile
+   109→        </a>
+   110→      </header>
+   111→
+   112→      <!-- Profile Completeness + OmniScore Row -->
+   113→      <div class="top-cards-row">
+   114→        <!-- Profile Completeness -->
+   115→        <div class="profile-completeness-card">
+   116→          <div class="completeness-circle">
+   117→            <svg viewBox="0 0 36 36">
+   118→              <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+   119→              <path class="circle-fill" id="completeness-path" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+   120→            </svg>
+   121→            <span class="completeness-value" id="completeness-value">0%</span>
+   122→          </div>
+   123→          <div class="completeness-info">
+   124→            <h3>Profile Completeness</h3>
+   125→            <p id="completeness-message">Complete your profile to get better job matches</p>
+   126→            <a href="/candidate-profile.html" class="btn btn-ghost btn-sm">Edit Profile</a>
+   127→          </div>
+   128→        </div>
+   129→
+   130→        <!-- OmniScore Card -->
+   131→        <a href="/omniscore.html" class="omniscore-dashboard-card">
+   132→          <div class="omniscore-preview-circle">
+   133→            <span class="omniscore-preview-value" id="omniscore-value">---</span>
+   134→            <span class="omniscore-preview-label">OmniScore</span>
+   135→          </div>
+   136→          <div class="omniscore-preview-info">
+   137→            <span class="omniscore-badge" id="omniscore-tier">Loading...</span>
+   138→            <h3>Your Candidate Credit Score</h3>
+   139→            <p>Employers see this first</p>
+   140→          </div>
+   141→          <div class="omniscore-preview-arrow">→</div>
+   142→        </a>
+   143→      </div>
+   144→
+   145→      <!-- Stats Grid -->
+   146→      <div class="stats-grid">
+   147→        <div class="stat-card">
+   148→          <div class="stat-icon">💡</div>
+   149→          <div class="stat-info">
+   150→            <span class="stat-value" id="skills-count">0</span>
+   151→            <span class="stat-label">Skills Listed</span>
+   152→          </div>
+   153→        </div>
+   154→        <div class="stat-card">
+   155→          <div class="stat-icon">✅</div>
+   156→          <div class="stat-info">
+   157→            <span class="stat-value" id="verified-skills">0</span>
+   158→            <span class="stat-label">Verified Skills</span>
+   159→          </div>
+   160→        </div>
+   161→        <div class="stat-card">
+   162→          <div class="stat-icon">🎤</div>
+   163→          <div class="stat-info">
+   164→            <span class="stat-value" id="interview-count">0</span>
+   165→            <span class="stat-label">Mock Interviews</span>
+   166→          </div>
+   167→        </div>
+   168→        <div class="stat-card highlight">
+   169→          <div class="stat-icon">📄</div>
+   170→          <div class="stat-info">
+   171→            <span class="stat-value" id="applications-count">0</span>
+   172→            <span class="stat-label">Applications</span>
+   173→          </div>
+   174→        </div>
+   175→      </div>
+   176→
+   177→      <!-- Scheduled Interviews Section -->
+   178→      <section class="section scheduled-interviews-section" id="scheduled-interviews-section" style="display: none;">
+   179→        <div class="section-header">
+   180→          <h2>📅 Upcoming Interviews</h2>
+   181→        </div>
+   182→        <div class="scheduled-interviews-list" id="scheduled-interviews-list">
+   183→          <!-- Will be populated by JS -->
+   184→        </div>
+   185→      </section>
+   186→
+   187→      <!-- Pending Offers Section -->
+   188→      <section class="section offers-section" id="offers-section" style="display: none;">
+   189→        <div class="section-header">
+   190→          <h2>📩 Your Offers</h2>
+   191→          <a href="/onboarding.html" class="btn btn-ghost btn-sm">View All</a>
+   192→        </div>
+   193→        <div class="offers-list" id="offers-list">
+   194→          <!-- Will be populated by JS -->
+   195→        </div>
+   196→      </section>
+   197→
+   198→      <!-- Quick Actions -->
+   199→      <section class="section">
+   200→        <h2>What would you like to do?</h2>
+   201→        <div class="action-grid">
+   202→          <a href="/candidate-profile.html#resume" class="action-card">
+   203→            <div class="action-icon">📄</div>
+   204→            <h3>Upload Resume</h3>
+   205→            <p>AI parses and fills your profile</p>
+   206→          </a>
+   207→          <a href="/skill-assessments.html" class="action-card">
+   208→            <div class="action-icon">📝</div>
+   209→            <h3>Take a Skill Test</h3>
+   210→            <p>Verify your skills with badges</p>
+   211→          </a>
+   212→          <a href="/interview.html" class="action-card">
+   213→            <div class="action-icon">🎤</div>
+   214→            <h3>Mock Interview</h3>
+   215→            <p>Full AI interview simulation</p>
+   216→          </a>
+   217→          <a href="/video-interview.html" class="action-card highlight">
+   218→            <div class="action-icon">🎥</div>
+   219→            <h3>Video Interview</h3>
+   220→            <p>Record async video responses</p>
+   221→          </a>
+   222→          <a href="/interview-practice.html" class="action-card">
+   223→            <div class="action-icon">🎯</div>
+   224→            <h3>Practice Questions</h3>
+   225→            <p>Get instant AI coaching</p>
+   226→          </a>
+   227→          <a href="/job-board.html" class="action-card">
+   228→            <div class="action-icon">💼</div>
+   229→            <h3>Find Jobs</h3>
+   230→            <p>Jobs matched to your score</p>
+   231→          </a>
+   232→        </div>
+   233→      </section>
+   234→
+   235→      <!-- Interview Practice Highlight -->
+   236→      <section class="section interview-practice-section">
+   237→        <div class="section-header">
+   238→          <h2>🎯 Interview Practice</h2>
+   239→          <a href="/interview-practice.html" class="btn btn-primary btn-sm">Practice Now</a>
+   240→        </div>
+   241→        <div class="practice-progress-grid" id="practice-progress">
+   242→          <div class="practice-stat">
+   243→            <span class="practice-value" id="practice-questions">0</span>
+   244→            <span class="practice-label">Questions Practiced</span>
+   245→          </div>
+   246→          <div class="practice-stat">
+   247→            <span class="practice-value" id="practice-score">—</span>
+   248→            <span class="practice-label">Average Score</span>
+   249→          </div>
+   250→          <div class="practice-stat">
+   251→            <span class="practice-value" id="practice-improvement">—</span>
+   252→            <span class="practice-label">Improvement</span>
+   253→          </div>
+   254→        </div>
+   255→        <div class="practice-cta" id="practice-cta">
+   256→          <p>💪 Practice makes perfect! Answer interview questions and get instant AI coaching on your responses.</p>
+   257→          <a href="/interview-practice.html" class="btn btn-ghost">Get Started</a>
+   258→        </div>
+   259→      </section>
+   260→
+   261→      <!-- Skills Overview -->
+   262→      <section class="section">
+   263→        <div class="section-header">
+   264→          <h2>Your Skills</h2>
+   265→          <a href="/candidate-profile.html#skills" class="btn btn-ghost btn-sm">Manage Skills</a>
+   266→        </div>
+   267→        <div class="skills-preview" id="skills-preview">
+   268→          <div class="loading-state">
+   269→            <div class="spinner"></div>
+   270→            <p>Loading skills...</p>
+   271→          </div>
+   272→        </div>
+   273→      </section>
+   274→
+   275→      <!-- Recent Activity -->
+   276→      <section class="section">
+   277→        <div class="section-header">
+   278→          <h2>Recent Activity</h2>
+   279→        </div>
+   280→        <div class="activity-list" id="activity-list">
+   281→          <div class="loading-state">
+   282→            <div class="spinner"></div>
+   283→          </div>
+   284→        </div>
+   285→      </section>
+   286→
+   287→      <!-- Upgrade Banner -->
+   288→      <section class="upgrade-banner" id="upgrade-banner">
+   289→        <div class="upgrade-content">
+   290→          <h3>🚀 Unlock Premium Features</h3>
+   291→          <p>Unlimited assessments, detailed coaching, and priority matching.</p>
+   292→        </div>
+   293→        <a href="https://buy.stripe.com/5kQaEX7HUdKwfII5KWdjP3G" class="btn btn-primary">Upgrade to Pro - $29/mo</a>
+   294→      </section>
+   295→    </main>
+   296→  </div>
+   297→
+   298→  <script src="/js/main.js"></script>
+   299→  <script>
+   300→    let dashboardData = {};
+   301→
+   302→    document.addEventListener('DOMContentLoaded', async () => {
+   303→      const user = await checkAuth();
+   304→      if (!user) {
+   305→        window.location.href = '/login.html';
+   306→        return;
+   307→      }
+   308→
+   309→      // Update greeting
+   310→      const name = user.name || user.email.split('@')[0];
+   311→      document.getElementById('greeting-name').textContent = name;
+   312→      document.getElementById('user-name').textContent = name;
+   313→      document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+   314→      document.getElementById('dropdown-user-name').textContent = name;
+   315→      document.getElementById('dropdown-user-email').textContent = user.email;
+   316→
+   317→      if (user.is_paid) {
+   318→        document.getElementById('user-plan').textContent = 'Pro Plan';
+   319→        document.getElementById('user-plan').classList.add('pro');
+   320→        document.getElementById('upgrade-banner').style.display = 'none';
+   321→      }
+   322→
+   323→      // Setup user menu dropdown
+   324→      const userMenuToggle = document.getElementById('user-menu-toggle');
+   325→      const userDropdownMenu = document.getElementById('user-dropdown-menu');
+   326→      if (userMenuToggle && userDropdownMenu) {
+   327→        userMenuToggle.addEventListener('click', (e) => {
+   328→          e.stopPropagation();
+   329→          userDropdownMenu.classList.toggle('active');
+   330→        });
+   331→
+   332→        document.addEventListener('click', () => {
+   333→          userDropdownMenu.classList.remove('active');
+   334→        });
+   335→
+   336→        userDropdownMenu.addEventListener('click', (e) => {
+   337→          e.stopPropagation();
+   338→        });
+   339→      }
+   340→
+   341→      loadDashboard();
+   342→    });
+   343→
+   344→    async function loadDashboard() {
+   345→      try {
+   346→        // Load dashboard stats
+   347→        const stats = await apiCall('/candidate/dashboard/stats');
+   348→        if (stats.success) {
+   349→          dashboardData = stats.stats;
+   350→          renderStats(stats.stats);
+   351→        }
+   352→
+   353→        // Load skills
+   354→        const skills = await apiCall('/candidate/skills');
+   355→        if (skills.success) {
+   356→          renderSkillsPreview(skills.skills);
+   357→        }
+   358→
+   359→        // Load recent activity
+   360→        loadRecentActivity();
+   361→
+   362→        // Load interview practice stats
+   363→        loadPracticeStats();
+   364→
+   365→        // Load scheduled interviews
+   366→        loadScheduledInterviews();
+   367→
+   368→        // Load offers
+   369→        loadOffers();
+   370→
+   371→      } catch (err) {
+   372→        console.error('Dashboard load error:', err);
+   373→      }
+   374→    }
+   375→
+   376→    async function loadOffers() {
+   377→      try {
+   378→        const result = await apiCall('/onboarding/offers/me');
+   379→        const offers = Array.isArray(result) ? result : (result.offers || []);
+   380→        if (offers.length > 0) {
+   381→          document.getElementById('offers-section').style.display = 'block';
+   382→          renderOffers(offers);
+   383→        }
+   384→      } catch (err) {
+   385→        console.error('Offers load error:', err);
+   386→      }
+   387→    }
+   388→
+   389→    function renderOffers(offers) {
+   390→      const container = document.getElementById('offers-list');
+   391→
+   392→      container.innerHTML = offers.map(offer => {
+   393→        const statusColors = {
+   394→          draft: { bg: 'rgba(107,114,128,0.15)', color: '#6b7280', label: 'Draft' },
+   395→          sent: { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b', label: 'Pending Review' },
+   396→          accepted: { bg: 'rgba(16,185,129,0.15)', color: '#10b981', label: 'Accepted' },
+   397→          declined: { bg: 'rgba(239,68,68,0.15)', color: '#ef4444', label: 'Declined' }
+   398→        };
+   399→        const st = statusColors[offer.status] || statusColors.sent;
+   400→
+   401→        return `
+   402→          <div class="offer-card">
+   403→            <div class="offer-info">
+   404→              <h3>${offer.title || offer.job_title || 'Job Offer'}</h3>
+   405→              <p>${offer.company || offer.company_name || 'Company'}</p>
+   406→              <div class="offer-details">
+   407→                ${offer.salary ? `<span class="offer-salary">$${parseInt(offer.salary).toLocaleString()}/yr</span>` : ''}
+   408→                ${offer.start_date ? `<span class="offer-date">Start: ${new Date(offer.start_date).toLocaleDateString()}</span>` : ''}
+   409→              </div>
+   410→            </div>
+   411→            <div class="offer-actions">
+   412→              <span class="offer-status" style="background:${st.bg};color:${st.color}">${st.label}</span>
+   413→              ${offer.status === 'sent' ? `<a href="/onboarding.html" class="btn btn-primary btn-sm">Review Offer</a>` : ''}
+   414→            </div>
+   415→          </div>
+   416→        `;
+   417→      }).join('');
+   418→    }
+   419→
+   420→    async function loadScheduledInterviews() {
+   421→      try {
+   422→        const result = await apiCall('/candidate/interviews/scheduled');
+   423→        if (result.success && result.interviews && result.interviews.length > 0) {
+   424→          document.getElementById('scheduled-interviews-section').style.display = 'block';
+   425→          renderScheduledInterviews(result.interviews);
+   426→        }
+   427→      } catch (err) {
+   428→        console.error('Scheduled interviews load error:', err);
+   429→      }
+   430→    }
+   431→
+   432→    function renderScheduledInterviews(interviews) {
+   433→      const container = document.getElementById('scheduled-interviews-list');
+   434→
+   435→      container.innerHTML = interviews.map(interview => {
+   436→        const date = new Date(interview.scheduled_at);
+   437→        const now = new Date();
+   438→        const isUpcoming = date > now;
+   439→        const isSoon = date - now < 30 * 60 * 1000; // Within 30 minutes
+   440→
+   441→        return `
+   442→          <div class="scheduled-interview-card ${isSoon ? 'soon' : ''}">
+   443→            <div class="interview-time-badge">
+   444→              <span class="interview-date">${date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+   445→              <span class="interview-time">${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+   446→            </div>
+   447→            <div class="interview-info">
+   448→              <h3>${interview.job_title || 'Interview'}</h3>
+   449→              <p>${interview.company_name || 'Company'}</p>
+   450→              <span class="interview-type-badge ${interview.interview_type || 'video'}">${interview.interview_type || 'Video Interview'}</span>
+   451→            </div>
+   452→            <div class="interview-action">
+   453→              ${isUpcoming ? `
+   454→                ${interview.meeting_link ?
+   455→                  `<a href="${interview.meeting_link}" target="_blank" class="btn btn-primary ${isSoon ? 'pulse' : ''}">
+   456→                    ${interview.interview_type === 'video' ? '🎥 Join Video Call' : '📞 Join'}
+   457→                  </a>` :
+   458→                  `<span class="interview-pending">Link will be available soon</span>`
+   459→                }
+   460→              ` : `<span class="interview-status">Completed</span>`}
+   461→            </div>
+   462→          </div>
+   463→        `;
+   464→      }).join('');
+   465→    }
+   466→
+   467→    async function loadPracticeStats() {
+   468→      try {
+   469→        const practiceStats = await apiCall('/interviews/practice/stats');
+   470→        if (practiceStats.success && practiceStats.stats) {
+   471→          const stats = practiceStats.stats;
+   472→
+   473→          if (stats.total_questions > 0) {
+   474→            document.getElementById('practice-questions').textContent = stats.total_questions;
+   475→            document.getElementById('practice-score').textContent =
+   476→              stats.average_score ? stats.average_score.toFixed(1) + '/10' : '—';
+   477→            document.getElementById('practice-improvement').textContent =
+   478→              stats.improvement ? (stats.improvement > 0 ? '+' : '') + stats.improvement.toFixed(0) + '%' : '—';
+   479→
+   480→            // Hide CTA if they've practiced
+   481→            document.getElementById('practice-cta').style.display = 'none';
+   482→          }
+   483→        }
+   484→      } catch (err) {
+   485→        console.error('Practice stats error:', err);
+   486→      }
+   487→    }
+   488→
+   489→    function renderStats(stats) {
+   490→      // Profile completeness
+   491→      const completeness = stats.profile_completeness || 0;
+   492→      document.getElementById('completeness-value').textContent = completeness + '%';
+   493→      document.getElementById('completeness-path').setAttribute('stroke-dasharray', `${completeness}, 100`);
+   494→
+   495→      if (completeness >= 80) {
+   496→        document.getElementById('completeness-message').textContent = 'Your profile is looking great!';
+   497→      } else if (completeness >= 50) {
+   498→        document.getElementById('completeness-message').textContent = 'Almost there! Add more details.';
+   499→      }
+   500→
+   501→      // OmniScore
+   502→      if (stats.omniscore) {
+   503→        document.getElementById('omniscore-value').textContent = stats.omniscore.total_score;
+   504→        document.getElementById('omniscore-tier').textContent = stats.omniscore.tier_label;
+   505→        document.getElementById('omniscore-tier').className = 'omniscore-badge ' + (stats.omniscore.tier || '').replace('_', '-');
+   506→      }
+   507→
+   508→      // Stats cards
+   509→      document.getElementById('skills-count').textContent = stats.skills?.total || 0;
+   510→      document.getElementById('verified-skills').textContent = stats.skills?.verified || 0;
+   511→      document.getElementById('interview-count').textContent = stats.interviews?.total || 0;
+   512→      document.getElementById('applications-count').textContent = stats.applications || 0;
+   513→    }
+   514→
+   515→    function renderSkillsPreview(skills) {
+   516→      const container = document.getElementById('skills-preview');
+   517→
+   518→      if (!skills || skills.length === 0) {
+   519→        container.innerHTML = `
+   520→          <div class="empty-skills">
+   521→            <p>No skills added yet</p>
+   522→            <a href="/candidate-profile.html#skills" class="btn btn-primary btn-sm">Add Your Skills</a>
+   523→          </div>
+   524→        `;
+   525→        return;
+   526→      }
+   527→
+   528→      // Group by category
+   529→      const categories = {};
+   530→      skills.forEach(s => {
+   531→        const cat = s.category || 'technical';
+   532→        if (!categories[cat]) categories[cat] = [];
+   533→        categories[cat].push(s);
+   534→      });
+   535→
+   536→      container.innerHTML = Object.entries(categories).map(([cat, catSkills]) => `
+   537→        <div class="skill-category">
+   538→          <h4>${formatCategory(cat)}</h4>
+   539→          <div class="skill-tags">
+   540→            ${catSkills.slice(0, 8).map(s => `
+   541→              <span class="skill-tag ${s.is_verified ? 'verified' : ''}" title="Level ${s.level}/5">
+   542→                ${s.skill_name}
+   543→                ${s.is_verified ? '<span class="verified-badge">✓</span>' : ''}
+   544→                <span class="skill-level">${'●'.repeat(s.level)}${'○'.repeat(5-s.level)}</span>
+   545→              </span>
+   546→            `).join('')}
+   547→            ${catSkills.length > 8 ? `<span class="more-skills">+${catSkills.length - 8} more</span>` : ''}
+   548→          </div>
+   549→        </div>
+   550→      `).join('');
+   551→    }
+   552→
+   553→    function formatCategory(cat) {
+   554→      const labels = {
+   555→        'technical': '💻 Technical',
+   556→        'soft_skill': '🤝 Soft Skills',
+   557→        'tool': '🔧 Tools',
+   558→        'language': '🌍 Languages'
+   559→      };
+   560→      return labels[cat] || cat;
+   561→    }
+   562→
+   563→    async function loadRecentActivity() {
+   564→      const container = document.getElementById('activity-list');
+   565→
+   566→      try {
+   567→        // Load recent interviews
+   568→        const interviews = await apiCall('/interviews?limit=3');
+   569→        // Load recent applications
+   570→        const applications = await apiCall('/candidate/applications');
+   571→
+   572→        const activities = [];
+   573→
+   574→        if (interviews.interviews) {
+   575→          interviews.interviews.slice(0, 3).forEach(i => {
+   576→            activities.push({
+   577→              type: 'interview',
+   578→              title: 'Mock Interview',
+   579→              subtitle: i.interview_type || 'General',
+   580→              score: i.overall_score,
+   581→              date: i.created_at
+   582→            });
+   583→          });
+   584→        }
+   585→
+   586→        if (applications.applications) {
+   587→          applications.applications.slice(0, 3).forEach(a => {
+   588→            activities.push({
+   589→              type: 'application',
+   590→              title: `Applied to ${a.title}`,
+   591→              subtitle: a.company || 'Unknown Company',
+   592→              status: a.status,
+   593→              date: a.applied_at
+   594→            });
+   595→          });
+   596→        }
+   597→
+   598→        // Sort by date
+   599→        activities.sort((a, b) => new Date(b.date) - new Date(a.date));
+   600→
+   601→        if (activities.length === 0) {
+   602→          container.innerHTML = `
+   603→            <div class="empty-state">
+   604→              <p>No recent activity. Start by taking a mock interview!</p>
+   605→              <a href="/interview.html" class="btn btn-primary btn-sm">Start Interview</a>
+   606→            </div>
+   607→          `;
+   608→          return;
+   609→        }
+   610→
+   611→        container.innerHTML = `
+   612→          <div class="activity-items">
+   613→            ${activities.slice(0, 5).map(a => `
+   614→              <div class="activity-item">
+   615→                <div class="activity-icon ${a.type}">${a.type === 'interview' ? '🎤' : '📄'}</div>
+   616→                <div class="activity-details">
+   617→                  <span class="activity-title">${a.title}</span>
+   618→                  <span class="activity-subtitle">${a.subtitle}</span>
+   619→                </div>
+   620→                <div class="activity-meta">
+   621→                  ${a.score ? `<span class="activity-score">${a.score}/10</span>` : ''}
+   622→                  ${a.status ? `<span class="activity-status ${a.status}">${a.status}</span>` : ''}
+   623→                  <span class="activity-date">${formatDate(a.date)}</span>
+   624→                </div>
+   625→              </div>
+   626→            `).join('')}
+   627→          </div>
+   628→        `;
+   629→      } catch (err) {
+   630→        container.innerHTML = `<div class="empty-state"><p>Could not load activity</p></div>`;
+   631→      }
+   632→    }
+   633→
+   634→    function formatDate(dateStr) {
+   635→      const date = new Date(dateStr);
+   636→      const now = new Date();
+   637→      const diff = now - date;
+   638→      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+   639→
+   640→      if (days === 0) return 'Today';
+   641→      if (days === 1) return 'Yesterday';
+   642→      if (days < 7) return `${days} days ago`;
+   643→      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+   644→    }
+   645→  </script>
+   646→
+   647→  <style>
+   648→    .top-cards-row {
+   649→      display: grid;
+   650→      grid-template-columns: 1fr 1.5fr;
+   651→      gap: 24px;
+   652→      margin-bottom: 32px;
+   653→    }
+   654→
+   655→    .profile-completeness-card {
+   656→      background: var(--bg-card);
+   657→      border: 1px solid var(--border-color);
+   658→      border-radius: var(--radius-lg);
+   659→      padding: 24px;
+   660→      display: flex;
+   661→      align-items: center;
+   662→      gap: 20px;
+   663→    }
+   664→
+   665→    .completeness-circle {
+   666→      width: 80px;
+   667→      height: 80px;
+   668→      position: relative;
+   669→    }
+   670→
+   671→    .completeness-circle svg {
+   672→      width: 100%;
+   673→      height: 100%;
+   674→      transform: rotate(-90deg);
+   675→    }
+   676→
+   677→    .circle-bg {
+   678→      fill: none;
+   679→      stroke: var(--border-color);
+   680→      stroke-width: 3;
+   681→    }
+   682→
+   683→    .circle-fill {
+   684→      fill: none;
+   685→      stroke: var(--accent-primary);
+   686→      stroke-width: 3;
+   687→      stroke-linecap: round;
+   688→      transition: stroke-dasharray 0.5s ease;
+   689→    }
+   690→
+   691→    .completeness-value {
+   692→      position: absolute;
+   693→      top: 50%;
+   694→      left: 50%;
+   695→      transform: translate(-50%, -50%);
+   696→      font-family: var(--font-display);
+   697→      font-size: 18px;
+   698→      font-weight: 700;
+   699→    }
+   700→
+   701→    .completeness-info h3 {
+   702→      font-family: var(--font-display);
+   703→      font-size: 16px;
+   704→      margin-bottom: 4px;
+   705→    }
+   706→
+   707→    .completeness-info p {
+   708→      font-size: 13px;
+   709→      color: var(--text-muted);
+   710→      margin-bottom: 12px;
+   711→    }
+   712→
+   713→    .skills-preview {
+   714→      background: var(--bg-card);
+   715→      border: 1px solid var(--border-color);
+   716→      border-radius: var(--radius-lg);
+   717→      padding: 24px;
+   718→    }
+   719→
+   720→    .skill-category {
+   721→      margin-bottom: 20px;
+   722→    }
+   723→
+   724→    .skill-category:last-child {
+   725→      margin-bottom: 0;
+   726→    }
+   727→
+   728→    .skill-category h4 {
+   729→      font-size: 14px;
+   730→      font-weight: 600;
+   731→      margin-bottom: 12px;
+   732→      color: var(--text-secondary);
+   733→    }
+   734→
+   735→    .skill-tags {
+   736→      display: flex;
+   737→      flex-wrap: wrap;
+   738→      gap: 8px;
+   739→    }
+   740→
+   741→    .skill-tag {
+   742→      display: inline-flex;
+   743→      align-items: center;
+   744→      gap: 6px;
+   745→      padding: 6px 12px;
+   746→      background: var(--bg-elevated);
+   747→      border: 1px solid var(--border-color);
+   748→      border-radius: var(--radius-full);
+   749→      font-size: 13px;
+   750→      transition: all 0.2s;
+   751→    }
+   752→
+   753→    .skill-tag.verified {
+   754→      border-color: var(--accent-primary);
+   755→      background: rgba(16, 185, 129, 0.1);
+   756→    }
+   757→
+   758→    .verified-badge {
+   759→      color: var(--accent-primary);
+   760→      font-size: 11px;
+   761→    }
+   762→
+   763→    .skill-level {
+   764→      font-size: 8px;
+   765→      color: var(--text-muted);
+   766→      letter-spacing: 1px;
+   767→    }
+   768→
+   769→    .more-skills {
+   770→      padding: 6px 12px;
+   771→      background: transparent;
+   772→      border: 1px dashed var(--border-light);
+   773→      border-radius: var(--radius-full);
+   774→      font-size: 13px;
+   775→      color: var(--text-muted);
+   776→    }
+   777→
+   778→    .empty-skills {
+   779→      text-align: center;
+   780→      padding: 40px;
+   781→    }
+   782→
+   783→    .empty-skills p {
+   784→      color: var(--text-muted);
+   785→      margin-bottom: 16px;
+   786→    }
+   787→
+   788→    .activity-items {
+   789→      display: flex;
+   790→      flex-direction: column;
+   791→    }
+   792→
+   793→    .activity-item {
+   794→      display: flex;
+   795→      align-items: center;
+   796→      gap: 16px;
+   797→      padding: 16px;
+   798→      background: var(--bg-card);
+   799→      border: 1px solid var(--border-color);
+   800→      border-radius: var(--radius-md);
+   801→      margin-bottom: 8px;
+   802→    }
+   803→
+   804→    .activity-icon {
+   805→      width: 40px;
+   806→      height: 40px;
+   807→      display: flex;
+   808→      align-items: center;
+   809→      justify-content: center;
+   810→      background: var(--bg-elevated);
+   811→      border-radius: var(--radius-md);
+   812→      font-size: 20px;
+   813→    }
+   814→
+   815→    .activity-details {
+   816→      flex: 1;
+   817→      display: flex;
+   818→      flex-direction: column;
+   819→      gap: 2px;
+   820→    }
+   821→
+   822→    .activity-title {
+   823→      font-weight: 500;
+   824→      font-size: 14px;
+   825→    }
+   826→
+   827→    .activity-subtitle {
+   828→      font-size: 13px;
+   829→      color: var(--text-muted);
+   830→    }
+   831→
+   832→    .activity-meta {
+   833→      display: flex;
+   834→      align-items: center;
+   835→      gap: 12px;
+   836→    }
+   837→
+   838→    .activity-score {
+   839→      font-family: var(--font-display);
+   840→      font-weight: 600;
+   841→      color: var(--accent-primary);
+   842→    }
+   843→
+   844→    .activity-status {
+   845→      padding: 4px 8px;
+   846→      border-radius: var(--radius-full);
+   847→      font-size: 11px;
+   848→      font-weight: 600;
+   849→      text-transform: uppercase;
+   850→    }
+   851→
+   852→    .activity-status.applied {
+   853→      background: rgba(59, 130, 246, 0.2);
+   854→      color: #3b82f6;
+   855→    }
+   856→
+   857→    .activity-status.reviewing {
+   858→      background: rgba(245, 158, 11, 0.2);
+   859→      color: #f59e0b;
+   860→    }
+   861→
+   862→    .activity-date {
+   863→      font-size: 12px;
+   864→      color: var(--text-muted);
+   865→    }
+   866→
+   867→    /* Offers Section */
+   868→    .offers-section {
+   869→      background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%);
+   870→      border: 2px solid rgba(16, 185, 129, 0.3);
+   871→      border-radius: var(--radius-lg);
+   872→    }
+   873→
+   874→    .offer-card {
+   875→      display: flex;
+   876→      align-items: center;
+   877→      justify-content: space-between;
+   878→      gap: 20px;
+   879→      padding: 20px;
+   880→      background: white;
+   881→      border-radius: var(--radius-md);
+   882→      border: 1px solid var(--border-light);
+   883→      margin-bottom: 12px;
+   884→    }
+   885→
+   886→    .offer-card:last-child { margin-bottom: 0; }
+   887→
+   888→    .offer-info h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+   889→    .offer-info p { font-size: 14px; color: var(--text-muted); margin-bottom: 8px; }
+   890→    .offer-details { display: flex; gap: 16px; }
+   891→    .offer-salary { font-weight: 600; color: var(--accent-primary); font-size: 14px; }
+   892→    .offer-date { font-size: 13px; color: var(--text-muted); }
+   893→    .offer-actions { display: flex; align-items: center; gap: 12px; }
+   894→    .offer-status { padding: 6px 12px; border-radius: var(--radius-full); font-size: 12px; font-weight: 600; }
+   895→
+   896→    @media (max-width: 768px) {
+   897→      .offer-card { flex-direction: column; text-align: center; }
+   898→      .offer-actions { width: 100%; justify-content: center; }
+   899→    }
+   900→
+   901→    /* Interview Practice Section */
+   902→    .interview-practice-section {
+   903→      background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+   904→      border: 2px solid rgba(102, 126, 234, 0.3);
+   905→    }
+   906→
+   907→    .practice-progress-grid {
+   908→      display: grid;
+   909→      grid-template-columns: repeat(3, 1fr);
+   910→      gap: 20px;
+   911→      margin-bottom: 20px;
+   912→    }
+   913→
+   914→    .practice-stat {
+   915→      text-align: center;
+   916→      padding: 20px;
+   917→      background: white;
+   918→      border-radius: var(--radius-md);
+   919→      border: 1px solid var(--border-light);
+   920→    }
+   921→
+   922→    .practice-value {
+   923→      display: block;
+   924→      font-size: 32px;
+   925→      font-weight: 700;
+   926→      font-family: var(--font-display);
+   927→      color: var(--accent-primary);
+   928→      margin-bottom: 8px;
+   929→    }
+   930→
+   931→    .practice-label {
+   932→      display: block;
+   933→      font-size: 13px;
+   934→      color: var(--text-muted);
+   935→    }
+   936→
+   937→    .practice-cta {
+   938→      text-align: center;
+   939→      padding: 20px;
+   940→      background: white;
+   941→      border-radius: var(--radius-md);
+   942→      border: 1px solid var(--border-light);
+   943→    }
+   944→
+   945→    .practice-cta p {
+   946→      margin-bottom: 16px;
+   947→      color: var(--text-secondary);
+   948→    }
+   949→
+   950→    .action-card.highlight {
+   951→      border: 2px solid var(--accent-primary);
+   952→      background: rgba(16, 185, 129, 0.05);
+   953→    }
+   954→
+   955→    /* Scheduled Interviews Section */
+   956→    .scheduled-interviews-section {
+   957→      background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+   958→      border: 2px solid rgba(59, 130, 246, 0.3);
+   959→      border-radius: var(--radius-lg);
+   960→    }
+   961→
+   962→    .scheduled-interview-card {
+   963→      display: flex;
+   964→      align-items: center;
+   965→      gap: 20px;
+   966→      padding: 20px;
+   967→      background: white;
+   968→      border-radius: var(--radius-md);
+   969→      border: 1px solid var(--border-light);
+   970→      margin-bottom: 12px;
+   971→      transition: all 0.2s;
+   972→    }
+   973→
+   974→    .scheduled-interview-card:last-child {
+   975→      margin-bottom: 0;
+   976→    }
+   977→
+   978→    .scheduled-interview-card.soon {
+   979→      border-color: #10b981;
+   980→      box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+   981→    }
+   982→
+   983→    .interview-time-badge {
+   984→      display: flex;
+   985→      flex-direction: column;
+   986→      align-items: center;
+   987→      padding: 12px 16px;
+   988→      background: var(--bg-elevated);
+   989→      border-radius: var(--radius-md);
+   990→      min-width: 100px;
+   991→    }
+   992→
+   993→    .interview-date {
+   994→      font-size: 12px;
+   995→      color: var(--text-muted);
+   996→      margin-bottom: 4px;
+   997→    }
+   998→
+   999→    .interview-time {
+  1000→      font-family: var(--font-display);
+  1001→      font-size: 16px;
+  1002→      font-weight: 600;
+  1003→    }
+  1004→
+  1005→    .interview-info {
+  1006→      flex: 1;
+  1007→    }
+  1008→
+  1009→    .interview-info h3 {
+  1010→      font-size: 16px;
+  1011→      font-weight: 600;
+  1012→      margin-bottom: 4px;
+  1013→    }
+  1014→
+  1015→    .interview-info p {
+  1016→      font-size: 14px;
+  1017→      color: var(--text-muted);
+  1018→      margin-bottom: 8px;
+  1019→    }
+  1020→
+  1021→    .interview-type-badge {
+  1022→      display: inline-block;
+  1023→      padding: 4px 12px;
+  1024→      border-radius: var(--radius-full);
+  1025→      font-size: 11px;
+  1026→      font-weight: 600;
+  1027→      text-transform: capitalize;
+  1028→    }
+  1029→
+  1030→    .interview-type-badge.video { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+  1031→    .interview-type-badge.phone { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+  1032→    .interview-type-badge.onsite { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+  1033→    .interview-type-badge.technical { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; }
+  1034→
+  1035→    .interview-action .btn.pulse {
+  1036→      animation: pulse-btn 2s infinite;
+  1037→    }
+  1038→
+  1039→    @keyframes pulse-btn {
+  1040→      0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  1041→      50% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+  1042→    }
+  1043→
+  1044→    .interview-pending {
+  1045→      font-size: 13px;
+  1046→      color: var(--text-muted);
+  1047→    }
+  1048→
+  1049→    .interview-status {
+  1050→      font-size: 13px;
+  1051→      color: var(--text-muted);
+  1052→      padding: 8px 16px;
+  1053→      background: var(--bg-elevated);
+  1054→      border-radius: var(--radius-md);
+  1055→    }
+  1056→
+  1057→    @media (max-width: 1024px) {
+  1058→      .top-cards-row {
+  1059→        grid-template-columns: 1fr;
+  1060→      }
+  1061→
+  1062→      .practice-progress-grid {
+  1063→        grid-template-columns: 1fr;
+  1064→      }
+  1065→
+  1066→      .scheduled-interview-card {
+  1067→        flex-direction: column;
+  1068→        text-align: center;
+  1069→      }
+  1070→
+  1071→      .interview-action {
+  1072→        width: 100%;
+  1073→      }
+  1074→
+  1075→      .interview-action .btn {
+  1076→        width: 100%;
+  1077→      }
+  1078→    }
+  1079→  </style>
+  1080→</body>
+  1081→</html>
+  1082→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

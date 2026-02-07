@@ -1,0 +1,518 @@
+     1→const express = require('express');
+     2→const bcrypt = require('bcryptjs');
+     3→const crypto = require('crypto');
+     4→const pool = require('../lib/db');
+     5→const {
+     6→  generateToken,
+     7→  generateLongToken,
+     8→  generateRefreshToken,
+     9→  rotateRefreshToken,
+    10→  revokeAllTokens,
+    11→  authMiddleware
+    12→} = require('../lib/auth');
+    13→
+    14→const router = express.Router();
+    15→
+    16→// ============= EMAIL/PASSWORD AUTH =============
+    17→
+    18→// Register
+    19→router.post('/register', async (req, res) => {
+    20→  try {
+    21→    const { email, password, name, role = 'candidate', company_name } = req.body;
+    22→
+    23→    if (!email || !password) {
+    24→      return res.status(400).json({ error: 'Email and password are required' });
+    25→    }
+    26→
+    27→    // Check if user exists
+    28→    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    29→    if (existing.rows.length > 0) {
+    30→      return res.status(400).json({ error: 'Email already registered' });
+    31→    }
+    32→
+    33→    // Hash password
+    34→    const password_hash = await bcrypt.hash(password, 10);
+    35→
+    36→    // Create user
+    37→    const result = await pool.query(
+    38→      `INSERT INTO users (email, password_hash, name, role, company_name)
+    39→       VALUES ($1, $2, $3, $4, $5)
+    40→       RETURNING id, email, name, role, company_name, created_at`,
+    41→      [email, password_hash, name, role, company_name]
+    42→    );
+    43→
+    44→    const user = result.rows[0];
+    45→    const accessToken = generateToken(user);
+    46→    const { token: refreshToken } = await generateRefreshToken(user.id);
+    47→
+    48→    // Track signup completion
+    49→    try {
+    50→      await pool.query(
+    51→        'INSERT INTO events (event_type, user_id, metadata) VALUES ($1, $2, $3)',
+    52→        [`signup_complete_${role}`, user.id, JSON.stringify({ email: user.email, role: role })]
+    53→      );
+    54→    } catch (e) {
+    55→      console.error('Failed to log signup event:', e);
+    56→    }
+    57→
+    58→    res.json({
+    59→      success: true,
+    60→      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    61→      token: accessToken,
+    62→      accessToken,
+    63→      refreshToken
+    64→    });
+    65→  } catch (err) {
+    66→    console.error('Registration error:', err);
+    67→
+    68→    if (err.code === '23505') {
+    69→      return res.status(400).json({ error: 'This email is already registered' });
+    70→    }
+    71→    if (err.code === '42703') {
+    72→      return res.status(500).json({ error: 'Database schema error. Please try again in a few minutes.' });
+    73→    }
+    74→
+    75→    res.status(500).json({ error: 'Registration failed. Please try again.' });
+    76→  }
+    77→});
+    78→
+    79→// Login
+    80→router.post('/login', async (req, res) => {
+    81→  try {
+    82→    const { email, password } = req.body;
+    83→
+    84→    if (!email || !password) {
+    85→      return res.status(400).json({ error: 'Email and password are required' });
+    86→    }
+    87→
+    88→    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    89→    if (result.rows.length === 0) {
+    90→      return res.status(401).json({ error: 'Invalid credentials' });
+    91→    }
+    92→
+    93→    const user = result.rows[0];
+    94→
+    95→    // Check if user has password (might be OAuth-only user)
+    96→    if (!user.password_hash) {
+    97→      return res.status(401).json({
+    98→        error: 'This account uses social login. Please sign in with Google or LinkedIn.',
+    99→        oauth_only: true
+   100→      });
+   101→    }
+   102→
+   103→    const validPassword = await bcrypt.compare(password, user.password_hash);
+   104→    if (!validPassword) {
+   105→      return res.status(401).json({ error: 'Invalid credentials' });
+   106→    }
+   107→
+   108→    const accessToken = generateToken(user);
+   109→    const { token: refreshToken } = await generateRefreshToken(user.id);
+   110→    req.session.token = accessToken;
+   111→
+   112→    res.json({
+   113→      success: true,
+   114→      user: {
+   115→        id: user.id,
+   116→        email: user.email,
+   117→        name: user.name,
+   118→        role: user.role,
+   119→        is_paid: user.is_paid
+   120→      },
+   121→      token: accessToken,
+   122→      accessToken,
+   123→      refreshToken
+   124→    });
+   125→  } catch (err) {
+   126→    console.error('Login error:', err);
+   127→    res.status(500).json({ error: 'Login failed' });
+   128→  }
+   129→});
+   130→
+   131→// Refresh token endpoint
+   132→router.post('/refresh', async (req, res) => {
+   133→  try {
+   134→    const { refreshToken } = req.body;
+   135→
+   136→    if (!refreshToken) {
+   137→      return res.status(400).json({ error: 'Refresh token required' });
+   138→    }
+   139→
+   140→    const result = await rotateRefreshToken(refreshToken);
+   141→
+   142→    if (result.error) {
+   143→      return res.status(401).json({ error: result.error });
+   144→    }
+   145→
+   146→    res.json({
+   147→      success: true,
+   148→      accessToken: result.accessToken,
+   149→      refreshToken: result.refreshToken,
+   150→      user: result.user
+   151→    });
+   152→  } catch (err) {
+   153→    console.error('Token refresh error:', err);
+   154→    res.status(500).json({ error: 'Token refresh failed' });
+   155→  }
+   156→});
+   157→
+   158→// Get current user
+   159→router.get('/me', authMiddleware, (req, res) => {
+   160→  res.json({
+   161→    user: {
+   162→      id: req.user.id,
+   163→      email: req.user.email,
+   164→      name: req.user.name,
+   165→      role: req.user.role,
+   166→      company_id: req.user.company_id,
+   167→      company_name: req.user.company_name,
+   168→      is_paid: req.user.is_paid,
+   169→      google_id: req.user.google_id,
+   170→      linkedin_id: req.user.linkedin_id,
+   171→      created_at: req.user.created_at
+   172→    }
+   173→  });
+   174→});
+   175→
+   176→// Logout (revoke all tokens)
+   177→router.post('/logout', authMiddleware, async (req, res) => {
+   178→  try {
+   179→    await revokeAllTokens(req.user.id);
+   180→    req.session.destroy();
+   181→    res.json({ success: true });
+   182→  } catch (err) {
+   183→    console.error('Logout error:', err);
+   184→    req.session.destroy();
+   185→    res.json({ success: true });
+   186→  }
+   187→});
+   188→
+   189→// Logout from all devices
+   190→router.post('/logout-all', authMiddleware, async (req, res) => {
+   191→  try {
+   192→    await revokeAllTokens(req.user.id);
+   193→    res.json({ success: true, message: 'Logged out from all devices' });
+   194→  } catch (err) {
+   195→    console.error('Logout all error:', err);
+   196→    res.status(500).json({ error: 'Failed to logout from all devices' });
+   197→  }
+   198→});
+   199→
+   200→// ============= OAUTH: GOOGLE =============
+   201→
+   202→// Get Google OAuth URL
+   203→router.get('/google/url', (req, res) => {
+   204→  const clientId = process.env.GOOGLE_CLIENT_ID;
+   205→  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/auth/google/callback`;
+   206→
+   207→  if (!clientId) {
+   208→    return res.status(503).json({
+   209→      error: 'Google OAuth not configured',
+   210→      configured: false
+   211→    });
+   212→  }
+   213→
+   214→  const scope = encodeURIComponent('openid email profile');
+   215→  const state = crypto.randomBytes(16).toString('hex');
+   216→
+   217→  // Store state in session for validation
+   218→  req.session.oauth_state = state;
+   219→
+   220→  const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
+   221→    `client_id=${clientId}` +
+   222→    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+   223→    `&response_type=code` +
+   224→    `&scope=${scope}` +
+   225→    `&state=${state}` +
+   226→    `&access_type=offline` +
+   227→    `&prompt=consent`;
+   228→
+   229→  res.json({ url, configured: true });
+   230→});
+   231→
+   232→// Google OAuth callback
+   233→router.get('/google/callback', async (req, res) => {
+   234→  try {
+   235→    const { code, state, error } = req.query;
+   236→
+   237→    if (error) {
+   238→      return res.redirect(`/login.html?error=${encodeURIComponent(error)}`);
+   239→    }
+   240→
+   241→    if (!code) {
+   242→      return res.redirect('/login.html?error=No authorization code received');
+   243→    }
+   244→
+   245→    // Exchange code for tokens
+   246→    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+   247→      method: 'POST',
+   248→      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+   249→      body: new URLSearchParams({
+   250→        client_id: process.env.GOOGLE_CLIENT_ID,
+   251→        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+   252→        code,
+   253→        grant_type: 'authorization_code',
+   254→        redirect_uri: process.env.GOOGLE_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/auth/google/callback`
+   255→      })
+   256→    });
+   257→
+   258→    const tokens = await tokenResponse.json();
+   259→
+   260→    if (tokens.error) {
+   261→      console.error('Google token error:', tokens);
+   262→      return res.redirect('/login.html?error=Failed to authenticate with Google');
+   263→    }
+   264→
+   265→    // Get user info
+   266→    const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+   267→      headers: { Authorization: `Bearer ${tokens.access_token}` }
+   268→    });
+   269→
+   270→    const googleUser = await userInfoResponse.json();
+   271→
+   272→    if (!googleUser.email) {
+   273→      return res.redirect('/login.html?error=Could not retrieve email from Google');
+   274→    }
+   275→
+   276→    // Find or create user
+   277→    let user;
+   278→    const existingUser = await pool.query(
+   279→      'SELECT * FROM users WHERE google_id = $1 OR email = $2',
+   280→      [googleUser.id, googleUser.email]
+   281→    );
+   282→
+   283→    if (existingUser.rows.length > 0) {
+   284→      user = existingUser.rows[0];
+   285→      // Update Google ID if not set
+   286→      if (!user.google_id) {
+   287→        await pool.query(
+   288→          'UPDATE users SET google_id = $1, avatar_url = COALESCE(avatar_url, $2) WHERE id = $3',
+   289→          [googleUser.id, googleUser.picture, user.id]
+   290→        );
+   291→      }
+   292→    } else {
+   293→      // Create new user
+   294→      const result = await pool.query(
+   295→        `INSERT INTO users (email, name, google_id, avatar_url, oauth_provider, role)
+   296→         VALUES ($1, $2, $3, $4, 'google', 'candidate')
+   297→         RETURNING *`,
+   298→        [googleUser.email, googleUser.name, googleUser.id, googleUser.picture]
+   299→      );
+   300→      user = result.rows[0];
+   301→    }
+   302→
+   303→    // Store OAuth connection
+   304→    await pool.query(`
+   305→      INSERT INTO oauth_connections (user_id, provider, provider_user_id, access_token, refresh_token, profile_data)
+   306→      VALUES ($1, 'google', $2, $3, $4, $5)
+   307→      ON CONFLICT (provider, provider_user_id) DO UPDATE SET
+   308→        access_token = $3, refresh_token = $4, profile_data = $5, updated_at = NOW()
+   309→    `, [user.id, googleUser.id, tokens.access_token, tokens.refresh_token, JSON.stringify(googleUser)]);
+   310→
+   311→    // Generate tokens
+   312→    const accessToken = generateToken(user);
+   313→    const { token: refreshToken } = await generateRefreshToken(user.id);
+   314→
+   315→    // Redirect with tokens
+   316→    const redirectUrl = user.role === 'recruiter' ? '/recruiter-dashboard.html' : '/candidate-dashboard.html';
+   317→    res.redirect(`${redirectUrl}?token=${accessToken}&refresh=${refreshToken}`);
+   318→  } catch (err) {
+   319→    console.error('Google OAuth error:', err);
+   320→    res.redirect('/login.html?error=Authentication failed');
+   321→  }
+   322→});
+   323→
+   324→// ============= OAUTH: LINKEDIN =============
+   325→
+   326→// Get LinkedIn OAuth URL
+   327→router.get('/linkedin/url', (req, res) => {
+   328→  const clientId = process.env.LINKEDIN_CLIENT_ID;
+   329→  const redirectUri = process.env.LINKEDIN_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/auth/linkedin/callback`;
+   330→
+   331→  if (!clientId) {
+   332→    return res.status(503).json({
+   333→      error: 'LinkedIn OAuth not configured',
+   334→      configured: false
+   335→    });
+   336→  }
+   337→
+   338→  const scope = encodeURIComponent('openid profile email');
+   339→  const state = crypto.randomBytes(16).toString('hex');
+   340→
+   341→  req.session.oauth_state = state;
+   342→
+   343→  const url = `https://www.linkedin.com/oauth/v2/authorization?` +
+   344→    `response_type=code` +
+   345→    `&client_id=${clientId}` +
+   346→    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+   347→    `&state=${state}` +
+   348→    `&scope=${scope}`;
+   349→
+   350→  res.json({ url, configured: true });
+   351→});
+   352→
+   353→// LinkedIn OAuth callback
+   354→router.get('/linkedin/callback', async (req, res) => {
+   355→  try {
+   356→    const { code, state, error, error_description } = req.query;
+   357→
+   358→    if (error) {
+   359→      return res.redirect(`/login.html?error=${encodeURIComponent(error_description || error)}`);
+   360→    }
+   361→
+   362→    if (!code) {
+   363→      return res.redirect('/login.html?error=No authorization code received');
+   364→    }
+   365→
+   366→    // Exchange code for tokens
+   367→    const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+   368→      method: 'POST',
+   369→      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+   370→      body: new URLSearchParams({
+   371→        grant_type: 'authorization_code',
+   372→        code,
+   373→        client_id: process.env.LINKEDIN_CLIENT_ID,
+   374→        client_secret: process.env.LINKEDIN_CLIENT_SECRET,
+   375→        redirect_uri: process.env.LINKEDIN_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/auth/linkedin/callback`
+   376→      })
+   377→    });
+   378→
+   379→    const tokens = await tokenResponse.json();
+   380→
+   381→    if (tokens.error) {
+   382→      console.error('LinkedIn token error:', tokens);
+   383→      return res.redirect('/login.html?error=Failed to authenticate with LinkedIn');
+   384→    }
+   385→
+   386→    // Get user info using OpenID Connect userinfo endpoint
+   387→    const userInfoResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
+   388→      headers: { Authorization: `Bearer ${tokens.access_token}` }
+   389→    });
+   390→
+   391→    const linkedinUser = await userInfoResponse.json();
+   392→
+   393→    if (!linkedinUser.email) {
+   394→      return res.redirect('/login.html?error=Could not retrieve email from LinkedIn');
+   395→    }
+   396→
+   397→    // Find or create user
+   398→    let user;
+   399→    const existingUser = await pool.query(
+   400→      'SELECT * FROM users WHERE linkedin_id = $1 OR email = $2',
+   401→      [linkedinUser.sub, linkedinUser.email]
+   402→    );
+   403→
+   404→    if (existingUser.rows.length > 0) {
+   405→      user = existingUser.rows[0];
+   406→      // Update LinkedIn ID if not set
+   407→      if (!user.linkedin_id) {
+   408→        await pool.query(
+   409→          'UPDATE users SET linkedin_id = $1, avatar_url = COALESCE(avatar_url, $2) WHERE id = $3',
+   410→          [linkedinUser.sub, linkedinUser.picture, user.id]
+   411→        );
+   412→      }
+   413→    } else {
+   414→      // Create new user
+   415→      const fullName = linkedinUser.name || `${linkedinUser.given_name || ''} ${linkedinUser.family_name || ''}`.trim();
+   416→      const result = await pool.query(
+   417→        `INSERT INTO users (email, name, linkedin_id, avatar_url, oauth_provider, role)
+   418→         VALUES ($1, $2, $3, $4, 'linkedin', 'candidate')
+   419→         RETURNING *`,
+   420→        [linkedinUser.email, fullName, linkedinUser.sub, linkedinUser.picture]
+   421→      );
+   422→      user = result.rows[0];
+   423→    }
+   424→
+   425→    // Store OAuth connection
+   426→    await pool.query(`
+   427→      INSERT INTO oauth_connections (user_id, provider, provider_user_id, access_token, profile_data)
+   428→      VALUES ($1, 'linkedin', $2, $3, $4)
+   429→      ON CONFLICT (provider, provider_user_id) DO UPDATE SET
+   430→        access_token = $3, profile_data = $4, updated_at = NOW()
+   431→    `, [user.id, linkedinUser.sub, tokens.access_token, JSON.stringify(linkedinUser)]);
+   432→
+   433→    // Generate tokens
+   434→    const accessToken = generateToken(user);
+   435→    const { token: refreshToken } = await generateRefreshToken(user.id);
+   436→
+   437→    // Redirect with tokens
+   438→    const redirectUrl = user.role === 'recruiter' ? '/recruiter-dashboard.html' : '/candidate-dashboard.html';
+   439→    res.redirect(`${redirectUrl}?token=${accessToken}&refresh=${refreshToken}`);
+   440→  } catch (err) {
+   441→    console.error('LinkedIn OAuth error:', err);
+   442→    res.redirect('/login.html?error=Authentication failed');
+   443→  }
+   444→});
+   445→
+   446→// ============= OAUTH STATUS =============
+   447→
+   448→// Get OAuth configuration status
+   449→router.get('/oauth/status', (req, res) => {
+   450→  res.json({
+   451→    google: {
+   452→      configured: !!process.env.GOOGLE_CLIENT_ID,
+   453→      name: 'Google'
+   454→    },
+   455→    linkedin: {
+   456→      configured: !!process.env.LINKEDIN_CLIENT_ID,
+   457→      name: 'LinkedIn'
+   458→    }
+   459→  });
+   460→});
+   461→
+   462→// Get connected OAuth providers for current user
+   463→router.get('/oauth/connections', authMiddleware, async (req, res) => {
+   464→  try {
+   465→    const connections = await pool.query(
+   466→      'SELECT provider, created_at FROM oauth_connections WHERE user_id = $1',
+   467→      [req.user.id]
+   468→    );
+   469→
+   470→    res.json({
+   471→      success: true,
+   472→      connections: connections.rows,
+   473→      has_password: !!req.user.password_hash
+   474→    });
+   475→  } catch (err) {
+   476→    console.error('Get OAuth connections error:', err);
+   477→    res.status(500).json({ error: 'Failed to get OAuth connections' });
+   478→  }
+   479→});
+   480→
+   481→// ============= PAYMENT =============
+   482→
+   483→// Payment verification
+   484→router.get('/verify-payment', authMiddleware, async (req, res) => {
+   485→  try {
+   486→    const sessionId = req.query.session_id;
+   487→    if (!sessionId) {
+   488→      return res.status(400).json({ error: 'Session ID required' });
+   489→    }
+   490→
+   491→    // Verify with Polsia
+   492→    const response = await fetch(
+   493→      `${process.env.POLSIA_API_URL || 'https://polsia.com/api/proxy/ai'}/api/company-payments/verify?session_id=${sessionId}`,
+   494→      { headers: { 'Authorization': `Bearer ${process.env.POLSIA_API_KEY}` } }
+   495→    );
+   496→    const { verified, payment } = await response.json();
+   497→
+   498→    if (verified) {
+   499→      await pool.query(
+   500→        'UPDATE users SET is_paid = true, stripe_subscription_id = $1 WHERE id = $2',
+   501→        [payment.subscription_id || sessionId, req.user.id]
+   502→      );
+   503→      res.json({ success: true, verified: true });
+   504→    } else {
+   505→      res.json({ success: false, verified: false });
+   506→    }
+   507→  } catch (err) {
+   508→    console.error('Payment verification error:', err);
+   509→    res.status(500).json({ error: 'Verification failed' });
+   510→  }
+   511→});
+   512→
+   513→module.exports = router;
+   514→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

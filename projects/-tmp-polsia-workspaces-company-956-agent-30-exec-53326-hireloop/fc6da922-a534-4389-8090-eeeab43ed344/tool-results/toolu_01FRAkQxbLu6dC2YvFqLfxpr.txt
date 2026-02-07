@@ -1,0 +1,1305 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>Job Board - Rekrut AI</title>
+     7→  <link rel="preconnect" href="https://fonts.googleapis.com">
+     8→  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     9→  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    10→  <link rel="stylesheet" href="/css/styles.css">
+    11→  <link rel="stylesheet" href="/css/responsive.css">
+    12→  <link rel="stylesheet" href="/css/dashboard.css">
+    13→</head>
+    14→<body>
+    15→  <div class="dashboard-layout">
+    16→    <!-- Sidebar -->
+    17→    <aside class="sidebar">
+    18→      <a href="/" class="logo">
+    19→        <span class="logo-icon">◎</span>
+    20→        <span>Rekrut AI</span>
+    21→      </a>
+    22→
+    23→      <nav class="sidebar-nav">
+    24→        <a href="/candidate-dashboard.html" class="nav-item">
+    25→          <span class="nav-icon">🏠</span>
+    26→          <span>Dashboard</span>
+    27→        </a>
+    28→        <a href="/candidate-profile.html" class="nav-item">
+    29→          <span class="nav-icon">👤</span>
+    30→          <span>My Profile</span>
+    31→        </a>
+    32→        <a href="/omniscore.html" class="nav-item">
+    33→          <span class="nav-icon">🎯</span>
+    34→          <span>OmniScore</span>
+    35→        </a>
+    36→        <a href="/skill-assessments.html" class="nav-item">
+    37→          <span class="nav-icon">📝</span>
+    38→          <span>Skill Tests</span>
+    39→        </a>
+    40→        <a href="/interview.html" class="nav-item">
+    41→          <span class="nav-icon">🎤</span>
+    42→          <span>Interview Prep</span>
+    43→        </a>
+    44→        <a href="/job-board.html" class="nav-item active">
+    45→          <span class="nav-icon">💼</span>
+    46→          <span>Job Board</span>
+    47→        </a>
+    48→      </nav>
+    49→
+    50→      <div class="sidebar-footer">
+    51→        <button onclick="handleLogout()" class="btn btn-ghost btn-sm btn-full">Logout</button>
+    52→      </div>
+    53→    </aside>
+    54→
+    55→    <!-- Main Content -->
+    56→    <main class="main-content">
+    57→      <header class="page-header">
+    58→        <div>
+    59→          <h1>Job Board</h1>
+    60→          <p>Jobs matched to your OmniScore and skills</p>
+    61→        </div>
+    62→        <div class="header-stats">
+    63→          <div class="mini-score">
+    64→            <span class="mini-score-value" id="user-omniscore">---</span>
+    65→            <span class="mini-score-label">Your OmniScore</span>
+    66→          </div>
+    67→        </div>
+    68→      </header>
+    69→
+    70→      <!-- Tabs -->
+    71→      <div class="job-tabs">
+    72→        <button class="tab-btn active" data-tab="recommended" onclick="switchTab('recommended')">
+    73→          <span>🎯</span> Recommended
+    74→        </button>
+    75→        <button class="tab-btn" data-tab="all" onclick="switchTab('all')">
+    76→          <span>📋</span> All Jobs
+    77→        </button>
+    78→        <button class="tab-btn" data-tab="saved" onclick="switchTab('saved')">
+    79→          <span>❤️</span> Saved <span class="tab-count" id="saved-count">0</span>
+    80→        </button>
+    81→        <button class="tab-btn" data-tab="applications" onclick="switchTab('applications')">
+    82→          <span>📄</span> Applied <span class="tab-count" id="applied-count">0</span>
+    83→        </button>
+    84→      </div>
+    85→
+    86→      <!-- Filters (for recommended/all) -->
+    87→      <div class="job-filters" id="job-filters">
+    88→        <div class="filter-group">
+    89→          <label>Location</label>
+    90→          <select id="filter-location" onchange="applyFilters()">
+    91→            <option value="">All Locations</option>
+    92→            <option value="remote">Remote</option>
+    93→            <option value="san francisco">San Francisco</option>
+    94→            <option value="new york">New York</option>
+    95→            <option value="austin">Austin</option>
+    96→            <option value="seattle">Seattle</option>
+    97→          </select>
+    98→        </div>
+    99→        <div class="filter-group">
+   100→          <label>Job Type</label>
+   101→          <select id="filter-type" onchange="applyFilters()">
+   102→            <option value="">All Types</option>
+   103→            <option value="full-time">Full-time</option>
+   104→            <option value="part-time">Part-time</option>
+   105→            <option value="contract">Contract</option>
+   106→            <option value="internship">Internship</option>
+   107→          </select>
+   108→        </div>
+   109→        <div class="filter-group">
+   110→          <label>Match Score</label>
+   111→          <select id="filter-match" onchange="applyFilters()">
+   112→            <option value="">Any Match</option>
+   113→            <option value="80">80%+ (Excellent)</option>
+   114→            <option value="60">60%+ (Good)</option>
+   115→            <option value="40">40%+ (Fair)</option>
+   116→          </select>
+   117→        </div>
+   118→      </div>
+   119→
+   120→      <!-- Job Listings -->
+   121→      <div class="jobs-container" id="jobs-container">
+   122→        <div class="loading-state">
+   123→          <div class="spinner"></div>
+   124→          <p>Finding jobs for you...</p>
+   125→        </div>
+   126→      </div>
+   127→
+   128→      <!-- Job Detail Modal -->
+   129→      <div class="job-detail-panel" id="job-detail-panel">
+   130→        <div class="job-detail-content" id="job-detail-content">
+   131→          <!-- Job details rendered here -->
+   132→        </div>
+   133→      </div>
+   134→    </main>
+   135→  </div>
+   136→
+   137→  <!-- Application Modal -->
+   138→  <div class="modal-overlay" id="modal-overlay" onclick="closeModal()"></div>
+   139→  <div class="modal" id="apply-modal">
+   140→    <div class="modal-header">
+   141→      <h3>Apply to <span id="apply-job-title"></span></h3>
+   142→      <button class="modal-close" onclick="closeModal()">&times;</button>
+   143→    </div>
+   144→    <div class="modal-body">
+   145→      <div class="apply-match-preview">
+   146→        <div class="match-circle" id="apply-match-circle">
+   147→          <span id="apply-match-score">0%</span>
+   148→        </div>
+   149→        <div class="match-info">
+   150→          <span class="match-level" id="apply-match-level">Good Match</span>
+   151→          <span class="match-desc" id="apply-match-desc">Based on your skills and experience</span>
+   152→        </div>
+   153→      </div>
+   154→
+   155→      <div class="form-group">
+   156→        <label>Cover Letter (Optional)</label>
+   157→        <textarea id="cover-letter" rows="6" placeholder="Tell them why you're a great fit for this role..."></textarea>
+   158→      </div>
+   159→
+   160→      <div class="apply-checklist">
+   161→        <h4>Your Application Includes:</h4>
+   162→        <ul>
+   163→          <li><span class="check">✓</span> Your OmniScore</li>
+   164→          <li><span class="check">✓</span> Profile & Experience</li>
+   165→          <li><span class="check">✓</span> Skills & Assessments</li>
+   166→          <li><span class="check" id="resume-check">✓</span> Resume (if uploaded)</li>
+   167→        </ul>
+   168→      </div>
+   169→    </div>
+   170→    <div class="modal-footer">
+   171→      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+   172→      <button class="btn btn-primary" id="submit-apply-btn" onclick="submitApplication()">Submit Application</button>
+   173→    </div>
+   174→  </div>
+   175→
+   176→  <script src="/js/main.js"></script>
+   177→  <script>
+   178→    let allJobs = [];
+   179→    let savedJobs = [];
+   180→    let applications = [];
+   181→    let currentTab = 'recommended';
+   182→    let selectedJobId = null;
+   183→
+   184→    document.addEventListener('DOMContentLoaded', async () => {
+   185→      const user = await checkAuth();
+   186→      if (!user) {
+   187→        window.location.href = '/login.html';
+   188→        return;
+   189→      }
+   190→
+   191→      loadOmniScore();
+   192→      loadJobs();
+   193→      loadSavedJobs();
+   194→      loadApplications();
+   195→    });
+   196→
+   197→    async function loadOmniScore() {
+   198→      try {
+   199→        const data = await apiCall('/omniscore');
+   200→        if (data.success && data.omniscore) {
+   201→          document.getElementById('user-omniscore').textContent = data.omniscore.total_score;
+   202→        }
+   203→      } catch (err) {
+   204→        document.getElementById('user-omniscore').textContent = '300';
+   205→      }
+   206→    }
+   207→
+   208→    async function loadJobs() {
+   209→      try {
+   210→        const data = await apiCall('/candidate/jobs/recommended?limit=30');
+   211→        if (data.success) {
+   212→          allJobs = data.jobs;
+   213→          renderJobs(data.jobs);
+   214→        }
+   215→      } catch (err) {
+   216→        console.error('Load jobs error:', err);
+   217→        document.getElementById('jobs-container').innerHTML = `
+   218→          <div class="empty-state">
+   219→            <p>Could not load jobs. Please try again.</p>
+   220→          </div>
+   221→        `;
+   222→      }
+   223→    }
+   224→
+   225→    async function loadSavedJobs() {
+   226→      try {
+   227→        const data = await apiCall('/candidate/jobs/saved');
+   228→        if (data.success) {
+   229→          savedJobs = data.jobs;
+   230→          document.getElementById('saved-count').textContent = data.jobs.length;
+   231→        }
+   232→      } catch (err) {
+   233→        console.error('Load saved jobs error:', err);
+   234→      }
+   235→    }
+   236→
+   237→    async function loadApplications() {
+   238→      try {
+   239→        const data = await apiCall('/candidate/applications');
+   240→        if (data.success) {
+   241→          applications = data.applications;
+   242→          document.getElementById('applied-count').textContent = data.applications.length;
+   243→        }
+   244→      } catch (err) {
+   245→        console.error('Load applications error:', err);
+   246→      }
+   247→    }
+   248→
+   249→    function switchTab(tab) {
+   250→      currentTab = tab;
+   251→
+   252→      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+   253→      document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+   254→
+   255→      // Show/hide filters
+   256→      document.getElementById('job-filters').style.display =
+   257→        (tab === 'recommended' || tab === 'all') ? 'flex' : 'none';
+   258→
+   259→      // Close detail panel
+   260→      document.getElementById('job-detail-panel').classList.remove('active');
+   261→
+   262→      // Render appropriate list
+   263→      if (tab === 'recommended') {
+   264→        renderJobs(allJobs);
+   265→      } else if (tab === 'all') {
+   266→        // For all, we show the same but without match info prominently
+   267→        renderJobs(allJobs, false);
+   268→      } else if (tab === 'saved') {
+   269→        renderSavedJobs();
+   270→      } else if (tab === 'applications') {
+   271→        renderApplications();
+   272→      }
+   273→    }
+   274→
+   275→    function applyFilters() {
+   276→      const location = document.getElementById('filter-location').value.toLowerCase();
+   277→      const type = document.getElementById('filter-type').value;
+   278→      const minMatch = parseInt(document.getElementById('filter-match').value) || 0;
+   279→
+   280→      let filtered = allJobs.filter(job => {
+   281→        if (location && job.location && !job.location.toLowerCase().includes(location)) return false;
+   282→        if (type && job.job_type !== type) return false;
+   283→        if (minMatch && (!job.match || job.match.match_score < minMatch)) return false;
+   284→        return true;
+   285→      });
+   286→
+   287→      renderJobs(filtered);
+   288→    }
+   289→
+   290→    function renderJobs(jobs, showMatch = true) {
+   291→      const container = document.getElementById('jobs-container');
+   292→
+   293→      if (!jobs || jobs.length === 0) {
+   294→        container.innerHTML = `
+   295→          <div class="empty-state">
+   296→            <p>No jobs found matching your criteria.</p>
+   297→          </div>
+   298→        `;
+   299→        return;
+   300→      }
+   301→
+   302→      container.innerHTML = `
+   303→        <div class="jobs-list">
+   304→          ${jobs.map(job => renderJobCard(job, showMatch)).join('')}
+   305→        </div>
+   306→      `;
+   307→    }
+   308→
+   309→    function renderJobCard(job, showMatch = true) {
+   310→      const match = job.match || {};
+   311→      const matchScore = match.match_score || 50;
+   312→      const matchLevel = match.match_level || 'fair';
+   313→      const isSaved = savedJobs.some(s => s.id === job.id);
+   314→      const hasApplied = applications.some(a => a.job_id === job.id);
+   315→
+   316→      return `
+   317→        <div class="job-card ${hasApplied ? 'applied' : ''}" onclick="showJobDetail(${job.id})">
+   318→          <div class="job-card-main">
+   319→            <div class="job-card-header">
+   320→              <h3>${job.title}</h3>
+   321→              <button class="save-btn ${isSaved ? 'saved' : ''}" onclick="event.stopPropagation(); toggleSave(${job.id})">
+   322→                ${isSaved ? '❤️' : '🤍'}
+   323→              </button>
+   324→            </div>
+   325→            <p class="job-company">${job.company || job.posted_by_company || 'Company'}</p>
+   326→            <div class="job-meta">
+   327→              ${job.location ? `<span class="job-location">📍 ${job.location}</span>` : ''}
+   328→              ${job.job_type ? `<span class="job-type">${job.job_type}</span>` : ''}
+   329→              ${job.salary_range ? `<span class="job-salary">💰 ${job.salary_range}</span>` : ''}
+   330→            </div>
+   331→          </div>
+   332→          ${showMatch ? `
+   333→            <div class="job-card-match">
+   334→              <div class="match-indicator ${matchLevel}">
+   335→                <span class="match-percent">${matchScore}%</span>
+   336→                <span class="match-label">match</span>
+   337→              </div>
+   338→              ${hasApplied ? '<span class="applied-badge">Applied</span>' : ''}
+   339→            </div>
+   340→          ` : ''}
+   341→        </div>
+   342→      `;
+   343→    }
+   344→
+   345→    function renderSavedJobs() {
+   346→      const container = document.getElementById('jobs-container');
+   347→
+   348→      if (savedJobs.length === 0) {
+   349→        container.innerHTML = `
+   350→          <div class="empty-state">
+   351→            <h3>No Saved Jobs</h3>
+   352→            <p>Save jobs you're interested in to apply later.</p>
+   353→            <button class="btn btn-primary" onclick="switchTab('recommended')">Browse Jobs</button>
+   354→          </div>
+   355→        `;
+   356→        return;
+   357→      }
+   358→
+   359→      container.innerHTML = `
+   360→        <div class="jobs-list">
+   361→          ${savedJobs.map(job => renderJobCard(job, true)).join('')}
+   362→        </div>
+   363→      `;
+   364→    }
+   365→
+   366→    function renderApplications() {
+   367→      const container = document.getElementById('jobs-container');
+   368→
+   369→      if (applications.length === 0) {
+   370→        container.innerHTML = `
+   371→          <div class="empty-state">
+   372→            <h3>No Applications Yet</h3>
+   373→            <p>Apply to jobs to track your applications here.</p>
+   374→            <button class="btn btn-primary" onclick="switchTab('recommended')">Find Jobs</button>
+   375→          </div>
+   376→        `;
+   377→        return;
+   378→      }
+   379→
+   380→      container.innerHTML = `
+   381→        <div class="applications-list">
+   382→          ${applications.map(app => `
+   383→            <div class="application-card" onclick="showJobDetail(${app.job_id})">
+   384→              <div class="application-info">
+   385→                <h4>${app.title}</h4>
+   386→                <p>${app.company || app.posted_by_company || 'Company'}</p>
+   387→                <span class="application-date">Applied ${formatDate(app.applied_at)}</span>
+   388→              </div>
+   389→              <div class="application-status">
+   390→                <span class="status-badge ${app.status}">${formatStatus(app.status)}</span>
+   391→                ${app.match_score ? `<span class="match-score">${app.match_score}% match</span>` : ''}
+   392→              </div>
+   393→            </div>
+   394→          `).join('')}
+   395→        </div>
+   396→      `;
+   397→    }
+   398→
+   399→    function formatDate(dateStr) {
+   400→      const date = new Date(dateStr);
+   401→      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+   402→    }
+   403→
+   404→    function formatStatus(status) {
+   405→      const labels = {
+   406→        'applied': 'Applied',
+   407→        'reviewing': 'Under Review',
+   408→        'interviewing': 'Interviewing',
+   409→        'offered': 'Offer Received',
+   410→        'rejected': 'Not Selected',
+   411→        'accepted': 'Accepted'
+   412→      };
+   413→      return labels[status] || status;
+   414→    }
+   415→
+   416→    async function showJobDetail(jobId) {
+   417→      selectedJobId = jobId;
+   418→      const job = allJobs.find(j => j.id === jobId) ||
+   419→                  savedJobs.find(j => j.id === jobId) ||
+   420→                  applications.find(a => a.job_id === jobId);
+   421→
+   422→      if (!job) return;
+   423→
+   424→      const match = job.match || {};
+   425→      const isSaved = savedJobs.some(s => s.id === jobId);
+   426→      const hasApplied = applications.some(a => a.job_id === jobId);
+   427→
+   428→      const panel = document.getElementById('job-detail-panel');
+   429→      const content = document.getElementById('job-detail-content');
+   430→
+   431→      content.innerHTML = `
+   432→        <button class="close-panel-btn" onclick="closeDetailPanel()">×</button>
+   433→
+   434→        <div class="job-detail-header">
+   435→          <h2>${job.title}</h2>
+   436→          <p class="detail-company">${job.company || job.posted_by_company || 'Company'}</p>
+   437→        </div>
+   438→
+   439→        <div class="job-detail-meta">
+   440→          ${job.location ? `<span>📍 ${job.location}</span>` : ''}
+   441→          ${job.job_type ? `<span>⏰ ${job.job_type}</span>` : ''}
+   442→          ${job.salary_range ? `<span>💰 ${job.salary_range}</span>` : ''}
+   443→        </div>
+   444→
+   445→        ${match.match_score ? `
+   446→          <div class="job-match-card ${match.match_level}">
+   447→            <div class="match-header">
+   448→              <span class="match-big-score">${match.match_score}%</span>
+   449→              <span class="match-big-label">${match.match_level} match</span>
+   450→            </div>
+   451→            ${match.recommendation ? `<p class="match-recommendation">${match.recommendation}</p>` : ''}
+   452→            ${match.matching_skills && match.matching_skills.length > 0 ? `
+   453→              <div class="match-skills">
+   454→                <strong>Matching Skills:</strong>
+   455→                <div class="skill-chips">
+   456→                  ${match.matching_skills.map(s => `<span class="skill-chip match">${s}</span>`).join('')}
+   457→                </div>
+   458→              </div>
+   459→            ` : ''}
+   460→            ${match.missing_skills && match.missing_skills.length > 0 ? `
+   461→              <div class="match-skills">
+   462→                <strong>Skills to Develop:</strong>
+   463→                <div class="skill-chips">
+   464→                  ${match.missing_skills.map(s => `<span class="skill-chip missing">${s}</span>`).join('')}
+   465→                </div>
+   466→              </div>
+   467→            ` : ''}
+   468→          </div>
+   469→        ` : ''}
+   470→
+   471→        <div class="job-detail-section">
+   472→          <h3>Description</h3>
+   473→          <div class="job-description">${job.description || 'No description provided.'}</div>
+   474→        </div>
+   475→
+   476→        ${job.requirements ? `
+   477→          <div class="job-detail-section">
+   478→            <h3>Requirements</h3>
+   479→            <div class="job-requirements">${job.requirements}</div>
+   480→          </div>
+   481→        ` : ''}
+   482→
+   483→        <div class="job-detail-actions">
+   484→          <button class="btn btn-ghost" onclick="toggleSave(${jobId})">
+   485→            ${isSaved ? '❤️ Saved' : '🤍 Save'}
+   486→          </button>
+   487→          ${hasApplied ? `
+   488→            <button class="btn btn-primary" disabled>Applied ✓</button>
+   489→          ` : `
+   490→            <button class="btn btn-primary" onclick="showApplyModal(${jobId})">Apply Now</button>
+   491→          `}
+   492→        </div>
+   493→
+   494→        <div class="job-detail-footer">
+   495→          <span>Posted ${formatDate(job.created_at)}</span>
+   496→        </div>
+   497→      `;
+   498→
+   499→      panel.classList.add('active');
+   500→    }
+   501→
+   502→    function closeDetailPanel() {
+   503→      document.getElementById('job-detail-panel').classList.remove('active');
+   504→    }
+   505→
+   506→    async function toggleSave(jobId) {
+   507→      const isSaved = savedJobs.some(s => s.id === jobId);
+   508→
+   509→      try {
+   510→        if (isSaved) {
+   511→          await apiCall(`/candidate/jobs/${jobId}/save`, { method: 'DELETE' });
+   512→          savedJobs = savedJobs.filter(s => s.id !== jobId);
+   513→        } else {
+   514→          await apiCall(`/candidate/jobs/${jobId}/save`, { method: 'POST' });
+   515→          const job = allJobs.find(j => j.id === jobId);
+   516→          if (job) savedJobs.push(job);
+   517→        }
+   518→
+   519→        document.getElementById('saved-count').textContent = savedJobs.length;
+   520→
+   521→        // Re-render current view
+   522→        if (currentTab === 'saved') {
+   523→          renderSavedJobs();
+   524→        } else {
+   525→          renderJobs(allJobs);
+   526→        }
+   527→
+   528→        // Update detail panel if open
+   529→        if (selectedJobId === jobId) {
+   530→          showJobDetail(jobId);
+   531→        }
+   532→      } catch (err) {
+   533→        console.error('Toggle save error:', err);
+   534→      }
+   535→    }
+   536→
+   537→    function showApplyModal(jobId) {
+   538→      selectedJobId = jobId;
+   539→      const job = allJobs.find(j => j.id === jobId) || savedJobs.find(j => j.id === jobId);
+   540→
+   541→      if (!job) return;
+   542→
+   543→      const match = job.match || {};
+   544→
+   545→      document.getElementById('apply-job-title').textContent = job.title;
+   546→      document.getElementById('apply-match-score').textContent = (match.match_score || 50) + '%';
+   547→      document.getElementById('apply-match-level').textContent =
+   548→        (match.match_level || 'fair').charAt(0).toUpperCase() + (match.match_level || 'fair').slice(1) + ' Match';
+   549→      document.getElementById('apply-match-desc').textContent = 'Based on your skills and OmniScore';
+   550→
+   551→      const circle = document.getElementById('apply-match-circle');
+   552→      circle.className = 'match-circle ' + (match.match_level || 'fair');
+   553→
+   554→      document.getElementById('cover-letter').value = '';
+   555→
+   556→      showModal();
+   557→    }
+   558→
+   559→    function showModal() {
+   560→      document.getElementById('modal-overlay').classList.add('active');
+   561→      document.getElementById('apply-modal').classList.add('active');
+   562→    }
+   563→
+   564→    function closeModal() {
+   565→      document.getElementById('modal-overlay').classList.remove('active');
+   566→      document.getElementById('apply-modal').classList.remove('active');
+   567→    }
+   568→
+   569→    async function submitApplication() {
+   570→      const coverLetter = document.getElementById('cover-letter').value;
+   571→      const btn = document.getElementById('submit-apply-btn');
+   572→
+   573→      btn.textContent = 'Submitting...';
+   574→      btn.disabled = true;
+   575→
+   576→      try {
+   577→        const data = await apiCall(`/candidate/jobs/${selectedJobId}/apply`, {
+   578→          method: 'POST',
+   579→          body: JSON.stringify({ cover_letter: coverLetter })
+   580→        });
+   581→
+   582→        if (data.success) {
+   583→          closeModal();
+   584→          applications.push(data.application);
+   585→          document.getElementById('applied-count').textContent = applications.length;
+   586→
+   587→          // Re-render and show success
+   588→          if (currentTab === 'recommended' || currentTab === 'all') {
+   589→            renderJobs(allJobs);
+   590→          }
+   591→
+   592→          // Update detail panel
+   593→          showJobDetail(selectedJobId);
+   594→
+   595→          alert('Application submitted successfully! 🎉');
+   596→        }
+   597→      } catch (err) {
+   598→        console.error('Apply error:', err);
+   599→        alert('Failed to submit application. Please try again.');
+   600→      } finally {
+   601→        btn.textContent = 'Submit Application';
+   602→        btn.disabled = false;
+   603→      }
+   604→    }
+   605→  </script>
+   606→
+   607→  <style>
+   608→    .header-stats {
+   609→      display: flex;
+   610→      align-items: center;
+   611→    }
+   612→
+   613→    .mini-score {
+   614→      display: flex;
+   615→      flex-direction: column;
+   616→      align-items: center;
+   617→      padding: 12px 20px;
+   618→      background: var(--bg-card);
+   619→      border: 1px solid var(--accent-primary);
+   620→      border-radius: var(--radius-md);
+   621→    }
+   622→
+   623→    .mini-score-value {
+   624→      font-family: var(--font-display);
+   625→      font-size: 24px;
+   626→      font-weight: 700;
+   627→      color: var(--accent-primary);
+   628→    }
+   629→
+   630→    .mini-score-label {
+   631→      font-size: 11px;
+   632→      color: var(--text-muted);
+   633→    }
+   634→
+   635→    .job-tabs {
+   636→      display: flex;
+   637→      gap: 8px;
+   638→      margin-bottom: 24px;
+   639→    }
+   640→
+   641→    .job-tabs .tab-btn {
+   642→      display: flex;
+   643→      align-items: center;
+   644→      gap: 8px;
+   645→      padding: 10px 20px;
+   646→      background: var(--bg-card);
+   647→      border: 1px solid var(--border-color);
+   648→      border-radius: var(--radius-full);
+   649→      color: var(--text-secondary);
+   650→      font-size: 14px;
+   651→      cursor: pointer;
+   652→      transition: all 0.2s;
+   653→    }
+   654→
+   655→    .job-tabs .tab-btn:hover {
+   656→      border-color: var(--accent-primary);
+   657→    }
+   658→
+   659→    .job-tabs .tab-btn.active {
+   660→      background: var(--accent-primary);
+   661→      border-color: var(--accent-primary);
+   662→      color: #000;
+   663→    }
+   664→
+   665→    .tab-count {
+   666→      background: rgba(0,0,0,0.2);
+   667→      padding: 2px 8px;
+   668→      border-radius: var(--radius-full);
+   669→      font-size: 12px;
+   670→    }
+   671→
+   672→    .job-filters {
+   673→      display: flex;
+   674→      gap: 16px;
+   675→      margin-bottom: 24px;
+   676→      padding: 16px;
+   677→      background: var(--bg-card);
+   678→      border: 1px solid var(--border-color);
+   679→      border-radius: var(--radius-md);
+   680→    }
+   681→
+   682→    .filter-group {
+   683→      display: flex;
+   684→      flex-direction: column;
+   685→      gap: 6px;
+   686→    }
+   687→
+   688→    .filter-group label {
+   689→      font-size: 12px;
+   690→      color: var(--text-muted);
+   691→    }
+   692→
+   693→    .filter-group select {
+   694→      padding: 8px 12px;
+   695→      background: var(--bg-elevated);
+   696→      border: 1px solid var(--border-color);
+   697→      border-radius: var(--radius-md);
+   698→      color: var(--text-primary);
+   699→      font-size: 13px;
+   700→      min-width: 150px;
+   701→    }
+   702→
+   703→    .jobs-list {
+   704→      display: flex;
+   705→      flex-direction: column;
+   706→      gap: 16px;
+   707→    }
+   708→
+   709→    .job-card {
+   710→      display: flex;
+   711→      justify-content: space-between;
+   712→      align-items: center;
+   713→      padding: 20px 24px;
+   714→      background: var(--bg-card);
+   715→      border: 1px solid var(--border-color);
+   716→      border-radius: var(--radius-lg);
+   717→      cursor: pointer;
+   718→      transition: all 0.2s;
+   719→    }
+   720→
+   721→    .job-card:hover {
+   722→      border-color: var(--accent-primary);
+   723→      transform: translateX(4px);
+   724→    }
+   725→
+   726→    .job-card.applied {
+   727→      border-left: 3px solid var(--accent-primary);
+   728→    }
+   729→
+   730→    .job-card-header {
+   731→      display: flex;
+   732→      align-items: flex-start;
+   733→      gap: 12px;
+   734→    }
+   735→
+   736→    .job-card-header h3 {
+   737→      font-family: var(--font-display);
+   738→      font-size: 18px;
+   739→      margin-bottom: 4px;
+   740→    }
+   741→
+   742→    .save-btn {
+   743→      background: none;
+   744→      border: none;
+   745→      font-size: 20px;
+   746→      cursor: pointer;
+   747→      opacity: 0.5;
+   748→      transition: all 0.2s;
+   749→    }
+   750→
+   751→    .save-btn:hover, .save-btn.saved {
+   752→      opacity: 1;
+   753→    }
+   754→
+   755→    .job-company {
+   756→      color: var(--text-secondary);
+   757→      font-size: 14px;
+   758→      margin-bottom: 12px;
+   759→    }
+   760→
+   761→    .job-meta {
+   762→      display: flex;
+   763→      gap: 16px;
+   764→      font-size: 13px;
+   765→      color: var(--text-muted);
+   766→    }
+   767→
+   768→    .job-type {
+   769→      padding: 4px 8px;
+   770→      background: var(--bg-elevated);
+   771→      border-radius: var(--radius-full);
+   772→      text-transform: capitalize;
+   773→    }
+   774→
+   775→    .job-card-match {
+   776→      display: flex;
+   777→      flex-direction: column;
+   778→      align-items: flex-end;
+   779→      gap: 8px;
+   780→    }
+   781→
+   782→    .match-indicator {
+   783→      display: flex;
+   784→      flex-direction: column;
+   785→      align-items: center;
+   786→      padding: 12px 16px;
+   787→      border-radius: var(--radius-md);
+   788→      min-width: 80px;
+   789→    }
+   790→
+   791→    .match-indicator.excellent {
+   792→      background: rgba(16, 185, 129, 0.2);
+   793→      color: var(--accent-primary);
+   794→    }
+   795→
+   796→    .match-indicator.good {
+   797→      background: rgba(16, 185, 129, 0.15);
+   798→      color: var(--accent-primary);
+   799→    }
+   800→
+   801→    .match-indicator.fair {
+   802→      background: rgba(245, 158, 11, 0.15);
+   803→      color: #f59e0b;
+   804→    }
+   805→
+   806→    .match-indicator.poor {
+   807→      background: rgba(239, 68, 68, 0.15);
+   808→      color: #ef4444;
+   809→    }
+   810→
+   811→    .match-percent {
+   812→      font-family: var(--font-display);
+   813→      font-size: 24px;
+   814→      font-weight: 700;
+   815→    }
+   816→
+   817→    .match-label {
+   818→      font-size: 11px;
+   819→      opacity: 0.8;
+   820→    }
+   821→
+   822→    .applied-badge {
+   823→      padding: 4px 12px;
+   824→      background: var(--accent-primary);
+   825→      color: #000;
+   826→      border-radius: var(--radius-full);
+   827→      font-size: 12px;
+   828→      font-weight: 600;
+   829→    }
+   830→
+   831→    /* Applications list */
+   832→    .applications-list {
+   833→      display: flex;
+   834→      flex-direction: column;
+   835→      gap: 12px;
+   836→    }
+   837→
+   838→    .application-card {
+   839→      display: flex;
+   840→      justify-content: space-between;
+   841→      align-items: center;
+   842→      padding: 20px 24px;
+   843→      background: var(--bg-card);
+   844→      border: 1px solid var(--border-color);
+   845→      border-radius: var(--radius-lg);
+   846→      cursor: pointer;
+   847→      transition: all 0.2s;
+   848→    }
+   849→
+   850→    .application-card:hover {
+   851→      border-color: var(--accent-primary);
+   852→    }
+   853→
+   854→    .application-info h4 {
+   855→      font-family: var(--font-display);
+   856→      font-size: 16px;
+   857→      margin-bottom: 4px;
+   858→    }
+   859→
+   860→    .application-info p {
+   861→      color: var(--text-secondary);
+   862→      font-size: 14px;
+   863→      margin-bottom: 8px;
+   864→    }
+   865→
+   866→    .application-date {
+   867→      font-size: 12px;
+   868→      color: var(--text-muted);
+   869→    }
+   870→
+   871→    .application-status {
+   872→      display: flex;
+   873→      flex-direction: column;
+   874→      align-items: flex-end;
+   875→      gap: 8px;
+   876→    }
+   877→
+   878→    .status-badge {
+   879→      padding: 6px 12px;
+   880→      border-radius: var(--radius-full);
+   881→      font-size: 12px;
+   882→      font-weight: 600;
+   883→    }
+   884→
+   885→    .status-badge.applied {
+   886→      background: rgba(59, 130, 246, 0.2);
+   887→      color: #3b82f6;
+   888→    }
+   889→
+   890→    .status-badge.reviewing {
+   891→      background: rgba(245, 158, 11, 0.2);
+   892→      color: #f59e0b;
+   893→    }
+   894→
+   895→    .status-badge.interviewing {
+   896→      background: rgba(16, 185, 129, 0.2);
+   897→      color: var(--accent-primary);
+   898→    }
+   899→
+   900→    .status-badge.offered {
+   901→      background: var(--accent-primary);
+   902→      color: #000;
+   903→    }
+   904→
+   905→    .status-badge.rejected {
+   906→      background: rgba(239, 68, 68, 0.2);
+   907→      color: #ef4444;
+   908→    }
+   909→
+   910→    .match-score {
+   911→      font-size: 13px;
+   912→      color: var(--text-muted);
+   913→    }
+   914→
+   915→    /* Job Detail Panel */
+   916→    .job-detail-panel {
+   917→      position: fixed;
+   918→      top: 0;
+   919→      right: 0;
+   920→      width: 500px;
+   921→      height: 100vh;
+   922→      background: var(--bg-secondary);
+   923→      border-left: 1px solid var(--border-color);
+   924→      transform: translateX(100%);
+   925→      transition: transform 0.3s ease;
+   926→      overflow-y: auto;
+   927→      z-index: 50;
+   928→    }
+   929→
+   930→    .job-detail-panel.active {
+   931→      transform: translateX(0);
+   932→    }
+   933→
+   934→    .job-detail-content {
+   935→      padding: 32px;
+   936→    }
+   937→
+   938→    .close-panel-btn {
+   939→      position: absolute;
+   940→      top: 16px;
+   941→      right: 16px;
+   942→      background: var(--bg-elevated);
+   943→      border: none;
+   944→      width: 32px;
+   945→      height: 32px;
+   946→      border-radius: 50%;
+   947→      font-size: 20px;
+   948→      color: var(--text-muted);
+   949→      cursor: pointer;
+   950→    }
+   951→
+   952→    .job-detail-header h2 {
+   953→      font-family: var(--font-display);
+   954→      font-size: 24px;
+   955→      margin-bottom: 8px;
+   956→    }
+   957→
+   958→    .detail-company {
+   959→      color: var(--text-secondary);
+   960→      font-size: 16px;
+   961→      margin-bottom: 16px;
+   962→    }
+   963→
+   964→    .job-detail-meta {
+   965→      display: flex;
+   966→      flex-wrap: wrap;
+   967→      gap: 12px;
+   968→      margin-bottom: 24px;
+   969→      font-size: 14px;
+   970→      color: var(--text-muted);
+   971→    }
+   972→
+   973→    .job-match-card {
+   974→      padding: 20px;
+   975→      border-radius: var(--radius-lg);
+   976→      margin-bottom: 24px;
+   977→    }
+   978→
+   979→    .job-match-card.excellent {
+   980→      background: rgba(16, 185, 129, 0.15);
+   981→      border: 1px solid rgba(16, 185, 129, 0.3);
+   982→    }
+   983→
+   984→    .job-match-card.good {
+   985→      background: rgba(16, 185, 129, 0.1);
+   986→      border: 1px solid rgba(16, 185, 129, 0.2);
+   987→    }
+   988→
+   989→    .job-match-card.fair {
+   990→      background: rgba(245, 158, 11, 0.1);
+   991→      border: 1px solid rgba(245, 158, 11, 0.2);
+   992→    }
+   993→
+   994→    .job-match-card.poor {
+   995→      background: rgba(239, 68, 68, 0.1);
+   996→      border: 1px solid rgba(239, 68, 68, 0.2);
+   997→    }
+   998→
+   999→    .match-header {
+  1000→      display: flex;
+  1001→      align-items: baseline;
+  1002→      gap: 8px;
+  1003→      margin-bottom: 12px;
+  1004→    }
+  1005→
+  1006→    .match-big-score {
+  1007→      font-family: var(--font-display);
+  1008→      font-size: 36px;
+  1009→      font-weight: 700;
+  1010→    }
+  1011→
+  1012→    .job-match-card.excellent .match-big-score,
+  1013→    .job-match-card.good .match-big-score {
+  1014→      color: var(--accent-primary);
+  1015→    }
+  1016→
+  1017→    .job-match-card.fair .match-big-score {
+  1018→      color: #f59e0b;
+  1019→    }
+  1020→
+  1021→    .job-match-card.poor .match-big-score {
+  1022→      color: #ef4444;
+  1023→    }
+  1024→
+  1025→    .match-big-label {
+  1026→      font-size: 14px;
+  1027→      color: var(--text-secondary);
+  1028→      text-transform: capitalize;
+  1029→    }
+  1030→
+  1031→    .match-recommendation {
+  1032→      font-size: 14px;
+  1033→      color: var(--text-secondary);
+  1034→      margin-bottom: 16px;
+  1035→    }
+  1036→
+  1037→    .match-skills {
+  1038→      margin-bottom: 12px;
+  1039→    }
+  1040→
+  1041→    .match-skills strong {
+  1042→      display: block;
+  1043→      font-size: 12px;
+  1044→      color: var(--text-muted);
+  1045→      margin-bottom: 8px;
+  1046→    }
+  1047→
+  1048→    .skill-chips {
+  1049→      display: flex;
+  1050→      flex-wrap: wrap;
+  1051→      gap: 6px;
+  1052→    }
+  1053→
+  1054→    .skill-chip {
+  1055→      padding: 4px 10px;
+  1056→      border-radius: var(--radius-full);
+  1057→      font-size: 12px;
+  1058→    }
+  1059→
+  1060→    .skill-chip.match {
+  1061→      background: rgba(16, 185, 129, 0.2);
+  1062→      color: var(--accent-primary);
+  1063→    }
+  1064→
+  1065→    .skill-chip.missing {
+  1066→      background: rgba(239, 68, 68, 0.1);
+  1067→      color: #ef4444;
+  1068→    }
+  1069→
+  1070→    .job-detail-section {
+  1071→      margin-bottom: 24px;
+  1072→    }
+  1073→
+  1074→    .job-detail-section h3 {
+  1075→      font-family: var(--font-display);
+  1076→      font-size: 16px;
+  1077→      margin-bottom: 12px;
+  1078→    }
+  1079→
+  1080→    .job-description, .job-requirements {
+  1081→      font-size: 14px;
+  1082→      color: var(--text-secondary);
+  1083→      line-height: 1.7;
+  1084→      white-space: pre-wrap;
+  1085→    }
+  1086→
+  1087→    .job-detail-actions {
+  1088→      display: flex;
+  1089→      gap: 12px;
+  1090→      margin-bottom: 24px;
+  1091→    }
+  1092→
+  1093→    .job-detail-footer {
+  1094→      font-size: 12px;
+  1095→      color: var(--text-muted);
+  1096→      padding-top: 16px;
+  1097→      border-top: 1px solid var(--border-color);
+  1098→    }
+  1099→
+  1100→    /* Apply Modal */
+  1101→    .modal-overlay {
+  1102→      position: fixed;
+  1103→      top: 0;
+  1104→      left: 0;
+  1105→      right: 0;
+  1106→      bottom: 0;
+  1107→      background: rgba(0, 0, 0, 0.7);
+  1108→      z-index: 100;
+  1109→      display: none;
+  1110→    }
+  1111→
+  1112→    .modal-overlay.active {
+  1113→      display: block;
+  1114→    }
+  1115→
+  1116→    .modal {
+  1117→      position: fixed;
+  1118→      top: 50%;
+  1119→      left: 50%;
+  1120→      transform: translate(-50%, -50%);
+  1121→      background: var(--bg-card);
+  1122→      border: 1px solid var(--border-color);
+  1123→      border-radius: var(--radius-lg);
+  1124→      width: 90%;
+  1125→      max-width: 500px;
+  1126→      max-height: 90vh;
+  1127→      overflow-y: auto;
+  1128→      z-index: 101;
+  1129→      display: none;
+  1130→    }
+  1131→
+  1132→    .modal.active {
+  1133→      display: block;
+  1134→    }
+  1135→
+  1136→    .modal-header {
+  1137→      display: flex;
+  1138→      justify-content: space-between;
+  1139→      align-items: center;
+  1140→      padding: 20px 24px;
+  1141→      border-bottom: 1px solid var(--border-color);
+  1142→    }
+  1143→
+  1144→    .modal-header h3 {
+  1145→      font-family: var(--font-display);
+  1146→      font-size: 18px;
+  1147→    }
+  1148→
+  1149→    .modal-close {
+  1150→      background: none;
+  1151→      border: none;
+  1152→      font-size: 24px;
+  1153→      color: var(--text-muted);
+  1154→      cursor: pointer;
+  1155→    }
+  1156→
+  1157→    .modal-body {
+  1158→      padding: 24px;
+  1159→    }
+  1160→
+  1161→    .modal-footer {
+  1162→      display: flex;
+  1163→      justify-content: flex-end;
+  1164→      gap: 12px;
+  1165→      padding: 20px 24px;
+  1166→      border-top: 1px solid var(--border-color);
+  1167→    }
+  1168→
+  1169→    .apply-match-preview {
+  1170→      display: flex;
+  1171→      align-items: center;
+  1172→      gap: 20px;
+  1173→      padding: 20px;
+  1174→      background: var(--bg-elevated);
+  1175→      border-radius: var(--radius-lg);
+  1176→      margin-bottom: 20px;
+  1177→    }
+  1178→
+  1179→    .match-circle {
+  1180→      width: 70px;
+  1181→      height: 70px;
+  1182→      border-radius: 50%;
+  1183→      display: flex;
+  1184→      align-items: center;
+  1185→      justify-content: center;
+  1186→      font-family: var(--font-display);
+  1187→      font-size: 20px;
+  1188→      font-weight: 700;
+  1189→    }
+  1190→
+  1191→    .match-circle.excellent, .match-circle.good {
+  1192→      background: rgba(16, 185, 129, 0.2);
+  1193→      color: var(--accent-primary);
+  1194→    }
+  1195→
+  1196→    .match-circle.fair {
+  1197→      background: rgba(245, 158, 11, 0.2);
+  1198→      color: #f59e0b;
+  1199→    }
+  1200→
+  1201→    .match-info {
+  1202→      display: flex;
+  1203→      flex-direction: column;
+  1204→      gap: 4px;
+  1205→    }
+  1206→
+  1207→    .match-info .match-level {
+  1208→      font-weight: 600;
+  1209→    }
+  1210→
+  1211→    .match-info .match-desc {
+  1212→      font-size: 13px;
+  1213→      color: var(--text-muted);
+  1214→    }
+  1215→
+  1216→    .form-group {
+  1217→      margin-bottom: 20px;
+  1218→    }
+  1219→
+  1220→    .form-group label {
+  1221→      display: block;
+  1222→      font-size: 13px;
+  1223→      font-weight: 500;
+  1224→      margin-bottom: 8px;
+  1225→    }
+  1226→
+  1227→    .form-group textarea {
+  1228→      width: 100%;
+  1229→      padding: 12px;
+  1230→      background: var(--bg-elevated);
+  1231→      border: 1px solid var(--border-color);
+  1232→      border-radius: var(--radius-md);
+  1233→      color: var(--text-primary);
+  1234→      font-size: 14px;
+  1235→      resize: vertical;
+  1236→    }
+  1237→
+  1238→    .form-group textarea:focus {
+  1239→      outline: none;
+  1240→      border-color: var(--accent-primary);
+  1241→    }
+  1242→
+  1243→    .apply-checklist {
+  1244→      padding: 16px;
+  1245→      background: var(--bg-elevated);
+  1246→      border-radius: var(--radius-md);
+  1247→    }
+  1248→
+  1249→    .apply-checklist h4 {
+  1250→      font-size: 14px;
+  1251→      margin-bottom: 12px;
+  1252→    }
+  1253→
+  1254→    .apply-checklist ul {
+  1255→      list-style: none;
+  1256→    }
+  1257→
+  1258→    .apply-checklist li {
+  1259→      display: flex;
+  1260→      align-items: center;
+  1261→      gap: 8px;
+  1262→      padding: 6px 0;
+  1263→      font-size: 13px;
+  1264→      color: var(--text-secondary);
+  1265→    }
+  1266→
+  1267→    .apply-checklist .check {
+  1268→      color: var(--accent-primary);
+  1269→    }
+  1270→
+  1271→    @media (max-width: 1024px) {
+  1272→      .job-detail-panel {
+  1273→        width: 100%;
+  1274→      }
+  1275→    }
+  1276→
+  1277→    @media (max-width: 768px) {
+  1278→      .job-tabs {
+  1279→        flex-wrap: wrap;
+  1280→      }
+  1281→
+  1282→      .job-filters {
+  1283→        flex-direction: column;
+  1284→      }
+  1285→
+  1286→      .job-card {
+  1287→        flex-direction: column;
+  1288→        align-items: flex-start;
+  1289→        gap: 16px;
+  1290→      }
+  1291→
+  1292→      .job-card-match {
+  1293→        flex-direction: row;
+  1294→        width: 100%;
+  1295→        justify-content: space-between;
+  1296→      }
+  1297→    }
+  1298→  </style>
+  1299→</body>
+  1300→</html>
+  1301→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

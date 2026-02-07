@@ -1,0 +1,392 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>Job Postings - Rekrut AI</title>
+     7→  <link rel="preconnect" href="https://fonts.googleapis.com">
+     8→  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     9→  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    10→  <link rel="stylesheet" href="/css/styles.css">
+    11→  <link rel="stylesheet" href="/css/responsive.css">
+    12→  <link rel="stylesheet" href="/css/dashboard.css">
+    13→</head>
+    14→<body>
+    15→  <div class="dashboard-layout">
+    16→    <aside class="sidebar recruiter-sidebar">
+    17→      <a href="/" class="logo">
+    18→        <span class="logo-icon">◎</span>
+    19→        <span>Rekrut AI</span>
+    20→      </a>
+    21→      <span class="sidebar-badge">Employer</span>
+    22→
+    23→      <nav class="sidebar-nav">
+    24→        <a href="/recruiter-dashboard.html" class="nav-item">
+    25→          <span class="nav-icon">📊</span>
+    26→          <span>Dashboard</span>
+    27→        </a>
+    28→        <a href="/recruiter-trustscore.html" class="nav-item">
+    29→          <span class="nav-icon">🛡️</span>
+    30→          <span>TrustScore</span>
+    31→        </a>
+    32→        <a href="/recruiter-jobs.html" class="nav-item active">
+    33→          <span class="nav-icon">💼</span>
+    34→          <span>Job Postings</span>
+    35→        </a>
+    36→        <a href="/recruiter-applications.html" class="nav-item">
+    37→          <span class="nav-icon">📋</span>
+    38→          <span>Applications</span>
+    39→        </a>
+    40→        <a href="/recruiter-interviews.html" class="nav-item">
+    41→          <span class="nav-icon">📅</span>
+    42→          <span>Interviews</span>
+    43→        </a>
+    44→        <a href="/offer-management.html" class="nav-item">
+    45→          <span class="nav-icon">📄</span>
+    46→          <span>Offers</span>
+    47→        </a>
+    48→        <a href="/payroll-dashboard.html" class="nav-item">
+    49→          <span class="nav-icon">💰</span>
+    50→          <span>Payroll</span>
+    51→        </a>
+    52→        <a href="/recruiter-onboarding-docs.html" class="nav-item">
+    53→          <span class="nav-icon">📂</span>
+    54→          <span>Onboarding Docs</span>
+    55→        </a>
+    56→        <a href="/compliance-dashboard.html" class="nav-item">
+    57→          <span class="nav-icon">⚖️</span>
+    58→          <span>Compliance</span>
+    59→        </a>
+    60→        <a href="/recruiter-analytics.html" class="nav-item">
+    61→          <span class="nav-icon">📈</span>
+    62→          <span>Analytics</span>
+    63→        </a>
+    64→        <a href="/recruiter-profile.html" class="nav-item">
+    65→          <span class="nav-icon">🏢</span>
+    66→          <span>Company Profile</span>
+    67→        </a>
+    68→      </nav>
+    69→
+    70→      <div class="sidebar-footer">
+    71→        <div class="user-info">
+    72→          <div class="user-avatar company-avatar" id="user-avatar">?</div>
+    73→          <div class="user-details">
+    74→            <span class="user-name" id="user-name">Loading...</span>
+    75→            <span class="company-name" id="company-name">Company</span>
+    76→          </div>
+    77→        </div>
+    78→        <button onclick="handleLogout()" class="btn btn-ghost btn-sm">Logout</button>
+    79→      </div>
+    80→    </aside>
+    81→
+    82→    <main class="main-content">
+    83→      <header class="page-header">
+    84→        <div>
+    85→          <h1>Job Postings</h1>
+    86→          <p>Manage your active job listings</p>
+    87→        </div>
+    88→        <a href="/job-create.html" class="btn btn-primary">
+    89→          <span>+</span> Post New Job
+    90→        </a>
+    91→      </header>
+    92→
+    93→      <!-- Filter Tabs -->
+    94→      <div class="filter-tabs">
+    95→        <button class="filter-tab active" data-status="all">All</button>
+    96→        <button class="filter-tab" data-status="active">Active</button>
+    97→        <button class="filter-tab" data-status="paused">Paused</button>
+    98→        <button class="filter-tab" data-status="closed">Closed</button>
+    99→      </div>
+   100→
+   101→      <!-- Jobs List -->
+   102→      <div class="jobs-list" id="jobs-list">
+   103→        <div class="loading-state">
+   104→          <div class="spinner"></div>
+   105→          <p>Loading jobs...</p>
+   106→        </div>
+   107→      </div>
+   108→    </main>
+   109→  </div>
+   110→
+   111→  <script src="/js/main.js"></script>
+   112→  <script>
+   113→    let currentFilter = 'all';
+   114→
+   115→    document.addEventListener('DOMContentLoaded', async () => {
+   116→      const user = await checkAuth();
+   117→      if (!user) {
+   118→        window.location.href = '/login.html';
+   119→        return;
+   120→      }
+   121→      // Verify recruiter/employer role - must have company_id and appropriate role
+   122→      const allowedRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+   123→      if (!user.company_id || !allowedRoles.includes(user.role)) {
+   124→        window.location.href = '/candidate-dashboard.html';
+   125→        return;
+   126→      }
+   127→
+   128→      const name = user.name || user.email.split('@')[0];
+   129→      document.getElementById('user-name').textContent = name;
+   130→      document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+   131→      document.getElementById('company-name').textContent = user.company_name || 'Company';
+   132→
+   133→      loadJobs();
+   134→
+   135→      // Filter tabs
+   136→      document.querySelectorAll('.filter-tab').forEach(tab => {
+   137→        tab.addEventListener('click', () => {
+   138→          document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+   139→          tab.classList.add('active');
+   140→          currentFilter = tab.dataset.status;
+   141→          loadJobs();
+   142→        });
+   143→      });
+   144→    });
+   145→
+   146→    async function loadJobs() {
+   147→      try {
+   148→        const url = currentFilter === 'all' ? '/recruiter/jobs' : `/recruiter/jobs?status=${currentFilter}`;
+   149→        const data = await apiCall(url);
+   150→        if (!data) return;
+   151→
+   152→        renderJobs(data.jobs || []);
+   153→      } catch (err) {
+   154→        console.error('Failed to load jobs:', err);
+   155→      }
+   156→    }
+   157→
+   158→    function renderJobs(jobs) {
+   159→      const container = document.getElementById('jobs-list');
+   160→
+   161→      if (jobs.length === 0) {
+   162→        container.innerHTML = `
+   163→          <div class="empty-state">
+   164→            <div class="empty-icon">💼</div>
+   165→            <h3>No jobs found</h3>
+   166→            <p>Create your first job posting to start receiving applications.</p>
+   167→            <a href="/job-create.html" class="btn btn-primary">Post New Job</a>
+   168→          </div>
+   169→        `;
+   170→        return;
+   171→      }
+   172→
+   173→      container.innerHTML = jobs.map(job => `
+   174→        <div class="job-card">
+   175→          <div class="job-header">
+   176→            <div class="job-title-row">
+   177→              <h3>${job.title}</h3>
+   178→              <span class="status-badge ${job.status}">${job.status}</span>
+   179→            </div>
+   180→            <div class="job-meta">
+   181→              ${job.location ? `<span>📍 ${job.location}</span>` : ''}
+   182→              ${job.salary_range ? `<span>💰 ${job.salary_range}</span>` : ''}
+   183→              <span>📅 ${new Date(job.created_at).toLocaleDateString()}</span>
+   184→            </div>
+   185→          </div>
+   186→
+   187→          <div class="job-stats">
+   188→            <div class="job-stat">
+   189→              <span class="stat-value">${job.views || 0}</span>
+   190→              <span class="stat-label">Views</span>
+   191→            </div>
+   192→            <div class="job-stat">
+   193→              <span class="stat-value">${job.application_count || 0}</span>
+   194→              <span class="stat-label">Applications</span>
+   195→            </div>
+   196→            <div class="job-stat">
+   197→              <span class="stat-value">${job.interviews || 0}</span>
+   198→              <span class="stat-label">Interviews</span>
+   199→            </div>
+   200→          </div>
+   201→
+   202→          <div class="job-actions">
+   203→            <a href="/recruiter-applications.html?job_id=${job.id}" class="btn btn-ghost btn-sm">View Applications</a>
+   204→            <button class="btn btn-ghost btn-sm" onclick="toggleJobStatus(${job.id}, '${job.status}')">
+   205→              ${job.status === 'active' ? 'Pause' : 'Activate'}
+   206→            </button>
+   207→            <button class="btn btn-ghost btn-sm" onclick="editJob(${job.id})">Edit</button>
+   208→          </div>
+   209→        </div>
+   210→      `).join('');
+   211→    }
+   212→
+   213→    async function toggleJobStatus(jobId, currentStatus) {
+   214→      const newStatus = currentStatus === 'active' ? 'paused' : 'active';
+   215→      try {
+   216→        await apiCall(`/recruiter/jobs/${jobId}`, {
+   217→          method: 'PUT',
+   218→          body: JSON.stringify({ status: newStatus })
+   219→        });
+   220→        loadJobs();
+   221→      } catch (err) {
+   222→        alert('Failed to update job status');
+   223→      }
+   224→    }
+   225→
+   226→    let editingJob = null;
+   227→
+   228→    function editJob(jobId) {
+   229→      // Find the job in the loaded data
+   230→      editingJob = jobId;
+   231→      // Navigate to job create page with edit param
+   232→      window.location.href = `/job-create.html?edit=${jobId}`;
+   233→    }
+   234→
+   235→    async function deleteJob(jobId) {
+   236→      if (!confirm('Are you sure you want to delete this job posting? This cannot be undone.')) return;
+   237→      try {
+   238→        await apiCall(`/recruiter/jobs/${jobId}`, { method: 'PUT', body: JSON.stringify({ status: 'closed' }) });
+   239→        loadJobs();
+   240→      } catch (err) {
+   241→        alert('Failed to close job');
+   242→      }
+   243→    }
+   244→  </script>
+   245→
+   246→  <style>
+   247→    .recruiter-sidebar { background: linear-gradient(180deg, #1a1a24 0%, #12121a 100%); }
+   248→    .sidebar-badge { display: inline-block; padding: 4px 10px; background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%); border-radius: var(--radius-full); font-size: 11px; font-weight: 600; color: white; margin: -12px 0 20px 0; }
+   249→    .company-avatar { background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%) !important; }
+   250→    .company-name { font-size: 11px; color: var(--text-muted); }
+   251→
+   252→    .filter-tabs {
+   253→      display: flex;
+   254→      gap: 8px;
+   255→      margin-bottom: 24px;
+   256→      padding: 4px;
+   257→      background: var(--bg-card);
+   258→      border-radius: var(--radius-full);
+   259→      width: fit-content;
+   260→    }
+   261→
+   262→    .filter-tab {
+   263→      padding: 8px 20px;
+   264→      border: none;
+   265→      background: transparent;
+   266→      color: var(--text-secondary);
+   267→      font-size: 14px;
+   268→      font-weight: 500;
+   269→      border-radius: var(--radius-full);
+   270→      cursor: pointer;
+   271→      transition: all 0.2s;
+   272→    }
+   273→
+   274→    .filter-tab:hover {
+   275→      color: var(--text-primary);
+   276→    }
+   277→
+   278→    .filter-tab.active {
+   279→      background: #8b5cf6;
+   280→      color: white;
+   281→    }
+   282→
+   283→    .job-card {
+   284→      background: var(--bg-card);
+   285→      border: 1px solid var(--border-color);
+   286→      border-radius: var(--radius-lg);
+   287→      padding: 24px;
+   288→      margin-bottom: 16px;
+   289→      transition: all 0.2s;
+   290→    }
+   291→
+   292→    .job-card:hover {
+   293→      border-color: #8b5cf6;
+   294→    }
+   295→
+   296→    .job-header {
+   297→      margin-bottom: 20px;
+   298→    }
+   299→
+   300→    .job-title-row {
+   301→      display: flex;
+   302→      align-items: center;
+   303→      justify-content: space-between;
+   304→      margin-bottom: 8px;
+   305→    }
+   306→
+   307→    .job-title-row h3 {
+   308→      font-family: var(--font-display);
+   309→      font-size: 18px;
+   310→      font-weight: 600;
+   311→    }
+   312→
+   313→    .status-badge {
+   314→      padding: 4px 12px;
+   315→      border-radius: var(--radius-full);
+   316→      font-size: 12px;
+   317→      font-weight: 600;
+   318→      text-transform: capitalize;
+   319→    }
+   320→
+   321→    .status-badge.active { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+   322→    .status-badge.paused { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+   323→    .status-badge.closed { background: rgba(107, 114, 128, 0.2); color: #6b7280; }
+   324→
+   325→    .job-meta {
+   326→      display: flex;
+   327→      gap: 20px;
+   328→      font-size: 14px;
+   329→      color: var(--text-muted);
+   330→    }
+   331→
+   332→    .job-stats {
+   333→      display: flex;
+   334→      gap: 32px;
+   335→      padding: 16px 0;
+   336→      border-top: 1px solid var(--border-color);
+   337→      border-bottom: 1px solid var(--border-color);
+   338→      margin-bottom: 16px;
+   339→    }
+   340→
+   341→    .job-stat {
+   342→      display: flex;
+   343→      flex-direction: column;
+   344→    }
+   345→
+   346→    .job-stat .stat-value {
+   347→      font-family: var(--font-display);
+   348→      font-size: 24px;
+   349→      font-weight: 700;
+   350→      color: #8b5cf6;
+   351→    }
+   352→
+   353→    .job-stat .stat-label {
+   354→      font-size: 12px;
+   355→      color: var(--text-muted);
+   356→    }
+   357→
+   358→    .job-actions {
+   359→      display: flex;
+   360→      gap: 8px;
+   361→    }
+   362→
+   363→    .empty-state {
+   364→      text-align: center;
+   365→      padding: 60px 20px;
+   366→      background: var(--bg-card);
+   367→      border-radius: var(--radius-lg);
+   368→      border: 1px dashed var(--border-color);
+   369→    }
+   370→
+   371→    .empty-icon {
+   372→      font-size: 48px;
+   373→      margin-bottom: 16px;
+   374→    }
+   375→
+   376→    .empty-state h3 {
+   377→      font-family: var(--font-display);
+   378→      margin-bottom: 8px;
+   379→    }
+   380→
+   381→    .empty-state p {
+   382→      color: var(--text-muted);
+   383→      margin-bottom: 20px;
+   384→    }
+   385→  </style>
+   386→</body>
+   387→</html>
+   388→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

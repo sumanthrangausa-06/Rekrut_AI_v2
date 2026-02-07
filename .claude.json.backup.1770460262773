@@ -749,6 +749,101 @@
         "recruiter-dashboard.html"
       ],
       "exampleFilesGeneratedAt": 1770439906777
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-53282/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "server.js",
+        "interviews.js",
+        "candidate.js",
+        "onboarding.js",
+        "candidate-dashboard.html"
+      ],
+      "exampleFilesGeneratedAt": 1770456394978
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-53293/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "server.js",
+        "onboarding.js",
+        "interviews.js",
+        "candidate.js",
+        "candidate-dashboard.html"
+      ],
+      "exampleFilesGeneratedAt": 1770457268277
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-53300/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "server.js",
+        "onboarding.js",
+        "interviews.js",
+        "candidate.js",
+        "recruiter.js"
+      ],
+      "exampleFilesGeneratedAt": 1770458235177
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-53309/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "server.js",
+        "onboarding.js",
+        "interviews.js",
+        "candidate.js",
+        "recruiter.js"
+      ],
+      "exampleFilesGeneratedAt": 1770458946376
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-53326/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "server.js",
+        "onboarding.js",
+        "interviews.js",
+        "recruiter.js",
+        "candidate.js"
+      ],
+      "exampleFilesGeneratedAt": 1770460191377
     }
   },
   "opusProMigrationComplete": true,

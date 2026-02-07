@@ -1,0 +1,255 @@
+     1→<!DOCTYPE html>
+     2→<html lang="en">
+     3→<head>
+     4→  <meta charset="UTF-8">
+     5→  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     6→  <title>Register Your Company - Rekrut AI</title>
+     7→  <link rel="preconnect" href="https://fonts.googleapis.com">
+     8→  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     9→  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    10→  <link rel="stylesheet" href="/css/styles.css">
+    11→  <link rel="stylesheet" href="/css/responsive.css">
+    12→  <link rel="stylesheet" href="/css/auth.css">
+    13→</head>
+    14→<body>
+    15→  <div class="auth-container">
+    16→    <div class="auth-card recruiter-card">
+    17→      <a href="/" class="logo">
+    18→        <span class="logo-icon">◎</span>
+    19→        <span>Rekrut AI</span>
+    20→      </a>
+    21→
+    22→      <div class="auth-header">
+    23→        <span class="recruiter-badge">For Employers</span>
+    24→        <h1>Build Trust with <span class="text-gradient">TrustScore</span></h1>
+    25→        <p>Create your company profile and start hiring verified candidates</p>
+    26→      </div>
+    27→
+    28→      <form id="recruiter-register-form">
+    29→        <div id="register-error" class="error-message" style="display: none;"></div>
+    30→
+    31→        <div class="form-section">
+    32→          <h3>Your Account</h3>
+    33→
+    34→          <div class="form-group">
+    35→            <label for="email">Work Email*</label>
+    36→            <input type="email" id="email" name="email" placeholder="you@company.com" required>
+    37→            <span class="form-hint">Use your company email for automatic verification</span>
+    38→          </div>
+    39→
+    40→          <div class="form-row">
+    41→            <div class="form-group">
+    42→              <label for="name">Your Name*</label>
+    43→              <input type="text" id="name" name="name" placeholder="John Smith" required>
+    44→            </div>
+    45→            <div class="form-group">
+    46→              <label for="password">Password*</label>
+    47→              <input type="password" id="password" name="password" placeholder="Min 8 characters" minlength="8" required>
+    48→            </div>
+    49→          </div>
+    50→        </div>
+    51→
+    52→        <div class="form-section">
+    53→          <h3>Company Information</h3>
+    54→
+    55→          <div class="form-group">
+    56→            <label for="company_name">Company Name*</label>
+    57→            <input type="text" id="company_name" name="company_name" placeholder="Acme Inc." required>
+    58→          </div>
+    59→
+    60→          <div class="form-row">
+    61→            <div class="form-group">
+    62→              <label for="industry">Industry</label>
+    63→              <select id="industry" name="industry">
+    64→                <option value="">Select industry</option>
+    65→                <option value="technology">Technology</option>
+    66→                <option value="finance">Finance</option>
+    67→                <option value="healthcare">Healthcare</option>
+    68→                <option value="retail">Retail</option>
+    69→                <option value="manufacturing">Manufacturing</option>
+    70→                <option value="education">Education</option>
+    71→                <option value="consulting">Consulting</option>
+    72→                <option value="media">Media & Entertainment</option>
+    73→                <option value="other">Other</option>
+    74→              </select>
+    75→            </div>
+    76→            <div class="form-group">
+    77→              <label for="company_size">Company Size</label>
+    78→              <select id="company_size" name="company_size">
+    79→                <option value="">Select size</option>
+    80→                <option value="1-10">1-10 employees</option>
+    81→                <option value="11-50">11-50 employees</option>
+    82→                <option value="51-200">51-200 employees</option>
+    83→                <option value="201-500">201-500 employees</option>
+    84→                <option value="501-1000">501-1000 employees</option>
+    85→                <option value="1000+">1000+ employees</option>
+    86→              </select>
+    87→            </div>
+    88→          </div>
+    89→
+    90→          <div class="form-group">
+    91→            <label for="website">Company Website</label>
+    92→            <input type="url" id="website" name="website" placeholder="https://company.com">
+    93→          </div>
+    94→
+    95→          <div class="form-group">
+    96→            <label for="headquarters">Headquarters</label>
+    97→            <input type="text" id="headquarters" name="headquarters" placeholder="San Francisco, CA">
+    98→          </div>
+    99→        </div>
+   100→
+   101→        <button type="submit" class="btn btn-primary btn-full btn-large">
+   102→          Create Company Account
+   103→        </button>
+   104→      </form>
+   105→
+   106→      <div class="auth-footer">
+   107→        <p>Already have an account? <a href="/login.html">Sign in</a></p>
+   108→        <p class="hiring-link">Looking for a job? <a href="/register.html">Create candidate account</a></p>
+   109→      </div>
+   110→
+   111→      <div class="trust-features">
+   112→        <div class="trust-feature">
+   113→          <span class="feature-icon">✓</span>
+   114→          <span>TrustScore builds employer credibility</span>
+   115→        </div>
+   116→        <div class="trust-feature">
+   117→          <span class="feature-icon">✓</span>
+   118→          <span>AI-optimized job descriptions</span>
+   119→        </div>
+   120→        <div class="trust-feature">
+   121→          <span class="feature-icon">✓</span>
+   122→          <span>Access to OmniScore-verified candidates</span>
+   123→        </div>
+   124→      </div>
+   125→    </div>
+   126→  </div>
+   127→
+   128→  <script src="/js/main.js"></script>
+   129→  <script>
+   130→    document.getElementById('recruiter-register-form').addEventListener('submit', async (e) => {
+   131→      e.preventDefault();
+   132→      const form = e.target;
+   133→      const submitBtn = form.querySelector('button[type="submit"]');
+   134→      const errorEl = document.getElementById('register-error');
+   135→
+   136→      submitBtn.disabled = true;
+   137→      submitBtn.textContent = 'Creating company account...';
+   138→      errorEl.style.display = 'none';
+   139→
+   140→      try {
+   141→        const response = await fetch('/api/company/register', {
+   142→          method: 'POST',
+   143→          headers: { 'Content-Type': 'application/json' },
+   144→          body: JSON.stringify({
+   145→            email: form.email.value,
+   146→            password: form.password.value,
+   147→            name: form.name.value,
+   148→            company_name: form.company_name.value,
+   149→            industry: form.industry.value,
+   150→            company_size: form.company_size.value,
+   151→            website: form.website.value,
+   152→            headquarters: form.headquarters.value
+   153→          })
+   154→        });
+   155→
+   156→        const data = await response.json();
+   157→
+   158→        if (data.success) {
+   159→          localStorage.setItem('rekrutai_token', data.token);
+   160→          localStorage.setItem('rekrutai_company_id', data.company.id);
+   161→          window.location.href = '/recruiter-dashboard.html';
+   162→        } else {
+   163→          errorEl.textContent = data.error || 'Registration failed';
+   164→          errorEl.style.display = 'block';
+   165→        }
+   166→      } catch (err) {
+   167→        errorEl.textContent = 'Network error. Please try again.';
+   168→        errorEl.style.display = 'block';
+   169→      } finally {
+   170→        submitBtn.disabled = false;
+   171→        submitBtn.textContent = 'Create Company Account';
+   172→      }
+   173→    });
+   174→  </script>
+   175→
+   176→  <style>
+   177→    .recruiter-card {
+   178→      max-width: 600px;
+   179→    }
+   180→
+   181→    .recruiter-badge {
+   182→      display: inline-block;
+   183→      padding: 6px 14px;
+   184→      background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+   185→      border-radius: var(--radius-full);
+   186→      font-size: 12px;
+   187→      font-weight: 600;
+   188→      color: white;
+   189→      margin-bottom: 16px;
+   190→    }
+   191→
+   192→    .form-section {
+   193→      margin-bottom: 32px;
+   194→    }
+   195→
+   196→    .form-section h3 {
+   197→      font-family: var(--font-display);
+   198→      font-size: 16px;
+   199→      font-weight: 600;
+   200→      margin-bottom: 16px;
+   201→      color: var(--text-secondary);
+   202→      border-bottom: 1px solid var(--border-color);
+   203→      padding-bottom: 8px;
+   204→    }
+   205→
+   206→    .form-row {
+   207→      display: grid;
+   208→      grid-template-columns: 1fr 1fr;
+   209→      gap: 16px;
+   210→    }
+   211→
+   212→    .form-hint {
+   213→      font-size: 12px;
+   214→      color: var(--text-muted);
+   215→      margin-top: 4px;
+   216→    }
+   217→
+   218→    .hiring-link {
+   219→      margin-top: 8px;
+   220→      font-size: 13px;
+   221→    }
+   222→
+   223→    .trust-features {
+   224→      margin-top: 32px;
+   225→      padding-top: 24px;
+   226→      border-top: 1px solid var(--border-color);
+   227→    }
+   228→
+   229→    .trust-feature {
+   230→      display: flex;
+   231→      align-items: center;
+   232→      gap: 10px;
+   233→      padding: 8px 0;
+   234→      font-size: 14px;
+   235→      color: var(--text-secondary);
+   236→    }
+   237→
+   238→    .trust-feature .feature-icon {
+   239→      color: var(--accent-primary);
+   240→      font-weight: bold;
+   241→    }
+   242→
+   243→    @media (max-width: 600px) {
+   244→      .form-row {
+   245→        grid-template-columns: 1fr;
+   246→      }
+   247→    }
+   248→  </style>
+   249→</body>
+   250→</html>
+   251→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
