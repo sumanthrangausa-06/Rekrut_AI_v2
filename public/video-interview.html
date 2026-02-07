@@ -525,7 +525,7 @@
       <div class="progress-bar">
         <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
       </div>
-      <p id="progress-text" style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">Question 0 of 0</p>
+      <p id="progress-text" style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.8;">Ready to begin</p>
     </div>
 
     <div class="main-card">
@@ -707,11 +707,12 @@
         return;
       }
 
-      // Get interview ID from URL or create new
+      // Get job ID from URL if present
       const urlParams = new URLSearchParams(window.location.search);
       const jobId = urlParams.get('job_id');
+      if (jobId) window._interviewJobId = jobId;
 
-      // Request camera AND microphone access
+      // Step 1: Request camera AND microphone access (separate from video analyzer)
       try {
         mediaStream = await navigator.mediaDevices.getUserMedia({
           video: { width: 1280, height: 720 },
@@ -721,7 +722,13 @@
             autoGainControl: true
           }
         });
-        document.getElementById('preview-video').srcObject = mediaStream;
+
+        const previewVideo = document.getElementById('preview-video');
+        previewVideo.srcObject = mediaStream;
+
+        // Explicitly play to ensure video starts in all browsers
+        try { await previewVideo.play(); } catch (e) { console.warn('Autoplay handled by attribute'); }
+
         document.getElementById('preview-overlay').style.display = 'none';
 
         // Verify audio tracks are present and active
@@ -742,31 +749,55 @@
           // Start audio level visualization
           startAudioLevelMeter(mediaStream);
         }
-
-        // Initialize video analyzer
-        videoAnalyzer = new VideoAnalyzer();
-        const initialized = await videoAnalyzer.init();
-
-        if (initialized) {
-          console.log('Video analyzer ready');
-
-          // Listen for live score updates
-          videoAnalyzer.on('scores', (scores) => {
-            updateLiveMetrics(scores);
-          });
-        } else {
-          console.warn('Video analyzer initialization failed - continuing without analysis');
-        }
       } catch (err) {
         console.error('Camera/microphone access error:', err);
+        const overlay = document.getElementById('preview-overlay');
+
         if (err.name === 'NotAllowedError') {
-          alert('Camera and microphone access is required for video interviews. Please allow both permissions and reload the page.');
+          updateMicStatus('error', 'Permission denied');
+          overlay.innerHTML = `
+            <div style="text-align:center;">
+              <h3 style="font-size: 1.5rem; margin-bottom: 1rem;">⚠️ Permission Required</h3>
+              <p style="margin-bottom: 1rem; opacity: 0.8;">Please allow camera and microphone access in your browser</p>
+              <button class="btn btn-primary" onclick="location.reload()" style="background:linear-gradient(135deg,#10b981,#3b82f6);color:#fff;border:none;padding:0.75rem 1.5rem;border-radius:10px;cursor:pointer;font-weight:600;">🔄 Try Again</button>
+            </div>`;
         } else if (err.name === 'NotFoundError') {
-          alert('Camera or microphone not found. Please connect your devices and reload.');
+          updateMicStatus('error', 'No devices found');
+          overlay.innerHTML = `
+            <div style="text-align:center;">
+              <h3 style="font-size: 1.5rem; margin-bottom: 1rem;">📷 Device Not Found</h3>
+              <p style="margin-bottom: 1rem; opacity: 0.8;">Connect a camera and microphone, then try again</p>
+              <button class="btn btn-primary" onclick="location.reload()" style="background:linear-gradient(135deg,#10b981,#3b82f6);color:#fff;border:none;padding:0.75rem 1.5rem;border-radius:10px;cursor:pointer;font-weight:600;">🔄 Try Again</button>
+            </div>`;
         } else {
-          alert('Failed to access camera and microphone: ' + err.message);
+          updateMicStatus('error', 'Setup error');
+          overlay.innerHTML = `
+            <div style="text-align:center;">
+              <h3 style="font-size: 1.5rem; margin-bottom: 1rem;">⚠️ Camera Setup Failed</h3>
+              <p style="margin-bottom: 1rem; opacity: 0.8;">${err.message || 'Unknown error'}</p>
+              <button class="btn btn-primary" onclick="location.reload()" style="background:linear-gradient(135deg,#10b981,#3b82f6);color:#fff;border:none;padding:0.75rem 1.5rem;border-radius:10px;cursor:pointer;font-weight:600;">🔄 Try Again</button>
+            </div>`;
         }
-        updateMicStatus('error', 'Microphone access denied');
+      }
+
+      // Step 2: Initialize video analyzer separately (never breaks camera/mic)
+      try {
+        if (typeof VideoAnalyzer !== 'undefined') {
+          videoAnalyzer = new VideoAnalyzer();
+          const initialized = await videoAnalyzer.init();
+
+          if (initialized) {
+            console.log('Video analyzer ready');
+            videoAnalyzer.on('scores', (scores) => {
+              updateLiveMetrics(scores);
+            });
+          } else {
+            console.warn('Video analyzer init failed — continuing without AI analysis');
+          }
+        }
+      } catch (err) {
+        console.warn('Video analyzer not available:', err);
+        // Camera/mic still works fine without the analyzer
       }
     });
 
@@ -821,19 +852,36 @@
     }
 
     async function startInterview() {
+      // Check camera access before starting
+      if (!mediaStream) {
+        alert('Camera and microphone are required. Please grant permissions and reload the page.');
+        return;
+      }
+
+      const startBtn = document.querySelector('.setup-state .btn-primary');
+      if (startBtn) {
+        startBtn.disabled = true;
+        startBtn.innerHTML = '<span class="loading-spinner"></span> Loading Questions...';
+      }
+
       try {
         // Create interview session
         const result = await apiCall('/interviews/start', {
           method: 'POST',
           body: JSON.stringify({
             interview_type: 'video',
-            job_title: 'Software Developer', // TODO: Get from URL params or selection
+            job_id: window._interviewJobId || null,
+            job_title: 'Software Developer',
             job_description: 'General software development role'
           })
         });
 
-        if (!result.success) {
-          throw new Error('Failed to start interview');
+        if (!result || !result.success) {
+          throw new Error(result?.error || 'Failed to start interview');
+        }
+
+        if (!result.questions || result.questions.length === 0) {
+          throw new Error('No interview questions were generated. Please try again.');
         }
 
         interviewId = result.interview.id;
@@ -846,7 +894,11 @@
         displayQuestion(0);
       } catch (err) {
         console.error('Start interview error:', err);
-        alert('Failed to start interview. Please try again.');
+        alert('Failed to start interview: ' + (err.message || 'Unknown error'));
+        if (startBtn) {
+          startBtn.disabled = false;
+          startBtn.innerHTML = 'Start Interview';
+        }
       }
     }
 
@@ -1129,7 +1181,11 @@
       const percent = total > 0 ? (completed / total) * 100 : 0;
 
       document.getElementById('progress-fill').style.width = `${percent}%`;
-      document.getElementById('progress-text').textContent = `Question ${completed} of ${total}`;
+      if (total === 0) {
+        document.getElementById('progress-text').textContent = 'Ready to begin';
+      } else {
+        document.getElementById('progress-text').textContent = `Question ${currentQuestionIndex + 1} of ${total}`;
+      }
     }
 
     function updateTimer() {

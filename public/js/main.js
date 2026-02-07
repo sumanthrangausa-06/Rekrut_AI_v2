@@ -243,14 +243,19 @@ async function handleLogout() {
 // API helper with automatic token refresh
 async function apiCall(endpoint, options = {}) {
   let token = localStorage.getItem(TOKEN_KEY);
+
+  // Don't set Content-Type for FormData — browser sets multipart boundary automatically
   const headers = {
-    'Content-Type': 'application/json',
+    ...(options.isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token && { 'Authorization': `Bearer ${token}` }),
     ...options.headers
   };
 
+  // Strip isFormData from options before passing to fetch
+  const { isFormData, ...fetchOptions } = options;
+
   let response = await fetch(`/api${endpoint}`, {
-    ...options,
+    ...fetchOptions,
     headers
   });
 
@@ -261,7 +266,7 @@ async function apiCall(endpoint, options = {}) {
       // Retry with new token
       headers['Authorization'] = `Bearer ${newToken}`;
       response = await fetch(`/api${endpoint}`, {
-        ...options,
+        ...fetchOptions,
         headers
       });
     } else {
