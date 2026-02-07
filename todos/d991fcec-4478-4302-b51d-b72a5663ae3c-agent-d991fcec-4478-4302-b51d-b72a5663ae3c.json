@@ -1,0 +1,47 @@
+[
+  {
+    "content": "Investigate payroll page auth flow and current state",
+    "status": "completed",
+    "activeForm": "Investigating payroll page auth and current state"
+  },
+  {
+    "content": "Trace end-to-end payroll flow: auth → candidate selection → submission → persistence",
+    "status": "completed",
+    "activeForm": "Tracing end-to-end payroll flow"
+  },
+  {
+    "content": "Fix checkAuth() race condition in main.js",
+    "status": "completed",
+    "activeForm": "Fixing checkAuth() race condition"
+  },
+  {
+    "content": "Create migration: add company_id to employees + seed data from accepted offers",
+    "status": "completed",
+    "activeForm": "Creating migration for company_id and seeding data"
+  },
+  {
+    "content": "Update payroll routes to use company_id instead of employer_id",
+    "status": "completed",
+    "activeForm": "Updating payroll routes"
+  },
+  {
+    "content": "Bridge offer acceptance → employee record creation",
+    "status": "completed",
+    "activeForm": "Bridging offer acceptance to employee creation"
+  },
+  {
+    "content": "Fix payroll-run.html and employee-payroll.html auth handling",
+    "status": "completed",
+    "activeForm": "Fixing payroll page auth"
+  },
+  {
+    "content": "Deploy and verify E2E payroll flow",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying E2E payroll flow"
+  },
+  {
+    "content": "Update memory and complete task",
+    "status": "pending",
+    "activeForm": "Updating memory and completing task"
+  }
+]
