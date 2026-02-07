@@ -583,7 +583,7 @@
 
   <script src="/js/main.js"></script>
   <script>
-    const TOKEN_KEY = 'rekrutai_token';
+    // TOKEN_KEY is already declared in main.js — reuse it (redeclaring const would throw SyntaxError)
     let wizardState = null;
     let checklistData = null;
     let documentsData = [];
@@ -626,11 +626,12 @@
         const userRes = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
         if (userRes.ok) {
           const userData = await userRes.json();
-          document.getElementById('user-name').textContent = userData.name || 'User';
-          document.getElementById('user-avatar').textContent = (userData.name || 'U')[0].toUpperCase();
+          const user = userData.user || userData;
+          document.getElementById('user-name').textContent = user.name || 'User';
+          document.getElementById('user-avatar').textContent = (user.name || 'U')[0].toUpperCase();
           if (document.getElementById('dropdown-user-name')) {
-            document.getElementById('dropdown-user-name').textContent = userData.name || 'User';
-            document.getElementById('dropdown-user-email').textContent = userData.email || '';
+            document.getElementById('dropdown-user-name').textContent = user.name || 'User';
+            document.getElementById('dropdown-user-email').textContent = user.email || '';
           }
         }
       } catch(e) { /* ignore */ }
