@@ -10,9 +10,9 @@
   <link rel="stylesheet" href="/css/styles.css">
   <link rel="stylesheet" href="/css/responsive.css">
   <link rel="stylesheet" href="/css/dashboard.css">
-  <!-- TensorFlow.js for video analysis -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.js"></script>
+  <!-- TensorFlow.js for video analysis (loaded async to not block page) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js" async></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.1.0/dist/blazeface.min.js" async></script>
   <style>
     .practice-layout {
       min-height: 100vh;
@@ -600,10 +600,13 @@
             <div id="video-analysis-badge" class="analysis-badge" style="display: none;">
               Eye Contact: <span id="live-eye-contact">—</span>
             </div>
+            <div id="recording-indicator" style="display: none; position: absolute; top: 1rem; left: 1rem; background: #ef4444; color: white; padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 0.8rem; font-weight: 600; animation: pulse 1.5s infinite;">
+              ● REC
+            </div>
           </div>
           <div class="video-controls">
             <button class="btn btn-secondary" id="start-video-btn" onclick="startVideoPractice()">
-              Start Camera
+              📷 Start Camera
             </button>
             <button class="btn btn-primary" id="record-video-btn" onclick="recordVideoPractice()" style="display: none;">
               🎥 Record Response
@@ -612,6 +615,14 @@
               ⏹️ Stop Recording
             </button>
           </div>
+          <div id="video-text-hint" style="margin-top: 1rem; padding: 1rem; background: #f0f4ff; border-radius: 12px; font-size: 0.9rem; color: #4b5563;">
+            <strong>💡 Tip:</strong> After recording, type a brief summary of your answer below. You'll get AI coaching on both your <em>content</em> and <em>delivery</em>.
+          </div>
+        </div>
+
+        <div class="response-area" id="video-text-response-area" style="display: none;">
+          <label>Summarize Your Spoken Response</label>
+          <textarea id="video-response-text" placeholder="Type a summary of what you said in the video. This helps the AI give you specific feedback on your answer content, structure, and completeness."></textarea>
         </div>
 
         <button class="btn btn-primary btn-large btn-full" onclick="submitPracticeResponse()">
@@ -637,6 +648,10 @@
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
   </style>
 
   <script src="/js/main.js"></script>
@@ -650,6 +665,7 @@
     let videoAnalyzer = null;
     let recordedVideoBlob = null;
     let practiceAnalysisData = null;
+    let videoAnalyzerReady = false;
 
     // Switch practice mode
     function switchPracticeMode(mode) {
@@ -667,6 +683,7 @@
       if (mode === 'text') {
         document.getElementById('text-response-area').style.display = 'block';
         document.getElementById('video-response-area').classList.remove('active');
+        document.getElementById('video-text-response-area').style.display = 'none';
 
         // Stop video if running
         if (videoStream) {
@@ -679,11 +696,16 @@
       }
     }
 
-    // Start video practice
+    // Start video practice - camera init is DECOUPLED from VideoAnalyzer
     async function startVideoPractice() {
+      const startBtn = document.getElementById('start-video-btn');
+      startBtn.textContent = '⏳ Starting camera...';
+      startBtn.disabled = true;
+
       try {
+        // Step 1: Get camera/mic stream (this is the critical part)
         videoStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 1280, height: 720 },
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
@@ -691,40 +713,82 @@
           }
         });
 
-        document.getElementById('practice-video').srcObject = videoStream;
+        // Step 2: Attach stream to video element
+        const videoEl = document.getElementById('practice-video');
+        videoEl.srcObject = videoStream;
+        await videoEl.play().catch(() => {}); // ensure playback starts
+
+        // Step 3: Update UI - camera is working, show record button
+        startBtn.style.display = 'none';
+        document.getElementById('record-video-btn').style.display = 'inline-flex';
 
         // Verify audio tracks
         const audioTracks = videoStream.getAudioTracks();
         if (audioTracks.length === 0) {
-          console.error('No audio tracks in practice video stream');
-          alert('Microphone not detected. Video will record without audio.');
+          console.warn('No audio tracks detected');
         } else {
           const track = audioTracks[0];
           if (!track.enabled) track.enabled = true;
-          console.log('Practice mic active:', track.label);
+          console.log('Mic active:', track.label);
         }
 
-        // Initialize video analyzer if not already done
-        if (!videoAnalyzer) {
-          videoAnalyzer = new VideoAnalyzer();
-          await videoAnalyzer.init();
+        // Step 4: Initialize video analyzer SEPARATELY (non-blocking)
+        // Camera works even if this fails
+        initVideoAnalyzer();
 
-          videoAnalyzer.on('scores', (scores) => {
-            document.getElementById('live-eye-contact').textContent = scores.eyeContact + '%';
-            document.getElementById('video-analysis-badge').style.display = 'block';
-          });
-        }
-
-        document.getElementById('start-video-btn').style.display = 'none';
-        document.getElementById('record-video-btn').style.display = 'inline-flex';
       } catch (err) {
         console.error('Camera/microphone error:', err);
-        alert('Camera and microphone access required for video practice. Please allow both permissions.');
+        startBtn.textContent = '📷 Start Camera';
+        startBtn.disabled = false;
+
+        if (err.name === 'NotAllowedError') {
+          alert('Camera and microphone permission is required. Please allow access and try again.');
+        } else if (err.name === 'NotFoundError') {
+          alert('No camera or microphone found. Please connect a camera and try again.');
+        } else {
+          alert('Could not access camera: ' + err.message);
+        }
+      }
+    }
+
+    // Initialize video analyzer separately - never blocks camera
+    async function initVideoAnalyzer() {
+      if (videoAnalyzer) return;
+
+      try {
+        if (typeof VideoAnalyzer === 'undefined') {
+          console.warn('VideoAnalyzer class not loaded yet');
+          return;
+        }
+
+        videoAnalyzer = new VideoAnalyzer();
+        const loaded = await videoAnalyzer.init();
+
+        if (loaded) {
+          videoAnalyzerReady = true;
+          videoAnalyzer.on('scores', (scores) => {
+            const eyeEl = document.getElementById('live-eye-contact');
+            const badgeEl = document.getElementById('video-analysis-badge');
+            if (eyeEl) eyeEl.textContent = (scores.eyeContact || 0) + '%';
+            if (badgeEl) badgeEl.style.display = 'block';
+          });
+          console.log('Video analyzer ready');
+        } else {
+          console.warn('Video analyzer model failed to load - video analysis will be skipped');
+        }
+      } catch (err) {
+        console.warn('Video analyzer init error (non-critical):', err.message);
+        videoAnalyzer = null;
       }
     }
 
     // Record video practice
     function recordVideoPractice() {
+      if (!videoStream) {
+        alert('Camera not started. Click Start Camera first.');
+        return;
+      }
+
       try {
         // Use mimeType with both video AND audio codecs
         let mimeType = 'video/webm;codecs=vp9,opus';
@@ -733,13 +797,6 @@
         }
         if (!MediaRecorder.isTypeSupported(mimeType)) {
           mimeType = 'video/webm';
-        }
-
-        // Verify audio tracks before recording
-        const audioTracks = videoStream.getAudioTracks();
-        if (audioTracks.length === 0 || !audioTracks[0].enabled) {
-          alert('Microphone is not active. Please check your mic permissions.');
-          return;
         }
 
         videoRecorder = new MediaRecorder(videoStream, { mimeType });
@@ -751,25 +808,34 @@
 
         videoRecorder.onstop = () => {
           recordedVideoBlob = new Blob(chunks, { type: 'video/webm' });
-          practiceAnalysisData = videoAnalyzer ? videoAnalyzer.getFinalAnalysis() : null;
+          practiceAnalysisData = (videoAnalyzer && videoAnalyzerReady) ? videoAnalyzer.getFinalAnalysis() : null;
 
           document.getElementById('record-video-btn').style.display = 'inline-flex';
+          document.getElementById('record-video-btn').textContent = '🎥 Record Again';
           document.getElementById('stop-video-btn').style.display = 'none';
+          document.getElementById('recording-indicator').style.display = 'none';
           document.getElementById('video-analysis-badge').style.display = 'none';
+
+          // Show text area for typing response summary
+          document.getElementById('video-text-response-area').style.display = 'block';
+          document.getElementById('video-text-hint').innerHTML =
+            '<strong>✅ Recording saved!</strong> Now type a summary of your answer below and click "Get AI Coaching" for comprehensive feedback.';
         };
 
         videoRecorder.start();
 
-        if (videoAnalyzer) {
+        // Start video analysis if available
+        if (videoAnalyzer && videoAnalyzerReady) {
           videoAnalyzer.reset();
           videoAnalyzer.startAnalysis(document.getElementById('practice-video'), 500);
         }
 
         document.getElementById('record-video-btn').style.display = 'none';
         document.getElementById('stop-video-btn').style.display = 'inline-flex';
+        document.getElementById('recording-indicator').style.display = 'block';
       } catch (err) {
         console.error('Recording error:', err);
-        alert('Failed to start recording.');
+        alert('Failed to start recording: ' + err.message);
       }
     }
 
@@ -778,106 +844,183 @@
       if (videoRecorder && videoRecorder.state !== 'inactive') {
         videoRecorder.stop();
 
-        if (videoAnalyzer) {
+        if (videoAnalyzer && videoAnalyzerReady) {
           videoAnalyzer.stopAnalysis();
         }
       }
     }
 
-    // Override submitPracticeResponse to handle video mode
+    // Override submitPracticeResponse to handle video mode with REAL AI feedback
     const originalSubmit = submitPracticeResponse;
     submitPracticeResponse = async function() {
       if (practiceMode === 'video') {
-        if (!recordedVideoBlob) {
-          alert('Please record a video response first.');
+        // Get text from video text area
+        const videoText = document.getElementById('video-response-text')?.value?.trim() || '';
+
+        if (!recordedVideoBlob && !videoText) {
+          alert('Please record a video response and type a summary of your answer.');
           return;
         }
 
-        showLoading('AI is analyzing your video response...');
+        if (!videoText || videoText.length < 50) {
+          alert('Please type a summary of your spoken answer (at least 50 characters) so the AI can provide content feedback.');
+          document.getElementById('video-text-response-area').style.display = 'block';
+          document.getElementById('video-response-text')?.focus();
+          return;
+        }
+
+        showLoading('AI is analyzing your response and delivery...');
 
         try {
-          // For now, just display coaching based on video analysis
+          // Call the REAL AI coaching API with the text summary
+          const data = await apiCall('/interviews/practice/submit', {
+            method: 'POST',
+            body: JSON.stringify({
+              question_id: practiceState.currentQuestion.id,
+              question: practiceState.currentQuestion.question,
+              category: practiceState.currentQuestion.category,
+              response_text: videoText,
+              video_mode: true
+            })
+          });
+
+          if (!data || !data.success) {
+            throw new Error(data?.error || 'Failed to get coaching');
+          }
+
           hideLoading();
-          displayVideoPracticeCoaching();
+
+          // Combine AI content coaching with video analysis
+          displayCombinedCoaching(data.coaching, practiceAnalysisData);
+
+          // Reload stats
+          await loadStats();
+
         } catch (err) {
           hideLoading();
-          alert('Failed to analyze video: ' + err.message);
+          alert('Failed to analyze response: ' + err.message);
         }
       } else {
         originalSubmit();
       }
     };
 
-    // Display video practice coaching
-    function displayVideoPracticeCoaching() {
-      if (!practiceAnalysisData) {
-        alert('No analysis data available.');
-        return;
-      }
-
-      const scores = practiceAnalysisData.scores;
+    // Display combined AI coaching + video analysis
+    function displayCombinedCoaching(coaching, videoData) {
       const resultContainer = document.getElementById('coaching-result');
 
-      const insights = [];
+      // Build video analysis section if available
+      let videoSection = '';
+      if (videoData && videoData.scores) {
+        const scores = videoData.scores;
 
-      if (scores.eyeContact >= 70) {
-        insights.push('✅ Strong eye contact maintained throughout');
-      } else {
-        insights.push('💡 Practice looking directly at the camera lens');
+        const deliveryInsights = [];
+        if (scores.eyeContact >= 70) {
+          deliveryInsights.push('✅ Strong eye contact maintained');
+        } else {
+          deliveryInsights.push('💡 Practice looking directly at the camera lens for better eye contact');
+        }
+        if (scores.bodyLanguage >= 70) {
+          deliveryInsights.push('✅ Good posture and steady head position');
+        } else {
+          deliveryInsights.push('💡 Try to keep your head steady and maintain upright posture');
+        }
+        if (scores.presentation >= 70) {
+          deliveryInsights.push('✅ Confident on-camera presence');
+        } else {
+          deliveryInsights.push('💡 Practice recording yourself to build on-camera confidence');
+        }
+
+        videoSection = '\
+          <div class="coaching-section">\
+            <h4>📹 Delivery Analysis</h4>\
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; margin-bottom: 1rem;">\
+              <div style="text-align: center; padding: 1rem; background: white; border-radius: 12px;">\
+                <div style="font-size: 1.75rem; font-weight: 700; color: #667eea;">' + scores.eyeContact + '</div>\
+                <div style="font-size: 0.8rem; color: #64748b;">Eye Contact</div>\
+              </div>\
+              <div style="text-align: center; padding: 1rem; background: white; border-radius: 12px;">\
+                <div style="font-size: 1.75rem; font-weight: 700; color: #667eea;">' + scores.bodyLanguage + '</div>\
+                <div style="font-size: 0.8rem; color: #64748b;">Body Language</div>\
+              </div>\
+              <div style="text-align: center; padding: 1rem; background: white; border-radius: 12px;">\
+                <div style="font-size: 1.75rem; font-weight: 700; color: #667eea;">' + (scores.expression || scores.presence || 0) + '</div>\
+                <div style="font-size: 0.8rem; color: #64748b;">Presence</div>\
+              </div>\
+            </div>\
+            <ul class="coaching-list">\
+              ' + deliveryInsights.map(function(i) { return '<li>' + i + '</li>'; }).join('') + '\
+            </ul>\
+          </div>';
       }
 
-      if (scores.bodyLanguage >= 70) {
-        insights.push('✅ Good posture and head stability');
-      } else {
-        insights.push('💡 Keep your head steady and maintain good posture');
-      }
+      resultContainer.innerHTML = '\
+        <div class="score-display">\
+          <div class="score-value">' + coaching.score + '/10</div>\
+          <div class="score-label">Content Score</div>\
+        </div>\
+        ' +
+        (coaching.strengths && coaching.strengths.length > 0 ?
+          '<div class="coaching-section">\
+            <h4>✅ Strengths</h4>\
+            <ul class="coaching-list">\
+              ' + coaching.strengths.map(function(s) { return '<li>✓ ' + s + '</li>'; }).join('') + '\
+            </ul>\
+          </div>' : '') +
 
-      if (scores.presentation >= 70) {
-        insights.push('✅ Excellent overall video presence');
-      } else {
-        insights.push('💡 Practice recording yourself to improve presence');
-      }
+        (coaching.improvements && coaching.improvements.length > 0 ?
+          '<div class="coaching-section">\
+            <h4>💡 Areas for Improvement</h4>\
+            <ul class="coaching-list">\
+              ' + coaching.improvements.map(function(i) { return '<li>→ ' + i + '</li>'; }).join('') + '\
+            </ul>\
+          </div>' : '') +
 
-      resultContainer.innerHTML = `
-        <div class="score-display">
-          <div class="score-value">${scores.presentation}/100</div>
-          <div class="score-label">Presentation Score</div>
-        </div>
+        (coaching.specific_tips && coaching.specific_tips.length > 0 ?
+          '<div class="coaching-section">\
+            <h4>🎯 Specific Tips</h4>\
+            <ul class="coaching-list">\
+              ' + coaching.specific_tips.map(function(t) { return '<li>' + t + '</li>'; }).join('') + '\
+            </ul>\
+          </div>' : '') +
 
-        <div class="coaching-section">
-          <h4>📊 Video Analysis</h4>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 1rem;">
-            <div style="text-align: center; padding: 1rem; background: white; border-radius: 12px;">
-              <div style="font-size: 2rem; font-weight: 700; color: #667eea;">${scores.eyeContact}</div>
-              <div style="font-size: 0.875rem; color: #64748b;">Eye Contact</div>
-            </div>
-            <div style="text-align: center; padding: 1rem; background: white; border-radius: 12px;">
-              <div style="font-size: 2rem; font-weight: 700; color: #667eea;">${scores.bodyLanguage}</div>
-              <div style="font-size: 0.875rem; color: #64748b;">Body Language</div>
-            </div>
-            <div style="text-align: center; padding: 1rem; background: white; border-radius: 12px;">
-              <div style="font-size: 2rem; font-weight: 700; color: #667eea;">${scores.expression}</div>
-              <div style="font-size: 0.875rem; color: #64748b;">Expression</div>
-            </div>
-          </div>
-        </div>
+        videoSection +
 
-        <div class="coaching-section">
-          <h4>💡 Key Insights</h4>
-          <ul class="coaching-list">
-            ${insights.map(i => `<li>${i}</li>`).join('')}
-          </ul>
-        </div>
+        (coaching.improved_response ?
+          '<div class="coaching-section">\
+            <h4>📝 Example Strong Response</h4>\
+            <p style="margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.875rem;">Here is how you could strengthen your response:</p>\
+            <div class="improved-response">' + coaching.improved_response + '</div>\
+          </div>' : '') +
 
-        <div style="display: flex; gap: 1rem; margin-top: 2rem;">
-          <button class="btn btn-ghost btn-large" onclick="closePracticeModal()" style="flex: 1;">
-            Close
-          </button>
-          <button class="btn btn-primary btn-large" onclick="practiceAnother()" style="flex: 1;">
-            Practice Another
-          </button>
-        </div>
-      `;
+        (coaching.common_mistake ?
+          '<div class="coaching-section">\
+            <h4>⚠️ Common Mistake to Avoid</h4>\
+            <p style="color: var(--text-secondary);">' + coaching.common_mistake + '</p>\
+          </div>' : '') +
+
+        (coaching.body_language_tips && coaching.body_language_tips.length > 0 ?
+          '<div class="coaching-section">\
+            <h4>🗣️ Delivery Tips</h4>\
+            <ul class="coaching-list">\
+              ' + coaching.body_language_tips.map(function(t) { return '<li>' + t + '</li>'; }).join('') + '\
+            </ul>\
+          </div>' : '') +
+
+        (coaching.practice_prompt ?
+          '<div class="coaching-section">\
+            <h4>🎓 Next Practice Question</h4>\
+            <p style="color: var(--text-secondary);">' + coaching.practice_prompt + '</p>\
+          </div>' : '') +
+
+        '<div style="display: flex; gap: 1rem; margin-top: 2rem;">\
+          <button class="btn btn-ghost btn-large" onclick="closePracticeModal()" style="flex: 1;">\
+            Close\
+          </button>\
+          <button class="btn btn-primary btn-large" onclick="practiceAnother()" style="flex: 1;">\
+            Practice Another\
+          </button>\
+        </div>';
 
       document.getElementById('practice-question-view').style.display = 'none';
       resultContainer.style.display = 'block';
@@ -900,10 +1043,24 @@
       practiceAnalysisData = null;
 
       // Reset UI
-      document.getElementById('start-video-btn').style.display = 'inline-flex';
+      const startBtn = document.getElementById('start-video-btn');
+      startBtn.style.display = 'inline-flex';
+      startBtn.textContent = '📷 Start Camera';
+      startBtn.disabled = false;
       document.getElementById('record-video-btn').style.display = 'none';
+      document.getElementById('record-video-btn').textContent = '🎥 Record Response';
       document.getElementById('stop-video-btn').style.display = 'none';
+      document.getElementById('recording-indicator').style.display = 'none';
       document.getElementById('video-analysis-badge').style.display = 'none';
+      document.getElementById('video-text-response-area').style.display = 'none';
+
+      // Reset video text area
+      const videoTextArea = document.getElementById('video-response-text');
+      if (videoTextArea) videoTextArea.value = '';
+
+      // Reset hint
+      const hint = document.getElementById('video-text-hint');
+      if (hint) hint.innerHTML = '<strong>💡 Tip:</strong> After recording, type a brief summary of your answer below. You\'ll get AI coaching on both your <em>content</em> and <em>delivery</em>.';
 
       practiceMode = 'text';
       switchPracticeMode('text');

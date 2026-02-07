@@ -397,11 +397,8 @@ router.get('/stats/summary', authMiddleware, async (req, res) => {
 
 // =============== INTERVIEW PRACTICE & COACHING ===============
 
-// Get practice question library
-router.get('/practice/library', authMiddleware, async (req, res) => {
-  try {
-    // Predefined question library organized by category
-    const questionLibrary = [
+// Predefined question library (shared between routes)
+const PRACTICE_QUESTION_LIBRARY = [
       // Behavioral Questions
       {
         id: 'beh-1',
@@ -498,7 +495,12 @@ router.get('/practice/library', authMiddleware, async (req, res) => {
         question: 'What would you do if you noticed a coworker was struggling with their workload?',
         key_points: ['Teamwork', 'Empathy', 'Communication', 'Collaboration']
       }
-    ];
+];
+
+// Get practice question library
+router.get('/practice/library', authMiddleware, async (req, res) => {
+  try {
+    const questionLibrary = PRACTICE_QUESTION_LIBRARY;
 
     // Get user's practice history for this question
     const practiceHistory = await pool.query(
@@ -550,11 +552,15 @@ router.post('/practice/submit', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Response must be at least 50 characters' });
     }
 
-    // First, analyze the response
+    // Look up key_points from question library
+    const libraryQuestion = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
+    const keyPoints = libraryQuestion ? libraryQuestion.key_points : ['Content quality', 'Structure', 'Clarity', 'Relevance'];
+
+    // First, analyze the response with real key points
     const analysis = await analyzeInterviewResponse(
       question,
       response_text,
-      [], // key_points not needed for practice
+      keyPoints,
       { subscriptionId: req.user.stripe_subscription_id }
     );
 
