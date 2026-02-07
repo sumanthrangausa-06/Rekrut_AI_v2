@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Create missing video-analyzer.js for camera/video analysis",
+    "status": "completed",
+    "activeForm": "Creating video-analyzer.js for camera support"
+  },
+  {
+    "content": "Fix camera initialization flow (separates getUserMedia from VideoAnalyzer)",
+    "status": "completed",
+    "activeForm": "Fixing camera initialization flow"
+  },
+  {
+    "content": "Add AI feedback for video mode responses (transcription + coaching)",
+    "status": "completed",
+    "activeForm": "Adding AI feedback for video responses"
+  },
+  {
+    "content": "Make VideoAnalyzer more resilient to missing BlazeFace",
+    "status": "completed",
+    "activeForm": "Making VideoAnalyzer resilient to missing BlazeFace"
+  },
+  {
+    "content": "Test full flow and deploy",
+    "status": "in_progress",
+    "activeForm": "Testing and deploying"
+  }
+]
