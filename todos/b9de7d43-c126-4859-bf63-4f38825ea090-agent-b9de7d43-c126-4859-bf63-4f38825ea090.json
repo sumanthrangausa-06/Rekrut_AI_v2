@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Fix initial 'Question 0 of 0' display text",
+    "status": "completed",
+    "activeForm": "Fixing initial 'Question 0 of 0' display text"
+  },
+  {
+    "content": "Fix camera/mic error handling - separate VideoAnalyzer from getUserMedia",
+    "status": "completed",
+    "activeForm": "Fixing camera/mic error handling"
+  },
+  {
+    "content": "Fix apiCall FormData bug breaking video uploads",
+    "status": "completed",
+    "activeForm": "Fixing apiCall FormData bug"
+  },
+  {
+    "content": "Add retry button and better permission error UX",
+    "status": "completed",
+    "activeForm": "Adding retry button and better error UX"
+  },
+  {
+    "content": "Deploy and verify fix",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying fix"
+  }
+]
