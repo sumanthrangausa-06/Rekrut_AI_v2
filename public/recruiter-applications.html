@@ -325,7 +325,39 @@
         return;
       }
 
-      container.innerHTML = filtered.map(app => `
+      container.innerHTML = filtered.map(app => {
+        // Build screening answers display
+        let screeningHTML = '';
+        const answers = typeof app.screening_answers === 'string' ? JSON.parse(app.screening_answers || '{}') : (app.screening_answers || {});
+        const questions = typeof app.screening_questions === 'string' ? JSON.parse(app.screening_questions || '[]') : (app.screening_questions || []);
+
+        if (questions.length > 0 && Object.keys(answers).length > 0) {
+          screeningHTML = `
+            <div class="screening-answers">
+              <div class="screening-label">📋 Screening Answers</div>
+              <div class="screening-grid">
+                ${questions.map(q => {
+                  const ans = answers[q.id] || '-';
+                  return `<div class="screening-item">
+                    <span class="sq-q">${q.question}</span>
+                    <span class="sq-a ${q.type === 'yes_no' ? (ans === 'yes' ? 'sq-yes' : 'sq-no') : ''}">${ans}</span>
+                  </div>`;
+                }).join('')}
+              </div>
+            </div>`;
+        }
+
+        // Build candidate insights
+        let insightsHTML = '';
+        if (app.verified_skills_count > 0 || app.best_interview_score || app.completed_interviews > 0) {
+          insightsHTML = `<div class="candidate-insights">
+            ${app.verified_skills_count > 0 ? `<span class="insight-badge skill-badge">✓ ${app.verified_skills_count} Verified Skill${app.verified_skills_count > 1 ? 's' : ''}</span>` : ''}
+            ${app.best_interview_score ? `<span class="insight-badge interview-badge">🎤 Best Interview: ${app.best_interview_score}/10</span>` : ''}
+            ${app.completed_interviews > 0 ? `<span class="insight-badge practice-badge">📝 ${app.completed_interviews} Mock Interview${app.completed_interviews > 1 ? 's' : ''}</span>` : ''}
+          </div>`;
+        }
+
+        return `
         <div class="application-card">
           <div class="application-header">
             <div class="candidate-info">
@@ -344,8 +376,11 @@
             <div class="application-info">
               <span class="info-item">📧 ${app.candidate_email || 'No email'}</span>
               <span class="info-item">📅 Applied ${formatDate(app.applied_at)}</span>
+              ${app.match_score ? `<span class="info-item">🎯 ${app.match_score}% Match</span>` : ''}
             </div>
+            ${insightsHTML}
             ${app.cover_letter ? `<p class="cover-letter-preview">${app.cover_letter.substring(0, 150)}...</p>` : ''}
+            ${screeningHTML}
           </div>
           <div class="application-actions">
             <button onclick="updateStatus(${app.id}, 'reviewing')" class="btn btn-ghost btn-sm" ${app.status !== 'applied' ? 'disabled' : ''}>
@@ -362,7 +397,7 @@
             </button>
           </div>
         </div>
-      `).join('');
+      `}).join('');
     }
 
     function formatDate(dateStr) {
@@ -573,6 +608,59 @@
 
     .btn.danger { color: #ef4444; }
     .btn.danger:hover { background: rgba(239, 68, 68, 0.1); }
+
+    /* Candidate Insights Badges */
+    .candidate-insights {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .insight-badge {
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .skill-badge { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+    .interview-badge { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
+    .practice-badge { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+
+    /* Screening Answers */
+    .screening-answers {
+      margin-top: 12px;
+      padding: 12px 16px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color);
+    }
+
+    .screening-label {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: var(--text-secondary);
+    }
+
+    .screening-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .screening-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    .sq-q { color: var(--text-muted); flex: 1; }
+    .sq-a { font-weight: 600; color: var(--text-primary); text-align: right; }
+    .sq-a.sq-yes { color: #10b981; }
+    .sq-a.sq-no { color: #ef4444; }
 
     /* Modal */
     .modal-overlay {

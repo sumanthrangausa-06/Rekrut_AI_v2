@@ -1,0 +1,422 @@
+     1→// Interview Practice Page JavaScript
+     2→
+     3→let practiceState = {
+     4→  currentQuestion: null,
+     5→  stats: null,
+     6→  user: null
+     7→};
+     8→
+     9→// Initialize
+    10→document.addEventListener('DOMContentLoaded', async () => {
+    11→  const user = await checkAuth();
+    12→  if (!user) {
+    13→    window.location.href = '/login.html';
+    14→    return;
+    15→  }
+    16→
+    17→  practiceState.user = user;
+    18→
+    19→  // Setup tabs
+    20→  setupTabs();
+    21→
+    22→  // Load initial data
+    23→  await loadStats();
+    24→  await loadQuestionLibrary();
+    25→});
+    26→
+    27→// Setup tab switching
+    28→function setupTabs() {
+    29→  const tabs = document.querySelectorAll('.tab');
+    30→  tabs.forEach(tab => {
+    31→    tab.addEventListener('click', () => {
+    32→      const tabName = tab.dataset.tab;
+    33→
+    34→      // Update active states
+    35→      tabs.forEach(t => t.classList.remove('active'));
+    36→      tab.classList.add('active');
+    37→
+    38→      document.querySelectorAll('.tab-content').forEach(content => {
+    39→        content.classList.remove('active');
+    40→      });
+    41→      document.getElementById(`${tabName}-content`).classList.add('active');
+    42→
+    43→      // Load content if needed
+    44→      if (tabName === 'progress') {
+    45→        loadProgressDashboard();
+    46→      }
+    47→    });
+    48→  });
+    49→}
+    50→
+    51→// Load practice stats
+    52→async function loadStats() {
+    53→  try {
+    54→    const data = await apiCall('/interviews/practice/stats');
+    55→
+    56→    if (data && data.stats) {
+    57→      practiceState.stats = data.stats;
+    58→
+    59→      document.getElementById('stat-total').textContent = data.stats.total_questions || 0;
+    60→      document.getElementById('stat-avg').textContent =
+    61→        data.stats.average_score ? `${data.stats.average_score.toFixed(1)}/10` : '—';
+    62→
+    63→      // Calculate improvement
+    64→      if (data.stats.improvement) {
+    65→        const improvement = data.stats.improvement;
+    66→        const sign = improvement > 0 ? '+' : '';
+    67→        document.getElementById('stat-improvement').textContent = `${sign}${improvement.toFixed(1)}%`;
+    68→      } else {
+    69→        document.getElementById('stat-improvement').textContent = '—';
+    70→      }
+    71→
+    72→      document.getElementById('stat-streak').textContent = data.stats.day_streak || 0;
+    73→    }
+    74→  } catch (err) {
+    75→    console.error('Failed to load stats:', err);
+    76→  }
+    77→}
+    78→
+    79→// Load question library
+    80→async function loadQuestionLibrary() {
+    81→  showLoading('Loading question library...');
+    82→
+    83→  try {
+    84→    const data = await apiCall('/interviews/practice/library');
+    85→
+    86→    if (data && data.questions) {
+    87→      renderQuestionLibrary(data.questions);
+    88→    }
+    89→
+    90→    hideLoading();
+    91→  } catch (err) {
+    92→    console.error('Failed to load question library:', err);
+    93→    hideLoading();
+    94→
+    95→    document.getElementById('question-library').innerHTML = `
+    96→      <div class="empty-state">
+    97→        <div class="empty-state-icon">📚</div>
+    98→        <h3>Question Library</h3>
+    99→        <p>Unable to load questions. Please try again later.</p>
+   100→      </div>
+   101→    `;
+   102→  }
+   103→}
+   104→
+   105→// Render question library
+   106→function renderQuestionLibrary(questions) {
+   107→  const container = document.getElementById('question-library');
+   108→
+   109→  if (questions.length === 0) {
+   110→    container.innerHTML = `
+   111→      <div class="empty-state">
+   112→        <div class="empty-state-icon">📚</div>
+   113→        <h3>No Questions Available</h3>
+   114→        <p>Check back soon for practice questions!</p>
+   115→      </div>
+   116→    `;
+   117→    return;
+   118→  }
+   119→
+   120→  container.innerHTML = questions.map((q, idx) => `
+   121→    <div class="question-card" data-question-idx="${idx}">
+   122→      <span class="question-category-badge category-${q.category}">
+   123→        ${q.category.charAt(0).toUpperCase() + q.category.slice(1)}
+   124→      </span>
+   125→      <div class="question-text">${q.question}</div>
+   126→      <div class="question-meta">
+   127→        <span>💪 ${q.difficulty}</span>
+   128→        ${q.times_practiced ? `<span>📝 Practiced ${q.times_practiced} times</span>` : ''}
+   129→        ${q.last_score ? `<span>⭐ Last score: ${q.last_score}/10</span>` : ''}
+   130→      </div>
+   131→    </div>
+   132→  `).join('');
+   133→
+   134→  // Attach click handlers safely (no inline JSON in onclick)
+   135→  container.querySelectorAll('.question-card[data-question-idx]').forEach(card => {
+   136→    card.addEventListener('click', () => {
+   137→      const idx = parseInt(card.dataset.questionIdx);
+   138→      openPracticeModal(questions[idx]);
+   139→    });
+   140→  });
+   141→}
+   142→
+   143→// Open practice modal with question
+   144→function openPracticeModal(question) {
+   145→  practiceState.currentQuestion = question;
+   146→
+   147→  document.getElementById('modal-question-text').textContent = question.question;
+   148→  document.getElementById('modal-category-badge').textContent =
+   149→    `${question.category.charAt(0).toUpperCase() + question.category.slice(1)} • ${question.difficulty}`;
+   150→
+   151→  document.getElementById('practice-response').value = '';
+   152→  document.getElementById('practice-question-view').style.display = 'block';
+   153→  document.getElementById('coaching-result').style.display = 'none';
+   154→  document.getElementById('coaching-result').classList.remove('active');
+   155→
+   156→  document.getElementById('practice-modal').classList.add('active');
+   157→}
+   158→
+   159→// Close practice modal
+   160→function closePracticeModal() {
+   161→  document.getElementById('practice-modal').classList.remove('active');
+   162→  practiceState.currentQuestion = null;
+   163→}
+   164→
+   165→// Submit practice response for coaching
+   166→async function submitPracticeResponse() {
+   167→  const response = document.getElementById('practice-response').value.trim();
+   168→
+   169→  if (!response) {
+   170→    alert('Please provide a response before getting coaching.');
+   171→    return;
+   172→  }
+   173→
+   174→  if (response.length < 50) {
+   175→    alert('Please provide a more detailed response (at least 50 characters).');
+   176→    return;
+   177→  }
+   178→
+   179→  showLoading('AI is analyzing your response...');
+   180→
+   181→  try {
+   182→    const data = await apiCall('/interviews/practice/submit', {
+   183→      method: 'POST',
+   184→      body: JSON.stringify({
+   185→        question_id: practiceState.currentQuestion.id,
+   186→        question: practiceState.currentQuestion.question,
+   187→        category: practiceState.currentQuestion.category,
+   188→        response_text: response
+   189→      })
+   190→    });
+   191→
+   192→    if (!data || !data.success) {
+   193→      throw new Error(data?.error || 'Failed to get coaching');
+   194→    }
+   195→
+   196→    hideLoading();
+   197→    displayCoachingResult(data.coaching);
+   198→
+   199→    // Reload stats
+   200→    await loadStats();
+   201→
+   202→  } catch (err) {
+   203→    hideLoading();
+   204→    alert('Failed to analyze response: ' + err.message);
+   205→  }
+   206→}
+   207→
+   208→// Display coaching result
+   209→function displayCoachingResult(coaching) {
+   210→  const resultContainer = document.getElementById('coaching-result');
+   211→
+   212→  resultContainer.innerHTML = `
+   213→    <div class="score-display">
+   214→      <div class="score-value">${coaching.score}/10</div>
+   215→      <div class="score-label">Your Score</div>
+   216→    </div>
+   217→
+   218→    ${coaching.strengths && coaching.strengths.length > 0 ? `
+   219→      <div class="coaching-section">
+   220→        <h4>✅ Strengths</h4>
+   221→        <ul class="coaching-list">
+   222→          ${coaching.strengths.map(s => `<li>✓ ${s}</li>`).join('')}
+   223→        </ul>
+   224→      </div>
+   225→    ` : ''}
+   226→
+   227→    ${coaching.improvements && coaching.improvements.length > 0 ? `
+   228→      <div class="coaching-section">
+   229→        <h4>💡 Areas for Improvement</h4>
+   230→        <ul class="coaching-list">
+   231→          ${coaching.improvements.map(i => `<li>→ ${i}</li>`).join('')}
+   232→        </ul>
+   233→      </div>
+   234→    ` : ''}
+   235→
+   236→    ${coaching.specific_tips && coaching.specific_tips.length > 0 ? `
+   237→      <div class="coaching-section">
+   238→        <h4>🎯 Specific Tips</h4>
+   239→        <ul class="coaching-list">
+   240→          ${coaching.specific_tips.map(t => `<li>${t}</li>`).join('')}
+   241→        </ul>
+   242→      </div>
+   243→    ` : ''}
+   244→
+   245→    ${coaching.improved_response ? `
+   246→      <div class="coaching-section">
+   247→        <h4>📝 Example Strong Response</h4>
+   248→        <p style="margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.875rem;">
+   249→          Here's how you could strengthen your response:
+   250→        </p>
+   251→        <div class="improved-response">
+   252→          ${coaching.improved_response}
+   253→        </div>
+   254→      </div>
+   255→    ` : ''}
+   256→
+   257→    ${coaching.common_mistake ? `
+   258→      <div class="coaching-section">
+   259→        <h4>⚠️ Common Mistake to Avoid</h4>
+   260→        <p style="color: var(--text-secondary);">${coaching.common_mistake}</p>
+   261→      </div>
+   262→    ` : ''}
+   263→
+   264→    ${coaching.body_language_tips && coaching.body_language_tips.length > 0 ? `
+   265→      <div class="coaching-section">
+   266→        <h4>🗣️ Delivery Tips</h4>
+   267→        <ul class="coaching-list">
+   268→          ${coaching.body_language_tips.map(t => `<li>${t}</li>`).join('')}
+   269→        </ul>
+   270→      </div>
+   271→    ` : ''}
+   272→
+   273→    ${coaching.practice_prompt ? `
+   274→      <div class="coaching-section">
+   275→        <h4>🎓 Next Practice Question</h4>
+   276→        <p style="color: var(--text-secondary);">${coaching.practice_prompt}</p>
+   277→      </div>
+   278→    ` : ''}
+   279→
+   280→    <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+   281→      <button class="btn btn-ghost btn-large" onclick="closePracticeModal()" style="flex: 1;">
+   282→        Close
+   283→      </button>
+   284→      <button class="btn btn-primary btn-large" onclick="practiceAnother()" style="flex: 1;">
+   285→        Practice Another
+   286→      </button>
+   287→    </div>
+   288→  `;
+   289→
+   290→  document.getElementById('practice-question-view').style.display = 'none';
+   291→  resultContainer.style.display = 'block';
+   292→  resultContainer.classList.add('active');
+   293→}
+   294→
+   295→// Practice another question
+   296→function practiceAnother() {
+   297→  closePracticeModal();
+   298→
+   299→  // Reload question library to get updated stats
+   300→  setTimeout(() => {
+   301→    loadQuestionLibrary();
+   302→  }, 300);
+   303→}
+   304→
+   305→// Load progress dashboard
+   306→async function loadProgressDashboard() {
+   307→  try {
+   308→    const data = await apiCall('/interviews/practice/progress');
+   309→
+   310→    if (data && data.progress) {
+   311→      renderCategoryProgress(data.progress.by_category || []);
+   312→      renderRecentSessions(data.progress.recent_sessions || []);
+   313→    }
+   314→  } catch (err) {
+   315→    console.error('Failed to load progress:', err);
+   316→
+   317→    document.getElementById('category-progress').innerHTML = `
+   318→      <div class="empty-state">
+   319→        <p>No practice data yet. Start practicing to see your progress!</p>
+   320→      </div>
+   321→    `;
+   322→  }
+   323→}
+   324→
+   325→// Render category progress
+   326→function renderCategoryProgress(categoryData) {
+   327→  const container = document.getElementById('category-progress');
+   328→
+   329→  if (categoryData.length === 0) {
+   330→    container.innerHTML = `
+   331→      <div class="empty-state">
+   332→        <p>No practice data yet. Start practicing to see your progress!</p>
+   333→      </div>
+   334→    `;
+   335→    return;
+   336→  }
+   337→
+   338→  container.innerHTML = categoryData.map(cat => `
+   339→    <div class="progress-item">
+   340→      <div class="progress-label">
+   341→        <span>${cat.category.charAt(0).toUpperCase() + cat.category.slice(1)}</span>
+   342→        <span>${cat.average_score ? cat.average_score.toFixed(1) : '0'}/10 (${cat.count} practiced)</span>
+   343→      </div>
+   344→      <div class="progress-bar-container">
+   345→        <div class="progress-bar-fill" style="width: ${(cat.average_score || 0) * 10}%;"></div>
+   346→      </div>
+   347→    </div>
+   348→  `).join('');
+   349→}
+   350→
+   351→// Render recent sessions
+   352→function renderRecentSessions(sessions) {
+   353→  const container = document.getElementById('recent-sessions');
+   354→
+   355→  if (sessions.length === 0) {
+   356→    container.innerHTML = `
+   357→      <div class="empty-state">
+   358→        <p>No practice sessions yet. Start practicing!</p>
+   359→      </div>
+   360→    `;
+   361→    return;
+   362→  }
+   363→
+   364→  container.innerHTML = `
+   365→    <div style="display: grid; gap: 1rem;">
+   366→      ${sessions.map(session => `
+   367→        <div style="background: #f9fafb; padding: 1.5rem; border-radius: 12px; border-left: 4px solid #667eea;">
+   368→          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+   369→            <div style="flex: 1;">
+   370→              <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">
+   371→                ${session.question.substring(0, 80)}${session.question.length > 80 ? '...' : ''}
+   372→              </div>
+   373→              <div style="font-size: 0.875rem; color: var(--text-muted);">
+   374→                ${session.category} • ${formatDate(session.created_at)}
+   375→              </div>
+   376→            </div>
+   377→            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 700; min-width: 60px; text-align: center;">
+   378→              ${session.score}/10
+   379→            </div>
+   380→          </div>
+   381→          ${session.improvements && session.improvements.length > 0 ? `
+   382→            <div style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem;">
+   383→              <strong>Key improvement:</strong> ${session.improvements[0]}
+   384→            </div>
+   385→          ` : ''}
+   386→        </div>
+   387→      `).join('')}
+   388→    </div>
+   389→  `;
+   390→}
+   391→
+   392→// Format date helper
+   393→function formatDate(dateString) {
+   394→  const date = new Date(dateString);
+   395→  const now = new Date();
+   396→  const diffMs = now - date;
+   397→  const diffMins = Math.floor(diffMs / 60000);
+   398→  const diffHours = Math.floor(diffMs / 3600000);
+   399→  const diffDays = Math.floor(diffMs / 86400000);
+   400→
+   401→  if (diffMins < 1) return 'Just now';
+   402→  if (diffMins < 60) return `${diffMins}m ago`;
+   403→  if (diffHours < 24) return `${diffHours}h ago`;
+   404→  if (diffDays < 7) return `${diffDays}d ago`;
+   405→
+   406→  return date.toLocaleDateString();
+   407→}
+   408→
+   409→// Loading helpers
+   410→function showLoading(text) {
+   411→  document.getElementById('loading-text').textContent = text;
+   412→  document.getElementById('loading-overlay').style.display = 'flex';
+   413→}
+   414→
+   415→function hideLoading() {
+   416→  document.getElementById('loading-overlay').style.display = 'none';
+   417→}
+   418→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

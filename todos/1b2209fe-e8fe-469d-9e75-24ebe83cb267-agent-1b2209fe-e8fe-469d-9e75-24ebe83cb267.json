@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Explore codebase - understand current state of AI Interview, Skills Test, Application modules",
+    "status": "completed",
+    "activeForm": "Exploring codebase and current module state"
+  },
+  {
+    "content": "Fix AI Interview Coach - loading overlay bug + verify mock interview flow",
+    "status": "completed",
+    "activeForm": "Fixing AI Interview Coach loading overlay and mock interview flow"
+  },
+  {
+    "content": "Fix Skills Test - results page session query + recruiter visibility",
+    "status": "completed",
+    "activeForm": "Fixing Skills Test results and recruiter visibility"
+  },
+  {
+    "content": "Build Application Pre-screening Questions system (migration + backend + UI)",
+    "status": "completed",
+    "activeForm": "Building pre-screening questions for applications"
+  },
+  {
+    "content": "Add recruiter visibility for assessment scores and interview feedback",
+    "status": "completed",
+    "activeForm": "Adding recruiter visibility for candidate assessments"
+  },
+  {
+    "content": "Deploy and verify everything works in production",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying in production"
+  }
+]

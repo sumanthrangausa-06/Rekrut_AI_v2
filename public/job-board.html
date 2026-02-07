@@ -152,6 +152,12 @@
         </div>
       </div>
 
+      <!-- Screening Questions (dynamically populated) -->
+      <div id="screening-questions-area" style="display: none;">
+        <div style="font-weight: 600; margin-bottom: 12px; font-size: 15px;">📋 Pre-Screening Questions</div>
+        <div id="screening-questions-form"></div>
+      </div>
+
       <div class="form-group">
         <label>Cover Letter (Optional)</label>
         <textarea id="cover-letter" rows="6" placeholder="Tell them why you're a great fit for this role..."></textarea>
@@ -553,6 +559,45 @@
 
       document.getElementById('cover-letter').value = '';
 
+      // Render screening questions
+      const sqArea = document.getElementById('screening-questions-area');
+      const sqForm = document.getElementById('screening-questions-form');
+      const questions = job.screening_questions || [];
+
+      if (questions.length > 0) {
+        sqArea.style.display = 'block';
+        sqForm.innerHTML = questions.map(q => {
+          const reqTag = q.required ? '<span style="color: #ef4444;">*</span>' : '';
+          let inputHTML = '';
+
+          if (q.type === 'yes_no') {
+            inputHTML = `
+              <div class="sq-answer-options">
+                <label class="sq-radio"><input type="radio" name="sq_${q.id}" value="yes" ${q.required ? 'required' : ''}> Yes</label>
+                <label class="sq-radio"><input type="radio" name="sq_${q.id}" value="no"> No</label>
+              </div>`;
+          } else if (q.type === 'select') {
+            inputHTML = `<select class="sq-input" id="sq_${q.id}" ${q.required ? 'required' : ''}>
+              <option value="">Select...</option>
+              ${(q.options || []).map(o => `<option value="${o}">${o}</option>`).join('')}
+            </select>`;
+          } else if (q.type === 'number') {
+            inputHTML = `<input type="number" class="sq-input" id="sq_${q.id}" placeholder="${q.placeholder || ''}" ${q.required ? 'required' : ''}>`;
+          } else {
+            inputHTML = `<input type="text" class="sq-input" id="sq_${q.id}" placeholder="${q.placeholder || 'Your answer...'}" ${q.required ? 'required' : ''}>`;
+          }
+
+          return `
+            <div class="sq-field" style="margin-bottom: 16px;">
+              <label style="font-size: 14px; font-weight: 500; display: block; margin-bottom: 6px;">${q.question} ${reqTag}</label>
+              ${inputHTML}
+            </div>`;
+        }).join('');
+      } else {
+        sqArea.style.display = 'none';
+        sqForm.innerHTML = '';
+      }
+
       showModal();
     }
 
@@ -570,13 +615,35 @@
       const coverLetter = document.getElementById('cover-letter').value;
       const btn = document.getElementById('submit-apply-btn');
 
+      // Collect screening answers
+      const job = allJobs.find(j => j.id === selectedJobId) || savedJobs.find(j => j.id === selectedJobId);
+      const questions = (job && job.screening_questions) || [];
+      const screening_answers = {};
+
+      for (const q of questions) {
+        let val;
+        if (q.type === 'yes_no') {
+          const checked = document.querySelector(`input[name="sq_${q.id}"]:checked`);
+          val = checked ? checked.value : '';
+        } else {
+          const el = document.getElementById(`sq_${q.id}`);
+          val = el ? el.value.trim() : '';
+        }
+
+        if (q.required && !val) {
+          alert(`Please answer: "${q.question}"`);
+          return;
+        }
+        screening_answers[q.id] = val;
+      }
+
       btn.textContent = 'Submitting...';
       btn.disabled = true;
 
       try {
         const data = await apiCall(`/candidate/jobs/${selectedJobId}/apply`, {
           method: 'POST',
-          body: JSON.stringify({ cover_letter: coverLetter })
+          body: JSON.stringify({ cover_letter: coverLetter, screening_answers })
         });
 
         if (data.success) {
@@ -1096,6 +1163,21 @@
       padding-top: 16px;
       border-top: 1px solid var(--border-color);
     }
+
+    /* Screening Question Inputs */
+    .sq-input {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: 14px;
+    }
+    .sq-input:focus { outline: none; border-color: var(--accent-primary); }
+    .sq-answer-options { display: flex; gap: 20px; margin-top: 4px; }
+    .sq-radio { display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
+    .sq-radio input { width: 16px; height: 16px; }
 
     /* Apply Modal */
     .modal-overlay {
