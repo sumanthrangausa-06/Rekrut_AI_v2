@@ -414,7 +414,7 @@
     // Initialize
     document.addEventListener('DOMContentLoaded', async () => {
       await checkAuth();
-      await loadUserInfo();
+      setupUserMenu();
       loadAssessments();
       loadResults();
     });

@@ -292,7 +292,7 @@
     // Load results
     async function loadResults() {
       await checkAuth();
-      await loadUserInfo();
+      setupUserMenu();
 
       const urlParams = new URLSearchParams(window.location.search);
       const sessionId = urlParams.get('session');
@@ -305,25 +305,37 @@
       }
 
       try {
-        // For now, we'll fetch session data from the results endpoint
-        // In a complete implementation, you'd have a dedicated session endpoint
-        const response = await fetch('/api/assessments/results', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}` }
-        });
-
-        if (!response.ok) throw new Error('Failed to load results');
-
-        const data = await response.json();
-        
-        // Find the correct result based on available params
         let result;
-        if (assessmentId) {
-          result = data.results.find(r => r.id === parseInt(assessmentId));
-        } else if (sessionId) {
-          result = data.results.find(r => r.session_id === parseInt(sessionId));
+
+        // Try dedicated session endpoint first (faster, more reliable)
+        if (sessionId) {
+          const sessionRes = await fetch(`/api/assessments/session/${sessionId}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}` }
+          });
+          if (sessionRes.ok) {
+            const sessionData = await sessionRes.json();
+            result = sessionData.result;
+          }
         }
+
+        // Fallback: search through all results
         if (!result) {
-          result = data.results[0]; // fallback to most recent
+          const response = await fetch('/api/assessments/results', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}` }
+          });
+
+          if (!response.ok) throw new Error('Failed to load results');
+
+          const data = await response.json();
+
+          if (assessmentId) {
+            result = data.results.find(r => r.id === parseInt(assessmentId));
+          } else if (sessionId) {
+            result = data.results.find(r => r.session_id === parseInt(sessionId));
+          }
+          if (!result) {
+            result = data.results[0]; // fallback to most recent
+          }
         }
 
         if (!result) {

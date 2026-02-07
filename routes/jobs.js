@@ -58,10 +58,10 @@ router.post('/', authMiddleware, requireRole('hiring_manager', 'admin', 'recruit
     }
 
     const result = await pool.query(
-      `INSERT INTO jobs (user_id, title, company, description, requirements, location, salary_range, job_type, screening_questions)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [req.user.id, title, company || req.user.company_name, description, requirements, location, salary_range, job_type, JSON.stringify(screening_questions || [])]
+      [req.user.id, req.user.company_id || null, title, company || req.user.company_name, description, requirements, location, salary_range, job_type, JSON.stringify(screening_questions || [])]
     );
 
     // Track job post creation
