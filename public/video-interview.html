@@ -230,6 +230,55 @@
       border-radius: 50%;
     }
 
+    /* Microphone Level Indicator */
+    .mic-status {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1.25rem;
+      background: #f1f5f9;
+      border-radius: 12px;
+      margin: 1rem 0;
+    }
+
+    .mic-status.active {
+      background: #d1fae5;
+    }
+
+    .mic-status.error {
+      background: #fee2e2;
+    }
+
+    .mic-icon {
+      font-size: 1.25rem;
+    }
+
+    .mic-label {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: #1e293b;
+    }
+
+    .mic-level-bar {
+      flex: 1;
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .mic-level-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.1s ease;
+    }
+
+    .mic-status.error .mic-level-fill {
+      background: #ef4444;
+    }
+
     @keyframes blink {
       0%, 50%, 100% { opacity: 1; }
       25%, 75% { opacity: 0.5; }
@@ -506,6 +555,15 @@
           ⚠️ This interview requires camera and microphone access. Please allow permissions when prompted.
         </div>
 
+        <!-- Microphone Status Indicator -->
+        <div class="mic-status" id="mic-status">
+          <span class="mic-icon">🎤</span>
+          <span class="mic-label" id="mic-label">Microphone: Checking...</span>
+          <div class="mic-level-bar">
+            <div class="mic-level-fill" id="mic-level-fill"></div>
+          </div>
+        </div>
+
         <div class="controls">
           <button class="btn btn-primary btn-large" onclick="startInterview()">
             Start Interview
@@ -549,6 +607,15 @@
                 <span class="metric-label">Presence</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Recording Mic Status -->
+        <div class="mic-status active" id="recording-mic-status">
+          <span class="mic-icon">🎤</span>
+          <span class="mic-label" id="recording-mic-label">Mic Active</span>
+          <div class="mic-level-bar">
+            <div class="mic-level-fill" id="recording-mic-level"></div>
           </div>
         </div>
 
@@ -628,6 +695,9 @@
     let videoAnalyzer = null;
     let analysisEnabled = false;
     let questionAnalysisData = {}; // Store analysis for each question
+    let audioContext = null;
+    let audioAnalyser = null;
+    let micLevelAnimationId = null;
 
     // Initialize
     document.addEventListener('DOMContentLoaded', async () => {
@@ -641,14 +711,37 @@
       const urlParams = new URLSearchParams(window.location.search);
       const jobId = urlParams.get('job_id');
 
-      // Request camera access for preview
+      // Request camera AND microphone access
       try {
         mediaStream = await navigator.mediaDevices.getUserMedia({
           video: { width: 1280, height: 720 },
-          audio: true
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
         });
         document.getElementById('preview-video').srcObject = mediaStream;
         document.getElementById('preview-overlay').style.display = 'none';
+
+        // Verify audio tracks are present and active
+        const audioTracks = mediaStream.getAudioTracks();
+        if (audioTracks.length === 0) {
+          console.error('No audio tracks in stream');
+          updateMicStatus('error', 'Microphone not detected');
+        } else {
+          const audioTrack = audioTracks[0];
+          console.log('Audio track:', audioTrack.label, 'enabled:', audioTrack.enabled, 'muted:', audioTrack.muted);
+
+          if (!audioTrack.enabled) {
+            audioTrack.enabled = true;
+          }
+
+          updateMicStatus('active', `Mic: ${audioTrack.label || 'Active'}`);
+
+          // Start audio level visualization
+          startAudioLevelMeter(mediaStream);
+        }
 
         // Initialize video analyzer
         videoAnalyzer = new VideoAnalyzer();
@@ -665,10 +758,67 @@
           console.warn('Video analyzer initialization failed - continuing without analysis');
         }
       } catch (err) {
-        console.error('Camera access error:', err);
-        alert('Camera access is required for video interviews. Please allow permissions and reload.');
+        console.error('Camera/microphone access error:', err);
+        if (err.name === 'NotAllowedError') {
+          alert('Camera and microphone access is required for video interviews. Please allow both permissions and reload the page.');
+        } else if (err.name === 'NotFoundError') {
+          alert('Camera or microphone not found. Please connect your devices and reload.');
+        } else {
+          alert('Failed to access camera and microphone: ' + err.message);
+        }
+        updateMicStatus('error', 'Microphone access denied');
       }
     });
+
+    // Microphone status helpers
+    function updateMicStatus(status, label) {
+      const micStatusEl = document.getElementById('mic-status');
+      const micLabelEl = document.getElementById('mic-label');
+
+      micStatusEl.className = 'mic-status ' + status;
+      micLabelEl.textContent = label;
+    }
+
+    // Audio level meter using Web Audio API
+    function startAudioLevelMeter(stream) {
+      try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+        audioAnalyser = audioContext.createAnalyser();
+        audioAnalyser.fftSize = 256;
+        audioAnalyser.smoothingTimeConstant = 0.8;
+        source.connect(audioAnalyser);
+
+        const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+
+        function updateLevel() {
+          if (!audioAnalyser) return;
+
+          audioAnalyser.getByteFrequencyData(dataArray);
+
+          // Calculate average level
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+          }
+          const avg = sum / dataArray.length;
+          const level = Math.min(100, (avg / 128) * 100);
+
+          // Update both mic level bars
+          const previewFill = document.getElementById('mic-level-fill');
+          const recordingFill = document.getElementById('recording-mic-level');
+
+          if (previewFill) previewFill.style.width = level + '%';
+          if (recordingFill) recordingFill.style.width = level + '%';
+
+          micLevelAnimationId = requestAnimationFrame(updateLevel);
+        }
+
+        updateLevel();
+      } catch (err) {
+        console.warn('Audio level meter not available:', err);
+      }
+    }
 
     async function startInterview() {
       try {
@@ -724,9 +874,24 @@
       recordedChunks = [];
 
       try {
-        mediaRecorder = new MediaRecorder(mediaStream, {
-          mimeType: 'video/webm;codecs=vp9'
-        });
+        // Use mimeType with both video AND audio codecs
+        let mimeType = 'video/webm;codecs=vp9,opus';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'video/webm;codecs=vp8,opus';
+        }
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'video/webm';
+        }
+        console.log('Recording with mimeType:', mimeType);
+
+        // Verify audio tracks before recording
+        const audioTracks = mediaStream.getAudioTracks();
+        if (audioTracks.length === 0 || !audioTracks[0].enabled) {
+          alert('Microphone is not active. Please check your mic permissions and try again.');
+          return;
+        }
+
+        mediaRecorder = new MediaRecorder(mediaStream, { mimeType });
 
         mediaRecorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
@@ -923,7 +1088,13 @@
           method: 'POST'
         });
 
-        // Stop media stream
+        // Stop media stream and audio context
+        if (micLevelAnimationId) {
+          cancelAnimationFrame(micLevelAnimationId);
+        }
+        if (audioContext) {
+          audioContext.close();
+        }
         if (mediaStream) {
           mediaStream.getTracks().forEach(track => track.stop());
         }
@@ -1038,6 +1209,12 @@
 
     // Cleanup on page unload
     window.addEventListener('beforeunload', () => {
+      if (micLevelAnimationId) {
+        cancelAnimationFrame(micLevelAnimationId);
+      }
+      if (audioContext) {
+        audioContext.close();
+      }
       if (mediaStream) {
         mediaStream.getTracks().forEach(track => track.stop());
       }
