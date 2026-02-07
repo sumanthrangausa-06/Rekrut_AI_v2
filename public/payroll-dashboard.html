@@ -50,6 +50,10 @@
           <span class="nav-icon">💰</span>
           <span>Payroll</span>
         </a>
+        <a href="/recruiter-onboarding-docs.html" class="nav-item">
+          <span class="nav-icon">📂</span>
+          <span>Onboarding Docs</span>
+        </a>
         <a href="/compliance-dashboard.html" class="nav-item">
           <span class="nav-icon">⚖️</span>
           <span>Compliance</span>
@@ -384,7 +388,23 @@
     }
 
     function viewEmployee(employeeId) {
-      window.location.href = `/payroll-employee.html?id=${employeeId}`;
+      // Show employee details in a modal instead of navigating to missing page
+      showEmployeeDetails(employeeId);
+    }
+
+    async function showEmployeeDetails(employeeId) {
+      try {
+        const response = await fetch('/api/payroll/employees', {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+        const data = await response.json();
+        const emp = data.employees.find(e => e.id === employeeId);
+        if (!emp) { alert('Employee not found'); return; }
+
+        alert(`Employee: ${emp.employee_name}\nEmail: ${emp.employee_email}\nPosition: ${emp.position || 'N/A'}\nSalary: $${parseFloat(emp.salary_amount || 0).toLocaleString()}\nType: ${emp.salary_type || 'N/A'}\nFrequency: ${emp.pay_frequency || 'N/A'}\nPayment: ${emp.payment_method || 'N/A'}`);
+      } catch (err) {
+        alert('Failed to load employee details');
+      }
     }
 
     function handleLogout() {
@@ -424,6 +444,18 @@
       const name = user.name || user.email.split('@')[0];
       document.getElementById('user-name').textContent = name;
       document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+
+      // Setup user dropdown menu
+      const userMenuToggle = document.getElementById('user-menu-toggle');
+      const userDropdownMenu = document.getElementById('user-dropdown-menu');
+      if (userMenuToggle && userDropdownMenu) {
+        userMenuToggle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          userDropdownMenu.classList.toggle('active');
+        });
+        document.addEventListener('click', () => userDropdownMenu.classList.remove('active'));
+        userDropdownMenu.addEventListener('click', (e) => e.stopPropagation());
+      }
 
       loadDashboard();
       loadEmployees();

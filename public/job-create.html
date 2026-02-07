@@ -50,6 +50,10 @@
           <span class="nav-icon">💰</span>
           <span>Payroll</span>
         </a>
+        <a href="/recruiter-onboarding-docs.html" class="nav-item">
+          <span class="nav-icon">📂</span>
+          <span>Onboarding Docs</span>
+        </a>
         <a href="/compliance-dashboard.html" class="nav-item">
           <span class="nav-icon">⚖️</span>
           <span>Compliance</span>
@@ -178,15 +182,18 @@
   <script>
     let currentAnalysis = null;
 
+    let editMode = false;
+    let editJobId = null;
+
     document.addEventListener('DOMContentLoaded', async () => {
       const user = await checkAuth();
       if (!user) {
         window.location.href = '/login.html';
         return;
       }
-      // Allow access if user has company_id OR is a recruiter
-      if (!user.company_id && user.role !== 'recruiter') {
-        window.location.href = '/dashboard.html';
+      const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+      if (!recruiterRoles.includes(user.role)) {
+        window.location.href = '/candidate-dashboard.html';
         return;
       }
 
@@ -194,7 +201,38 @@
       document.getElementById('user-name').textContent = name;
       document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
       document.getElementById('company-name').textContent = user.company_name || 'Company';
+
+      // Check for edit mode
+      const params = new URLSearchParams(window.location.search);
+      const editId = params.get('edit');
+      if (editId) {
+        editMode = true;
+        editJobId = editId;
+        document.querySelector('h1').textContent = 'Edit Job Posting';
+        document.querySelector('.page-header p').textContent = 'Update your job posting';
+        const submitBtn = document.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.textContent = 'Save Changes';
+        await loadJobForEdit(editId);
+      }
     });
+
+    async function loadJobForEdit(jobId) {
+      try {
+        const data = await apiCall(`/jobs/${jobId}`);
+        if (data.job) {
+          const job = data.job;
+          document.getElementById('title').value = job.title || '';
+          document.getElementById('location').value = job.location || '';
+          document.getElementById('job_type').value = job.job_type || 'full-time';
+          document.getElementById('salary_range').value = job.salary_range || '';
+          document.getElementById('description').value = job.description || '';
+          document.getElementById('requirements').value = job.requirements || '';
+        }
+      } catch (err) {
+        console.error('Failed to load job for edit:', err);
+        showAIResult('<div class="error-message">Failed to load job details</div>');
+      }
+    }
 
     document.getElementById('job-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -206,20 +244,24 @@
       const submitBtn = form.querySelector('button[type="submit"]');
 
       submitBtn.disabled = true;
-      submitBtn.textContent = optimize ? 'Optimizing & Posting...' : 'Posting...';
+      submitBtn.textContent = editMode ? 'Saving...' : (optimize ? 'Optimizing & Posting...' : 'Posting...');
+
+      const jobData = {
+        title: form.title.value,
+        description: form.description.value,
+        requirements: form.requirements.value,
+        location: form.location.value,
+        salary_range: form.salary_range.value,
+        job_type: form.job_type.value,
+        optimize
+      };
 
       try {
-        const response = await apiCall('/recruiter/jobs', {
-          method: 'POST',
-          body: JSON.stringify({
-            title: form.title.value,
-            description: form.description.value,
-            requirements: form.requirements.value,
-            location: form.location.value,
-            salary_range: form.salary_range.value,
-            job_type: form.job_type.value,
-            optimize
-          })
+        const endpoint = editMode ? `/jobs/${editJobId}` : '/recruiter/jobs';
+        const method = editMode ? 'PUT' : 'POST';
+        const response = await apiCall(endpoint, {
+          method,
+          body: JSON.stringify(jobData)
         });
 
         if (response.success) {

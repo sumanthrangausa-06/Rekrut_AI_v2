@@ -1,0 +1,507 @@
+     1→// Rekrut AI Main JavaScript
+     2→
+     3→// Auth state
+     4→let currentUser = null;
+     5→let _checkAuthPromise = null; // Prevent race conditions with double checkAuth() calls
+     6→const TOKEN_KEY = 'rekrutai_token';
+     7→const REFRESH_KEY = 'rekrutai_refresh';
+     8→
+     9→// Handle OAuth callback tokens from URL
+    10→function handleOAuthCallback() {
+    11→  const params = new URLSearchParams(window.location.search);
+    12→  const token = params.get('token');
+    13→  const refresh = params.get('refresh');
+    14→
+    15→  if (token) {
+    16→    localStorage.setItem(TOKEN_KEY, token);
+    17→    if (refresh) {
+    18→      localStorage.setItem(REFRESH_KEY, refresh);
+    19→    }
+    20→    // Clean URL
+    21→    window.history.replaceState({}, document.title, window.location.pathname);
+    22→  }
+    23→}
+    24→
+    25→// Refresh access token using refresh token
+    26→async function refreshAccessToken() {
+    27→  const refreshToken = localStorage.getItem(REFRESH_KEY);
+    28→  if (!refreshToken) return null;
+    29→
+    30→  try {
+    31→    const response = await fetch('/api/auth/refresh', {
+    32→      method: 'POST',
+    33→      headers: { 'Content-Type': 'application/json' },
+    34→      body: JSON.stringify({ refreshToken })
+    35→    });
+    36→
+    37→    if (response.ok) {
+    38→      const data = await response.json();
+    39→      if (data.success) {
+    40→        localStorage.setItem(TOKEN_KEY, data.accessToken);
+    41→        localStorage.setItem(REFRESH_KEY, data.refreshToken);
+    42→        return data.accessToken;
+    43→      }
+    44→    }
+    45→  } catch (err) {
+    46→    console.error('Token refresh failed:', err);
+    47→  }
+    48→
+    49→  // Refresh failed - clear tokens
+    50→  localStorage.removeItem(TOKEN_KEY);
+    51→  localStorage.removeItem(REFRESH_KEY);
+    52→  return null;
+    53→}
+    54→
+    55→// Check auth status on page load
+    56→// Uses a promise guard to prevent race conditions when called from multiple DOMContentLoaded handlers
+    57→async function checkAuth() {
+    58→  // If already running, return the existing promise (prevents double token refresh)
+    59→  if (_checkAuthPromise) return _checkAuthPromise;
+    60→
+    61→  _checkAuthPromise = _doCheckAuth();
+    62→  try {
+    63→    return await _checkAuthPromise;
+    64→  } finally {
+    65→    _checkAuthPromise = null;
+    66→  }
+    67→}
+    68→
+    69→async function _doCheckAuth() {
+    70→  // Handle OAuth callback first
+    71→  handleOAuthCallback();
+    72→
+    73→  const token = localStorage.getItem(TOKEN_KEY);
+    74→  if (!token) return null;
+    75→
+    76→  try {
+    77→    const response = await fetch('/api/auth/me', {
+    78→      headers: { 'Authorization': `Bearer ${token}` }
+    79→    });
+    80→
+    81→    if (response.ok) {
+    82→      const data = await response.json();
+    83→      currentUser = data.user;
+    84→      updateNavForAuth();
+    85→      return data.user;
+    86→    }
+    87→
+    88→    // Token expired - try refresh
+    89→    if (response.status === 401) {
+    90→      const newToken = await refreshAccessToken();
+    91→      if (newToken) {
+    92→        // Retry with new token (reset promise guard for retry)
+    93→        _checkAuthPromise = null;
+    94→        return await checkAuth();
+    95→      }
+    96→    }
+    97→  } catch (err) {
+    98→    console.error('Auth check failed:', err);
+    99→  }
+   100→  return null;
+   101→}
+   102→
+   103→// Update navigation based on auth state
+   104→function updateNavForAuth() {
+   105→  const navAuth = document.getElementById('nav-auth');
+   106→  if (!navAuth) return;
+   107→
+   108→  if (currentUser) {
+   109→    const dashboardUrl = currentUser.role === 'recruiter'
+   110→      ? '/recruiter-dashboard.html'
+   111→      : '/candidate-dashboard.html';
+   112→
+   113→    navAuth.innerHTML = `
+   114→      <span class="user-greeting">Hey, ${currentUser.name || currentUser.email.split('@')[0]}</span>
+   115→      <a href="${dashboardUrl}" class="btn btn-primary">Dashboard</a>
+   116→    `;
+   117→  }
+   118→}
+   119→
+   120→// Registration
+   121→async function handleRegister(event) {
+   122→  event.preventDefault();
+   123→  const form = event.target;
+   124→  const submitBtn = form.querySelector('button[type="submit"]');
+   125→  const errorEl = document.getElementById('register-error');
+   126→
+   127→  submitBtn.disabled = true;
+   128→  submitBtn.textContent = 'Creating account...';
+   129→  if (errorEl) errorEl.style.display = 'none';
+   130→
+   131→  try {
+   132→    const response = await fetch('/api/auth/register', {
+   133→      method: 'POST',
+   134→      headers: { 'Content-Type': 'application/json' },
+   135→      body: JSON.stringify({
+   136→        email: form.email.value,
+   137→        password: form.password.value,
+   138→        name: form.name?.value || '',
+   139→        role: form.role?.value || 'candidate',
+   140→        company_name: form.company_name?.value || ''
+   141→      })
+   142→    });
+   143→
+   144→    const data = await response.json();
+   145→
+   146→    if (data.success) {
+   147→      localStorage.setItem(TOKEN_KEY, data.accessToken || data.token);
+   148→      if (data.refreshToken) {
+   149→        localStorage.setItem(REFRESH_KEY, data.refreshToken);
+   150→      }
+   151→      // Redirect based on role
+   152→      const role = form.role?.value || 'candidate';
+   153→      window.location.href = role === 'recruiter'
+   154→        ? '/recruiter-dashboard.html'
+   155→        : '/candidate-dashboard.html';
+   156→    } else {
+   157→      if (errorEl) {
+   158→        errorEl.textContent = data.error || 'Registration failed';
+   159→        errorEl.style.display = 'block';
+   160→      }
+   161→    }
+   162→  } catch (err) {
+   163→    if (errorEl) {
+   164→      errorEl.textContent = 'Network error. Please try again.';
+   165→      errorEl.style.display = 'block';
+   166→    }
+   167→  } finally {
+   168→    submitBtn.disabled = false;
+   169→    submitBtn.textContent = 'Create Account';
+   170→  }
+   171→}
+   172→
+   173→// Login
+   174→async function handleLogin(event) {
+   175→  event.preventDefault();
+   176→  const form = event.target;
+   177→  const submitBtn = form.querySelector('button[type="submit"]');
+   178→  const errorEl = document.getElementById('login-error');
+   179→
+   180→  submitBtn.disabled = true;
+   181→  submitBtn.textContent = 'Signing in...';
+   182→  if (errorEl) errorEl.style.display = 'none';
+   183→
+   184→  try {
+   185→    const response = await fetch('/api/auth/login', {
+   186→      method: 'POST',
+   187→      headers: { 'Content-Type': 'application/json' },
+   188→      body: JSON.stringify({
+   189→        email: form.email.value,
+   190→        password: form.password.value
+   191→      })
+   192→    });
+   193→
+   194→    const data = await response.json();
+   195→
+   196→    if (data.success) {
+   197→      localStorage.setItem(TOKEN_KEY, data.accessToken || data.token);
+   198→      if (data.refreshToken) {
+   199→        localStorage.setItem(REFRESH_KEY, data.refreshToken);
+   200→      }
+   201→      // Redirect based on role
+   202→      window.location.href = data.user?.role === 'recruiter'
+   203→        ? '/recruiter-dashboard.html'
+   204→        : '/candidate-dashboard.html';
+   205→    } else {
+   206→      if (errorEl) {
+   207→        errorEl.textContent = data.error || 'Login failed';
+   208→        errorEl.style.display = 'block';
+   209→      }
+   210→    }
+   211→  } catch (err) {
+   212→    if (errorEl) {
+   213→      errorEl.textContent = 'Network error. Please try again.';
+   214→      errorEl.style.display = 'block';
+   215→    }
+   216→  } finally {
+   217→    submitBtn.disabled = false;
+   218→    submitBtn.textContent = 'Sign In';
+   219→  }
+   220→}
+   221→
+   222→// Logout
+   223→async function handleLogout() {
+   224→  const token = localStorage.getItem(TOKEN_KEY);
+   225→  if (token) {
+   226→    try {
+   227→      await fetch('/api/auth/logout', {
+   228→        method: 'POST',
+   229→        headers: { 'Authorization': `Bearer ${token}` }
+   230→      });
+   231→    } catch (e) {
+   232→      // Ignore errors during logout
+   233→    }
+   234→  }
+   235→  localStorage.removeItem(TOKEN_KEY);
+   236→  localStorage.removeItem(REFRESH_KEY);
+   237→  window.location.href = '/';
+   238→}
+   239→
+   240→// API helper with automatic token refresh
+   241→async function apiCall(endpoint, options = {}) {
+   242→  let token = localStorage.getItem(TOKEN_KEY);
+   243→  const headers = {
+   244→    'Content-Type': 'application/json',
+   245→    ...(token && { 'Authorization': `Bearer ${token}` }),
+   246→    ...options.headers
+   247→  };
+   248→
+   249→  let response = await fetch(`/api${endpoint}`, {
+   250→    ...options,
+   251→    headers
+   252→  });
+   253→
+   254→  // If 401 and we have a refresh token, try to refresh
+   255→  if (response.status === 401) {
+   256→    const newToken = await refreshAccessToken();
+   257→    if (newToken) {
+   258→      // Retry with new token
+   259→      headers['Authorization'] = `Bearer ${newToken}`;
+   260→      response = await fetch(`/api${endpoint}`, {
+   261→        ...options,
+   262→        headers
+   263→      });
+   264→    } else {
+   265→      // Still unauthorized - redirect to login
+   266→      window.location.href = '/login.html';
+   267→      return null;
+   268→    }
+   269→  }
+   270→
+   271→  return response.json();
+   272→}
+   273→
+   274→// Dashboard functions
+   275→async function loadDashboard() {
+   276→  const user = await checkAuth();
+   277→  if (!user) {
+   278→    window.location.href = '/login.html';
+   279→    return;
+   280→  }
+   281→
+   282→  // Update user info
+   283→  const userNameEl = document.getElementById('user-name');
+   284→  if (userNameEl) {
+   285→    userNameEl.textContent = user.name || user.email.split('@')[0];
+   286→  }
+   287→
+   288→  // Load stats
+   289→  loadInterviewStats();
+   290→  loadRecentInterviews();
+   291→}
+   292→
+   293→async function loadInterviewStats() {
+   294→  try {
+   295→    const data = await apiCall('/interviews/stats/summary');
+   296→    if (!data) return;
+   297→
+   298→    const { stats, recent_scores } = data;
+   299→
+   300→    // Update stat cards
+   301→    const totalEl = document.getElementById('total-interviews');
+   302→    const avgEl = document.getElementById('avg-score');
+   303→    const bestEl = document.getElementById('best-score');
+   304→
+   305→    if (totalEl) totalEl.textContent = stats?.completed || 0;
+   306→    if (avgEl) avgEl.textContent = stats?.avg_score ? parseFloat(stats.avg_score).toFixed(1) : '-';
+   307→    if (bestEl) bestEl.textContent = stats?.best_score || '-';
+   308→
+   309→  } catch (err) {
+   310→    console.error('Failed to load stats:', err);
+   311→  }
+   312→}
+   313→
+   314→async function loadRecentInterviews() {
+   315→  try {
+   316→    const data = await apiCall('/interviews/history?limit=5');
+   317→    if (!data) return;
+   318→
+   319→    const listEl = document.getElementById('recent-interviews');
+   320→    if (!listEl) return;
+   321→
+   322→    if (!data.interviews || data.interviews.length === 0) {
+   323→      listEl.innerHTML = `
+   324→        <div class="empty-state">
+   325→          <p>No interviews yet. Start practicing!</p>
+   326→          <a href="/interview.html" class="btn btn-primary">Start Mock Interview</a>
+   327→        </div>
+   328→      `;
+   329→      return;
+   330→    }
+   331→
+   332→    listEl.innerHTML = data.interviews.map(interview => `
+   333→      <div class="interview-item">
+   334→        <div class="interview-info">
+   335→          <span class="interview-type">${interview.interview_type}</span>
+   336→          <span class="interview-date">${new Date(interview.created_at).toLocaleDateString()}</span>
+   337→        </div>
+   338→        <div class="interview-score">
+   339→          ${interview.overall_score ? `<span class="score">${interview.overall_score}/10</span>` : '<span class="pending">In Progress</span>'}
+   340→        </div>
+   341→        <a href="/interview.html?id=${interview.id}" class="btn btn-ghost btn-sm">
+   342→          ${interview.status === 'completed' ? 'Review' : 'Continue'}
+   343→        </a>
+   344→      </div>
+   345→    `).join('');
+   346→
+   347→  } catch (err) {
+   348→    console.error('Failed to load interviews:', err);
+   349→  }
+   350→}
+   351→
+   352→// Mobile Menu Toggle
+   353→function initMobileMenu() {
+   354→  const navLinks = document.getElementById('nav-links');
+   355→  const navContainer = document.querySelector('.nav-container');
+   356→
+   357→  // Create hamburger button if it doesn't exist
+   358→  let mobileToggle = document.querySelector('.mobile-menu-toggle');
+   359→  if (!mobileToggle && navLinks && navContainer) {
+   360→    mobileToggle = document.createElement('button');
+   361→    mobileToggle.className = 'mobile-menu-toggle';
+   362→    mobileToggle.innerHTML = '☰';
+   363→    mobileToggle.setAttribute('aria-label', 'Toggle menu');
+   364→
+   365→    // Insert before nav-auth
+   366→    const navAuth = document.getElementById('nav-auth');
+   367→    if (navAuth) {
+   368→      navContainer.insertBefore(mobileToggle, navAuth);
+   369→    }
+   370→  }
+   371→
+   372→  if (mobileToggle && navLinks) {
+   373→    // Toggle mobile menu
+   374→    mobileToggle.addEventListener('click', (e) => {
+   375→      e.stopPropagation();
+   376→      navLinks.classList.toggle('mobile-open');
+   377→      mobileToggle.innerHTML = navLinks.classList.contains('mobile-open') ? '✕' : '☰';
+   378→    });
+   379→
+   380→    // Close menu when clicking outside
+   381→    document.addEventListener('click', (e) => {
+   382→      if (!navLinks.contains(e.target) && !mobileToggle.contains(e.target)) {
+   383→        navLinks.classList.remove('mobile-open');
+   384→        mobileToggle.innerHTML = '☰';
+   385→      }
+   386→    });
+   387→
+   388→    // Handle dropdown toggles on mobile
+   389→    const dropdowns = navLinks.querySelectorAll('.nav-dropdown');
+   390→    dropdowns.forEach(dropdown => {
+   391→      const toggle = dropdown.querySelector('.nav-dropdown-toggle');
+   392→      if (toggle) {
+   393→        toggle.addEventListener('click', (e) => {
+   394→          if (window.innerWidth <= 768) {
+   395→            e.preventDefault();
+   396→            dropdown.classList.toggle('active');
+   397→          }
+   398→        });
+   399→      }
+   400→    });
+   401→  }
+   402→}
+   403→
+   404→// Dashboard Mobile Sidebar Toggle
+   405→function initDashboardSidebar() {
+   406→  const sidebar = document.querySelector('.sidebar');
+   407→  if (!sidebar) return; // Not on a dashboard page
+   408→
+   409→  // Create mobile toggle button
+   410→  let mobileToggle = document.querySelector('.mobile-sidebar-toggle');
+   411→  if (!mobileToggle) {
+   412→    mobileToggle = document.createElement('button');
+   413→    mobileToggle.className = 'mobile-sidebar-toggle';
+   414→    mobileToggle.innerHTML = '☰';
+   415→    mobileToggle.setAttribute('aria-label', 'Toggle sidebar');
+   416→    document.body.appendChild(mobileToggle);
+   417→  }
+   418→
+   419→  // Create overlay
+   420→  let overlay = document.querySelector('.sidebar-overlay');
+   421→  if (!overlay) {
+   422→    overlay = document.createElement('div');
+   423→    overlay.className = 'sidebar-overlay';
+   424→    document.body.appendChild(overlay);
+   425→  }
+   426→
+   427→  // Toggle sidebar
+   428→  mobileToggle.addEventListener('click', () => {
+   429→    sidebar.classList.toggle('mobile-open');
+   430→    overlay.classList.toggle('active');
+   431→    mobileToggle.innerHTML = sidebar.classList.contains('mobile-open') ? '✕' : '☰';
+   432→  });
+   433→
+   434→  // Close sidebar when clicking overlay
+   435→  overlay.addEventListener('click', () => {
+   436→    sidebar.classList.remove('mobile-open');
+   437→    overlay.classList.remove('active');
+   438→    mobileToggle.innerHTML = '☰';
+   439→  });
+   440→
+   441→  // Close sidebar when clicking nav items on mobile
+   442→  const navItems = sidebar.querySelectorAll('.nav-item');
+   443→  navItems.forEach(item => {
+   444→    item.addEventListener('click', () => {
+   445→      if (window.innerWidth <= 768) {
+   446→        sidebar.classList.remove('mobile-open');
+   447→        overlay.classList.remove('active');
+   448→        mobileToggle.innerHTML = '☰';
+   449→      }
+   450→    });
+   451→  });
+   452→}
+   453→
+   454→// Initialize on page load
+   455→document.addEventListener('DOMContentLoaded', () => {
+   456→  // Handle OAuth callback tokens first
+   457→  handleOAuthCallback();
+   458→
+   459→  // Initialize mobile menu
+   460→  initMobileMenu();
+   461→
+   462→  // Initialize dashboard sidebar
+   463→  initDashboardSidebar();
+   464→
+   465→  // Check if on dashboard
+   466→  if (window.location.pathname === '/dashboard.html' ||
+   467→      window.location.pathname === '/candidate-dashboard.html') {
+   468→    loadDashboard();
+   469→  } else if (window.location.pathname === '/recruiter-dashboard.html') {
+   470→    checkAuth().then(user => {
+   471→      if (!user) {
+   472→        window.location.href = '/login.html';
+   473→      }
+   474→    });
+   475→  } else {
+   476→    checkAuth();
+   477→  }
+   478→
+   479→  // Attach form handlers
+   480→  const registerForm = document.getElementById('register-form');
+   481→  if (registerForm) {
+   482→    registerForm.addEventListener('submit', handleRegister);
+   483→  }
+   484→
+   485→  const loginForm = document.getElementById('login-form');
+   486→  if (loginForm) {
+   487→    loginForm.addEventListener('submit', handleLogin);
+   488→  }
+   489→
+   490→  // Attach logout handlers
+   491→  document.querySelectorAll('[data-logout]').forEach(el => {
+   492→    el.addEventListener('click', (e) => {
+   493→      e.preventDefault();
+   494→      handleLogout();
+   495→    });
+   496→  });
+   497→});
+   498→
+   499→// Expose functions globally for inline use
+   500→window.handleLogout = handleLogout;
+   501→window.apiCall = apiCall;
+   502→window.currentUser = () => currentUser;
+   503→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

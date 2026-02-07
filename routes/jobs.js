@@ -48,8 +48,8 @@ router.get('/:id', optionalAuth, async (req, res) => {
   }
 });
 
-// Create job (hiring managers only)
-router.post('/', authMiddleware, requireRole('hiring_manager', 'admin'), async (req, res) => {
+// Create job (hiring managers and recruiters)
+router.post('/', authMiddleware, requireRole('hiring_manager', 'admin', 'recruiter', 'employer'), async (req, res) => {
   try {
     const { title, company, description, requirements, location, salary_range, job_type } = req.body;
 

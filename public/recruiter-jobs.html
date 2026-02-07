@@ -49,6 +49,10 @@
           <span class="nav-icon">💰</span>
           <span>Payroll</span>
         </a>
+        <a href="/recruiter-onboarding-docs.html" class="nav-item">
+          <span class="nav-icon">📂</span>
+          <span>Onboarding Docs</span>
+        </a>
         <a href="/compliance-dashboard.html" class="nav-item">
           <span class="nav-icon">⚖️</span>
           <span>Compliance</span>
@@ -219,9 +223,23 @@
       }
     }
 
+    let editingJob = null;
+
     function editJob(jobId) {
-      // TODO: Implement edit modal or page
-      alert('Edit functionality coming soon');
+      // Find the job in the loaded data
+      editingJob = jobId;
+      // Navigate to job create page with edit param
+      window.location.href = `/job-create.html?edit=${jobId}`;
+    }
+
+    async function deleteJob(jobId) {
+      if (!confirm('Are you sure you want to delete this job posting? This cannot be undone.')) return;
+      try {
+        await apiCall(`/recruiter/jobs/${jobId}`, { method: 'PUT', body: JSON.stringify({ status: 'closed' }) });
+        loadJobs();
+      } catch (err) {
+        alert('Failed to close job');
+      }
     }
   </script>
 

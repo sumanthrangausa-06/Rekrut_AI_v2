@@ -1,0 +1,42 @@
+[
+  {
+    "content": "Fix login redirect for all recruiter roles",
+    "status": "completed",
+    "activeForm": "Fixing login redirect"
+  },
+  {
+    "content": "Fix offer-management.html broken auth check",
+    "status": "completed",
+    "activeForm": "Fixing offer-management auth check"
+  },
+  {
+    "content": "Add candidate offers view",
+    "status": "completed",
+    "activeForm": "Adding candidate offers view"
+  },
+  {
+    "content": "Fix recruiter-jobs editJob and sidebar",
+    "status": "completed",
+    "activeForm": "Fixing recruiter-jobs page"
+  },
+  {
+    "content": "Fix payroll-dashboard broken link and sidebar",
+    "status": "completed",
+    "activeForm": "Fixing payroll-dashboard"
+  },
+  {
+    "content": "Fix auth.js with proper token refresh",
+    "status": "completed",
+    "activeForm": "Fixing auth.js"
+  },
+  {
+    "content": "Fix job creation role restriction",
+    "status": "completed",
+    "activeForm": "Fixing job creation roles"
+  },
+  {
+    "content": "Deploy and verify all fixes",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying all fixes"
+  }
+]

@@ -369,9 +369,10 @@
       const authData = await checkAuth();
       if (!authData) return;
 
-      // Verify recruiter role
+      // Verify recruiter role - need BOTH company_id AND recruiter-type role
       const user = authData.user;
-      if (!user.company_id && !['recruiter', 'hiring_manager', 'admin'].includes(user.role)) {
+      const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+      if (!recruiterRoles.includes(user.role)) {
         window.location.href = '/candidate-dashboard.html';
         return;
       }

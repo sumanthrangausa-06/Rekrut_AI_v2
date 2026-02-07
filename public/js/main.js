@@ -106,7 +106,8 @@ function updateNavForAuth() {
   if (!navAuth) return;
 
   if (currentUser) {
-    const dashboardUrl = currentUser.role === 'recruiter'
+    const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+    const dashboardUrl = recruiterRoles.includes(currentUser.role)
       ? '/recruiter-dashboard.html'
       : '/candidate-dashboard.html';
 
@@ -148,9 +149,10 @@ async function handleRegister(event) {
       if (data.refreshToken) {
         localStorage.setItem(REFRESH_KEY, data.refreshToken);
       }
-      // Redirect based on role
+      // Redirect based on role - all recruiter-type roles go to recruiter dashboard
       const role = form.role?.value || 'candidate';
-      window.location.href = role === 'recruiter'
+      const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+      window.location.href = recruiterRoles.includes(role)
         ? '/recruiter-dashboard.html'
         : '/candidate-dashboard.html';
     } else {
@@ -198,8 +200,9 @@ async function handleLogin(event) {
       if (data.refreshToken) {
         localStorage.setItem(REFRESH_KEY, data.refreshToken);
       }
-      // Redirect based on role
-      window.location.href = data.user?.role === 'recruiter'
+      // Redirect based on role - all recruiter-type roles go to recruiter dashboard
+      const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+      window.location.href = recruiterRoles.includes(data.user?.role)
         ? '/recruiter-dashboard.html'
         : '/candidate-dashboard.html';
     } else {

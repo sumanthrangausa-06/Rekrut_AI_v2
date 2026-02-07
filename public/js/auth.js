@@ -11,13 +11,101 @@ function getAuthHeaders() {
   return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : {};
 }
 
+// checkAuth that returns user data (matches main.js behavior)
+let _authPromise = null;
+async function checkAuth() {
+  if (_authPromise) return _authPromise;
+
+  _authPromise = (async () => {
+    const token = getAuthToken();
+    if (!token) {
+      window.location.href = '/login.html';
+      return null;
+    }
+
+    try {
+      const response = await fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.user || data;
+      }
+
+      // Token expired, try refresh
+      if (response.status === 401) {
+        const refreshToken = localStorage.getItem(AUTH_REFRESH_KEY);
+        if (refreshToken) {
+          try {
+            const refreshRes = await fetch('/api/auth/refresh', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refreshToken })
+            });
+
+            if (refreshRes.ok) {
+              const refreshData = await refreshRes.json();
+              localStorage.setItem(AUTH_TOKEN_KEY, refreshData.accessToken || refreshData.token);
+              if (refreshData.refreshToken) {
+                localStorage.setItem(AUTH_REFRESH_KEY, refreshData.refreshToken);
+              }
+              // Retry with new token
+              const retryRes = await fetch('/api/auth/me', {
+                headers: { 'Authorization': `Bearer ${refreshData.accessToken || refreshData.token}` }
+              });
+              if (retryRes.ok) {
+                const data = await retryRes.json();
+                return data.user || data;
+              }
+            }
+          } catch (refreshErr) {
+            console.error('Token refresh failed:', refreshErr);
+          }
+        }
+
+        // Refresh failed, redirect to login
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        localStorage.removeItem(AUTH_REFRESH_KEY);
+        window.location.href = '/login.html';
+        return null;
+      }
+
+      return null;
+    } catch (err) {
+      console.error('Auth check failed:', err);
+      return null;
+    } finally {
+      _authPromise = null;
+    }
+  })();
+
+  return _authPromise;
+}
+
+// Alias for backward compat
 async function checkAuthAndRedirect() {
+  const user = await checkAuth();
+  return !!user;
+}
+
+// Load user info for display (alias)
+async function loadUserInfo() {
+  return checkAuth();
+}
+
+// API call helper
+async function authApiCall(endpoint, options = {}) {
   const token = getAuthToken();
-  if (!token) {
-    window.location.href = '/login.html';
-    return false;
-  }
-  return true;
+  const url = endpoint.startsWith('/api') ? endpoint : `/api${endpoint}`;
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    ...options.headers
+  };
+  const response = await fetch(url, { ...options, headers });
+  if (!response.ok) throw new Error(`API error: ${response.status}`);
+  return response.json();
 }
 
 function setupUserMenu() {
@@ -36,7 +124,8 @@ function setupUserMenu() {
       }
       return res.json();
     })
-    .then(user => {
+    .then(data => {
+      const user = data.user || data;
       const nameEl = document.getElementById('user-name');
       const avatarEl = document.getElementById('user-avatar');
       const dropdownName = document.getElementById('dropdown-user-name');
@@ -55,7 +144,10 @@ function setupUserMenu() {
   const toggle = document.getElementById('user-menu-toggle');
   const menu = document.getElementById('user-dropdown-menu');
   if (toggle && menu) {
-    toggle.addEventListener('click', () => menu.classList.toggle('active'));
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.toggle('active');
+    });
     document.addEventListener('click', (e) => {
       if (!toggle.contains(e.target) && !menu.contains(e.target)) {
         menu.classList.remove('active');
@@ -63,13 +155,15 @@ function setupUserMenu() {
     });
   }
 
-  // Setup logout
+  // Setup logout buttons
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
-      localStorage.removeItem(AUTH_TOKEN_KEY);
-      localStorage.removeItem(AUTH_REFRESH_KEY);
-      window.location.href = '/login.html';
-    });
+    logoutBtn.addEventListener('click', handleLogout);
   }
+}
+
+function handleLogout() {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_REFRESH_KEY);
+  window.location.href = '/login.html';
 }

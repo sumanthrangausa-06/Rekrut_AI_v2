@@ -1,0 +1,80 @@
+     1→// Shared auth utilities for pages that don't include main.js
+     2→const AUTH_TOKEN_KEY = 'rekrutai_token';
+     3→const AUTH_REFRESH_KEY = 'rekrutai_refresh';
+     4→
+     5→function getAuthToken() {
+     6→  return localStorage.getItem(AUTH_TOKEN_KEY);
+     7→}
+     8→
+     9→function getAuthHeaders() {
+    10→  const token = getAuthToken();
+    11→  return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : {};
+    12→}
+    13→
+    14→async function checkAuthAndRedirect() {
+    15→  const token = getAuthToken();
+    16→  if (!token) {
+    17→    window.location.href = '/login.html';
+    18→    return false;
+    19→  }
+    20→  return true;
+    21→}
+    22→
+    23→function setupUserMenu() {
+    24→  const token = getAuthToken();
+    25→  if (!token) {
+    26→    window.location.href = '/login.html';
+    27→    return;
+    28→  }
+    29→
+    30→  // Load user info
+    31→  fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } })
+    32→    .then(res => {
+    33→      if (!res.ok) {
+    34→        if (res.status === 401) window.location.href = '/login.html';
+    35→        throw new Error('Auth failed');
+    36→      }
+    37→      return res.json();
+    38→    })
+    39→    .then(user => {
+    40→      const nameEl = document.getElementById('user-name');
+    41→      const avatarEl = document.getElementById('user-avatar');
+    42→      const dropdownName = document.getElementById('dropdown-user-name');
+    43→      const dropdownEmail = document.getElementById('dropdown-user-email');
+    44→      const companyName = document.getElementById('company-name');
+    45→
+    46→      if (nameEl) nameEl.textContent = user.name || 'User';
+    47→      if (avatarEl) avatarEl.textContent = (user.name || 'U')[0].toUpperCase();
+    48→      if (dropdownName) dropdownName.textContent = user.name || 'User';
+    49→      if (dropdownEmail) dropdownEmail.textContent = user.email || '';
+    50→      if (companyName) companyName.textContent = user.company_name || 'Company';
+    51→    })
+    52→    .catch(err => console.error('Auth error:', err));
+    53→
+    54→  // Setup dropdown toggle
+    55→  const toggle = document.getElementById('user-menu-toggle');
+    56→  const menu = document.getElementById('user-dropdown-menu');
+    57→  if (toggle && menu) {
+    58→    toggle.addEventListener('click', () => menu.classList.toggle('active'));
+    59→    document.addEventListener('click', (e) => {
+    60→      if (!toggle.contains(e.target) && !menu.contains(e.target)) {
+    61→        menu.classList.remove('active');
+    62→      }
+    63→    });
+    64→  }
+    65→
+    66→  // Setup logout
+    67→  const logoutBtn = document.getElementById('logout-btn');
+    68→  if (logoutBtn) {
+    69→    logoutBtn.addEventListener('click', () => {
+    70→      localStorage.removeItem(AUTH_TOKEN_KEY);
+    71→      localStorage.removeItem(AUTH_REFRESH_KEY);
+    72→      window.location.href = '/login.html';
+    73→    });
+    74→  }
+    75→}
+    76→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
