@@ -714,14 +714,23 @@
 
       // Step 1: Request camera AND microphone access (separate from video analyzer)
       try {
+        console.log('Requesting camera and microphone access...');
+
+        // First check if mediaDevices API is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('Your browser does not support camera/microphone access. Please use a modern browser like Chrome or Firefox.');
+        }
+
         mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 1280, height: 720 },
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true
           }
         });
+
+        console.log('Camera/mic access granted. Video tracks:', mediaStream.getVideoTracks().length, 'Audio tracks:', mediaStream.getAudioTracks().length);
 
         const previewVideo = document.getElementById('preview-video');
         previewVideo.srcObject = mediaStream;
@@ -854,7 +863,19 @@
     async function startInterview() {
       // Check camera access before starting
       if (!mediaStream) {
-        alert('Camera and microphone are required. Please grant permissions and reload the page.');
+        alert('Camera and microphone are required. Please grant camera/mic permissions in your browser settings and reload the page.');
+        return;
+      }
+
+      // Verify stream is still active
+      const videoTracks = mediaStream.getVideoTracks();
+      const audioTracks = mediaStream.getAudioTracks();
+      if (videoTracks.length === 0 || videoTracks[0].readyState !== 'live') {
+        alert('Camera stream lost. Please reload the page and grant camera permissions.');
+        return;
+      }
+      if (audioTracks.length === 0 || audioTracks[0].readyState !== 'live') {
+        alert('Microphone stream lost. Please reload the page and grant microphone permissions.');
         return;
       }
 
@@ -865,6 +886,8 @@
       }
 
       try {
+        console.log('Starting interview - calling API...');
+
         // Create interview session
         const result = await apiCall('/interviews/start', {
           method: 'POST',
@@ -876,8 +899,10 @@
           })
         });
 
+        console.log('API response:', result ? 'received' : 'null', 'success:', result?.success, 'questions:', result?.questions?.length);
+
         if (!result || !result.success) {
-          throw new Error(result?.error || 'Failed to start interview');
+          throw new Error(result?.error || 'Failed to start interview. Please check your connection and try again.');
         }
 
         if (!result.questions || result.questions.length === 0) {
@@ -1050,9 +1075,12 @@
     }
 
     async function acceptResponse() {
-      // Show loading
-      document.getElementById('submit-btn').disabled = true;
-      document.getElementById('submit-btn').innerHTML = '<span class="loading-spinner"></span> Uploading...';
+      // Show loading on the Accept button (in review state)
+      const acceptBtn = document.querySelector('.review-state .btn-primary');
+      if (acceptBtn) {
+        acceptBtn.disabled = true;
+        acceptBtn.innerHTML = '<span class="loading-spinner" style="border-color:rgba(255,255,255,0.3);border-top-color:white;"></span> Uploading...';
+      }
 
       try {
         // Upload video
@@ -1075,10 +1103,12 @@
         }
       } catch (err) {
         console.error('Upload error:', err);
-        alert('Failed to upload video. Please try again.');
+        alert('Failed to upload video: ' + (err.message || 'Unknown error. Please try again.'));
       } finally {
-        document.getElementById('submit-btn').disabled = false;
-        document.getElementById('submit-btn').innerHTML = 'Submit Interview';
+        if (acceptBtn) {
+          acceptBtn.disabled = false;
+          acceptBtn.innerHTML = '✓ Accept & Continue';
+        }
       }
     }
 

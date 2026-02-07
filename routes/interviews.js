@@ -10,17 +10,64 @@ const FormData = require('form-data');
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Fallback questions if AI generation fails
+const FALLBACK_QUESTIONS = [
+  {
+    question: 'Tell me about yourself and why you are interested in this role.',
+    category: 'behavioral',
+    difficulty: 'easy',
+    key_points: ['Self-introduction', 'Relevant experience', 'Career goals', 'Enthusiasm']
+  },
+  {
+    question: 'Describe a challenging project you worked on. What was your role and how did you handle obstacles?',
+    category: 'behavioral',
+    difficulty: 'medium',
+    key_points: ['Problem-solving', 'Resilience', 'Technical skills', 'Teamwork']
+  },
+  {
+    question: 'How do you prioritize your work when you have multiple deadlines?',
+    category: 'situational',
+    difficulty: 'medium',
+    key_points: ['Time management', 'Organization', 'Communication', 'Prioritization frameworks']
+  },
+  {
+    question: 'Tell me about a time you received constructive criticism. How did you respond?',
+    category: 'behavioral',
+    difficulty: 'medium',
+    key_points: ['Self-awareness', 'Growth mindset', 'Professional maturity', 'Adaptability']
+  },
+  {
+    question: 'Where do you see yourself in 5 years, and how does this role fit into your career plan?',
+    category: 'situational',
+    difficulty: 'easy',
+    key_points: ['Career vision', 'Ambition', 'Role alignment', 'Long-term thinking']
+  }
+];
+
 // Start a new interview
 router.post('/start', authMiddleware, async (req, res) => {
   try {
     const { job_id, job_title, job_description, interview_type = 'mock' } = req.body;
 
-    // Generate questions using AI
-    const questions = await generateInterviewQuestions(
-      job_title || 'Software Developer',
-      job_description,
-      5
-    );
+    // Generate questions using AI with fallback
+    let questions;
+    try {
+      questions = await generateInterviewQuestions(
+        job_title || 'Software Developer',
+        job_description,
+        5
+      );
+      console.log('AI generated', questions.length, 'interview questions');
+    } catch (aiErr) {
+      console.error('AI question generation failed, using fallback questions:', aiErr.message);
+      questions = FALLBACK_QUESTIONS;
+    }
+
+    // Validate questions array
+    if (!questions || !Array.isArray(questions) || questions.length === 0) {
+      console.warn('Invalid questions from AI, using fallback');
+      questions = FALLBACK_QUESTIONS;
+    }
 
     // Create interview record
     const result = await pool.query(
@@ -103,11 +150,26 @@ router.post('/:id/respond', authMiddleware, async (req, res) => {
       videoUrls[question_index] = video_url;
     }
 
-    await pool.query(
-      `UPDATE interviews SET responses = $1, video_urls = $2, updated_at = NOW()
-       WHERE id = $3`,
-      [JSON.stringify(responses), JSON.stringify(videoUrls), req.params.id]
-    );
+    // Update responses - use updated_at if column exists, fallback gracefully
+    try {
+      await pool.query(
+        `UPDATE interviews SET responses = $1, video_urls = $2, updated_at = NOW()
+         WHERE id = $3`,
+        [JSON.stringify(responses), JSON.stringify(videoUrls), req.params.id]
+      );
+    } catch (updateErr) {
+      // Fallback if updated_at column doesn't exist yet (pre-migration)
+      if (updateErr.message && updateErr.message.includes('updated_at')) {
+        console.warn('updated_at column missing, updating without it');
+        await pool.query(
+          `UPDATE interviews SET responses = $1, video_urls = $2
+           WHERE id = $3`,
+          [JSON.stringify(responses), JSON.stringify(videoUrls), req.params.id]
+        );
+      } else {
+        throw updateErr;
+      }
+    }
 
     res.json({
       success: true,
