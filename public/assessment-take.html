@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Assessment - Rekrut AI</title>
+  <title>Assessment - HireLoop</title>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/styles.css">
   <style>
     body { background: var(--bg-primary); margin: 0; padding: 0; overflow: hidden; }
-    
+
     .assessment-container { height: 100vh; display: flex; flex-direction: column; }
-    
+
     .assessment-header {
       background: var(--bg-card);
       border-bottom: 1px solid var(--border-color);
@@ -19,7 +19,7 @@
       justify-content: space-between;
       align-items: center;
     }
-    
+
     .progress-bar {
       flex: 1;
       height: 6px;
@@ -28,23 +28,23 @@
       margin: 0 24px;
       overflow: hidden;
     }
-    
+
     .progress-fill {
       height: 100%;
       background: var(--accent-gradient);
       transition: width 0.3s ease;
     }
-    
+
     .timer {
       font-family: var(--font-display);
       font-size: 18px;
       font-weight: 600;
       color: var(--accent-primary);
     }
-    
+
     .timer.warning { color: #fbbf24; }
     .timer.danger { color: #ef4444; }
-    
+
     .assessment-content {
       flex: 1;
       display: flex;
@@ -53,7 +53,7 @@
       padding: 40px;
       overflow-y: auto;
     }
-    
+
     .question-card {
       background: var(--bg-card);
       border: 1px solid var(--border-color);
@@ -62,13 +62,13 @@
       max-width: 800px;
       width: 100%;
     }
-    
+
     .question-number {
       font-size: 14px;
       color: var(--text-muted);
       margin-bottom: 24px;
     }
-    
+
     .question-text {
       font-family: var(--font-display);
       font-size: 24px;
@@ -77,14 +77,14 @@
       margin-bottom: 32px;
       line-height: 1.4;
     }
-    
+
     .options-grid {
       display: flex;
       flex-direction: column;
       gap: 16px;
       margin-bottom: 32px;
     }
-    
+
     .option-button {
       background: var(--bg-secondary);
       border: 2px solid var(--border-color);
@@ -96,17 +96,17 @@
       cursor: pointer;
       transition: all 0.2s ease;
     }
-    
+
     .option-button:hover {
       border-color: var(--accent-primary);
       background: var(--bg-elevated);
     }
-    
+
     .option-button.selected {
       border-color: var(--accent-primary);
       background: rgba(16, 185, 129, 0.1);
     }
-    
+
     .textarea-answer {
       width: 100%;
       min-height: 200px;
@@ -120,13 +120,14 @@
       line-height: 1.6;
       resize: vertical;
       margin-bottom: 24px;
+      box-sizing: border-box;
     }
-    
+
     .textarea-answer:focus {
       outline: none;
       border-color: var(--accent-primary);
     }
-    
+
     .feedback-modal {
       display: none;
       position: fixed;
@@ -140,9 +141,9 @@
       justify-content: center;
       padding: 20px;
     }
-    
+
     .feedback-modal.show { display: flex; }
-    
+
     .feedback-content {
       background: var(--bg-card);
       border: 1px solid var(--border-color);
@@ -152,39 +153,70 @@
       width: 100%;
       text-align: center;
     }
-    
+
     .feedback-icon {
       font-size: 64px;
       margin-bottom: 16px;
     }
-    
+
     .feedback-title {
       font-family: var(--font-display);
       font-size: 28px;
       font-weight: 700;
       margin-bottom: 12px;
     }
-    
+
     .feedback-text {
       color: var(--text-secondary);
       margin-bottom: 24px;
       line-height: 1.6;
     }
-    
+
     .proctoring-warning {
       background: rgba(251, 191, 36, 0.1);
       border: 1px solid rgba(251, 191, 36, 0.3);
       border-radius: var(--radius-md);
       padding: 12px 16px;
-      margin-bottom: 24px;
+      margin-bottom: 0;
       display: none;
       align-items: center;
       gap: 12px;
       font-size: 14px;
       color: #fbbf24;
     }
-    
+
     .proctoring-warning.show { display: flex; }
+
+    .skill-badge {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .loading-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      text-align: center;
+    }
+
+    .loading-spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid var(--border-color);
+      border-top-color: var(--accent-primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
@@ -192,6 +224,7 @@
     <!-- Header -->
     <div class="assessment-header">
       <div style="display: flex; align-items: center; gap: 16px;">
+        <span class="skill-badge" id="skill-badge">Loading...</span>
         <span style="font-family: var(--font-display); font-weight: 600; font-size: 16px;">Question <span id="question-num">1</span> of <span id="total-questions">10</span></span>
       </div>
       <div class="progress-bar">
@@ -208,17 +241,24 @@
 
     <!-- Question Content -->
     <div class="assessment-content">
-      <div class="question-card">
-        <div class="question-number" id="difficulty-indicator">Medium Difficulty</div>
-        <div class="question-text" id="question-text">Loading...</div>
-        
-        <div id="answer-area">
-          <!-- Multiple choice options or textarea will be inserted here -->
+      <div class="question-card" id="question-card">
+        <div class="loading-screen" id="loading-screen">
+          <div class="loading-spinner"></div>
+          <div style="font-family: var(--font-display); font-size: 20px; font-weight: 600;">Preparing Your Assessment</div>
+          <div style="color: var(--text-muted);">AI is generating personalized questions...</div>
         </div>
+        <div id="question-content" style="display: none;">
+          <div class="question-number" id="difficulty-indicator">Medium Difficulty</div>
+          <div class="question-text" id="question-text">Loading...</div>
 
-        <button class="btn btn-primary" id="submit-btn" style="width: 100%;" onclick="submitAnswer()">
-          Submit Answer
-        </button>
+          <div id="answer-area">
+            <!-- Multiple choice options or textarea will be inserted here -->
+          </div>
+
+          <button class="btn btn-primary" id="submit-btn" style="width: 100%;" onclick="submitAnswer()">
+            Submit Answer
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -229,7 +269,7 @@
       <div class="feedback-icon" id="feedback-icon">✅</div>
       <div class="feedback-title" id="feedback-title">Correct!</div>
       <div class="feedback-text" id="feedback-text"></div>
-      <button class="btn btn-primary" onclick="nextQuestion()">Continue</button>
+      <button class="btn btn-primary" id="continue-btn" onclick="nextQuestion()">Continue</button>
     </div>
   </div>
 
@@ -240,7 +280,8 @@
     let selectedAnswer = null;
     let questionStartTime = Date.now();
     let timerInterval = null;
-    let timeRemaining = 120; // seconds
+    let timeRemaining = 120;
+    let isCompleted = false;
 
     // Anti-cheat tracking
     let isTabActive = true;
@@ -251,56 +292,96 @@
     async function initAssessment() {
       await checkAuth();
 
+      // Get skill info - support both new (name) and legacy (id) formats
+      const skillName = localStorage.getItem('assessment_skill_name');
+      const skillCategory = localStorage.getItem('assessment_skill_category');
       const skillId = localStorage.getItem('assessment_skill_id');
-      if (!skillId) {
+
+      if (!skillName && !skillId) {
         alert('No assessment selected');
         window.location.href = '/skill-assessments.html';
         return;
       }
 
+      // Show skill name in header
+      document.getElementById('skill-badge').textContent = skillName || 'Assessment';
+
       try {
+        const body = skillName
+          ? { skillName, category: skillCategory || 'technical' }
+          : { skillId: parseInt(skillId) };
+
         const response = await fetch('/api/assessments/start', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}`
           },
-          body: JSON.stringify({ skillId: parseInt(skillId) })
+          body: JSON.stringify(body)
         });
 
-        if (!response.ok) throw new Error('Failed to start assessment');
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to start assessment');
+        }
 
         const data = await response.json();
         sessionId = data.sessionId;
         currentQuestion = data.question;
-        
+
+        if (data.skillName) {
+          document.getElementById('skill-badge').textContent = data.skillName;
+        }
+
+        // Hide loading, show question
+        document.getElementById('loading-screen').style.display = 'none';
+        document.getElementById('question-content').style.display = 'block';
+
         displayQuestion();
-        startTimer(currentQuestion.timeLimit);
+        startTimer(currentQuestion.timeLimit || 120);
+
+        // Clean up localStorage
+        localStorage.removeItem('assessment_skill_name');
+        localStorage.removeItem('assessment_skill_category');
+        localStorage.removeItem('assessment_skill_id');
+
       } catch (error) {
         console.error('Error starting assessment:', error);
-        alert('Failed to start assessment');
-        window.location.href = '/skill-assessments.html';
+        document.getElementById('loading-screen').innerHTML = `
+          <div style="font-size: 64px; margin-bottom: 16px;">❌</div>
+          <div style="font-family: var(--font-display); font-size: 20px; font-weight: 600; color: var(--text-primary);">Failed to Start Assessment</div>
+          <div style="color: var(--text-muted); margin-bottom: 24px;">${error.message}</div>
+          <a href="/skill-assessments.html" class="btn btn-primary">Back to Assessments</a>
+        `;
       }
     }
 
     // Display current question
     function displayQuestion() {
+      if (!currentQuestion) return;
+
       document.getElementById('question-num').textContent = currentQuestion.questionNumber;
       document.getElementById('total-questions').textContent = currentQuestion.totalQuestions;
       document.getElementById('question-text').textContent = currentQuestion.text;
-      
+
       // Update progress bar
       const progress = (currentQuestion.questionNumber / currentQuestion.totalQuestions) * 100;
       document.getElementById('progress-fill').style.width = `${progress}%`;
 
+      // Update difficulty indicator
+      const diffMap = { 1: 'Easy', 2: 'Medium', 3: 'Challenging', 4: 'Hard', 5: 'Expert' };
+      document.getElementById('difficulty-indicator').textContent =
+        `${currentQuestion.type === 'short_answer' ? '✍️ Written Response' : '📝 Multiple Choice'}`;
+
       // Render answer area based on question type
       const answerArea = document.getElementById('answer-area');
-      
-      if (currentQuestion.type === 'multiple_choice') {
+
+      if (currentQuestion.type === 'multiple_choice' && currentQuestion.options) {
+        const options = Array.isArray(currentQuestion.options) ? currentQuestion.options : [];
         answerArea.innerHTML = `
           <div class="options-grid">
-            ${currentQuestion.options.map((option, index) => `
-              <button class="option-button" data-value="${option}" onclick="selectOption(this)">
+            ${options.map((option, index) => `
+              <button class="option-button" data-value="${option.replace(/"/g, '&quot;')}" onclick="selectOption(this)">
                 ${option}
               </button>
             `).join('')}
@@ -308,7 +389,7 @@
         `;
       } else if (currentQuestion.type === 'short_answer') {
         answerArea.innerHTML = `
-          <textarea class="textarea-answer" id="short-answer" placeholder="Type your answer here..."
+          <textarea class="textarea-answer" id="short-answer" placeholder="Type your detailed answer here..."
                     onpaste="logCopyPaste(event)"></textarea>
         `;
       }
@@ -329,6 +410,8 @@
 
     // Submit answer
     async function submitAnswer() {
+      if (isCompleted) return;
+
       // Get answer
       if (currentQuestion.type === 'multiple_choice') {
         if (!selectedAnswer) {
@@ -337,7 +420,9 @@
         }
       } else {
         const textarea = document.getElementById('short-answer');
-        selectedAnswer = textarea.value.trim();
+        if (textarea) {
+          selectedAnswer = textarea.value.trim();
+        }
         if (!selectedAnswer) {
           alert('Please provide an answer');
           return;
@@ -349,6 +434,11 @@
 
       // Stop timer
       clearInterval(timerInterval);
+
+      // Disable submit button
+      const submitBtn = document.getElementById('submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Evaluating...';
 
       // Submit to API
       try {
@@ -366,7 +456,10 @@
           })
         });
 
-        if (!response.ok) throw new Error('Failed to submit answer');
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to submit answer');
+        }
 
         const data = await response.json();
 
@@ -377,14 +470,18 @@
         if (!data.completed) {
           currentQuestion = data.nextQuestion;
         } else {
-          // Assessment completed
-          setTimeout(() => {
+          isCompleted = true;
+          // Change continue button text
+          document.getElementById('continue-btn').textContent = 'View Results';
+          document.getElementById('continue-btn').onclick = () => {
             window.location.href = `/assessment-results.html?session=${sessionId}`;
-          }, 3000);
+          };
         }
       } catch (error) {
         console.error('Error submitting answer:', error);
-        alert('Failed to submit answer');
+        alert('Failed to submit answer: ' + error.message);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Answer';
       }
     }
 
@@ -398,22 +495,40 @@
       const isCorrect = data.feedback === 'Correct!';
       icon.textContent = isCorrect ? '✅' : '❌';
       title.textContent = data.feedback;
-      
-      let feedbackHTML = data.explanation ? `<p>${data.explanation}</p>` : '';
-      if (data.aiFeedback) {
-        feedbackHTML += `<p style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color);">${data.aiFeedback}</p>`;
+      title.style.color = isCorrect ? 'var(--accent-primary)' : '#ef4444';
+
+      let feedbackHTML = '';
+      if (data.explanation) {
+        feedbackHTML += `<p style="margin-bottom: 12px;">${data.explanation}</p>`;
       }
-      text.innerHTML = feedbackHTML;
+      if (data.aiFeedback) {
+        feedbackHTML += `<p style="padding-top: 12px; border-top: 1px solid var(--border-color); font-style: italic;">${data.aiFeedback}</p>`;
+      }
+      if (data.completed) {
+        feedbackHTML += `<p style="margin-top: 16px; font-weight: 600; color: var(--accent-primary);">Assessment Complete! Final Score: ${data.score}</p>`;
+      }
+      text.innerHTML = feedbackHTML || 'Moving to next question...';
 
       modal.classList.add('show');
     }
 
     // Next question
     function nextQuestion() {
+      if (isCompleted) {
+        window.location.href = `/assessment-results.html?session=${sessionId}`;
+        return;
+      }
+
       document.getElementById('feedback-modal').classList.remove('show');
+
+      // Re-enable submit button
+      const submitBtn = document.getElementById('submit-btn');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit Answer';
+
       displayQuestion();
-      timeRemaining = currentQuestion.timeLimit;
-      startTimer(currentQuestion.timeLimit);
+      timeRemaining = currentQuestion.timeLimit || 120;
+      startTimer(currentQuestion.timeLimit || 120);
     }
 
     // Timer
@@ -427,7 +542,6 @@
 
         if (timeRemaining <= 0) {
           clearInterval(timerInterval);
-          // Auto-submit empty answer
           submitAnswer();
         }
       }, 1000);
@@ -437,10 +551,10 @@
       const minutes = Math.floor(timeRemaining / 60);
       const seconds = timeRemaining % 60;
       const display = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-      
+
       const timerEl = document.getElementById('timer');
       timerEl.textContent = display;
-      
+
       timerEl.className = 'timer';
       if (timeRemaining <= 10) {
         timerEl.classList.add('danger');
@@ -451,14 +565,11 @@
 
     // Anti-cheat: Tab visibility
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
+      if (document.hidden && sessionId) {
         isTabActive = false;
         tabSwitchCount++;
-        
-        // Log event
         logEvent('tab_switch', { count: tabSwitchCount });
-        
-        // Show warning
+
         const warning = document.getElementById('proctoring-warning');
         warning.classList.add('show');
         setTimeout(() => warning.classList.remove('show'), 3000);
@@ -475,6 +586,7 @@
 
     // Log anti-cheat event
     async function logEvent(eventType, eventData) {
+      if (!sessionId) return;
       try {
         await fetch('/api/assessments/event', {
           method: 'POST',
@@ -482,11 +594,7 @@
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}`
           },
-          body: JSON.stringify({
-            sessionId,
-            eventType,
-            eventData
-          })
+          body: JSON.stringify({ sessionId, eventType, eventData })
         });
       } catch (error) {
         console.error('Failed to log event:', error);
