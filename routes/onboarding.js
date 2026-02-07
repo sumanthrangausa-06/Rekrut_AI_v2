@@ -830,17 +830,18 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
     }
 
     if (step === 3) {
-      // Banking / Direct Deposit
+      // Banking / Direct Deposit + W-4 Filing Status
       updateQuery = `
         UPDATE candidate_onboarding_data SET
           bank_name = $1,
           routing_number_encrypted = $2,
           account_number_encrypted = $3,
           account_type = $4,
+          w4_filing_status = $5,
           current_step = GREATEST(current_step, 4),
           steps_completed = steps_completed || '"3"'::jsonb,
           updated_at = NOW()
-        WHERE candidate_id = $5 AND checklist_id = $6
+        WHERE candidate_id = $6 AND checklist_id = $7
         RETURNING *
       `;
       const result = await pool.query(updateQuery, [
@@ -848,6 +849,7 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
         data.routing_number ? Buffer.from(data.routing_number).toString('base64') : null,
         data.account_number ? Buffer.from(data.account_number).toString('base64') : null,
         data.account_type,
+        data.w4_filing_status || 'single',
         req.user.id, checklist_id
       ]);
 
@@ -942,7 +944,7 @@ router.post('/wizard/generate-documents', authMiddleware, async (req, res) => {
       ssn_last_four: wd.ssn_encrypted ? '****' : 'N/A',
       address: `${wd.address_line1}${wd.address_line2 ? ', ' + wd.address_line2 : ''}`,
       city_state_zip: `${wd.city}, ${wd.state} ${wd.zip_code}`,
-      filing_status: 'single',
+      filing_status: wd.w4_filing_status || 'single',
       generated_at: new Date().toISOString(),
       company: cl.company_name
     };
@@ -1109,6 +1111,226 @@ router.get('/wizard/documents/:checklist_id', authMiddleware, async (req, res) =
     res.status(500).json({ error: 'Failed to fetch documents' });
   }
 });
+
+// ============================================
+// DOCUMENT DOWNLOAD (RECRUITER)
+// ============================================
+
+// Download/export a document as printable HTML
+router.get('/recruiter/document/:document_id/download', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user.company_id) {
+      return res.status(403).json({ error: 'Only recruiters can download documents' });
+    }
+
+    const doc = await pool.query(
+      `SELECT od.*, u.name as candidate_name, u.email as candidate_email
+       FROM onboarding_documents od
+       JOIN users u ON od.candidate_id = u.id
+       WHERE od.id = $1`,
+      [req.params.document_id]
+    );
+
+    if (doc.rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const d = doc.rows[0];
+
+    // Verify access: document must belong to a candidate from this recruiter's company
+    const offerCheck = await pool.query(
+      `SELECT id FROM offers WHERE candidate_id = $1 AND company_id = $2 LIMIT 1`,
+      [d.candidate_id, req.user.company_id]
+    );
+    if (offerCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const content = typeof d.document_content === 'string'
+      ? JSON.parse(d.document_content)
+      : (d.document_content || {});
+
+    // Generate printable HTML document
+    const html = generatePrintableDocument(d, content);
+
+    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Content-Disposition', `inline; filename="${d.document_type.replace(/[^a-zA-Z0-9]/g, '_')}_${d.candidate_name.replace(/[^a-zA-Z0-9]/g, '_')}.html"`);
+    res.send(html);
+  } catch (err) {
+    console.error('Error downloading document:', err);
+    res.status(500).json({ error: 'Failed to download document' });
+  }
+});
+
+// Get document JSON content for recruiter (for API consumers)
+router.get('/recruiter/document/:document_id/json', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user.company_id) {
+      return res.status(403).json({ error: 'Only recruiters can access documents' });
+    }
+
+    const doc = await pool.query(
+      `SELECT od.*, u.name as candidate_name, u.email as candidate_email
+       FROM onboarding_documents od
+       JOIN users u ON od.candidate_id = u.id
+       WHERE od.id = $1`,
+      [req.params.document_id]
+    );
+
+    if (doc.rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const d = doc.rows[0];
+    const offerCheck = await pool.query(
+      `SELECT id FROM offers WHERE candidate_id = $1 AND company_id = $2 LIMIT 1`,
+      [d.candidate_id, req.user.company_id]
+    );
+    if (offerCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    res.json(d);
+  } catch (err) {
+    console.error('Error fetching document JSON:', err);
+    res.status(500).json({ error: 'Failed to fetch document' });
+  }
+});
+
+// Helper: Generate printable HTML document
+function generatePrintableDocument(doc, content) {
+  const signedInfo = doc.signed_at
+    ? `<div class="signature-block">
+        <p><strong>Electronically Signed</strong></p>
+        <p>Signed by: ${escapeHtmlServer(doc.candidate_name)}</p>
+        <p>Date: ${new Date(doc.signed_at).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'medium' })}</p>
+        <p>IP Address: ${escapeHtmlServer(doc.signer_ip || 'N/A')}</p>
+       </div>`
+    : '<p class="pending">⏳ Awaiting Signature</p>';
+
+  let bodyContent = '';
+
+  if (content.form_type === 'I-9') {
+    bodyContent = `
+      <div class="form-header">
+        <h2>Employment Eligibility Verification</h2>
+        <p class="subtitle">Department of Homeland Security — U.S. Citizenship and Immigration Services</p>
+        <p class="form-id">Form I-9</p>
+      </div>
+      <div class="section">
+        <h3>Section 1: Employee Information</h3>
+        <table>
+          <tr><td class="label">Full Legal Name:</td><td>${escapeHtmlServer(content.employee_name || '')}</td></tr>
+          <tr><td class="label">First Name:</td><td>${escapeHtmlServer(content.first_name || '')}</td></tr>
+          <tr><td class="label">Middle Name:</td><td>${escapeHtmlServer(content.middle_name || 'N/A')}</td></tr>
+          <tr><td class="label">Last Name:</td><td>${escapeHtmlServer(content.last_name || '')}</td></tr>
+          <tr><td class="label">Date of Birth:</td><td>${content.date_of_birth ? new Date(content.date_of_birth).toLocaleDateString('en-US') : 'N/A'}</td></tr>
+          <tr><td class="label">Address:</td><td>${escapeHtmlServer(content.address || '')}</td></tr>
+          <tr><td class="label">City:</td><td>${escapeHtmlServer(content.city || '')}</td></tr>
+          <tr><td class="label">State:</td><td>${escapeHtmlServer(content.state || '')}</td></tr>
+          <tr><td class="label">ZIP:</td><td>${escapeHtmlServer(content.zip || '')}</td></tr>
+          <tr><td class="label">SSN (masked):</td><td>${content.ssn_last_four || '****'}</td></tr>
+          <tr><td class="label">Employer:</td><td>${escapeHtmlServer(content.company || '')}</td></tr>
+        </table>
+      </div>
+    `;
+  } else if (content.form_type === 'W-4') {
+    bodyContent = `
+      <div class="form-header">
+        <h2>Employee's Withholding Certificate</h2>
+        <p class="subtitle">Department of the Treasury — Internal Revenue Service</p>
+        <p class="form-id">Form W-4</p>
+      </div>
+      <div class="section">
+        <h3>Employee Information</h3>
+        <table>
+          <tr><td class="label">Full Name:</td><td>${escapeHtmlServer(content.employee_name || '')}</td></tr>
+          <tr><td class="label">SSN (masked):</td><td>${content.ssn_last_four || '****'}</td></tr>
+          <tr><td class="label">Address:</td><td>${escapeHtmlServer(content.address || '')}</td></tr>
+          <tr><td class="label">City, State, ZIP:</td><td>${escapeHtmlServer(content.city_state_zip || '')}</td></tr>
+          <tr><td class="label">Filing Status:</td><td>${escapeHtmlServer(content.filing_status || 'Single')}</td></tr>
+        </table>
+      </div>
+    `;
+  } else if (content.form_type === 'Direct Deposit Authorization') {
+    bodyContent = `
+      <div class="form-header">
+        <h2>Direct Deposit Authorization</h2>
+        <p class="subtitle">Payroll Direct Deposit Setup</p>
+      </div>
+      <div class="section">
+        <h3>Employee Banking Information</h3>
+        <table>
+          <tr><td class="label">Employee Name:</td><td>${escapeHtmlServer(content.employee_name || '')}</td></tr>
+          <tr><td class="label">Bank Name:</td><td>${escapeHtmlServer(content.bank_name || '')}</td></tr>
+          <tr><td class="label">Routing Number (masked):</td><td>${content.routing_last_four || '****'}</td></tr>
+          <tr><td class="label">Account Number (masked):</td><td>${content.account_last_four || '****'}</td></tr>
+          <tr><td class="label">Account Type:</td><td>${escapeHtmlServer(content.account_type || '')}</td></tr>
+        </table>
+        <p class="authorization">I hereby authorize my employer to deposit my pay directly into the bank account listed above. This authorization remains in effect until I provide written notice of cancellation.</p>
+      </div>
+    `;
+  } else if (content.form_type === 'Employee Handbook Acknowledgment') {
+    bodyContent = `
+      <div class="form-header">
+        <h2>Employee Handbook Acknowledgment</h2>
+        <p class="subtitle">${escapeHtmlServer(content.company || '')} — Employee Agreement</p>
+      </div>
+      <div class="section">
+        <p class="authorization">${escapeHtmlServer(content.acknowledgment_text || '')}</p>
+      </div>
+    `;
+  } else {
+    bodyContent = `<pre>${JSON.stringify(content, null, 2)}</pre>`;
+  }
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHtmlServer(doc.document_type)} — ${escapeHtmlServer(doc.candidate_name)}</title>
+  <style>
+    @media print { body { margin: 0.5in; } .no-print { display: none; } }
+    body { font-family: 'Times New Roman', serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #111; line-height: 1.6; }
+    .form-header { text-align: center; margin-bottom: 32px; border-bottom: 2px solid #111; padding-bottom: 16px; }
+    .form-header h2 { font-size: 22px; margin-bottom: 4px; }
+    .form-header .subtitle { font-size: 14px; color: #444; }
+    .form-header .form-id { font-weight: bold; font-size: 16px; margin-top: 8px; }
+    .section { margin-bottom: 24px; }
+    .section h3 { font-size: 16px; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: 8px 4px; border-bottom: 1px solid #eee; font-size: 14px; }
+    .label { font-weight: bold; width: 200px; color: #333; }
+    .signature-block { margin-top: 32px; padding: 16px; border: 1px solid #ccc; border-radius: 4px; background: #f9f9f9; }
+    .signature-block p { margin: 4px 0; font-size: 13px; }
+    .pending { color: #b45309; font-style: italic; margin-top: 24px; }
+    .authorization { font-style: italic; margin-top: 16px; padding: 16px; background: #f5f5f5; border-radius: 4px; }
+    .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #ccc; font-size: 12px; color: #666; }
+    .no-print { margin-bottom: 24px; text-align: center; }
+    .no-print button { padding: 10px 24px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 0 8px; }
+    .no-print button:hover { background: #4f46e5; }
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <button onclick="window.print()">🖨️ Print / Save as PDF</button>
+    <button onclick="window.close()">Close</button>
+  </div>
+  ${bodyContent}
+  ${signedInfo}
+  <div class="footer">
+    <p>Generated: ${content.generated_at ? new Date(content.generated_at).toLocaleString('en-US') : new Date().toLocaleString('en-US')}</p>
+    <p>Document ID: ${doc.id} | Candidate: ${escapeHtmlServer(doc.candidate_name)} (${escapeHtmlServer(doc.candidate_email)})</p>
+  </div>
+</body>
+</html>`;
+}
+
+function escapeHtmlServer(text) {
+  if (!text) return '';
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+  return String(text).replace(/[&<>"']/g, m => map[m]);
+}
 
 // Helper: upsert a document
 async function upsertDocument(checklistId, candidateId, companyId, docType, content, summary) {
