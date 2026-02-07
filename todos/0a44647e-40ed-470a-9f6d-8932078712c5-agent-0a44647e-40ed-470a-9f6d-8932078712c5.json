@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Explore current codebase - React client, API routes, DB schema",
+    "status": "completed",
+    "activeForm": "Exploring current codebase"
+  },
+  {
+    "content": "Build Jobs module (candidate browse/apply + recruiter CRUD)",
+    "status": "completed",
+    "activeForm": "Building Jobs module"
+  },
+  {
+    "content": "Build Applications module (candidate tracking + recruiter review)",
+    "status": "completed",
+    "activeForm": "Building Applications module"
+  },
+  {
+    "content": "Build Skill Tests/Assessments module (take tests + create/assign)",
+    "status": "completed",
+    "activeForm": "Building Assessments module"
+  },
+  {
+    "content": "Build Offers module (create/view/accept/decline)",
+    "status": "completed",
+    "activeForm": "Building Offers module"
+  },
+  {
+    "content": "Build and deploy, verify all modules work",
+    "status": "in_progress",
+    "activeForm": "Building and deploying"
+  }
+]
