@@ -36,6 +36,7 @@ const candidateNav: NavItem[] = [
   { label: 'Profile', href: '/candidate/profile', icon: UserCheck },
   { label: 'Assessments', href: '/candidate/assessments', icon: GraduationCap },
   { label: 'Interviews', href: '/candidate/interviews', icon: MessageSquare },
+  { label: 'Offers', href: '/candidate/offers', icon: CreditCard },
   { label: 'OmniScore', href: '/candidate/omniscore', icon: Star },
   { label: 'Documents', href: '/candidate/documents', icon: ClipboardCheck },
 ]

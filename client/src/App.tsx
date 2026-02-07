@@ -8,6 +8,24 @@ import { CandidateDashboard } from '@/pages/candidate/dashboard'
 import { RecruiterDashboard } from '@/pages/recruiter/dashboard'
 import { PlaceholderPage } from '@/pages/placeholder'
 
+// Jobs
+import { CandidateJobsPage } from '@/pages/candidate/jobs'
+import { CandidateJobDetailPage } from '@/pages/candidate/job-detail'
+import { RecruiterJobsPage } from '@/pages/recruiter/jobs'
+import { RecruiterJobFormPage } from '@/pages/recruiter/job-form'
+
+// Applications
+import { CandidateApplicationsPage } from '@/pages/candidate/applications'
+import { RecruiterApplicationsPage } from '@/pages/recruiter/applications'
+
+// Assessments
+import { CandidateAssessmentsPage } from '@/pages/candidate/assessments'
+import { AssessmentTakePage } from '@/pages/candidate/assessment-take'
+
+// Offers
+import { CandidateOffersPage } from '@/pages/candidate/offers'
+import { RecruiterOffersPage } from '@/pages/recruiter/offers'
+
 function RoleRedirect() {
   const { user, loading } = useAuth()
 
@@ -30,27 +48,28 @@ function AppRoutes() {
       {/* Candidate routes */}
       <Route path="/candidate" element={<DashboardLayout />}>
         <Route index element={<CandidateDashboard />} />
-        <Route path="jobs" element={<PlaceholderPage />} />
-        <Route path="jobs/:id" element={<PlaceholderPage />} />
-        <Route path="applications" element={<PlaceholderPage />} />
+        <Route path="jobs" element={<CandidateJobsPage />} />
+        <Route path="jobs/:id" element={<CandidateJobDetailPage />} />
+        <Route path="applications" element={<CandidateApplicationsPage />} />
         <Route path="profile" element={<PlaceholderPage />} />
-        <Route path="assessments" element={<PlaceholderPage />} />
+        <Route path="assessments" element={<CandidateAssessmentsPage />} />
+        <Route path="assessments/:id/take" element={<AssessmentTakePage />} />
         <Route path="interviews" element={<PlaceholderPage />} />
         <Route path="omniscore" element={<PlaceholderPage />} />
         <Route path="documents" element={<PlaceholderPage />} />
+        <Route path="offers" element={<CandidateOffersPage />} />
       </Route>
 
       {/* Recruiter routes */}
       <Route path="/recruiter" element={<DashboardLayout />}>
         <Route index element={<RecruiterDashboard />} />
-        <Route path="jobs" element={<PlaceholderPage />} />
-        <Route path="jobs/new" element={<PlaceholderPage />} />
-        <Route path="jobs/:id" element={<PlaceholderPage />} />
-        <Route path="applications" element={<PlaceholderPage />} />
-        <Route path="applications/:id" element={<PlaceholderPage />} />
+        <Route path="jobs" element={<RecruiterJobsPage />} />
+        <Route path="jobs/new" element={<RecruiterJobFormPage />} />
+        <Route path="jobs/:id" element={<RecruiterJobFormPage />} />
+        <Route path="applications" element={<RecruiterApplicationsPage />} />
         <Route path="candidates" element={<PlaceholderPage />} />
         <Route path="interviews" element={<PlaceholderPage />} />
-        <Route path="offers" element={<PlaceholderPage />} />
+        <Route path="offers" element={<RecruiterOffersPage />} />
         <Route path="onboarding" element={<PlaceholderPage />} />
         <Route path="analytics" element={<PlaceholderPage />} />
         <Route path="company" element={<PlaceholderPage />} />
