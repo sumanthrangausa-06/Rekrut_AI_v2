@@ -1,0 +1,37 @@
+[
+  {
+    "content": "Explore codebase structure and understand current state",
+    "status": "completed",
+    "activeForm": "Exploring codebase structure"
+  },
+  {
+    "content": "Fix AI Interview Coach with real AI feedback",
+    "status": "in_progress",
+    "activeForm": "Building AI Interview Coach backend"
+  },
+  {
+    "content": "Fix Skills Test/Assessments with real scoring",
+    "status": "pending",
+    "activeForm": "Building Skills Test backend"
+  },
+  {
+    "content": "Implement Application Pre-screening Questions",
+    "status": "pending",
+    "activeForm": "Implementing pre-screening questions"
+  },
+  {
+    "content": "Add Recruiter Visibility for all candidate data",
+    "status": "pending",
+    "activeForm": "Adding recruiter visibility"
+  },
+  {
+    "content": "Verify all other candidate modules work",
+    "status": "pending",
+    "activeForm": "Verifying candidate modules"
+  },
+  {
+    "content": "Deploy and verify E2E flows",
+    "status": "pending",
+    "activeForm": "Deploying and verifying"
+  }
+]
