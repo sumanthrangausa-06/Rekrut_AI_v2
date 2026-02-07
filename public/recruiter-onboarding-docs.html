@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Onboarding Documents - Rekrut AI</title>
+  <title>Onboarding Documents - HireLoop</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -479,7 +479,15 @@
         return;
       }
 
-      container.innerHTML = candidates.map(candidate => `
+      document.getElementById('empty-state').style.display = 'none';
+
+      container.innerHTML = candidates.map(candidate => {
+        const total = parseInt(candidate.total_documents) || 0;
+        const signed = parseInt(candidate.signed_documents) || 0;
+        const pct = total > 0 ? Math.round((signed / total) * 100) : 0;
+        const barColor = pct === 100 ? '#10b981' : pct > 0 ? '#f59e0b' : '#e5e7eb';
+
+        return `
         <div class="candidate-card" onclick="viewCandidateDetails(${candidate.candidate_id})">
           <div class="candidate-header">
             <div class="candidate-info">
@@ -492,14 +500,25 @@
             </span>
           </div>
 
+          <!-- Progress bar -->
+          <div style="margin-top: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span style="font-size: 12px; color: var(--text-muted);">Document Progress</span>
+              <span style="font-size: 12px; font-weight: 600; color: ${barColor};">${pct}%</span>
+            </div>
+            <div style="height: 6px; background: var(--border-color); border-radius: 3px; overflow: hidden;">
+              <div style="height: 100%; width: ${pct}%; background: ${barColor}; border-radius: 3px; transition: width 0.3s;"></div>
+            </div>
+          </div>
+
           <div class="docs-summary">
             <div class="summary-item">
-              <strong>${candidate.signed_documents || 0}</strong>
+              <strong>${signed}</strong>
               <span>Signed</span>
             </div>
             <div class="summary-item">
-              <strong>${candidate.total_documents || 0}</strong>
-              <span>Total</span>
+              <strong>${total}</strong>
+              <span>Total Docs</span>
             </div>
           </div>
 
@@ -513,7 +532,7 @@
             <a class="view-link" onclick="event.stopPropagation(); viewCandidateDetails(${candidate.candidate_id})">View Details →</a>
           </div>
         </div>
-      `).join('');
+      `}).join('');
     }
 
     async function viewCandidateDetails(candidateId) {
@@ -694,6 +713,8 @@
     document.addEventListener('DOMContentLoaded', () => {
       loadOnboardingDocuments();
       setupUserMenu();
+      // Auto-refresh every 30 seconds for real-time updates
+      setInterval(loadOnboardingDocuments, 30000);
     });
   </script>
 </body>

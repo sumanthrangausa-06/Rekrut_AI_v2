@@ -786,7 +786,7 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
           date_of_birth = $4, ssn_encrypted = $5,
           address_line1 = $6, address_line2 = $7, city = $8, state = $9, zip_code = $10,
           phone = $11, current_step = GREATEST(current_step, 2),
-          steps_completed = steps_completed || '"1"'::jsonb,
+          steps_completed = CASE WHEN steps_completed @> '"1"'::jsonb THEN steps_completed ELSE steps_completed || '"1"'::jsonb END,
           updated_at = NOW()
         WHERE candidate_id = $12 AND checklist_id = $13
         RETURNING *
@@ -812,7 +812,7 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
           emergency_contact_name = $1, emergency_contact_relationship = $2,
           emergency_contact_phone = $3, emergency_contact_email = $4,
           current_step = GREATEST(current_step, 3),
-          steps_completed = steps_completed || '"2"'::jsonb,
+          steps_completed = CASE WHEN steps_completed @> '"2"'::jsonb THEN steps_completed ELSE steps_completed || '"2"'::jsonb END,
           updated_at = NOW()
         WHERE candidate_id = $5 AND checklist_id = $6
         RETURNING *
@@ -839,7 +839,7 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
           account_type = $4,
           w4_filing_status = $5,
           current_step = GREATEST(current_step, 4),
-          steps_completed = steps_completed || '"3"'::jsonb,
+          steps_completed = CASE WHEN steps_completed @> '"3"'::jsonb THEN steps_completed ELSE steps_completed || '"3"'::jsonb END,
           updated_at = NOW()
         WHERE candidate_id = $6 AND checklist_id = $7
         RETURNING *
@@ -1072,7 +1072,7 @@ router.post('/wizard/sign-all', authMiddleware, async (req, res) => {
       `UPDATE candidate_onboarding_data SET
         wizard_status = 'completed',
         current_step = 5,
-        steps_completed = steps_completed || '"4"'::jsonb,
+        steps_completed = CASE WHEN steps_completed @> '"4"'::jsonb THEN steps_completed ELSE steps_completed || '"4"'::jsonb END,
         completed_at = NOW(),
         updated_at = NOW()
        WHERE candidate_id = $1 AND checklist_id = $2`,
