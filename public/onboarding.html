@@ -982,13 +982,29 @@
       await saveWizardStep(2, fields);
     }
 
-    // ====== STEP 3: Direct Deposit ======
+    // ====== STEP 3: Direct Deposit & Tax Info ======
     function renderStep3() {
       const w = wizardState || {};
       return `
         <div class="wizard-card">
-          <h2>Direct Deposit</h2>
-          <p class="subtitle">Set up your bank account for payroll deposits.</p>
+          <h2>Banking & Tax Information</h2>
+          <p class="subtitle">Set up direct deposit and provide your tax filing status for W-4.</p>
+
+          <div style="background: rgba(99,102,241,0.08); border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;">
+            <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">📋 W-4 Tax Filing Status</h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">This determines your federal income tax withholding.</p>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label>Filing Status <span class="required">*</span></label>
+              <select id="f_filing_status">
+                <option value="">Select...</option>
+                <option value="single" ${w.w4_filing_status === 'single' ? 'selected' : ''}>Single or Married filing separately</option>
+                <option value="married_jointly" ${w.w4_filing_status === 'married_jointly' ? 'selected' : ''}>Married filing jointly</option>
+                <option value="head_of_household" ${w.w4_filing_status === 'head_of_household' ? 'selected' : ''}>Head of household</option>
+              </select>
+            </div>
+          </div>
+
+          <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">🏦 Direct Deposit Setup</h3>
 
           <div class="form-group">
             <label>Bank Name <span class="required">*</span></label>
@@ -1030,11 +1046,17 @@
         bank_name: document.getElementById('f_bank').value.trim(),
         routing_number: document.getElementById('f_routing').value.replace(/[^0-9]/g, ''),
         account_number: document.getElementById('f_account').value.trim(),
-        account_type: document.getElementById('f_acct_type').value
+        account_type: document.getElementById('f_acct_type').value,
+        w4_filing_status: document.getElementById('f_filing_status').value
       };
 
+      if (!fields.w4_filing_status) {
+        alert('Please select your W-4 filing status.');
+        return;
+      }
+
       if (!fields.bank_name || !fields.routing_number || !fields.account_number || !fields.account_type) {
-        alert('Please fill in all required fields.');
+        alert('Please fill in all required bank details.');
         return;
       }
 
@@ -1057,10 +1079,34 @@
           <p class="subtitle">Review your generated documents and sign them electronically.</p>
 
           ${docs.length === 0 ? `
-            <div style="text-align: center; padding: 24px;">
-              <div class="spinner"></div>
-              <p style="color: var(--text-muted);">Generating your documents...</p>
+            <div style="text-align: center; padding: 24px;" id="docGenArea">
+              <div class="spinner" id="docSpinner"></div>
+              <p style="color: var(--text-muted);" id="docGenMsg">Generating your documents...</p>
+              <button class="btn btn-primary" id="retryGenBtn" style="display: none; margin-top: 16px;" onclick="retryGenerateDocuments()">
+                🔄 Retry Document Generation
+              </button>
             </div>
+            <script>
+              // Auto-generate if not already done
+              (async () => {
+                try {
+                  await generateDocuments();
+                  if (documentsData && documentsData.length > 0) {
+                    renderStep();
+                  } else {
+                    document.getElementById('docSpinner').style.display = 'none';
+                    document.getElementById('docGenMsg').textContent = 'Documents could not be generated. Please retry.';
+                    document.getElementById('docGenMsg').style.color = '#ef4444';
+                    document.getElementById('retryGenBtn').style.display = 'inline-block';
+                  }
+                } catch(e) {
+                  document.getElementById('docSpinner').style.display = 'none';
+                  document.getElementById('docGenMsg').textContent = 'Error generating documents. Please retry.';
+                  document.getElementById('docGenMsg').style.color = '#ef4444';
+                  document.getElementById('retryGenBtn').style.display = 'inline-block';
+                }
+              })();
+            </script>
           ` : `
             <div style="margin-bottom: 24px;">
               ${docs.map(doc => `
@@ -1360,6 +1406,24 @@
         documentsData = result.documents;
       } catch (err) {
         console.error('Error generating documents:', err);
+      }
+    }
+
+    async function retryGenerateDocuments() {
+      const btn = document.getElementById('retryGenBtn');
+      const msg = document.getElementById('docGenMsg');
+      const spinner = document.getElementById('docSpinner');
+      if (btn) btn.style.display = 'none';
+      if (spinner) spinner.style.display = 'block';
+      if (msg) { msg.textContent = 'Retrying document generation...'; msg.style.color = 'var(--text-muted)'; }
+
+      await generateDocuments();
+      if (documentsData && documentsData.length > 0) {
+        renderStep();
+      } else {
+        if (spinner) spinner.style.display = 'none';
+        if (msg) { msg.textContent = 'Still unable to generate. Please try again.'; msg.style.color = '#ef4444'; }
+        if (btn) btn.style.display = 'inline-block';
       }
     }
 

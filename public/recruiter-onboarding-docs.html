@@ -305,7 +305,7 @@
     <aside class="sidebar recruiter-sidebar">
       <a href="/" class="logo">
         <span class="logo-icon">◎</span>
-        <span>Rekrut AI</span>
+        <span>HireLoop</span>
       </a>
       <span class="sidebar-badge">Employer</span>
 
@@ -436,7 +436,12 @@
         </div>
       </div>
 
-      <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 16px;">Documents</h3>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="font-size: 14px; font-weight: 600;">Documents</h3>
+        <button id="download-all-btn" onclick="downloadAllDocs()" style="background: #10b981; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; display: none;">
+          ⬇ Download All
+        </button>
+      </div>
       <div id="modal-documents" class="modal-documents">
         <p style="color: var(--text-muted);">Loading documents...</p>
       </div>
@@ -557,7 +562,8 @@
                 </div>
                 <div style="display: flex; gap: 8px;">
                   ${doc.document_content ? `<a class="view-link" onclick="viewDocContent(${doc.id}, '${escapeHtml(doc.document_type)}')">View Details</a>` : ''}
-                  ${doc.document_url ? `<a href="${doc.document_url}" target="_blank" class="view-link">Download</a>` : ''}
+                  ${doc.document_content ? `<a class="view-link" href="/api/onboarding/recruiter/document/${doc.id}/download" target="_blank" style="color: #10b981;">⬇ Download</a>` : ''}
+                  ${doc.document_url ? `<a href="${doc.document_url}" target="_blank" class="view-link">Open File</a>` : ''}
                 </div>
               </div>
               ${doc.content_summary ? `<p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">${escapeHtml(doc.content_summary)}</p>` : ''}
@@ -567,6 +573,11 @@
 
           // Store docs for preview
           window._currentDocs = documents;
+
+          // Show download all button if docs have content
+          const hasContent = documents.some(d => d.document_content);
+          const dlBtn = document.getElementById('download-all-btn');
+          if (dlBtn) dlBtn.style.display = hasContent ? 'inline-block' : 'none';
         }
 
         // Show modal
@@ -661,6 +672,17 @@
         </div>
       `;
       document.body.appendChild(overlay);
+    }
+
+    function downloadAllDocs() {
+      const docs = window._currentDocs || [];
+      docs.forEach((doc, i) => {
+        if (doc.document_content) {
+          setTimeout(() => {
+            window.open(`/api/onboarding/recruiter/document/${doc.id}/download`, '_blank');
+          }, i * 500);
+        }
+      });
     }
 
     // Modal close on click outside
