@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Review existing offers pages and API routes",
+    "status": "completed",
+    "activeForm": "Reviewing existing offers pages and API routes"
+  },
+  {
+    "content": "Add 'Make Offer' button to application detail dialogs",
+    "status": "completed",
+    "activeForm": "Adding Make Offer buttons to application dialogs"
+  },
+  {
+    "content": "Add query param support for pre-filled offer creation",
+    "status": "completed",
+    "activeForm": "Adding query param support for pre-filled offers"
+  },
+  {
+    "content": "Enhance offers with revoke/withdraw and detail views",
+    "status": "completed",
+    "activeForm": "Enhancing offers with revoke and detail views"
+  },
+  {
+    "content": "Build and deploy",
+    "status": "in_progress",
+    "activeForm": "Building and deploying"
+  }
+]
