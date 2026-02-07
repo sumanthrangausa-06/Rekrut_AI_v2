@@ -20,7 +20,21 @@
     "tengu_tool_search_unsupported_models": [
       "haiku"
     ],
-    "tengu_ant_attribution_header_new": true
+    "tengu_ant_attribution_header_new": true,
+    "tengu_claudeai_mcp_connectors": true,
+    "tengu_marble_anvil": true,
+    "tengu_scarf_coffee": false,
+    "tengu_keybinding_customization_release": true,
+    "tengu_system_prompt_global_cache": false,
+    "tengu_attribution_header": false,
+    "enhanced_telemetry_beta": false,
+    "tengu_workout2": true,
+    "tengu_oboe": true,
+    "tengu_chomp_inflection": true,
+    "tengu_copper_lantern": false,
+    "tengu_pid_based_version_locking": true,
+    "tengu_marble_lantern_disabled": false,
+    "tengu_vinteuil_phrase": true
   },
   "userID": "341a05986f127ac5f4e73dd335ae6d8f841ac894ccea8debe1d88d7cbe5e7244",
   "firstStartTime": "2026-01-22T04:11:22.641Z",
@@ -692,7 +706,30 @@
         "recruiter-dashboard.html"
       ],
       "exampleFilesGeneratedAt": 1770421503601
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-52763/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "server.js",
+        "interviews.js",
+        "candidate.js",
+        "candidate-dashboard.html",
+        "recruiter-dashboard.html"
+      ],
+      "exampleFilesGeneratedAt": 1770422656368
     }
   },
-  "opusProMigrationComplete": true
+  "opusProMigrationComplete": true,
+  "clientDataCache": {
+    "data": null,
+    "timestamp": 1770422666804
+  }
 }

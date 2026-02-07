@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Fix MediaRecorder mimeType to include audio codec (vp9,opus)",
+    "status": "completed",
+    "activeForm": "Fixing MediaRecorder mimeType to include audio codec"
+  },
+  {
+    "content": "Add audio level indicator to video-interview.html",
+    "status": "completed",
+    "activeForm": "Adding audio level indicator to video interview page"
+  },
+  {
+    "content": "Add audio track verification after getUserMedia",
+    "status": "completed",
+    "activeForm": "Adding audio track verification"
+  },
+  {
+    "content": "Fix same issues in interview-practice.html and interview.js",
+    "status": "completed",
+    "activeForm": "Fixing interview practice and mock interview pages"
+  },
+  {
+    "content": "Deploy and verify",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying the fix"
+  }
+]
