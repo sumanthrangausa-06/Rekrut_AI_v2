@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Check app logs and current deployed code for video interview errors",
+    "status": "completed",
+    "activeForm": "Checking app logs and deployed code"
+  },
+  {
+    "content": "Fix missing updated_at column in interviews table causing response submission to fail",
+    "status": "completed",
+    "activeForm": "Fixing missing updated_at column in interviews table"
+  },
+  {
+    "content": "Add fallback questions when AI generation fails",
+    "status": "completed",
+    "activeForm": "Adding fallback questions"
+  },
+  {
+    "content": "Fix frontend acceptResponse loading state and error handling",
+    "status": "completed",
+    "activeForm": "Fixing frontend button targeting and error handling"
+  },
+  {
+    "content": "Deploy and verify on live site",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying on live site"
+  }
+]
