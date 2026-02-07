@@ -690,12 +690,37 @@ router.get('/wizard/progress', authMiddleware, async (req, res) => {
     );
 
     if (wizardData.rows.length === 0) {
+      // First time visiting the real wizard — create fresh wizard data
       wizardData = await pool.query(
         `INSERT INTO candidate_onboarding_data (candidate_id, checklist_id)
          VALUES ($1, $2)
          RETURNING *`,
         [req.user.id, cl.id]
       );
+
+      // If the old fake auto-complete system marked the checklist as "completed"
+      // but no real wizard data exists, reset the checklist so the candidate
+      // can go through the real flow
+      if (cl.status === 'completed' || cl.status === 'in_progress') {
+        const existingDocs = await pool.query(
+          'SELECT COUNT(*) as cnt FROM onboarding_documents WHERE candidate_id = $1 AND checklist_id = $2',
+          [req.user.id, cl.id]
+        );
+        if (parseInt(existingDocs.rows[0].cnt) === 0) {
+          // No real documents = the old system faked it. Reset.
+          await pool.query(
+            `UPDATE onboarding_checklists SET
+              status = 'in_progress',
+              completed_items = '[]'::jsonb,
+              completed_at = NULL,
+              updated_at = NOW()
+             WHERE id = $1`,
+            [cl.id]
+          );
+          cl.status = 'in_progress';
+          cl.completed_items = [];
+        }
+      }
     }
 
     // Get existing documents
