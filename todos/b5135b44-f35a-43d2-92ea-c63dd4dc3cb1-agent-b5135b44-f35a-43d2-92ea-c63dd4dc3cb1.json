@@ -1,0 +1,37 @@
+[
+  {
+    "content": "Explore codebase - understand current AI Interview, Skills Test, Application modules",
+    "status": "completed",
+    "activeForm": "Exploring codebase structure and current module state"
+  },
+  {
+    "content": "Fix migration 022 + apply screening_questions columns to DB",
+    "status": "completed",
+    "activeForm": "Fixing migration 022 and applying DB changes"
+  },
+  {
+    "content": "Fix AI Interview Coach - ensure frontend properly wired to AI backend",
+    "status": "in_progress",
+    "activeForm": "Fixing AI Interview Coach frontend wiring"
+  },
+  {
+    "content": "Fix Skills Test - add session result endpoint + recruiter visibility",
+    "status": "completed",
+    "activeForm": "Fixed Skills Test with session result endpoint"
+  },
+  {
+    "content": "Build default screening questions for jobs + enhance apply flow",
+    "status": "completed",
+    "activeForm": "Built default screening questions"
+  },
+  {
+    "content": "Add recruiter visibility for assessments and screening answers",
+    "status": "completed",
+    "activeForm": "Added recruiter assessment endpoint"
+  },
+  {
+    "content": "Deploy, verify migration, and test everything",
+    "status": "pending",
+    "activeForm": "Deploying and testing all fixes"
+  }
+]
