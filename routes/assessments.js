@@ -465,4 +465,63 @@ async function completeAssessment(client, sessionId, userId) {
   return assessmentResult.rows[0].id;
 }
 
+// Get single session result (for results page redirect)
+router.get('/session/:sessionId', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const sessionId = req.params.sessionId;
+
+    const result = await pool.query(`
+      SELECT sa.*, cs.skill_name, cs.category,
+             ass.tab_switches, ass.copy_paste_attempts, ass.time_anomalies,
+             ass.max_difficulty_reached, ass.answers_given, ass.started_at as session_started,
+             EXTRACT(EPOCH FROM (ass.completed_at - ass.started_at)) as duration_seconds
+      FROM skill_assessments sa
+      LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
+      LEFT JOIN assessment_sessions ass ON sa.session_id = ass.id
+      WHERE ass.id = $1 AND sa.user_id = $2
+      ORDER BY sa.completed_at DESC
+      LIMIT 1
+    `, [sessionId, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Result not found' });
+    }
+
+    res.json({ result: result.rows[0] });
+  } catch (error) {
+    console.error('Error fetching session result:', error);
+    res.status(500).json({ error: 'Failed to fetch result' });
+  }
+});
+
+// Recruiter: Get candidate assessment results (for application review)
+router.get('/candidate/:candidateId', authMiddleware, async (req, res) => {
+  try {
+    const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+    if (!recruiterRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Recruiter access required' });
+    }
+
+    const candidateId = req.params.candidateId;
+
+    const result = await pool.query(`
+      SELECT sa.id, sa.score, sa.max_score, sa.passed, sa.anti_cheat_score,
+             sa.duration_seconds, sa.completed_at,
+             cs.skill_name, cs.category, cs.is_verified,
+             ass.max_difficulty_reached, ass.tab_switches, ass.copy_paste_attempts
+      FROM skill_assessments sa
+      LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
+      LEFT JOIN assessment_sessions ass ON sa.session_id = ass.id
+      WHERE sa.user_id = $1 AND sa.completed_at IS NOT NULL
+      ORDER BY sa.completed_at DESC
+    `, [candidateId]);
+
+    res.json({ assessments: result.rows });
+  } catch (error) {
+    console.error('Error fetching candidate assessments:', error);
+    res.status(500).json({ error: 'Failed to fetch candidate assessments' });
+  }
+});
+
 module.exports = router;
