@@ -3,1079 +3,222 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Candidate Dashboard - HireLoop</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/styles.css">
-  <link rel="stylesheet" href="/css/responsive.css">
-  <link rel="stylesheet" href="/css/dashboard.css">
+  <title>Candidate Dashboard — HireLoop</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.1/dist/tailwind.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="/css/globals.css">
 </head>
 <body>
-  <div class="dashboard-layout">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <a href="/" class="logo">
-        <span class="logo-icon">◎</span>
-        <span>HireLoop</span>
-      </a>
-
-      <nav class="sidebar-nav">
-        <a href="/candidate-dashboard.html" class="nav-item active">
-          <span class="nav-icon">🏠</span>
-          <span>Dashboard</span>
-        </a>
-        <a href="/candidate-profile.html" class="nav-item">
-          <span class="nav-icon">👤</span>
-          <span>My Profile</span>
-        </a>
-        <a href="/omniscore.html" class="nav-item">
-          <span class="nav-icon">🎯</span>
-          <span>OmniScore</span>
-        </a>
-        <a href="/documents.html" class="nav-item">
-          <span class="nav-icon">📄</span>
-          <span>Documents</span>
-        </a>
-        <a href="/skill-assessments.html" class="nav-item">
-          <span class="nav-icon">📝</span>
-          <span>Skill Tests</span>
-        </a>
-        <a href="/interview.html" class="nav-item">
-          <span class="nav-icon">🎤</span>
-          <span>Interview Prep</span>
-        </a>
-        <a href="/video-interview.html" class="nav-item">
-          <span class="nav-icon">🎥</span>
-          <span>Video Interview</span>
-        </a>
-        <a href="/interview-practice.html" class="nav-item">
-          <span class="nav-icon">🎯</span>
-          <span>AI Coaching</span>
-        </a>
-        <a href="/job-board.html" class="nav-item">
-          <span class="nav-icon">💼</span>
-          <span>Job Board</span>
-        </a>
-        <a href="/history.html" class="nav-item">
-          <span class="nav-icon">📁</span>
-          <span>History</span>
-        </a>
-        <a href="/onboarding.html" class="nav-item">
-          <span class="nav-icon">📋</span>
-          <span>Offers & Onboarding</span>
-        </a>
-        <a href="/post-hire-feedback.html" class="nav-item">
-          <span class="nav-icon">💬</span>
-          <span>Feedback</span>
-        </a>
-      </nav>
-
-      <div class="sidebar-footer">
-        <div class="user-dropdown-container">
-          <button class="user-menu-toggle" id="user-menu-toggle">
-            <div class="user-avatar" id="user-avatar">?</div>
-            <div style="flex: 1; text-align: left;">
-              <span class="user-name" id="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
-              <span class="user-plan" id="user-plan" style="display: block; font-size: 12px; color: var(--text-muted);">Free Plan</span>
-            </div>
-          </button>
-
-          <div class="user-dropdown-menu" id="user-dropdown-menu">
-            <div class="dropdown-header">
-              <span class="dropdown-user-name" id="dropdown-user-name">Loading...</span>
-              <span class="dropdown-user-email" id="dropdown-user-email">user@example.com</span>
-            </div>
-            <div class="dropdown-items">
-              <a href="/candidate-profile.html" class="dropdown-item">👤 My Profile</a>
-              <a href="/candidate-dashboard.html" class="dropdown-item">⚙️ Settings</a>
-              <div class="dropdown-divider"></div>
-              <button onclick="handleLogout()" class="dropdown-item danger">🚪 Sign Out</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="main-content">
-      <header class="page-header">
-        <div>
-          <h1>Welcome back, <span id="greeting-name">there</span>!</h1>
-          <p>Your career journey at a glance</p>
-        </div>
-        <a href="/candidate-profile.html" class="btn btn-primary">
-          <span>✨</span> Complete Profile
-        </a>
-      </header>
-
-      <!-- Profile Completeness + OmniScore Row -->
-      <div class="top-cards-row">
-        <!-- Profile Completeness -->
-        <div class="profile-completeness-card">
-          <div class="completeness-circle">
-            <svg viewBox="0 0 36 36">
-              <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-              <path class="circle-fill" id="completeness-path" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-            </svg>
-            <span class="completeness-value" id="completeness-value">0%</span>
-          </div>
-          <div class="completeness-info">
-            <h3>Profile Completeness</h3>
-            <p id="completeness-message">Complete your profile to get better job matches</p>
-            <a href="/candidate-profile.html" class="btn btn-ghost btn-sm">Edit Profile</a>
-          </div>
-        </div>
-
-        <!-- OmniScore Card -->
-        <a href="/omniscore.html" class="omniscore-dashboard-card">
-          <div class="omniscore-preview-circle">
-            <span class="omniscore-preview-value" id="omniscore-value">---</span>
-            <span class="omniscore-preview-label">OmniScore</span>
-          </div>
-          <div class="omniscore-preview-info">
-            <span class="omniscore-badge" id="omniscore-tier">Loading...</span>
-            <h3>Your Candidate Credit Score</h3>
-            <p>Employers see this first</p>
-          </div>
-          <div class="omniscore-preview-arrow">→</div>
-        </a>
-      </div>
-
-      <!-- Stats Grid -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-icon">💡</div>
-          <div class="stat-info">
-            <span class="stat-value" id="skills-count">0</span>
-            <span class="stat-label">Skills Listed</span>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">✅</div>
-          <div class="stat-info">
-            <span class="stat-value" id="verified-skills">0</span>
-            <span class="stat-label">Verified Skills</span>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">🎤</div>
-          <div class="stat-info">
-            <span class="stat-value" id="interview-count">0</span>
-            <span class="stat-label">Mock Interviews</span>
-          </div>
-        </div>
-        <div class="stat-card highlight">
-          <div class="stat-icon">📄</div>
-          <div class="stat-info">
-            <span class="stat-value" id="applications-count">0</span>
-            <span class="stat-label">Applications</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Scheduled Interviews Section -->
-      <section class="section scheduled-interviews-section" id="scheduled-interviews-section" style="display: none;">
-        <div class="section-header">
-          <h2>📅 Upcoming Interviews</h2>
-        </div>
-        <div class="scheduled-interviews-list" id="scheduled-interviews-list">
-          <!-- Will be populated by JS -->
-        </div>
-      </section>
-
-      <!-- Pending Offers Section -->
-      <section class="section offers-section" id="offers-section" style="display: none;">
-        <div class="section-header">
-          <h2>📩 Your Offers</h2>
-          <a href="/onboarding.html" class="btn btn-ghost btn-sm">View All</a>
-        </div>
-        <div class="offers-list" id="offers-list">
-          <!-- Will be populated by JS -->
-        </div>
-      </section>
-
-      <!-- Quick Actions -->
-      <section class="section">
-        <h2>What would you like to do?</h2>
-        <div class="action-grid">
-          <a href="/candidate-profile.html#resume" class="action-card">
-            <div class="action-icon">📄</div>
-            <h3>Upload Resume</h3>
-            <p>AI parses and fills your profile</p>
-          </a>
-          <a href="/skill-assessments.html" class="action-card">
-            <div class="action-icon">📝</div>
-            <h3>Take a Skill Test</h3>
-            <p>Verify your skills with badges</p>
-          </a>
-          <a href="/interview.html" class="action-card">
-            <div class="action-icon">🎤</div>
-            <h3>Mock Interview</h3>
-            <p>Full AI interview simulation</p>
-          </a>
-          <a href="/video-interview.html" class="action-card highlight">
-            <div class="action-icon">🎥</div>
-            <h3>Video Interview</h3>
-            <p>Record async video responses</p>
-          </a>
-          <a href="/interview-practice.html" class="action-card">
-            <div class="action-icon">🎯</div>
-            <h3>Practice Questions</h3>
-            <p>Get instant AI coaching</p>
-          </a>
-          <a href="/job-board.html" class="action-card">
-            <div class="action-icon">💼</div>
-            <h3>Find Jobs</h3>
-            <p>Jobs matched to your score</p>
-          </a>
-        </div>
-      </section>
-
-      <!-- Interview Practice Highlight -->
-      <section class="section interview-practice-section">
-        <div class="section-header">
-          <h2>🎯 Interview Practice</h2>
-          <a href="/interview-practice.html" class="btn btn-primary btn-sm">Practice Now</a>
-        </div>
-        <div class="practice-progress-grid" id="practice-progress">
-          <div class="practice-stat">
-            <span class="practice-value" id="practice-questions">0</span>
-            <span class="practice-label">Questions Practiced</span>
-          </div>
-          <div class="practice-stat">
-            <span class="practice-value" id="practice-score">—</span>
-            <span class="practice-label">Average Score</span>
-          </div>
-          <div class="practice-stat">
-            <span class="practice-value" id="practice-improvement">—</span>
-            <span class="practice-label">Improvement</span>
-          </div>
-        </div>
-        <div class="practice-cta" id="practice-cta">
-          <p>💪 Practice makes perfect! Answer interview questions and get instant AI coaching on your responses.</p>
-          <a href="/interview-practice.html" class="btn btn-ghost">Get Started</a>
-        </div>
-      </section>
-
-      <!-- Skills Overview -->
-      <section class="section">
-        <div class="section-header">
-          <h2>Your Skills</h2>
-          <a href="/candidate-profile.html#skills" class="btn btn-ghost btn-sm">Manage Skills</a>
-        </div>
-        <div class="skills-preview" id="skills-preview">
-          <div class="loading-state">
-            <div class="spinner"></div>
-            <p>Loading skills...</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- Recent Activity -->
-      <section class="section">
-        <div class="section-header">
-          <h2>Recent Activity</h2>
-        </div>
-        <div class="activity-list" id="activity-list">
-          <div class="loading-state">
-            <div class="spinner"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Upgrade Banner -->
-      <section class="upgrade-banner" id="upgrade-banner">
-        <div class="upgrade-content">
-          <h3>🚀 Unlock Premium Features</h3>
-          <p>Unlimited assessments, detailed coaching, and priority matching.</p>
-        </div>
-        <a href="https://buy.stripe.com/5kQaEX7HUdKwfII5KWdjP3G" class="btn btn-primary">Upgrade to Pro - $29/mo</a>
-      </section>
-    </main>
+  <!-- Loading screen -->
+  <div class="loading-screen" id="loadingScreen">
+    <div class="spinner spinner-dark"></div>
   </div>
 
-  <script src="/js/main.js"></script>
+  <div id="app" style="display:none;"></div>
+
+  <!-- Page content template -->
+  <template id="dashboardContent">
+    <!-- Welcome Banner -->
+    <div class="card" style="background:linear-gradient(135deg,#eef2ff,#f5f3ff);border-color:#c7d2fe;margin-bottom:1.5rem;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+        <div>
+          <h2 style="font-size:1.25rem;font-weight:700;color:#0f172a;margin-bottom:0.25rem;" id="welcomeMsg">Welcome back!</h2>
+          <p style="font-size:0.875rem;color:#64748b;">Track your applications, improve your skills, and land your dream job.</p>
+        </div>
+        <a href="/job-board.html" class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Browse Jobs
+        </a>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Applications</div>
+        <div class="stat-value" id="statApps">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Interviews</div>
+        <div class="stat-value" id="statInterviews">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Assessments</div>
+        <div class="stat-value" id="statAssessments">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">OmniScore</div>
+        <div class="stat-value" id="statOmniScore">—</div>
+      </div>
+    </div>
+
+    <!-- Modules Grid -->
+    <h3 style="font-size:1rem;font-weight:600;color:#0f172a;margin-bottom:1rem;">Your Tools</h3>
+    <div class="module-grid">
+      <a href="/job-board.html" class="module-card">
+        <div class="module-icon" style="background:#eef2ff;color:#4f46e5;">&#128270;</div>
+        <div class="module-name">Job Board</div>
+        <div class="module-desc">Browse and apply to open positions matching your skills.</div>
+      </a>
+      <a href="/history.html" class="module-card">
+        <div class="module-icon" style="background:#ecfdf5;color:#059669;">&#128196;</div>
+        <div class="module-name">My Applications</div>
+        <div class="module-desc">Track your application status and interview progress.</div>
+      </a>
+      <a href="/interview-practice.html" class="module-card">
+        <div class="module-icon" style="background:#faf5ff;color:#7c3aed;">&#129302;</div>
+        <div class="module-name">AI Interview Coach</div>
+        <div class="module-desc">Practice interviews with AI feedback and coaching tips.</div>
+        <span class="badge badge-primary" style="margin-top:0.5rem;">AI</span>
+      </a>
+      <a href="/skill-assessments.html" class="module-card">
+        <div class="module-icon" style="background:#fff7ed;color:#ea580c;">&#9989;</div>
+        <div class="module-name">Skill Assessments</div>
+        <div class="module-desc">Take AI-generated tests to verify and showcase your skills.</div>
+      </a>
+      <a href="/omniscore.html" class="module-card">
+        <div class="module-icon" style="background:#fef3c7;color:#d97706;">&#11088;</div>
+        <div class="module-name">OmniScore</div>
+        <div class="module-desc">Your comprehensive candidate score — see how you rank.</div>
+      </a>
+      <a href="/candidate-profile.html" class="module-card">
+        <div class="module-icon" style="background:#f1f5f9;color:#475569;">&#128100;</div>
+        <div class="module-name">My Profile</div>
+        <div class="module-desc">Update your resume, skills, experience, and portfolio.</div>
+      </a>
+      <a href="/documents.html" class="module-card">
+        <div class="module-icon" style="background:#ecfeff;color:#0891b2;">&#128194;</div>
+        <div class="module-name">Documents</div>
+        <div class="module-desc">Upload and manage your verification documents.</div>
+      </a>
+      <a href="/onboarding.html" class="module-card">
+        <div class="module-icon" style="background:#fdf2f8;color:#db2777;">&#128203;</div>
+        <div class="module-name">Onboarding</div>
+        <div class="module-desc">Complete your onboarding documents and e-signatures.</div>
+      </a>
+    </div>
+
+    <!-- Recent Activity -->
+    <div style="margin-top:2rem;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <h3 style="font-size:1rem;font-weight:600;color:#0f172a;">Recent Applications</h3>
+        <a href="/history.html" class="text-sm text-indigo-600 font-medium">View all &rarr;</a>
+      </div>
+      <div class="card" id="recentApps">
+        <div style="display:flex;justify-content:center;padding:2rem;"><div class="spinner spinner-dark"></div></div>
+      </div>
+    </div>
+  </template>
+
+  <script src="/js/core.js"></script>
+  <script src="/js/ui.js"></script>
   <script>
-    let dashboardData = {};
+    // Handle OAuth token in URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenParam = urlParams.get('token');
+    const refreshParam = urlParams.get('refresh');
+    if (tokenParam) {
+      Auth.setTokens(tokenParam, refreshParam);
+      window.history.replaceState({}, '', '/candidate-dashboard.html');
+    }
 
-    document.addEventListener('DOMContentLoaded', async () => {
-      const user = await checkAuth();
-      if (!user) {
-        window.location.href = '/login.html';
-        return;
+    (async () => {
+      const ok = await Auth.require(['candidate']);
+      if (!ok) return;
+
+      document.getElementById('loadingScreen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+
+      const template = document.getElementById('dashboardContent');
+      const pageContent = document.createElement('div');
+      pageContent.id = 'page-content';
+      pageContent.innerHTML = template.innerHTML;
+      document.getElementById('app').appendChild(pageContent);
+
+      UI.initDashboard({ title: 'Dashboard', subtitle: 'Your career hub' });
+
+      // Personalize welcome
+      const user = Auth.getUser();
+      const welcomeEl = document.getElementById('welcomeMsg');
+      if (welcomeEl && user?.name) {
+        welcomeEl.textContent = `Welcome back, ${user.name.split(' ')[0]}!`;
       }
 
-      // Update greeting
-      const name = user.name || user.email.split('@')[0];
-      document.getElementById('greeting-name').textContent = name;
-      document.getElementById('user-name').textContent = name;
-      document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
-      document.getElementById('dropdown-user-name').textContent = name;
-      document.getElementById('dropdown-user-email').textContent = user.email;
+      loadStats();
+      loadRecentApplications();
+    })();
 
-      if (user.is_paid) {
-        document.getElementById('user-plan').textContent = 'Pro Plan';
-        document.getElementById('user-plan').classList.add('pro');
-        document.getElementById('upgrade-banner').style.display = 'none';
-      }
-
-      // Setup user menu dropdown
-      const userMenuToggle = document.getElementById('user-menu-toggle');
-      const userDropdownMenu = document.getElementById('user-dropdown-menu');
-      if (userMenuToggle && userDropdownMenu) {
-        userMenuToggle.addEventListener('click', (e) => {
-          e.stopPropagation();
-          userDropdownMenu.classList.toggle('active');
-        });
-
-        document.addEventListener('click', () => {
-          userDropdownMenu.classList.remove('active');
-        });
-
-        userDropdownMenu.addEventListener('click', (e) => {
-          e.stopPropagation();
-        });
-      }
-
-      loadDashboard();
-    });
-
-    async function loadDashboard() {
+    async function loadStats() {
+      // Applications
       try {
-        // Load dashboard stats
-        const stats = await apiCall('/candidate/dashboard/stats');
-        if (stats.success) {
-          dashboardData = stats.stats;
-          renderStats(stats.stats);
-        }
+        const data = await API.get('/candidate/applications');
+        const apps = data.applications || data || [];
+        document.getElementById('statApps').textContent = Array.isArray(apps) ? apps.length : 0;
+      } catch { document.getElementById('statApps').textContent = '0'; }
 
-        // Load skills
-        const skills = await apiCall('/candidate/skills');
-        if (skills.success) {
-          renderSkillsPreview(skills.skills);
-        }
-
-        // Load recent activity
-        loadRecentActivity();
-
-        // Load interview practice stats
-        loadPracticeStats();
-
-        // Load scheduled interviews
-        loadScheduledInterviews();
-
-        // Load offers
-        loadOffers();
-
-      } catch (err) {
-        console.error('Dashboard load error:', err);
-      }
-    }
-
-    async function loadOffers() {
+      // Interviews
       try {
-        const result = await apiCall('/onboarding/offers/me');
-        const offers = Array.isArray(result) ? result : (result.offers || []);
-        if (offers.length > 0) {
-          document.getElementById('offers-section').style.display = 'block';
-          renderOffers(offers);
-        }
-      } catch (err) {
-        console.error('Offers load error:', err);
-      }
-    }
+        const data = await API.get('/interviews/my');
+        const interviews = data.interviews || data || [];
+        document.getElementById('statInterviews').textContent = Array.isArray(interviews) ? interviews.length : 0;
+      } catch { document.getElementById('statInterviews').textContent = '0'; }
 
-    function renderOffers(offers) {
-      const container = document.getElementById('offers-list');
-
-      container.innerHTML = offers.map(offer => {
-        const statusColors = {
-          draft: { bg: 'rgba(107,114,128,0.15)', color: '#6b7280', label: 'Draft' },
-          sent: { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b', label: 'Pending Review' },
-          accepted: { bg: 'rgba(16,185,129,0.15)', color: '#10b981', label: 'Accepted' },
-          declined: { bg: 'rgba(239,68,68,0.15)', color: '#ef4444', label: 'Declined' }
-        };
-        const st = statusColors[offer.status] || statusColors.sent;
-
-        return `
-          <div class="offer-card">
-            <div class="offer-info">
-              <h3>${offer.title || offer.job_title || 'Job Offer'}</h3>
-              <p>${offer.company || offer.company_name || 'Company'}</p>
-              <div class="offer-details">
-                ${offer.salary ? `<span class="offer-salary">$${parseInt(offer.salary).toLocaleString()}/yr</span>` : ''}
-                ${offer.start_date ? `<span class="offer-date">Start: ${new Date(offer.start_date).toLocaleDateString()}</span>` : ''}
-              </div>
-            </div>
-            <div class="offer-actions">
-              <span class="offer-status" style="background:${st.bg};color:${st.color}">${st.label}</span>
-              ${offer.status === 'sent' ? `<a href="/onboarding.html" class="btn btn-primary btn-sm">Review Offer</a>` : ''}
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    async function loadScheduledInterviews() {
+      // Assessments
       try {
-        const result = await apiCall('/candidate/interviews/scheduled');
-        if (result.success && result.interviews && result.interviews.length > 0) {
-          document.getElementById('scheduled-interviews-section').style.display = 'block';
-          renderScheduledInterviews(result.interviews);
-        }
-      } catch (err) {
-        console.error('Scheduled interviews load error:', err);
-      }
-    }
-
-    function renderScheduledInterviews(interviews) {
-      const container = document.getElementById('scheduled-interviews-list');
-
-      container.innerHTML = interviews.map(interview => {
-        const date = new Date(interview.scheduled_at);
-        const now = new Date();
-        const isUpcoming = date > now;
-        const isSoon = date - now < 30 * 60 * 1000; // Within 30 minutes
-
-        return `
-          <div class="scheduled-interview-card ${isSoon ? 'soon' : ''}">
-            <div class="interview-time-badge">
-              <span class="interview-date">${date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-              <span class="interview-time">${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-            <div class="interview-info">
-              <h3>${interview.job_title || 'Interview'}</h3>
-              <p>${interview.company_name || 'Company'}</p>
-              <span class="interview-type-badge ${interview.interview_type || 'video'}">${interview.interview_type || 'Video Interview'}</span>
-            </div>
-            <div class="interview-action">
-              ${isUpcoming ? `
-                ${interview.meeting_link ?
-                  `<a href="${interview.meeting_link}" target="_blank" class="btn btn-primary ${isSoon ? 'pulse' : ''}">
-                    ${interview.interview_type === 'video' ? '🎥 Join Video Call' : '📞 Join'}
-                  </a>` :
-                  `<span class="interview-pending">Link will be available soon</span>`
-                }
-              ` : `<span class="interview-status">Completed</span>`}
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    async function loadPracticeStats() {
-      try {
-        const practiceStats = await apiCall('/interviews/practice/stats');
-        if (practiceStats.success && practiceStats.stats) {
-          const stats = practiceStats.stats;
-
-          if (stats.total_questions > 0) {
-            document.getElementById('practice-questions').textContent = stats.total_questions;
-            document.getElementById('practice-score').textContent =
-              stats.average_score ? stats.average_score.toFixed(1) + '/10' : '—';
-            document.getElementById('practice-improvement').textContent =
-              stats.improvement ? (stats.improvement > 0 ? '+' : '') + stats.improvement.toFixed(0) + '%' : '—';
-
-            // Hide CTA if they've practiced
-            document.getElementById('practice-cta').style.display = 'none';
-          }
-        }
-      } catch (err) {
-        console.error('Practice stats error:', err);
-      }
-    }
-
-    function renderStats(stats) {
-      // Profile completeness
-      const completeness = stats.profile_completeness || 0;
-      document.getElementById('completeness-value').textContent = completeness + '%';
-      document.getElementById('completeness-path').setAttribute('stroke-dasharray', `${completeness}, 100`);
-
-      if (completeness >= 80) {
-        document.getElementById('completeness-message').textContent = 'Your profile is looking great!';
-      } else if (completeness >= 50) {
-        document.getElementById('completeness-message').textContent = 'Almost there! Add more details.';
-      }
+        const data = await API.get('/assessments/sessions');
+        const sessions = data.sessions || data || [];
+        document.getElementById('statAssessments').textContent = Array.isArray(sessions) ? sessions.length : 0;
+      } catch { document.getElementById('statAssessments').textContent = '0'; }
 
       // OmniScore
-      if (stats.omniscore) {
-        document.getElementById('omniscore-value').textContent = stats.omniscore.total_score;
-        document.getElementById('omniscore-tier').textContent = stats.omniscore.tier_label;
-        document.getElementById('omniscore-tier').className = 'omniscore-badge ' + (stats.omniscore.tier || '').replace('_', '-');
-      }
-
-      // Stats cards
-      document.getElementById('skills-count').textContent = stats.skills?.total || 0;
-      document.getElementById('verified-skills').textContent = stats.skills?.verified || 0;
-      document.getElementById('interview-count').textContent = stats.interviews?.total || 0;
-      document.getElementById('applications-count').textContent = stats.applications || 0;
-    }
-
-    function renderSkillsPreview(skills) {
-      const container = document.getElementById('skills-preview');
-
-      if (!skills || skills.length === 0) {
-        container.innerHTML = `
-          <div class="empty-skills">
-            <p>No skills added yet</p>
-            <a href="/candidate-profile.html#skills" class="btn btn-primary btn-sm">Add Your Skills</a>
-          </div>
-        `;
-        return;
-      }
-
-      // Group by category
-      const categories = {};
-      skills.forEach(s => {
-        const cat = s.category || 'technical';
-        if (!categories[cat]) categories[cat] = [];
-        categories[cat].push(s);
-      });
-
-      container.innerHTML = Object.entries(categories).map(([cat, catSkills]) => `
-        <div class="skill-category">
-          <h4>${formatCategory(cat)}</h4>
-          <div class="skill-tags">
-            ${catSkills.slice(0, 8).map(s => `
-              <span class="skill-tag ${s.is_verified ? 'verified' : ''}" title="Level ${s.level}/5">
-                ${s.skill_name}
-                ${s.is_verified ? '<span class="verified-badge">✓</span>' : ''}
-                <span class="skill-level">${'●'.repeat(s.level)}${'○'.repeat(5-s.level)}</span>
-              </span>
-            `).join('')}
-            ${catSkills.length > 8 ? `<span class="more-skills">+${catSkills.length - 8} more</span>` : ''}
-          </div>
-        </div>
-      `).join('');
-    }
-
-    function formatCategory(cat) {
-      const labels = {
-        'technical': '💻 Technical',
-        'soft_skill': '🤝 Soft Skills',
-        'tool': '🔧 Tools',
-        'language': '🌍 Languages'
-      };
-      return labels[cat] || cat;
-    }
-
-    async function loadRecentActivity() {
-      const container = document.getElementById('activity-list');
-
       try {
-        // Load recent interviews
-        const interviews = await apiCall('/interviews?limit=3');
-        // Load recent applications
-        const applications = await apiCall('/candidate/applications');
+        const data = await API.get('/omniscore/me');
+        const score = data.overall_score || data.score || data.omniScore;
+        document.getElementById('statOmniScore').textContent = score ? Math.round(score) : '—';
+      } catch { document.getElementById('statOmniScore').textContent = '—'; }
+    }
 
-        const activities = [];
+    async function loadRecentApplications() {
+      const container = document.getElementById('recentApps');
+      try {
+        const data = await API.get('/candidate/applications');
+        const apps = (data.applications || data || []).slice(0, 5);
 
-        if (interviews.interviews) {
-          interviews.interviews.slice(0, 3).forEach(i => {
-            activities.push({
-              type: 'interview',
-              title: 'Mock Interview',
-              subtitle: i.interview_type || 'General',
-              score: i.overall_score,
-              date: i.created_at
-            });
-          });
-        }
-
-        if (applications.applications) {
-          applications.applications.slice(0, 3).forEach(a => {
-            activities.push({
-              type: 'application',
-              title: `Applied to ${a.title}`,
-              subtitle: a.company || 'Unknown Company',
-              status: a.status,
-              date: a.applied_at
-            });
-          });
-        }
-
-        // Sort by date
-        activities.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-        if (activities.length === 0) {
+        if (apps.length === 0) {
           container.innerHTML = `
             <div class="empty-state">
-              <p>No recent activity. Start by taking a mock interview!</p>
-              <a href="/interview.html" class="btn btn-primary btn-sm">Start Interview</a>
-            </div>
-          `;
+              <h3>No applications yet</h3>
+              <p>Start applying to jobs to track your progress here.</p>
+              <a href="/job-board.html" class="btn btn-primary" style="margin-top:0.5rem;">Browse Jobs</a>
+            </div>`;
           return;
         }
 
         container.innerHTML = `
-          <div class="activity-items">
-            ${activities.slice(0, 5).map(a => `
-              <div class="activity-item">
-                <div class="activity-icon ${a.type}">${a.type === 'interview' ? '🎤' : '📄'}</div>
-                <div class="activity-details">
-                  <span class="activity-title">${a.title}</span>
-                  <span class="activity-subtitle">${a.subtitle}</span>
-                </div>
-                <div class="activity-meta">
-                  ${a.score ? `<span class="activity-score">${a.score}/10</span>` : ''}
-                  ${a.status ? `<span class="activity-status ${a.status}">${a.status}</span>` : ''}
-                  <span class="activity-date">${formatDate(a.date)}</span>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        `;
+          <div class="table-wrapper">
+            <table>
+              <thead><tr>
+                <th>Position</th>
+                <th>Company</th>
+                <th>Status</th>
+                <th>Applied</th>
+              </tr></thead>
+              <tbody>
+                ${apps.map(app => `
+                  <tr>
+                    <td style="font-weight:500;">${Utils.escapeHtml(app.job_title || app.title || '—')}</td>
+                    <td>${Utils.escapeHtml(app.company || app.company_name || '—')}</td>
+                    <td><span class="badge badge-${app.status === 'pending' ? 'warning' : app.status === 'accepted' ? 'success' : app.status === 'rejected' ? 'danger' : 'neutral'}">${app.status || 'pending'}</span></td>
+                    <td style="color:#64748b;">${Utils.formatRelative(app.created_at || app.applied_at)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>`;
       } catch (err) {
-        container.innerHTML = `<div class="empty-state"><p>Could not load activity</p></div>`;
+        container.innerHTML = '<p style="padding:1rem;color:#64748b;text-align:center;">Unable to load applications</p>';
       }
-    }
-
-    function formatDate(dateStr) {
-      const date = new Date(dateStr);
-      const now = new Date();
-      const diff = now - date;
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-      if (days === 0) return 'Today';
-      if (days === 1) return 'Yesterday';
-      if (days < 7) return `${days} days ago`;
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
   </script>
-
-  <style>
-    .top-cards-row {
-      display: grid;
-      grid-template-columns: 1fr 1.5fr;
-      gap: 24px;
-      margin-bottom: 32px;
-    }
-
-    .profile-completeness-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-lg);
-      padding: 24px;
-      display: flex;
-      align-items: center;
-      gap: 20px;
-    }
-
-    .completeness-circle {
-      width: 80px;
-      height: 80px;
-      position: relative;
-    }
-
-    .completeness-circle svg {
-      width: 100%;
-      height: 100%;
-      transform: rotate(-90deg);
-    }
-
-    .circle-bg {
-      fill: none;
-      stroke: var(--border-color);
-      stroke-width: 3;
-    }
-
-    .circle-fill {
-      fill: none;
-      stroke: var(--accent-primary);
-      stroke-width: 3;
-      stroke-linecap: round;
-      transition: stroke-dasharray 0.5s ease;
-    }
-
-    .completeness-value {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-family: var(--font-display);
-      font-size: 18px;
-      font-weight: 700;
-    }
-
-    .completeness-info h3 {
-      font-family: var(--font-display);
-      font-size: 16px;
-      margin-bottom: 4px;
-    }
-
-    .completeness-info p {
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-bottom: 12px;
-    }
-
-    .skills-preview {
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-lg);
-      padding: 24px;
-    }
-
-    .skill-category {
-      margin-bottom: 20px;
-    }
-
-    .skill-category:last-child {
-      margin-bottom: 0;
-    }
-
-    .skill-category h4 {
-      font-size: 14px;
-      font-weight: 600;
-      margin-bottom: 12px;
-      color: var(--text-secondary);
-    }
-
-    .skill-tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .skill-tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      background: var(--bg-elevated);
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-full);
-      font-size: 13px;
-      transition: all 0.2s;
-    }
-
-    .skill-tag.verified {
-      border-color: var(--accent-primary);
-      background: rgba(16, 185, 129, 0.1);
-    }
-
-    .verified-badge {
-      color: var(--accent-primary);
-      font-size: 11px;
-    }
-
-    .skill-level {
-      font-size: 8px;
-      color: var(--text-muted);
-      letter-spacing: 1px;
-    }
-
-    .more-skills {
-      padding: 6px 12px;
-      background: transparent;
-      border: 1px dashed var(--border-light);
-      border-radius: var(--radius-full);
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-
-    .empty-skills {
-      text-align: center;
-      padding: 40px;
-    }
-
-    .empty-skills p {
-      color: var(--text-muted);
-      margin-bottom: 16px;
-    }
-
-    .activity-items {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .activity-item {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 16px;
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-md);
-      margin-bottom: 8px;
-    }
-
-    .activity-icon {
-      width: 40px;
-      height: 40px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--bg-elevated);
-      border-radius: var(--radius-md);
-      font-size: 20px;
-    }
-
-    .activity-details {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .activity-title {
-      font-weight: 500;
-      font-size: 14px;
-    }
-
-    .activity-subtitle {
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-
-    .activity-meta {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .activity-score {
-      font-family: var(--font-display);
-      font-weight: 600;
-      color: var(--accent-primary);
-    }
-
-    .activity-status {
-      padding: 4px 8px;
-      border-radius: var(--radius-full);
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-
-    .activity-status.applied {
-      background: rgba(59, 130, 246, 0.2);
-      color: #3b82f6;
-    }
-
-    .activity-status.reviewing {
-      background: rgba(245, 158, 11, 0.2);
-      color: #f59e0b;
-    }
-
-    .activity-date {
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    /* Offers Section */
-    .offers-section {
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%);
-      border: 2px solid rgba(16, 185, 129, 0.3);
-      border-radius: var(--radius-lg);
-    }
-
-    .offer-card {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 20px;
-      padding: 20px;
-      background: white;
-      border-radius: var(--radius-md);
-      border: 1px solid var(--border-light);
-      margin-bottom: 12px;
-    }
-
-    .offer-card:last-child { margin-bottom: 0; }
-
-    .offer-info h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
-    .offer-info p { font-size: 14px; color: var(--text-muted); margin-bottom: 8px; }
-    .offer-details { display: flex; gap: 16px; }
-    .offer-salary { font-weight: 600; color: var(--accent-primary); font-size: 14px; }
-    .offer-date { font-size: 13px; color: var(--text-muted); }
-    .offer-actions { display: flex; align-items: center; gap: 12px; }
-    .offer-status { padding: 6px 12px; border-radius: var(--radius-full); font-size: 12px; font-weight: 600; }
-
-    @media (max-width: 768px) {
-      .offer-card { flex-direction: column; text-align: center; }
-      .offer-actions { width: 100%; justify-content: center; }
-    }
-
-    /* Interview Practice Section */
-    .interview-practice-section {
-      background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-      border: 2px solid rgba(102, 126, 234, 0.3);
-    }
-
-    .practice-progress-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 20px;
-      margin-bottom: 20px;
-    }
-
-    .practice-stat {
-      text-align: center;
-      padding: 20px;
-      background: white;
-      border-radius: var(--radius-md);
-      border: 1px solid var(--border-light);
-    }
-
-    .practice-value {
-      display: block;
-      font-size: 32px;
-      font-weight: 700;
-      font-family: var(--font-display);
-      color: var(--accent-primary);
-      margin-bottom: 8px;
-    }
-
-    .practice-label {
-      display: block;
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-
-    .practice-cta {
-      text-align: center;
-      padding: 20px;
-      background: white;
-      border-radius: var(--radius-md);
-      border: 1px solid var(--border-light);
-    }
-
-    .practice-cta p {
-      margin-bottom: 16px;
-      color: var(--text-secondary);
-    }
-
-    .action-card.highlight {
-      border: 2px solid var(--accent-primary);
-      background: rgba(16, 185, 129, 0.05);
-    }
-
-    /* Scheduled Interviews Section */
-    .scheduled-interviews-section {
-      background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
-      border: 2px solid rgba(59, 130, 246, 0.3);
-      border-radius: var(--radius-lg);
-    }
-
-    .scheduled-interview-card {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      padding: 20px;
-      background: white;
-      border-radius: var(--radius-md);
-      border: 1px solid var(--border-light);
-      margin-bottom: 12px;
-      transition: all 0.2s;
-    }
-
-    .scheduled-interview-card:last-child {
-      margin-bottom: 0;
-    }
-
-    .scheduled-interview-card.soon {
-      border-color: #10b981;
-      box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
-    }
-
-    .interview-time-badge {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 12px 16px;
-      background: var(--bg-elevated);
-      border-radius: var(--radius-md);
-      min-width: 100px;
-    }
-
-    .interview-date {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-bottom: 4px;
-    }
-
-    .interview-time {
-      font-family: var(--font-display);
-      font-size: 16px;
-      font-weight: 600;
-    }
-
-    .interview-info {
-      flex: 1;
-    }
-
-    .interview-info h3 {
-      font-size: 16px;
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-
-    .interview-info p {
-      font-size: 14px;
-      color: var(--text-muted);
-      margin-bottom: 8px;
-    }
-
-    .interview-type-badge {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: var(--radius-full);
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: capitalize;
-    }
-
-    .interview-type-badge.video { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
-    .interview-type-badge.phone { background: rgba(16, 185, 129, 0.2); color: #10b981; }
-    .interview-type-badge.onsite { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
-    .interview-type-badge.technical { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; }
-
-    .interview-action .btn.pulse {
-      animation: pulse-btn 2s infinite;
-    }
-
-    @keyframes pulse-btn {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-      50% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
-    }
-
-    .interview-pending {
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-
-    .interview-status {
-      font-size: 13px;
-      color: var(--text-muted);
-      padding: 8px 16px;
-      background: var(--bg-elevated);
-      border-radius: var(--radius-md);
-    }
-
-    @media (max-width: 1024px) {
-      .top-cards-row {
-        grid-template-columns: 1fr;
-      }
-
-      .practice-progress-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .scheduled-interview-card {
-        flex-direction: column;
-        text-align: center;
-      }
-
-      .interview-action {
-        width: 100%;
-      }
-
-      .interview-action .btn {
-        width: 100%;
-      }
-    }
-  </style>
+  <script defer src="https://polsia.com/analytics.js" data-slug="hireloop"></script>
 </body>
 </html>
