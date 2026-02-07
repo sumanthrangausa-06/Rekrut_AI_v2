@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Fix frontend: add auth header to resume upload fetch call",
+    "status": "completed",
+    "activeForm": "Fixing frontend auth header for resume upload"
+  },
+  {
+    "content": "Fix frontend: handle non-success API response (stops infinite spinner)",
+    "status": "completed",
+    "activeForm": "Fixing error handling for failed resume upload"
+  },
+  {
+    "content": "Fix backend: remove non-existent github_username column from profile query",
+    "status": "completed",
+    "activeForm": "Fixing profile query column error"
+  },
+  {
+    "content": "Fix backend: make resume AI parsing graceful with timeout",
+    "status": "completed",
+    "activeForm": "Making resume parsing fault-tolerant"
+  },
+  {
+    "content": "Deploy and verify",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying the fix"
+  }
+]
