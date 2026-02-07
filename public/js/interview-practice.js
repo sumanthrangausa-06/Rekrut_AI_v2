@@ -117,8 +117,8 @@ function renderQuestionLibrary(questions) {
     return;
   }
 
-  container.innerHTML = questions.map(q => `
-    <div class="question-card" onclick='openPracticeModal(${JSON.stringify(q)})'>
+  container.innerHTML = questions.map((q, idx) => `
+    <div class="question-card" data-question-idx="${idx}">
       <span class="question-category-badge category-${q.category}">
         ${q.category.charAt(0).toUpperCase() + q.category.slice(1)}
       </span>
@@ -130,6 +130,14 @@ function renderQuestionLibrary(questions) {
       </div>
     </div>
   `).join('');
+
+  // Attach click handlers safely (no inline JSON in onclick)
+  container.querySelectorAll('.question-card[data-question-idx]').forEach(card => {
+    card.addEventListener('click', () => {
+      const idx = parseInt(card.dataset.questionIdx);
+      openPracticeModal(questions[idx]);
+    });
+  });
 }
 
 // Open practice modal with question

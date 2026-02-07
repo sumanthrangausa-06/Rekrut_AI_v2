@@ -2,7 +2,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const pool = require('../lib/db');
-const { generateToken, authMiddleware, optionalAuth } = require('../lib/auth');
+const { generateToken, generateRefreshToken, authMiddleware, optionalAuth } = require('../lib/auth');
 const trustscoreService = require('../services/trustscore');
 
 const router = express.Router();
@@ -120,8 +120,9 @@ router.post('/register', async (req, res) => {
 
       await client.query('COMMIT');
 
-      // Generate token
-      const token = generateToken({ ...user, role: 'recruiter' });
+      // Generate tokens (access + refresh)
+      const token = generateToken({ ...user, role: 'recruiter', company_id: company.id, company_name: company_name });
+      const { token: refreshToken } = await generateRefreshToken(user.id);
 
       res.json({
         success: true,
@@ -130,7 +131,8 @@ router.post('/register', async (req, res) => {
           email: user.email,
           name: user.name,
           role: 'recruiter',
-          company_id: company.id
+          company_id: company.id,
+          company_name: company_name
         },
         company: {
           id: company.id,
@@ -139,6 +141,8 @@ router.post('/register', async (req, res) => {
           is_verified: company.is_verified
         },
         token,
+        accessToken: token,
+        refreshToken,
         message: isWorkEmail
           ? 'Company verified automatically via email domain!'
           : 'Account created. Consider using a company email for automatic verification.'

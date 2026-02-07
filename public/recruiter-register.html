@@ -156,7 +156,10 @@
         const data = await response.json();
 
         if (data.success) {
-          localStorage.setItem('rekrutai_token', data.token);
+          localStorage.setItem('rekrutai_token', data.accessToken || data.token);
+          if (data.refreshToken) {
+            localStorage.setItem('rekrutai_refresh', data.refreshToken);
+          }
           localStorage.setItem('rekrutai_company_id', data.company.id);
           window.location.href = '/recruiter-dashboard.html';
         } else {

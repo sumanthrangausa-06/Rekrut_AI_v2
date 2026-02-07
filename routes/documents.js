@@ -4,6 +4,7 @@ const multer = require('multer');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
 const pool = require('../lib/db');
+const { authMiddleware } = require('../lib/auth');
 const {
   verifyDocument,
   applyDocumentScoresToOmniScore,
@@ -39,10 +40,10 @@ const upload = multer({
  * Upload and verify a document
  * POST /api/documents/upload
  */
-router.post('/upload', upload.single('document'), async (req, res) => {
+router.post('/upload', authMiddleware, upload.single('document'), async (req, res) => {
   try {
     const { document_type } = req.body;
-    const userId = req.session?.user?.id || req.body.user_id;
+    const userId = req.user.id;
 
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -142,9 +143,9 @@ router.post('/upload', upload.single('document'), async (req, res) => {
  * Get all documents for a user
  * GET /api/documents
  */
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
-    const userId = req.session?.user?.id || req.query.user_id;
+    const userId = req.user.id;
 
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -178,15 +179,12 @@ router.get('/', async (req, res) => {
  * Get document details with verification results
  * GET /api/documents/:id
  */
-router.get('/:id', async (req, res) => {
+router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.session?.user?.id || req.query.user_id;
-    const accessorId = req.session?.user?.id;
-
-    if (!userId && !accessorId) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    const userCompanyId = req.user.company_id;
 
     // Get document with verification details
     const result = await pool.query(`
@@ -214,21 +212,21 @@ router.get('/:id', async (req, res) => {
 
     const document = result.rows[0];
 
-    // Check access permission
-    const hasAccess = document.user_id === parseInt(userId) ||
-                     req.session?.user?.role === 'recruiter';
+    // Check access permission - owner or recruiter
+    const hasAccess = document.user_id === userId ||
+                     userRole === 'recruiter' || userRole === 'hiring_manager' || userRole === 'admin';
 
     if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
     // Log access if accessed by someone other than owner
-    if (accessorId && accessorId !== document.user_id) {
+    if (userId !== document.user_id) {
       await logDocumentAccess(
         document.id,
-        accessorId,
+        userId,
         'view',
-        req.session?.user?.company_id,
+        userCompanyId,
         req.ip
       );
     }
@@ -248,14 +246,10 @@ router.get('/:id', async (req, res) => {
  * Get verification status for a document
  * GET /api/documents/:id/verification
  */
-router.get('/:id/verification', async (req, res) => {
+router.get('/:id/verification', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.session?.user?.id || req.query.user_id;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
+    const userId = req.user.id;
 
     const result = await pool.query(`
       SELECT
@@ -289,13 +283,9 @@ router.get('/:id/verification', async (req, res) => {
  * Get all verified credentials for a user
  * GET /api/documents/credentials
  */
-router.get('/credentials/list', async (req, res) => {
+router.get('/credentials/list', authMiddleware, async (req, res) => {
   try {
-    const userId = req.session?.user?.id || req.query.user_id;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
+    const userId = req.user.id;
 
     const result = await pool.query(`
       SELECT
@@ -323,21 +313,17 @@ router.get('/credentials/list', async (req, res) => {
  * Get document access audit log (for candidate to see who viewed their documents)
  * GET /api/documents/:id/access-log
  */
-router.get('/:id/access-log', async (req, res) => {
+router.get('/:id/access-log', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.session?.user?.id || req.query.user_id;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
+    const userId = req.user.id;
 
     // Verify document ownership
     const docCheck = await pool.query(`
       SELECT user_id FROM verification_documents WHERE id = $1
     `, [id]);
 
-    if (docCheck.rows.length === 0 || docCheck.rows[0].user_id !== parseInt(userId)) {
+    if (docCheck.rows.length === 0 || docCheck.rows[0].user_id !== userId) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -369,14 +355,10 @@ router.get('/:id/access-log', async (req, res) => {
  * Delete a document (candidate only)
  * DELETE /api/documents/:id
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.session?.user?.id || req.body.user_id;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
+    const userId = req.user.id;
 
     const result = await pool.query(`
       DELETE FROM verification_documents
@@ -403,9 +385,9 @@ router.delete('/:id', async (req, res) => {
  * Get document verification stats for a candidate
  * GET /api/documents/stats
  */
-router.get('/stats/summary', async (req, res) => {
+router.get('/stats/summary', authMiddleware, async (req, res) => {
   try {
-    const userId = req.session?.user?.id || req.query.user_id;
+    const userId = req.user.id;
 
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });

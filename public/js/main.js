@@ -271,7 +271,22 @@ async function apiCall(endpoint, options = {}) {
     }
   }
 
-  return response.json();
+  // Handle non-OK responses
+  if (!response.ok) {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || errorData.message || `API error: ${response.status}`);
+    }
+    throw new Error(`API error: ${response.status}`);
+  }
+
+  // Safely parse JSON (some endpoints may return non-JSON)
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    return response.json();
+  }
+  return { success: true };
 }
 
 // Dashboard functions

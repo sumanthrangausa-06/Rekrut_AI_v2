@@ -10,11 +10,16 @@ const Analytics = {
 
   // Track a user action
   trackEvent(eventType, metadata = {}) {
+    const headers = { 'Content-Type': 'application/json' };
+    // Include auth token so server can associate events with user
+    const token = localStorage.getItem('rekrutai_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     fetch('/api/analytics/events', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers,
       body: JSON.stringify({
         event_type: eventType,
         metadata: {
@@ -55,20 +60,34 @@ window.addEventListener('DOMContentLoaded', () => {
 
   if (pathname === '/' || pathname === '/index.html') {
     pageName = 'landing';
+  } else if (pathname.includes('/recruiter-register')) {
+    pageName = 'recruiter_signup';
   } else if (pathname.includes('/register')) {
     pageName = 'signup';
   } else if (pathname.includes('/login')) {
     pageName = 'login';
-  } else if (pathname.includes('/dashboard')) {
-    pageName = 'dashboard';
   } else if (pathname.includes('/recruiter-dashboard')) {
     pageName = 'recruiter_dashboard';
   } else if (pathname.includes('/candidate-dashboard')) {
     pageName = 'candidate_dashboard';
+  } else if (pathname.includes('/dashboard')) {
+    pageName = 'dashboard';
   } else if (pathname.includes('/interview-practice')) {
     pageName = 'interview_practice';
+  } else if (pathname.includes('/interview')) {
+    pageName = 'interview';
+  } else if (pathname.includes('/job-board')) {
+    pageName = 'job_board';
   } else if (pathname.includes('/job-create')) {
     pageName = 'job_create';
+  } else if (pathname.includes('/skill-assessment')) {
+    pageName = 'skill_assessment';
+  } else if (pathname.includes('/document')) {
+    pageName = 'documents';
+  } else if (pathname.includes('/onboarding')) {
+    pageName = 'onboarding';
+  } else if (pathname.includes('/recruiter-')) {
+    pageName = pathname.replace('.html', '').split('/').pop().replace(/-/g, '_');
   }
 
   Analytics.trackPageView(pageName);

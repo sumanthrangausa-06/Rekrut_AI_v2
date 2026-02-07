@@ -94,16 +94,53 @@ async function loadUserInfo() {
   return checkAuth();
 }
 
-// API call helper
+// Refresh access token using refresh token
+async function refreshAccessTokenAuth() {
+  const refreshToken = localStorage.getItem(AUTH_REFRESH_KEY);
+  if (!refreshToken) return null;
+  try {
+    const response = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken })
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success) {
+        localStorage.setItem(AUTH_TOKEN_KEY, data.accessToken);
+        localStorage.setItem(AUTH_REFRESH_KEY, data.refreshToken);
+        return data.accessToken;
+      }
+    }
+  } catch (err) {
+    console.error('Token refresh failed:', err);
+  }
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_REFRESH_KEY);
+  return null;
+}
+
+// API call helper with automatic token refresh
 async function authApiCall(endpoint, options = {}) {
-  const token = getAuthToken();
+  let token = getAuthToken();
   const url = endpoint.startsWith('/api') ? endpoint : `/api${endpoint}`;
   const headers = {
     'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json',
     ...options.headers
   };
-  const response = await fetch(url, { ...options, headers });
+  let response = await fetch(url, { ...options, headers });
+  // If 401, try to refresh the token and retry
+  if (response.status === 401) {
+    const newToken = await refreshAccessTokenAuth();
+    if (newToken) {
+      headers['Authorization'] = `Bearer ${newToken}`;
+      response = await fetch(url, { ...options, headers });
+    } else {
+      window.location.href = '/login.html';
+      return null;
+    }
+  }
   if (!response.ok) throw new Error(`API error: ${response.status}`);
   return response.json();
 }
@@ -162,8 +199,19 @@ function setupUserMenu() {
   }
 }
 
-function handleLogout() {
+async function handleLogout() {
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  if (token) {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+    } catch (e) {
+      // Ignore errors during logout
+    }
+  }
   localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(AUTH_REFRESH_KEY);
-  window.location.href = '/login.html';
+  window.location.href = '/';
 }

@@ -102,7 +102,7 @@ async function loadExistingInterview(id) {
   } catch (err) {
     hideLoading();
     alert('Failed to load interview: ' + err.message);
-    window.location.href = '/dashboard.html';
+    window.location.href = '/candidate-dashboard.html';
   }
 }
 
@@ -264,7 +264,7 @@ async function completeInterview() {
   } catch (err) {
     hideLoading();
     alert('Failed to generate results: ' + err.message);
-    window.location.href = '/dashboard.html';
+    window.location.href = '/candidate-dashboard.html';
   }
 }
 

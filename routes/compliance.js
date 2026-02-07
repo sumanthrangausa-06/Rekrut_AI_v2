@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../lib/db');
+const { authMiddleware } = require('../lib/auth');
 const { AuditLogger } = require('../services/auditLogger');
 const BiasDetection = require('../services/biasDetection');
 const ScoreExplainer = require('../services/scoreExplainer');
@@ -10,7 +11,7 @@ const ScoreExplainer = require('../services/scoreExplainer');
  */
 
 // Export user data (Right to portability)
-router.post('/gdpr/export', async (req, res) => {
+router.post('/gdpr/export', authMiddleware, async (req, res) => {
   try {
     const { userId } = req.body;
 
@@ -66,7 +67,7 @@ router.post('/gdpr/export', async (req, res) => {
 });
 
 // Right to be forgotten
-router.post('/gdpr/delete', async (req, res) => {
+router.post('/gdpr/delete', authMiddleware, async (req, res) => {
   try {
     const { userId, confirmEmail } = req.body;
 
@@ -110,7 +111,7 @@ router.post('/gdpr/delete', async (req, res) => {
 });
 
 // Record consent
-router.post('/gdpr/consent', async (req, res) => {
+router.post('/gdpr/consent', authMiddleware, async (req, res) => {
   try {
     const { userId, consentType, consented } = req.body;
 
@@ -148,7 +149,7 @@ router.post('/gdpr/consent', async (req, res) => {
 });
 
 // Get user consents
-router.get('/gdpr/consents/:userId', async (req, res) => {
+router.get('/gdpr/consents/:userId', authMiddleware, async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -169,13 +170,13 @@ router.get('/gdpr/consents/:userId', async (req, res) => {
  */
 
 // Generate bias report
-router.post('/bias/analyze', async (req, res) => {
+router.post('/bias/analyze', authMiddleware, async (req, res) => {
   try {
     const report = await BiasDetection.generateReport();
 
     await AuditLogger.log({
       actionType: 'bias_analysis_generated',
-      userId: req.session?.userId,
+      userId: req.user?.id,
       targetType: 'bias_report',
       targetId: report.reportId,
       metadata: {
@@ -196,7 +197,7 @@ router.post('/bias/analyze', async (req, res) => {
 });
 
 // Get bias reports
-router.get('/bias/reports', async (req, res) => {
+router.get('/bias/reports', authMiddleware, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
     const offset = parseInt(req.query.offset) || 0;
@@ -214,7 +215,7 @@ router.get('/bias/reports', async (req, res) => {
 });
 
 // Create fairness audit
-router.post('/fairness/audit', async (req, res) => {
+router.post('/fairness/audit', authMiddleware, async (req, res) => {
   try {
     const auditDate = new Date().toISOString().split('T')[0];
 
@@ -292,7 +293,7 @@ router.post('/fairness/audit', async (req, res) => {
 });
 
 // Get fairness audits
-router.get('/fairness/audits', async (req, res) => {
+router.get('/fairness/audits', authMiddleware, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
     const offset = parseInt(req.query.offset) || 0;
@@ -319,7 +320,7 @@ router.get('/fairness/audits', async (req, res) => {
  */
 
 // Submit appeal
-router.post('/appeal', async (req, res) => {
+router.post('/appeal', authMiddleware, async (req, res) => {
   try {
     const { userId, scoreType, originalScore, appealReason } = req.body;
 
@@ -355,7 +356,7 @@ router.post('/appeal', async (req, res) => {
 });
 
 // Get user appeals
-router.get('/appeal/:userId', async (req, res) => {
+router.get('/appeal/:userId', authMiddleware, async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -379,7 +380,7 @@ router.get('/appeal/:userId', async (req, res) => {
  */
 
 // Query audit logs
-router.get('/audit/logs', async (req, res) => {
+router.get('/audit/logs', authMiddleware, async (req, res) => {
   try {
     const { userId, actionType, startDate, endDate, limit, offset } = req.query;
 
@@ -403,7 +404,7 @@ router.get('/audit/logs', async (req, res) => {
 });
 
 // Export audit logs
-router.post('/audit/export', async (req, res) => {
+router.post('/audit/export', authMiddleware, async (req, res) => {
   try {
     const { startDate, endDate, format } = req.body;
 
@@ -419,7 +420,7 @@ router.post('/audit/export', async (req, res) => {
 
     await AuditLogger.log({
       actionType: 'audit_logs_exported',
-      userId: req.session?.userId,
+      userId: req.user?.id,
       targetType: 'audit_export',
       metadata: {
         start_date: startDate,
@@ -450,7 +451,7 @@ router.post('/audit/export', async (req, res) => {
  */
 
 // Get retention policies
-router.get('/retention/policies', async (req, res) => {
+router.get('/retention/policies', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM data_retention_policies ORDER BY data_type');
 
@@ -465,7 +466,7 @@ router.get('/retention/policies', async (req, res) => {
 });
 
 // Update retention policy (admin only)
-router.put('/retention/policies/:id', async (req, res) => {
+router.put('/retention/policies/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const { retention_days, auto_delete } = req.body;
@@ -479,7 +480,7 @@ router.put('/retention/policies/:id', async (req, res) => {
 
     await AuditLogger.log({
       actionType: 'retention_policy_updated',
-      userId: req.session?.userId,
+      userId: req.user?.id,
       targetType: 'retention_policy',
       targetId: parseInt(id),
       metadata: { retention_days, auto_delete },
@@ -498,7 +499,7 @@ router.put('/retention/policies/:id', async (req, res) => {
  */
 
 // Explain OmniScore
-router.get('/explain/omniscore/:userId', async (req, res) => {
+router.get('/explain/omniscore/:userId', authMiddleware, async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -506,7 +507,7 @@ router.get('/explain/omniscore/:userId', async (req, res) => {
 
     await AuditLogger.log({
       actionType: 'score_explanation_viewed',
-      userId: req.session?.userId,
+      userId: req.user?.id,
       targetType: 'user',
       targetId: parseInt(userId),
       metadata: { explanation_type: 'omniscore' },
@@ -524,7 +525,7 @@ router.get('/explain/omniscore/:userId', async (req, res) => {
 });
 
 // Explain application decision
-router.get('/explain/decision/:applicationId', async (req, res) => {
+router.get('/explain/decision/:applicationId', authMiddleware, async (req, res) => {
   try {
     const { applicationId } = req.params;
 
@@ -532,7 +533,7 @@ router.get('/explain/decision/:applicationId', async (req, res) => {
 
     await AuditLogger.log({
       actionType: 'decision_explanation_viewed',
-      userId: req.session?.userId,
+      userId: req.user?.id,
       targetType: 'job_application',
       targetId: parseInt(applicationId),
       metadata: { explanation_type: 'decision' },

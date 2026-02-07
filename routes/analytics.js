@@ -1,13 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../lib/db');
+const { optionalAuth, authMiddleware } = require('../lib/auth');
 
 // Log an event (client-side tracking)
-router.post('/events', async (req, res) => {
+router.post('/events', optionalAuth, async (req, res) => {
   try {
     const { event_type, metadata = {} } = req.body;
-    const user_id = req.session?.userId || null;
-    const session_id = req.sessionID;
+    const user_id = req.user?.id || null;
+    const session_id = req.headers['x-session-id'] || `anon_${req.ip}`;
 
     if (!event_type) {
       return res.status(400).json({ error: 'event_type is required' });
@@ -25,8 +26,8 @@ router.post('/events', async (req, res) => {
   }
 });
 
-// Get analytics dashboard data
-router.get('/dashboard', async (req, res) => {
+// Get analytics dashboard data (authenticated recruiters only)
+router.get('/dashboard', authMiddleware, async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
 

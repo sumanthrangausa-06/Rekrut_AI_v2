@@ -112,10 +112,87 @@ function renderDocuments() {
   }).join('');
 }
 
-// View document details
-function viewDocument(docId) {
-  // In a real app, this would open a modal with verification details
-  window.location.href = `/document-details.html?id=${docId}`;
+// View document details - show modal with verification info
+async function viewDocument(docId) {
+  try {
+    const data = await apiCall(`/documents/${docId}`);
+    if (!data || !data.document) return;
+
+    const doc = data.document;
+    const icon = getDocIcon(doc.document_type);
+    const statusText = getStatusText(doc.status);
+    const statusClass = getStatusClass(doc.status);
+
+    // Remove existing modal if any
+    const existingModal = document.getElementById('doc-detail-modal');
+    if (existingModal) existingModal.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'doc-detail-modal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000;';
+    modal.innerHTML = `
+      <div style="background:var(--bg-card,#1a1a2e);border-radius:16px;padding:32px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;color:var(--text-primary,#fff);border:1px solid var(--border-color,#333);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h2 style="margin:0;font-size:20px;">${icon} Document Details</h2>
+          <button onclick="document.getElementById('doc-detail-modal').remove()" style="background:none;border:none;color:var(--text-secondary,#aaa);font-size:24px;cursor:pointer;">&times;</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div><strong>Filename:</strong> ${escapeHtml(doc.original_filename)}</div>
+          <div><strong>Type:</strong> ${formatDocType(doc.document_type)}</div>
+          <div><strong>Status:</strong> <span class="${statusClass}">${statusText}</span></div>
+          <div><strong>Uploaded:</strong> ${new Date(doc.uploaded_at || doc.created_at).toLocaleString()}</div>
+          ${doc.authenticity_score != null ? `<div><strong>Authenticity Score:</strong> ${doc.authenticity_score}/100</div>` : ''}
+          ${doc.fraud_risk ? `<div><strong>Fraud Risk:</strong> ${doc.fraud_risk}</div>` : ''}
+          ${doc.confidence_score != null ? `<div><strong>Confidence:</strong> ${doc.confidence_score}%</div>` : ''}
+          ${doc.credential_name ? `<div><strong>Credential:</strong> ${escapeHtml(doc.credential_name)}</div>` : ''}
+          ${doc.issuer ? `<div><strong>Issuer:</strong> ${escapeHtml(doc.issuer)}</div>` : ''}
+          ${doc.credential_status ? `<div><strong>Credential Status:</strong> ${doc.credential_status}</div>` : ''}
+          ${doc.is_duplicate ? `<div style="color:#f59e0b;"><strong>⚠ Duplicate detected</strong></div>` : ''}
+          ${doc.file_url ? `<div style="margin-top:8px;"><a href="${doc.file_url}" target="_blank" style="color:var(--accent-primary,#6366f1);text-decoration:none;">📎 View Original File</a></div>` : ''}
+        </div>
+        <div style="margin-top:20px;display:flex;gap:12px;justify-content:flex-end;">
+          <button onclick="deleteDocument(${doc.id})" style="padding:8px 16px;background:#ef4444;color:white;border:none;border-radius:8px;cursor:pointer;">Delete</button>
+          <button onclick="document.getElementById('doc-detail-modal').remove()" style="padding:8px 16px;background:var(--accent-primary,#6366f1);color:white;border:none;border-radius:8px;cursor:pointer;">Close</button>
+        </div>
+      </div>
+    `;
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    document.body.appendChild(modal);
+  } catch (error) {
+    console.error('Error loading document details:', error);
+    alert('Failed to load document details');
+  }
+}
+
+// Delete a document
+async function deleteDocument(docId) {
+  if (!confirm('Are you sure you want to delete this document?')) return;
+  try {
+    const token = localStorage.getItem('rekrutai_token');
+    const res = await fetch(`/api/documents/${docId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const modal = document.getElementById('doc-detail-modal');
+      if (modal) modal.remove();
+      await Promise.all([loadStats(), loadDocuments()]);
+    } else {
+      const err = await res.json();
+      alert(err.error || 'Failed to delete document');
+    }
+  } catch (error) {
+    console.error('Delete error:', error);
+    alert('Failed to delete document');
+  }
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 // Show empty state
