@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Skill Assessments - Rekrut AI</title>
+  <title>Skill Assessments - HireLoop</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -41,7 +41,22 @@
       display: flex;
       justify-content: space-between;
       align-items: start;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
+    }
+
+    .skill-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 14px;
+      font-family: var(--font-display);
+      margin-bottom: 12px;
     }
 
     .assessment-title {
@@ -57,6 +72,13 @@
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.5px;
+    }
+
+    .assessment-description {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+      line-height: 1.5;
     }
 
     .verified-badge {
@@ -87,14 +109,14 @@
     .stat-value {
       display: block;
       font-family: var(--font-display);
-      font-size: 24px;
+      font-size: 20px;
       font-weight: 600;
       color: var(--accent-primary);
     }
 
     .stat-label {
       display: block;
-      font-size: 12px;
+      font-size: 11px;
       color: var(--text-muted);
       margin-top: 4px;
     }
@@ -102,6 +124,22 @@
     .assessment-actions {
       display: flex;
       gap: 12px;
+    }
+
+    .assessment-meta {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .meta-tag {
+      background: var(--bg-secondary);
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
     }
 
     .results-section {
@@ -184,6 +222,30 @@
       font-size: 64px;
       margin-bottom: 16px;
     }
+
+    .filter-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .filter-tab {
+      padding: 8px 16px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-color);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-tab:hover, .filter-tab.active {
+      border-color: var(--accent-primary);
+      color: var(--accent-primary);
+      background: rgba(16, 185, 129, 0.05);
+    }
   </style>
 </head>
 <body>
@@ -192,7 +254,7 @@
     <aside class="sidebar">
       <a href="/" class="logo">
         <span class="logo-icon">◎</span>
-        <span>Rekrut AI</span>
+        <span>HireLoop</span>
       </a>
 
       <nav class="sidebar-nav">
@@ -212,7 +274,7 @@
           <span class="nav-icon">📝</span>
           <span>Skill Tests</span>
         </a>
-        <a href="/interview.html" class="nav-item">
+        <a href="/interview-practice.html" class="nav-item">
           <span class="nav-icon">🎤</span>
           <span>Interview Prep</span>
         </a>
@@ -257,21 +319,29 @@
       <header class="page-header">
         <div>
           <h1>Skill Assessments</h1>
-          <p>Verify your skills with AI-powered adaptive tests</p>
+          <p>Verify your skills with AI-powered adaptive tests. Earn verified badges visible to recruiters.</p>
         </div>
       </header>
+
+      <!-- Filter Tabs -->
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="filterSkills('all')">All Skills</button>
+        <button class="filter-tab" onclick="filterSkills('technical')">Technical</button>
+        <button class="filter-tab" onclick="filterSkills('analytical')">Analytical</button>
+        <button class="filter-tab" onclick="filterSkills('soft_skill')">Soft Skills</button>
+      </div>
 
       <!-- Available Assessments -->
       <section>
         <h2 style="font-family: var(--font-display); font-size: 20px; margin-bottom: 8px;">Available Tests</h2>
         <p style="color: var(--text-muted); margin-bottom: 20px;">
-          Take skill assessments to verify your expertise and boost your OmniScore
+          Choose a skill to take an AI-adaptive assessment. 10 questions, auto-scoring, results shared with recruiters.
         </p>
 
         <div class="assessment-grid" id="assessments-grid">
           <div class="empty-state">
             <div class="empty-state-icon">⏳</div>
-            <p>Loading assessments...</p>
+            <p>Loading skill catalog...</p>
           </div>
         </div>
       </section>
@@ -286,7 +356,7 @@
         <div class="results-list" id="results-list">
           <div class="empty-state">
             <div class="empty-state-icon">📊</div>
-            <p>No completed assessments yet</p>
+            <p>No completed assessments yet. Take your first test above!</p>
           </div>
         </div>
       </section>
@@ -295,7 +365,10 @@
 
   <script src="/js/auth.js"></script>
   <script>
-    // Load available assessments
+    let allSkills = [];
+    let currentFilter = 'all';
+
+    // Load available assessments from catalog
     async function loadAssessments() {
       try {
         const response = await fetch('/api/assessments/available', {
@@ -305,56 +378,84 @@
         if (!response.ok) throw new Error('Failed to load assessments');
 
         const data = await response.json();
-        const grid = document.getElementById('assessments-grid');
-
-        if (data.skills.length === 0) {
-          grid.innerHTML = `
-            <div class="empty-state">
-              <div class="empty-state-icon">📝</div>
-              <p>No skills found. Add skills to your profile to unlock assessments.</p>
-              <a href="/candidate-profile.html" class="btn btn-primary" style="margin-top: 16px;">Add Skills</a>
-            </div>
-          `;
-          return;
-        }
-
-        grid.innerHTML = data.skills.map(skill => `
-          <div class="assessment-card ${skill.is_verified ? 'verified' : ''}" onclick="startAssessment(${skill.id})">
-            <div class="assessment-header">
-              <div>
-                <div class="assessment-title">${skill.skill_name}</div>
-                <div class="assessment-category">${skill.category}</div>
-              </div>
-              ${skill.is_verified ? '<span class="verified-badge">✓ Verified</span>' : ''}
-            </div>
-
-            <div class="assessment-stats">
-              <div class="stat-item">
-                <span class="stat-value">${skill.assessment_count || 0}</span>
-                <span class="stat-label">Attempts</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-value">${skill.best_score || '-'}</span>
-                <span class="stat-label">Best Score</span>
-              </div>
-            </div>
-
-            <div class="assessment-actions">
-              <button class="btn ${skill.is_verified ? 'btn-ghost' : 'btn-primary'}" style="flex: 1;">
-                ${skill.is_verified ? '🔄 Retake' : '▶️ Start Test'}
-              </button>
-            </div>
-          </div>
-        `).join('');
+        allSkills = data.skills || [];
+        renderSkills(allSkills);
       } catch (error) {
         console.error('Error loading assessments:', error);
         document.getElementById('assessments-grid').innerHTML = `
           <div class="empty-state">
             <div class="empty-state-icon">❌</div>
-            <p>Failed to load assessments</p>
+            <p>Failed to load skill catalog. Please refresh.</p>
           </div>
         `;
       }
+    }
+
+    // Filter skills by category
+    function filterSkills(category) {
+      currentFilter = category;
+      document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
+      event.target.classList.add('active');
+
+      if (category === 'all') {
+        renderSkills(allSkills);
+      } else {
+        renderSkills(allSkills.filter(s => s.category === category));
+      }
+    }
+
+    // Render skill cards
+    function renderSkills(skills) {
+      const grid = document.getElementById('assessments-grid');
+
+      if (skills.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">📝</div>
+            <p>No skills in this category.</p>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = skills.map(skill => `
+        <div class="assessment-card ${skill.is_verified ? 'verified' : ''}" onclick="startAssessment('${skill.catalog_name.replace(/'/g, "\\'")}', '${skill.category}')">
+          <div class="assessment-header">
+            <div class="skill-icon">${skill.icon}</div>
+            ${skill.is_verified ? '<span class="verified-badge">✓ Verified</span>' : ''}
+          </div>
+
+          <div class="assessment-title">${skill.catalog_name}</div>
+          <div class="assessment-description">${skill.description}</div>
+
+          <div class="assessment-meta">
+            <span class="meta-tag">${skill.category.replace('_', ' ')}</span>
+            <span class="meta-tag">🎯 Adaptive</span>
+            <span class="meta-tag">⏱️ 10 questions</span>
+          </div>
+
+          <div class="assessment-stats">
+            <div class="stat-item">
+              <span class="stat-value">${skill.assessment_count || 0}</span>
+              <span class="stat-label">Attempts</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">${skill.best_score != null ? skill.best_score : '—'}</span>
+              <span class="stat-label">Best Score</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">${skill.verified_score != null ? skill.verified_score + '%' : '—'}</span>
+              <span class="stat-label">Verified</span>
+            </div>
+          </div>
+
+          <div class="assessment-actions">
+            <button class="btn ${skill.is_verified ? 'btn-ghost' : 'btn-primary'}" style="flex: 1;">
+              ${skill.is_verified ? '🔄 Retake Test' : '▶️ Start Test'}
+            </button>
+          </div>
+        </div>
+      `).join('');
     }
 
     // Load past results
@@ -369,11 +470,11 @@
         const data = await response.json();
         const list = document.getElementById('results-list');
 
-        if (data.results.length === 0) {
+        if (!data.results || data.results.length === 0) {
           list.innerHTML = `
             <div class="empty-state">
               <div class="empty-state-icon">📊</div>
-              <p>No completed assessments yet</p>
+              <p>No completed assessments yet. Take your first test above!</p>
             </div>
           `;
           return;
@@ -381,22 +482,22 @@
 
         list.innerHTML = data.results.map(result => {
           const date = new Date(result.completed_at);
-          const hasWarnings = result.tab_switches > 0 || result.copy_paste_attempts > 0;
+          const hasWarnings = (result.tab_switches || 0) > 0 || (result.copy_paste_attempts || 0) > 0;
 
           return `
             <div class="result-item">
               <div class="result-score">${result.score}</div>
               <div class="result-info">
-                <div class="result-title">${result.skill_name}</div>
+                <div class="result-title">${result.skill_name || result.title || 'Assessment'}</div>
                 <div class="result-meta">
-                  Completed ${date.toLocaleDateString()} • Difficulty: ${result.max_difficulty_reached || 2}/5
+                  Completed ${date.toLocaleDateString()} • Max Difficulty: ${result.max_difficulty_reached || 2}/5
                 </div>
                 <div class="result-badges">
-                  <span class="badge ${result.passed ? 'passed' : ''}">${result.passed ? '✓ Passed' : '✗ Failed'}</span>
+                  <span class="badge ${result.passed ? 'passed' : ''}">${result.passed ? '✓ Passed' : '✗ Not Passed'}</span>
                   ${hasWarnings ? '<span class="badge warning">⚠️ Behavioral flags</span>' : '<span class="badge">✓ Clean attempt</span>'}
                 </div>
               </div>
-              <a href="/assessment-results.html?id=${result.id}" class="btn btn-ghost">View Details</a>
+              <a href="/assessment-results.html?session=${result.session_id}" class="btn btn-ghost">View Details</a>
             </div>
           `;
         }).join('');
@@ -405,9 +506,10 @@
       }
     }
 
-    // Start assessment
-    function startAssessment(skillId) {
-      localStorage.setItem('assessment_skill_id', skillId);
+    // Start assessment - now passes skill name + category
+    function startAssessment(skillName, category) {
+      localStorage.setItem('assessment_skill_name', skillName);
+      localStorage.setItem('assessment_skill_category', category);
       window.location.href = '/assessment-take.html';
     }
 
