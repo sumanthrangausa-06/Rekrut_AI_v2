@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Explore current onboarding codebase (pages, routes, DB schema)",
+    "status": "completed",
+    "activeForm": "Exploring current onboarding codebase"
+  },
+  {
+    "content": "Fix bugs in wizard flow (data linkage, company_id, edge cases)",
+    "status": "completed",
+    "activeForm": "Fixing bugs in wizard flow"
+  },
+  {
+    "content": "Verify E2E: candidate wizard → document generation → HR visibility",
+    "status": "completed",
+    "activeForm": "Verifying E2E flow"
+  },
+  {
+    "content": "Polish recruiter dashboard and fix edge cases",
+    "status": "completed",
+    "activeForm": "Polishing recruiter dashboard"
+  },
+  {
+    "content": "Deploy final changes and verify production",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying production"
+  }
+]
