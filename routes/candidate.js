@@ -22,7 +22,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 router.get('/profile', authMiddleware, async (req, res) => {
   try {
     const profile = await pool.query(`
-      SELECT cp.*, u.name, u.email, u.avatar_url, u.github_username
+      SELECT cp.*, u.name, u.email, u.avatar_url
       FROM users u
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
       WHERE u.id = $1
@@ -225,22 +225,55 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
       ON CONFLICT (user_id) DO UPDATE SET resume_url = $2, updated_at = NOW()
     `, [req.user.id, uploadResult.file.url]);
 
-    // Parse the resume text (convert buffer to text for now - in production would use OCR)
-    const resumeText = req.file.buffer.toString('utf-8');
+    // Try to extract text from the resume buffer
+    // For PDFs/DOCX, binary-to-string won't produce useful text
+    // We attempt extraction but gracefully handle failure
+    let parsedData = null;
+    try {
+      const resumeText = req.file.buffer.toString('utf-8');
 
-    // Get user's subscription for tracking
-    const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [req.user.id]);
-    const subscriptionId = user.rows[0]?.stripe_subscription_id;
+      // Check if the extracted text looks like actual text (not binary garbage)
+      // PDF files start with %PDF, DOCX files are ZIP archives starting with PK
+      const isProbablyText = resumeText.length > 0
+        && !resumeText.startsWith('%PDF')
+        && !resumeText.startsWith('PK')
+        && /[a-zA-Z]{3,}/.test(resumeText.substring(0, 500));
 
-    // Parse with AI
-    const parsedData = await parseResume(resumeText, { subscriptionId });
+      if (isProbablyText && resumeText.trim().length > 50) {
+        // Get user's subscription for tracking
+        const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [req.user.id]);
+        const subscriptionId = user.rows[0]?.stripe_subscription_id;
 
-    // Update the record with parsed data
-    await pool.query(`
-      UPDATE parsed_resumes
-      SET parsed_data = $1, parsing_status = 'completed', parsed_at = NOW()
-      WHERE id = $2
-    `, [JSON.stringify(parsedData), resumeRecord.rows[0].id]);
+        // Parse with AI, with a 30-second timeout
+        const parsePromise = parseResume(resumeText.substring(0, 15000), { subscriptionId });
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('AI parsing timeout')), 30000)
+        );
+
+        parsedData = await Promise.race([parsePromise, timeoutPromise]);
+
+        // Update the record with parsed data
+        await pool.query(`
+          UPDATE parsed_resumes
+          SET parsed_data = $1, parsing_status = 'completed', parsed_at = NOW()
+          WHERE id = $2
+        `, [JSON.stringify(parsedData), resumeRecord.rows[0].id]);
+      } else {
+        console.log('Resume appears to be binary format (PDF/DOCX) - skipping text parsing');
+        await pool.query(`
+          UPDATE parsed_resumes
+          SET parsing_status = 'uploaded', parsed_at = NOW()
+          WHERE id = $1
+        `, [resumeRecord.rows[0].id]);
+      }
+    } catch (parseErr) {
+      console.error('Resume parsing failed (non-fatal):', parseErr.message);
+      await pool.query(`
+        UPDATE parsed_resumes
+        SET parsing_status = 'failed', parsed_at = NOW()
+        WHERE id = $1
+      `, [resumeRecord.rows[0].id]);
+    }
 
     res.json({
       success: true,
@@ -250,7 +283,7 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
     });
   } catch (err) {
     console.error('Resume upload error:', err);
-    res.status(500).json({ error: 'Failed to upload and parse resume' });
+    res.status(500).json({ error: 'Failed to upload resume' });
   }
 });
 

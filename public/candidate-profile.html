@@ -1064,9 +1064,12 @@
       formData.append('photo', file);
 
       try {
+        const token = localStorage.getItem('rekrutai_token');
         const response = await fetch('/api/candidate/profile/photo', {
           method: 'POST',
-          credentials: 'include',
+          headers: {
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          },
           body: formData
         });
         const data = await response.json();
@@ -1074,6 +1077,8 @@
           document.getElementById('photo-preview').innerHTML = `
             <img src="${data.photo_url}" alt="Profile photo">
           `;
+        } else {
+          alert(data.error || 'Failed to upload photo');
         }
       } catch (err) {
         alert('Failed to upload photo');
@@ -1085,6 +1090,12 @@
       const file = e.target.files[0];
       if (!file) return;
 
+      // Validate file size (10MB max)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File too large. Maximum size is 10MB.');
+        return;
+      }
+
       const formData = new FormData();
       formData.append('resume', file);
 
@@ -1094,18 +1105,27 @@
       `;
 
       try {
+        const token = localStorage.getItem('rekrutai_token');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+
         const response = await fetch('/api/candidate/resume/upload', {
           method: 'POST',
-          credentials: 'include',
-          body: formData
+          headers: {
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          },
+          body: formData,
+          signal: controller.signal
         });
+        clearTimeout(timeoutId);
+
         const data = await response.json();
 
         if (data.success) {
           document.getElementById('resume-dropzone').innerHTML = `
             <div class="upload-icon">✅</div>
             <h3>Resume Uploaded!</h3>
-            <p>AI has parsed your resume</p>
+            <p>${data.parsed_data ? 'AI has parsed your resume' : 'Resume saved to your profile'}</p>
             <input type="file" id="resume-input" accept=".pdf,.docx,.doc" hidden>
             <button class="btn btn-ghost" onclick="document.getElementById('resume-input').click()">Upload Different</button>
           `;
@@ -1119,12 +1139,16 @@
             parsedResumeData = data.parsed_data;
             showParsedPreview(data.parsed_data);
           }
+        } else {
+          // Server returned an error response
+          throw new Error(data.error || 'Upload failed');
         }
       } catch (err) {
+        const isTimeout = err.name === 'AbortError';
         document.getElementById('resume-dropzone').innerHTML = `
           <div class="upload-icon">❌</div>
-          <h3>Upload Failed</h3>
-          <p>Please try again</p>
+          <h3>${isTimeout ? 'Upload Timed Out' : 'Upload Failed'}</h3>
+          <p>${isTimeout ? 'The server took too long. Please try again.' : (err.message || 'Please try again')}</p>
           <input type="file" id="resume-input" accept=".pdf,.docx,.doc" hidden>
           <button class="btn btn-primary" onclick="document.getElementById('resume-input').click()">Try Again</button>
         `;
