@@ -5,14 +5,14 @@
     "activeForm": "Exploring codebase structure"
   },
   {
+    "content": "Fix Skills Test/Assessments with real scoring",
+    "status": "completed",
+    "activeForm": "Building Skills Test backend"
+  },
+  {
     "content": "Fix AI Interview Coach with real AI feedback",
     "status": "in_progress",
     "activeForm": "Building AI Interview Coach backend"
-  },
-  {
-    "content": "Fix Skills Test/Assessments with real scoring",
-    "status": "pending",
-    "activeForm": "Building Skills Test backend"
   },
   {
     "content": "Implement Application Pre-screening Questions",

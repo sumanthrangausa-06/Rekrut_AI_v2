@@ -1,4 +1,4 @@
-// Rekrut AI Main JavaScript
+// HireLoop Main JavaScript
 
 // Auth state
 let currentUser = null;
