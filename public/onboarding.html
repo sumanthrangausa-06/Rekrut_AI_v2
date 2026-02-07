@@ -3,101 +3,603 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Onboarding - Rekrut AI</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <title>Onboarding - HireLoop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <style>
+    .wizard-container {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    /* Step indicator */
+    .step-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 36px;
+      position: relative;
+    }
+
+    .step-dot-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      z-index: 2;
+    }
+
+    .step-dot {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 14px;
+      border: 2px solid var(--border-color);
+      background: var(--card-bg);
+      color: var(--text-muted);
+      transition: all 0.3s ease;
+    }
+
+    .step-dot.active {
+      border-color: #6366f1;
+      background: #6366f1;
+      color: white;
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+    }
+
+    .step-dot.completed {
+      border-color: #10b981;
+      background: #10b981;
+      color: white;
+    }
+
+    .step-label {
+      font-size: 11px;
+      margin-top: 6px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .step-dot-wrapper.active .step-label {
+      color: #6366f1;
+      font-weight: 600;
+    }
+
+    .step-dot-wrapper.completed .step-label {
+      color: #10b981;
+    }
+
+    .step-connector {
+      width: 60px;
+      height: 2px;
+      background: var(--border-color);
+      margin: 0 4px;
+      margin-bottom: 22px;
+      transition: background 0.3s;
+    }
+
+    .step-connector.completed {
+      background: #10b981;
+    }
+
+    /* Form styles */
+    .wizard-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 24px;
+    }
+
+    .wizard-card h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: var(--text-primary);
+    }
+
+    .wizard-card .subtitle {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .form-row.three-col {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .form-group.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .form-group label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .form-group label .required {
+      color: #ef4444;
+    }
+
+    .form-group input,
+    .form-group select {
+      padding: 10px 14px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 14px;
+      background: var(--input-bg);
+      color: var(--text-primary);
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    .form-group input.error {
+      border-color: #ef4444;
+    }
+
+    .error-text {
+      color: #ef4444;
+      font-size: 12px;
+      display: none;
+    }
+
+    .wizard-nav {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .btn {
+      padding: 12px 28px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #6366f1;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #4f46e5;
+    }
+
+    .btn-primary:disabled {
+      background: #6366f1;
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: var(--input-bg);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--border-color);
+    }
+
+    .btn-success {
+      background: #10b981;
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #059669;
+    }
+
+    /* Offer info banner */
+    .offer-banner {
+      background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(16,185,129,0.1));
+      border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 28px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .offer-banner-icon {
+      font-size: 36px;
+    }
+
+    .offer-banner h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 2px;
+      color: var(--text-primary);
+    }
+
+    .offer-banner p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Document review section */
+    .document-card {
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: border-color 0.2s;
+    }
+
+    .document-card.signed {
+      border-color: #10b981;
+      background: rgba(16,185,129,0.05);
+    }
+
+    .doc-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .doc-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      background: rgba(99,102,241,0.1);
+    }
+
+    .doc-name {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+
+    .doc-status {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .doc-action {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-pending {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge-signed {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    /* Signature pad */
+    .signature-area {
+      border: 2px dashed var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      margin: 16px 0;
+      position: relative;
+    }
+
+    .signature-canvas {
+      width: 100%;
+      height: 150px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      cursor: crosshair;
+      background: white;
+    }
+
+    .signature-actions {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    /* Completion section */
+    .completion-card {
+      text-align: center;
+      padding: 48px 24px;
+    }
+
+    .completion-icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+    }
+
+    .completion-card h2 {
+      font-size: 28px;
+      color: #10b981;
+      margin-bottom: 8px;
+    }
+
+    .completion-card p {
+      color: var(--text-muted);
+      font-size: 15px;
+      max-width: 460px;
+      margin: 0 auto 24px;
+    }
+
+    .completion-docs {
+      text-align: left;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .completion-doc-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 13px;
+    }
+
+    /* No onboarding state */
+    .no-onboarding {
+      text-align: center;
+      padding: 64px 24px;
+    }
+
+    .no-onboarding-icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .no-onboarding h2 {
+      font-size: 22px;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .no-onboarding p {
+      color: var(--text-muted);
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+    /* Loading */
+    .loading-state {
+      text-align: center;
+      padding: 64px 24px;
+      color: var(--text-muted);
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border-color);
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .saving-indicator {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      background: #6366f1;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      z-index: 100;
+      display: none;
+      animation: fadeIn 0.3s;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 640px) {
+      .form-row { grid-template-columns: 1fr; }
+      .form-row.three-col { grid-template-columns: 1fr; }
+      .wizard-card { padding: 20px; }
+      .step-connector { width: 30px; }
+      .step-label { font-size: 10px; }
+    }
+  </style>
 </head>
-<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen">
-  <div class="container mx-auto px-4 py-8">
-    <div class="mb-8">
-      <h1 class="text-4xl font-bold text-white mb-2">
-        <i class="fas fa-rocket mr-3 text-purple-400"></i>
-        My Onboarding
-      </h1>
-      <p class="text-gray-300">Welcome! Complete your onboarding journey</p>
-    </div>
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <a href="/" class="logo">
+        <span class="logo-icon">◎</span>
+        <span>HireLoop</span>
+      </a>
 
-    <button onclick="location.href='candidate-dashboard.html'" class="mb-6 bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg transition">
-      <i class="fas fa-arrow-left mr-2"></i>
-      Back to Dashboard
-    </button>
+      <nav class="sidebar-nav">
+        <a href="/candidate-dashboard.html" class="nav-item">
+          <span class="nav-icon">🏠</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/candidate-profile.html" class="nav-item">
+          <span class="nav-icon">👤</span>
+          <span>My Profile</span>
+        </a>
+        <a href="/omniscore.html" class="nav-item">
+          <span class="nav-icon">🎯</span>
+          <span>OmniScore</span>
+        </a>
+        <a href="/documents.html" class="nav-item">
+          <span class="nav-icon">📄</span>
+          <span>Documents</span>
+        </a>
+        <a href="/skill-assessments.html" class="nav-item">
+          <span class="nav-icon">📝</span>
+          <span>Skill Tests</span>
+        </a>
+        <a href="/interview.html" class="nav-item">
+          <span class="nav-icon">🎤</span>
+          <span>Interview Prep</span>
+        </a>
+        <a href="/video-interview.html" class="nav-item">
+          <span class="nav-icon">🎥</span>
+          <span>Video Interview</span>
+        </a>
+        <a href="/interview-practice.html" class="nav-item">
+          <span class="nav-icon">🎯</span>
+          <span>AI Coaching</span>
+        </a>
+        <a href="/job-board.html" class="nav-item">
+          <span class="nav-icon">💼</span>
+          <span>Job Board</span>
+        </a>
+        <a href="/onboarding.html" class="nav-item active">
+          <span class="nav-icon">🚀</span>
+          <span>Onboarding</span>
+        </a>
+      </nav>
 
-    <!-- Job Offers Section -->
-    <div id="offersSection" class="mb-8">
-      <h2 class="text-2xl font-bold text-white mb-4">
-        <i class="fas fa-envelope-open-text mr-2 text-yellow-400"></i>
-        My Job Offers
-      </h2>
-      <div id="offersList" class="grid gap-6">
-        <div class="text-center py-12 text-gray-400">
-          <i class="fas fa-spinner fa-spin text-3xl mb-4"></i>
-          <p>Loading offers...</p>
+      <div class="sidebar-footer">
+        <div class="user-dropdown-container">
+          <button class="user-menu-toggle" id="user-menu-toggle">
+            <div class="user-avatar" id="user-avatar">?</div>
+            <div style="flex: 1; text-align: left;">
+              <span class="user-name" id="user-name" style="display: block; font-size: 14px; font-weight: 500;">Loading...</span>
+              <span class="user-plan" id="user-plan" style="display: block; font-size: 12px; color: var(--text-muted);">Candidate</span>
+            </div>
+          </button>
+          <div class="user-dropdown-menu" id="user-dropdown-menu">
+            <div class="dropdown-header">
+              <span class="dropdown-user-name" id="dropdown-user-name">Loading...</span>
+              <span class="dropdown-user-email" id="dropdown-user-email">user@example.com</span>
+            </div>
+            <a href="/candidate-profile.html" class="dropdown-item">My Profile</a>
+            <hr class="dropdown-divider">
+            <button class="dropdown-item" id="logout-btn" style="width: 100%; text-align: left; background: none; border: none; cursor: pointer;">Logout</button>
+          </div>
         </div>
       </div>
-    </div>
+    </aside>
 
-    <!-- AI-Automated Onboarding Section -->
-    <div id="checklistsSection" class="hidden">
-      <h2 class="text-2xl font-bold text-white mb-4">
-        <i class="fas fa-robot mr-2 text-green-400"></i>
-        Pre-Onboarding Checklist
-        <span class="text-sm font-normal text-green-400 ml-2">AI-Powered</span>
-      </h2>
-      <p class="text-gray-300 mb-6">Our AI assistant is handling your onboarding paperwork. Sit back and relax!</p>
-      <div id="checklistsList" class="grid gap-6"></div>
-    </div>
-
-    <!-- Onboarding Assistant Section -->
-    <div class="mt-8 bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
-      <h2 class="text-2xl font-bold text-white mb-4">
-        <i class="fas fa-robot mr-2 text-purple-400"></i>
-        Onboarding Assistant
-      </h2>
-      <p class="text-gray-300 mb-6">Ask me anything about your onboarding, company policies, or first day!</p>
-
-      <div id="chatMessages" class="bg-slate-800/50 rounded-lg p-4 mb-4 h-64 overflow-y-auto space-y-3">
-        <div class="text-gray-400 text-center text-sm">Start a conversation by typing a question below</div>
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="dashboard-header">
+        <div>
+          <h1>Onboarding</h1>
+          <p>Complete your pre-employment paperwork</p>
+        </div>
       </div>
 
-      <div class="flex gap-3">
-        <input
-          type="text"
-          id="chatInput"
-          placeholder="Ask a question..."
-          class="flex-1 px-4 py-3 bg-slate-700 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-purple-500"
-          onkeypress="if(event.key === 'Enter') sendMessage()"
-        >
-        <button onclick="sendMessage()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition">
-          <i class="fas fa-paper-plane"></i>
-        </button>
+      <div class="dashboard-content">
+        <!-- Saving indicator -->
+        <div class="saving-indicator" id="savingIndicator">Saving...</div>
+
+        <!-- Loading state -->
+        <div id="loadingState" class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading your onboarding...</p>
+        </div>
+
+        <!-- No onboarding state -->
+        <div id="noOnboarding" class="no-onboarding" style="display: none;">
+          <div class="no-onboarding-icon">📋</div>
+          <h2>No Onboarding Yet</h2>
+          <p>Once you accept a job offer, your onboarding wizard will appear here. Check your <a href="/onboarding.html" style="color: #6366f1;">offers</a> to get started.</p>
+          <div id="offersArea" style="margin-top: 24px;"></div>
+        </div>
+
+        <!-- Wizard content -->
+        <div id="wizardContent" class="wizard-container" style="display: none;">
+          <!-- Offer banner -->
+          <div class="offer-banner" id="offerBanner">
+            <div class="offer-banner-icon">🎉</div>
+            <div>
+              <h3 id="offerTitle">Welcome aboard!</h3>
+              <p id="offerDetail">Complete these steps to finalize your onboarding</p>
+            </div>
+          </div>
+
+          <!-- Step indicator -->
+          <div class="step-indicator" id="stepIndicator"></div>
+
+          <!-- Step content -->
+          <div id="stepContent"></div>
+        </div>
       </div>
-    </div>
+    </main>
   </div>
 
-  <!-- Offer Detail Modal -->
-  <div id="offerModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50">
-    <div class="bg-slate-800 rounded-2xl p-8 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-      <div class="flex justify-between items-center mb-6">
-        <h2 class="text-2xl font-bold text-white">Offer Letter</h2>
-        <button onclick="closeOfferModal()" class="text-gray-400 hover:text-white">
-          <i class="fas fa-times text-2xl"></i>
-        </button>
-      </div>
-
-      <div id="offerContent" class="bg-white rounded-lg p-8 mb-6 text-gray-900">
-        <!-- Offer content will be injected here -->
-      </div>
-
-      <div id="offerActions" class="flex gap-4">
-        <!-- Action buttons will be injected here -->
-      </div>
-    </div>
-  </div>
-
+  <script src="/js/main.js"></script>
   <script>
     const TOKEN_KEY = 'rekrutai_token';
-    let currentOffer = null;
-    let currentSession = null;
+    let wizardState = null;
+    let checklistData = null;
+    let documentsData = [];
+    let currentStep = 1;
+    let signatureCanvas = null;
+    let signatureCtx = null;
+    let isDrawing = false;
+    let hasSigned = false;
+
+    const STEPS = [
+      { num: 1, label: 'Personal Info' },
+      { num: 2, label: 'Emergency Contact' },
+      { num: 3, label: 'Direct Deposit' },
+      { num: 4, label: 'Review & Sign' },
+      { num: 5, label: 'Complete' }
+    ];
 
     function getToken() {
       return localStorage.getItem(TOKEN_KEY);
@@ -105,431 +607,824 @@
 
     function getAuthHeaders() {
       const token = getToken();
-      return token ? { 'Authorization': `Bearer ${token}` } : {};
+      return token ? {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      } : {};
     }
 
-    async function checkAuth() {
+    // Initialize
+    document.addEventListener('DOMContentLoaded', async () => {
       const token = getToken();
       if (!token) {
         window.location.href = '/login.html';
-        return false;
+        return;
       }
-      return true;
-    }
 
-    async function loadOffers() {
-      if (!await checkAuth()) return;
-
+      // Load user info for sidebar
       try {
-        const res = await fetch('/api/onboarding/offers/me', {
-          headers: getAuthHeaders()
+        const userRes = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          document.getElementById('user-name').textContent = userData.name || 'User';
+          document.getElementById('user-avatar').textContent = (userData.name || 'U')[0].toUpperCase();
+          if (document.getElementById('dropdown-user-name')) {
+            document.getElementById('dropdown-user-name').textContent = userData.name || 'User';
+            document.getElementById('dropdown-user-email').textContent = userData.email || '';
+          }
+        }
+      } catch(e) { /* ignore */ }
+
+      // Setup user dropdown
+      const toggle = document.getElementById('user-menu-toggle');
+      const menu = document.getElementById('user-dropdown-menu');
+      if (toggle && menu) {
+        toggle.addEventListener('click', () => menu.classList.toggle('active'));
+        document.addEventListener('click', (e) => {
+          if (!toggle.contains(e.target) && !menu.contains(e.target)) menu.classList.remove('active');
         });
+      }
+
+      const logoutBtn = document.getElementById('logout-btn');
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+          localStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem('rekrutai_refresh');
+          window.location.href = '/login.html';
+        });
+      }
+
+      await loadWizardProgress();
+    });
+
+    async function loadWizardProgress() {
+      try {
+        const res = await fetch('/api/onboarding/wizard/progress', {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+
         if (!res.ok) {
           if (res.status === 401) {
             window.location.href = '/login.html';
             return;
           }
-          throw new Error('Failed to load offers');
+          throw new Error('Failed to load progress');
         }
-        const offers = await res.json();
 
-        const offersList = document.getElementById('offersList');
+        const data = await res.json();
 
-        if (offers.length === 0) {
-          offersList.innerHTML = `
-            <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 text-center border border-white/20">
-              <i class="fas fa-inbox text-4xl text-gray-400 mb-4"></i>
-              <p class="text-gray-300">No job offers yet</p>
-            </div>
-          `;
+        document.getElementById('loadingState').style.display = 'none';
+
+        if (!data.has_onboarding) {
+          document.getElementById('noOnboarding').style.display = 'block';
+          await loadOffers();
           return;
         }
 
-        offersList.innerHTML = offers.map(offer => `
-          <div class="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-            <div class="flex justify-between items-start mb-4">
-              <div>
-                <h3 class="text-xl font-bold text-white mb-1">${offer.title}</h3>
-                <p class="text-gray-400">${offer.company_name}</p>
-              </div>
-              ${getOfferStatusBadge(offer.status)}
-            </div>
+        checklistData = data.checklist;
+        wizardState = data.wizard;
+        documentsData = data.documents || [];
 
-            <div class="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <div class="text-gray-400 text-sm">Annual Salary</div>
-                <div class="text-white font-semibold text-lg">$${parseInt(offer.salary).toLocaleString()}</div>
-              </div>
-              <div>
-                <div class="text-gray-400 text-sm">Start Date</div>
-                <div class="text-white font-semibold">${offer.start_date ? new Date(offer.start_date).toLocaleDateString() : 'TBD'}</div>
-              </div>
-            </div>
-
-            <button onclick="viewOffer(${offer.id})" class="w-full bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition">
-              <i class="fas fa-eye mr-2"></i>
-              View Full Offer
-            </button>
-          </div>
-        `).join('');
-
-        // Check if any offers accepted - show checklists
-        if (offers.some(o => o.status === 'accepted')) {
-          loadChecklists();
+        // Determine current step
+        const stepsCompleted = wizardState.steps_completed || [];
+        if (wizardState.wizard_status === 'completed') {
+          currentStep = 5;
+        } else {
+          currentStep = wizardState.current_step || 1;
         }
+
+        // Show wizard
+        document.getElementById('wizardContent').style.display = 'block';
+
+        // Set offer banner
+        document.getElementById('offerTitle').textContent =
+          `Welcome to ${checklistData.company_name || 'the team'}!`;
+        document.getElementById('offerDetail').textContent =
+          `${checklistData.offer_title || 'Position'} — Starting ${checklistData.start_date ? new Date(checklistData.start_date).toLocaleDateString() : 'soon'}`;
+
+        renderStep();
       } catch (err) {
-        console.error('Error loading offers:', err);
+        console.error('Error loading wizard:', err);
+        document.getElementById('loadingState').innerHTML =
+          '<p style="color: #ef4444;">Failed to load onboarding. Please refresh.</p>';
       }
     }
 
-    async function loadChecklists() {
-      try {
-        const res = await fetch('/api/onboarding/checklists', {
-          headers: getAuthHeaders()
-        });
-        const checklists = await res.json();
-
-        if (checklists.length === 0) return;
-
-        document.getElementById('checklistsSection').classList.remove('hidden');
-
-        const checklistsList = document.getElementById('checklistsList');
-        checklistsList.innerHTML = checklists.map(checklist => {
-          const items = checklist.items || [];
-          const completedItems = checklist.completed_items || [];
-          const progress = items.length > 0 ? (completedItems.length / items.length * 100) : 0;
-
-          // Start AI automation if not all items completed
-          if (completedItems.length < items.length) {
-            startAIAutomation(checklist.id, items, completedItems);
-          }
-
-          return `
-            <div class="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-              <div class="flex justify-between items-start mb-4">
-                <div>
-                  <h3 class="text-xl font-bold text-white mb-1">${checklist.title}</h3>
-                  <p class="text-gray-400">${checklist.description || ''}</p>
-                </div>
-                <span class="text-sm text-gray-300">${completedItems.length}/${items.length} complete</span>
-              </div>
-
-              <div class="mb-6">
-                <div class="bg-gray-700 rounded-full h-3 overflow-hidden">
-                  <div class="bg-gradient-to-r from-purple-500 to-pink-500 h-full transition-all" style="width: ${progress}%"></div>
-                </div>
-              </div>
-
-              <div class="space-y-3" id="checklist-items-${checklist.id}">
-                ${items.map(item => {
-                  const isCompleted = completedItems.includes(item.id);
-                  const isProcessing = !isCompleted && completedItems.length < items.length;
-                  const statusIcon = isCompleted ? '✅' : (isProcessing && item.id === completedItems.length + 1 ? '🤖' : '⏳');
-                  const statusText = isCompleted ? 'Completed by AI' : (isProcessing && item.id === completedItems.length + 1 ? 'AI Processing...' : 'Pending');
-                  const statusClass = isCompleted ? 'text-green-400' : (isProcessing && item.id === completedItems.length + 1 ? 'text-purple-400 animate-pulse' : 'text-gray-500');
-
-                  return `
-                    <div class="flex items-center gap-3 p-4 bg-slate-800/50 rounded-lg border ${isCompleted ? 'border-green-500/30' : 'border-transparent'}">
-                      <span class="text-2xl">${statusIcon}</span>
-                      <div class="flex-1">
-                        <span class="text-white ${isCompleted ? 'line-through text-gray-400' : ''}">${item.task}</span>
-                        <span class="block text-xs ${statusClass} mt-1">${statusText}</span>
-                      </div>
-                      ${item.required ? '<span class="text-xs text-red-400 px-2 py-1 bg-red-900/30 rounded">Required</span>' : ''}
-                    </div>
-                  `;
-                }).join('')}
-              </div>
-
-              ${progress < 100 ? `
-                <div class="mt-6 p-4 bg-purple-900/30 rounded-lg border border-purple-500/30">
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
-                      <i class="fas fa-robot text-white"></i>
-                    </div>
-                    <div>
-                      <p class="text-white font-semibold">AI is working on your paperwork</p>
-                      <p class="text-sm text-gray-300">Your forms are being automatically completed. This usually takes a few minutes.</p>
-                    </div>
-                  </div>
-                </div>
-              ` : `
-                <div class="mt-6 p-4 bg-green-900/30 rounded-lg border border-green-500/30">
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center">
-                      <i class="fas fa-check text-white"></i>
-                    </div>
-                    <div>
-                      <p class="text-white font-semibold">All paperwork complete!</p>
-                      <p class="text-sm text-gray-300">Your onboarding is ready. See you on your first day!</p>
-                    </div>
-                  </div>
-                </div>
-              `}
-            </div>
-          `;
-        }).join('');
-      } catch (err) {
-        console.error('Error loading checklists:', err);
-      }
-    }
-
-    // AI Automation simulation - auto-complete items
-    async function startAIAutomation(checklistId, items, completedItems) {
-      const nextItem = items.find(item => !completedItems.includes(item.id));
-      if (!nextItem) return;
-
-      // Simulate AI processing time (3-8 seconds per item)
-      const processingTime = 3000 + Math.random() * 5000;
-
-      setTimeout(async () => {
-        try {
-          // Complete the item via API
-          const res = await fetch(`/api/onboarding/checklists/${checklistId}/complete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-            body: JSON.stringify({ item_id: nextItem.id })
-          });
-
-          if (res.ok) {
-            // Reload checklists to show progress
-            loadChecklists();
-          }
-        } catch (err) {
-          console.error('AI automation error:', err);
-        }
-      }, processingTime);
-    }
-
-    async function viewOffer(offerId) {
+    async function loadOffers() {
       try {
         const res = await fetch('/api/onboarding/offers/me', {
-          headers: getAuthHeaders()
+          headers: { 'Authorization': `Bearer ${getToken()}` }
         });
         const offers = await res.json();
-        currentOffer = offers.find(o => o.id === offerId);
+        const pendingOffers = offers.filter(o => o.status === 'sent');
 
-        if (!currentOffer) return;
-
-        // Mark as viewed
-        await fetch(`/api/onboarding/offers/${offerId}/view`, {
-          method: 'POST',
-          headers: getAuthHeaders()
-        });
-
-        const offerContent = document.getElementById('offerContent');
-        offerContent.innerHTML = `
-          <div class="text-center mb-6">
-            <h3 class="text-2xl font-bold mb-2">${currentOffer.company_name}</h3>
-            <h4 class="text-xl text-gray-600">Offer of Employment</h4>
-          </div>
-
-          <div class="space-y-4">
-            <p>Dear ${currentOffer.candidate_name || 'Candidate'},</p>
-
-            <p>We are pleased to offer you the position of <strong>${currentOffer.title}</strong> at ${currentOffer.company_name}.</p>
-
-            <div class="bg-gray-50 p-4 rounded-lg">
-              <h5 class="font-bold mb-2">Compensation & Benefits</h5>
-              <ul class="space-y-2">
-                <li><strong>Annual Salary:</strong> $${parseInt(currentOffer.salary).toLocaleString()}</li>
-                <li><strong>Start Date:</strong> ${currentOffer.start_date ? new Date(currentOffer.start_date).toLocaleDateString() : 'To be determined'}</li>
-                ${currentOffer.benefits ? `<li><strong>Benefits:</strong> ${currentOffer.benefits}</li>` : ''}
-              </ul>
+        if (pendingOffers.length > 0) {
+          const area = document.getElementById('offersArea');
+          area.innerHTML = pendingOffers.map(o => `
+            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 12px; text-align: left;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div>
+                  <strong style="color: var(--text-primary);">${escapeHtml(o.title)}</strong>
+                  <span style="color: var(--text-muted); font-size: 13px;"> at ${escapeHtml(o.company_name)}</span>
+                </div>
+                <span class="badge badge-pending">Pending</span>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button onclick="acceptOffer(${o.id})" class="btn btn-success" style="flex:1;">Accept Offer</button>
+                <button onclick="declineOffer(${o.id})" class="btn btn-secondary" style="flex:1;">Decline</button>
+              </div>
             </div>
-
-            <p>We look forward to welcoming you to our team!</p>
-
-            <p class="text-sm text-gray-600 mt-6">
-              This offer is contingent upon successful completion of background checks and verification of eligibility to work.
-            </p>
-          </div>
-        `;
-
-        const offerActions = document.getElementById('offerActions');
-        if (currentOffer.status === 'sent') {
-          offerActions.innerHTML = `
-            <button onclick="acceptOffer()" class="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition">
-              <i class="fas fa-check mr-2"></i>
-              Accept Offer
-            </button>
-            <button onclick="showDeclineReason()" class="flex-1 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-semibold transition">
-              <i class="fas fa-times mr-2"></i>
-              Decline Offer
-            </button>
-          `;
-        } else if (currentOffer.status === 'accepted') {
-          offerActions.innerHTML = `
-            <div class="flex-1 text-center text-green-400">
-              <i class="fas fa-check-circle mr-2"></i>
-              You accepted this offer on ${new Date(currentOffer.accepted_at).toLocaleDateString()}
-            </div>
-          `;
-        } else if (currentOffer.status === 'declined') {
-          offerActions.innerHTML = `
-            <div class="flex-1 text-center text-red-400">
-              <i class="fas fa-times-circle mr-2"></i>
-              You declined this offer on ${new Date(currentOffer.declined_at).toLocaleDateString()}
-            </div>
-          `;
+          `).join('');
+          document.querySelector('.no-onboarding h2').textContent = 'You Have Pending Offers';
+          document.querySelector('.no-onboarding p').textContent = 'Accept an offer below to start your onboarding.';
         }
-
-        document.getElementById('offerModal').classList.remove('hidden');
-        document.getElementById('offerModal').classList.add('flex');
-      } catch (err) {
-        console.error('Error viewing offer:', err);
+      } catch(e) {
+        console.error('Error loading offers:', e);
       }
     }
 
-    async function acceptOffer() {
+    async function acceptOffer(offerId) {
       if (!confirm('Accept this job offer?')) return;
-
       try {
-        const res = await fetch(`/api/onboarding/offers/${currentOffer.id}/accept`, {
+        const res = await fetch(`/api/onboarding/offers/${offerId}/accept`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-          body: JSON.stringify({ signature_url: 'digital_signature_placeholder' })
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ signature_url: 'digital_acceptance' })
         });
-
-        if (!res.ok) throw new Error('Failed to accept offer');
-
-        alert('Congratulations! Offer accepted successfully.');
-        closeOfferModal();
-        loadOffers();
-      } catch (err) {
-        console.error('Error accepting offer:', err);
+        if (!res.ok) throw new Error('Failed to accept');
+        window.location.reload();
+      } catch(e) {
         alert('Failed to accept offer. Please try again.');
       }
     }
 
-    function showDeclineReason() {
-      const reason = prompt('Please tell us why you are declining this offer (optional):');
-      if (reason !== null) {
-        declineOffer(reason);
-      }
-    }
-
-    async function declineOffer(reason) {
+    async function declineOffer(offerId) {
+      const reason = prompt('Why are you declining? (optional)');
+      if (reason === null) return;
       try {
-        const res = await fetch(`/api/onboarding/offers/${currentOffer.id}/decline`, {
+        await fetch(`/api/onboarding/offers/${offerId}/decline`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          headers: getAuthHeaders(),
           body: JSON.stringify({ reason })
         });
-
-        if (!res.ok) throw new Error('Failed to decline offer');
-
-        alert('Offer declined.');
-        closeOfferModal();
-        loadOffers();
-      } catch (err) {
-        console.error('Error declining offer:', err);
-        alert('Failed to decline offer. Please try again.');
+        window.location.reload();
+      } catch(e) {
+        alert('Failed to decline offer.');
       }
     }
 
-    async function toggleChecklistItem(checklistId, itemId) {
-      try {
-        const res = await fetch(`/api/onboarding/checklists/${checklistId}/complete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-          body: JSON.stringify({ item_id: itemId })
-        });
+    function renderStep() {
+      renderStepIndicator();
+      const container = document.getElementById('stepContent');
 
-        if (!res.ok) throw new Error('Failed to update checklist');
+      switch (currentStep) {
+        case 1: container.innerHTML = renderStep1(); break;
+        case 2: container.innerHTML = renderStep2(); break;
+        case 3: container.innerHTML = renderStep3(); break;
+        case 4: container.innerHTML = renderStep4(); break;
+        case 5: container.innerHTML = renderStep5(); break;
+      }
 
-        loadChecklists();
-      } catch (err) {
-        console.error('Error updating checklist:', err);
+      if (currentStep === 4) {
+        initSignatureCanvas();
       }
     }
 
-    async function sendMessage() {
-      const input = document.getElementById('chatInput');
-      const message = input.value.trim();
-      if (!message) return;
+    function renderStepIndicator() {
+      const stepsCompleted = wizardState ? (wizardState.steps_completed || []) : [];
+      const indicator = document.getElementById('stepIndicator');
+      indicator.innerHTML = STEPS.map((s, i) => {
+        const isCompleted = stepsCompleted.includes(String(s.num)) || stepsCompleted.includes(s.num) || s.num < currentStep;
+        const isActive = s.num === currentStep;
+        const dotClass = isCompleted && !isActive ? 'completed' : (isActive ? 'active' : '');
+        const wrapperClass = isCompleted && !isActive ? 'completed' : (isActive ? 'active' : '');
+        const connector = i < STEPS.length - 1
+          ? `<div class="step-connector ${isCompleted ? 'completed' : ''}"></div>`
+          : '';
+        return `
+          <div class="step-dot-wrapper ${wrapperClass}">
+            <div class="step-dot ${dotClass}">
+              ${isCompleted && !isActive ? '✓' : s.num}
+            </div>
+            <span class="step-label">${s.label}</span>
+          </div>
+          ${connector}
+        `;
+      }).join('');
+    }
 
-      const messagesDiv = document.getElementById('chatMessages');
+    // ====== STEP 1: Personal Information ======
+    function renderStep1() {
+      const w = wizardState || {};
+      return `
+        <div class="wizard-card">
+          <h2>Personal Information</h2>
+          <p class="subtitle">We need your legal name and address for employment documents.</p>
 
-      // Remove welcome message if present
-      if (messagesDiv.querySelector('.text-center')) {
-        messagesDiv.innerHTML = '';
-      }
+          <div class="form-row">
+            <div class="form-group">
+              <label>First Name <span class="required">*</span></label>
+              <input type="text" id="f_first" value="${escapeHtml(w.legal_first_name || '')}" placeholder="Legal first name" required>
+            </div>
+            <div class="form-group">
+              <label>Middle Name</label>
+              <input type="text" id="f_middle" value="${escapeHtml(w.legal_middle_name || '')}" placeholder="Optional">
+            </div>
+          </div>
 
-      // Add user message
-      messagesDiv.innerHTML += `
-        <div class="flex justify-end">
-          <div class="bg-purple-600 text-white rounded-lg px-4 py-2 max-w-xs">
-            ${message}
+          <div class="form-row">
+            <div class="form-group">
+              <label>Last Name <span class="required">*</span></label>
+              <input type="text" id="f_last" value="${escapeHtml(w.legal_last_name || '')}" placeholder="Legal last name" required>
+            </div>
+            <div class="form-group">
+              <label>Date of Birth <span class="required">*</span></label>
+              <input type="date" id="f_dob" value="${w.date_of_birth ? w.date_of_birth.split('T')[0] : ''}" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Social Security Number <span class="required">*</span></label>
+              <input type="password" id="f_ssn" placeholder="XXX-XX-XXXX" maxlength="11" autocomplete="off">
+              <span style="font-size: 11px; color: var(--text-muted);">Encrypted & secured. Required for tax forms.</span>
+            </div>
+            <div class="form-group">
+              <label>Phone <span class="required">*</span></label>
+              <input type="tel" id="f_phone" value="${escapeHtml(w.phone || '')}" placeholder="(555) 123-4567">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Address Line 1 <span class="required">*</span></label>
+            <input type="text" id="f_addr1" value="${escapeHtml(w.address_line1 || '')}" placeholder="Street address">
+          </div>
+
+          <div class="form-group">
+            <label>Address Line 2</label>
+            <input type="text" id="f_addr2" value="${escapeHtml(w.address_line2 || '')}" placeholder="Apt, suite, unit (optional)">
+          </div>
+
+          <div class="form-row three-col">
+            <div class="form-group">
+              <label>City <span class="required">*</span></label>
+              <input type="text" id="f_city" value="${escapeHtml(w.city || '')}" placeholder="City">
+            </div>
+            <div class="form-group">
+              <label>State <span class="required">*</span></label>
+              <select id="f_state">
+                <option value="">Select...</option>
+                ${US_STATES.map(s => `<option value="${s}" ${w.state === s ? 'selected' : ''}>${s}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>ZIP Code <span class="required">*</span></label>
+              <input type="text" id="f_zip" value="${escapeHtml(w.zip_code || '')}" placeholder="12345" maxlength="10">
+            </div>
+          </div>
+
+          <div class="wizard-nav">
+            <div></div>
+            <button class="btn btn-primary" onclick="saveStep1()">
+              Continue →
+            </button>
           </div>
         </div>
       `;
-
-      input.value = '';
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
-      // Show loading
-      messagesDiv.innerHTML += `
-        <div class="flex justify-start">
-          <div class="bg-slate-700 text-gray-300 rounded-lg px-4 py-2">
-            <i class="fas fa-spinner fa-spin mr-2"></i>Thinking...
-          </div>
-        </div>
-      `;
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
-      try {
-        const res = await fetch('/api/onboarding/assistant/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-          body: JSON.stringify({ message, checklist_id: null })
-        });
-
-        const data = await res.json();
-        currentSession = data.session_id;
-
-        // Remove loading
-        const loadingMsg = messagesDiv.querySelector('.fa-spinner').parentElement.parentElement;
-        loadingMsg.remove();
-
-        // Add AI response
-        messagesDiv.innerHTML += `
-          <div class="flex justify-start">
-            <div class="bg-slate-700 text-white rounded-lg px-4 py-2 max-w-md">
-              ${data.response}
-            </div>
-          </div>
-        `;
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-      } catch (err) {
-        console.error('Error sending message:', err);
-        messagesDiv.querySelector('.fa-spinner').parentElement.parentElement.remove();
-        messagesDiv.innerHTML += `
-          <div class="flex justify-start">
-            <div class="bg-red-600 text-white rounded-lg px-4 py-2">
-              Sorry, I'm having trouble connecting. Please try again.
-            </div>
-          </div>
-        `;
-      }
     }
 
-    function closeOfferModal() {
-      document.getElementById('offerModal').classList.add('hidden');
-      document.getElementById('offerModal').classList.remove('flex');
-    }
-
-    function getOfferStatusBadge(status) {
-      const badges = {
-        draft: '<span class="px-3 py-1 bg-gray-600 text-white text-xs rounded-full">Draft</span>',
-        sent: '<span class="px-3 py-1 bg-yellow-600 text-white text-xs rounded-full">Pending Response</span>',
-        accepted: '<span class="px-3 py-1 bg-green-600 text-white text-xs rounded-full">Accepted</span>',
-        declined: '<span class="px-3 py-1 bg-red-600 text-white text-xs rounded-full">Declined</span>'
+    async function saveStep1() {
+      const fields = {
+        legal_first_name: document.getElementById('f_first').value.trim(),
+        legal_last_name: document.getElementById('f_last').value.trim(),
+        legal_middle_name: document.getElementById('f_middle').value.trim(),
+        date_of_birth: document.getElementById('f_dob').value,
+        ssn: document.getElementById('f_ssn').value.replace(/[^0-9]/g, ''),
+        phone: document.getElementById('f_phone').value.trim(),
+        address_line1: document.getElementById('f_addr1').value.trim(),
+        address_line2: document.getElementById('f_addr2').value.trim(),
+        city: document.getElementById('f_city').value.trim(),
+        state: document.getElementById('f_state').value,
+        zip_code: document.getElementById('f_zip').value.trim()
       };
-      return badges[status] || badges.draft;
+
+      // Validation
+      if (!fields.legal_first_name || !fields.legal_last_name || !fields.date_of_birth ||
+          !fields.phone || !fields.address_line1 || !fields.city || !fields.state || !fields.zip_code) {
+        alert('Please fill in all required fields.');
+        return;
+      }
+
+      if (!fields.ssn || fields.ssn.length < 9) {
+        alert('Please enter a valid 9-digit SSN.');
+        return;
+      }
+
+      await saveWizardStep(1, fields);
     }
 
-    loadOffers();
+    // ====== STEP 2: Emergency Contact ======
+    function renderStep2() {
+      const w = wizardState || {};
+      return `
+        <div class="wizard-card">
+          <h2>Emergency Contact</h2>
+          <p class="subtitle">In case of an emergency at work, who should we contact?</p>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Contact Name <span class="required">*</span></label>
+              <input type="text" id="f_ec_name" value="${escapeHtml(w.emergency_contact_name || '')}" placeholder="Full name">
+            </div>
+            <div class="form-group">
+              <label>Relationship <span class="required">*</span></label>
+              <select id="f_ec_rel">
+                <option value="">Select...</option>
+                ${['Spouse', 'Parent', 'Sibling', 'Child', 'Friend', 'Other'].map(r =>
+                  `<option value="${r}" ${w.emergency_contact_relationship === r ? 'selected' : ''}>${r}</option>`
+                ).join('')}
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Phone Number <span class="required">*</span></label>
+              <input type="tel" id="f_ec_phone" value="${escapeHtml(w.emergency_contact_phone || '')}" placeholder="(555) 123-4567">
+            </div>
+            <div class="form-group">
+              <label>Email</label>
+              <input type="email" id="f_ec_email" value="${escapeHtml(w.emergency_contact_email || '')}" placeholder="Optional">
+            </div>
+          </div>
+
+          <div class="wizard-nav">
+            <button class="btn btn-secondary" onclick="goToStep(1)">← Back</button>
+            <button class="btn btn-primary" onclick="saveStep2()">Continue →</button>
+          </div>
+        </div>
+      `;
+    }
+
+    async function saveStep2() {
+      const fields = {
+        emergency_contact_name: document.getElementById('f_ec_name').value.trim(),
+        emergency_contact_relationship: document.getElementById('f_ec_rel').value,
+        emergency_contact_phone: document.getElementById('f_ec_phone').value.trim(),
+        emergency_contact_email: document.getElementById('f_ec_email').value.trim()
+      };
+
+      if (!fields.emergency_contact_name || !fields.emergency_contact_relationship || !fields.emergency_contact_phone) {
+        alert('Please fill in all required fields.');
+        return;
+      }
+
+      await saveWizardStep(2, fields);
+    }
+
+    // ====== STEP 3: Direct Deposit ======
+    function renderStep3() {
+      const w = wizardState || {};
+      return `
+        <div class="wizard-card">
+          <h2>Direct Deposit</h2>
+          <p class="subtitle">Set up your bank account for payroll deposits.</p>
+
+          <div class="form-group">
+            <label>Bank Name <span class="required">*</span></label>
+            <input type="text" id="f_bank" value="${escapeHtml(w.bank_name || '')}" placeholder="e.g. Chase, Wells Fargo, Bank of America">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Routing Number <span class="required">*</span></label>
+              <input type="password" id="f_routing" placeholder="9-digit routing number" maxlength="9" autocomplete="off">
+              <span style="font-size: 11px; color: var(--text-muted);">Found at the bottom of your checks</span>
+            </div>
+            <div class="form-group">
+              <label>Account Number <span class="required">*</span></label>
+              <input type="password" id="f_account" placeholder="Account number" autocomplete="off">
+              <span style="font-size: 11px; color: var(--text-muted);">Encrypted & secured</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Account Type <span class="required">*</span></label>
+            <select id="f_acct_type">
+              <option value="">Select...</option>
+              <option value="checking" ${w.account_type === 'checking' ? 'selected' : ''}>Checking</option>
+              <option value="savings" ${w.account_type === 'savings' ? 'selected' : ''}>Savings</option>
+            </select>
+          </div>
+
+          <div class="wizard-nav">
+            <button class="btn btn-secondary" onclick="goToStep(2)">← Back</button>
+            <button class="btn btn-primary" onclick="saveStep3()">Continue →</button>
+          </div>
+        </div>
+      `;
+    }
+
+    async function saveStep3() {
+      const fields = {
+        bank_name: document.getElementById('f_bank').value.trim(),
+        routing_number: document.getElementById('f_routing').value.replace(/[^0-9]/g, ''),
+        account_number: document.getElementById('f_account').value.trim(),
+        account_type: document.getElementById('f_acct_type').value
+      };
+
+      if (!fields.bank_name || !fields.routing_number || !fields.account_number || !fields.account_type) {
+        alert('Please fill in all required fields.');
+        return;
+      }
+
+      if (fields.routing_number.length !== 9) {
+        alert('Routing number must be 9 digits.');
+        return;
+      }
+
+      await saveWizardStep(3, fields);
+    }
+
+    // ====== STEP 4: Review & Sign ======
+    function renderStep4() {
+      const docs = documentsData || [];
+      const allSigned = docs.length > 0 && docs.every(d => d.signed_at);
+
+      return `
+        <div class="wizard-card">
+          <h2>Review & Sign Documents</h2>
+          <p class="subtitle">Review your generated documents and sign them electronically.</p>
+
+          ${docs.length === 0 ? `
+            <div style="text-align: center; padding: 24px;">
+              <div class="spinner"></div>
+              <p style="color: var(--text-muted);">Generating your documents...</p>
+            </div>
+          ` : `
+            <div style="margin-bottom: 24px;">
+              ${docs.map(doc => `
+                <div class="document-card ${doc.signed_at ? 'signed' : ''}">
+                  <div class="doc-info">
+                    <div class="doc-icon">${getDocIcon(doc.document_type)}</div>
+                    <div>
+                      <div class="doc-name">${escapeHtml(doc.document_type)}</div>
+                      <div class="doc-status">
+                        ${doc.signed_at
+                          ? `Signed ${new Date(doc.signed_at).toLocaleString()}`
+                          : 'Awaiting signature'}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="doc-action">
+                    ${doc.signed_at
+                      ? '<span class="badge badge-signed">✓ Signed</span>'
+                      : '<span class="badge badge-pending">Pending</span>'}
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="previewDocument(${doc.id})">Preview</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+
+            ${!allSigned ? `
+              <div class="signature-area">
+                <p style="font-weight: 600; margin-bottom: 8px; color: var(--text-primary);">Sign Below</p>
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+                  Draw your signature to sign all documents. Your IP address and timestamp will be recorded.
+                </p>
+                <canvas id="signatureCanvas" class="signature-canvas"></canvas>
+                <div class="signature-actions">
+                  <button class="btn btn-secondary" style="padding: 6px 16px; font-size: 13px;" onclick="clearSignature()">Clear</button>
+                  <button class="btn btn-primary" style="padding: 6px 16px; font-size: 13px;" onclick="typeSignature()">Type Instead</button>
+                </div>
+              </div>
+
+              <div class="wizard-nav">
+                <button class="btn btn-secondary" onclick="goToStep(3)">← Back</button>
+                <button class="btn btn-success" id="signAllBtn" onclick="signAllDocuments()" ${!hasSigned ? 'disabled' : ''}>
+                  ✍️ Sign All Documents
+                </button>
+              </div>
+            ` : `
+              <div style="text-align: center; padding: 16px; background: rgba(16,185,129,0.1); border-radius: 12px; border: 1px solid rgba(16,185,129,0.3);">
+                <p style="color: #10b981; font-weight: 600;">✅ All documents signed!</p>
+              </div>
+              <div class="wizard-nav">
+                <div></div>
+                <button class="btn btn-success" onclick="completeOnboarding()">Complete Onboarding →</button>
+              </div>
+            `}
+          `}
+        </div>
+      `;
+    }
+
+    function getDocIcon(type) {
+      if (type.includes('I-9')) return '📋';
+      if (type.includes('W-4')) return '📊';
+      if (type.includes('Direct Deposit')) return '🏦';
+      if (type.includes('Handbook')) return '📖';
+      return '📄';
+    }
+
+    function previewDocument(docId) {
+      const doc = documentsData.find(d => d.id === docId);
+      if (!doc) return;
+
+      const content = doc.document_content || {};
+      let html = `
+        <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center;" onclick="if(event.target===this) this.remove()">
+          <div style="background: white; border-radius: 16px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; padding: 32px; color: #111;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+              <h2 style="font-size: 20px; font-weight: 700;">${escapeHtml(doc.document_type)}</h2>
+              <button onclick="this.closest('[style*=fixed]').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+            </div>
+            <div style="font-size: 14px; line-height: 1.6;">
+      `;
+
+      if (content.form_type === 'I-9') {
+        html += `
+          <p style="font-weight: 600; text-align: center; margin-bottom: 16px;">Employment Eligibility Verification<br>Department of Homeland Security<br>U.S. Citizenship and Immigration Services</p>
+          <hr style="margin: 16px 0;">
+          <p><strong>Employee Name:</strong> ${escapeHtml(content.employee_name || '')}</p>
+          <p><strong>Date of Birth:</strong> ${content.date_of_birth ? new Date(content.date_of_birth).toLocaleDateString() : ''}</p>
+          <p><strong>Address:</strong> ${escapeHtml(content.address || '')}, ${escapeHtml(content.city || '')}, ${escapeHtml(content.state || '')} ${escapeHtml(content.zip || '')}</p>
+          <p><strong>SSN:</strong> ${content.ssn_last_four}</p>
+          <p><strong>Employer:</strong> ${escapeHtml(content.company || '')}</p>
+          <p style="margin-top: 16px; font-size: 12px; color: #666;">Generated: ${new Date(content.generated_at).toLocaleString()}</p>
+        `;
+      } else if (content.form_type === 'W-4') {
+        html += `
+          <p style="font-weight: 600; text-align: center; margin-bottom: 16px;">Employee's Withholding Certificate<br>Department of the Treasury<br>Internal Revenue Service</p>
+          <hr style="margin: 16px 0;">
+          <p><strong>Employee Name:</strong> ${escapeHtml(content.employee_name || '')}</p>
+          <p><strong>SSN:</strong> ${content.ssn_last_four}</p>
+          <p><strong>Address:</strong> ${escapeHtml(content.address || '')}</p>
+          <p><strong>City, State, ZIP:</strong> ${escapeHtml(content.city_state_zip || '')}</p>
+          <p><strong>Filing Status:</strong> ${escapeHtml(content.filing_status || 'Single')}</p>
+          <p style="margin-top: 16px; font-size: 12px; color: #666;">Generated: ${new Date(content.generated_at).toLocaleString()}</p>
+        `;
+      } else if (content.form_type === 'Direct Deposit Authorization') {
+        html += `
+          <p style="font-weight: 600; text-align: center; margin-bottom: 16px;">Direct Deposit Authorization Form</p>
+          <hr style="margin: 16px 0;">
+          <p><strong>Employee Name:</strong> ${escapeHtml(content.employee_name || '')}</p>
+          <p><strong>Bank:</strong> ${escapeHtml(content.bank_name || '')}</p>
+          <p><strong>Routing Number:</strong> ${content.routing_last_four}</p>
+          <p><strong>Account Number:</strong> ${content.account_last_four}</p>
+          <p><strong>Account Type:</strong> ${escapeHtml(content.account_type || '')}</p>
+          <p style="margin-top: 16px; font-size: 12px; color: #666;">Generated: ${new Date(content.generated_at).toLocaleString()}</p>
+        `;
+      } else if (content.form_type === 'Employee Handbook Acknowledgment') {
+        html += `
+          <p style="font-weight: 600; text-align: center; margin-bottom: 16px;">Employee Handbook Acknowledgment</p>
+          <hr style="margin: 16px 0;">
+          <p>${escapeHtml(content.acknowledgment_text || '')}</p>
+          <p style="margin-top: 16px; font-size: 12px; color: #666;">Generated: ${new Date(content.generated_at).toLocaleString()}</p>
+        `;
+      } else {
+        html += `<pre style="white-space: pre-wrap;">${JSON.stringify(content, null, 2)}</pre>`;
+      }
+
+      html += `
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.body.insertAdjacentHTML('beforeend', html);
+    }
+
+    // ====== STEP 5: Complete ======
+    function renderStep5() {
+      const docs = documentsData || [];
+      return `
+        <div class="wizard-card completion-card">
+          <div class="completion-icon">🎉</div>
+          <h2>Onboarding Complete!</h2>
+          <p>All your pre-employment paperwork has been submitted and signed. Your HR team has been notified and can review your documents.</p>
+
+          <div class="completion-docs">
+            <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">Signed Documents</h3>
+            ${docs.map(doc => `
+              <div class="completion-doc-item">
+                <span>${getDocIcon(doc.document_type)} ${escapeHtml(doc.document_type)}</span>
+                <span class="badge badge-signed">✓ Signed</span>
+              </div>
+            `).join('')}
+          </div>
+
+          <div style="margin-top: 32px;">
+            <a href="/candidate-dashboard.html" class="btn btn-primary" style="text-decoration: none; display: inline-block;">
+              ← Back to Dashboard
+            </a>
+          </div>
+        </div>
+      `;
+    }
+
+    // ====== Signature Canvas ======
+    function initSignatureCanvas() {
+      const canvas = document.getElementById('signatureCanvas');
+      if (!canvas) return;
+
+      signatureCanvas = canvas;
+      signatureCtx = canvas.getContext('2d');
+
+      // Set canvas size
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width - 48;
+      canvas.height = 150;
+
+      signatureCtx.strokeStyle = '#1a1a2e';
+      signatureCtx.lineWidth = 2;
+      signatureCtx.lineCap = 'round';
+      signatureCtx.lineJoin = 'round';
+
+      canvas.addEventListener('mousedown', startDrawing);
+      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('mouseup', stopDrawing);
+      canvas.addEventListener('mouseleave', stopDrawing);
+
+      // Touch support
+      canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        startDrawing({ offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top });
+      });
+      canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        draw({ offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top });
+      });
+      canvas.addEventListener('touchend', stopDrawing);
+    }
+
+    function startDrawing(e) {
+      isDrawing = true;
+      signatureCtx.beginPath();
+      signatureCtx.moveTo(e.offsetX, e.offsetY);
+    }
+
+    function draw(e) {
+      if (!isDrawing) return;
+      signatureCtx.lineTo(e.offsetX, e.offsetY);
+      signatureCtx.stroke();
+      hasSigned = true;
+      const btn = document.getElementById('signAllBtn');
+      if (btn) btn.disabled = false;
+    }
+
+    function stopDrawing() {
+      isDrawing = false;
+    }
+
+    function clearSignature() {
+      if (!signatureCanvas || !signatureCtx) return;
+      signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+      hasSigned = false;
+      const btn = document.getElementById('signAllBtn');
+      if (btn) btn.disabled = true;
+    }
+
+    function typeSignature() {
+      const name = prompt('Type your full legal name as your signature:');
+      if (!name || !name.trim()) return;
+
+      if (!signatureCanvas || !signatureCtx) return;
+      signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+      signatureCtx.font = 'italic 32px "Times New Roman", serif';
+      signatureCtx.fillStyle = '#1a1a2e';
+      signatureCtx.textAlign = 'center';
+      signatureCtx.fillText(name.trim(), signatureCanvas.width / 2, 90);
+      hasSigned = true;
+      const btn = document.getElementById('signAllBtn');
+      if (btn) btn.disabled = false;
+    }
+
+    // ====== Navigation & Save ======
+    function goToStep(step) {
+      currentStep = step;
+      renderStep();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function saveWizardStep(step, data) {
+      showSaving();
+      try {
+        const res = await fetch('/api/onboarding/wizard/save-step', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            checklist_id: checklistData.id,
+            step: step,
+            data: data
+          })
+        });
+
+        if (!res.ok) throw new Error('Failed to save');
+
+        const result = await res.json();
+        wizardState = result.wizard;
+
+        hideSaving();
+
+        // If step 3 just completed, generate documents
+        if (step === 3) {
+          await generateDocuments();
+        }
+
+        currentStep = step + 1;
+        renderStep();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (err) {
+        hideSaving();
+        console.error('Error saving step:', err);
+        alert('Failed to save. Please try again.');
+      }
+    }
+
+    async function generateDocuments() {
+      try {
+        const res = await fetch('/api/onboarding/wizard/generate-documents', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ checklist_id: checklistData.id })
+        });
+
+        if (!res.ok) throw new Error('Failed to generate');
+
+        const result = await res.json();
+        documentsData = result.documents;
+      } catch (err) {
+        console.error('Error generating documents:', err);
+      }
+    }
+
+    async function signAllDocuments() {
+      if (!hasSigned) {
+        alert('Please draw or type your signature first.');
+        return;
+      }
+
+      const signatureDataUrl = signatureCanvas ? signatureCanvas.toDataURL('image/png') : 'typed_signature';
+
+      showSaving();
+      try {
+        const res = await fetch('/api/onboarding/wizard/sign-all', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            checklist_id: checklistData.id,
+            signature_data: signatureDataUrl
+          })
+        });
+
+        if (!res.ok) throw new Error('Failed to sign');
+
+        const result = await res.json();
+        documentsData = result.signed_documents;
+
+        hideSaving();
+
+        // Move to completion
+        currentStep = 5;
+        if (wizardState) wizardState.wizard_status = 'completed';
+        renderStep();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (err) {
+        hideSaving();
+        console.error('Error signing:', err);
+        alert('Failed to sign documents. Please try again.');
+      }
+    }
+
+    function completeOnboarding() {
+      currentStep = 5;
+      renderStep();
+    }
+
+    function showSaving() {
+      document.getElementById('savingIndicator').style.display = 'block';
+    }
+
+    function hideSaving() {
+      document.getElementById('savingIndicator').style.display = 'none';
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+      return String(text).replace(/[&<>"']/g, m => map[m]);
+    }
+
+    const US_STATES = [
+      'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS',
+      'KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY',
+      'NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'
+    ];
   </script>
 </body>
 </html>

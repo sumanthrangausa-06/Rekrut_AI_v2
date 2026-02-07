@@ -595,7 +595,7 @@ router.get('/recruiter/candidate/:candidate_id/documents', authMiddleware, async
     }
 
     const result = await pool.query(
-      `SELECT od.*,
+      `SELECT od.*, od.document_content, od.signer_ip, od.signer_user_agent,
         u.name as candidate_name,
         u.email as candidate_email,
         oc.title as checklist_title,
@@ -657,6 +657,497 @@ router.get('/recruiter/summary', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch summary' });
   }
 });
+
+// ============================================
+// ONBOARDING WIZARD - REAL CANDIDATE FLOW
+// ============================================
+
+// Get wizard progress for current candidate
+router.get('/wizard/progress', authMiddleware, async (req, res) => {
+  try {
+    // Get candidate's active checklist
+    const checklist = await pool.query(
+      `SELECT oc.*, o.title as offer_title, o.company_name, o.salary, o.start_date,
+              j.title as job_title
+       FROM onboarding_checklists oc
+       JOIN offers o ON oc.offer_id = o.id
+       LEFT JOIN jobs j ON o.job_id = j.id
+       WHERE oc.candidate_id = $1
+       ORDER BY oc.created_at DESC LIMIT 1`,
+      [req.user.id]
+    );
+
+    if (checklist.rows.length === 0) {
+      return res.json({ has_onboarding: false });
+    }
+
+    const cl = checklist.rows[0];
+
+    // Get or create wizard data
+    let wizardData = await pool.query(
+      'SELECT * FROM candidate_onboarding_data WHERE candidate_id = $1 AND checklist_id = $2',
+      [req.user.id, cl.id]
+    );
+
+    if (wizardData.rows.length === 0) {
+      wizardData = await pool.query(
+        `INSERT INTO candidate_onboarding_data (candidate_id, checklist_id)
+         VALUES ($1, $2)
+         RETURNING *`,
+        [req.user.id, cl.id]
+      );
+    }
+
+    // Get existing documents
+    const documents = await pool.query(
+      'SELECT * FROM onboarding_documents WHERE candidate_id = $1 AND checklist_id = $2 ORDER BY created_at',
+      [req.user.id, cl.id]
+    );
+
+    res.json({
+      has_onboarding: true,
+      checklist: cl,
+      wizard: wizardData.rows[0],
+      documents: documents.rows
+    });
+  } catch (err) {
+    console.error('Error getting wizard progress:', err);
+    res.status(500).json({ error: 'Failed to get wizard progress' });
+  }
+});
+
+// Save wizard step data
+router.post('/wizard/save-step', authMiddleware, async (req, res) => {
+  try {
+    const { checklist_id, step, data } = req.body;
+
+    // Verify checklist belongs to this candidate
+    const checklist = await pool.query(
+      'SELECT * FROM onboarding_checklists WHERE id = $1 AND candidate_id = $2',
+      [checklist_id, req.user.id]
+    );
+    if (checklist.rows.length === 0) {
+      return res.status(404).json({ error: 'Checklist not found' });
+    }
+
+    // Get company_id from the offer
+    const offer = await pool.query(
+      'SELECT company_id FROM offers WHERE id = $1',
+      [checklist.rows[0].offer_id]
+    );
+    const companyId = offer.rows.length > 0 ? offer.rows[0].company_id : null;
+
+    let updateFields = {};
+    let updateQuery = '';
+
+    if (step === 1) {
+      // Personal Information
+      updateFields = {
+        legal_first_name: data.legal_first_name,
+        legal_middle_name: data.legal_middle_name || null,
+        legal_last_name: data.legal_last_name,
+        date_of_birth: data.date_of_birth,
+        ssn_encrypted: data.ssn ? Buffer.from(data.ssn).toString('base64') : null,
+        address_line1: data.address_line1,
+        address_line2: data.address_line2 || null,
+        city: data.city,
+        state: data.state,
+        zip_code: data.zip_code,
+        phone: data.phone
+      };
+      updateQuery = `
+        UPDATE candidate_onboarding_data SET
+          legal_first_name = $1, legal_middle_name = $2, legal_last_name = $3,
+          date_of_birth = $4, ssn_encrypted = $5,
+          address_line1 = $6, address_line2 = $7, city = $8, state = $9, zip_code = $10,
+          phone = $11, current_step = GREATEST(current_step, 2),
+          steps_completed = steps_completed || '"1"'::jsonb,
+          updated_at = NOW()
+        WHERE candidate_id = $12 AND checklist_id = $13
+        RETURNING *
+      `;
+      const result = await pool.query(updateQuery, [
+        updateFields.legal_first_name, updateFields.legal_middle_name, updateFields.legal_last_name,
+        updateFields.date_of_birth, updateFields.ssn_encrypted,
+        updateFields.address_line1, updateFields.address_line2, updateFields.city,
+        updateFields.state, updateFields.zip_code, updateFields.phone,
+        req.user.id, checklist_id
+      ]);
+
+      // Also complete checklist item 1 (I-9 form) since we have the data
+      await completeChecklistItem(checklist_id, req.user.id, 1);
+
+      return res.json({ success: true, wizard: result.rows[0] });
+    }
+
+    if (step === 2) {
+      // Emergency Contact
+      updateQuery = `
+        UPDATE candidate_onboarding_data SET
+          emergency_contact_name = $1, emergency_contact_relationship = $2,
+          emergency_contact_phone = $3, emergency_contact_email = $4,
+          current_step = GREATEST(current_step, 3),
+          steps_completed = steps_completed || '"2"'::jsonb,
+          updated_at = NOW()
+        WHERE candidate_id = $5 AND checklist_id = $6
+        RETURNING *
+      `;
+      const result = await pool.query(updateQuery, [
+        data.emergency_contact_name, data.emergency_contact_relationship,
+        data.emergency_contact_phone, data.emergency_contact_email || null,
+        req.user.id, checklist_id
+      ]);
+
+      // Complete checklist item 6 (emergency contact)
+      await completeChecklistItem(checklist_id, req.user.id, 6);
+
+      return res.json({ success: true, wizard: result.rows[0] });
+    }
+
+    if (step === 3) {
+      // Banking / Direct Deposit
+      updateQuery = `
+        UPDATE candidate_onboarding_data SET
+          bank_name = $1,
+          routing_number_encrypted = $2,
+          account_number_encrypted = $3,
+          account_type = $4,
+          current_step = GREATEST(current_step, 4),
+          steps_completed = steps_completed || '"3"'::jsonb,
+          updated_at = NOW()
+        WHERE candidate_id = $5 AND checklist_id = $6
+        RETURNING *
+      `;
+      const result = await pool.query(updateQuery, [
+        data.bank_name,
+        data.routing_number ? Buffer.from(data.routing_number).toString('base64') : null,
+        data.account_number ? Buffer.from(data.account_number).toString('base64') : null,
+        data.account_type,
+        req.user.id, checklist_id
+      ]);
+
+      // Complete checklist item 3 (direct deposit)
+      await completeChecklistItem(checklist_id, req.user.id, 3);
+
+      return res.json({ success: true, wizard: result.rows[0] });
+    }
+
+    res.status(400).json({ error: 'Invalid step' });
+  } catch (err) {
+    console.error('Error saving wizard step:', err);
+    res.status(500).json({ error: 'Failed to save step data' });
+  }
+});
+
+// Generate documents from collected data
+router.post('/wizard/generate-documents', authMiddleware, async (req, res) => {
+  try {
+    const { checklist_id } = req.body;
+
+    // Get wizard data
+    const wizardData = await pool.query(
+      'SELECT * FROM candidate_onboarding_data WHERE candidate_id = $1 AND checklist_id = $2',
+      [req.user.id, checklist_id]
+    );
+
+    if (wizardData.rows.length === 0) {
+      return res.status(404).json({ error: 'No onboarding data found' });
+    }
+
+    const wd = wizardData.rows[0];
+
+    // Get offer details for the documents
+    const checklist = await pool.query(
+      `SELECT oc.*, o.company_name, o.title as offer_title, o.salary, o.start_date
+       FROM onboarding_checklists oc
+       JOIN offers o ON oc.offer_id = o.id
+       WHERE oc.id = $1 AND oc.candidate_id = $2`,
+      [checklist_id, req.user.id]
+    );
+
+    if (checklist.rows.length === 0) {
+      return res.status(404).json({ error: 'Checklist not found' });
+    }
+
+    const cl = checklist.rows[0];
+    const companyId = cl.company_id || null;
+
+    // Get company_id from the offer
+    const offer = await pool.query(
+      'SELECT company_id FROM offers WHERE id = $1',
+      [cl.offer_id]
+    );
+    const offerCompanyId = offer.rows.length > 0 ? offer.rows[0].company_id : null;
+
+    const fullName = [wd.legal_first_name, wd.legal_middle_name, wd.legal_last_name]
+      .filter(Boolean).join(' ');
+
+    const documents = [];
+
+    // Generate I-9 Form
+    const i9Content = {
+      form_type: 'I-9',
+      employee_name: fullName,
+      first_name: wd.legal_first_name,
+      middle_name: wd.legal_middle_name,
+      last_name: wd.legal_last_name,
+      date_of_birth: wd.date_of_birth,
+      address: `${wd.address_line1}${wd.address_line2 ? ', ' + wd.address_line2 : ''}`,
+      city: wd.city,
+      state: wd.state,
+      zip: wd.zip_code,
+      ssn_last_four: wd.ssn_encrypted ? '****' : 'N/A',
+      generated_at: new Date().toISOString(),
+      company: cl.company_name
+    };
+
+    const i9 = await upsertDocument(
+      checklist_id, req.user.id, offerCompanyId,
+      'I-9 Employment Eligibility', i9Content,
+      `I-9 form for ${fullName} - ${cl.company_name}`
+    );
+    documents.push(i9);
+
+    // Generate W-4 Form
+    const w4Content = {
+      form_type: 'W-4',
+      employee_name: fullName,
+      first_name: wd.legal_first_name,
+      last_name: wd.legal_last_name,
+      ssn_last_four: wd.ssn_encrypted ? '****' : 'N/A',
+      address: `${wd.address_line1}${wd.address_line2 ? ', ' + wd.address_line2 : ''}`,
+      city_state_zip: `${wd.city}, ${wd.state} ${wd.zip_code}`,
+      filing_status: 'single',
+      generated_at: new Date().toISOString(),
+      company: cl.company_name
+    };
+
+    const w4 = await upsertDocument(
+      checklist_id, req.user.id, offerCompanyId,
+      'W-4 Tax Withholding', w4Content,
+      `W-4 form for ${fullName} - ${cl.company_name}`
+    );
+    documents.push(w4);
+
+    // Generate Direct Deposit Authorization
+    const ddContent = {
+      form_type: 'Direct Deposit Authorization',
+      employee_name: fullName,
+      bank_name: wd.bank_name,
+      routing_last_four: wd.routing_number_encrypted ? '****' : 'N/A',
+      account_last_four: wd.account_number_encrypted ? '****' : 'N/A',
+      account_type: wd.account_type,
+      generated_at: new Date().toISOString(),
+      company: cl.company_name
+    };
+
+    const dd = await upsertDocument(
+      checklist_id, req.user.id, offerCompanyId,
+      'Direct Deposit Authorization', ddContent,
+      `Direct deposit form for ${fullName} - ${cl.company_name}`
+    );
+    documents.push(dd);
+
+    // Generate Employee Handbook Acknowledgment
+    const handbookContent = {
+      form_type: 'Employee Handbook Acknowledgment',
+      employee_name: fullName,
+      generated_at: new Date().toISOString(),
+      company: cl.company_name,
+      acknowledgment_text: `I, ${fullName}, acknowledge that I have received and read the employee handbook for ${cl.company_name}. I understand the policies and agree to abide by them.`
+    };
+
+    const handbook = await upsertDocument(
+      checklist_id, req.user.id, offerCompanyId,
+      'Employee Handbook Acknowledgment', handbookContent,
+      `Handbook acknowledgment for ${fullName}`
+    );
+    documents.push(handbook);
+
+    // Complete checklist items for W-4 and handbook
+    await completeChecklistItem(checklist_id, req.user.id, 4); // W-4
+    await completeChecklistItem(checklist_id, req.user.id, 5); // handbook
+
+    res.json({ success: true, documents });
+  } catch (err) {
+    console.error('Error generating documents:', err);
+    res.status(500).json({ error: 'Failed to generate documents' });
+  }
+});
+
+// E-sign a document
+router.post('/wizard/sign-document', authMiddleware, async (req, res) => {
+  try {
+    const { document_id, signature_data } = req.body;
+    const signerIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
+    const signerUserAgent = req.headers['user-agent'] || 'unknown';
+
+    // Verify document belongs to this candidate
+    const doc = await pool.query(
+      'SELECT * FROM onboarding_documents WHERE id = $1 AND candidate_id = $2',
+      [document_id, req.user.id]
+    );
+
+    if (doc.rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    if (doc.rows[0].signed_at) {
+      return res.json({ success: true, message: 'Already signed', document: doc.rows[0] });
+    }
+
+    const result = await pool.query(
+      `UPDATE onboarding_documents SET
+        status = 'completed',
+        signed_at = NOW(),
+        signature_data = $1,
+        signer_ip = $2,
+        signer_user_agent = $3,
+        content_summary = COALESCE(content_summary, '') || ' [Signed by candidate]'
+       WHERE id = $4 AND candidate_id = $5
+       RETURNING *`,
+      [signature_data, signerIp, signerUserAgent, document_id, req.user.id]
+    );
+
+    res.json({ success: true, document: result.rows[0] });
+  } catch (err) {
+    console.error('Error signing document:', err);
+    res.status(500).json({ error: 'Failed to sign document' });
+  }
+});
+
+// Sign all documents at once
+router.post('/wizard/sign-all', authMiddleware, async (req, res) => {
+  try {
+    const { checklist_id, signature_data } = req.body;
+    const signerIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
+    const signerUserAgent = req.headers['user-agent'] || 'unknown';
+
+    const result = await pool.query(
+      `UPDATE onboarding_documents SET
+        status = 'completed',
+        signed_at = NOW(),
+        signature_data = $1,
+        signer_ip = $2,
+        signer_user_agent = $3
+       WHERE checklist_id = $4 AND candidate_id = $5 AND signed_at IS NULL
+       RETURNING *`,
+      [signature_data, signerIp, signerUserAgent, checklist_id, req.user.id]
+    );
+
+    // Complete remaining checklist items
+    await completeChecklistItem(checklist_id, req.user.id, 2); // Upload ID
+    await completeChecklistItem(checklist_id, req.user.id, 7); // IT setup
+    await completeChecklistItem(checklist_id, req.user.id, 8); // Orientation
+
+    // Mark wizard as completed
+    await pool.query(
+      `UPDATE candidate_onboarding_data SET
+        wizard_status = 'completed',
+        current_step = 5,
+        steps_completed = steps_completed || '"4"'::jsonb,
+        completed_at = NOW(),
+        updated_at = NOW()
+       WHERE candidate_id = $1 AND checklist_id = $2`,
+      [req.user.id, checklist_id]
+    );
+
+    // Mark checklist as completed
+    await pool.query(
+      `UPDATE onboarding_checklists SET
+        status = 'completed',
+        completed_at = NOW(),
+        updated_at = NOW()
+       WHERE id = $1 AND candidate_id = $2`,
+      [checklist_id, req.user.id]
+    );
+
+    res.json({ success: true, signed_documents: result.rows });
+  } catch (err) {
+    console.error('Error signing all documents:', err);
+    res.status(500).json({ error: 'Failed to sign documents' });
+  }
+});
+
+// Get candidate's documents for the wizard
+router.get('/wizard/documents/:checklist_id', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM onboarding_documents
+       WHERE checklist_id = $1 AND candidate_id = $2
+       ORDER BY created_at`,
+      [req.params.checklist_id, req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching wizard documents:', err);
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+// Helper: upsert a document
+async function upsertDocument(checklistId, candidateId, companyId, docType, content, summary) {
+  // Check if already exists
+  const existing = await pool.query(
+    'SELECT * FROM onboarding_documents WHERE checklist_id = $1 AND candidate_id = $2 AND document_type = $3',
+    [checklistId, candidateId, docType]
+  );
+
+  if (existing.rows.length > 0) {
+    const updated = await pool.query(
+      `UPDATE onboarding_documents SET
+        document_content = $1, content_summary = $2, status = 'pending', uploaded_at = NOW()
+       WHERE id = $3 RETURNING *`,
+      [JSON.stringify(content), summary, existing.rows[0].id]
+    );
+    return updated.rows[0];
+  }
+
+  const result = await pool.query(
+    `INSERT INTO onboarding_documents
+     (checklist_id, candidate_id, company_id, document_type, document_content, content_summary, status, uploaded_at)
+     VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW())
+     RETURNING *`,
+    [checklistId, candidateId, companyId, docType, JSON.stringify(content), summary]
+  );
+  return result.rows[0];
+}
+
+// Helper: complete a checklist item
+async function completeChecklistItem(checklistId, candidateId, itemId) {
+  try {
+    const checklist = await pool.query(
+      'SELECT * FROM onboarding_checklists WHERE id = $1 AND candidate_id = $2',
+      [checklistId, candidateId]
+    );
+    if (checklist.rows.length === 0) return;
+
+    const completedItems = checklist.rows[0].completed_items || [];
+    if (!completedItems.includes(itemId)) {
+      completedItems.push(itemId);
+    }
+
+    const items = checklist.rows[0].items || [];
+    const allCompleted = items.every(item => completedItems.includes(item.id));
+
+    await pool.query(
+      `UPDATE onboarding_checklists SET
+        completed_items = $1,
+        status = $2,
+        completed_at = $3,
+        updated_at = NOW()
+       WHERE id = $4`,
+      [
+        JSON.stringify(completedItems),
+        allCompleted ? 'completed' : 'in_progress',
+        allCompleted ? new Date() : null,
+        checklistId
+      ]
+    );
+  } catch (err) {
+    console.error('Error completing checklist item:', err);
+  }
+}
 
 // ============================================
 // HELPER FUNCTIONS

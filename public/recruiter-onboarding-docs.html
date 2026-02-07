@@ -451,7 +451,7 @@
     async function loadOnboardingDocuments() {
       try {
         const response = await fetch(`${BACKEND_URL}/onboarding/recruiter/summary`, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}` }
         });
 
         if (!response.ok) throw new Error('Failed to load documents');
@@ -518,7 +518,7 @@
         // Load candidate details and documents
         const response = await fetch(
           `${BACKEND_URL}/onboarding/recruiter/candidate/${candidateId}/documents`,
-          { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }
+          { headers: { 'Authorization': `Bearer ${localStorage.getItem('rekrutai_token')}` } }
         );
 
         if (!response.ok) throw new Error('Failed to load documents');
@@ -540,7 +540,7 @@
           docsContainer.innerHTML = '<p style="color: var(--text-muted);">No documents yet</p>';
         } else {
           docsContainer.innerHTML = documents.map(doc => `
-            <div class="doc-item">
+            <div class="doc-item" style="border-left-color: ${doc.signed_at ? '#10b981' : doc.uploaded_at ? '#3b82f6' : '#e5e7eb'};">
               <div class="doc-item-header">
                 <span class="doc-item-type">${escapeHtml(doc.document_type)}</span>
                 <span class="doc-item-date">${formatDate(doc.created_at)}</span>
@@ -550,16 +550,23 @@
                   ${doc.signed_at ? `
                     <span class="document-status status-signed">✓ Signed ${formatDate(doc.signed_at)}</span>
                   ` : doc.uploaded_at ? `
-                    <span class="document-status status-uploaded">✓ Uploaded</span>
+                    <span class="document-status status-uploaded">✓ Generated</span>
                   ` : `
                     <span class="document-status status-pending-doc">Pending</span>
                   `}
                 </div>
-                ${doc.document_url ? `<a href="${doc.document_url}" target="_blank" class="view-link">View</a>` : ''}
+                <div style="display: flex; gap: 8px;">
+                  ${doc.document_content ? `<a class="view-link" onclick="viewDocContent(${doc.id}, '${escapeHtml(doc.document_type)}')">View Details</a>` : ''}
+                  ${doc.document_url ? `<a href="${doc.document_url}" target="_blank" class="view-link">Download</a>` : ''}
+                </div>
               </div>
-              ${doc.notes ? `<p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">Notes: ${escapeHtml(doc.notes)}</p>` : ''}
+              ${doc.content_summary ? `<p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">${escapeHtml(doc.content_summary)}</p>` : ''}
+              ${doc.signer_ip ? `<p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Audit: IP ${escapeHtml(doc.signer_ip)} | ${formatDate(doc.signed_at)}</p>` : ''}
             </div>
           `).join('');
+
+          // Store docs for preview
+          window._currentDocs = documents;
         }
 
         // Show modal
@@ -600,6 +607,60 @@
         "'": '&#039;'
       };
       return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
+    function viewDocContent(docId, docType) {
+      const doc = (window._currentDocs || []).find(d => d.id === docId);
+      if (!doc || !doc.document_content) return;
+
+      const content = typeof doc.document_content === 'string' ? JSON.parse(doc.document_content) : doc.document_content;
+      let bodyHtml = '';
+
+      if (content.form_type === 'I-9') {
+        bodyHtml = `
+          <p style="font-weight: 600; text-align: center; margin-bottom: 12px;">Employment Eligibility Verification</p>
+          <p><strong>Name:</strong> ${escapeHtml(content.employee_name || '')}</p>
+          <p><strong>DOB:</strong> ${content.date_of_birth ? new Date(content.date_of_birth).toLocaleDateString() : ''}</p>
+          <p><strong>Address:</strong> ${escapeHtml(content.address || '')}, ${escapeHtml(content.city || '')}, ${escapeHtml(content.state || '')} ${escapeHtml(content.zip || '')}</p>
+          <p><strong>SSN:</strong> ${content.ssn_last_four}</p>
+          <p><strong>Employer:</strong> ${escapeHtml(content.company || '')}</p>
+        `;
+      } else if (content.form_type === 'W-4') {
+        bodyHtml = `
+          <p style="font-weight: 600; text-align: center; margin-bottom: 12px;">W-4 Tax Withholding</p>
+          <p><strong>Name:</strong> ${escapeHtml(content.employee_name || '')}</p>
+          <p><strong>Address:</strong> ${escapeHtml(content.city_state_zip || '')}</p>
+          <p><strong>Filing Status:</strong> ${escapeHtml(content.filing_status || 'Single')}</p>
+        `;
+      } else if (content.form_type === 'Direct Deposit Authorization') {
+        bodyHtml = `
+          <p style="font-weight: 600; text-align: center; margin-bottom: 12px;">Direct Deposit</p>
+          <p><strong>Name:</strong> ${escapeHtml(content.employee_name || '')}</p>
+          <p><strong>Bank:</strong> ${escapeHtml(content.bank_name || '')}</p>
+          <p><strong>Account Type:</strong> ${escapeHtml(content.account_type || '')}</p>
+        `;
+      } else {
+        bodyHtml = `<pre style="white-space: pre-wrap; font-size: 12px;">${JSON.stringify(content, null, 2)}</pre>`;
+      }
+
+      if (doc.signed_at) {
+        bodyHtml += `<hr style="margin: 12px 0;"><p style="color: #10b981; font-weight: 600;">✓ Signed on ${new Date(doc.signed_at).toLocaleString()}</p>`;
+        if (doc.signer_ip) bodyHtml += `<p style="font-size: 11px; color: #888;">IP: ${escapeHtml(doc.signer_ip)}</p>`;
+      }
+
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;display:flex;align-items:center;justify-content:center;';
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      overlay.innerHTML = `
+        <div style="background:var(--card-bg);border-radius:12px;max-width:500px;width:90%;padding:24px;max-height:80vh;overflow-y:auto;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3 style="font-size:16px;font-weight:600;">${escapeHtml(docType)}</h3>
+            <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);">✕</button>
+          </div>
+          <div style="font-size:13px;line-height:1.7;">${bodyHtml}</div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
     }
 
     // Modal close on click outside
