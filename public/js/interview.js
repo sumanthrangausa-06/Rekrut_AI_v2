@@ -143,15 +143,32 @@ function displayQuestion(index) {
   document.getElementById('response-text').value = '';
 }
 
-// Setup camera
+// Setup camera and microphone
 async function setupCamera() {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    });
     const video = document.getElementById('video-preview');
     video.srcObject = stream;
     document.getElementById('video-overlay').style.display = 'none';
+
+    // Verify audio tracks are present
+    const audioTracks = stream.getAudioTracks();
+    if (audioTracks.length > 0) {
+      const track = audioTracks[0];
+      if (!track.enabled) track.enabled = true;
+      console.log('Microphone active:', track.label);
+    } else {
+      console.warn('No microphone detected in stream');
+    }
   } catch (err) {
-    console.log('Camera not available:', err);
+    console.warn('Camera/microphone not available:', err);
   }
 }
 

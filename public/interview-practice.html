@@ -684,10 +684,25 @@
       try {
         videoStream = await navigator.mediaDevices.getUserMedia({
           video: { width: 1280, height: 720 },
-          audio: true
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
         });
 
         document.getElementById('practice-video').srcObject = videoStream;
+
+        // Verify audio tracks
+        const audioTracks = videoStream.getAudioTracks();
+        if (audioTracks.length === 0) {
+          console.error('No audio tracks in practice video stream');
+          alert('Microphone not detected. Video will record without audio.');
+        } else {
+          const track = audioTracks[0];
+          if (!track.enabled) track.enabled = true;
+          console.log('Practice mic active:', track.label);
+        }
 
         // Initialize video analyzer if not already done
         if (!videoAnalyzer) {
@@ -703,17 +718,31 @@
         document.getElementById('start-video-btn').style.display = 'none';
         document.getElementById('record-video-btn').style.display = 'inline-flex';
       } catch (err) {
-        console.error('Camera error:', err);
-        alert('Camera access required for video practice. Please allow permissions.');
+        console.error('Camera/microphone error:', err);
+        alert('Camera and microphone access required for video practice. Please allow both permissions.');
       }
     }
 
     // Record video practice
     function recordVideoPractice() {
       try {
-        videoRecorder = new MediaRecorder(videoStream, {
-          mimeType: 'video/webm;codecs=vp9'
-        });
+        // Use mimeType with both video AND audio codecs
+        let mimeType = 'video/webm;codecs=vp9,opus';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'video/webm;codecs=vp8,opus';
+        }
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'video/webm';
+        }
+
+        // Verify audio tracks before recording
+        const audioTracks = videoStream.getAudioTracks();
+        if (audioTracks.length === 0 || !audioTracks[0].enabled) {
+          alert('Microphone is not active. Please check your mic permissions.');
+          return;
+        }
+
+        videoRecorder = new MediaRecorder(videoStream, { mimeType });
 
         const chunks = [];
         videoRecorder.ondataavailable = (e) => {
