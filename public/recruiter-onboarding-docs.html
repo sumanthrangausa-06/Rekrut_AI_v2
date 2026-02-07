@@ -35,23 +35,24 @@
 
     .candidates-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(350px, 100%), 1fr));
       gap: 16px;
       margin-bottom: 32px;
     }
 
     .candidate-card {
-      background: var(--card-bg);
+      background: var(--card-bg, var(--bg-card));
       border: 1px solid var(--border-color);
       border-radius: 12px;
       padding: 20px;
       cursor: pointer;
       transition: all 0.3s ease;
+      overflow: hidden;
     }
 
     .candidate-card:hover {
-      border-color: var(--accent-color);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      border-color: var(--accent-primary, #10b981);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
 
     .candidate-header {
@@ -59,6 +60,12 @@
       justify-content: space-between;
       align-items: start;
       margin-bottom: 16px;
+      gap: 8px;
+    }
+
+    .candidate-info {
+      min-width: 0;
+      flex: 1;
     }
 
     .candidate-info h3 {
@@ -66,17 +73,26 @@
       font-weight: 600;
       margin-bottom: 4px;
       color: var(--text-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .candidate-email {
       font-size: 13px;
       color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .candidate-job {
       font-size: 13px;
       color: var(--text-secondary);
       margin-top: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .onboarding-status {
@@ -85,6 +101,8 @@
       border-radius: 4px;
       font-size: 12px;
       font-weight: 500;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .status-pending {
@@ -137,7 +155,7 @@
       align-items: center;
       justify-content: space-between;
       padding: 12px;
-      background: var(--input-bg);
+      background: var(--input-bg, var(--bg-elevated));
       border-radius: 8px;
       font-size: 13px;
     }
@@ -176,6 +194,7 @@
       font-size: 12px;
     }
 
+    /* Modal backdrop */
     .modal {
       display: none;
       position: fixed;
@@ -183,10 +202,11 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0,0,0,0.5);
+      background: rgba(0,0,0,0.6);
       z-index: 1000;
       align-items: center;
       justify-content: center;
+      padding: 16px;
     }
 
     .modal.active {
@@ -194,25 +214,29 @@
     }
 
     .modal-content {
-      background: var(--card-bg);
+      background: var(--card-bg, var(--bg-card));
       border-radius: 12px;
       max-width: 600px;
-      width: 90%;
-      max-height: 80vh;
+      width: 100%;
+      max-height: 85vh;
       overflow-y: auto;
       padding: 32px;
+      position: relative;
+      z-index: 1001;
     }
 
     .modal-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
       margin-bottom: 24px;
+      gap: 12px;
     }
 
     .modal-header h2 {
       font-size: 20px;
       font-weight: 600;
+      word-break: break-word;
     }
 
     .close-btn {
@@ -221,6 +245,9 @@
       font-size: 24px;
       cursor: pointer;
       color: var(--text-muted);
+      flex-shrink: 0;
+      padding: 4px;
+      line-height: 1;
     }
 
     .modal-documents {
@@ -231,9 +258,9 @@
 
     .doc-item {
       padding: 16px;
-      background: var(--input-bg);
+      background: var(--input-bg, var(--bg-elevated));
       border-radius: 8px;
-      border-left: 3px solid var(--accent-color);
+      border-left: 3px solid var(--accent-primary, #10b981);
     }
 
     .doc-item-header {
@@ -241,6 +268,7 @@
       justify-content: space-between;
       align-items: start;
       margin-bottom: 8px;
+      gap: 8px;
     }
 
     .doc-item-type {
@@ -251,6 +279,7 @@
     .doc-item-date {
       font-size: 12px;
       color: var(--text-muted);
+      white-space: nowrap;
     }
 
     .loading {
@@ -272,7 +301,7 @@
     }
 
     .view-link {
-      color: var(--accent-color);
+      color: var(--accent-primary, #10b981);
       text-decoration: none;
       cursor: pointer;
       font-size: 12px;
@@ -283,26 +312,132 @@
       text-decoration: underline;
     }
 
+    /* Doc preview overlay */
+    .doc-preview-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .doc-preview-content {
+      background: var(--card-bg, var(--bg-card));
+      border-radius: 12px;
+      max-width: 500px;
+      width: 100%;
+      padding: 24px;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+
+    /* Mobile responsive */
     @media (max-width: 768px) {
       .candidates-grid {
         grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .candidate-card {
+        padding: 16px;
+      }
+
+      .candidate-header {
+        flex-direction: column;
+        gap: 8px;
       }
 
       .docs-summary {
         grid-template-columns: 1fr;
       }
 
+      .modal {
+        padding: 8px;
+        align-items: flex-end;
+      }
+
       .modal-content {
-        width: 95%;
+        width: 100%;
+        max-width: 100%;
         padding: 20px;
+        max-height: 90vh;
+        border-radius: 16px 16px 0 0;
+      }
+
+      .modal-header h2 {
+        font-size: 18px;
+      }
+
+      .doc-item {
+        padding: 12px;
+      }
+
+      .doc-item-header {
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .doc-preview-overlay {
+        padding: 8px;
+        align-items: flex-end;
+      }
+
+      .doc-preview-content {
+        width: 100%;
+        max-width: 100%;
+        padding: 20px;
+        max-height: 90vh;
+        border-radius: 16px 16px 0 0;
+      }
+
+      /* Fix doc action links wrapping */
+      .doc-actions-row {
+        flex-direction: column;
+        gap: 4px !important;
+      }
+
+      /* Modal details grid to single column */
+      .modal-details-grid {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+      }
+
+      /* Documents header flex wrap */
+      .modal-content h3 {
+        font-size: 14px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .candidate-card {
+        padding: 14px;
+      }
+
+      .candidate-info h3 {
+        font-size: 15px;
+      }
+
+      .modal-content {
+        padding: 16px;
+      }
+
+      .doc-preview-content {
+        padding: 16px;
       }
     }
   </style>
 </head>
 <body>
+  <!-- Mobile sidebar toggle -->
+  <button class="mobile-sidebar-toggle" id="mobile-sidebar-toggle" aria-label="Toggle sidebar">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
   <div class="dashboard-layout">
     <!-- Sidebar -->
-    <aside class="sidebar recruiter-sidebar">
+    <aside class="sidebar recruiter-sidebar" id="sidebar">
       <a href="/" class="logo">
         <span class="logo-icon">◎</span>
         <span>HireLoop</span>
@@ -424,7 +559,7 @@
       </div>
 
       <div id="modal-details" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--border-color);">
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; font-size: 13px;">
+        <div class="modal-details-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; font-size: 13px;">
           <div>
             <span style="color: var(--text-muted);">Job Title</span>
             <p id="modal-job" style="font-weight: 500; margin-top: 4px;">—</p>
@@ -569,7 +704,7 @@
                 <span class="doc-item-type">${escapeHtml(doc.document_type)}</span>
                 <span class="doc-item-date">${formatDate(doc.created_at)}</span>
               </div>
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px; flex-wrap: wrap; gap: 8px;">
                 <div>
                   ${doc.signed_at ? `
                     <span class="document-status status-signed">✓ Signed ${formatDate(doc.signed_at)}</span>
@@ -579,7 +714,7 @@
                     <span class="document-status status-pending-doc">Pending</span>
                   `}
                 </div>
-                <div style="display: flex; gap: 8px;">
+                <div class="doc-actions-row" style="display: flex; gap: 8px; flex-wrap: wrap;">
                   ${doc.document_content ? `<a class="view-link" onclick="viewDocContent(${doc.id}, '${escapeHtml(doc.document_type)}')">View Details</a>` : ''}
                   ${doc.document_content ? `<a class="view-link" href="/api/onboarding/recruiter/document/${doc.id}/download" target="_blank" style="color: #10b981;">⬇ Download</a>` : ''}
                   ${doc.document_url ? `<a href="${doc.document_url}" target="_blank" class="view-link">Open File</a>` : ''}
@@ -643,6 +778,10 @@
       const doc = (window._currentDocs || []).find(d => d.id === docId);
       if (!doc || !doc.document_content) return;
 
+      // Remove any existing doc preview overlay first (prevent stacking)
+      const existing = document.querySelector('.doc-preview-overlay');
+      if (existing) existing.remove();
+
       const content = typeof doc.document_content === 'string' ? JSON.parse(doc.document_content) : doc.document_content;
       let bodyHtml = '';
 
@@ -679,13 +818,13 @@
       }
 
       const overlay = document.createElement('div');
-      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;display:flex;align-items:center;justify-content:center;';
+      overlay.className = 'doc-preview-overlay';
       overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
       overlay.innerHTML = `
-        <div style="background:var(--card-bg);border-radius:12px;max-width:500px;width:90%;padding:24px;max-height:80vh;overflow-y:auto;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-            <h3 style="font-size:16px;font-weight:600;">${escapeHtml(docType)}</h3>
-            <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);">✕</button>
+        <div class="doc-preview-content">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;">
+            <h3 style="font-size:16px;font-weight:600;word-break:break-word;">${escapeHtml(docType)}</h3>
+            <button onclick="document.querySelector('.doc-preview-overlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);flex-shrink:0;padding:4px;">✕</button>
           </div>
           <div style="font-size:13px;line-height:1.7;">${bodyHtml}</div>
         </div>
@@ -709,10 +848,58 @@
       if (e.target.id === 'modal') closeModal();
     });
 
+    // Escape key closes modals
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        // Close doc preview first, then main modal
+        const docPreview = document.querySelector('.doc-preview-overlay');
+        if (docPreview) {
+          docPreview.remove();
+          return;
+        }
+        const modal = document.getElementById('modal');
+        if (modal && modal.classList.contains('active')) {
+          closeModal();
+        }
+      }
+    });
+
+    // Mobile sidebar toggle
+    function setupMobileSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const toggle = document.getElementById('mobile-sidebar-toggle');
+      const overlay = document.getElementById('sidebar-overlay');
+      if (!sidebar || !toggle || !overlay) return;
+
+      toggle.addEventListener('click', () => {
+        sidebar.classList.toggle('mobile-open');
+        overlay.classList.toggle('active');
+        toggle.innerHTML = sidebar.classList.contains('mobile-open') ? '✕' : '☰';
+      });
+
+      overlay.addEventListener('click', () => {
+        sidebar.classList.remove('mobile-open');
+        overlay.classList.remove('active');
+        toggle.innerHTML = '☰';
+      });
+
+      // Close sidebar when clicking nav items on mobile
+      sidebar.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', () => {
+          if (window.innerWidth <= 768) {
+            sidebar.classList.remove('mobile-open');
+            overlay.classList.remove('active');
+            toggle.innerHTML = '☰';
+          }
+        });
+      });
+    }
+
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
       loadOnboardingDocuments();
       setupUserMenu();
+      setupMobileSidebar();
       // Auto-refresh every 30 seconds for real-time updates
       setInterval(loadOnboardingDocuments, 30000);
     });
