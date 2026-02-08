@@ -1,0 +1,916 @@
+     1→import { useEffect, useState, useRef } from 'react'
+     2→import { apiCall } from '@/lib/api'
+     3→import { Card, CardContent } from '@/components/ui/card'
+     4→import { Button } from '@/components/ui/button'
+     5→import { Badge } from '@/components/ui/badge'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Label } from '@/components/ui/label'
+     8→import { Select } from '@/components/ui/select'
+     9→import {
+    10→  CheckCircle, Circle, ArrowRight, ArrowLeft, Shield, FileText,
+    11→  User, Phone, Building2, CreditCard, PenTool, Loader2, Lock,
+    12→  ClipboardCheck, Sparkles, AlertCircle, PartyPopper,
+    13→} from 'lucide-react'
+    14→
+    15→// ─── Types ───────────────────────────────────────────────────────────
+    16→interface WizardData {
+    17→  id: number
+    18→  candidate_id: number
+    19→  checklist_id: number
+    20→  current_step: number
+    21→  wizard_status: string
+    22→  steps_completed: string[]
+    23→  legal_first_name: string | null
+    24→  legal_middle_name: string | null
+    25→  legal_last_name: string | null
+    26→  date_of_birth: string | null
+    27→  ssn_encrypted: string | null
+    28→  address_line1: string | null
+    29→  address_line2: string | null
+    30→  city: string | null
+    31→  state: string | null
+    32→  zip_code: string | null
+    33→  phone: string | null
+    34→  emergency_contact_name: string | null
+    35→  emergency_contact_relationship: string | null
+    36→  emergency_contact_phone: string | null
+    37→  emergency_contact_email: string | null
+    38→  bank_name: string | null
+    39→  routing_number_encrypted: string | null
+    40→  account_number_encrypted: string | null
+    41→  account_type: string | null
+    42→  w4_filing_status: string | null
+    43→}
+    44→
+    45→interface OnboardingDoc {
+    46→  id: number
+    47→  document_type: string
+    48→  status: string
+    49→  signed_at: string | null
+    50→  signer_ip: string | null
+    51→  created_at: string
+    52→}
+    53→
+    54→interface ChecklistData {
+    55→  id: number
+    56→  offer_id: number
+    57→  title: string
+    58→  status: string
+    59→  items: any[]
+    60→  completed_items: number[]
+    61→  due_date: string | null
+    62→  company_name: string
+    63→  offer_title: string
+    64→  job_title: string
+    65→  salary: string
+    66→  start_date: string
+    67→}
+    68→
+    69→interface ProgressResponse {
+    70→  has_onboarding: boolean
+    71→  checklist?: ChecklistData
+    72→  wizard?: WizardData
+    73→  documents?: OnboardingDoc[]
+    74→}
+    75→
+    76→// ─── Steps config ────────────────────────────────────────────────────
+    77→const STEPS = [
+    78→  { id: 1, label: 'Personal Info', icon: User, description: 'Legal name, SSN, address' },
+    79→  { id: 2, label: 'Emergency Contact', icon: Phone, description: 'Emergency contact details' },
+    80→  { id: 3, label: 'Banking & Tax', icon: CreditCard, description: 'Direct deposit & W-4' },
+    81→  { id: 4, label: 'Review & Sign', icon: PenTool, description: 'Review documents & e-sign' },
+    82→]
+    83→
+    84→const US_STATES = [
+    85→  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA',
+    86→  'ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK',
+    87→  'OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC',
+    88→]
+    89→
+    90→// ─── Component ───────────────────────────────────────────────────────
+    91→export function CandidateOnboardingPage() {
+    92→  const [loading, setLoading] = useState(true)
+    93→  const [saving, setSaving] = useState(false)
+    94→  const [progress, setProgress] = useState<ProgressResponse | null>(null)
+    95→  const [currentStep, setCurrentStep] = useState(1)
+    96→  const [error, setError] = useState('')
+    97→  const [stepErrors, setStepErrors] = useState<Record<string, string>>({})
+    98→
+    99→  // Step 1 form
+   100→  const [firstName, setFirstName] = useState('')
+   101→  const [middleName, setMiddleName] = useState('')
+   102→  const [lastName, setLastName] = useState('')
+   103→  const [dob, setDob] = useState('')
+   104→  const [ssn, setSsn] = useState('')
+   105→  const [address1, setAddress1] = useState('')
+   106→  const [address2, setAddress2] = useState('')
+   107→  const [city, setCity] = useState('')
+   108→  const [state, setState] = useState('')
+   109→  const [zip, setZip] = useState('')
+   110→  const [phone, setPhone] = useState('')
+   111→
+   112→  // Step 2 form
+   113→  const [ecName, setEcName] = useState('')
+   114→  const [ecRelationship, setEcRelationship] = useState('')
+   115→  const [ecPhone, setEcPhone] = useState('')
+   116→  const [ecEmail, setEcEmail] = useState('')
+   117→
+   118→  // Step 3 form
+   119→  const [bankName, setBankName] = useState('')
+   120→  const [routingNumber, setRoutingNumber] = useState('')
+   121→  const [accountNumber, setAccountNumber] = useState('')
+   122→  const [accountType, setAccountType] = useState('checking')
+   123→  const [filingStatus, setFilingStatus] = useState('single')
+   124→
+   125→  // Step 4
+   126→  const [documents, setDocuments] = useState<OnboardingDoc[]>([])
+   127→  const [generatingDocs, setGeneratingDocs] = useState(false)
+   128→  const [signing, setSigning] = useState(false)
+   129→  const [signatureText, setSignatureText] = useState('')
+   130→
+   131→  // Canvas ref for signature
+   132→  const canvasRef = useRef<HTMLCanvasElement>(null)
+   133→  const [isDrawing, setIsDrawing] = useState(false)
+   134→  const [hasSignature, setHasSignature] = useState(false)
+   135→
+   136→  useEffect(() => {
+   137→    loadProgress()
+   138→  }, [])
+   139→
+   140→  async function loadProgress() {
+   141→    try {
+   142→      setLoading(true)
+   143→      const data = await apiCall<ProgressResponse>('/onboarding/wizard/progress')
+   144→      setProgress(data)
+   145→
+   146→      if (data.has_onboarding && data.wizard) {
+   147→        const w = data.wizard
+   148→        // Restore form data
+   149→        setFirstName(w.legal_first_name || '')
+   150→        setMiddleName(w.legal_middle_name || '')
+   151→        setLastName(w.legal_last_name || '')
+   152→        setDob(w.date_of_birth ? w.date_of_birth.split('T')[0] : '')
+   153→        setAddress1(w.address_line1 || '')
+   154→        setAddress2(w.address_line2 || '')
+   155→        setCity(w.city || '')
+   156→        setState(w.state || '')
+   157→        setZip(w.zip_code || '')
+   158→        setPhone(w.phone || '')
+   159→        setEcName(w.emergency_contact_name || '')
+   160→        setEcRelationship(w.emergency_contact_relationship || '')
+   161→        setEcPhone(w.emergency_contact_phone || '')
+   162→        setEcEmail(w.emergency_contact_email || '')
+   163→        setBankName(w.bank_name || '')
+   164→        setAccountType(w.account_type || 'checking')
+   165→        setFilingStatus(w.w4_filing_status || 'single')
+   166→        // SSN/routing/account are encrypted — don't prefill
+   167→
+   168→        if (w.wizard_status === 'completed') {
+   169→          setCurrentStep(5)
+   170→        } else {
+   171→          setCurrentStep(Math.max(w.current_step || 1, 1))
+   172→        }
+   173→      }
+   174→      if (data.documents) {
+   175→        setDocuments(data.documents)
+   176→      }
+   177→    } catch (err: any) {
+   178→      setError(err.message)
+   179→    } finally {
+   180→      setLoading(false)
+   181→    }
+   182→  }
+   183→
+   184→  function validateStep(step: number): boolean {
+   185→    const errors: Record<string, string> = {}
+   186→
+   187→    if (step === 1) {
+   188→      if (!firstName.trim()) errors.firstName = 'Required'
+   189→      if (!lastName.trim()) errors.lastName = 'Required'
+   190→      if (!dob) errors.dob = 'Required'
+   191→      if (!ssn.trim() && !progress?.wizard?.ssn_encrypted) errors.ssn = 'Required'
+   192→      if (ssn && !/^\d{3}-?\d{2}-?\d{4}$/.test(ssn.replace(/\s/g, ''))) errors.ssn = 'Invalid SSN format (XXX-XX-XXXX)'
+   193→      if (!address1.trim()) errors.address1 = 'Required'
+   194→      if (!city.trim()) errors.city = 'Required'
+   195→      if (!state) errors.state = 'Required'
+   196→      if (!zip.trim()) errors.zip = 'Required'
+   197→      if (zip && !/^\d{5}(-\d{4})?$/.test(zip)) errors.zip = 'Invalid ZIP'
+   198→      if (!phone.trim()) errors.phone = 'Required'
+   199→    }
+   200→
+   201→    if (step === 2) {
+   202→      if (!ecName.trim()) errors.ecName = 'Required'
+   203→      if (!ecRelationship.trim()) errors.ecRelationship = 'Required'
+   204→      if (!ecPhone.trim()) errors.ecPhone = 'Required'
+   205→    }
+   206→
+   207→    if (step === 3) {
+   208→      if (!bankName.trim()) errors.bankName = 'Required'
+   209→      if (!routingNumber.trim() && !progress?.wizard?.routing_number_encrypted) errors.routingNumber = 'Required'
+   210→      if (routingNumber && !/^\d{9}$/.test(routingNumber)) errors.routingNumber = 'Must be 9 digits'
+   211→      if (!accountNumber.trim() && !progress?.wizard?.account_number_encrypted) errors.accountNumber = 'Required'
+   212→    }
+   213→
+   214→    setStepErrors(errors)
+   215→    return Object.keys(errors).length === 0
+   216→  }
+   217→
+   218→  async function saveStep(step: number) {
+   219→    if (!validateStep(step)) return false
+   220→    if (!progress?.checklist) return false
+   221→
+   222→    setSaving(true)
+   223→    setError('')
+   224→    try {
+   225→      let data: any = {}
+   226→
+   227→      if (step === 1) {
+   228→        data = {
+   229→          legal_first_name: firstName.trim(),
+   230→          legal_middle_name: middleName.trim() || null,
+   231→          legal_last_name: lastName.trim(),
+   232→          date_of_birth: dob,
+   233→          ssn: ssn.replace(/[^0-9]/g, '') || undefined,
+   234→          address_line1: address1.trim(),
+   235→          address_line2: address2.trim() || null,
+   236→          city: city.trim(),
+   237→          state,
+   238→          zip_code: zip.trim(),
+   239→          phone: phone.trim(),
+   240→        }
+   241→      } else if (step === 2) {
+   242→        data = {
+   243→          emergency_contact_name: ecName.trim(),
+   244→          emergency_contact_relationship: ecRelationship.trim(),
+   245→          emergency_contact_phone: ecPhone.trim(),
+   246→          emergency_contact_email: ecEmail.trim() || null,
+   247→        }
+   248→      } else if (step === 3) {
+   249→        data = {
+   250→          bank_name: bankName.trim(),
+   251→          routing_number: routingNumber || undefined,
+   252→          account_number: accountNumber || undefined,
+   253→          account_type: accountType,
+   254→          w4_filing_status: filingStatus,
+   255→        }
+   256→      }
+   257→
+   258→      await apiCall('/onboarding/wizard/save-step', {
+   259→        method: 'POST',
+   260→        body: { checklist_id: progress.checklist.id, step, data },
+   261→      })
+   262→
+   263→      return true
+   264→    } catch (err: any) {
+   265→      setError(err.message)
+   266→      return false
+   267→    } finally {
+   268→      setSaving(false)
+   269→    }
+   270→  }
+   271→
+   272→  async function handleNext() {
+   273→    if (currentStep <= 3) {
+   274→      const success = await saveStep(currentStep)
+   275→      if (success) {
+   276→        if (currentStep === 3) {
+   277→          // After step 3, generate documents automatically
+   278→          await generateDocuments()
+   279→        }
+   280→        setCurrentStep(currentStep + 1)
+   281→      }
+   282→    }
+   283→  }
+   284→
+   285→  async function handleBack() {
+   286→    if (currentStep > 1) {
+   287→      setCurrentStep(currentStep - 1)
+   288→      setStepErrors({})
+   289→    }
+   290→  }
+   291→
+   292→  async function generateDocuments() {
+   293→    if (!progress?.checklist) return
+   294→    setGeneratingDocs(true)
+   295→    try {
+   296→      const res = await apiCall<{ documents: OnboardingDoc[] }>('/onboarding/wizard/generate-documents', {
+   297→        method: 'POST',
+   298→        body: { checklist_id: progress.checklist.id },
+   299→      })
+   300→      setDocuments(res.documents)
+   301→    } catch (err: any) {
+   302→      setError(err.message)
+   303→    } finally {
+   304→      setGeneratingDocs(false)
+   305→    }
+   306→  }
+   307→
+   308→  async function signAllDocuments() {
+   309→    if (!progress?.checklist) return
+   310→    if (!signatureText.trim() && !hasSignature) {
+   311→      setStepErrors({ signature: 'Please type your name or draw your signature' })
+   312→      return
+   313→    }
+   314→
+   315→    setSigning(true)
+   316→    setError('')
+   317→    try {
+   318→      const sigData = hasSignature && canvasRef.current
+   319→        ? canvasRef.current.toDataURL()
+   320→        : `text:${signatureText}`
+   321→
+   322→      await apiCall('/onboarding/wizard/sign-all', {
+   323→        method: 'POST',
+   324→        body: {
+   325→          checklist_id: progress.checklist.id,
+   326→          signature_data: sigData,
+   327→        },
+   328→      })
+   329→      setCurrentStep(5)
+   330→      await loadProgress()
+   331→    } catch (err: any) {
+   332→      setError(err.message)
+   333→    } finally {
+   334→      setSigning(false)
+   335→    }
+   336→  }
+   337→
+   338→  // Canvas drawing helpers
+   339→  function startDrawing(e: React.MouseEvent<HTMLCanvasElement>) {
+   340→    const canvas = canvasRef.current
+   341→    if (!canvas) return
+   342→    const ctx = canvas.getContext('2d')
+   343→    if (!ctx) return
+   344→    const rect = canvas.getBoundingClientRect()
+   345→    ctx.beginPath()
+   346→    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top)
+   347→    setIsDrawing(true)
+   348→  }
+   349→
+   350→  function draw(e: React.MouseEvent<HTMLCanvasElement>) {
+   351→    if (!isDrawing) return
+   352→    const canvas = canvasRef.current
+   353→    if (!canvas) return
+   354→    const ctx = canvas.getContext('2d')
+   355→    if (!ctx) return
+   356→    const rect = canvas.getBoundingClientRect()
+   357→    ctx.lineWidth = 2
+   358→    ctx.lineCap = 'round'
+   359→    ctx.strokeStyle = '#1e293b'
+   360→    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top)
+   361→    ctx.stroke()
+   362→    setHasSignature(true)
+   363→  }
+   364→
+   365→  function stopDrawing() {
+   366→    setIsDrawing(false)
+   367→  }
+   368→
+   369→  function clearCanvas() {
+   370→    const canvas = canvasRef.current
+   371→    if (!canvas) return
+   372→    const ctx = canvas.getContext('2d')
+   373→    if (!ctx) return
+   374→    ctx.clearRect(0, 0, canvas.width, canvas.height)
+   375→    setHasSignature(false)
+   376→  }
+   377→
+   378→  // ─── Loading state ─────────────────────────────────────────────────
+   379→  if (loading) {
+   380→    return (
+   381→      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+   382→        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+   383→        <p className="text-muted-foreground">Loading your onboarding...</p>
+   384→      </div>
+   385→    )
+   386→  }
+   387→
+   388→  // ─── No onboarding available ───────────────────────────────────────
+   389→  if (!progress?.has_onboarding) {
+   390→    return (
+   391→      <div className="max-w-2xl mx-auto py-12 text-center">
+   392→        <div className="flex justify-center mb-6">
+   393→          <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+   394→            <ClipboardCheck className="h-8 w-8 text-muted-foreground" />
+   395→          </div>
+   396→        </div>
+   397→        <h1 className="text-2xl font-bold mb-2">No Onboarding Available</h1>
+   398→        <p className="text-muted-foreground">
+   399→          Onboarding begins after you accept an offer. Check your <strong>Offers</strong> page for pending offers.
+   400→        </p>
+   401→      </div>
+   402→    )
+   403→  }
+   404→
+   405→  const checklist = progress.checklist!
+   406→  const wizard = progress.wizard
+   407→
+   408→  // ─── Completed state ───────────────────────────────────────────────
+   409→  if (currentStep === 5 || wizard?.wizard_status === 'completed') {
+   410→    return (
+   411→      <div className="max-w-2xl mx-auto py-12">
+   412→        <div className="text-center mb-8">
+   413→          <div className="flex justify-center mb-6">
+   414→            <div className="h-20 w-20 rounded-full bg-green-100 flex items-center justify-center">
+   415→              <PartyPopper className="h-10 w-10 text-green-600" />
+   416→            </div>
+   417→          </div>
+   418→          <h1 className="text-3xl font-bold mb-2">Onboarding Complete!</h1>
+   419→          <p className="text-muted-foreground text-lg">
+   420→            All documents are signed and submitted. Your HR team has been notified.
+   421→          </p>
+   422→        </div>
+   423→
+   424→        <Card>
+   425→          <CardContent className="p-6">
+   426→            <h2 className="font-semibold mb-4 flex items-center gap-2">
+   427→              <FileText className="h-5 w-5 text-primary" />
+   428→              Signed Documents
+   429→            </h2>
+   430→            <div className="space-y-3">
+   431→              {documents.map((doc) => (
+   432→                <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+   433→                  <div className="flex items-center gap-3">
+   434→                    <CheckCircle className="h-5 w-5 text-green-500" />
+   435→                    <span className="font-medium">{doc.document_type}</span>
+   436→                  </div>
+   437→                  <Badge variant="success">Signed</Badge>
+   438→                </div>
+   439→              ))}
+   440→            </div>
+   441→
+   442→            <div className="mt-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
+   443→              <div className="flex gap-3">
+   444→                <Sparkles className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+   445→                <div>
+   446→                  <p className="font-medium text-blue-900">What happens next?</p>
+   447→                  <p className="text-sm text-blue-700 mt-1">
+   448→                    Your HR team will review your documents and finalize your onboarding.
+   449→                    You'll receive confirmation before your start date
+   450→                    {checklist.start_date && (
+   451→                      <> on <strong>{new Date(checklist.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong></>
+   452→                    )}.
+   453→                  </p>
+   454→                </div>
+   455→              </div>
+   456→            </div>
+   457→          </CardContent>
+   458→        </Card>
+   459→      </div>
+   460→    )
+   461→  }
+   462→
+   463→  // ─── Active wizard ─────────────────────────────────────────────────
+   464→  const completedSteps = wizard?.steps_completed || []
+   465→  const progressPct = Math.round(((currentStep - 1) / STEPS.length) * 100)
+   466→
+   467→  return (
+   468→    <div className="max-w-3xl mx-auto pb-12">
+   469→      {/* Header */}
+   470→      <div className="mb-8">
+   471→        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+   472→          <Shield className="h-4 w-4" />
+   473→          <span>Encrypted & Secure</span>
+   474→        </div>
+   475→        <h1 className="text-2xl font-bold">
+   476→          Welcome aboard{checklist.company_name ? `, ${checklist.company_name}` : ''}!
+   477→        </h1>
+   478→        <p className="text-muted-foreground mt-1">
+   479→          Complete your onboarding to get started as <strong>{checklist.job_title || checklist.offer_title}</strong>
+   480→          {checklist.start_date && (
+   481→            <> — starting {new Date(checklist.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</>
+   482→          )}
+   483→        </p>
+   484→      </div>
+   485→
+   486→      {/* Progress bar */}
+   487→      <div className="mb-8">
+   488→        <div className="flex justify-between text-sm mb-2">
+   489→          <span className="font-medium">Progress</span>
+   490→          <span className="text-muted-foreground">{progressPct}%</span>
+   491→        </div>
+   492→        <div className="h-2 rounded-full bg-muted overflow-hidden">
+   493→          <div
+   494→            className="h-full rounded-full bg-primary transition-all duration-500"
+   495→            style={{ width: `${progressPct}%` }}
+   496→          />
+   497→        </div>
+   498→      </div>
+   499→
+   500→      {/* Step indicators */}
+   501→      <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2">
+   502→        {STEPS.map((step, i) => {
+   503→          const isComplete = completedSteps.includes(String(step.id)) || currentStep > step.id
+   504→          const isCurrent = currentStep === step.id
+   505→          const Icon = step.icon
+   506→
+   507→          return (
+   508→            <div key={step.id} className="flex items-center gap-2">
+   509→              {i > 0 && (
+   510→                <div className={`h-px w-4 sm:w-8 ${isComplete ? 'bg-primary' : 'bg-border'}`} />
+   511→              )}
+   512→              <button
+   513→                onClick={() => {
+   514→                  if (isComplete || isCurrent) setCurrentStep(step.id)
+   515→                }}
+   516→                disabled={!isComplete && !isCurrent}
+   517→                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
+   518→                  isCurrent
+   519→                    ? 'bg-primary text-primary-foreground'
+   520→                    : isComplete
+   521→                    ? 'bg-primary/10 text-primary hover:bg-primary/20'
+   522→                    : 'bg-muted text-muted-foreground'
+   523→                }`}
+   524→              >
+   525→                {isComplete ? (
+   526→                  <CheckCircle className="h-4 w-4" />
+   527→                ) : isCurrent ? (
+   528→                  <Icon className="h-4 w-4" />
+   529→                ) : (
+   530→                  <Circle className="h-4 w-4" />
+   531→                )}
+   532→                <span className="hidden sm:inline">{step.label}</span>
+   533→                <span className="sm:hidden">{step.id}</span>
+   534→              </button>
+   535→            </div>
+   536→          )
+   537→        })}
+   538→      </div>
+   539→
+   540→      {/* Error */}
+   541→      {error && (
+   542→        <div className="mb-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center gap-2">
+   543→          <AlertCircle className="h-4 w-4 shrink-0" />
+   544→          {error}
+   545→        </div>
+   546→      )}
+   547→
+   548→      {/* Step content */}
+   549→      <Card>
+   550→        <CardContent className="p-6 sm:p-8">
+   551→          {/* Step 1: Personal Info */}
+   552→          {currentStep === 1 && (
+   553→            <div className="space-y-6">
+   554→              <div>
+   555→                <h2 className="text-lg font-semibold flex items-center gap-2">
+   556→                  <User className="h-5 w-5 text-primary" />
+   557→                  Personal Information
+   558→                </h2>
+   559→                <p className="text-sm text-muted-foreground mt-1">
+   560→                  This information is used to generate your I-9 employment eligibility form.
+   561→                </p>
+   562→              </div>
+   563→
+   564→              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+   565→                <FieldGroup label="Legal First Name *" error={stepErrors.firstName}>
+   566→                  <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="John" />
+   567→                </FieldGroup>
+   568→                <FieldGroup label="Middle Name">
+   569→                  <Input value={middleName} onChange={(e) => setMiddleName(e.target.value)} placeholder="Michael" />
+   570→                </FieldGroup>
+   571→                <FieldGroup label="Legal Last Name *" error={stepErrors.lastName}>
+   572→                  <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Doe" />
+   573→                </FieldGroup>
+   574→              </div>
+   575→
+   576→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   577→                <FieldGroup label="Date of Birth *" error={stepErrors.dob}>
+   578→                  <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
+   579→                </FieldGroup>
+   580→                <FieldGroup label="Social Security Number *" error={stepErrors.ssn}>
+   581→                  <div className="relative">
+   582→                    <Input
+   583→                      type="password"
+   584→                      value={ssn}
+   585→                      onChange={(e) => setSsn(e.target.value)}
+   586→                      placeholder={progress?.wizard?.ssn_encrypted ? '••••••••• (already saved)' : 'XXX-XX-XXXX'}
+   587→                    />
+   588→                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+   589→                  </div>
+   590→                </FieldGroup>
+   591→              </div>
+   592→
+   593→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   594→                <FieldGroup label="Phone *" error={stepErrors.phone}>
+   595→                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
+   596→                </FieldGroup>
+   597→              </div>
+   598→
+   599→              <div className="space-y-4">
+   600→                <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Address</h3>
+   601→                <FieldGroup label="Street Address *" error={stepErrors.address1}>
+   602→                  <Input value={address1} onChange={(e) => setAddress1(e.target.value)} placeholder="123 Main St" />
+   603→                </FieldGroup>
+   604→                <FieldGroup label="Apartment, Suite, etc.">
+   605→                  <Input value={address2} onChange={(e) => setAddress2(e.target.value)} placeholder="Apt 4B" />
+   606→                </FieldGroup>
+   607→                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+   608→                  <FieldGroup label="City *" error={stepErrors.city}>
+   609→                    <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="New York" />
+   610→                  </FieldGroup>
+   611→                  <FieldGroup label="State *" error={stepErrors.state}>
+   612→                    <Select value={state} onChange={(e) => setState(e.target.value)}>
+   613→                      <option value="">Select</option>
+   614→                      {US_STATES.map((s) => (
+   615→                        <option key={s} value={s}>{s}</option>
+   616→                      ))}
+   617→                    </Select>
+   618→                  </FieldGroup>
+   619→                  <FieldGroup label="ZIP *" error={stepErrors.zip}>
+   620→                    <Input value={zip} onChange={(e) => setZip(e.target.value)} placeholder="10001" />
+   621→                  </FieldGroup>
+   622→                </div>
+   623→              </div>
+   624→            </div>
+   625→          )}
+   626→
+   627→          {/* Step 2: Emergency Contact */}
+   628→          {currentStep === 2 && (
+   629→            <div className="space-y-6">
+   630→              <div>
+   631→                <h2 className="text-lg font-semibold flex items-center gap-2">
+   632→                  <Phone className="h-5 w-5 text-primary" />
+   633→                  Emergency Contact
+   634→                </h2>
+   635→                <p className="text-sm text-muted-foreground mt-1">
+   636→                  Provide an emergency contact who can be reached if needed.
+   637→                </p>
+   638→              </div>
+   639→
+   640→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   641→                <FieldGroup label="Contact Name *" error={stepErrors.ecName}>
+   642→                  <Input value={ecName} onChange={(e) => setEcName(e.target.value)} placeholder="Jane Doe" />
+   643→                </FieldGroup>
+   644→                <FieldGroup label="Relationship *" error={stepErrors.ecRelationship}>
+   645→                  <Select value={ecRelationship} onChange={(e) => setEcRelationship(e.target.value)}>
+   646→                    <option value="">Select relationship</option>
+   647→                    {['Spouse', 'Partner', 'Parent', 'Sibling', 'Child', 'Friend', 'Other'].map((r) => (
+   648→                      <option key={r} value={r.toLowerCase()}>{r}</option>
+   649→                    ))}
+   650→                  </Select>
+   651→                </FieldGroup>
+   652→              </div>
+   653→
+   654→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   655→                <FieldGroup label="Phone Number *" error={stepErrors.ecPhone}>
+   656→                  <Input value={ecPhone} onChange={(e) => setEcPhone(e.target.value)} placeholder="(555) 123-4567" />
+   657→                </FieldGroup>
+   658→                <FieldGroup label="Email (optional)">
+   659→                  <Input type="email" value={ecEmail} onChange={(e) => setEcEmail(e.target.value)} placeholder="jane@example.com" />
+   660→                </FieldGroup>
+   661→              </div>
+   662→            </div>
+   663→          )}
+   664→
+   665→          {/* Step 3: Banking & Tax */}
+   666→          {currentStep === 3 && (
+   667→            <div className="space-y-6">
+   668→              <div>
+   669→                <h2 className="text-lg font-semibold flex items-center gap-2">
+   670→                  <Building2 className="h-5 w-5 text-primary" />
+   671→                  Direct Deposit & Tax Withholding
+   672→                </h2>
+   673→                <p className="text-sm text-muted-foreground mt-1">
+   674→                  Set up your direct deposit and W-4 tax withholding preferences.
+   675→                </p>
+   676→              </div>
+   677→
+   678→              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 flex gap-3">
+   679→                <Lock className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+   680→                <p className="text-sm text-amber-800">
+   681→                  Your banking information is encrypted end-to-end. Only authorized payroll personnel can access it.
+   682→                </p>
+   683→              </div>
+   684→
+   685→              <div>
+   686→                <h3 className="font-medium mb-3">Bank Details</h3>
+   687→                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   688→                  <FieldGroup label="Bank Name *" error={stepErrors.bankName}>
+   689→                    <Input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="Chase, Bank of America, etc." />
+   690→                  </FieldGroup>
+   691→                  <FieldGroup label="Account Type">
+   692→                    <Select value={accountType} onChange={(e) => setAccountType(e.target.value)}>
+   693→                      <option value="checking">Checking</option>
+   694→                      <option value="savings">Savings</option>
+   695→                    </Select>
+   696→                  </FieldGroup>
+   697→                </div>
+   698→                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+   699→                  <FieldGroup label="Routing Number *" error={stepErrors.routingNumber}>
+   700→                    <div className="relative">
+   701→                      <Input
+   702→                        type="password"
+   703→                        value={routingNumber}
+   704→                        onChange={(e) => setRoutingNumber(e.target.value.replace(/\D/g, '').slice(0, 9))}
+   705→                        placeholder={progress?.wizard?.routing_number_encrypted ? '••••••••• (saved)' : '9 digits'}
+   706→                      />
+   707→                      <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+   708→                    </div>
+   709→                  </FieldGroup>
+   710→                  <FieldGroup label="Account Number *" error={stepErrors.accountNumber}>
+   711→                    <div className="relative">
+   712→                      <Input
+   713→                        type="password"
+   714→                        value={accountNumber}
+   715→                        onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ''))}
+   716→                        placeholder={progress?.wizard?.account_number_encrypted ? '••••••••• (saved)' : 'Account number'}
+   717→                      />
+   718→                      <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+   719→                    </div>
+   720→                  </FieldGroup>
+   721→                </div>
+   722→              </div>
+   723→
+   724→              <div>
+   725→                <h3 className="font-medium mb-3">W-4 Tax Withholding</h3>
+   726→                <FieldGroup label="Filing Status *">
+   727→                  <Select value={filingStatus} onChange={(e) => setFilingStatus(e.target.value)}>
+   728→                    <option value="single">Single or Married Filing Separately</option>
+   729→                    <option value="married">Married Filing Jointly</option>
+   730→                    <option value="head_of_household">Head of Household</option>
+   731→                  </Select>
+   732→                </FieldGroup>
+   733→              </div>
+   734→            </div>
+   735→          )}
+   736→
+   737→          {/* Step 4: Review & Sign */}
+   738→          {currentStep === 4 && (
+   739→            <div className="space-y-6">
+   740→              <div>
+   741→                <h2 className="text-lg font-semibold flex items-center gap-2">
+   742→                  <PenTool className="h-5 w-5 text-primary" />
+   743→                  Review & E-Sign Documents
+   744→                </h2>
+   745→                <p className="text-sm text-muted-foreground mt-1">
+   746→                  Your documents have been generated from the information you provided. Review and sign below.
+   747→                </p>
+   748→              </div>
+   749→
+   750→              {generatingDocs ? (
+   751→                <div className="flex flex-col items-center py-8 gap-3">
+   752→                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+   753→                  <p className="text-muted-foreground">Generating your documents with AI...</p>
+   754→                </div>
+   755→              ) : documents.length === 0 ? (
+   756→                <div className="text-center py-8">
+   757→                  <p className="text-muted-foreground mb-4">Documents haven't been generated yet.</p>
+   758→                  <Button onClick={generateDocuments} disabled={generatingDocs}>
+   759→                    <Sparkles className="h-4 w-4 mr-2" />
+   760→                    Generate Documents
+   761→                  </Button>
+   762→                </div>
+   763→              ) : (
+   764→                <>
+   765→                  <div className="space-y-3">
+   766→                    {documents.map((doc) => (
+   767→                      <div
+   768→                        key={doc.id}
+   769→                        className="flex items-center justify-between p-4 rounded-lg border bg-card"
+   770→                      >
+   771→                        <div className="flex items-center gap-3">
+   772→                          <FileText className="h-5 w-5 text-primary" />
+   773→                          <div>
+   774→                            <p className="font-medium">{doc.document_type}</p>
+   775→                            <p className="text-xs text-muted-foreground">
+   776→                              Generated {new Date(doc.created_at).toLocaleDateString()}
+   777→                            </p>
+   778→                          </div>
+   779→                        </div>
+   780→                        {doc.signed_at ? (
+   781→                          <Badge variant="success">
+   782→                            <CheckCircle className="h-3 w-3 mr-1" />
+   783→                            Signed
+   784→                          </Badge>
+   785→                        ) : (
+   786→                          <Badge variant="warning">Pending</Badge>
+   787→                        )}
+   788→                      </div>
+   789→                    ))}
+   790→                  </div>
+   791→
+   792→                  {documents.some(d => !d.signed_at) && (
+   793→                    <div className="space-y-4 border-t pt-6">
+   794→                      <h3 className="font-medium">Electronic Signature</h3>
+   795→                      <p className="text-sm text-muted-foreground">
+   796→                        By signing below, you certify that all information provided is accurate and complete.
+   797→                        Your signature, IP address, and timestamp will be recorded for compliance.
+   798→                      </p>
+   799→
+   800→                      {/* Typed signature */}
+   801→                      <FieldGroup label="Type your full legal name" error={stepErrors.signature}>
+   802→                        <Input
+   803→                          value={signatureText}
+   804→                          onChange={(e) => setSignatureText(e.target.value)}
+   805→                          placeholder={`${firstName} ${lastName}`}
+   806→                          className="font-serif text-lg italic"
+   807→                        />
+   808→                      </FieldGroup>
+   809→
+   810→                      <div className="text-center text-xs text-muted-foreground">— or draw your signature —</div>
+   811→
+   812→                      {/* Canvas signature */}
+   813→                      <div className="border rounded-lg p-2 bg-white">
+   814→                        <canvas
+   815→                          ref={canvasRef}
+   816→                          width={500}
+   817→                          height={120}
+   818→                          className="w-full cursor-crosshair border border-dashed rounded"
+   819→                          onMouseDown={startDrawing}
+   820→                          onMouseMove={draw}
+   821→                          onMouseUp={stopDrawing}
+   822→                          onMouseLeave={stopDrawing}
+   823→                        />
+   824→                        <div className="flex justify-end mt-1">
+   825→                          <Button variant="ghost" size="sm" onClick={clearCanvas}>
+   826→                            Clear
+   827→                          </Button>
+   828→                        </div>
+   829→                      </div>
+   830→
+   831→                      <Button
+   832→                        onClick={signAllDocuments}
+   833→                        disabled={signing}
+   834→                        className="w-full"
+   835→                        size="lg"
+   836→                      >
+   837→                        {signing ? (
+   838→                          <>
+   839→                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+   840→                            Signing...
+   841→                          </>
+   842→                        ) : (
+   843→                          <>
+   844→                            <PenTool className="h-4 w-4 mr-2" />
+   845→                            Sign All Documents ({documents.filter(d => !d.signed_at).length})
+   846→                          </>
+   847→                        )}
+   848→                      </Button>
+   849→                    </div>
+   850→                  )}
+   851→                </>
+   852→              )}
+   853→            </div>
+   854→          )}
+   855→
+   856→          {/* Navigation buttons */}
+   857→          {currentStep <= 3 && (
+   858→            <div className="flex justify-between mt-8 pt-6 border-t">
+   859→              <Button
+   860→                variant="outline"
+   861→                onClick={handleBack}
+   862→                disabled={currentStep === 1 || saving}
+   863→              >
+   864→                <ArrowLeft className="h-4 w-4 mr-2" />
+   865→                Back
+   866→              </Button>
+   867→              <Button onClick={handleNext} disabled={saving}>
+   868→                {saving ? (
+   869→                  <>
+   870→                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+   871→                    Saving...
+   872→                  </>
+   873→                ) : (
+   874→                  <>
+   875→                    {currentStep === 3 ? 'Generate Documents' : 'Continue'}
+   876→                    <ArrowRight className="h-4 w-4 ml-2" />
+   877→                  </>
+   878→                )}
+   879→              </Button>
+   880→            </div>
+   881→          )}
+   882→        </CardContent>
+   883→      </Card>
+   884→
+   885→      {/* Security notice */}
+   886→      <p className="text-center text-xs text-muted-foreground mt-6 flex items-center justify-center gap-1">
+   887→        <Shield className="h-3 w-3" />
+   888→        All personal data is encrypted at rest. Your information is only shared with authorized HR personnel.
+   889→      </p>
+   890→    </div>
+   891→  )
+   892→}
+   893→
+   894→// ─── Helpers ─────────────────────────────────────────────────────────
+   895→function FieldGroup({
+   896→  label,
+   897→  error,
+   898→  children,
+   899→}: {
+   900→  label: string
+   901→  error?: string
+   902→  children: React.ReactNode
+   903→}) {
+   904→  return (
+   905→    <div className="space-y-1.5">
+   906→      <Label className="text-sm font-medium">{label}</Label>
+   907→      {children}
+   908→      {error && <p className="text-xs text-destructive">{error}</p>}
+   909→    </div>
+   910→  )
+   911→}
+   912→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
