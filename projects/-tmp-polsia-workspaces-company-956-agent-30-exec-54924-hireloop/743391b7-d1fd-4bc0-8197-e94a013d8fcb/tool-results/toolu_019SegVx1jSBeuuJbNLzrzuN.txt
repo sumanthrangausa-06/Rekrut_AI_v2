@@ -1,0 +1,122 @@
+     1→// Verification script for Phase 2: Recruiter Module + TrustScore
+     2→
+     3→async function verify() {
+     4→  console.log('Verifying Phase 2 implementation...\n');
+     5→
+     6→  // Check that all required files exist
+     7→  const fs = require('fs');
+     8→  const path = require('path');
+     9→
+    10→  const requiredFiles = [
+    11→    // Backend
+    12→    'migrations/002_add_trustscore.js',
+    13→    'services/trustscore.js',
+    14→    'services/job-optimizer.js',
+    15→    'routes/company.js',
+    16→    'routes/trustscore.js',
+    17→    'routes/recruiter.js',
+    18→    // Frontend
+    19→    'public/recruiter-register.html',
+    20→    'public/recruiter-dashboard.html',
+    21→    'public/recruiter-trustscore.html',
+    22→    'public/recruiter-jobs.html',
+    23→    'public/job-create.html',
+    24→    'public/company-profile.html',
+    25→  ];
+    26→
+    27→  console.log('Checking required files...');
+    28→  let allFilesExist = true;
+    29→  for (const file of requiredFiles) {
+    30→    const filePath = path.join(__dirname, file);
+    31→    if (fs.existsSync(filePath)) {
+    32→      console.log(`  ✓ ${file}`);
+    33→    } else {
+    34→      console.log(`  ✗ ${file} - MISSING`);
+    35→      allFilesExist = false;
+    36→    }
+    37→  }
+    38→
+    39→  if (!allFilesExist) {
+    40→    console.log('\nVerification FAILED: Missing files');
+    41→    process.exit(1);
+    42→  }
+    43→
+    44→  // Verify modules can be required
+    45→  console.log('\nChecking module imports...');
+    46→  try {
+    47→    const trustscoreService = require('./services/trustscore');
+    48→    console.log('  ✓ TrustScore service');
+    49→    console.log(`    - TRUST_SCORE_RANGES.MAX = ${trustscoreService.TRUST_SCORE_RANGES.MAX}`);
+    50→    console.log(`    - Components: ${Object.keys(trustscoreService.TRUST_COMPONENTS).join(', ')}`);
+    51→  } catch (e) {
+    52→    console.log(`  ✗ TrustScore service - ${e.message}`);
+    53→    process.exit(1);
+    54→  }
+    55→
+    56→  try {
+    57→    const jobOptimizer = require('./services/job-optimizer');
+    58→    console.log('  ✓ Job optimizer service');
+    59→    console.log(`    - Functions: ${Object.keys(jobOptimizer).join(', ')}`);
+    60→  } catch (e) {
+    61→    console.log(`  ✗ Job optimizer service - ${e.message}`);
+    62→    process.exit(1);
+    63→  }
+    64→
+    65→  try {
+    66→    const companyRoutes = require('./routes/company');
+    67→    console.log('  ✓ Company routes');
+    68→  } catch (e) {
+    69→    console.log(`  ✗ Company routes - ${e.message}`);
+    70→    process.exit(1);
+    71→  }
+    72→
+    73→  try {
+    74→    const trustscoreRoutes = require('./routes/trustscore');
+    75→    console.log('  ✓ TrustScore routes');
+    76→  } catch (e) {
+    77→    console.log(`  ✗ TrustScore routes - ${e.message}`);
+    78→    process.exit(1);
+    79→  }
+    80→
+    81→  try {
+    82→    const recruiterRoutes = require('./routes/recruiter');
+    83→    console.log('  ✓ Recruiter routes');
+    84→  } catch (e) {
+    85→    console.log(`  ✗ Recruiter routes - ${e.message}`);
+    86→    process.exit(1);
+    87→  }
+    88→
+    89→  // Check migration structure
+    90→  console.log('\nChecking migration structure...');
+    91→  const migration = require('./migrations/002_add_trustscore');
+    92→  if (migration.name && typeof migration.up === 'function') {
+    93→    console.log(`  ✓ Migration "${migration.name}" is valid`);
+    94→  } else {
+    95→    console.log('  ✗ Migration is invalid');
+    96→    process.exit(1);
+    97→  }
+    98→
+    99→  console.log('\n========================================');
+   100→  console.log('✅ All Phase 2 verifications PASSED!');
+   101→  console.log('========================================');
+   102→  console.log('\nFeatures implemented:');
+   103→  console.log('  - Company/Recruiter registration with email verification');
+   104→  console.log('  - TrustScore system (0-1000 range)');
+   105→  console.log('  - TrustScore dimensions: verification, job_authenticity, hiring_ratio, feedback, behavior');
+   106→  console.log('  - AI-powered job description optimization');
+   107→  console.log('  - Job posting creation with AI analysis');
+   108→  console.log('  - Recruiter dashboard');
+   109→  console.log('  - Company profile management');
+   110→  console.log('  - Hiring analytics');
+   111→  console.log('  - Interview scheduling');
+   112→}
+   113→
+   114→verify().catch(e => {
+   115→  console.error('Verification error:', e);
+   116→  process.exit(1);
+   117→});
+   118→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

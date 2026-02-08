@@ -1,0 +1,985 @@
+     1→const express = require('express');
+     2→const router = express.Router();
+     3→const pool = require('../lib/db');
+     4→const { authMiddleware } = require('../lib/auth');
+     5→const { chat } = require('../lib/polsia-ai');
+     6→
+     7→// Skill catalog - available to all candidates without pre-existing skills
+     8→const SKILL_CATALOG = [
+     9→  { name: 'JavaScript', category: 'technical', icon: 'JS', description: 'Core JS, ES6+, async/await, closures, prototypes', difficulty: 'Adaptive' },
+    10→  { name: 'Python', category: 'technical', icon: 'PY', description: 'Core Python, data structures, OOP, standard library', difficulty: 'Adaptive' },
+    11→  { name: 'React', category: 'technical', icon: 'RE', description: 'Components, hooks, state management, lifecycle', difficulty: 'Adaptive' },
+    12→  { name: 'Node.js', category: 'technical', icon: 'NJ', description: 'Express, APIs, async patterns, middleware', difficulty: 'Adaptive' },
+    13→  { name: 'SQL', category: 'technical', icon: 'SQL', description: 'Queries, joins, indexing, optimization, transactions', difficulty: 'Adaptive' },
+    14→  { name: 'TypeScript', category: 'technical', icon: 'TS', description: 'Types, interfaces, generics, type guards', difficulty: 'Adaptive' },
+    15→  { name: 'Java', category: 'technical', icon: 'JV', description: 'OOP, collections, multithreading, design patterns', difficulty: 'Adaptive' },
+    16→  { name: 'CSS & HTML', category: 'technical', icon: 'CSS', description: 'Flexbox, Grid, responsive design, accessibility', difficulty: 'Adaptive' },
+    17→  { name: 'AWS', category: 'technical', icon: 'AWS', description: 'EC2, S3, Lambda, IAM, CloudFormation', difficulty: 'Adaptive' },
+    18→  { name: 'Docker', category: 'technical', icon: 'DK', description: 'Containers, images, compose, networking', difficulty: 'Adaptive' },
+    19→  { name: 'Git', category: 'technical', icon: 'GIT', description: 'Branching, merging, rebasing, workflows', difficulty: 'Adaptive' },
+    20→  { name: 'Data Analysis', category: 'analytical', icon: 'DA', description: 'Statistics, visualization, pandas, Excel formulas', difficulty: 'Adaptive' },
+    21→  { name: 'System Design', category: 'technical', icon: 'SD', description: 'Scalability, databases, caching, load balancing', difficulty: 'Adaptive' },
+    22→  { name: 'Project Management', category: 'soft_skill', icon: 'PM', description: 'Agile, planning, risk management, stakeholders', difficulty: 'Adaptive' },
+    23→  { name: 'Communication', category: 'soft_skill', icon: 'CM', description: 'Written, verbal, presentation, feedback', difficulty: 'Adaptive' },
+    24→  { name: 'Machine Learning', category: 'technical', icon: 'ML', description: 'Algorithms, neural networks, training, evaluation', difficulty: 'Adaptive' },
+    25→];
+    26→
+    27→// Get skill catalog with user's assessment history
+    28→router.get('/available', authMiddleware, async (req, res) => {
+    29→  try {
+    30→    const userId = req.user.id;
+    31→
+    32→    // Get user's existing skills and assessment data
+    33→    const userSkillsResult = await pool.query(`
+    34→      SELECT cs.id, cs.skill_name, cs.category, cs.level, cs.is_verified, cs.verified_score,
+    35→             COUNT(sa.id) as assessment_count,
+    36→             MAX(sa.score) as best_score,
+    37→             MAX(sa.completed_at) as last_attempted
+    38→      FROM candidate_skills cs
+    39→      LEFT JOIN skill_assessments sa ON cs.id = sa.skill_id AND sa.completed_at IS NOT NULL
+    40→      WHERE cs.user_id = $1
+    41→      GROUP BY cs.id
+    42→      ORDER BY cs.is_verified ASC, cs.created_at DESC
+    43→    `, [userId]);
+    44→
+    45→    const userSkillMap = {};
+    46→    for (const skill of userSkillsResult.rows) {
+    47→      userSkillMap[skill.skill_name.toLowerCase()] = skill;
+    48→    }
+    49→
+    50→    // Build catalog with user's data overlaid
+    51→    const catalog = SKILL_CATALOG.map(catalogSkill => {
+    52→      const userSkill = userSkillMap[catalogSkill.name.toLowerCase()];
+    53→      return {
+    54→        catalog_name: catalogSkill.name,
+    55→        category: catalogSkill.category,
+    56→        icon: catalogSkill.icon,
+    57→        description: catalogSkill.description,
+    58→        difficulty: catalogSkill.difficulty,
+    59→        // User-specific data
+    60→        skill_id: userSkill ? userSkill.id : null,
+    61→        is_verified: userSkill ? userSkill.is_verified : false,
+    62→        verified_score: userSkill ? userSkill.verified_score : null,
+    63→        assessment_count: userSkill ? parseInt(userSkill.assessment_count) : 0,
+    64→        best_score: userSkill ? userSkill.best_score : null,
+    65→        last_attempted: userSkill ? userSkill.last_attempted : null,
+    66→      };
+    67→    });
+    68→
+    69→    // Also include any user skills NOT in the catalog
+    70→    for (const skill of userSkillsResult.rows) {
+    71→      const inCatalog = SKILL_CATALOG.some(c => c.name.toLowerCase() === skill.skill_name.toLowerCase());
+    72→      if (!inCatalog) {
+    73→        catalog.push({
+    74→          catalog_name: skill.skill_name,
+    75→          category: skill.category,
+    76→          icon: skill.skill_name.substring(0, 2).toUpperCase(),
+    77→          description: `Custom skill: ${skill.skill_name}`,
+    78→          difficulty: 'Adaptive',
+    79→          skill_id: skill.id,
+    80→          is_verified: skill.is_verified,
+    81→          verified_score: skill.verified_score,
+    82→          assessment_count: parseInt(skill.assessment_count),
+    83→          best_score: skill.best_score,
+    84→          last_attempted: skill.last_attempted,
+    85→        });
+    86→      }
+    87→    }
+    88→
+    89→    res.json({ skills: catalog });
+    90→  } catch (error) {
+    91→    console.error('Error fetching available assessments:', error);
+    92→    res.status(500).json({ error: 'Failed to fetch assessments' });
+    93→  }
+    94→});
+    95→
+    96→// Get past assessment results
+    97→router.get('/results', authMiddleware, async (req, res) => {
+    98→  try {
+    99→    const userId = req.user.id;
+   100→
+   101→    const result = await pool.query(`
+   102→      SELECT sa.*, cs.skill_name, cs.category,
+   103→             ass.tab_switches, ass.copy_paste_attempts, ass.time_anomalies,
+   104→             ass.max_difficulty_reached, ass.answers_given
+   105→      FROM skill_assessments sa
+   106→      LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
+   107→      LEFT JOIN assessment_sessions ass ON sa.session_id = ass.id
+   108→      WHERE sa.user_id = $1 AND sa.completed_at IS NOT NULL
+   109→      ORDER BY sa.completed_at DESC
+   110→    `, [userId]);
+   111→
+   112→    res.json({ results: result.rows });
+   113→  } catch (error) {
+   114→    console.error('Error fetching assessment results:', error);
+   115→    res.status(500).json({ error: 'Failed to fetch results' });
+   116→  }
+   117→});
+   118→
+   119→// Start new assessment - accepts skillName+category OR skillId
+   120→router.post('/start', authMiddleware, async (req, res) => {
+   121→  const client = await pool.connect();
+   122→  try {
+   123→    const userId = req.user.id;
+   124→    const { skillId, skillName, category, jobId } = req.body;
+   125→
+   126→    await client.query('BEGIN');
+   127→
+   128→    let skill;
+   129→
+   130→    if (skillId) {
+   131→      // Legacy: lookup by ID
+   132→      const skillResult = await client.query(
+   133→        'SELECT * FROM candidate_skills WHERE id = $1 AND user_id = $2',
+   134→        [skillId, userId]
+   135→      );
+   136→      skill = skillResult.rows[0];
+   137→    }
+   138→
+   139→    if (!skill && skillName) {
+   140→      // Look up or auto-create the skill in candidate_skills
+   141→      const existingResult = await client.query(
+   142→        'SELECT * FROM candidate_skills WHERE user_id = $1 AND LOWER(skill_name) = LOWER($2)',
+   143→        [userId, skillName]
+   144→      );
+   145→
+   146→      if (existingResult.rows.length > 0) {
+   147→        skill = existingResult.rows[0];
+   148→      } else {
+   149→        // Auto-create the skill for this user
+   150→        const insertResult = await client.query(`
+   151→          INSERT INTO candidate_skills (user_id, skill_name, category, level)
+   152→          VALUES ($1, $2, $3, 1)
+   153→          RETURNING *
+   154→        `, [userId, skillName, category || 'technical']);
+   155→        skill = insertResult.rows[0];
+   156→      }
+   157→    }
+   158→
+   159→    if (!skill) {
+   160→      await client.query('ROLLBACK');
+   161→      return res.status(400).json({ error: 'Skill name or ID required' });
+   162→    }
+   163→
+   164→    // Check for active session
+   165→    const activeSession = await client.query(
+   166→      "SELECT id FROM assessment_sessions WHERE user_id = $1 AND skill_id = $2 AND status = 'in_progress'",
+   167→      [userId, skill.id]
+   168→    );
+   169→    if (activeSession.rows.length > 0) {
+   170→      // Abandon old session
+   171→      await client.query(
+   172→        "UPDATE assessment_sessions SET status = 'abandoned' WHERE id = $1",
+   173→        [activeSession.rows[0].id]
+   174→      );
+   175→    }
+   176→
+   177→    // Create assessment session
+   178→    const sessionResult = await client.query(`
+   179→      INSERT INTO assessment_sessions
+   180→      (user_id, skill_id, job_id, status, current_difficulty, current_question_index, score,
+   181→       max_difficulty_reached, tab_switches, copy_paste_attempts, time_anomalies,
+   182→       questions_asked, answers_given, started_at)
+   183→      VALUES ($1, $2, $3, 'in_progress', 2, 0, 0, 2, 0, 0, 0, '[]'::jsonb, '[]'::jsonb, NOW())
+   184→      RETURNING *
+   185→    `, [userId, skill.id, jobId || null]);
+   186→
+   187→    const session = sessionResult.rows[0];
+   188→
+   189→    // Generate first question
+   190→    const question = await generateQuestion(skill.skill_name, skill.category, 2, client);
+   191→
+   192→    if (!question) {
+   193→      await client.query('ROLLBACK');
+   194→      return res.status(500).json({ error: 'Failed to generate questions. Please try again.' });
+   195→    }
+   196→
+   197→    // Record question asked
+   198→    const questionsAsked = [{ questionId: question.id, difficulty: question.difficulty_level, timestamp: new Date() }];
+   199→    await client.query(
+   200→      'UPDATE assessment_sessions SET questions_asked = $1, current_question_index = 1 WHERE id = $2',
+   201→      [JSON.stringify(questionsAsked), session.id]
+   202→    );
+   203→
+   204→    await client.query('COMMIT');
+   205→
+   206→    res.json({
+   207→      sessionId: session.id,
+   208→      skillName: skill.skill_name,
+   209→      question: {
+   210→        id: question.id,
+   211→        text: question.question_text,
+   212→        type: question.question_type,
+   213→        options: typeof question.options === 'string' ? JSON.parse(question.options) : question.options,
+   214→        timeLimit: question.time_limit_seconds || 120,
+   215→        questionNumber: 1,
+   216→        totalQuestions: 10
+   217→      }
+   218→    });
+   219→  } catch (error) {
+   220→    await client.query('ROLLBACK');
+   221→    console.error('Error starting assessment:', error);
+   222→    res.status(500).json({ error: 'Failed to start assessment' });
+   223→  } finally {
+   224→    client.release();
+   225→  }
+   226→});
+   227→
+   228→// Submit answer and get next question
+   229→router.post('/answer', authMiddleware, async (req, res) => {
+   230→  const client = await pool.connect();
+   231→  try {
+   232→    const userId = req.user.id;
+   233→    const { sessionId, questionId, answer, timeTaken } = req.body;
+   234→
+   235→    await client.query('BEGIN');
+   236→
+   237→    // Get session
+   238→    const sessionResult = await client.query(
+   239→      'SELECT * FROM assessment_sessions WHERE id = $1 AND user_id = $2',
+   240→      [sessionId, userId]
+   241→    );
+   242→
+   243→    if (sessionResult.rows.length === 0) {
+   244→      await client.query('ROLLBACK');
+   245→      return res.status(404).json({ error: 'Session not found' });
+   246→    }
+   247→
+   248→    const session = sessionResult.rows[0];
+   249→
+   250→    if (session.status !== 'in_progress') {
+   251→      await client.query('ROLLBACK');
+   252→      return res.status(400).json({ error: 'Session is not active' });
+   253→    }
+   254→
+   255→    // Get question details
+   256→    const questionResult = await client.query(
+   257→      'SELECT * FROM assessment_questions WHERE id = $1',
+   258→      [questionId]
+   259→    );
+   260→
+   261→    if (questionResult.rows.length === 0) {
+   262→      await client.query('ROLLBACK');
+   263→      return res.status(404).json({ error: 'Question not found' });
+   264→    }
+   265→
+   266→    const question = questionResult.rows[0];
+   267→
+   268→    // Evaluate answer
+   269→    let isCorrect = false;
+   270→    let scorePoints = 0;
+   271→    let aiFeedback = null;
+   272→
+   273→    if (question.question_type === 'multiple_choice') {
+   274→      isCorrect = answer === question.correct_answer;
+   275→      scorePoints = isCorrect ? (question.difficulty_level || 2) * 10 : 0;
+   276→    } else if (question.question_type === 'short_answer') {
+   277→      // Use AI to evaluate short answer
+   278→      const evaluation = await evaluateShortAnswer(question.question_text, answer, question.explanation);
+   279→      isCorrect = evaluation.score >= 70;
+   280→      scorePoints = Math.round((evaluation.score / 100) * (question.difficulty_level || 2) * 15);
+   281→      aiFeedback = evaluation.feedback;
+   282→    }
+   283→
+   284→    // Check for time anomaly (too fast)
+   285→    const expectedMinTime = question.question_type === 'multiple_choice' ? 5 : 15;
+   286→    const isTimeAnomaly = timeTaken < expectedMinTime;
+   287→
+   288→    // Update session
+   289→    const questionsAsked = typeof session.questions_asked === 'string'
+   290→      ? JSON.parse(session.questions_asked) : (session.questions_asked || []);
+   291→    const answersGiven = typeof session.answers_given === 'string'
+   292→      ? JSON.parse(session.answers_given) : (session.answers_given || []);
+   293→
+   294→    answersGiven.push({
+   295→      questionId,
+   296→      answer,
+   297→      isCorrect,
+   298→      scorePoints,
+   299→      timeTaken,
+   300→      timestamp: new Date(),
+   301→      aiFeedback
+   302→    });
+   303→
+   304→    const newScore = (session.score || 0) + scorePoints;
+   305→    const currentQuestionIndex = (session.current_question_index || 0) + 1;
+   306→
+   307→    // Adaptive difficulty: increase if correct and no time anomaly, decrease if wrong
+   308→    let newDifficulty = session.current_difficulty || 2;
+   309→    if (isCorrect && !isTimeAnomaly && newDifficulty < 5) {
+   310→      newDifficulty += 1;
+   311→    } else if (!isCorrect && newDifficulty > 1) {
+   312→      newDifficulty -= 1;
+   313→    }
+   314→
+   315→    const maxDifficultyReached = Math.max(session.max_difficulty_reached || 2, newDifficulty);
+   316→    const timeAnomalies = (session.time_anomalies || 0) + (isTimeAnomaly ? 1 : 0);
+   317→
+   318→    await client.query(`
+   319→      UPDATE assessment_sessions
+   320→      SET answers_given = $1, score = $2, current_question_index = $3,
+   321→          current_difficulty = $4, max_difficulty_reached = $5,
+   322→          time_anomalies = $6
+   323→      WHERE id = $7
+   324→    `, [
+   325→      JSON.stringify(answersGiven), newScore, currentQuestionIndex,
+   326→      newDifficulty, maxDifficultyReached, timeAnomalies, sessionId
+   327→    ]);
+   328→
+   329→    // Check if assessment is complete (10 questions)
+   330→    if (currentQuestionIndex >= 10) {
+   331→      await completeAssessment(client, sessionId, userId);
+   332→      await client.query('COMMIT');
+   333→
+   334→      return res.json({
+   335→        completed: true,
+   336→        score: newScore,
+   337→        feedback: isCorrect ? 'Correct!' : 'Incorrect',
+   338→        explanation: question.explanation,
+   339→        aiFeedback
+   340→      });
+   341→    }
+   342→
+   343→    // Get skill for next question
+   344→    const skillResult = await client.query(
+   345→      'SELECT cs.* FROM candidate_skills cs JOIN assessment_sessions ass ON cs.id = ass.skill_id WHERE ass.id = $1',
+   346→      [sessionId]
+   347→    );
+   348→
+   349→    if (skillResult.rows.length === 0) {
+   350→      await client.query('ROLLBACK');
+   351→      return res.status(500).json({ error: 'Skill not found for session' });
+   352→    }
+   353→
+   354→    const skill = skillResult.rows[0];
+   355→
+   356→    // Generate next question
+   357→    const nextQuestion = await generateQuestion(skill.skill_name, skill.category, newDifficulty, client);
+   358→
+   359→    if (!nextQuestion) {
+   360→      await client.query('ROLLBACK');
+   361→      return res.status(500).json({ error: 'Failed to generate next question' });
+   362→    }
+   363→
+   364→    // Record question asked
+   365→    questionsAsked.push({
+   366→      questionId: nextQuestion.id,
+   367→      difficulty: nextQuestion.difficulty_level,
+   368→      timestamp: new Date()
+   369→    });
+   370→
+   371→    await client.query(
+   372→      'UPDATE assessment_sessions SET questions_asked = $1 WHERE id = $2',
+   373→      [JSON.stringify(questionsAsked), sessionId]
+   374→    );
+   375→
+   376→    await client.query('COMMIT');
+   377→
+   378→    res.json({
+   379→      completed: false,
+   380→      feedback: isCorrect ? 'Correct!' : 'Incorrect',
+   381→      explanation: question.explanation,
+   382→      aiFeedback,
+   383→      nextQuestion: {
+   384→        id: nextQuestion.id,
+   385→        text: nextQuestion.question_text,
+   386→        type: nextQuestion.question_type,
+   387→        options: typeof nextQuestion.options === 'string' ? JSON.parse(nextQuestion.options) : nextQuestion.options,
+   388→        timeLimit: nextQuestion.time_limit_seconds || 120,
+   389→        questionNumber: currentQuestionIndex + 1,
+   390→        totalQuestions: 10
+   391→      }
+   392→    });
+   393→  } catch (error) {
+   394→    await client.query('ROLLBACK');
+   395→    console.error('Error submitting answer:', error);
+   396→    res.status(500).json({ error: 'Failed to submit answer' });
+   397→  } finally {
+   398→    client.release();
+   399→  }
+   400→});
+   401→
+   402→// Log anti-cheat event
+   403→router.post('/event', authMiddleware, async (req, res) => {
+   404→  try {
+   405→    const userId = req.user.id;
+   406→    const { sessionId, eventType, eventData } = req.body;
+   407→
+   408→    // Verify session belongs to user
+   409→    const sessionResult = await pool.query(
+   410→      'SELECT id FROM assessment_sessions WHERE id = $1 AND user_id = $2',
+   411→      [sessionId, userId]
+   412→    );
+   413→
+   414→    if (sessionResult.rows.length === 0) {
+   415→      return res.status(404).json({ error: 'Session not found' });
+   416→    }
+   417→
+   418→    // Log event
+   419→    await pool.query(`
+   420→      INSERT INTO assessment_events (session_id, event_type, event_data)
+   421→      VALUES ($1, $2, $3)
+   422→    `, [sessionId, eventType, JSON.stringify(eventData || {})]);
+   423→
+   424→    // Update session counters
+   425→    if (eventType === 'tab_switch') {
+   426→      await pool.query(
+   427→        'UPDATE assessment_sessions SET tab_switches = COALESCE(tab_switches, 0) + 1 WHERE id = $1',
+   428→        [sessionId]
+   429→      );
+   430→    } else if (eventType === 'copy_paste') {
+   431→      await pool.query(
+   432→        'UPDATE assessment_sessions SET copy_paste_attempts = COALESCE(copy_paste_attempts, 0) + 1 WHERE id = $1',
+   433→        [sessionId]
+   434→      );
+   435→    }
+   436→
+   437→    res.json({ logged: true });
+   438→  } catch (error) {
+   439→    console.error('Error logging event:', error);
+   440→    res.status(500).json({ error: 'Failed to log event' });
+   441→  }
+   442→});
+   443→
+   444→// Helper: Generate or fetch question
+   445→async function generateQuestion(skillName, category, difficulty, client) {
+   446→  // Try to find existing question from bank
+   447→  const existingResult = await client.query(`
+   448→    SELECT * FROM assessment_questions
+   449→    WHERE LOWER(skill_category) = LOWER($1) AND difficulty_level = $2
+   450→    ORDER BY RANDOM()
+   451→    LIMIT 1
+   452→  `, [skillName, difficulty]);
+   453→
+   454→  if (existingResult.rows.length > 0) {
+   455→    return existingResult.rows[0];
+   456→  }
+   457→
+   458→  // Generate new question using AI
+   459→  const questionType = Math.random() > 0.3 ? 'multiple_choice' : 'short_answer';
+   460→  const prompt = `Generate a difficulty ${difficulty}/5 technical assessment question about "${skillName}" (category: ${category}).
+   461→
+   462→Question type: ${questionType}
+   463→
+   464→Return ONLY valid JSON (no markdown, no code blocks):
+   465→{
+   466→  "question_text": "The question text here",
+   467→  "question_type": "${questionType}",
+   468→  ${questionType === 'multiple_choice' ? '"options": ["Option A text", "Option B text", "Option C text", "Option D text"],\n  "correct_answer": "Option A text",' : ''}
+   469→  "explanation": "Brief explanation of the correct answer",
+   470→  "time_limit_seconds": ${questionType === 'multiple_choice' ? '90' : '180'}
+   471→}
+   472→
+   473→Requirements:
+   474→- Make it practical and relevant to real-world ${skillName} work
+   475→- Difficulty ${difficulty}/5 (1=beginner, 5=expert)
+   476→- ${questionType === 'multiple_choice' ? 'Provide exactly 4 options. correct_answer must exactly match one of the options.' : 'Ask a question that requires a detailed written response.'}
+   477→- Keep question clear and unambiguous`;
+   478→
+   479→  try {
+   480→    const response = await chat(prompt, { maxTokens: 1024 });
+   481→
+   482→    // Parse response - handle potential markdown code blocks
+   483→    let cleanResponse = response.trim();
+   484→    if (cleanResponse.startsWith('```')) {
+   485→      cleanResponse = cleanResponse.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+   486→    }
+   487→
+   488→    const questionData = JSON.parse(cleanResponse);
+   489→
+   490→    // Validate the response
+   491→    if (!questionData.question_text) {
+   492→      throw new Error('Missing question_text in AI response');
+   493→    }
+   494→
+   495→    const qType = questionData.question_type || questionType;
+   496→    const options = qType === 'multiple_choice' && questionData.options
+   497→      ? (typeof questionData.options === 'string' ? questionData.options : JSON.stringify(questionData.options))
+   498→      : null;
+   499→
+   500→    // Save to database
+   501→    const result = await client.query(`
+   502→      INSERT INTO assessment_questions
+   503→      (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds)
+   504→      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+   505→      RETURNING *
+   506→    `, [
+   507→      skillName,
+   508→      difficulty,
+   509→      qType,
+   510→      questionData.question_text,
+   511→      options,
+   512→      questionData.correct_answer || null,
+   513→      questionData.explanation || 'See the correct answer above.',
+   514→      questionData.time_limit_seconds || (qType === 'multiple_choice' ? 90 : 180)
+   515→    ]);
+   516→
+   517→    return result.rows[0];
+   518→  } catch (error) {
+   519→    console.error('Error generating AI question:', error);
+   520→
+   521→    // Fallback: try any question from the bank
+   522→    const fallbackResult = await client.query(`
+   523→      SELECT * FROM assessment_questions
+   524→      ORDER BY RANDOM()
+   525→      LIMIT 1
+   526→    `);
+   527→
+   528→    if (fallbackResult.rows.length > 0) {
+   529→      return fallbackResult.rows[0];
+   530→    }
+   531→
+   532→    // Last resort: create a hardcoded question
+   533→    const fallbackInsert = await client.query(`
+   534→      INSERT INTO assessment_questions
+   535→      (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds)
+   536→      VALUES ($1, $2, 'multiple_choice', $3, $4, $5, $6, 90)
+   537→      RETURNING *
+   538→    `, [
+   539→      skillName,
+   540→      difficulty,
+   541→      `Which of the following best describes a key concept in ${skillName}?`,
+   542→      JSON.stringify([
+   543→        `A fundamental principle of ${skillName} that enables modularity`,
+   544→        `A deprecated feature that is no longer recommended`,
+   545→        `A testing framework specific to ${skillName}`,
+   546→        `A build tool used exclusively in ${skillName} projects`
+   547→      ]),
+   548→      `A fundamental principle of ${skillName} that enables modularity`,
+   549→      `Understanding core principles is essential for working effectively with ${skillName}.`
+   550→    ]);
+   551→    return fallbackInsert.rows[0];
+   552→  }
+   553→}
+   554→
+   555→// Helper: Evaluate short answer
+   556→async function evaluateShortAnswer(question, answer, rubric) {
+   557→  const prompt = `Evaluate this short answer response to a technical assessment question.
+   558→
+   559→Question: ${question}
+   560→
+   561→Student's Answer: ${answer}
+   562→
+   563→Expected concepts: ${rubric}
+   564→
+   565→Return ONLY valid JSON (no markdown, no code blocks):
+   566→{
+   567→  "score": <number 0-100>,
+   568→  "feedback": "<brief feedback explaining the score>"
+   569→}
+   570→
+   571→Score guide: 90-100=excellent, 70-89=good, 50-69=partial, below 50=incorrect`;
+   572→
+   573→  try {
+   574→    const response = await chat(prompt, { maxTokens: 512 });
+   575→    let cleanResponse = response.trim();
+   576→    if (cleanResponse.startsWith('```')) {
+   577→      cleanResponse = cleanResponse.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+   578→    }
+   579→    return JSON.parse(cleanResponse);
+   580→  } catch (error) {
+   581→    console.error('Error evaluating answer:', error);
+   582→    return { score: 50, feedback: 'Unable to evaluate automatically. Your answer has been recorded for manual review.' };
+   583→  }
+   584→}
+   585→
+   586→// Helper: Complete assessment
+   587→async function completeAssessment(client, sessionId, userId) {
+   588→  const sessionResult = await client.query(
+   589→    'SELECT * FROM assessment_sessions WHERE id = $1',
+   590→    [sessionId]
+   591→  );
+   592→  const session = sessionResult.rows[0];
+   593→
+   594→  // Get skill name for the title
+   595→  const skillResult = await client.query(
+   596→    'SELECT skill_name FROM candidate_skills WHERE id = $1',
+   597→    [session.skill_id]
+   598→  );
+   599→  const skillName = skillResult.rows.length > 0 ? skillResult.rows[0].skill_name : 'Unknown';
+   600→
+   601→  // Calculate anti-cheat score (100 = clean, lower = suspicious)
+   602→  let antiCheatScore = 100;
+   603→  antiCheatScore -= (session.tab_switches || 0) * 5;
+   604→  antiCheatScore -= (session.copy_paste_attempts || 0) * 10;
+   605→  antiCheatScore -= (session.time_anomalies || 0) * 5;
+   606→  antiCheatScore = Math.max(0, antiCheatScore);
+   607→
+   608→  const passed = (session.score || 0) >= 60 && antiCheatScore >= 50;
+   609→
+   610→  // Mark session complete
+   611→  await client.query(
+   612→    "UPDATE assessment_sessions SET status = 'completed', completed_at = NOW() WHERE id = $1",
+   613→    [sessionId]
+   614→  );
+   615→
+   616→  // Create skill assessment record
+   617→  const assessmentResult = await client.query(`
+   618→    INSERT INTO skill_assessments
+   619→    (user_id, skill_id, session_id, assessment_type, title, score, max_score, passed,
+   620→     anti_cheat_score, behavioral_flags, duration_seconds, started_at, completed_at)
+   621→    VALUES ($1, $2, $3, 'dynamic', $4, $5, 100, $6, $7, $8,
+   622→            EXTRACT(EPOCH FROM (NOW() - $9::timestamp)), $9, NOW())
+   623→    RETURNING id
+   624→  `, [
+   625→    userId,
+   626→    session.skill_id,
+   627→    sessionId,
+   628→    `${skillName} Assessment`,
+   629→    session.score || 0,
+   630→    passed,
+   631→    antiCheatScore,
+   632→    JSON.stringify({
+   633→      tab_switches: session.tab_switches || 0,
+   634→      copy_paste: session.copy_paste_attempts || 0,
+   635→      time_anomalies: session.time_anomalies || 0,
+   636→      max_difficulty: session.max_difficulty_reached || 2
+   637→    }),
+   638→    session.started_at
+   639→  ]);
+   640→
+   641→  // If passed, mark skill as verified
+   642→  if (passed) {
+   643→    await client.query(
+   644→      'UPDATE candidate_skills SET is_verified = true, verified_at = NOW(), verified_score = $1 WHERE id = $2',
+   645→      [session.score, session.skill_id]
+   646→    );
+   647→  }
+   648→
+   649→  return assessmentResult.rows[0].id;
+   650→}
+   651→
+   652→// Get current session state (supports page refresh during assessment + completed results)
+   653→router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
+   654→  try {
+   655→    const userId = req.user.id;
+   656→    const sessionId = req.params.sessionId;
+   657→
+   658→    // Get the session
+   659→    const sessionResult = await pool.query(
+   660→      'SELECT * FROM assessment_sessions WHERE id = $1 AND user_id = $2',
+   661→      [sessionId, userId]
+   662→    );
+   663→
+   664→    if (sessionResult.rows.length === 0) {
+   665→      return res.status(404).json({ error: 'Session not found' });
+   666→    }
+   667→
+   668→    const session = sessionResult.rows[0];
+   669→
+   670→    // Get skill name
+   671→    const skillResult = await pool.query(
+   672→      'SELECT skill_name, category FROM candidate_skills WHERE id = $1',
+   673→      [session.skill_id]
+   674→    );
+   675→    const skillName = skillResult.rows.length > 0 ? skillResult.rows[0].skill_name : 'Unknown';
+   676→
+   677→    if (session.status === 'completed') {
+   678→      // Get the skill_assessment record for full results
+   679→      const assessmentResult = await pool.query(`
+   680→        SELECT sa.score, sa.passed, sa.anti_cheat_score, sa.duration_seconds
+   681→        FROM skill_assessments sa
+   682→        WHERE sa.session_id = $1 AND sa.user_id = $2
+   683→        ORDER BY sa.completed_at DESC LIMIT 1
+   684→      `, [sessionId, userId]);
+   685→
+   686→      const assessment = assessmentResult.rows[0] || {};
+   687→      return res.json({
+   688→        status: 'completed',
+   689→        skillName,
+   690→        score: assessment.score || session.score || 0,
+   691→        passed: assessment.passed || false,
+   692→        antiCheatScore: assessment.anti_cheat_score || 100,
+   693→        durationSeconds: assessment.duration_seconds || 0,
+   694→        maxDifficultyReached: session.max_difficulty_reached || 0,
+   695→      });
+   696→    }
+   697→
+   698→    if (session.status === 'in_progress') {
+   699→      // Find the last question that was asked
+   700→      const questionsAsked = typeof session.questions_asked === 'string'
+   701→        ? JSON.parse(session.questions_asked) : (session.questions_asked || []);
+   702→      const answersGiven = typeof session.answers_given === 'string'
+   703→        ? JSON.parse(session.answers_given) : (session.answers_given || []);
+   704→
+   705→      // If there's a question asked but not yet answered, return it
+   706→      if (questionsAsked.length > answersGiven.length) {
+   707→        const lastAsked = questionsAsked[questionsAsked.length - 1];
+   708→        const questionResult = await pool.query(
+   709→          'SELECT * FROM assessment_questions WHERE id = $1',
+   710→          [lastAsked.questionId]
+   711→        );
+   712→
+   713→        if (questionResult.rows.length > 0) {
+   714→          const q = questionResult.rows[0];
+   715→          return res.json({
+   716→            status: 'in_progress',
+   717→            skillName,
+   718→            question: {
+   719→              id: q.id,
+   720→              text: q.question_text,
+   721→              type: q.question_type,
+   722→              options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options,
+   723→              timeLimit: q.time_limit_seconds || 120,
+   724→              questionNumber: session.current_question_index || questionsAsked.length,
+   725→              totalQuestions: 10,
+   726→            },
+   727→          });
+   728→        }
+   729→      }
+   730→
+   731→      // All questions answered but session not completed - might need to generate next
+   732→      // For now, return the state so client can handle
+   733→      return res.json({
+   734→        status: 'in_progress',
+   735→        skillName,
+   736→        currentQuestionIndex: session.current_question_index || 0,
+   737→      });
+   738→    }
+   739→
+   740→    // Abandoned or other status
+   741→    return res.json({ status: session.status, skillName });
+   742→
+   743→  } catch (error) {
+   744→    console.error('Error fetching session current state:', error);
+   745→    res.status(500).json({ error: 'Failed to fetch session state' });
+   746→  }
+   747→});
+   748→
+   749→// Get single session result (for results page redirect)
+   750→router.get('/session/:sessionId', authMiddleware, async (req, res) => {
+   751→  try {
+   752→    const userId = req.user.id;
+   753→    const sessionId = req.params.sessionId;
+   754→
+   755→    const result = await pool.query(`
+   756→      SELECT sa.*, cs.skill_name, cs.category,
+   757→             ass.tab_switches, ass.copy_paste_attempts, ass.time_anomalies,
+   758→             ass.max_difficulty_reached, ass.answers_given, ass.started_at as session_started,
+   759→             EXTRACT(EPOCH FROM (ass.completed_at - ass.started_at)) as duration_seconds
+   760→      FROM skill_assessments sa
+   761→      LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
+   762→      LEFT JOIN assessment_sessions ass ON sa.session_id = ass.id
+   763→      WHERE ass.id = $1 AND sa.user_id = $2
+   764→      ORDER BY sa.completed_at DESC
+   765→      LIMIT 1
+   766→    `, [sessionId, userId]);
+   767→
+   768→    if (result.rows.length === 0) {
+   769→      return res.status(404).json({ error: 'Result not found' });
+   770→    }
+   771→
+   772→    res.json({ result: result.rows[0] });
+   773→  } catch (error) {
+   774→    console.error('Error fetching session result:', error);
+   775→    res.status(500).json({ error: 'Failed to fetch result' });
+   776→  }
+   777→});
+   778→
+   779→// Recruiter: Get candidate assessment results (for application review)
+   780→router.get('/candidate/:candidateId', authMiddleware, async (req, res) => {
+   781→  try {
+   782→    const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+   783→    if (!recruiterRoles.includes(req.user.role)) {
+   784→      return res.status(403).json({ error: 'Recruiter access required' });
+   785→    }
+   786→
+   787→    const candidateId = req.params.candidateId;
+   788→
+   789→    const result = await pool.query(`
+   790→      SELECT sa.id, sa.score, sa.max_score, sa.passed, sa.anti_cheat_score,
+   791→             sa.duration_seconds, sa.completed_at, sa.title,
+   792→             cs.skill_name, cs.category, cs.is_verified,
+   793→             ass.max_difficulty_reached, ass.tab_switches, ass.copy_paste_attempts
+   794→      FROM skill_assessments sa
+   795→      LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
+   796→      LEFT JOIN assessment_sessions ass ON sa.session_id = ass.id
+   797→      WHERE sa.user_id = $1 AND sa.completed_at IS NOT NULL
+   798→      ORDER BY sa.completed_at DESC
+   799→    `, [candidateId]);
+   800→
+   801→    res.json({ assessments: result.rows });
+   802→  } catch (error) {
+   803→    console.error('Error fetching candidate assessments:', error);
+   804→    res.status(500).json({ error: 'Failed to fetch candidate assessments' });
+   805→  }
+   806→});
+   807→
+   808→// ========== RECRUITER ASSESSMENT MANAGEMENT ==========
+   809→
+   810→// Recruiter: Get all assessment results across all candidates
+   811→router.get('/recruiter/all', authMiddleware, async (req, res) => {
+   812→  try {
+   813→    const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+   814→    if (!recruiterRoles.includes(req.user.role)) {
+   815→      return res.status(403).json({ error: 'Recruiter access required' });
+   816→    }
+   817→
+   818→    const { skill, status, sort } = req.query;
+   819→
+   820→    let query = `
+   821→      SELECT sa.id, sa.score, sa.max_score, sa.passed, sa.anti_cheat_score,
+   822→             sa.duration_seconds, sa.completed_at, sa.title,
+   823→             cs.skill_name, cs.category, cs.is_verified,
+   824→             ass.max_difficulty_reached, ass.tab_switches, ass.copy_paste_attempts,
+   825→             u.name as candidate_name, u.email as candidate_email, u.id as candidate_id
+   826→      FROM skill_assessments sa
+   827→      LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
+   828→      LEFT JOIN assessment_sessions ass ON sa.session_id = ass.id
+   829→      LEFT JOIN users u ON sa.user_id = u.id
+   830→      WHERE sa.completed_at IS NOT NULL
+   831→    `;
+   832→    const params = [];
+   833→    let paramIdx = 1;
+   834→
+   835→    if (skill) {
+   836→      query += ` AND LOWER(cs.skill_name) = LOWER($${paramIdx})`;
+   837→      params.push(skill);
+   838→      paramIdx++;
+   839→    }
+   840→
+   841→    if (status === 'passed') {
+   842→      query += ` AND sa.passed = true`;
+   843→    } else if (status === 'failed') {
+   844→      query += ` AND sa.passed = false`;
+   845→    }
+   846→
+   847→    if (sort === 'score_desc') {
+   848→      query += ` ORDER BY sa.score DESC`;
+   849→    } else if (sort === 'score_asc') {
+   850→      query += ` ORDER BY sa.score ASC`;
+   851→    } else {
+   852→      query += ` ORDER BY sa.completed_at DESC`;
+   853→    }
+   854→
+   855→    query += ` LIMIT 100`;
+   856→
+   857→    const result = await pool.query(query, params);
+   858→
+   859→    // Also get summary stats
+   860→    const statsResult = await pool.query(`
+   861→      SELECT
+   862→        COUNT(DISTINCT sa.user_id) as total_candidates,
+   863→        COUNT(*) as total_assessments,
+   864→        COUNT(*) FILTER (WHERE sa.passed = true) as total_passed,
+   865→        ROUND(AVG(sa.score), 1) as avg_score,
+   866→        COUNT(DISTINCT cs.skill_name) as skills_tested
+   867→      FROM skill_assessments sa
+   868→      LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
+   869→      WHERE sa.completed_at IS NOT NULL
+   870→    `);
+   871→
+   872→    // Get skill breakdown
+   873→    const skillBreakdown = await pool.query(`
+   874→      SELECT cs.skill_name, cs.category,
+   875→             COUNT(*) as attempt_count,
+   876→             COUNT(*) FILTER (WHERE sa.passed = true) as pass_count,
+   877→             ROUND(AVG(sa.score), 1) as avg_score
+   878→      FROM skill_assessments sa
+   879→      LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
+   880→      WHERE sa.completed_at IS NOT NULL
+   881→      GROUP BY cs.skill_name, cs.category
+   882→      ORDER BY attempt_count DESC
+   883→    `);
+   884→
+   885→    res.json({
+   886→      assessments: result.rows,
+   887→      stats: statsResult.rows[0] || {},
+   888→      skillBreakdown: skillBreakdown.rows,
+   889→    });
+   890→  } catch (error) {
+   891→    console.error('Error fetching recruiter assessments:', error);
+   892→    res.status(500).json({ error: 'Failed to fetch assessments' });
+   893→  }
+   894→});
+   895→
+   896→// Recruiter: Get assessment detail with individual question answers
+   897→router.get('/recruiter/detail/:assessmentId', authMiddleware, async (req, res) => {
+   898→  try {
+   899→    const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+   900→    if (!recruiterRoles.includes(req.user.role)) {
+   901→      return res.status(403).json({ error: 'Recruiter access required' });
+   902→    }
+   903→
+   904→    const assessmentId = req.params.assessmentId;
+   905→
+   906→    const result = await pool.query(`
+   907→      SELECT sa.*, cs.skill_name, cs.category,
+   908→             ass.questions_asked, ass.answers_given, ass.tab_switches,
+   909→             ass.copy_paste_attempts, ass.time_anomalies, ass.max_difficulty_reached,
+   910→             ass.started_at as session_started, ass.completed_at as session_completed,
+   911→             u.name as candidate_name, u.email as candidate_email
+   912→      FROM skill_assessments sa
+   913→      LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
+   914→      LEFT JOIN assessment_sessions ass ON sa.session_id = ass.id
+   915→      LEFT JOIN users u ON sa.user_id = u.id
+   916→      WHERE sa.id = $1
+   917→    `, [assessmentId]);
+   918→
+   919→    if (result.rows.length === 0) {
+   920→      return res.status(404).json({ error: 'Assessment not found' });
+   921→    }
+   922→
+   923→    const assessment = result.rows[0];
+   924→
+   925→    // Get the actual questions for the detailed view
+   926→    const answersGiven = typeof assessment.answers_given === 'string'
+   927→      ? JSON.parse(assessment.answers_given) : (assessment.answers_given || []);
+   928→
+   929→    const questionIds = answersGiven.map(a => a.questionId).filter(Boolean);
+   930→    let questions = [];
+   931→    if (questionIds.length > 0) {
+   932→      const qResult = await pool.query(
+   933→        `SELECT id, question_text, question_type, correct_answer, explanation, difficulty_level
+   934→         FROM assessment_questions WHERE id = ANY($1)`,
+   935→        [questionIds]
+   936→      );
+   937→      questions = qResult.rows;
+   938→    }
+   939→
+   940→    // Merge questions with answers
+   941→    const detailedAnswers = answersGiven.map(answer => {
+   942→      const q = questions.find(q => q.id === answer.questionId);
+   943→      return {
+   944→        ...answer,
+   945→        questionText: q ? q.question_text : 'Question not found',
+   946→        questionType: q ? q.question_type : 'unknown',
+   947→        correctAnswer: q ? q.correct_answer : null,
+   948→        explanation: q ? q.explanation : null,
+   949→        difficulty: q ? q.difficulty_level : null,
+   950→      };
+   951→    });
+   952→
+   953→    res.json({
+   954→      assessment: {
+   955→        ...assessment,
+   956→        detailedAnswers,
+   957→      },
+   958→    });
+   959→  } catch (error) {
+   960→    console.error('Error fetching assessment detail:', error);
+   961→    res.status(500).json({ error: 'Failed to fetch assessment detail' });
+   962→  }
+   963→});
+   964→
+   965→// Recruiter: Get the available skill catalog (for assigning)
+   966→router.get('/recruiter/catalog', authMiddleware, async (req, res) => {
+   967→  try {
+   968→    const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+   969→    if (!recruiterRoles.includes(req.user.role)) {
+   970→      return res.status(403).json({ error: 'Recruiter access required' });
+   971→    }
+   972→
+   973→    res.json({ catalog: SKILL_CATALOG });
+   974→  } catch (error) {
+   975→    console.error('Error fetching skill catalog:', error);
+   976→    res.status(500).json({ error: 'Failed to fetch catalog' });
+   977→  }
+   978→});
+   979→
+   980→module.exports = router;
+   981→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

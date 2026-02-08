@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Explore codebase structure - routes, pages, API endpoints",
+    "status": "completed",
+    "activeForm": "Exploring codebase structure"
+  },
+  {
+    "content": "Write and run comprehensive E2E verification script for all Phase 2 modules",
+    "status": "completed",
+    "activeForm": "Writing E2E verification script"
+  },
+  {
+    "content": "Fix Bug #1: Recruiter registration not setting company_id",
+    "status": "in_progress",
+    "activeForm": "Fixing recruiter company_id bug"
+  },
+  {
+    "content": "Re-run full QA after fix and verify all modules",
+    "status": "pending",
+    "activeForm": "Re-running full QA suite"
+  },
+  {
+    "content": "Deploy fixes and verify in production",
+    "status": "pending",
+    "activeForm": "Deploying fixes and verifying"
+  }
+]

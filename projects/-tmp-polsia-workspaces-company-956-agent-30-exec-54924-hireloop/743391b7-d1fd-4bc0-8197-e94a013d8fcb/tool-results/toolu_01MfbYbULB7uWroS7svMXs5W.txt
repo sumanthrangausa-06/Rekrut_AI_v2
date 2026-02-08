@@ -1,0 +1,20 @@
+c56e768 Agent changes
+c9543fd Phase 2c: Skill Tests module - fix navigation bug, add recruiter assessments
+4aa3562 Agent changes
+557bdc4 Phase 2b: Applications module - screening answers, date filters, sort, search
+825a205 Agent changes
+2b56c34 Build: Rebuild React client for Jobs module
+9677f33 Agent changes
+3f8fab9 Phase 2a: Enhance Jobs module - type-aware screening questions, search/filter, polish
+439838f Agent changes
+9c9cf17 Fix Render build: skip tsc type-check, install dev deps for vite
+454877a Agent changes
+1371609 Phase 2b: Applications module - withdraw, filters, detail views
+d50aaa1 Agent changes
+fa52044 Phase 2d: Enhance Offers module with full feature set
+bdb2805 Agent changes
+f3c89e9 Phase 2a: Jobs module - fix routes, add applicants page, deploy build
+12f402a Agent changes
+ad14f92 Phase 2: Build Jobs, Applications, Assessments, and Offers modules
+db4fa95 Phase 1: New design system, auth pages, dashboard shells
+c08e219 Agent changes
