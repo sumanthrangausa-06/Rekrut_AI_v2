@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate current resume parsing flow and profile schema",
+    "status": "completed",
+    "activeForm": "Investigating resume parsing and profile schema"
+  },
+  {
+    "content": "Backend: Auto-apply parsed resume data to profile on upload",
+    "status": "completed",
+    "activeForm": "Adding auto-apply logic to backend upload handler"
+  },
+  {
+    "content": "Frontend: Reload profile after resume upload and show import summary",
+    "status": "completed",
+    "activeForm": "Updating frontend to reload profile after import"
+  },
+  {
+    "content": "Verify syntax, build, and deploy",
+    "status": "in_progress",
+    "activeForm": "Verifying syntax and deploying"
+  }
+]
