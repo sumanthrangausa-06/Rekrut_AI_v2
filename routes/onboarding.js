@@ -984,42 +984,41 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
     let updateQuery = '';
 
     if (step === 1) {
-      // Personal Information
-      updateFields = {
-        legal_first_name: data.legal_first_name,
-        legal_middle_name: data.legal_middle_name || null,
-        legal_last_name: data.legal_last_name,
-        date_of_birth: data.date_of_birth,
-        ssn_encrypted: data.ssn ? Buffer.from(data.ssn).toString('base64') : null,
-        address_line1: data.address_line1,
-        address_line2: data.address_line2 || null,
-        city: data.city,
-        state: data.state,
-        zip_code: data.zip_code,
-        phone: data.phone
-      };
+      // Personal Information + I-9 Section 1 Attestation
+      const ssnEncrypted = data.ssn ? Buffer.from(data.ssn).toString('base64') : null;
       updateQuery = `
         UPDATE candidate_onboarding_data SET
           legal_first_name = $1, legal_middle_name = $2, legal_last_name = $3,
-          date_of_birth = $4, ssn_encrypted = $5,
+          date_of_birth = $4, ssn_encrypted = COALESCE($5, ssn_encrypted),
           address_line1 = $6, address_line2 = $7, city = $8, state = $9, zip_code = $10,
-          phone = $11, current_step = GREATEST(current_step, 2),
+          phone = $11,
+          i9_citizenship_status = $12,
+          i9_alien_number = $13,
+          i9_admission_number = $14,
+          i9_passport_number = $15,
+          i9_country_of_issuance = $16,
+          i9_work_auth_expiry = $17,
+          current_step = GREATEST(current_step, 2),
           steps_completed = CASE WHEN steps_completed @> '"1"'::jsonb THEN steps_completed ELSE steps_completed || '"1"'::jsonb END,
           updated_at = NOW()
-        WHERE candidate_id = $12 AND checklist_id = $13
+        WHERE candidate_id = $18 AND checklist_id = $19
         RETURNING *
       `;
       const result = await pool.query(updateQuery, [
-        updateFields.legal_first_name, updateFields.legal_middle_name, updateFields.legal_last_name,
-        updateFields.date_of_birth, updateFields.ssn_encrypted,
-        updateFields.address_line1, updateFields.address_line2, updateFields.city,
-        updateFields.state, updateFields.zip_code, updateFields.phone,
+        data.legal_first_name, data.legal_middle_name || null, data.legal_last_name,
+        data.date_of_birth, ssnEncrypted,
+        data.address_line1, data.address_line2 || null, data.city,
+        data.state, data.zip_code, data.phone,
+        data.i9_citizenship_status || 'citizen',
+        data.i9_alien_number || null,
+        data.i9_admission_number || null,
+        data.i9_passport_number || null,
+        data.i9_country_of_issuance || null,
+        data.i9_work_auth_expiry || null,
         req.user.id, checklist_id
       ]);
 
-      // Also complete checklist item 1 (I-9 form) since we have the data
       await completeChecklistItem(checklist_id, req.user.id, 1);
-
       return res.json({ success: true, wizard: result.rows[0] });
     }
 
@@ -1048,18 +1047,17 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
     }
 
     if (step === 3) {
-      // Banking / Direct Deposit + W-4 Filing Status
+      // Banking / Direct Deposit only
       updateQuery = `
         UPDATE candidate_onboarding_data SET
           bank_name = $1,
-          routing_number_encrypted = $2,
-          account_number_encrypted = $3,
+          routing_number_encrypted = COALESCE($2, routing_number_encrypted),
+          account_number_encrypted = COALESCE($3, account_number_encrypted),
           account_type = $4,
-          w4_filing_status = $5,
           current_step = GREATEST(current_step, 4),
           steps_completed = CASE WHEN steps_completed @> '"3"'::jsonb THEN steps_completed ELSE steps_completed || '"3"'::jsonb END,
           updated_at = NOW()
-        WHERE candidate_id = $6 AND checklist_id = $7
+        WHERE candidate_id = $5 AND checklist_id = $6
         RETURNING *
       `;
       const result = await pool.query(updateQuery, [
@@ -1067,13 +1065,46 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
         data.routing_number ? Buffer.from(data.routing_number).toString('base64') : null,
         data.account_number ? Buffer.from(data.account_number).toString('base64') : null,
         data.account_type,
-        data.w4_filing_status || 'single',
         req.user.id, checklist_id
       ]);
 
-      // Complete checklist item 3 (direct deposit)
       await completeChecklistItem(checklist_id, req.user.id, 3);
+      return res.json({ success: true, wizard: result.rows[0] });
+    }
 
+    if (step === 4) {
+      // Full W-4 Tax Withholding (IRS Form W-4 Steps 1-4)
+      updateQuery = `
+        UPDATE candidate_onboarding_data SET
+          w4_filing_status = $1,
+          w4_multiple_jobs = $2,
+          w4_spouse_works = $3,
+          w4_num_dependents_under_17 = $4,
+          w4_num_other_dependents = $5,
+          w4_other_income = $6,
+          w4_deductions = $7,
+          w4_extra_withholding = $8,
+          w4_exempt = $9,
+          current_step = GREATEST(current_step, 5),
+          steps_completed = CASE WHEN steps_completed @> '"4"'::jsonb THEN steps_completed ELSE steps_completed || '"4"'::jsonb END,
+          updated_at = NOW()
+        WHERE candidate_id = $10 AND checklist_id = $11
+        RETURNING *
+      `;
+      const result = await pool.query(updateQuery, [
+        data.w4_filing_status || 'single',
+        data.w4_multiple_jobs || false,
+        data.w4_spouse_works || false,
+        parseInt(data.w4_num_dependents_under_17) || 0,
+        parseInt(data.w4_num_other_dependents) || 0,
+        parseFloat(data.w4_other_income) || 0,
+        parseFloat(data.w4_deductions) || 0,
+        parseFloat(data.w4_extra_withholding) || 0,
+        data.w4_exempt || false,
+        req.user.id, checklist_id
+      ]);
+
+      await completeChecklistItem(checklist_id, req.user.id, 4);
       return res.json({ success: true, wizard: result.rows[0] });
     }
 
@@ -1129,7 +1160,14 @@ router.post('/wizard/generate-documents', authMiddleware, async (req, res) => {
 
     const documents = [];
 
-    // Generate I-9 Form
+    // ── I-9 Employment Eligibility Verification ──
+    const citizenshipLabels = {
+      citizen: 'A citizen of the United States',
+      noncitizen_national: 'A noncitizen national of the United States',
+      permanent_resident: 'A lawful permanent resident (Alien Registration Number/USCIS Number)',
+      work_authorized: 'An alien authorized to work'
+    };
+
     const i9Content = {
       form_type: 'I-9',
       employee_name: fullName,
@@ -1142,18 +1180,43 @@ router.post('/wizard/generate-documents', authMiddleware, async (req, res) => {
       state: wd.state,
       zip: wd.zip_code,
       ssn_last_four: wd.ssn_encrypted ? '****' : 'N/A',
+      citizenship_status: wd.i9_citizenship_status || 'citizen',
+      citizenship_label: citizenshipLabels[wd.i9_citizenship_status] || citizenshipLabels.citizen,
+      alien_number: wd.i9_alien_number || null,
+      admission_number: wd.i9_admission_number || null,
+      passport_number: wd.i9_passport_number || null,
+      country_of_issuance: wd.i9_country_of_issuance || null,
+      work_auth_expiry: wd.i9_work_auth_expiry || null,
       generated_at: new Date().toISOString(),
       company: cl.company_name
     };
 
+    // Generate AI-formatted I-9 HTML
+    let i9Html = null;
+    try {
+      i9Html = await generateAIDocument('I-9', i9Content, cl.company_name);
+    } catch (e) {
+      console.error('AI I-9 generation failed, using template:', e.message);
+    }
+
     const i9 = await upsertDocument(
       checklist_id, req.user.id, offerCompanyId,
       'I-9 Employment Eligibility', i9Content,
-      `I-9 form for ${fullName} - ${cl.company_name}`
+      `I-9 form for ${fullName} - ${cl.company_name}`,
+      i9Html
     );
     documents.push(i9);
 
-    // Generate W-4 Form
+    // ── W-4 Employee's Withholding Certificate (Full IRS Format) ──
+    const filingStatusLabels = {
+      single: 'Single or Married filing separately',
+      married: 'Married filing jointly (or Qualifying surviving spouse)',
+      head_of_household: 'Head of household'
+    };
+
+    const dependentCredits = ((parseInt(wd.w4_num_dependents_under_17) || 0) * 2000) +
+                             ((parseInt(wd.w4_num_other_dependents) || 0) * 500);
+
     const w4Content = {
       form_type: 'W-4',
       employee_name: fullName,
@@ -1163,18 +1226,39 @@ router.post('/wizard/generate-documents', authMiddleware, async (req, res) => {
       address: `${wd.address_line1}${wd.address_line2 ? ', ' + wd.address_line2 : ''}`,
       city_state_zip: `${wd.city}, ${wd.state} ${wd.zip_code}`,
       filing_status: wd.w4_filing_status || 'single',
+      filing_status_label: filingStatusLabels[wd.w4_filing_status] || filingStatusLabels.single,
+      multiple_jobs: wd.w4_multiple_jobs || false,
+      spouse_works: wd.w4_spouse_works || false,
+      num_dependents_under_17: parseInt(wd.w4_num_dependents_under_17) || 0,
+      num_other_dependents: parseInt(wd.w4_num_other_dependents) || 0,
+      dependent_credits: dependentCredits,
+      other_income: parseFloat(wd.w4_other_income) || 0,
+      deductions: parseFloat(wd.w4_deductions) || 0,
+      extra_withholding: parseFloat(wd.w4_extra_withholding) || 0,
+      exempt: wd.w4_exempt || false,
+      employer: cl.company_name,
+      employer_ein: 'On file',
+      first_date_of_employment: cl.start_date ? new Date(cl.start_date).toLocaleDateString('en-US') : 'TBD',
       generated_at: new Date().toISOString(),
       company: cl.company_name
     };
 
+    let w4Html = null;
+    try {
+      w4Html = await generateAIDocument('W-4', w4Content, cl.company_name);
+    } catch (e) {
+      console.error('AI W-4 generation failed, using template:', e.message);
+    }
+
     const w4 = await upsertDocument(
       checklist_id, req.user.id, offerCompanyId,
       'W-4 Tax Withholding', w4Content,
-      `W-4 form for ${fullName} - ${cl.company_name}`
+      `W-4 form for ${fullName} - ${cl.company_name}`,
+      w4Html
     );
     documents.push(w4);
 
-    // Generate Direct Deposit Authorization
+    // ── Direct Deposit Authorization ──
     const ddContent = {
       form_type: 'Direct Deposit Authorization',
       employee_name: fullName,
@@ -1189,23 +1273,38 @@ router.post('/wizard/generate-documents', authMiddleware, async (req, res) => {
     const dd = await upsertDocument(
       checklist_id, req.user.id, offerCompanyId,
       'Direct Deposit Authorization', ddContent,
-      `Direct deposit form for ${fullName} - ${cl.company_name}`
+      `Direct deposit form for ${fullName} - ${cl.company_name}`,
+      null
     );
     documents.push(dd);
 
-    // Generate Employee Handbook Acknowledgment
+    // ── AI-Generated Employee Handbook Acknowledgment ──
+    let handbookHtml = null;
+    try {
+      const handbookPrompt = `Generate a professional Employee Handbook Acknowledgment for ${cl.company_name}, employee: ${fullName}. Include: at-will employment, equal opportunity, anti-harassment, confidentiality, code of conduct, tech use policy, attendance, safety, grievance procedures, and acknowledgment statement. Return ONLY HTML with inline styles. Professional format with navy (#1e3a5f) headers.`;
+      handbookHtml = await polsiaAI.chat(handbookPrompt, {
+        system: 'You are an expert HR document writer. Generate professional, legally appropriate documents. Return ONLY clean HTML with inline styles. No markdown, no code blocks.'
+      });
+      if (handbookHtml.startsWith('```')) {
+        handbookHtml = handbookHtml.trim().replace(/^```(?:html)?\n?/, '').replace(/\n?```$/, '');
+      }
+    } catch (e) {
+      console.error('AI handbook generation failed:', e.message);
+    }
+
     const handbookContent = {
       form_type: 'Employee Handbook Acknowledgment',
       employee_name: fullName,
       generated_at: new Date().toISOString(),
       company: cl.company_name,
-      acknowledgment_text: `I, ${fullName}, acknowledge that I have received and read the employee handbook for ${cl.company_name}. I understand the policies and agree to abide by them.`
+      acknowledgment_text: `I, ${fullName}, acknowledge that I have received, read, and understand the employee handbook and policies of ${cl.company_name}. I agree to comply with all policies, procedures, and guidelines contained therein. I understand that this handbook is not a contract of employment and that my employment is at-will, meaning either party may terminate the employment relationship at any time, with or without cause or notice.`
     };
 
     const handbook = await upsertDocument(
       checklist_id, req.user.id, offerCompanyId,
       'Employee Handbook Acknowledgment', handbookContent,
-      `Handbook acknowledgment for ${fullName}`
+      `Handbook acknowledgment for ${fullName}`,
+      handbookHtml
     );
     documents.push(handbook);
 
@@ -1289,8 +1388,8 @@ router.post('/wizard/sign-all', authMiddleware, async (req, res) => {
     await pool.query(
       `UPDATE candidate_onboarding_data SET
         wizard_status = 'completed',
-        current_step = 5,
-        steps_completed = CASE WHEN steps_completed @> '"4"'::jsonb THEN steps_completed ELSE steps_completed || '"4"'::jsonb END,
+        current_step = 6,
+        steps_completed = CASE WHEN steps_completed @> '"5"'::jsonb THEN steps_completed ELSE steps_completed || '"5"'::jsonb END,
         completed_at = NOW(),
         updated_at = NOW()
        WHERE candidate_id = $1 AND checklist_id = $2`,
@@ -1368,7 +1467,7 @@ router.get('/recruiter/document/:document_id/download', authMiddleware, async (r
       ? JSON.parse(d.document_content)
       : (d.document_content || {});
 
-    // Generate printable HTML document
+    // Generate printable HTML document (uses AI-generated HTML if available)
     const html = generatePrintableDocument(d, content);
 
     res.setHeader('Content-Type', 'text/html');
@@ -1419,12 +1518,48 @@ router.get('/recruiter/document/:document_id/json', authMiddleware, async (req, 
 function generatePrintableDocument(doc, content) {
   const signedInfo = doc.signed_at
     ? `<div class="signature-block">
-        <p><strong>Electronically Signed</strong></p>
+        <p><strong>✅ Electronically Signed</strong></p>
         <p>Signed by: ${escapeHtmlServer(doc.candidate_name)}</p>
         <p>Date: ${new Date(doc.signed_at).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'medium' })}</p>
         <p>IP Address: ${escapeHtmlServer(doc.signer_ip || 'N/A')}</p>
+        <p>User Agent: ${escapeHtmlServer((doc.signer_user_agent || 'N/A').substring(0, 80))}</p>
        </div>`
     : '<p class="pending">⏳ Awaiting Signature</p>';
+
+  // If we have AI-generated HTML, use it
+  if (doc.ai_generated_html) {
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHtmlServer(doc.document_type)} — ${escapeHtmlServer(doc.candidate_name)}</title>
+  <style>
+    @media print { body { margin: 0.5in; } .no-print { display: none; } }
+    body { font-family: 'Times New Roman', serif; max-width: 850px; margin: 40px auto; padding: 0 20px; color: #111; line-height: 1.6; }
+    .signature-block { margin-top: 32px; padding: 16px; border: 2px solid #1e3a5f; border-radius: 4px; background: #f0f4f8; }
+    .signature-block p { margin: 4px 0; font-size: 13px; }
+    .pending { color: #b45309; font-style: italic; margin-top: 24px; }
+    .footer { margin-top: 32px; padding-top: 16px; border-top: 2px solid #1e3a5f; font-size: 12px; color: #666; }
+    .no-print { margin-bottom: 24px; text-align: center; }
+    .no-print button { padding: 10px 24px; background: #1e3a5f; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 0 8px; }
+    .no-print button:hover { background: #152d4a; }
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <button onclick="window.print()">🖨️ Print / Save as PDF</button>
+    <button onclick="window.close()">Close</button>
+  </div>
+  ${doc.ai_generated_html}
+  ${signedInfo}
+  <div class="footer">
+    <p>Generated: ${content.generated_at ? new Date(content.generated_at).toLocaleString('en-US') : new Date().toLocaleString('en-US')}</p>
+    <p>Document ID: ${doc.id} | Candidate: ${escapeHtmlServer(doc.candidate_name)} (${escapeHtmlServer(doc.candidate_email)})</p>
+    <p style="margin-top: 8px; font-style: italic;">This document was generated by HireLoop AI and contains the employee's submitted information.</p>
+  </div>
+</body>
+</html>`;
+  }
 
   let bodyContent = '';
 
@@ -1433,40 +1568,84 @@ function generatePrintableDocument(doc, content) {
       <div class="form-header">
         <h2>Employment Eligibility Verification</h2>
         <p class="subtitle">Department of Homeland Security — U.S. Citizenship and Immigration Services</p>
-        <p class="form-id">Form I-9</p>
+        <p class="form-id">Form I-9 (Rev. 08/01/23)</p>
       </div>
       <div class="section">
-        <h3>Section 1: Employee Information</h3>
+        <h3>Section 1. Employee Information and Attestation</h3>
+        <p style="font-size:12px;color:#555;margin-bottom:12px;">Employees must complete and sign Section 1 of Form I-9 no later than the first day of employment.</p>
         <table>
-          <tr><td class="label">Full Legal Name:</td><td>${escapeHtmlServer(content.employee_name || '')}</td></tr>
-          <tr><td class="label">First Name:</td><td>${escapeHtmlServer(content.first_name || '')}</td></tr>
-          <tr><td class="label">Middle Name:</td><td>${escapeHtmlServer(content.middle_name || 'N/A')}</td></tr>
-          <tr><td class="label">Last Name:</td><td>${escapeHtmlServer(content.last_name || '')}</td></tr>
-          <tr><td class="label">Date of Birth:</td><td>${content.date_of_birth ? new Date(content.date_of_birth).toLocaleDateString('en-US') : 'N/A'}</td></tr>
-          <tr><td class="label">Address:</td><td>${escapeHtmlServer(content.address || '')}</td></tr>
-          <tr><td class="label">City:</td><td>${escapeHtmlServer(content.city || '')}</td></tr>
-          <tr><td class="label">State:</td><td>${escapeHtmlServer(content.state || '')}</td></tr>
-          <tr><td class="label">ZIP:</td><td>${escapeHtmlServer(content.zip || '')}</td></tr>
-          <tr><td class="label">SSN (masked):</td><td>${content.ssn_last_four || '****'}</td></tr>
-          <tr><td class="label">Employer:</td><td>${escapeHtmlServer(content.company || '')}</td></tr>
+          <tr><td class="label">Last Name:</td><td>${escapeHtmlServer(content.last_name || '')}</td><td class="label">First Name:</td><td>${escapeHtmlServer(content.first_name || '')}</td></tr>
+          <tr><td class="label">Middle Initial:</td><td>${escapeHtmlServer((content.middle_name || '').charAt(0) || 'N/A')}</td><td class="label">Other Last Names Used:</td><td>N/A</td></tr>
+          <tr><td class="label">Date of Birth:</td><td>${content.date_of_birth ? new Date(content.date_of_birth).toLocaleDateString('en-US') : 'N/A'}</td><td class="label">SSN:</td><td>${content.ssn_last_four || '****'}</td></tr>
+          <tr><td class="label">Address:</td><td colspan="3">${escapeHtmlServer(content.address || '')}</td></tr>
+          <tr><td class="label">City:</td><td>${escapeHtmlServer(content.city || '')}</td><td class="label">State:</td><td>${escapeHtmlServer(content.state || '')} ${escapeHtmlServer(content.zip || '')}</td></tr>
         </table>
       </div>
+      <div class="section" style="background:#f5f7fa;padding:12px;border-radius:6px;">
+        <h3 style="margin-top:0;">Attestation</h3>
+        <p>I attest, under penalty of perjury, that I am (check one):</p>
+        <div style="margin:8px 0 8px 12px;">
+          <p>${content.citizenship_status === 'citizen' ? '☑' : '☐'} A citizen of the United States</p>
+          <p>${content.citizenship_status === 'noncitizen_national' ? '☑' : '☐'} A noncitizen national of the United States</p>
+          <p>${content.citizenship_status === 'permanent_resident' ? '☑' : '☐'} A lawful permanent resident (Alien Reg. Number: ${escapeHtmlServer(content.alien_number || '_____')})</p>
+          <p>${content.citizenship_status === 'work_authorized' ? '☑' : '☐'} An alien authorized to work until ${content.work_auth_expiry ? new Date(content.work_auth_expiry).toLocaleDateString('en-US') : '_____'}</p>
+          ${content.admission_number ? `<p style="margin-left:20px;font-size:13px;">I-94 Admission Number: ${escapeHtmlServer(content.admission_number)}</p>` : ''}
+          ${content.passport_number ? `<p style="margin-left:20px;font-size:13px;">Foreign Passport Number: ${escapeHtmlServer(content.passport_number)} (${escapeHtmlServer(content.country_of_issuance || '')})</p>` : ''}
+        </div>
+        <p style="font-size:12px;font-style:italic;">I am aware that federal law provides for imprisonment and/or fines for false statements, or the use of false documents, in connection with the completion of this form.</p>
+      </div>
+      <div class="section">
+        <p><strong>Employer:</strong> ${escapeHtmlServer(content.company || '')}</p>
+      </div>
+      <p style="font-size:11px;color:#666;margin-top:16px;font-style:italic;">Anti-Discrimination Notice: It is illegal to discriminate against work-authorized individuals in hiring, firing, recruitment, or referral for a fee because of their citizenship status or national origin.</p>
     `;
   } else if (content.form_type === 'W-4') {
+    const depUnder17 = content.num_dependents_under_17 || 0;
+    const depOther = content.num_other_dependents || 0;
+    const totalCredits = content.dependent_credits || 0;
     bodyContent = `
       <div class="form-header">
         <h2>Employee's Withholding Certificate</h2>
         <p class="subtitle">Department of the Treasury — Internal Revenue Service</p>
-        <p class="form-id">Form W-4</p>
+        <p class="form-id">Form W-4 (2024)</p>
       </div>
       <div class="section">
-        <h3>Employee Information</h3>
+        <h3>Step 1: Personal Information</h3>
         <table>
           <tr><td class="label">Full Name:</td><td>${escapeHtmlServer(content.employee_name || '')}</td></tr>
-          <tr><td class="label">SSN (masked):</td><td>${content.ssn_last_four || '****'}</td></tr>
+          <tr><td class="label">SSN:</td><td>${content.ssn_last_four || '****'}</td></tr>
           <tr><td class="label">Address:</td><td>${escapeHtmlServer(content.address || '')}</td></tr>
           <tr><td class="label">City, State, ZIP:</td><td>${escapeHtmlServer(content.city_state_zip || '')}</td></tr>
-          <tr><td class="label">Filing Status:</td><td>${escapeHtmlServer(content.filing_status || 'Single')}</td></tr>
+          <tr><td class="label">Filing Status:</td><td><strong>${escapeHtmlServer(content.filing_status_label || content.filing_status || 'Single')}</strong></td></tr>
+        </table>
+      </div>
+      <div class="section">
+        <h3>Step 2: Multiple Jobs or Spouse Works</h3>
+        <p>${content.multiple_jobs ? '☑ Checked — Two jobs total / spouse also works' : '☐ Not applicable — Only one job, or spouse does not work'}</p>
+      </div>
+      <div class="section">
+        <h3>Step 3: Claim Dependents</h3>
+        <table>
+          <tr><td class="label">Children under 17:</td><td>${depUnder17} × $2,000 = <strong>$${(depUnder17 * 2000).toLocaleString()}</strong></td></tr>
+          <tr><td class="label">Other dependents:</td><td>${depOther} × $500 = <strong>$${(depOther * 500).toLocaleString()}</strong></td></tr>
+          <tr><td class="label"><strong>Total Credits:</strong></td><td><strong>$${totalCredits.toLocaleString()}</strong></td></tr>
+        </table>
+      </div>
+      <div class="section">
+        <h3>Step 4: Other Adjustments</h3>
+        <table>
+          <tr><td class="label">(a) Other income:</td><td>$${(content.other_income || 0).toLocaleString()}</td></tr>
+          <tr><td class="label">(b) Deductions:</td><td>$${(content.deductions || 0).toLocaleString()}</td></tr>
+          <tr><td class="label">(c) Extra withholding:</td><td>$${(content.extra_withholding || 0).toLocaleString()} per pay period</td></tr>
+        </table>
+        ${content.exempt ? '<p style="color:#b91c1c;font-weight:bold;margin-top:8px;">⚠ EXEMPT from withholding claimed</p>' : ''}
+      </div>
+      <div class="section" style="border-top:2px solid #ccc;padding-top:12px;margin-top:16px;">
+        <h3>Employer Information</h3>
+        <table>
+          <tr><td class="label">Employer:</td><td>${escapeHtmlServer(content.employer || content.company || '')}</td></tr>
+          <tr><td class="label">EIN:</td><td>${escapeHtmlServer(content.employer_ein || 'On file')}</td></tr>
+          <tr><td class="label">First Date of Employment:</td><td>${escapeHtmlServer(content.first_date_of_employment || 'TBD')}</td></tr>
         </table>
       </div>
     `;
@@ -1550,9 +1729,8 @@ function escapeHtmlServer(text) {
   return String(text).replace(/[&<>"']/g, m => map[m]);
 }
 
-// Helper: upsert a document
-async function upsertDocument(checklistId, candidateId, companyId, docType, content, summary) {
-  // Check if already exists
+// Helper: upsert a document (with optional AI-generated HTML)
+async function upsertDocument(checklistId, candidateId, companyId, docType, content, summary, aiHtml) {
   const existing = await pool.query(
     'SELECT * FROM onboarding_documents WHERE checklist_id = $1 AND candidate_id = $2 AND document_type = $3',
     [checklistId, candidateId, docType]
@@ -1561,21 +1739,100 @@ async function upsertDocument(checklistId, candidateId, companyId, docType, cont
   if (existing.rows.length > 0) {
     const updated = await pool.query(
       `UPDATE onboarding_documents SET
-        document_content = $1, content_summary = $2, status = 'pending', uploaded_at = NOW()
-       WHERE id = $3 RETURNING *`,
-      [JSON.stringify(content), summary, existing.rows[0].id]
+        document_content = $1, content_summary = $2, status = 'pending', uploaded_at = NOW(),
+        ai_generated_html = COALESCE($3, ai_generated_html),
+        ai_generated_at = CASE WHEN $3 IS NOT NULL THEN NOW() ELSE ai_generated_at END
+       WHERE id = $4 RETURNING *`,
+      [JSON.stringify(content), summary, aiHtml || null, existing.rows[0].id]
     );
     return updated.rows[0];
   }
 
   const result = await pool.query(
     `INSERT INTO onboarding_documents
-     (checklist_id, candidate_id, company_id, document_type, document_content, content_summary, status, uploaded_at)
-     VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW())
+     (checklist_id, candidate_id, company_id, document_type, document_content, content_summary, status, uploaded_at, ai_generated_html, ai_generated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW(), $7, CASE WHEN $7 IS NOT NULL THEN NOW() ELSE NULL END)
      RETURNING *`,
-    [checklistId, candidateId, companyId, docType, JSON.stringify(content), summary]
+    [checklistId, candidateId, companyId, docType, JSON.stringify(content), summary, aiHtml || null]
   );
   return result.rows[0];
+}
+
+// Helper: Generate AI-formatted document HTML
+async function generateAIDocument(formType, content, companyName) {
+  let prompt = '';
+
+  if (formType === 'I-9') {
+    prompt = `Generate a professional HTML version of USCIS Form I-9 (Employment Eligibility Verification) Section 1, pre-filled with this employee data:
+
+EMPLOYEE DATA:
+- Full Name: ${content.employee_name}
+- First Name: ${content.first_name} | Middle: ${content.middle_name || 'N/A'} | Last: ${content.last_name}
+- Date of Birth: ${content.date_of_birth ? new Date(content.date_of_birth).toLocaleDateString('en-US') : 'N/A'}
+- Address: ${content.address}
+- City: ${content.city} | State: ${content.state} | ZIP: ${content.zip}
+- SSN: ${content.ssn_last_four}
+- Citizenship Status: ${content.citizenship_label}
+${content.alien_number ? `- Alien Registration Number: ${content.alien_number}` : ''}
+${content.admission_number ? `- I-94 Admission Number: ${content.admission_number}` : ''}
+${content.passport_number ? `- Foreign Passport Number: ${content.passport_number}` : ''}
+${content.country_of_issuance ? `- Country of Issuance: ${content.country_of_issuance}` : ''}
+${content.work_auth_expiry ? `- Work Authorization Expiry: ${new Date(content.work_auth_expiry).toLocaleDateString('en-US')}` : ''}
+- Employer: ${content.company}
+- Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+
+FORMAT REQUIREMENTS:
+1. Match the real USCIS I-9 form layout (Section 1 - Employee Information and Attestation)
+2. Include the official header "Employment Eligibility Verification" and "Department of Homeland Security - U.S. Citizenship and Immigration Services - Form I-9"
+3. Include the anti-discrimination notice
+4. Show the citizenship attestation section with the selected status checked
+5. Include the perjury attestation text
+6. Signature line at the bottom
+7. Use professional formatting: max-width 800px, centered, serif font, border
+8. Use navy (#1e3a5f) for headers, #333 for body text`;
+  } else if (formType === 'W-4') {
+    prompt = `Generate a professional HTML version of IRS Form W-4 (Employee's Withholding Certificate) 2024/2025, pre-filled with this employee data:
+
+EMPLOYEE DATA:
+- Full Name: ${content.employee_name}
+- SSN: ${content.ssn_last_four}
+- Address: ${content.address}
+- City, State, ZIP: ${content.city_state_zip}
+- Filing Status: ${content.filing_status_label}
+- Multiple jobs or spouse works: ${content.multiple_jobs ? 'Yes (Step 2 checkbox checked)' : 'No'}
+- Qualifying children under 17: ${content.num_dependents_under_17} × $2,000 = $${content.num_dependents_under_17 * 2000}
+- Other dependents: ${content.num_other_dependents} × $500 = $${content.num_other_dependents * 500}
+- Total dependent credits (Step 3): $${content.dependent_credits}
+- Other income not from jobs (Step 4a): $${content.other_income}
+- Deductions beyond standard (Step 4b): $${content.deductions}
+- Extra withholding per period (Step 4c): $${content.extra_withholding}
+- Exempt: ${content.exempt ? 'Yes' : 'No'}
+- Employer: ${content.employer}
+- First date of employment: ${content.first_date_of_employment}
+- Employer EIN: ${content.employer_ein}
+
+FORMAT REQUIREMENTS:
+1. Match the real IRS W-4 form layout with all 4 steps clearly shown
+2. Include official header "Employee's Withholding Certificate - Department of the Treasury - Internal Revenue Service - Form W-4"
+3. Step 1: Personal info + filing status (show which is selected)
+4. Step 2: Multiple Jobs checkbox
+5. Step 3: Claim Dependents with calculation shown
+6. Step 4: Other Adjustments (4a, 4b, 4c)
+7. Step 5: Signature line
+8. Employer section at bottom
+9. Use professional formatting: max-width 800px, centered, serif font
+10. Use navy (#1e3a5f) for headers, light gray boxes for data fields`;
+  }
+
+  const html = await polsiaAI.chat(prompt, {
+    system: 'You are an expert at generating government-compliant form documents in HTML. Generate clean, professional HTML with inline styles that closely matches the official form layout. Return ONLY HTML, no markdown, no code blocks, no explanations.'
+  });
+
+  let cleanHtml = html.trim();
+  if (cleanHtml.startsWith('```')) {
+    cleanHtml = cleanHtml.replace(/^```(?:html)?\n?/, '').replace(/\n?```$/, '');
+  }
+  return cleanHtml;
 }
 
 // Helper: complete a checklist item
@@ -1613,6 +1870,215 @@ async function completeChecklistItem(checklistId, candidateId, itemId) {
     console.error('Error completing checklist item:', err);
   }
 }
+
+// ============================================
+// AI-POWERED ONBOARDING FEATURES
+// ============================================
+
+// AI Pre-fill: Pull candidate data from profile/application
+router.get('/wizard/ai-prefill', authMiddleware, async (req, res) => {
+  try {
+    // Get candidate profile data
+    const user = await pool.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+    if (user.rows.length === 0) return res.json({ prefill: {} });
+
+    const u = user.rows[0];
+
+    // Get candidate profile if exists
+    const profile = await pool.query(
+      'SELECT * FROM candidate_profiles WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    // Get most recent application data
+    const application = await pool.query(
+      `SELECT a.*, j.title as job_title, j.company
+       FROM applications a
+       LEFT JOIN jobs j ON a.job_id = j.id
+       WHERE a.user_id = $1
+       ORDER BY a.created_at DESC LIMIT 1`,
+      [req.user.id]
+    );
+
+    // Get accepted offer
+    const offer = await pool.query(
+      `SELECT o.*, j.title as job_title
+       FROM offers o
+       LEFT JOIN jobs j ON o.job_id = j.id
+       WHERE o.candidate_id = $1 AND o.status = 'accepted'
+       ORDER BY o.created_at DESC LIMIT 1`,
+      [req.user.id]
+    );
+
+    const p = profile.rows[0] || {};
+    const app = application.rows[0] || {};
+    const off = offer.rows[0] || {};
+
+    // Build pre-fill data from available sources
+    const nameParts = (u.name || '').split(' ');
+    const prefill = {
+      legal_first_name: nameParts[0] || '',
+      legal_middle_name: nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '',
+      legal_last_name: nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
+      phone: p.phone || '',
+      address_line1: p.address || '',
+      city: p.city || '',
+      state: p.state || '',
+      zip_code: p.zip_code || '',
+      job_title: off.job_title || off.title || app.job_title || '',
+      company_name: off.company_name || app.company || '',
+      start_date: off.start_date || '',
+      salary: off.salary || '',
+    };
+
+    // Use AI to suggest filing status based on salary
+    let ai_suggestions = null;
+    try {
+      const salary = parseFloat(off.salary || 0);
+      if (salary > 0) {
+        const aiResponse = await polsiaAI.chat(
+          `Based on a new employee starting at $${salary.toLocaleString()} annual salary, provide brief W-4 guidance. Return JSON only: { "suggested_filing_status": "single|married|head_of_household", "filing_tip": "1 sentence tip", "withholding_note": "1 sentence about expected withholding" }`,
+          { system: 'You are a tax advisor assistant. Return ONLY valid JSON, no markdown, no code blocks.' }
+        );
+        let cleaned = aiResponse.trim();
+        if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+        ai_suggestions = JSON.parse(cleaned);
+      }
+    } catch (e) {
+      console.error('AI prefill suggestions failed (non-blocking):', e.message);
+    }
+
+    res.json({ prefill, ai_suggestions });
+  } catch (err) {
+    console.error('Error getting AI prefill:', err);
+    res.status(500).json({ error: 'Failed to get prefill data' });
+  }
+});
+
+// AI W-4 Guidance: Explain withholding options in plain language
+router.post('/wizard/w4-guidance', authMiddleware, async (req, res) => {
+  try {
+    const { filing_status, salary, multiple_jobs, num_dependents, question } = req.body;
+
+    const prompt = `You are a friendly HR assistant helping a new employee fill out their IRS Form W-4 (Employee's Withholding Certificate).
+
+EMPLOYEE SITUATION:
+- Annual salary: ${salary ? '$' + Number(salary).toLocaleString() : 'Not provided'}
+- Filing status: ${filing_status || 'Not selected yet'}
+- Multiple jobs: ${multiple_jobs ? 'Yes' : 'No'}
+- Number of dependents: ${num_dependents || 0}
+${question ? `- Specific question: ${question}` : ''}
+
+Provide guidance in plain, simple English. No tax jargon. Explain each W-4 step:
+
+Return JSON: {
+  "step1_guidance": "Brief explanation of filing status options and which might apply",
+  "step2_guidance": "Should they check the multiple jobs box? When does this matter?",
+  "step3_guidance": "How to calculate dependent credits ($2,000 per child under 17, $500 for others)",
+  "step4_guidance": "When to add other income, claim deductions, or request extra withholding",
+  "personalized_tip": "1-2 sentences of personalized advice based on their specific situation",
+  "estimated_credits": "Estimated total credits based on their dependents",
+  "withholding_impact": "Brief note on how their choices affect their paycheck"
+}`;
+
+    const aiResponse = await polsiaAI.chat(prompt, {
+      system: 'You are a helpful HR/tax assistant. Explain W-4 concepts in simple language anyone can understand. Always return valid JSON only, no markdown or code blocks.'
+    });
+
+    let cleaned = aiResponse.trim();
+    if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    const guidance = JSON.parse(cleaned);
+
+    res.json({ guidance });
+  } catch (err) {
+    console.error('Error getting W-4 guidance:', err);
+    // Return fallback guidance instead of error
+    res.json({
+      guidance: {
+        step1_guidance: 'Choose "Single" if unmarried, "Married Filing Jointly" if married and filing together, or "Head of Household" if you pay more than half the cost of keeping up a home for a qualifying person.',
+        step2_guidance: 'Check this box only if you have more than one job at the same time, or if you\'re married filing jointly and your spouse also works.',
+        step3_guidance: 'Enter $2,000 for each child under 17, and $500 for other dependents. Multiply and add.',
+        step4_guidance: 'Most people can skip Step 4. Use it if you have investment income, want to claim extra deductions, or want extra tax withheld.',
+        personalized_tip: 'If this is your only job and you have a simple tax situation, the default settings are usually fine.',
+        estimated_credits: '0',
+        withholding_impact: 'More credits and deductions = larger paycheck but potentially smaller refund.'
+      }
+    });
+  }
+});
+
+// AI-generated Employee Handbook
+router.post('/wizard/generate-handbook', authMiddleware, async (req, res) => {
+  try {
+    const { checklist_id } = req.body;
+
+    // Get company info
+    const checklist = await pool.query(
+      `SELECT oc.*, o.company_name, o.title as offer_title
+       FROM onboarding_checklists oc
+       JOIN offers o ON oc.offer_id = o.id
+       WHERE oc.id = $1 AND oc.candidate_id = $2`,
+      [checklist_id, req.user.id]
+    );
+
+    if (checklist.rows.length === 0) {
+      return res.status(404).json({ error: 'Checklist not found' });
+    }
+
+    const cl = checklist.rows[0];
+    const companyName = cl.company_name || 'The Company';
+
+    // Get company policies if available
+    let policyContext = '';
+    try {
+      const policies = await pool.query(
+        'SELECT category, title, content FROM company_policies WHERE is_active = true ORDER BY category'
+      );
+      if (policies.rows.length > 0) {
+        policyContext = policies.rows.map(p => `${p.category}: ${p.title} - ${p.content}`).join('\n');
+      }
+    } catch (e) { /* company_policies table may not exist */ }
+
+    const prompt = `Generate a professional Employee Handbook Acknowledgment document for ${companyName}.
+
+${policyContext ? `EXISTING COMPANY POLICIES:\n${policyContext}\n\n` : ''}
+
+Create a comprehensive but concise handbook summary that covers:
+1. At-will employment statement
+2. Equal opportunity employment
+3. Anti-harassment and anti-discrimination policy
+4. Confidentiality and trade secrets
+5. Code of conduct
+6. Technology and data usage policy
+7. Time off and attendance expectations
+8. Safety and health
+9. Grievance and reporting procedures
+10. Acknowledgment statement
+
+Return ONLY clean HTML with inline styles. Format it as a professional document. Use:
+- Navy (#1e3a5f) for headers
+- Professional serif font suggestions
+- Clear section numbering
+- The company name "${companyName}" throughout
+- An acknowledgment paragraph at the bottom for the employee to sign
+
+Make it look like a real corporate handbook acknowledgment form.`;
+
+    const handbookHtml = await polsiaAI.chat(prompt, {
+      system: 'You are an expert HR document writer. Generate professional, legally appropriate employee handbook acknowledgments. Return ONLY clean HTML with inline styles. No markdown, no code blocks, no explanations.'
+    });
+
+    let cleanHtml = handbookHtml.trim();
+    if (cleanHtml.startsWith('```')) {
+      cleanHtml = cleanHtml.replace(/^```(?:html)?\n?/, '').replace(/\n?```$/, '');
+    }
+
+    res.json({ handbook_html: cleanHtml });
+  } catch (err) {
+    console.error('Error generating handbook:', err);
+    res.status(500).json({ error: 'Failed to generate handbook' });
+  }
+});
 
 // ============================================
 // HELPER FUNCTIONS
