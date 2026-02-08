@@ -3,6 +3,8 @@ const express = require('express');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
 const multer = require('multer');
+const pdfParse = require('pdf-parse');
+const mammoth = require('mammoth');
 const { authMiddleware } = require('../lib/auth');
 const pool = require('../lib/db');
 const {
@@ -15,6 +17,35 @@ const {
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+// Helper function to extract text from various file formats
+async function extractTextFromFile(buffer, mimetype) {
+  try {
+    // Handle PDF files
+    if (mimetype === 'application/pdf' || buffer.toString('utf-8', 0, 4) === '%PDF') {
+      const pdfData = await pdfParse(buffer);
+      return pdfData.text;
+    }
+
+    // Handle DOCX files (application/vnd.openxmlformats-officedocument.wordprocessingml.document)
+    if (mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        buffer.toString('utf-8', 0, 2) === 'PK') {
+      const result = await mammoth.extractRawText({ buffer });
+      return result.value;
+    }
+
+    // Handle plain text files (fallback)
+    const text = buffer.toString('utf-8');
+    if (text.length > 0 && /[a-zA-Z]{3,}/.test(text.substring(0, 500))) {
+      return text;
+    }
+
+    throw new Error('Unsupported file format or unable to extract text');
+  } catch (error) {
+    console.error('Text extraction error:', error.message);
+    throw error;
+  }
+}
 
 // ============= PROFILE MANAGEMENT =============
 
@@ -225,21 +256,13 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
       ON CONFLICT (user_id) DO UPDATE SET resume_url = $2, updated_at = NOW()
     `, [req.user.id, uploadResult.file.url]);
 
-    // Try to extract text from the resume buffer
-    // For PDFs/DOCX, binary-to-string won't produce useful text
-    // We attempt extraction but gracefully handle failure
+    // Extract text from the resume (supports PDF, DOCX, and plain text)
     let parsedData = null;
     try {
-      const resumeText = req.file.buffer.toString('utf-8');
+      // Extract text from the file buffer
+      const resumeText = await extractTextFromFile(req.file.buffer, req.file.mimetype);
 
-      // Check if the extracted text looks like actual text (not binary garbage)
-      // PDF files start with %PDF, DOCX files are ZIP archives starting with PK
-      const isProbablyText = resumeText.length > 0
-        && !resumeText.startsWith('%PDF')
-        && !resumeText.startsWith('PK')
-        && /[a-zA-Z]{3,}/.test(resumeText.substring(0, 500));
-
-      if (isProbablyText && resumeText.trim().length > 50) {
+      if (resumeText && resumeText.trim().length > 50) {
         // Get user's subscription for tracking
         const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [req.user.id]);
         const subscriptionId = user.rows[0]?.stripe_subscription_id;
@@ -258,8 +281,10 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
           SET parsed_data = $1, parsing_status = 'completed', parsed_at = NOW()
           WHERE id = $2
         `, [JSON.stringify(parsedData), resumeRecord.rows[0].id]);
+
+        console.log(`Successfully parsed ${req.file.mimetype} resume for user ${req.user.id}`);
       } else {
-        console.log('Resume appears to be binary format (PDF/DOCX) - skipping text parsing');
+        console.log('Extracted text too short - marking as uploaded');
         await pool.query(`
           UPDATE parsed_resumes
           SET parsing_status = 'uploaded', parsed_at = NOW()
