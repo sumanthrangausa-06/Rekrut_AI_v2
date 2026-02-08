@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Explore existing codebase (onboarding routes, DB schema, client structure)",
+    "status": "completed",
+    "activeForm": "Exploring existing codebase"
+  },
+  {
+    "content": "Build candidate onboarding wizard (React page)",
+    "status": "completed",
+    "activeForm": "Building candidate onboarding wizard"
+  },
+  {
+    "content": "Build HR onboarding dashboard (React page)",
+    "status": "completed",
+    "activeForm": "Building HR onboarding dashboard"
+  },
+  {
+    "content": "Wire up routing + sidebar, test build, deploy",
+    "status": "in_progress",
+    "activeForm": "Wiring up routing and deploying"
+  }
+]
