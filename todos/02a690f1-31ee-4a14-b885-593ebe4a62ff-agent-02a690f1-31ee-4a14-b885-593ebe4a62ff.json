@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Explore existing codebase structure for profiles",
+    "status": "completed",
+    "activeForm": "Exploring existing codebase structure"
+  },
+  {
+    "content": "Build candidate profile UI page",
+    "status": "completed",
+    "activeForm": "Building candidate profile UI page"
+  },
+  {
+    "content": "Build recruiter company profile UI page",
+    "status": "completed",
+    "activeForm": "Building recruiter company profile UI page"
+  },
+  {
+    "content": "Wire up routes in App.tsx",
+    "status": "completed",
+    "activeForm": "Wiring up routes in App.tsx"
+  },
+  {
+    "content": "Build, test, and deploy",
+    "status": "in_progress",
+    "activeForm": "Building, testing, and deploying"
+  }
+]
