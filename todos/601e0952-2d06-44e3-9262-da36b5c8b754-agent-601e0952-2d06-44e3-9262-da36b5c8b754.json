@@ -1,0 +1,42 @@
+[
+  {
+    "content": "Research current codebase",
+    "status": "completed",
+    "activeForm": "Researching current codebase structure"
+  },
+  {
+    "content": "Create migration — country tables + columns",
+    "status": "completed",
+    "activeForm": "Creating database migration"
+  },
+  {
+    "content": "Build country configuration service",
+    "status": "completed",
+    "activeForm": "Building country configuration service"
+  },
+  {
+    "content": "Update onboarding backend — country-aware routing",
+    "status": "completed",
+    "activeForm": "Updating onboarding backend"
+  },
+  {
+    "content": "Update onboarding frontend — per-country wizard",
+    "status": "completed",
+    "activeForm": "Updating onboarding frontend"
+  },
+  {
+    "content": "Update jobs + offers + company — country/currency",
+    "status": "completed",
+    "activeForm": "Updating jobs and company"
+  },
+  {
+    "content": "Update payroll calculator — multi-country tax",
+    "status": "completed",
+    "activeForm": "Updating payroll calculator"
+  },
+  {
+    "content": "Build and deploy",
+    "status": "in_progress",
+    "activeForm": "Building and deploying"
+  }
+]
