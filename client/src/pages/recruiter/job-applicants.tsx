@@ -1,20 +1,30 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { apiCall } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
-  ArrowLeft, Users, Star, Calendar, MessageSquare,
-  GraduationCap, Mail, FileText, Send, CheckCircle, Clock, Gift,
+  ArrowLeft, Users, Star, Calendar, Search,
+  Mail, FileText, Send, CheckCircle, Clock, Gift, MessageSquare,
 } from 'lucide-react'
 
 interface JobInfo {
   id: number
   title: string
+  screening_questions?: string | ScreeningQuestion[]
+}
+
+interface ScreeningQuestion {
+  id?: string
+  question: string
+  type?: string
+  required?: boolean
+  category?: string
 }
 
 interface Applicant {
@@ -54,6 +64,7 @@ export function RecruiterJobApplicantsPage() {
   const [applicants, setApplicants] = useState<Applicant[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const [selected, setSelected] = useState<Applicant | null>(null)
   const [notes, setNotes] = useState('')
   const [updating, setUpdating] = useState(false)
@@ -94,7 +105,42 @@ export function RecruiterJobApplicantsPage() {
     }
   }
 
-  const filtered = applicants.filter(a => !statusFilter || a.status === statusFilter)
+  // Parse screening questions from job to get labels
+  const jobScreeningQuestions: ScreeningQuestion[] = (() => {
+    if (!job?.screening_questions) return []
+    try {
+      const raw = typeof job.screening_questions === 'string'
+        ? JSON.parse(job.screening_questions)
+        : job.screening_questions
+      return Array.isArray(raw) ? raw : []
+    } catch {
+      return []
+    }
+  })()
+
+  // Get question label by key (e.g. "sq_default_1" or "q0")
+  function getQuestionLabel(key: string, index: number): string {
+    // Try matching by id
+    const byId = jobScreeningQuestions.find(q => q.id === key)
+    if (byId) return byId.question
+
+    // Try matching by index (q0, q1...)
+    const match = key.match(/^q(\d+)$/)
+    if (match) {
+      const qIndex = parseInt(match[1])
+      if (jobScreeningQuestions[qIndex]) return jobScreeningQuestions[qIndex].question
+    }
+
+    return `Question ${index + 1}`
+  }
+
+  const filtered = applicants.filter(a => {
+    const matchStatus = !statusFilter || a.status === statusFilter
+    const matchSearch = !searchQuery ||
+      a.candidate_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.candidate_email?.toLowerCase().includes(searchQuery.toLowerCase())
+    return matchStatus && matchSearch
+  })
 
   const statusCounts = statuses.reduce((acc, s) => {
     acc[s] = applicants.filter(a => a.status === s).length
@@ -108,6 +154,34 @@ export function RecruiterJobApplicantsPage() {
     if (days === 1) return '1 day ago'
     if (days < 30) return `${days} days ago`
     return `${Math.floor(days / 30)} months ago`
+  }
+
+  function renderScreeningAnswers(answersRaw?: string) {
+    if (!answersRaw) return null
+    try {
+      const answers = typeof answersRaw === 'string' ? JSON.parse(answersRaw) : answersRaw
+      if (!answers || Object.keys(answers).length === 0) return null
+
+      return (
+        <div>
+          <h4 className="font-medium text-sm mb-2 flex items-center gap-1">
+            <MessageSquare className="h-4 w-4" /> Screening Answers
+          </h4>
+          <div className="space-y-2">
+            {Object.entries(answers).map(([key, value], i) => (
+              <div key={key} className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground mb-1 font-medium">
+                  {getQuestionLabel(key, i)}
+                </p>
+                <p className="text-sm">{String(value)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    } catch {
+      return null
+    }
   }
 
   if (loading) {
@@ -125,16 +199,16 @@ export function RecruiterJobApplicantsPage() {
         <Button variant="ghost" size="sm" onClick={() => navigate('/recruiter/jobs')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="font-heading text-2xl font-bold">Applicants</h1>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             {job?.title || 'Job'} &mdash; {applicants.length} applicant{applicants.length !== 1 ? 's' : ''}
           </p>
         </div>
       </div>
 
       {/* Stats row */}
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-bold">{applicants.length}</p>
@@ -149,8 +223,10 @@ export function RecruiterJobApplicantsPage() {
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-amber-600">{statusCounts.reviewing || 0}</p>
-            <p className="text-xs text-muted-foreground">Reviewing</p>
+            <p className="text-2xl font-bold text-amber-600">
+              {(statusCounts.reviewing || 0) + (statusCounts.shortlisted || 0)}
+            </p>
+            <p className="text-xs text-muted-foreground">In Review</p>
           </CardContent>
         </Card>
         <Card>
@@ -161,6 +237,19 @@ export function RecruiterJobApplicantsPage() {
             <p className="text-xs text-muted-foreground">Offered/Hired</p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Search and filter */}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search applicants by name or email..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
       </div>
 
       {/* Status filter pills */}
@@ -192,7 +281,7 @@ export function RecruiterJobApplicantsPage() {
           <CardContent className="py-16 text-center">
             <Users className="mx-auto mb-3 h-10 w-10 opacity-30" />
             <p className="text-muted-foreground">
-              {applicants.length === 0 ? 'No applicants yet for this job' : 'No applicants match this filter'}
+              {applicants.length === 0 ? 'No applicants yet for this job' : 'No applicants match your filters'}
             </p>
           </CardContent>
         </Card>
@@ -213,26 +302,31 @@ export function RecruiterJobApplicantsPage() {
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm">
                           {(app.candidate_name || '?')[0].toUpperCase()}
                         </div>
-                        <div>
-                          <h3 className="font-semibold text-sm">{app.candidate_name || 'Unknown'}</h3>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Mail className="h-3 w-3" /> {app.candidate_email}
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-sm truncate">{app.candidate_name || 'Unknown'}</h3>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
+                            <Mail className="h-3 w-3 shrink-0" /> {app.candidate_email}
                           </p>
                         </div>
-                        <Badge variant={config.variant} className="ml-1">{config.label}</Badge>
+                        <Badge variant={config.variant} className="ml-1 shrink-0">{config.label}</Badge>
                       </div>
                       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground ml-10">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" /> Applied {timeAgo(app.applied_at)}
                         </span>
-                        {app.match_score && (
+                        {app.match_score != null && (
                           <span className="flex items-center gap-1 text-primary font-medium">
                             <Star className="h-3 w-3" /> {app.match_score}% match
                           </span>
                         )}
-                        {app.current_omniscore && (
+                        {app.current_omniscore != null && (
                           <span className="flex items-center gap-1">
                             OmniScore: {app.current_omniscore}
+                          </span>
+                        )}
+                        {app.cover_letter && (
+                          <span className="flex items-center gap-1">
+                            <FileText className="h-3 w-3" /> Has cover letter
                           </span>
                         )}
                       </div>
@@ -265,67 +359,54 @@ export function RecruiterJobApplicantsPage() {
         <Dialog open={true} onClose={() => setSelected(null)} className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold">
                 {(selected.candidate_name || '?')[0].toUpperCase()}
               </div>
-              {selected.candidate_name}
+              <div>
+                <div>{selected.candidate_name}</div>
+                <p className="text-sm text-muted-foreground font-normal">{selected.candidate_email}</p>
+              </div>
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Stats grid */}
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-xs text-muted-foreground">Email</p>
-                <p className="font-medium text-sm">{selected.candidate_email}</p>
+                <p className="text-xs text-muted-foreground">Applied</p>
+                <p className="font-medium text-sm">{new Date(selected.applied_at).toLocaleDateString()}</p>
               </div>
               <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-xs text-muted-foreground">Applied</p>
-                <p className="font-medium">{new Date(selected.applied_at).toLocaleDateString()}</p>
+                <p className="text-xs text-muted-foreground">Status</p>
+                <Badge variant={statusConfig[selected.status]?.variant || 'secondary'} className="mt-0.5">
+                  {statusConfig[selected.status]?.label || selected.status}
+                </Badge>
               </div>
               <div className="rounded-lg bg-muted/50 p-3">
                 <p className="text-xs text-muted-foreground">Match Score</p>
-                <p className="font-medium">{selected.match_score ? `${selected.match_score}%` : 'N/A'}</p>
+                <p className="font-medium text-sm">{selected.match_score != null ? `${selected.match_score}%` : 'N/A'}</p>
               </div>
               <div className="rounded-lg bg-muted/50 p-3">
                 <p className="text-xs text-muted-foreground">OmniScore</p>
-                <p className="font-medium">{selected.current_omniscore || selected.omniscore_at_apply || 'N/A'}</p>
+                <p className="font-medium text-sm">{selected.current_omniscore || selected.omniscore_at_apply || 'N/A'}</p>
               </div>
             </div>
 
+            {/* Cover letter */}
             {selected.cover_letter && (
               <div>
                 <h4 className="font-medium text-sm mb-1 flex items-center gap-1">
                   <FileText className="h-4 w-4" /> Cover Letter
                 </h4>
-                <div className="rounded-lg bg-muted/50 p-3 text-sm whitespace-pre-wrap">
+                <div className="rounded-lg bg-muted/50 p-3 text-sm whitespace-pre-wrap leading-relaxed">
                   {selected.cover_letter}
                 </div>
               </div>
             )}
 
-            {selected.screening_answers && (() => {
-              try {
-                const answers = typeof selected.screening_answers === 'string'
-                  ? JSON.parse(selected.screening_answers)
-                  : selected.screening_answers
-                if (!answers || Object.keys(answers).length === 0) return null
-                return (
-                  <div>
-                    <h4 className="font-medium text-sm mb-2">Screening Answers</h4>
-                    <div className="space-y-2">
-                      {Object.entries(answers).map(([key, value], i) => (
-                        <div key={key} className="rounded-lg bg-muted/50 p-3">
-                          <p className="text-xs text-muted-foreground mb-1">Question {i + 1}</p>
-                          <p className="text-sm">{String(value)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              } catch {
-                return null
-              }
-            })()}
+            {/* Screening answers - now with actual question labels */}
+            {renderScreeningAnswers(selected.screening_answers)}
 
+            {/* Recruiter notes */}
             <div>
               <h4 className="font-medium text-sm mb-1">Recruiter Notes</h4>
               <Textarea
@@ -336,7 +417,8 @@ export function RecruiterJobApplicantsPage() {
               />
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
+            {/* Status controls */}
+            <div className="flex items-center gap-3 pt-2 border-t">
               <span className="text-sm font-medium">Status:</span>
               <Select
                 value={selected.status}

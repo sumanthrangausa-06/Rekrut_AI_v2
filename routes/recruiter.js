@@ -454,7 +454,7 @@ router.get('/jobs/:id/applications', authMiddleware, requireRecruiter, async (re
   try {
     // Verify job belongs to company or user
     const job = await pool.query(
-      'SELECT id, title FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+      'SELECT id, title, screening_questions FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
       [req.params.id, req.user.company_id, req.user.id]
     );
 
