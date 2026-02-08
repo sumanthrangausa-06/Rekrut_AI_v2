@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Explore existing API routes and database schema for applications",
+    "status": "completed",
+    "activeForm": "Exploring applications API and schema"
+  },
+  {
+    "content": "Enhance candidate API to return screening answers + questions",
+    "status": "completed",
+    "activeForm": "Enhancing candidate API for screening data"
+  },
+  {
+    "content": "Upgrade candidate Applications page with screening answers and status timeline",
+    "status": "completed",
+    "activeForm": "Upgrading candidate Applications page"
+  },
+  {
+    "content": "Add date filter to recruiter Applications page",
+    "status": "completed",
+    "activeForm": "Adding date filter to recruiter page"
+  },
+  {
+    "content": "Build and deploy",
+    "status": "in_progress",
+    "activeForm": "Building and deploying"
+  }
+]
