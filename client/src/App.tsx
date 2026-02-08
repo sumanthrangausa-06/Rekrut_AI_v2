@@ -38,6 +38,10 @@ import { RecruiterCompanyPage } from '@/pages/recruiter/company'
 import { CandidateInterviewsPage } from '@/pages/candidate/interviews'
 import { RecruiterInterviewsPage } from '@/pages/recruiter/interviews'
 
+// Onboarding
+import { CandidateOnboardingPage } from '@/pages/candidate/onboarding'
+import { RecruiterOnboardingPage } from '@/pages/recruiter/onboarding'
+
 function RoleRedirect() {
   const { user, loading } = useAuth()
 
@@ -70,6 +74,7 @@ function AppRoutes() {
         <Route path="omniscore" element={<PlaceholderPage />} />
         <Route path="documents" element={<PlaceholderPage />} />
         <Route path="offers" element={<CandidateOffersPage />} />
+        <Route path="onboarding" element={<CandidateOnboardingPage />} />
       </Route>
 
       {/* Recruiter routes */}
@@ -85,7 +90,7 @@ function AppRoutes() {
         <Route path="candidates" element={<PlaceholderPage />} />
         <Route path="interviews" element={<RecruiterInterviewsPage />} />
         <Route path="offers" element={<RecruiterOffersPage />} />
-        <Route path="onboarding" element={<PlaceholderPage />} />
+        <Route path="onboarding" element={<RecruiterOnboardingPage />} />
         <Route path="analytics" element={<PlaceholderPage />} />
         <Route path="company" element={<RecruiterCompanyPage />} />
         <Route path="payroll" element={<PlaceholderPage />} />
