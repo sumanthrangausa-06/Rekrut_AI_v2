@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate current onboarding code (routes + React pages)",
+    "status": "completed",
+    "activeForm": "Investigating current onboarding code"
+  },
+  {
+    "content": "Create DB migration for full W-4 + I-9 attestation fields",
+    "status": "completed",
+    "activeForm": "Creating DB migration for new fields"
+  },
+  {
+    "content": "Build AI pre-fill, W-4 guidance, and AI document generation endpoints",
+    "status": "completed",
+    "activeForm": "Building AI backend endpoints"
+  },
+  {
+    "content": "Upgrade frontend wizard: real I-9 attestation, full W-4, AI guidance, document preview",
+    "status": "completed",
+    "activeForm": "Upgrading frontend wizard with real forms"
+  },
+  {
+    "content": "Build, deploy, and verify",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying"
+  }
+]

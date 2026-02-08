@@ -1,0 +1,1673 @@
+     1→const express = require('express');
+     2→const router = express.Router();
+     3→const pool = require('../lib/db');
+     4→const { authMiddleware } = require('../lib/auth');
+     5→const polsiaAI = require('../lib/polsia-ai');
+     6→
+     7→// ============================================
+     8→// OFFER GENERATION
+     9→// ============================================
+    10→
+    11→// Create offer
+    12→router.post('/offers', authMiddleware, async (req, res) => {
+    13→  try {
+    14→    const { candidate_id, job_id, title, salary, start_date, benefits, template_data,
+    15→            reporting_to, location, employment_type } = req.body;
+    16→
+    17→    const job = await pool.query('SELECT * FROM jobs WHERE id = $1 AND company_id = $2', [job_id, req.user.company_id]);
+    18→    if (job.rows.length === 0) {
+    19→      return res.status(404).json({ error: 'Job not found' });
+    20→    }
+    21→
+    22→    const result = await pool.query(
+    23→      `INSERT INTO offers (
+    24→        candidate_id, job_id, recruiter_id, company_id, title, company_name,
+    25→        salary, start_date, benefits, template_data, reporting_to, location,
+    26→        employment_type, status
+    27→      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    28→      RETURNING *`,
+    29→      [candidate_id, job_id, req.user.id, req.user.company_id, title, job.rows[0].company || 'HireLoop',
+    30→       salary, start_date, benefits, JSON.stringify(template_data || {}),
+    31→       reporting_to || null, location || job.rows[0].location || null,
+    32→       employment_type || 'full-time', 'draft']
+    33→    );
+    34→
+    35→    res.json(result.rows[0]);
+    36→  } catch (err) {
+    37→    console.error('Error creating offer:', err);
+    38→    res.status(500).json({ error: 'Failed to create offer' });
+    39→  }
+    40→});
+    41→
+    42→// AI-generate professional offer letter
+    43→router.post('/offers/:id/generate-letter', authMiddleware, async (req, res) => {
+    44→  try {
+    45→    // Get offer with all related data
+    46→    const offerResult = await pool.query(
+    47→      `SELECT o.*,
+    48→        u.name as candidate_name,
+    49→        u.email as candidate_email,
+    50→        j.title as job_title,
+    51→        j.description as job_description,
+    52→        j.location as job_location,
+    53→        r.name as recruiter_name
+    54→      FROM offers o
+    55→      JOIN users u ON o.candidate_id = u.id
+    56→      LEFT JOIN jobs j ON o.job_id = j.id
+    57→      LEFT JOIN users r ON o.recruiter_id = r.id
+    58→      WHERE o.id = $1 AND o.company_id = $2`,
+    59→      [req.params.id, req.user.company_id]
+    60→    );
+    61→
+    62→    if (offerResult.rows.length === 0) {
+    63→      return res.status(404).json({ error: 'Offer not found' });
+    64→    }
+    65→
+    66→    const offer = offerResult.rows[0];
+    67→
+    68→    const prompt = `Generate a professional, formal employment offer letter. Return ONLY the HTML content (no markdown, no code fences). Use clean, semantic HTML with inline styles for professional formatting.
+    69→
+    70→OFFER DETAILS:
+    71→- Company Name: ${offer.company_name || 'The Company'}
+    72→- Candidate Name: ${offer.candidate_name}
+    73→- Job Title: ${offer.job_title || offer.title}
+    74→- Annual Salary: $${Number(offer.salary).toLocaleString()}
+    75→- Start Date: ${offer.start_date ? new Date(offer.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'To be determined'}
+    76→- Employment Type: ${offer.employment_type || 'Full-time'}
+    77→- Location: ${offer.location || offer.job_location || 'To be discussed'}
+    78→- Reporting To: ${offer.reporting_to || 'Department Manager'}
+    79→- Benefits: ${offer.benefits || 'Standard company benefits package'}
+    80→- Recruiter/HR Contact: ${offer.recruiter_name || 'HR Department'}
+    81→
+    82→REQUIREMENTS:
+    83→1. Professional business letter format with company letterhead area at top
+    84→2. Today's date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+    85→3. Formal greeting to the candidate by name
+    86→4. Opening paragraph expressing excitement about extending the offer
+    87→5. Position details section (title, department, reporting structure, start date)
+    88→6. Compensation section (salary, pay frequency)
+    89→7. Benefits section (list the provided benefits professionally)
+    90→8. Employment terms (at-will employment, contingencies like background check)
+    91→9. Acceptance section with a placeholder line for signature and date
+    92→10. Warm closing from the company
+    93→11. Use inline CSS styles for clean formatting (the HTML will be rendered directly)
+    94→12. Use a professional color scheme (dark navy #1e3a5f for headers, #333 for body text)
+    95→13. Include proper spacing, margins, and a clean border/outline for the document
+    96→14. The document should look like a real PDF offer letter when rendered
+    97→
+    98→FORMAT RULES:
+    99→- Wrap everything in a single <div> with max-width: 800px and margin: 0 auto
+   100→- Use a subtle border and padding to frame the letter
+   101→- Company name at top should be bold and prominent
+   102→- Include horizontal rules to separate sections
+   103→- The signature block should have clear lines for name, signature, and date`;
+   104→
+   105→    const letterHtml = await polsiaAI.chat(prompt, {
+   106→      system: 'You are an expert HR document writer. Generate professional, legally appropriate employment offer letters. Return ONLY clean HTML with inline styles. No markdown, no code blocks, no explanations.'
+   107→    });
+   108→
+   109→    // Clean up any accidental code fences
+   110→    let cleanHtml = letterHtml.trim();
+   111→    if (cleanHtml.startsWith('```')) {
+   112→      cleanHtml = cleanHtml.replace(/^```(?:html)?\n?/, '').replace(/\n?```$/, '');
+   113→    }
+   114→
+   115→    // Store the generated letter
+   116→    await pool.query(
+   117→      `UPDATE offers SET
+   118→        offer_letter_html = $1,
+   119→        offer_letter_generated_at = NOW(),
+   120→        updated_at = NOW()
+   121→      WHERE id = $2`,
+   122→      [cleanHtml, req.params.id]
+   123→    );
+   124→
+   125→    res.json({
+   126→      success: true,
+   127→      offer_letter_html: cleanHtml,
+   128→      generated_at: new Date().toISOString()
+   129→    });
+   130→  } catch (err) {
+   131→    console.error('Error generating offer letter:', err);
+   132→    res.status(500).json({ error: 'Failed to generate offer letter' });
+   133→  }
+   134→});
+   135→
+   136→// Get offer letter HTML for viewing
+   137→router.get('/offers/:id/letter', authMiddleware, async (req, res) => {
+   138→  try {
+   139→    // Allow both recruiter (company_id match) and candidate (candidate_id match)
+   140→    const result = await pool.query(
+   141→      `SELECT offer_letter_html, offer_letter_generated_at, status, candidate_signature, candidate_signed_at
+   142→       FROM offers
+   143→       WHERE id = $1 AND (company_id = $2 OR candidate_id = $2)`,
+   144→      [req.params.id, req.user.company_id || req.user.id]
+   145→    );
+   146→
+   147→    if (result.rows.length === 0) {
+   148→      // Try candidate match specifically
+   149→      const candidateResult = await pool.query(
+   150→        `SELECT offer_letter_html, offer_letter_generated_at, status, candidate_signature, candidate_signed_at
+   151→         FROM offers WHERE id = $1 AND candidate_id = $2`,
+   152→        [req.params.id, req.user.id]
+   153→      );
+   154→      if (candidateResult.rows.length === 0) {
+   155→        return res.status(404).json({ error: 'Offer not found' });
+   156→      }
+   157→      return res.json(candidateResult.rows[0]);
+   158→    }
+   159→
+   160→    res.json(result.rows[0]);
+   161→  } catch (err) {
+   162→    console.error('Error fetching offer letter:', err);
+   163→    res.status(500).json({ error: 'Failed to fetch offer letter' });
+   164→  }
+   165→});
+   166→
+   167→// Get all offers for recruiter's company
+   168→router.get('/offers', authMiddleware, async (req, res) => {
+   169→  try {
+   170→    const result = await pool.query(
+   171→      `SELECT o.*,
+   172→        u.name as candidate_name,
+   173→        u.email as candidate_email,
+   174→        j.title as job_title,
+   175→        r.name as recruiter_name,
+   176→        CASE WHEN o.offer_letter_html IS NOT NULL THEN true ELSE false END as has_letter
+   177→      FROM offers o
+   178→      JOIN users u ON o.candidate_id = u.id
+   179→      LEFT JOIN jobs j ON o.job_id = j.id
+   180→      LEFT JOIN users r ON o.recruiter_id = r.id
+   181→      WHERE o.company_id = $1
+   182→      ORDER BY o.created_at DESC`,
+   183→      [req.user.company_id]
+   184→    );
+   185→
+   186→    res.json(result.rows);
+   187→  } catch (err) {
+   188→    console.error('Error fetching offers:', err);
+   189→    res.status(500).json({ error: 'Failed to fetch offers' });
+   190→  }
+   191→});
+   192→
+   193→// Get candidate's offers
+   194→router.get('/offers/me', authMiddleware, async (req, res) => {
+   195→  try {
+   196→    const result = await pool.query(
+   197→      `SELECT o.*,
+   198→        j.title as job_title,
+   199→        j.company,
+   200→        CASE WHEN o.offer_letter_html IS NOT NULL THEN true ELSE false END as has_letter
+   201→      FROM offers o
+   202→      LEFT JOIN jobs j ON o.job_id = j.id
+   203→      WHERE o.candidate_id = $1
+   204→      ORDER BY o.created_at DESC`,
+   205→      [req.user.id]
+   206→    );
+   207→
+   208→    res.json(result.rows);
+   209→  } catch (err) {
+   210→    console.error('Error fetching offers:', err);
+   211→    res.status(500).json({ error: 'Failed to fetch offers' });
+   212→  }
+   213→});
+   214→
+   215→// Send offer to candidate
+   216→router.post('/offers/:id/send', authMiddleware, async (req, res) => {
+   217→  try {
+   218→    const result = await pool.query(
+   219→      `UPDATE offers
+   220→       SET status = 'sent', sent_at = NOW(), updated_at = NOW()
+   221→       WHERE id = $1 AND company_id = $2
+   222→       RETURNING *`,
+   223→      [req.params.id, req.user.company_id]
+   224→    );
+   225→
+   226→    if (result.rows.length === 0) {
+   227→      return res.status(404).json({ error: 'Offer not found' });
+   228→    }
+   229→
+   230→    res.json(result.rows[0]);
+   231→  } catch (err) {
+   232→    console.error('Error sending offer:', err);
+   233→    res.status(500).json({ error: 'Failed to send offer' });
+   234→  }
+   235→});
+   236→
+   237→// Candidate views offer (track engagement)
+   238→router.post('/offers/:id/view', authMiddleware, async (req, res) => {
+   239→  try {
+   240→    const result = await pool.query(
+   241→      `UPDATE offers
+   242→       SET viewed_at = COALESCE(viewed_at, NOW()),
+   243→           status = CASE WHEN status = 'sent' THEN 'viewed' ELSE status END,
+   244→           updated_at = NOW()
+   245→       WHERE id = $1 AND candidate_id = $2
+   246→       RETURNING *`,
+   247→      [req.params.id, req.user.id]
+   248→    );
+   249→
+   250→    if (result.rows.length === 0) {
+   251→      return res.status(404).json({ error: 'Offer not found' });
+   252→    }
+   253→
+   254→    res.json(result.rows[0]);
+   255→  } catch (err) {
+   256→    console.error('Error marking offer as viewed:', err);
+   257→    res.status(500).json({ error: 'Failed to update offer' });
+   258→  }
+   259→});
+   260→
+   261→// Accept offer (with e-signature)
+   262→router.post('/offers/:id/accept', authMiddleware, async (req, res) => {
+   263→  try {
+   264→    const { signature_url, signature_data } = req.body;
+   265→    const signerIp = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+   266→
+   267→    const result = await pool.query(
+   268→      `UPDATE offers
+   269→       SET status = 'accepted', accepted_at = NOW(), signature_url = $3,
+   270→           candidate_signature = $4, candidate_signed_at = NOW(), candidate_sign_ip = $5,
+   271→           updated_at = NOW()
+   272→       WHERE id = $1 AND candidate_id = $2
+   273→       RETURNING *`,
+   274→      [req.params.id, req.user.id, signature_url, signature_data || null, signerIp]
+   275→    );
+   276→
+   277→    if (result.rows.length === 0) {
+   278→      return res.status(404).json({ error: 'Offer not found' });
+   279→    }
+   280→
+   281→    // Create default onboarding checklist
+   282→    const offer = result.rows[0];
+   283→    const defaultItems = [
+   284→      { id: 1, task: 'Complete I-9 form', required: true },
+   285→      { id: 2, task: 'Upload government-issued ID', required: true },
+   286→      { id: 3, task: 'Set up direct deposit', required: true },
+   287→      { id: 4, task: 'Complete tax withholding (W-4)', required: true },
+   288→      { id: 5, task: 'Sign employee handbook acknowledgment', required: true },
+   289→      { id: 6, task: 'Submit emergency contact information', required: true },
+   290→      { id: 7, task: 'Complete IT setup (email, laptop)', required: false },
+   291→      { id: 8, task: 'Schedule first day orientation', required: true }
+   292→    ];
+   293→
+   294→    await pool.query(
+   295→      `INSERT INTO onboarding_checklists
+   296→       (offer_id, candidate_id, title, description, items, due_date)
+   297→       VALUES ($1, $2, $3, $4, $5, $6)`,
+   298→      [
+   299→        offer.id,
+   300→        offer.candidate_id,
+   301→        'Pre-Onboarding Checklist',
+   302→        'Complete these tasks before your first day',
+   303→        JSON.stringify(defaultItems),
+   304→        offer.start_date
+   305→      ]
+   306→    );
+   307→
+   308→    // Auto-create employee record for payroll (bridges hiring → payroll pipeline)
+   309→    try {
+   310→      const empNum = 'EMP-' + String(offer.candidate_id).padStart(4, '0');
+   311→      const empResult = await pool.query(`
+   312→        INSERT INTO employees (user_id, employer_id, company_id, employee_number, position, employment_type, start_date, status)
+   313→        VALUES ($1, $2, $3, $4, $5, 'full-time', $6, 'active')
+   314→        ON CONFLICT DO NOTHING
+   315→        RETURNING id
+   316→      `, [
+   317→        offer.candidate_id,
+   318→        offer.recruiter_id,
+   319→        offer.company_id,
+   320→        empNum,
+   321→        offer.title,
+   322→        offer.start_date || new Date()
+   323→      ]);
+   324→
+   325→      if (empResult.rows.length > 0) {
+   326→        const annualSalary = parseFloat(offer.salary || 50000);
+   327→        await pool.query(`
+   328→          INSERT INTO payroll_configs (employee_id, salary_type, salary_amount, pay_frequency, payment_method, tax_filing_status)
+   329→          VALUES ($1, 'salary', $2, 'bi-weekly', 'direct_deposit', 'single')
+   330→          ON CONFLICT (employee_id) DO NOTHING
+   331→        `, [empResult.rows[0].id, annualSalary]);
+   332→      }
+   333→    } catch (empErr) {
+   334→      console.error('Auto-create employee record failed (non-blocking):', empErr.message);
+   335→    }
+   336→
+   337→    res.json(result.rows[0]);
+   338→  } catch (err) {
+   339→    console.error('Error accepting offer:', err);
+   340→    res.status(500).json({ error: 'Failed to accept offer' });
+   341→  }
+   342→});
+   343→
+   344→// Withdraw offer (recruiter-side)
+   345→router.post('/offers/:id/withdraw', authMiddleware, async (req, res) => {
+   346→  try {
+   347→    const result = await pool.query(
+   348→      `UPDATE offers
+   349→       SET status = 'withdrawn', updated_at = NOW()
+   350→       WHERE id = $1 AND company_id = $2 AND status IN ('draft', 'sent', 'viewed')
+   351→       RETURNING *`,
+   352→      [req.params.id, req.user.company_id]
+   353→    );
+   354→
+   355→    if (result.rows.length === 0) {
+   356→      return res.status(404).json({ error: 'Offer not found or cannot be withdrawn' });
+   357→    }
+   358→
+   359→    res.json(result.rows[0]);
+   360→  } catch (err) {
+   361→    console.error('Error withdrawing offer:', err);
+   362→    res.status(500).json({ error: 'Failed to withdraw offer' });
+   363→  }
+   364→});
+   365→
+   366→// Decline offer
+   367→router.post('/offers/:id/decline', authMiddleware, async (req, res) => {
+   368→  try {
+   369→    const { reason, decline_reason } = req.body;
+   370→
+   371→    const result = await pool.query(
+   372→      `UPDATE offers
+   373→       SET status = 'declined', declined_at = NOW(), decline_reason = $3, updated_at = NOW()
+   374→       WHERE id = $1 AND candidate_id = $2
+   375→       RETURNING *`,
+   376→      [req.params.id, req.user.id, decline_reason || reason || null]
+   377→    );
+   378→
+   379→    if (result.rows.length === 0) {
+   380→      return res.status(404).json({ error: 'Offer not found' });
+   381→    }
+   382→
+   383→    res.json(result.rows[0]);
+   384→  } catch (err) {
+   385→    console.error('Error declining offer:', err);
+   386→    res.status(500).json({ error: 'Failed to decline offer' });
+   387→  }
+   388→});
+   389→
+   390→// ============================================
+   391→// ONBOARDING CHECKLISTS
+   392→// ============================================
+   393→
+   394→// Get candidate's checklists
+   395→router.get('/checklists', authMiddleware, async (req, res) => {
+   396→  try {
+   397→    const result = await pool.query(
+   398→      `SELECT * FROM onboarding_checklists
+   399→       WHERE candidate_id = $1
+   400→       ORDER BY created_at DESC`,
+   401→      [req.user.id]
+   402→    );
+   403→
+   404→    res.json(result.rows);
+   405→  } catch (err) {
+   406→    console.error('Error fetching checklists:', err);
+   407→    res.status(500).json({ error: 'Failed to fetch checklists' });
+   408→  }
+   409→});
+   410→
+   411→// Update checklist item completion
+   412→router.post('/checklists/:id/complete', authMiddleware, async (req, res) => {
+   413→  try {
+   414→    const { item_id } = req.body;
+   415→
+   416→    const checklist = await pool.query(
+   417→      'SELECT * FROM onboarding_checklists WHERE id = $1 AND candidate_id = $2',
+   418→      [req.params.id, req.user.id]
+   419→    );
+   420→
+   421→    if (checklist.rows.length === 0) {
+   422→      return res.status(404).json({ error: 'Checklist not found' });
+   423→    }
+   424→
+   425→    const completedItems = checklist.rows[0].completed_items || [];
+   426→    if (!completedItems.includes(item_id)) {
+   427→      completedItems.push(item_id);
+   428→    }
+   429→
+   430→    const items = checklist.rows[0].items || [];
+   431→    const allCompleted = items.every(item => completedItems.includes(item.id));
+   432→
+   433→    const result = await pool.query(
+   434→      `UPDATE onboarding_checklists
+   435→       SET completed_items = $1,
+   436→           status = $2,
+   437→           completed_at = $3,
+   438→           updated_at = NOW()
+   439→       WHERE id = $4
+   440→       RETURNING *`,
+   441→      [
+   442→        JSON.stringify(completedItems),
+   443→        allCompleted ? 'completed' : 'in_progress',
+   444→        allCompleted ? new Date() : null,
+   445→        req.params.id
+   446→      ]
+   447→    );
+   448→
+   449→    res.json(result.rows[0]);
+   450→  } catch (err) {
+   451→    console.error('Error updating checklist:', err);
+   452→    res.status(500).json({ error: 'Failed to update checklist' });
+   453→  }
+   454→});
+   455→
+   456→// ============================================
+   457→// DOCUMENT COLLECTION
+   458→// ============================================
+   459→
+   460→// Upload onboarding document
+   461→router.post('/documents', authMiddleware, async (req, res) => {
+   462→  try {
+   463→    const { checklist_id, document_type, document_url } = req.body;
+   464→
+   465→    const result = await pool.query(
+   466→      `INSERT INTO onboarding_documents
+   467→       (checklist_id, candidate_id, document_type, document_url, status, uploaded_at)
+   468→       VALUES ($1, $2, $3, $4, $5, NOW())
+   469→       RETURNING *`,
+   470→      [checklist_id, req.user.id, document_type, document_url, 'pending']
+   471→    );
+   472→
+   473→    res.json(result.rows[0]);
+   474→  } catch (err) {
+   475→    console.error('Error uploading document:', err);
+   476→    res.status(500).json({ error: 'Failed to upload document' });
+   477→  }
+   478→});
+   479→
+   480→// Get documents for checklist
+   481→router.get('/checklists/:id/documents', authMiddleware, async (req, res) => {
+   482→  try {
+   483→    const result = await pool.query(
+   484→      `SELECT * FROM onboarding_documents
+   485→       WHERE checklist_id = $1 AND candidate_id = $2
+   486→       ORDER BY created_at DESC`,
+   487→      [req.params.id, req.user.id]
+   488→    );
+   489→
+   490→    res.json(result.rows);
+   491→  } catch (err) {
+   492→    console.error('Error fetching documents:', err);
+   493→    res.status(500).json({ error: 'Failed to fetch documents' });
+   494→  }
+   495→});
+   496→
+   497→// ============================================
+   498→// POST-HIRE FEEDBACK
+   499→// ============================================
+   500→
+   501→// Create feedback survey (auto-scheduled by system)
+   502→router.post('/feedback/schedule', authMiddleware, async (req, res) => {
+   503→  try {
+   504→    const { employee_id, day_mark } = req.body;
+   505→
+   506→    const questions = {
+   507→      30: [
+   508→        'How would you rate your onboarding experience?',
+   509→        'Do you feel prepared to do your job?',
+   510→        'Is there anything we could improve?'
+   511→      ],
+   512→      60: [
+   513→        'How satisfied are you with your role?',
+   514→        'Do you have the resources you need to succeed?',
+   515→        'How would you rate communication with your manager?'
+   516→      ],
+   517→      90: [
+   518→        'Would you recommend this company to a friend?',
+   519→        'What has been your biggest challenge so far?',
+   520→        'What has exceeded your expectations?'
+   521→      ]
+   522→    };
+   523→
+   524→    const result = await pool.query(
+   525→      `INSERT INTO post_hire_feedback
+   526→       (employee_id, manager_id, feedback_type, day_mark, questions, status, sent_at)
+   527→       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+   528→       RETURNING *`,
+   529→      [
+   530→        employee_id,
+   531→        req.user.id,
+   532→        'check_in',
+   533→        day_mark,
+   534→        JSON.stringify(questions[day_mark] || questions[30]),
+   535→        'sent'
+   536→      ]
+   537→    );
+   538→
+   539→    res.json(result.rows[0]);
+   540→  } catch (err) {
+   541→    console.error('Error scheduling feedback:', err);
+   542→    res.status(500).json({ error: 'Failed to schedule feedback' });
+   543→  }
+   544→});
+   545→
+   546→// Get employee's pending feedback
+   547→router.get('/feedback/pending', authMiddleware, async (req, res) => {
+   548→  try {
+   549→    const result = await pool.query(
+   550→      `SELECT * FROM post_hire_feedback
+   551→       WHERE employee_id = $1 AND status = 'sent'
+   552→       ORDER BY created_at DESC`,
+   553→      [req.user.id]
+   554→    );
+   555→
+   556→    res.json(result.rows);
+   557→  } catch (err) {
+   558→    console.error('Error fetching feedback:', err);
+   559→    res.status(500).json({ error: 'Failed to fetch feedback' });
+   560→  }
+   561→});
+   562→
+   563→// Submit feedback responses
+   564→router.post('/feedback/:id/submit', authMiddleware, async (req, res) => {
+   565→  try {
+   566→    const { responses, satisfaction_score, would_recommend, comments } = req.body;
+   567→
+   568→    // Analyze feedback with AI
+   569→    const aiAnalysis = await analyzeFeedbackWithAI(responses, comments);
+   570→
+   571→    const result = await pool.query(
+   572→      `UPDATE post_hire_feedback
+   573→       SET responses = $1,
+   574→           satisfaction_score = $2,
+   575→           would_recommend = $3,
+   576→           comments = $4,
+   577→           ai_analysis = $5,
+   578→           status = 'completed',
+   579→           completed_at = NOW()
+   580→       WHERE id = $6 AND employee_id = $7
+   581→       RETURNING *`,
+   582→      [
+   583→        JSON.stringify(responses),
+   584→        satisfaction_score,
+   585→        would_recommend,
+   586→        comments,
+   587→        JSON.stringify(aiAnalysis),
+   588→        req.params.id,
+   589→        req.user.id
+   590→      ]
+   591→    );
+   592→
+   593→    if (result.rows.length === 0) {
+   594→      return res.status(404).json({ error: 'Feedback not found' });
+   595→    }
+   596→
+   597→    res.json(result.rows[0]);
+   598→  } catch (err) {
+   599→    console.error('Error submitting feedback:', err);
+   600→    res.status(500).json({ error: 'Failed to submit feedback' });
+   601→  }
+   602→});
+   603→
+   604→// Get feedback analytics for manager
+   605→router.get('/feedback/analytics', authMiddleware, async (req, res) => {
+   606→  try {
+   607→    const result = await pool.query(
+   608→      `SELECT
+   609→        day_mark,
+   610→        AVG(satisfaction_score) as avg_satisfaction,
+   611→        COUNT(*) as total_responses,
+   612→        SUM(CASE WHEN would_recommend THEN 1 ELSE 0 END) as would_recommend_count
+   613→      FROM post_hire_feedback
+   614→      WHERE manager_id = $1 AND status = 'completed'
+   615→      GROUP BY day_mark
+   616→      ORDER BY day_mark`,
+   617→      [req.user.id]
+   618→    );
+   619→
+   620→    res.json(result.rows);
+   621→  } catch (err) {
+   622→    console.error('Error fetching analytics:', err);
+   623→    res.status(500).json({ error: 'Failed to fetch analytics' });
+   624→  }
+   625→});
+   626→
+   627→// ============================================
+   628→// ONBOARDING AI ASSISTANT
+   629→// ============================================
+   630→
+   631→// Start or continue chat session
+   632→router.post('/assistant/chat', authMiddleware, async (req, res) => {
+   633→  try {
+   634→    const { message, checklist_id } = req.body;
+   635→
+   636→    // Get or create chat session
+   637→    let session = await pool.query(
+   638→      `SELECT * FROM onboarding_chats
+   639→       WHERE candidate_id = $1 AND checklist_id = $2 AND is_active = true
+   640→       ORDER BY session_started DESC LIMIT 1`,
+   641→      [req.user.id, checklist_id || null]
+   642→    );
+   643→
+   644→    let sessionId;
+   645→    let messages = [];
+   646→
+   647→    if (session.rows.length === 0) {
+   648→      const newSession = await pool.query(
+   649→        `INSERT INTO onboarding_chats (candidate_id, checklist_id, messages)
+   650→         VALUES ($1, $2, $3)
+   651→         RETURNING *`,
+   652→        [req.user.id, checklist_id || null, JSON.stringify([])]
+   653→      );
+   654→      sessionId = newSession.rows[0].id;
+   655→    } else {
+   656→      sessionId = session.rows[0].id;
+   657→      messages = session.rows[0].messages || [];
+   658→    }
+   659→
+   660→    // Get company policies for context
+   661→    const policies = await pool.query(
+   662→      `SELECT category, title, content
+   663→       FROM company_policies
+   664→       WHERE is_active = true
+   665→       ORDER BY category`
+   666→    );
+   667→
+   668→    // Build context from policies
+   669→    const policyContext = policies.rows.map(p =>
+   670→      `${p.category}: ${p.title}\n${p.content}`
+   671→    ).join('\n\n');
+   672→
+   673→    // Add user message
+   674→    messages.push({
+   675→      role: 'user',
+   676→      content: message,
+   677→      timestamp: new Date().toISOString()
+   678→    });
+   679→
+   680→    // Get AI response
+   681→    const aiResponse = await getOnboardingAssistantResponse(
+   682→      messages,
+   683→      policyContext,
+   684→      req.user
+   685→    );
+   686→
+   687→    // Add AI response
+   688→    messages.push({
+   689→      role: 'assistant',
+   690→      content: aiResponse,
+   691→      timestamp: new Date().toISOString()
+   692→    });
+   693→
+   694→    // Update session
+   695→    await pool.query(
+   696→      `UPDATE onboarding_chats
+   697→       SET messages = $1, last_activity = NOW()
+   698→       WHERE id = $2`,
+   699→      [JSON.stringify(messages), sessionId]
+   700→    );
+   701→
+   702→    res.json({ response: aiResponse, session_id: sessionId });
+   703→  } catch (err) {
+   704→    console.error('Error in assistant chat:', err);
+   705→    res.status(500).json({ error: 'Failed to process chat message' });
+   706→  }
+   707→});
+   708→
+   709→// Get chat history
+   710→router.get('/assistant/history/:session_id', authMiddleware, async (req, res) => {
+   711→  try {
+   712→    const result = await pool.query(
+   713→      `SELECT * FROM onboarding_chats
+   714→       WHERE id = $1 AND candidate_id = $2`,
+   715→      [req.params.session_id, req.user.id]
+   716→    );
+   717→
+   718→    if (result.rows.length === 0) {
+   719→      return res.status(404).json({ error: 'Session not found' });
+   720→    }
+   721→
+   722→    res.json(result.rows[0]);
+   723→  } catch (err) {
+   724→    console.error('Error fetching chat history:', err);
+   725→    res.status(500).json({ error: 'Failed to fetch chat history' });
+   726→  }
+   727→});
+   728→
+   729→// ============================================
+   730→// RECRUITER - ONBOARDING DOCUMENTS VISIBILITY
+   731→// ============================================
+   732→
+   733→// Get all onboarding documents for recruiter's company (all candidates)
+   734→router.get('/recruiter/documents', authMiddleware, async (req, res) => {
+   735→  try {
+   736→    // Verify user is a recruiter with company_id
+   737→    if (!req.user.company_id) {
+   738→      return res.status(403).json({ error: 'Only recruiters can view onboarding documents' });
+   739→    }
+   740→
+   741→    const result = await pool.query(
+   742→      `SELECT
+   743→        od.*,
+   744→        u.name as candidate_name,
+   745→        u.email as candidate_email,
+   746→        oc.title as checklist_title,
+   747→        oc.status as checklist_status,
+   748→        oc.due_date
+   749→      FROM onboarding_documents od
+   750→      JOIN users u ON od.candidate_id = u.id
+   751→      LEFT JOIN onboarding_checklists oc ON od.checklist_id = oc.id
+   752→      WHERE od.company_id = $1 OR oc.offer_id IN (
+   753→        SELECT id FROM offers WHERE company_id = $2
+   754→      )
+   755→      ORDER BY od.created_at DESC`,
+   756→      [req.user.company_id, req.user.company_id]
+   757→    );
+   758→
+   759→    res.json(result.rows);
+   760→  } catch (err) {
+   761→    console.error('Error fetching recruiter onboarding documents:', err);
+   762→    res.status(500).json({ error: 'Failed to fetch documents' });
+   763→  }
+   764→});
+   765→
+   766→// Get onboarding documents for a specific candidate (recruiter view)
+   767→router.get('/recruiter/candidate/:candidate_id/documents', authMiddleware, async (req, res) => {
+   768→  try {
+   769→    // Verify user is a recruiter
+   770→    if (!req.user.company_id) {
+   771→      return res.status(403).json({ error: 'Only recruiters can view onboarding documents' });
+   772→    }
+   773→
+   774→    // Verify candidate is associated with recruiter's company
+   775→    const candidateCheck = await pool.query(
+   776→      `SELECT id FROM offers WHERE candidate_id = $1 AND company_id = $2 LIMIT 1`,
+   777→      [req.params.candidate_id, req.user.company_id]
+   778→    );
+   779→
+   780→    if (candidateCheck.rows.length === 0) {
+   781→      return res.status(403).json({ error: 'Candidate not associated with your company' });
+   782→    }
+   783→
+   784→    const result = await pool.query(
+   785→      `SELECT od.*, od.document_content, od.signer_ip, od.signer_user_agent,
+   786→        u.name as candidate_name,
+   787→        u.email as candidate_email,
+   788→        oc.title as checklist_title,
+   789→        oc.status as checklist_status,
+   790→        oc.due_date,
+   791→        o.salary,
+   792→        o.start_date,
+   793→        j.title as job_title
+   794→      FROM onboarding_documents od
+   795→      JOIN users u ON od.candidate_id = u.id
+   796→      LEFT JOIN onboarding_checklists oc ON od.checklist_id = oc.id
+   797→      LEFT JOIN offers o ON oc.offer_id = o.id
+   798→      LEFT JOIN jobs j ON o.job_id = j.id
+   799→      WHERE od.candidate_id = $1
+   800→      ORDER BY od.created_at DESC`,
+   801→      [req.params.candidate_id]
+   802→    );
+   803→
+   804→    res.json(result.rows);
+   805→  } catch (err) {
+   806→    console.error('Error fetching candidate onboarding documents:', err);
+   807→    res.status(500).json({ error: 'Failed to fetch documents' });
+   808→  }
+   809→});
+   810→
+   811→// Get onboarding summary for recruiter dashboard (candidates with pending docs)
+   812→router.get('/recruiter/summary', authMiddleware, async (req, res) => {
+   813→  try {
+   814→    // Verify user is a recruiter
+   815→    if (!req.user.company_id) {
+   816→      return res.status(403).json({ error: 'Only recruiters can view onboarding documents' });
+   817→    }
+   818→
+   819→    const result = await pool.query(
+   820→      `SELECT
+   821→        u.id as candidate_id,
+   822→        u.name as candidate_name,
+   823→        u.email as candidate_email,
+   824→        COUNT(od.id) as total_documents,
+   825→        SUM(CASE WHEN od.status = 'completed' OR od.signed_at IS NOT NULL THEN 1 ELSE 0 END) as signed_documents,
+   826→        MAX(od.created_at) as last_activity,
+   827→        oc.status as checklist_status,
+   828→        oc.due_date,
+   829→        j.title as job_title,
+   830→        cod.wizard_status,
+   831→        cod.current_step as wizard_step
+   832→      FROM users u
+   833→      JOIN offers o ON u.id = o.candidate_id
+   834→      LEFT JOIN onboarding_checklists oc ON u.id = oc.candidate_id
+   835→      LEFT JOIN onboarding_documents od ON u.id = od.candidate_id
+   836→      LEFT JOIN jobs j ON o.job_id = j.id
+   837→      LEFT JOIN candidate_onboarding_data cod ON u.id = cod.candidate_id AND cod.checklist_id = oc.id
+   838→      WHERE o.company_id = $1 AND o.status IN ('accepted', 'completed')
+   839→      GROUP BY u.id, u.name, u.email, oc.status, oc.due_date, j.title, cod.wizard_status, cod.current_step
+   840→      ORDER BY u.created_at DESC`,
+   841→      [req.user.company_id]
+   842→    );
+   843→
+   844→    // Derive real status from actual document progress (not checklist which may be fake-completed)
+   845→    const candidates = result.rows.map(r => {
+   846→      const totalDocs = parseInt(r.total_documents) || 0;
+   847→      const signedDocs = parseInt(r.signed_documents) || 0;
+   848→      let onboarding_status;
+   849→
+   850→      if (r.wizard_status === 'completed' && totalDocs > 0 && signedDocs === totalDocs) {
+   851→        onboarding_status = 'completed';
+   852→      } else if (totalDocs > 0 || r.wizard_step > 1) {
+   853→        onboarding_status = 'in_progress';
+   854→      } else {
+   855→        onboarding_status = 'pending';
+   856→      }
+   857→
+   858→      return {
+   859→        candidate_id: r.candidate_id,
+   860→        candidate_name: r.candidate_name,
+   861→        candidate_email: r.candidate_email,
+   862→        total_documents: r.total_documents,
+   863→        signed_documents: r.signed_documents,
+   864→        last_activity: r.last_activity,
+   865→        onboarding_status,
+   866→        due_date: r.due_date,
+   867→        job_title: r.job_title,
+   868→        wizard_step: r.wizard_step
+   869→      };
+   870→    });
+   871→
+   872→    res.json(candidates);
+   873→  } catch (err) {
+   874→    console.error('Error fetching onboarding summary:', err);
+   875→    res.status(500).json({ error: 'Failed to fetch summary' });
+   876→  }
+   877→});
+   878→
+   879→// ============================================
+   880→// ONBOARDING WIZARD - REAL CANDIDATE FLOW
+   881→// ============================================
+   882→
+   883→// Get wizard progress for current candidate
+   884→router.get('/wizard/progress', authMiddleware, async (req, res) => {
+   885→  try {
+   886→    // Get candidate's active checklist
+   887→    const checklist = await pool.query(
+   888→      `SELECT oc.*, o.title as offer_title, o.company_name, o.salary, o.start_date,
+   889→              j.title as job_title
+   890→       FROM onboarding_checklists oc
+   891→       JOIN offers o ON oc.offer_id = o.id
+   892→       LEFT JOIN jobs j ON o.job_id = j.id
+   893→       WHERE oc.candidate_id = $1
+   894→       ORDER BY oc.created_at DESC LIMIT 1`,
+   895→      [req.user.id]
+   896→    );
+   897→
+   898→    if (checklist.rows.length === 0) {
+   899→      return res.json({ has_onboarding: false });
+   900→    }
+   901→
+   902→    const cl = checklist.rows[0];
+   903→
+   904→    // Get or create wizard data
+   905→    let wizardData = await pool.query(
+   906→      'SELECT * FROM candidate_onboarding_data WHERE candidate_id = $1 AND checklist_id = $2',
+   907→      [req.user.id, cl.id]
+   908→    );
+   909→
+   910→    if (wizardData.rows.length === 0) {
+   911→      // First time visiting the real wizard — create fresh wizard data
+   912→      wizardData = await pool.query(
+   913→        `INSERT INTO candidate_onboarding_data (candidate_id, checklist_id)
+   914→         VALUES ($1, $2)
+   915→         RETURNING *`,
+   916→        [req.user.id, cl.id]
+   917→      );
+   918→
+   919→      // If the old fake auto-complete system marked the checklist as "completed"
+   920→      // but no real wizard data exists, reset the checklist so the candidate
+   921→      // can go through the real flow
+   922→      if (cl.status === 'completed' || cl.status === 'in_progress') {
+   923→        const existingDocs = await pool.query(
+   924→          'SELECT COUNT(*) as cnt FROM onboarding_documents WHERE candidate_id = $1 AND checklist_id = $2',
+   925→          [req.user.id, cl.id]
+   926→        );
+   927→        if (parseInt(existingDocs.rows[0].cnt) === 0) {
+   928→          // No real documents = the old system faked it. Reset.
+   929→          await pool.query(
+   930→            `UPDATE onboarding_checklists SET
+   931→              status = 'in_progress',
+   932→              completed_items = '[]'::jsonb,
+   933→              completed_at = NULL,
+   934→              updated_at = NOW()
+   935→             WHERE id = $1`,
+   936→            [cl.id]
+   937→          );
+   938→          cl.status = 'in_progress';
+   939→          cl.completed_items = [];
+   940→        }
+   941→      }
+   942→    }
+   943→
+   944→    // Get existing documents
+   945→    const documents = await pool.query(
+   946→      'SELECT * FROM onboarding_documents WHERE candidate_id = $1 AND checklist_id = $2 ORDER BY created_at',
+   947→      [req.user.id, cl.id]
+   948→    );
+   949→
+   950→    res.json({
+   951→      has_onboarding: true,
+   952→      checklist: cl,
+   953→      wizard: wizardData.rows[0],
+   954→      documents: documents.rows
+   955→    });
+   956→  } catch (err) {
+   957→    console.error('Error getting wizard progress:', err);
+   958→    res.status(500).json({ error: 'Failed to get wizard progress' });
+   959→  }
+   960→});
+   961→
+   962→// Save wizard step data
+   963→router.post('/wizard/save-step', authMiddleware, async (req, res) => {
+   964→  try {
+   965→    const { checklist_id, step, data } = req.body;
+   966→
+   967→    // Verify checklist belongs to this candidate
+   968→    const checklist = await pool.query(
+   969→      'SELECT * FROM onboarding_checklists WHERE id = $1 AND candidate_id = $2',
+   970→      [checklist_id, req.user.id]
+   971→    );
+   972→    if (checklist.rows.length === 0) {
+   973→      return res.status(404).json({ error: 'Checklist not found' });
+   974→    }
+   975→
+   976→    // Get company_id from the offer
+   977→    const offer = await pool.query(
+   978→      'SELECT company_id FROM offers WHERE id = $1',
+   979→      [checklist.rows[0].offer_id]
+   980→    );
+   981→    const companyId = offer.rows.length > 0 ? offer.rows[0].company_id : null;
+   982→
+   983→    let updateFields = {};
+   984→    let updateQuery = '';
+   985→
+   986→    if (step === 1) {
+   987→      // Personal Information
+   988→      updateFields = {
+   989→        legal_first_name: data.legal_first_name,
+   990→        legal_middle_name: data.legal_middle_name || null,
+   991→        legal_last_name: data.legal_last_name,
+   992→        date_of_birth: data.date_of_birth,
+   993→        ssn_encrypted: data.ssn ? Buffer.from(data.ssn).toString('base64') : null,
+   994→        address_line1: data.address_line1,
+   995→        address_line2: data.address_line2 || null,
+   996→        city: data.city,
+   997→        state: data.state,
+   998→        zip_code: data.zip_code,
+   999→        phone: data.phone
+  1000→      };
+  1001→      updateQuery = `
+  1002→        UPDATE candidate_onboarding_data SET
+  1003→          legal_first_name = $1, legal_middle_name = $2, legal_last_name = $3,
+  1004→          date_of_birth = $4, ssn_encrypted = $5,
+  1005→          address_line1 = $6, address_line2 = $7, city = $8, state = $9, zip_code = $10,
+  1006→          phone = $11, current_step = GREATEST(current_step, 2),
+  1007→          steps_completed = CASE WHEN steps_completed @> '"1"'::jsonb THEN steps_completed ELSE steps_completed || '"1"'::jsonb END,
+  1008→          updated_at = NOW()
+  1009→        WHERE candidate_id = $12 AND checklist_id = $13
+  1010→        RETURNING *
+  1011→      `;
+  1012→      const result = await pool.query(updateQuery, [
+  1013→        updateFields.legal_first_name, updateFields.legal_middle_name, updateFields.legal_last_name,
+  1014→        updateFields.date_of_birth, updateFields.ssn_encrypted,
+  1015→        updateFields.address_line1, updateFields.address_line2, updateFields.city,
+  1016→        updateFields.state, updateFields.zip_code, updateFields.phone,
+  1017→        req.user.id, checklist_id
+  1018→      ]);
+  1019→
+  1020→      // Also complete checklist item 1 (I-9 form) since we have the data
+  1021→      await completeChecklistItem(checklist_id, req.user.id, 1);
+  1022→
+  1023→      return res.json({ success: true, wizard: result.rows[0] });
+  1024→    }
+  1025→
+  1026→    if (step === 2) {
+  1027→      // Emergency Contact
+  1028→      updateQuery = `
+  1029→        UPDATE candidate_onboarding_data SET
+  1030→          emergency_contact_name = $1, emergency_contact_relationship = $2,
+  1031→          emergency_contact_phone = $3, emergency_contact_email = $4,
+  1032→          current_step = GREATEST(current_step, 3),
+  1033→          steps_completed = CASE WHEN steps_completed @> '"2"'::jsonb THEN steps_completed ELSE steps_completed || '"2"'::jsonb END,
+  1034→          updated_at = NOW()
+  1035→        WHERE candidate_id = $5 AND checklist_id = $6
+  1036→        RETURNING *
+  1037→      `;
+  1038→      const result = await pool.query(updateQuery, [
+  1039→        data.emergency_contact_name, data.emergency_contact_relationship,
+  1040→        data.emergency_contact_phone, data.emergency_contact_email || null,
+  1041→        req.user.id, checklist_id
+  1042→      ]);
+  1043→
+  1044→      // Complete checklist item 6 (emergency contact)
+  1045→      await completeChecklistItem(checklist_id, req.user.id, 6);
+  1046→
+  1047→      return res.json({ success: true, wizard: result.rows[0] });
+  1048→    }
+  1049→
+  1050→    if (step === 3) {
+  1051→      // Banking / Direct Deposit + W-4 Filing Status
+  1052→      updateQuery = `
+  1053→        UPDATE candidate_onboarding_data SET
+  1054→          bank_name = $1,
+  1055→          routing_number_encrypted = $2,
+  1056→          account_number_encrypted = $3,
+  1057→          account_type = $4,
+  1058→          w4_filing_status = $5,
+  1059→          current_step = GREATEST(current_step, 4),
+  1060→          steps_completed = CASE WHEN steps_completed @> '"3"'::jsonb THEN steps_completed ELSE steps_completed || '"3"'::jsonb END,
+  1061→          updated_at = NOW()
+  1062→        WHERE candidate_id = $6 AND checklist_id = $7
+  1063→        RETURNING *
+  1064→      `;
+  1065→      const result = await pool.query(updateQuery, [
+  1066→        data.bank_name,
+  1067→        data.routing_number ? Buffer.from(data.routing_number).toString('base64') : null,
+  1068→        data.account_number ? Buffer.from(data.account_number).toString('base64') : null,
+  1069→        data.account_type,
+  1070→        data.w4_filing_status || 'single',
+  1071→        req.user.id, checklist_id
+  1072→      ]);
+  1073→
+  1074→      // Complete checklist item 3 (direct deposit)
+  1075→      await completeChecklistItem(checklist_id, req.user.id, 3);
+  1076→
+  1077→      return res.json({ success: true, wizard: result.rows[0] });
+  1078→    }
+  1079→
+  1080→    res.status(400).json({ error: 'Invalid step' });
+  1081→  } catch (err) {
+  1082→    console.error('Error saving wizard step:', err);
+  1083→    res.status(500).json({ error: 'Failed to save step data' });
+  1084→  }
+  1085→});
+  1086→
+  1087→// Generate documents from collected data
+  1088→router.post('/wizard/generate-documents', authMiddleware, async (req, res) => {
+  1089→  try {
+  1090→    const { checklist_id } = req.body;
+  1091→
+  1092→    // Get wizard data
+  1093→    const wizardData = await pool.query(
+  1094→      'SELECT * FROM candidate_onboarding_data WHERE candidate_id = $1 AND checklist_id = $2',
+  1095→      [req.user.id, checklist_id]
+  1096→    );
+  1097→
+  1098→    if (wizardData.rows.length === 0) {
+  1099→      return res.status(404).json({ error: 'No onboarding data found' });
+  1100→    }
+  1101→
+  1102→    const wd = wizardData.rows[0];
+  1103→
+  1104→    // Get offer details for the documents
+  1105→    const checklist = await pool.query(
+  1106→      `SELECT oc.*, o.company_name, o.title as offer_title, o.salary, o.start_date
+  1107→       FROM onboarding_checklists oc
+  1108→       JOIN offers o ON oc.offer_id = o.id
+  1109→       WHERE oc.id = $1 AND oc.candidate_id = $2`,
+  1110→      [checklist_id, req.user.id]
+  1111→    );
+  1112→
+  1113→    if (checklist.rows.length === 0) {
+  1114→      return res.status(404).json({ error: 'Checklist not found' });
+  1115→    }
+  1116→
+  1117→    const cl = checklist.rows[0];
+  1118→    const companyId = cl.company_id || null;
+  1119→
+  1120→    // Get company_id from the offer
+  1121→    const offer = await pool.query(
+  1122→      'SELECT company_id FROM offers WHERE id = $1',
+  1123→      [cl.offer_id]
+  1124→    );
+  1125→    const offerCompanyId = offer.rows.length > 0 ? offer.rows[0].company_id : null;
+  1126→
+  1127→    const fullName = [wd.legal_first_name, wd.legal_middle_name, wd.legal_last_name]
+  1128→      .filter(Boolean).join(' ');
+  1129→
+  1130→    const documents = [];
+  1131→
+  1132→    // Generate I-9 Form
+  1133→    const i9Content = {
+  1134→      form_type: 'I-9',
+  1135→      employee_name: fullName,
+  1136→      first_name: wd.legal_first_name,
+  1137→      middle_name: wd.legal_middle_name,
+  1138→      last_name: wd.legal_last_name,
+  1139→      date_of_birth: wd.date_of_birth,
+  1140→      address: `${wd.address_line1}${wd.address_line2 ? ', ' + wd.address_line2 : ''}`,
+  1141→      city: wd.city,
+  1142→      state: wd.state,
+  1143→      zip: wd.zip_code,
+  1144→      ssn_last_four: wd.ssn_encrypted ? '****' : 'N/A',
+  1145→      generated_at: new Date().toISOString(),
+  1146→      company: cl.company_name
+  1147→    };
+  1148→
+  1149→    const i9 = await upsertDocument(
+  1150→      checklist_id, req.user.id, offerCompanyId,
+  1151→      'I-9 Employment Eligibility', i9Content,
+  1152→      `I-9 form for ${fullName} - ${cl.company_name}`
+  1153→    );
+  1154→    documents.push(i9);
+  1155→
+  1156→    // Generate W-4 Form
+  1157→    const w4Content = {
+  1158→      form_type: 'W-4',
+  1159→      employee_name: fullName,
+  1160→      first_name: wd.legal_first_name,
+  1161→      last_name: wd.legal_last_name,
+  1162→      ssn_last_four: wd.ssn_encrypted ? '****' : 'N/A',
+  1163→      address: `${wd.address_line1}${wd.address_line2 ? ', ' + wd.address_line2 : ''}`,
+  1164→      city_state_zip: `${wd.city}, ${wd.state} ${wd.zip_code}`,
+  1165→      filing_status: wd.w4_filing_status || 'single',
+  1166→      generated_at: new Date().toISOString(),
+  1167→      company: cl.company_name
+  1168→    };
+  1169→
+  1170→    const w4 = await upsertDocument(
+  1171→      checklist_id, req.user.id, offerCompanyId,
+  1172→      'W-4 Tax Withholding', w4Content,
+  1173→      `W-4 form for ${fullName} - ${cl.company_name}`
+  1174→    );
+  1175→    documents.push(w4);
+  1176→
+  1177→    // Generate Direct Deposit Authorization
+  1178→    const ddContent = {
+  1179→      form_type: 'Direct Deposit Authorization',
+  1180→      employee_name: fullName,
+  1181→      bank_name: wd.bank_name,
+  1182→      routing_last_four: wd.routing_number_encrypted ? '****' : 'N/A',
+  1183→      account_last_four: wd.account_number_encrypted ? '****' : 'N/A',
+  1184→      account_type: wd.account_type,
+  1185→      generated_at: new Date().toISOString(),
+  1186→      company: cl.company_name
+  1187→    };
+  1188→
+  1189→    const dd = await upsertDocument(
+  1190→      checklist_id, req.user.id, offerCompanyId,
+  1191→      'Direct Deposit Authorization', ddContent,
+  1192→      `Direct deposit form for ${fullName} - ${cl.company_name}`
+  1193→    );
+  1194→    documents.push(dd);
+  1195→
+  1196→    // Generate Employee Handbook Acknowledgment
+  1197→    const handbookContent = {
+  1198→      form_type: 'Employee Handbook Acknowledgment',
+  1199→      employee_name: fullName,
+  1200→      generated_at: new Date().toISOString(),
+  1201→      company: cl.company_name,
+  1202→      acknowledgment_text: `I, ${fullName}, acknowledge that I have received and read the employee handbook for ${cl.company_name}. I understand the policies and agree to abide by them.`
+  1203→    };
+  1204→
+  1205→    const handbook = await upsertDocument(
+  1206→      checklist_id, req.user.id, offerCompanyId,
+  1207→      'Employee Handbook Acknowledgment', handbookContent,
+  1208→      `Handbook acknowledgment for ${fullName}`
+  1209→    );
+  1210→    documents.push(handbook);
+  1211→
+  1212→    // Complete checklist items for W-4 and handbook
+  1213→    await completeChecklistItem(checklist_id, req.user.id, 4); // W-4
+  1214→    await completeChecklistItem(checklist_id, req.user.id, 5); // handbook
+  1215→
+  1216→    res.json({ success: true, documents });
+  1217→  } catch (err) {
+  1218→    console.error('Error generating documents:', err);
+  1219→    res.status(500).json({ error: 'Failed to generate documents' });
+  1220→  }
+  1221→});
+  1222→
+  1223→// E-sign a document
+  1224→router.post('/wizard/sign-document', authMiddleware, async (req, res) => {
+  1225→  try {
+  1226→    const { document_id, signature_data } = req.body;
+  1227→    const signerIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
+  1228→    const signerUserAgent = req.headers['user-agent'] || 'unknown';
+  1229→
+  1230→    // Verify document belongs to this candidate
+  1231→    const doc = await pool.query(
+  1232→      'SELECT * FROM onboarding_documents WHERE id = $1 AND candidate_id = $2',
+  1233→      [document_id, req.user.id]
+  1234→    );
+  1235→
+  1236→    if (doc.rows.length === 0) {
+  1237→      return res.status(404).json({ error: 'Document not found' });
+  1238→    }
+  1239→
+  1240→    if (doc.rows[0].signed_at) {
+  1241→      return res.json({ success: true, message: 'Already signed', document: doc.rows[0] });
+  1242→    }
+  1243→
+  1244→    const result = await pool.query(
+  1245→      `UPDATE onboarding_documents SET
+  1246→        status = 'completed',
+  1247→        signed_at = NOW(),
+  1248→        signature_data = $1,
+  1249→        signer_ip = $2,
+  1250→        signer_user_agent = $3,
+  1251→        content_summary = COALESCE(content_summary, '') || ' [Signed by candidate]'
+  1252→       WHERE id = $4 AND candidate_id = $5
+  1253→       RETURNING *`,
+  1254→      [signature_data, signerIp, signerUserAgent, document_id, req.user.id]
+  1255→    );
+  1256→
+  1257→    res.json({ success: true, document: result.rows[0] });
+  1258→  } catch (err) {
+  1259→    console.error('Error signing document:', err);
+  1260→    res.status(500).json({ error: 'Failed to sign document' });
+  1261→  }
+  1262→});
+  1263→
+  1264→// Sign all documents at once
+  1265→router.post('/wizard/sign-all', authMiddleware, async (req, res) => {
+  1266→  try {
+  1267→    const { checklist_id, signature_data } = req.body;
+  1268→    const signerIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
+  1269→    const signerUserAgent = req.headers['user-agent'] || 'unknown';
+  1270→
+  1271→    const result = await pool.query(
+  1272→      `UPDATE onboarding_documents SET
+  1273→        status = 'completed',
+  1274→        signed_at = NOW(),
+  1275→        signature_data = $1,
+  1276→        signer_ip = $2,
+  1277→        signer_user_agent = $3
+  1278→       WHERE checklist_id = $4 AND candidate_id = $5 AND signed_at IS NULL
+  1279→       RETURNING *`,
+  1280→      [signature_data, signerIp, signerUserAgent, checklist_id, req.user.id]
+  1281→    );
+  1282→
+  1283→    // Complete remaining checklist items
+  1284→    await completeChecklistItem(checklist_id, req.user.id, 2); // Upload ID
+  1285→    await completeChecklistItem(checklist_id, req.user.id, 7); // IT setup
+  1286→    await completeChecklistItem(checklist_id, req.user.id, 8); // Orientation
+  1287→
+  1288→    // Mark wizard as completed
+  1289→    await pool.query(
+  1290→      `UPDATE candidate_onboarding_data SET
+  1291→        wizard_status = 'completed',
+  1292→        current_step = 5,
+  1293→        steps_completed = CASE WHEN steps_completed @> '"4"'::jsonb THEN steps_completed ELSE steps_completed || '"4"'::jsonb END,
+  1294→        completed_at = NOW(),
+  1295→        updated_at = NOW()
+  1296→       WHERE candidate_id = $1 AND checklist_id = $2`,
+  1297→      [req.user.id, checklist_id]
+  1298→    );
+  1299→
+  1300→    // Mark checklist as completed
+  1301→    await pool.query(
+  1302→      `UPDATE onboarding_checklists SET
+  1303→        status = 'completed',
+  1304→        completed_at = NOW(),
+  1305→        updated_at = NOW()
+  1306→       WHERE id = $1 AND candidate_id = $2`,
+  1307→      [checklist_id, req.user.id]
+  1308→    );
+  1309→
+  1310→    res.json({ success: true, signed_documents: result.rows });
+  1311→  } catch (err) {
+  1312→    console.error('Error signing all documents:', err);
+  1313→    res.status(500).json({ error: 'Failed to sign documents' });
+  1314→  }
+  1315→});
+  1316→
+  1317→// Get candidate's documents for the wizard
+  1318→router.get('/wizard/documents/:checklist_id', authMiddleware, async (req, res) => {
+  1319→  try {
+  1320→    const result = await pool.query(
+  1321→      `SELECT * FROM onboarding_documents
+  1322→       WHERE checklist_id = $1 AND candidate_id = $2
+  1323→       ORDER BY created_at`,
+  1324→      [req.params.checklist_id, req.user.id]
+  1325→    );
+  1326→    res.json(result.rows);
+  1327→  } catch (err) {
+  1328→    console.error('Error fetching wizard documents:', err);
+  1329→    res.status(500).json({ error: 'Failed to fetch documents' });
+  1330→  }
+  1331→});
+  1332→
+  1333→// ============================================
+  1334→// DOCUMENT DOWNLOAD (RECRUITER)
+  1335→// ============================================
+  1336→
+  1337→// Download/export a document as printable HTML
+  1338→router.get('/recruiter/document/:document_id/download', authMiddleware, async (req, res) => {
+  1339→  try {
+  1340→    if (!req.user.company_id) {
+  1341→      return res.status(403).json({ error: 'Only recruiters can download documents' });
+  1342→    }
+  1343→
+  1344→    const doc = await pool.query(
+  1345→      `SELECT od.*, u.name as candidate_name, u.email as candidate_email
+  1346→       FROM onboarding_documents od
+  1347→       JOIN users u ON od.candidate_id = u.id
+  1348→       WHERE od.id = $1`,
+  1349→      [req.params.document_id]
+  1350→    );
+  1351→
+  1352→    if (doc.rows.length === 0) {
+  1353→      return res.status(404).json({ error: 'Document not found' });
+  1354→    }
+  1355→
+  1356→    const d = doc.rows[0];
+  1357→
+  1358→    // Verify access: document must belong to a candidate from this recruiter's company
+  1359→    const offerCheck = await pool.query(
+  1360→      `SELECT id FROM offers WHERE candidate_id = $1 AND company_id = $2 LIMIT 1`,
+  1361→      [d.candidate_id, req.user.company_id]
+  1362→    );
+  1363→    if (offerCheck.rows.length === 0) {
+  1364→      return res.status(403).json({ error: 'Access denied' });
+  1365→    }
+  1366→
+  1367→    const content = typeof d.document_content === 'string'
+  1368→      ? JSON.parse(d.document_content)
+  1369→      : (d.document_content || {});
+  1370→
+  1371→    // Generate printable HTML document
+  1372→    const html = generatePrintableDocument(d, content);
+  1373→
+  1374→    res.setHeader('Content-Type', 'text/html');
+  1375→    res.setHeader('Content-Disposition', `inline; filename="${d.document_type.replace(/[^a-zA-Z0-9]/g, '_')}_${d.candidate_name.replace(/[^a-zA-Z0-9]/g, '_')}.html"`);
+  1376→    res.send(html);
+  1377→  } catch (err) {
+  1378→    console.error('Error downloading document:', err);
+  1379→    res.status(500).json({ error: 'Failed to download document' });
+  1380→  }
+  1381→});
+  1382→
+  1383→// Get document JSON content for recruiter (for API consumers)
+  1384→router.get('/recruiter/document/:document_id/json', authMiddleware, async (req, res) => {
+  1385→  try {
+  1386→    if (!req.user.company_id) {
+  1387→      return res.status(403).json({ error: 'Only recruiters can access documents' });
+  1388→    }
+  1389→
+  1390→    const doc = await pool.query(
+  1391→      `SELECT od.*, u.name as candidate_name, u.email as candidate_email
+  1392→       FROM onboarding_documents od
+  1393→       JOIN users u ON od.candidate_id = u.id
+  1394→       WHERE od.id = $1`,
+  1395→      [req.params.document_id]
+  1396→    );
+  1397→
+  1398→    if (doc.rows.length === 0) {
+  1399→      return res.status(404).json({ error: 'Document not found' });
+  1400→    }
+  1401→
+  1402→    const d = doc.rows[0];
+  1403→    const offerCheck = await pool.query(
+  1404→      `SELECT id FROM offers WHERE candidate_id = $1 AND company_id = $2 LIMIT 1`,
+  1405→      [d.candidate_id, req.user.company_id]
+  1406→    );
+  1407→    if (offerCheck.rows.length === 0) {
+  1408→      return res.status(403).json({ error: 'Access denied' });
+  1409→    }
+  1410→
+  1411→    res.json(d);
+  1412→  } catch (err) {
+  1413→    console.error('Error fetching document JSON:', err);
+  1414→    res.status(500).json({ error: 'Failed to fetch document' });
+  1415→  }
+  1416→});
+  1417→
+  1418→// Helper: Generate printable HTML document
+  1419→function generatePrintableDocument(doc, content) {
+  1420→  const signedInfo = doc.signed_at
+  1421→    ? `<div class="signature-block">
+  1422→        <p><strong>Electronically Signed</strong></p>
+  1423→        <p>Signed by: ${escapeHtmlServer(doc.candidate_name)}</p>
+  1424→        <p>Date: ${new Date(doc.signed_at).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'medium' })}</p>
+  1425→        <p>IP Address: ${escapeHtmlServer(doc.signer_ip || 'N/A')}</p>
+  1426→       </div>`
+  1427→    : '<p class="pending">⏳ Awaiting Signature</p>';
+  1428→
+  1429→  let bodyContent = '';
+  1430→
+  1431→  if (content.form_type === 'I-9') {
+  1432→    bodyContent = `
+  1433→      <div class="form-header">
+  1434→        <h2>Employment Eligibility Verification</h2>
+  1435→        <p class="subtitle">Department of Homeland Security — U.S. Citizenship and Immigration Services</p>
+  1436→        <p class="form-id">Form I-9</p>
+  1437→      </div>
+  1438→      <div class="section">
+  1439→        <h3>Section 1: Employee Information</h3>
+  1440→        <table>
+  1441→          <tr><td class="label">Full Legal Name:</td><td>${escapeHtmlServer(content.employee_name || '')}</td></tr>
+  1442→          <tr><td class="label">First Name:</td><td>${escapeHtmlServer(content.first_name || '')}</td></tr>
+  1443→          <tr><td class="label">Middle Name:</td><td>${escapeHtmlServer(content.middle_name || 'N/A')}</td></tr>
+  1444→          <tr><td class="label">Last Name:</td><td>${escapeHtmlServer(content.last_name || '')}</td></tr>
+  1445→          <tr><td class="label">Date of Birth:</td><td>${content.date_of_birth ? new Date(content.date_of_birth).toLocaleDateString('en-US') : 'N/A'}</td></tr>
+  1446→          <tr><td class="label">Address:</td><td>${escapeHtmlServer(content.address || '')}</td></tr>
+  1447→          <tr><td class="label">City:</td><td>${escapeHtmlServer(content.city || '')}</td></tr>
+  1448→          <tr><td class="label">State:</td><td>${escapeHtmlServer(content.state || '')}</td></tr>
+  1449→          <tr><td class="label">ZIP:</td><td>${escapeHtmlServer(content.zip || '')}</td></tr>
+  1450→          <tr><td class="label">SSN (masked):</td><td>${content.ssn_last_four || '****'}</td></tr>
+  1451→          <tr><td class="label">Employer:</td><td>${escapeHtmlServer(content.company || '')}</td></tr>
+  1452→        </table>
+  1453→      </div>
+  1454→    `;
+  1455→  } else if (content.form_type === 'W-4') {
+  1456→    bodyContent = `
+  1457→      <div class="form-header">
+  1458→        <h2>Employee's Withholding Certificate</h2>
+  1459→        <p class="subtitle">Department of the Treasury — Internal Revenue Service</p>
+  1460→        <p class="form-id">Form W-4</p>
+  1461→      </div>
+  1462→      <div class="section">
+  1463→        <h3>Employee Information</h3>
+  1464→        <table>
+  1465→          <tr><td class="label">Full Name:</td><td>${escapeHtmlServer(content.employee_name || '')}</td></tr>
+  1466→          <tr><td class="label">SSN (masked):</td><td>${content.ssn_last_four || '****'}</td></tr>
+  1467→          <tr><td class="label">Address:</td><td>${escapeHtmlServer(content.address || '')}</td></tr>
+  1468→          <tr><td class="label">City, State, ZIP:</td><td>${escapeHtmlServer(content.city_state_zip || '')}</td></tr>
+  1469→          <tr><td class="label">Filing Status:</td><td>${escapeHtmlServer(content.filing_status || 'Single')}</td></tr>
+  1470→        </table>
+  1471→      </div>
+  1472→    `;
+  1473→  } else if (content.form_type === 'Direct Deposit Authorization') {
+  1474→    bodyContent = `
+  1475→      <div class="form-header">
+  1476→        <h2>Direct Deposit Authorization</h2>
+  1477→        <p class="subtitle">Payroll Direct Deposit Setup</p>
+  1478→      </div>
+  1479→      <div class="section">
+  1480→        <h3>Employee Banking Information</h3>
+  1481→        <table>
+  1482→          <tr><td class="label">Employee Name:</td><td>${escapeHtmlServer(content.employee_name || '')}</td></tr>
+  1483→          <tr><td class="label">Bank Name:</td><td>${escapeHtmlServer(content.bank_name || '')}</td></tr>
+  1484→          <tr><td class="label">Routing Number (masked):</td><td>${content.routing_last_four || '****'}</td></tr>
+  1485→          <tr><td class="label">Account Number (masked):</td><td>${content.account_last_four || '****'}</td></tr>
+  1486→          <tr><td class="label">Account Type:</td><td>${escapeHtmlServer(content.account_type || '')}</td></tr>
+  1487→        </table>
+  1488→        <p class="authorization">I hereby authorize my employer to deposit my pay directly into the bank account listed above. This authorization remains in effect until I provide written notice of cancellation.</p>
+  1489→      </div>
+  1490→    `;
+  1491→  } else if (content.form_type === 'Employee Handbook Acknowledgment') {
+  1492→    bodyContent = `
+  1493→      <div class="form-header">
+  1494→        <h2>Employee Handbook Acknowledgment</h2>
+  1495→        <p class="subtitle">${escapeHtmlServer(content.company || '')} — Employee Agreement</p>
+  1496→      </div>
+  1497→      <div class="section">
+  1498→        <p class="authorization">${escapeHtmlServer(content.acknowledgment_text || '')}</p>
+  1499→      </div>
+  1500→    `;
+  1501→  } else {
+  1502→    bodyContent = `<pre>${JSON.stringify(content, null, 2)}</pre>`;
+  1503→  }
+  1504→
+  1505→  return `<!DOCTYPE html>
+  1506→<html>
+  1507→<head>
+  1508→  <meta charset="UTF-8">
+  1509→  <title>${escapeHtmlServer(doc.document_type)} — ${escapeHtmlServer(doc.candidate_name)}</title>
+  1510→  <style>
+  1511→    @media print { body { margin: 0.5in; } .no-print { display: none; } }
+  1512→    body { font-family: 'Times New Roman', serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #111; line-height: 1.6; }
+  1513→    .form-header { text-align: center; margin-bottom: 32px; border-bottom: 2px solid #111; padding-bottom: 16px; }
+  1514→    .form-header h2 { font-size: 22px; margin-bottom: 4px; }
+  1515→    .form-header .subtitle { font-size: 14px; color: #444; }
+  1516→    .form-header .form-id { font-weight: bold; font-size: 16px; margin-top: 8px; }
+  1517→    .section { margin-bottom: 24px; }
+  1518→    .section h3 { font-size: 16px; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-bottom: 12px; }
+  1519→    table { width: 100%; border-collapse: collapse; }
+  1520→    td { padding: 8px 4px; border-bottom: 1px solid #eee; font-size: 14px; }
+  1521→    .label { font-weight: bold; width: 200px; color: #333; }
+  1522→    .signature-block { margin-top: 32px; padding: 16px; border: 1px solid #ccc; border-radius: 4px; background: #f9f9f9; }
+  1523→    .signature-block p { margin: 4px 0; font-size: 13px; }
+  1524→    .pending { color: #b45309; font-style: italic; margin-top: 24px; }
+  1525→    .authorization { font-style: italic; margin-top: 16px; padding: 16px; background: #f5f5f5; border-radius: 4px; }
+  1526→    .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #ccc; font-size: 12px; color: #666; }
+  1527→    .no-print { margin-bottom: 24px; text-align: center; }
+  1528→    .no-print button { padding: 10px 24px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 0 8px; }
+  1529→    .no-print button:hover { background: #4f46e5; }
+  1530→  </style>
+  1531→</head>
+  1532→<body>
+  1533→  <div class="no-print">
+  1534→    <button onclick="window.print()">🖨️ Print / Save as PDF</button>
+  1535→    <button onclick="window.close()">Close</button>
+  1536→  </div>
+  1537→  ${bodyContent}
+  1538→  ${signedInfo}
+  1539→  <div class="footer">
+  1540→    <p>Generated: ${content.generated_at ? new Date(content.generated_at).toLocaleString('en-US') : new Date().toLocaleString('en-US')}</p>
+  1541→    <p>Document ID: ${doc.id} | Candidate: ${escapeHtmlServer(doc.candidate_name)} (${escapeHtmlServer(doc.candidate_email)})</p>
+  1542→  </div>
+  1543→</body>
+  1544→</html>`;
+  1545→}
+  1546→
+  1547→function escapeHtmlServer(text) {
+  1548→  if (!text) return '';
+  1549→  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+  1550→  return String(text).replace(/[&<>"']/g, m => map[m]);
+  1551→}
+  1552→
+  1553→// Helper: upsert a document
+  1554→async function upsertDocument(checklistId, candidateId, companyId, docType, content, summary) {
+  1555→  // Check if already exists
+  1556→  const existing = await pool.query(
+  1557→    'SELECT * FROM onboarding_documents WHERE checklist_id = $1 AND candidate_id = $2 AND document_type = $3',
+  1558→    [checklistId, candidateId, docType]
+  1559→  );
+  1560→
+  1561→  if (existing.rows.length > 0) {
+  1562→    const updated = await pool.query(
+  1563→      `UPDATE onboarding_documents SET
+  1564→        document_content = $1, content_summary = $2, status = 'pending', uploaded_at = NOW()
+  1565→       WHERE id = $3 RETURNING *`,
+  1566→      [JSON.stringify(content), summary, existing.rows[0].id]
+  1567→    );
+  1568→    return updated.rows[0];
+  1569→  }
+  1570→
+  1571→  const result = await pool.query(
+  1572→    `INSERT INTO onboarding_documents
+  1573→     (checklist_id, candidate_id, company_id, document_type, document_content, content_summary, status, uploaded_at)
+  1574→     VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW())
+  1575→     RETURNING *`,
+  1576→    [checklistId, candidateId, companyId, docType, JSON.stringify(content), summary]
+  1577→  );
+  1578→  return result.rows[0];
+  1579→}
+  1580→
+  1581→// Helper: complete a checklist item
+  1582→async function completeChecklistItem(checklistId, candidateId, itemId) {
+  1583→  try {
+  1584→    const checklist = await pool.query(
+  1585→      'SELECT * FROM onboarding_checklists WHERE id = $1 AND candidate_id = $2',
+  1586→      [checklistId, candidateId]
+  1587→    );
+  1588→    if (checklist.rows.length === 0) return;
+  1589→
+  1590→    const completedItems = checklist.rows[0].completed_items || [];
+  1591→    if (!completedItems.includes(itemId)) {
+  1592→      completedItems.push(itemId);
+  1593→    }
+  1594→
+  1595→    const items = checklist.rows[0].items || [];
+  1596→    const allCompleted = items.every(item => completedItems.includes(item.id));
+  1597→
+  1598→    await pool.query(
+  1599→      `UPDATE onboarding_checklists SET
+  1600→        completed_items = $1,
+  1601→        status = $2,
+  1602→        completed_at = $3,
+  1603→        updated_at = NOW()
+  1604→       WHERE id = $4`,
+  1605→      [
+  1606→        JSON.stringify(completedItems),
+  1607→        allCompleted ? 'completed' : 'in_progress',
+  1608→        allCompleted ? new Date() : null,
+  1609→        checklistId
+  1610→      ]
+  1611→    );
+  1612→  } catch (err) {
+  1613→    console.error('Error completing checklist item:', err);
+  1614→  }
+  1615→}
+  1616→
+  1617→// ============================================
+  1618→// HELPER FUNCTIONS
+  1619→// ============================================
+  1620→
+  1621→async function analyzeFeedbackWithAI(responses, comments) {
+  1622→  try {
+  1623→    const prompt = `Analyze this employee feedback and provide insights:
+  1624→
+  1625→Responses: ${JSON.stringify(responses)}
+  1626→Comments: ${comments}
+  1627→
+  1628→Provide:
+  1629→1. Sentiment (positive/neutral/negative)
+  1630→2. Key themes identified
+  1631→3. Action items for management
+  1632→4. Risk level (low/medium/high) if negative patterns detected`;
+  1633→
+  1634→    const analysis = await polsiaAI.chat([
+  1635→      { role: 'user', content: prompt }
+  1636→    ], { max_tokens: 1024 });
+  1637→
+  1638→    return { analysis: analysis, analyzed_at: new Date().toISOString() };
+  1639→  } catch (err) {
+  1640→    console.error('Error analyzing feedback:', err);
+  1641→    return { error: 'Analysis failed' };
+  1642→  }
+  1643→}
+  1644→
+  1645→async function getOnboardingAssistantResponse(messages, policyContext, user) {
+  1646→  try {
+  1647→    const systemPrompt = `You are an onboarding assistant for new employees. You help them understand company policies, complete paperwork, and answer questions about their first days.
+  1648→
+  1649→Company Policies and Information:
+  1650→${policyContext}
+  1651→
+  1652→Employee name: ${user.name || 'there'}
+  1653→
+  1654→Be friendly, helpful, and direct. If you don't know something, say so and suggest they contact HR.`;
+  1655→
+  1656→    const response = await polsiaAI.chat([
+  1657→      { role: 'system', content: systemPrompt },
+  1658→      ...messages.map(m => ({ role: m.role, content: m.content }))
+  1659→    ], { max_tokens: 512 });
+  1660→
+  1661→    return response;
+  1662→  } catch (err) {
+  1663→    console.error('Error getting AI response:', err);
+  1664→    return "I'm having trouble connecting right now. Please try again or contact HR directly.";
+  1665→  }
+  1666→}
+  1667→
+  1668→module.exports = router;
+  1669→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

@@ -1,0 +1,2 @@
+/tmp/polsia-workspaces/company-956/agent-30/exec-55968/hireloop/client/src/pages/candidate/onboarding.tsx
+/tmp/polsia-workspaces/company-956/agent-30/exec-55968/hireloop/client/src/pages/recruiter/onboarding.tsx
