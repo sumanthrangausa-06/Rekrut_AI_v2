@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Verify existing offers module builds without errors",
+    "status": "completed",
+    "activeForm": "Verifying build"
+  },
+  {
+    "content": "Check recruiter candidates/jobs API routes exist for create-offer dropdown",
+    "status": "completed",
+    "activeForm": "Checking API routes"
+  },
+  {
+    "content": "Verify create-from-application flow (applications → offers link)",
+    "status": "completed",
+    "activeForm": "Checking application→offer link"
+  },
+  {
+    "content": "Verify server serves React build correctly and deploy",
+    "status": "in_progress",
+    "activeForm": "Verifying deploy setup"
+  }
+]
