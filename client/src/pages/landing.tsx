@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useAuth, getDashboardPath } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -10,6 +11,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Star,
+  LayoutDashboard,
 } from 'lucide-react'
 
 const features = [
@@ -52,6 +54,9 @@ const stats = [
 ]
 
 export function LandingPage() {
+  const { isAuthenticated, user } = useAuth()
+  const dashboardPath = user ? getDashboardPath(user.role) : '/login'
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -64,12 +69,23 @@ export function LandingPage() {
             <span className="font-heading text-xl font-bold">HireLoop</span>
           </Link>
           <div className="flex items-center gap-3">
-            <Link to="/login">
-              <Button variant="ghost" size="sm">Sign in</Button>
-            </Link>
-            <Link to="/register">
-              <Button size="sm">Get started</Button>
-            </Link>
+            {isAuthenticated && user ? (
+              <Link to={dashboardPath}>
+                <Button size="sm" className="gap-2">
+                  <LayoutDashboard className="h-4 w-4" />
+                  Dashboard
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Link to="/login">
+                  <Button variant="ghost" size="sm">Sign in</Button>
+                </Link>
+                <Link to="/register">
+                  <Button size="sm">Get started</Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -91,17 +107,28 @@ export function LandingPage() {
               streamline hiring, and automate onboarding.
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-              <Link to="/register">
-                <Button size="lg" className="gap-2">
-                  Start hiring free
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-              <Link to="/register?role=candidate">
-                <Button variant="outline" size="lg">
-                  Find jobs
-                </Button>
-              </Link>
+              {isAuthenticated && user ? (
+                <Link to={dashboardPath}>
+                  <Button size="lg" className="gap-2">
+                    Go to Dashboard
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              ) : (
+                <>
+                  <Link to="/register">
+                    <Button size="lg" className="gap-2">
+                      Start hiring free
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <Link to="/register?role=candidate">
+                    <Button variant="outline" size="lg">
+                      Find jobs
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
 

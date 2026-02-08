@@ -127,7 +127,11 @@ export function CandidateJobsPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold text-base truncate">{job.title}</h3>
-                        {job.screening_questions && JSON.parse(job.screening_questions || '[]').length > 0 && (
+                        {(() => {
+                          try {
+                            return job.screening_questions && JSON.parse(job.screening_questions).length > 0
+                          } catch { return false }
+                        })() && (
                           <Badge variant="outline" className="text-[10px] shrink-0">Screening</Badge>
                         )}
                       </div>
