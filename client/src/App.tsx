@@ -27,6 +27,9 @@ import { AssessmentTakePage } from '@/pages/candidate/assessment-take'
 import { CandidateOffersPage } from '@/pages/candidate/offers'
 import { RecruiterOffersPage } from '@/pages/recruiter/offers'
 
+// Recruiter Assessments
+import { RecruiterAssessmentsPage } from '@/pages/recruiter/assessments'
+
 function RoleRedirect() {
   const { user, loading } = useAuth()
 
@@ -70,6 +73,7 @@ function AppRoutes() {
         <Route path="jobs/:id/edit" element={<RecruiterJobFormPage />} />
         <Route path="jobs/:id" element={<RecruiterJobApplicantsPage />} />
         <Route path="applications" element={<RecruiterApplicationsPage />} />
+        <Route path="assessments" element={<RecruiterAssessmentsPage />} />
         <Route path="candidates" element={<PlaceholderPage />} />
         <Route path="interviews" element={<PlaceholderPage />} />
         <Route path="offers" element={<RecruiterOffersPage />} />
