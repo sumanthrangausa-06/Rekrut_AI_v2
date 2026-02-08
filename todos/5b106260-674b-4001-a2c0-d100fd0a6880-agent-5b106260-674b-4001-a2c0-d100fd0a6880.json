@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Review current I-9/W-4 implementation in codebase",
+    "status": "completed",
+    "activeForm": "Reviewing current I-9/W-4 implementation"
+  },
+  {
+    "content": "Research official USCIS I-9 (current edition) specs",
+    "status": "completed",
+    "activeForm": "Researching official I-9 specs"
+  },
+  {
+    "content": "Research official IRS W-4 (2024/2025) specs",
+    "status": "completed",
+    "activeForm": "Researching official W-4 specs"
+  },
+  {
+    "content": "Compare implementation vs official specs and document gaps",
+    "status": "completed",
+    "activeForm": "Comparing implementation vs official specs"
+  },
+  {
+    "content": "Fix code to match official government form requirements",
+    "status": "completed",
+    "activeForm": "Fixing code to match official specs"
+  },
+  {
+    "content": "Build, push, and verify deployment",
+    "status": "in_progress",
+    "activeForm": "Building and deploying fixes"
+  }
+]
