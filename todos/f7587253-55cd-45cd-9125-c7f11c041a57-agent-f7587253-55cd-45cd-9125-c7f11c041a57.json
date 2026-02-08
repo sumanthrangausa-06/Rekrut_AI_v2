@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Investigate current offer system (routes, DB, React components)",
+    "status": "completed",
+    "activeForm": "Investigating current offer system"
+  },
+  {
+    "content": "Create migration for offer_letter_html + signature columns",
+    "status": "completed",
+    "activeForm": "Creating database migration"
+  },
+  {
+    "content": "Build AI offer letter generation backend endpoint",
+    "status": "completed",
+    "activeForm": "Building AI offer letter generation backend"
+  },
+  {
+    "content": "Update recruiter UI with AI generation + preview + new fields",
+    "status": "completed",
+    "activeForm": "Updating recruiter offer UI"
+  },
+  {
+    "content": "Update candidate UI with document view + e-signature",
+    "status": "completed",
+    "activeForm": "Updating candidate offer view"
+  },
+  {
+    "content": "Build + deploy + verify end-to-end",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying"
+  }
+]
