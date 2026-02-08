@@ -5,11 +5,13 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import {
   FileText, Users, Star, Calendar, MessageSquare, Eye,
-  GraduationCap, Gift, Briefcase, Filter, X,
+  GraduationCap, Gift, Briefcase, Filter, X, Clock,
+  ClipboardList, ChevronDown, ChevronUp, ArrowUpDown,
 } from 'lucide-react'
 
 interface Application {
@@ -54,6 +56,9 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
   rejected: { label: 'Rejected', variant: 'destructive' },
 }
 
+type SortField = 'applied_at' | 'candidate_name' | 'match_score'
+type SortDir = 'asc' | 'desc'
+
 export function RecruiterApplicationsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -61,9 +66,14 @@ export function RecruiterApplicationsPage() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [selected, setSelected] = useState<Application | null>(null)
   const [updating, setUpdating] = useState(false)
   const [notes, setNotes] = useState('')
+  const [sortField, setSortField] = useState<SortField>('applied_at')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const jobFilter = searchParams.get('job') || ''
 
@@ -102,7 +112,6 @@ export function RecruiterApplicationsPage() {
         method: 'PUT',
         body: { status: newStatus, recruiter_notes: notes || undefined },
       })
-      // Update local state
       setApplications(prev =>
         prev.map(a => a.id === appId ? { ...a, status: newStatus } : a)
       )
@@ -142,7 +151,45 @@ export function RecruiterApplicationsPage() {
     }
   }
 
-  const filtered = applications.filter(a => !statusFilter || a.status === statusFilter)
+  function toggleSort(field: SortField) {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDir('desc')
+    }
+  }
+
+  // Apply all filters
+  const filtered = applications
+    .filter(a => !statusFilter || a.status === statusFilter)
+    .filter(a => {
+      if (!dateFrom && !dateTo) return true
+      const d = new Date(a.applied_at).getTime()
+      if (dateFrom && d < new Date(dateFrom).getTime()) return false
+      if (dateTo && d > new Date(dateTo + 'T23:59:59').getTime()) return false
+      return true
+    })
+    .filter(a => {
+      if (!searchQuery) return true
+      const q = searchQuery.toLowerCase()
+      return (
+        (a.candidate_name || '').toLowerCase().includes(q) ||
+        (a.candidate_email || '').toLowerCase().includes(q) ||
+        (a.job_title || '').toLowerCase().includes(q)
+      )
+    })
+    .sort((a, b) => {
+      let cmp = 0
+      if (sortField === 'applied_at') {
+        cmp = new Date(a.applied_at).getTime() - new Date(b.applied_at).getTime()
+      } else if (sortField === 'candidate_name') {
+        cmp = (a.candidate_name || '').localeCompare(b.candidate_name || '')
+      } else if (sortField === 'match_score') {
+        cmp = (a.match_score || 0) - (b.match_score || 0)
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
 
   // Group counts
   const statusCounts = statuses.reduce((acc, s) => {
@@ -151,10 +198,19 @@ export function RecruiterApplicationsPage() {
   }, {} as Record<string, number>)
 
   const selectedJob = jobs.find(j => j.id === Number(jobFilter))
+  const hasActiveFilters = statusFilter || dateFrom || dateTo || searchQuery
 
   function openDetail(app: Application) {
     setSelected(app)
     setNotes(app.recruiter_notes || '')
+  }
+
+  function clearAllFilters() {
+    setStatusFilter('')
+    setDateFrom('')
+    setDateTo('')
+    setSearchQuery('')
+    setJobFilter('')
   }
 
   return (
@@ -233,27 +289,75 @@ export function RecruiterApplicationsPage() {
         </Card>
       </div>
 
-      {/* Status filter pills */}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant={!statusFilter ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setStatusFilter('')}
-        >
-          All ({applications.length})
-        </Button>
-        {statuses.map(s => (
-          statusCounts[s] > 0 && (
-            <Button
-              key={s}
-              variant={statusFilter === s ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setStatusFilter(s)}
-            >
-              {statusConfig[s]?.label || s} ({statusCounts[s]})
+      {/* Filters section */}
+      <div className="space-y-3">
+        {/* Search + Date filters row */}
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex-1 min-w-[200px]">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Search</label>
+            <Input
+              placeholder="Search by name, email, or job..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="text-sm"
+            />
+          </div>
+          <div className="w-40">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">From Date</label>
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className="text-sm"
+            />
+          </div>
+          <div className="w-40">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">To Date</label>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className="text-sm"
+            />
+          </div>
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearAllFilters} className="gap-1 text-muted-foreground">
+              <X className="h-3 w-3" /> Clear Filters
             </Button>
-          )
-        ))}
+          )}
+        </div>
+
+        {/* Status filter pills */}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant={!statusFilter ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setStatusFilter('')}
+          >
+            All ({applications.length})
+          </Button>
+          {statuses.map(s => (
+            statusCounts[s] > 0 && (
+              <Button
+                key={s}
+                variant={statusFilter === s ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setStatusFilter(s)}
+              >
+                {statusConfig[s]?.label || s} ({statusCounts[s]})
+              </Button>
+            )
+          ))}
+        </div>
+      </div>
+
+      {/* Sort controls */}
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <span className="font-medium">Sort:</span>
+        <SortButton field="applied_at" label="Date" current={sortField} dir={sortDir} onToggle={toggleSort} />
+        <SortButton field="candidate_name" label="Name" current={sortField} dir={sortDir} onToggle={toggleSort} />
+        <SortButton field="match_score" label="Match" current={sortField} dir={sortDir} onToggle={toggleSort} />
+        <span className="ml-auto">{filtered.length} application{filtered.length !== 1 ? 's' : ''}</span>
       </div>
 
       {loading ? (
@@ -265,8 +369,13 @@ export function RecruiterApplicationsPage() {
           <CardContent className="py-16 text-center">
             <FileText className="mx-auto mb-3 h-10 w-10 opacity-30" />
             <p className="text-muted-foreground">
-              {applications.length === 0 ? 'No applications yet' : 'No applications match this filter'}
+              {applications.length === 0 ? 'No applications yet' : 'No applications match your filters'}
             </p>
+            {hasActiveFilters && (
+              <Button variant="outline" size="sm" onClick={clearAllFilters} className="mt-3 gap-1">
+                <X className="h-3 w-3" /> Clear Filters
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -285,6 +394,11 @@ export function RecruiterApplicationsPage() {
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold truncate">{app.candidate_name || 'Unknown'}</h3>
                         <Badge variant={config.variant}>{config.label}</Badge>
+                        {hasScreeningAnswers(app) && (
+                          <Badge variant="outline" className="gap-1 text-[10px]">
+                            <ClipboardList className="h-3 w-3" /> Screening
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
@@ -369,39 +483,7 @@ export function RecruiterApplicationsPage() {
             )}
 
             {/* Screening answers */}
-            {selected.screening_answers && (() => {
-              try {
-                const answers = typeof selected.screening_answers === 'string'
-                  ? JSON.parse(selected.screening_answers)
-                  : selected.screening_answers
-                const questions = selected.screening_questions
-                  ? (typeof selected.screening_questions === 'string'
-                    ? JSON.parse(selected.screening_questions)
-                    : selected.screening_questions)
-                  : []
-                if (!answers || Object.keys(answers).length === 0) return null
-                return (
-                  <div>
-                    <h4 className="font-medium text-sm mb-2">Screening Answers</h4>
-                    <div className="space-y-2">
-                      {Object.entries(answers).map(([key, value], i) => {
-                        const q = questions[i]
-                        return (
-                          <div key={key} className="rounded-lg bg-muted/50 p-3">
-                            <p className="text-xs text-muted-foreground mb-1">
-                              {q?.question || q || `Question ${i + 1}`}
-                            </p>
-                            <p className="text-sm">{String(value)}</p>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              } catch {
-                return null
-              }
-            })()}
+            <ScreeningAnswersBlock app={selected} />
 
             {/* Candidate stats */}
             <div className="flex flex-wrap gap-2">
@@ -474,5 +556,84 @@ export function RecruiterApplicationsPage() {
         </Dialog>
       )}
     </div>
+  )
+}
+
+function hasScreeningAnswers(app: Application): boolean {
+  try {
+    const answers = typeof app.screening_answers === 'string'
+      ? JSON.parse(app.screening_answers)
+      : app.screening_answers
+    return answers && Object.keys(answers).length > 0
+  } catch {
+    return false
+  }
+}
+
+function ScreeningAnswersBlock({ app }: { app: Application }) {
+  try {
+    const answers = typeof app.screening_answers === 'string'
+      ? JSON.parse(app.screening_answers)
+      : app.screening_answers
+    const questions = app.screening_questions
+      ? (typeof app.screening_questions === 'string'
+        ? JSON.parse(app.screening_questions)
+        : app.screening_questions)
+      : []
+    if (!answers || Object.keys(answers).length === 0) return null
+    return (
+      <div>
+        <h4 className="font-medium text-sm mb-2 flex items-center gap-1.5">
+          <ClipboardList className="h-4 w-4 text-primary" />
+          Screening Answers
+        </h4>
+        <div className="space-y-2">
+          {Object.entries(answers).map(([key, value], i) => {
+            const q = questions[i]
+            return (
+              <div key={key} className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground mb-1 font-medium">
+                  {q?.question || q || `Question ${i + 1}`}
+                </p>
+                <p className="text-sm">{String(value)}</p>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  } catch {
+    return null
+  }
+}
+
+function SortButton({
+  field,
+  label,
+  current,
+  dir,
+  onToggle,
+}: {
+  field: SortField
+  label: string
+  current: SortField
+  dir: SortDir
+  onToggle: (f: SortField) => void
+}) {
+  const isActive = current === field
+  return (
+    <button
+      onClick={() => onToggle(field)}
+      className={`flex items-center gap-1 px-2 py-1 rounded hover:bg-muted transition-colors ${
+        isActive ? 'text-foreground font-medium' : ''
+      }`}
+    >
+      {label}
+      {isActive ? (
+        dir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+      ) : (
+        <ArrowUpDown className="h-3 w-3 opacity-40" />
+      )}
+    </button>
   )
 }

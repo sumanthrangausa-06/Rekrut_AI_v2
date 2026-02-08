@@ -951,7 +951,8 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
 router.get('/applications', authMiddleware, async (req, res) => {
   try {
     const applications = await pool.query(`
-      SELECT ja.*, j.title, j.company, j.location, j.salary_range, u.company_name as posted_by_company
+      SELECT ja.*, j.title, j.company, j.location, j.salary_range, j.job_type,
+             j.screening_questions, u.company_name as posted_by_company
       FROM job_applications ja
       JOIN jobs j ON ja.job_id = j.id
       LEFT JOIN users u ON j.user_id = u.id

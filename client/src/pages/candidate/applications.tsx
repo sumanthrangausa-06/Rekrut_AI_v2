@@ -7,8 +7,17 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import {
   FileText, Building2, MapPin, Calendar, ExternalLink, XCircle, AlertTriangle,
-  Clock, CheckCircle, Briefcase, DollarSign, Filter,
+  Clock, CheckCircle, Briefcase, DollarSign, Filter, ClipboardList,
+  ArrowRight, Eye,
 } from 'lucide-react'
+
+interface ScreeningQuestion {
+  question: string
+  type: 'text' | 'yes_no' | 'select'
+  required?: boolean
+  options?: string[]
+  category?: string
+}
 
 interface Application {
   id: number
@@ -18,22 +27,25 @@ interface Application {
   company: string
   location: string
   salary_range: string
+  job_type: string
   posted_by_company?: string
   applied_at: string
   updated_at: string
   match_score?: number
   cover_letter?: string
+  screening_answers?: string | Record<string, string>
+  screening_questions?: string | ScreeningQuestion[]
 }
 
-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' }> = {
-  applied: { label: 'Applied', variant: 'secondary' },
-  reviewing: { label: 'Under Review', variant: 'warning' },
-  shortlisted: { label: 'Shortlisted', variant: 'default' },
-  interviewed: { label: 'Interviewed', variant: 'default' },
-  offered: { label: 'Offer Received', variant: 'success' },
-  hired: { label: 'Hired', variant: 'success' },
-  rejected: { label: 'Not Selected', variant: 'destructive' },
-  withdrawn: { label: 'Withdrawn', variant: 'secondary' },
+const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive'; icon: typeof Clock }> = {
+  applied: { label: 'Applied', variant: 'secondary', icon: FileText },
+  reviewing: { label: 'Under Review', variant: 'warning', icon: Eye },
+  shortlisted: { label: 'Shortlisted', variant: 'default', icon: CheckCircle },
+  interviewed: { label: 'Interviewed', variant: 'default', icon: Briefcase },
+  offered: { label: 'Offer Received', variant: 'success', icon: DollarSign },
+  hired: { label: 'Hired', variant: 'success', icon: CheckCircle },
+  rejected: { label: 'Not Selected', variant: 'destructive', icon: XCircle },
+  withdrawn: { label: 'Withdrawn', variant: 'secondary', icon: XCircle },
 }
 
 export function CandidateApplicationsPage() {
@@ -66,7 +78,6 @@ export function CandidateApplicationsPage() {
       await apiCall(`/candidate/applications/${withdrawTarget.id}/withdraw`, {
         method: 'PUT',
       })
-      // Update local state
       setApplications(prev =>
         prev.map(a => a.id === withdrawTarget.id ? { ...a, status: 'withdrawn' } : a)
       )
@@ -89,6 +100,20 @@ export function CandidateApplicationsPage() {
     return `${Math.floor(days / 30)} months ago`
   }
 
+  function parseScreeningData(app: Application) {
+    try {
+      const answers = typeof app.screening_answers === 'string'
+        ? JSON.parse(app.screening_answers)
+        : app.screening_answers
+      const questions: ScreeningQuestion[] = typeof app.screening_questions === 'string'
+        ? JSON.parse(app.screening_questions)
+        : (app.screening_questions || [])
+      return { answers, questions }
+    } catch {
+      return { answers: null, questions: [] }
+    }
+  }
+
   const statuses = ['applied', 'reviewing', 'shortlisted', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn']
   const statusCounts = statuses.reduce((acc, s) => {
     acc[s] = applications.filter(a => a.status === s).length
@@ -97,7 +122,6 @@ export function CandidateApplicationsPage() {
 
   const filtered = applications.filter(a => !statusFilter || a.status === statusFilter)
 
-  // Group by status
   const active = filtered.filter(a => !['rejected', 'withdrawn', 'hired'].includes(a.status))
   const completed = filtered.filter(a => ['rejected', 'withdrawn', 'hired'].includes(a.status))
 
@@ -234,9 +258,9 @@ export function CandidateApplicationsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Status */}
+            {/* Status badge */}
             {(() => {
-              const config = statusConfig[selectedApp.status] || { label: selectedApp.status, variant: 'secondary' as const }
+              const config = statusConfig[selectedApp.status] || { label: selectedApp.status, variant: 'secondary' as const, icon: Clock }
               return <Badge variant={config.variant} className="w-fit">{config.label}</Badge>
             })()}
 
@@ -271,7 +295,7 @@ export function CandidateApplicationsPage() {
             </div>
 
             {/* Progress timeline */}
-            <ApplicationTimeline status={selectedApp.status} />
+            <ApplicationTimeline status={selectedApp.status} appliedAt={selectedApp.applied_at} updatedAt={selectedApp.updated_at} />
 
             {/* Cover letter */}
             {selectedApp.cover_letter && (
@@ -282,6 +306,9 @@ export function CandidateApplicationsPage() {
                 </div>
               </div>
             )}
+
+            {/* Screening answers */}
+            <ScreeningAnswersSection app={selectedApp} parseScreeningData={parseScreeningData} />
 
             {/* Actions */}
             <div className="flex gap-2 pt-2">
@@ -355,10 +382,45 @@ export function CandidateApplicationsPage() {
   )
 }
 
-function ApplicationTimeline({ status }: { status: string }) {
+function ScreeningAnswersSection({
+  app,
+  parseScreeningData,
+}: {
+  app: Application
+  parseScreeningData: (app: Application) => { answers: Record<string, string> | null; questions: ScreeningQuestion[] }
+}) {
+  const { answers, questions } = parseScreeningData(app)
+
+  if (!answers || Object.keys(answers).length === 0) return null
+
+  return (
+    <div>
+      <h4 className="font-medium text-sm mb-2 flex items-center gap-1.5">
+        <ClipboardList className="h-4 w-4 text-primary" />
+        Your Screening Answers
+      </h4>
+      <div className="space-y-2">
+        {Object.entries(answers).map(([key, value], i) => {
+          const q = questions[i]
+          const questionText = q?.question || q || `Question ${i + 1}`
+          return (
+            <div key={key} className="rounded-lg bg-muted/50 p-3">
+              <p className="text-xs text-muted-foreground mb-1 font-medium">
+                {String(questionText)}
+              </p>
+              <p className="text-sm">{String(value)}</p>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ApplicationTimeline({ status, appliedAt, updatedAt }: { status: string; appliedAt: string; updatedAt: string }) {
   const steps = [
     { key: 'applied', label: 'Applied', icon: FileText },
-    { key: 'reviewing', label: 'Review', icon: Clock },
+    { key: 'reviewing', label: 'Review', icon: Eye },
     { key: 'interviewed', label: 'Interview', icon: Briefcase },
     { key: 'offered', label: 'Offer', icon: CheckCircle },
   ]
@@ -368,6 +430,39 @@ function ApplicationTimeline({ status }: { status: string }) {
     offered: 3, hired: 4, rejected: -1, withdrawn: -1,
   }[status] ?? 0
 
+  // Special terminal states
+  if (status === 'rejected' || status === 'withdrawn') {
+    const config = statusConfig[status]
+    return (
+      <div>
+        <h4 className="font-medium text-sm mb-3">Status Timeline</h4>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary bg-primary/10">
+              <FileText className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Applied</p>
+              <p className="text-xs text-muted-foreground">{new Date(appliedAt).toLocaleDateString()}</p>
+            </div>
+          </div>
+          <div className="ml-4 h-4 w-px bg-muted" />
+          <div className="flex items-center gap-3">
+            <div className={`flex h-8 w-8 items-center justify-center rounded-full border-2 ${
+              status === 'rejected' ? 'border-destructive bg-destructive/10' : 'border-muted bg-muted/50'
+            }`}>
+              <XCircle className={`h-4 w-4 ${status === 'rejected' ? 'text-destructive' : 'text-muted-foreground'}`} />
+            </div>
+            <div>
+              <p className="text-sm font-medium">{config.label}</p>
+              <p className="text-xs text-muted-foreground">{new Date(updatedAt).toLocaleDateString()}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (stepIndex < 0) return null
 
   return (
@@ -376,11 +471,13 @@ function ApplicationTimeline({ status }: { status: string }) {
       <div className="flex items-center gap-1">
         {steps.map((step, i) => {
           const isComplete = i <= stepIndex
+          const isCurrent = i === stepIndex
           const Icon = step.icon
           return (
             <div key={step.key} className="flex items-center gap-1 flex-1">
               <div className={`flex items-center gap-1.5 ${isComplete ? 'text-primary' : 'text-muted-foreground/50'}`}>
-                <div className={`flex h-7 w-7 items-center justify-center rounded-full border-2 ${
+                <div className={`flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all ${
+                  isCurrent ? 'border-primary bg-primary text-white' :
                   isComplete ? 'border-primary bg-primary/10' : 'border-muted'
                 }`}>
                   <Icon className="h-3.5 w-3.5" />
@@ -393,6 +490,17 @@ function ApplicationTimeline({ status }: { status: string }) {
             </div>
           )
         })}
+      </div>
+      {/* Date labels */}
+      <div className="flex justify-between mt-2 px-1">
+        <span className="text-[10px] text-muted-foreground">
+          {new Date(appliedAt).toLocaleDateString()}
+        </span>
+        {stepIndex > 0 && (
+          <span className="text-[10px] text-muted-foreground">
+            Updated {new Date(updatedAt).toLocaleDateString()}
+          </span>
+        )}
       </div>
     </div>
   )
@@ -409,7 +517,7 @@ function ApplicationCard({
   onWithdraw?: () => void
   onClick?: () => void
 }) {
-  const config = statusConfig[app.status] || { label: app.status, variant: 'secondary' as const }
+  const config = statusConfig[app.status] || { label: app.status, variant: 'secondary' as const, icon: Clock }
 
   // Progress steps
   const steps = ['Applied', 'Reviewing', 'Interview', 'Offer']
@@ -417,6 +525,13 @@ function ApplicationCard({
     applied: 0, reviewing: 1, shortlisted: 1, interviewed: 2,
     offered: 3, hired: 4, rejected: -1, withdrawn: -1,
   }[app.status] ?? 0
+
+  // Check if has screening answers
+  let hasScreening = false
+  try {
+    const answers = typeof app.screening_answers === 'string' ? JSON.parse(app.screening_answers) : app.screening_answers
+    hasScreening = answers && Object.keys(answers).length > 0
+  } catch { /* ignore */ }
 
   return (
     <Card
@@ -429,6 +544,11 @@ function ApplicationCard({
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-semibold truncate">{app.title}</h3>
               <Badge variant={config.variant}>{config.label}</Badge>
+              {hasScreening && (
+                <Badge variant="outline" className="gap-1 text-[10px]">
+                  <ClipboardList className="h-3 w-3" /> Screening
+                </Badge>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
@@ -458,7 +578,10 @@ function ApplicationCard({
               <div className="mt-3 flex items-center gap-1">
                 {steps.map((step, i) => (
                   <div key={step} className="flex items-center gap-1">
-                    <div className={`h-2 w-2 rounded-full ${i <= currentStep ? 'bg-primary' : 'bg-muted'}`} />
+                    <div className={`h-2 w-2 rounded-full ${
+                      i === currentStep ? 'bg-primary ring-2 ring-primary/30' :
+                      i < currentStep ? 'bg-primary' : 'bg-muted'
+                    }`} />
                     <span className={`text-[10px] ${i <= currentStep ? 'text-foreground' : 'text-muted-foreground'}`}>
                       {step}
                     </span>
