@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Explore existing assessment code (client pages + API routes + DB schema)",
+    "status": "completed",
+    "activeForm": "Exploring existing assessment code"
+  },
+  {
+    "content": "Fix Q1 navigation bug: store question in sessionStorage before navigating",
+    "status": "completed",
+    "activeForm": "Fixing Q1 navigation bug"
+  },
+  {
+    "content": "Add session recovery API + improve assessment-take page for page refresh",
+    "status": "completed",
+    "activeForm": "Adding session recovery API"
+  },
+  {
+    "content": "Build recruiter assessments page with API routes",
+    "status": "completed",
+    "activeForm": "Building recruiter assessments page"
+  },
+  {
+    "content": "Wire up routes in App.tsx and sidebar",
+    "status": "completed",
+    "activeForm": "Wiring up routes"
+  },
+  {
+    "content": "Build, deploy, and verify",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying"
+  }
+]
