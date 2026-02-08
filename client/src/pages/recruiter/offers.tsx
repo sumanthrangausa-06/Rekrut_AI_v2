@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { apiCall } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/card'
@@ -11,7 +11,8 @@ import { Select } from '@/components/ui/select'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   Gift, Plus, Send, DollarSign, Calendar, CheckCircle, XCircle, Clock, Eye,
-  Ban, FileText, User, Briefcase, Building2,
+  Ban, FileText, User, Briefcase, Building2, Sparkles, Download, RefreshCw,
+  MapPin, UserCheck, PenTool,
 } from 'lucide-react'
 
 interface Offer {
@@ -27,6 +28,9 @@ interface Offer {
   salary: number
   start_date: string
   benefits: string
+  reporting_to: string
+  location: string
+  employment_type: string
   status: string
   sent_at: string
   viewed_at: string
@@ -34,6 +38,11 @@ interface Offer {
   declined_at: string
   decline_reason: string
   created_at: string
+  has_letter: boolean
+  offer_letter_html: string
+  offer_letter_generated_at: string
+  candidate_signature: string
+  candidate_signed_at: string
 }
 
 interface Candidate {
@@ -45,6 +54,7 @@ interface Candidate {
 interface Job {
   id: number
   title: string
+  location?: string
 }
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive'; icon: React.ElementType }> = {
@@ -68,6 +78,10 @@ export function RecruiterOffersPage() {
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null)
   const [withdrawing, setWithdrawing] = useState(false)
   const [statusFilter, setStatusFilter] = useState('')
+  const [generating, setGenerating] = useState(false)
+  const [previewHtml, setPreviewHtml] = useState('')
+  const [showPreview, setShowPreview] = useState(false)
+  const [previewOfferId, setPreviewOfferId] = useState<number | null>(null)
 
   // Form fields
   const [candidateId, setCandidateId] = useState('')
@@ -76,6 +90,9 @@ export function RecruiterOffersPage() {
   const [salary, setSalary] = useState('')
   const [startDate, setStartDate] = useState('')
   const [benefits, setBenefits] = useState('')
+  const [reportingTo, setReportingTo] = useState('')
+  const [location, setLocation] = useState('')
+  const [employmentType, setEmploymentType] = useState('full-time')
 
   useEffect(() => {
     loadData()
@@ -86,13 +103,11 @@ export function RecruiterOffersPage() {
     const create = searchParams.get('create')
     const cId = searchParams.get('candidateId')
     const jId = searchParams.get('jobId')
-    const cName = searchParams.get('candidateName')
 
     if (create === '1') {
       if (cId) setCandidateId(cId)
       if (jId) setJobId(jId)
       setShowCreate(true)
-      // Clean up URL params
       setSearchParams({}, { replace: true })
     }
   }, [searchParams])
@@ -121,7 +136,7 @@ export function RecruiterOffersPage() {
     }
     setSaving(true)
     try {
-      await apiCall('/onboarding/offers', {
+      const newOffer = await apiCall<Offer>('/onboarding/offers', {
         method: 'POST',
         body: {
           candidate_id: Number(candidateId),
@@ -130,15 +145,59 @@ export function RecruiterOffersPage() {
           salary: Number(salary),
           start_date: startDate || null,
           benefits,
+          reporting_to: reportingTo || null,
+          location: location || null,
+          employment_type: employmentType,
         },
       })
       setShowCreate(false)
       resetForm()
-      loadData()
+      await loadData()
+      // Auto-open the new offer to generate a letter
+      if (newOffer?.id) {
+        const refreshed = offers.find(o => o.id === newOffer.id) || newOffer
+        setSelectedOffer(refreshed as Offer)
+      }
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to create offer')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function generateLetter(offerId: number) {
+    setGenerating(true)
+    try {
+      const result = await apiCall<{ success: boolean; offer_letter_html: string }>(`/onboarding/offers/${offerId}/generate-letter`, {
+        method: 'POST',
+      })
+      if (result.offer_letter_html) {
+        setPreviewHtml(result.offer_letter_html)
+        setPreviewOfferId(offerId)
+        setShowPreview(true)
+        // Update the offer in local state
+        setOffers(prev => prev.map(o => o.id === offerId ? { ...o, has_letter: true, offer_letter_html: result.offer_letter_html } : o))
+        if (selectedOffer?.id === offerId) {
+          setSelectedOffer(prev => prev ? { ...prev, has_letter: true, offer_letter_html: result.offer_letter_html } : null)
+        }
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to generate offer letter')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function viewLetter(offerId: number) {
+    try {
+      const result = await apiCall<{ offer_letter_html: string }>(`/onboarding/offers/${offerId}/letter`)
+      if (result.offer_letter_html) {
+        setPreviewHtml(result.offer_letter_html)
+        setPreviewOfferId(offerId)
+        setShowPreview(true)
+      }
+    } catch {
+      alert('Failed to load offer letter')
     }
   }
 
@@ -179,6 +238,9 @@ export function RecruiterOffersPage() {
     setSalary('')
     setStartDate('')
     setBenefits('')
+    setReportingTo('')
+    setLocation('')
+    setEmploymentType('full-time')
   }
 
   const allStatuses = ['draft', 'sent', 'viewed', 'accepted', 'declined', 'withdrawn']
@@ -198,7 +260,7 @@ export function RecruiterOffersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-heading text-2xl font-bold">Offers</h1>
-          <p className="text-muted-foreground">Create and manage job offers</p>
+          <p className="text-muted-foreground">Create AI-generated professional offer letters</p>
         </div>
         <Button onClick={() => setShowCreate(true)} className="gap-2">
           <Plus className="h-4 w-4" /> Create Offer
@@ -333,7 +395,7 @@ export function RecruiterOffersPage() {
       )}
 
       {/* Offer detail dialog */}
-      {selectedOffer && (
+      {selectedOffer && !showPreview && (
         <Dialog open={true} onClose={() => setSelectedOffer(null)} className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -387,6 +449,79 @@ export function RecruiterOffersPage() {
                 </p>
               </div>
             </div>
+
+            {/* Offer Letter Status */}
+            <div className="rounded-lg border p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-primary" />
+                  <span className="font-medium text-sm">Offer Letter Document</span>
+                </div>
+                {selectedOffer.has_letter && (
+                  <Badge variant="success" className="gap-1 text-xs">
+                    <CheckCircle className="h-3 w-3" /> Generated
+                  </Badge>
+                )}
+              </div>
+              {selectedOffer.has_letter ? (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1"
+                    onClick={() => viewLetter(selectedOffer.id)}
+                  >
+                    <Eye className="h-3 w-3" /> Preview
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1"
+                    onClick={() => generateLetter(selectedOffer.id)}
+                    disabled={generating}
+                  >
+                    {generating ? (
+                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3" />
+                    )}
+                    Regenerate
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => generateLetter(selectedOffer.id)}
+                  disabled={generating}
+                >
+                  {generating ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      AI is writing your offer letter...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Generate Offer Letter with AI
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+
+            {/* Signature status */}
+            {selectedOffer.candidate_signed_at && (
+              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <PenTool className="h-4 w-4 text-emerald-600" />
+                  <span className="font-medium text-sm text-emerald-800">E-Signed by Candidate</span>
+                </div>
+                <p className="text-xs text-emerald-700">
+                  Signed on {new Date(selectedOffer.candidate_signed_at).toLocaleString()}
+                </p>
+              </div>
+            )}
 
             {/* Benefits */}
             {selectedOffer.benefits && (
@@ -445,15 +580,16 @@ export function RecruiterOffersPage() {
                 <>
                   <Button
                     onClick={() => sendOffer(selectedOffer.id)}
-                    disabled={sending === selectedOffer.id}
+                    disabled={sending === selectedOffer.id || !selectedOffer.has_letter}
                     className="gap-2 flex-1"
+                    title={!selectedOffer.has_letter ? 'Generate offer letter first' : ''}
                   >
                     {sending === selectedOffer.id ? (
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                     ) : (
                       <Send className="h-4 w-4" />
                     )}
-                    Send to Candidate
+                    {selectedOffer.has_letter ? 'Send to Candidate' : 'Generate Letter First'}
                   </Button>
                   <Button
                     variant="outline"
@@ -485,29 +621,90 @@ export function RecruiterOffersPage() {
         </Dialog>
       )}
 
+      {/* Offer Letter Preview Dialog */}
+      {showPreview && (
+        <Dialog
+          open={true}
+          onClose={() => { setShowPreview(false); setPreviewHtml(''); setPreviewOfferId(null) }}
+          className="max-w-4xl"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Offer Letter Preview
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Letter preview in a document-style container */}
+            <div className="bg-white rounded-lg border shadow-inner overflow-auto max-h-[70vh]">
+              <div
+                className="p-8"
+                dangerouslySetInnerHTML={{ __html: previewHtml }}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => {
+                  if (previewOfferId) generateLetter(previewOfferId)
+                }}
+                disabled={generating}
+              >
+                {generating ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Regenerate
+              </Button>
+              <Button
+                className="gap-2"
+                onClick={() => {
+                  setShowPreview(false)
+                  setPreviewHtml('')
+                  setPreviewOfferId(null)
+                }}
+              >
+                <CheckCircle className="h-4 w-4" />
+                Looks Good
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+
       {/* Create offer dialog */}
       <Dialog open={showCreate} onClose={() => { setShowCreate(false); resetForm() }} className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create New Offer</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Create Offer Letter
+          </DialogTitle>
         </DialogHeader>
+        <p className="text-sm text-muted-foreground -mt-2 mb-2">
+          Fill in the key terms below. AI will generate a professional offer letter document.
+        </p>
         <div className="space-y-4">
-          <div>
-            <Label>Candidate *</Label>
-            <Select value={candidateId} onChange={e => setCandidateId(e.target.value)} className="mt-1">
-              <option value="">Select candidate...</option>
-              {candidates.map(c => (
-                <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label>Job Position *</Label>
-            <Select value={jobId} onChange={e => setJobId(e.target.value)} className="mt-1">
-              <option value="">Select job...</option>
-              {jobs.map(j => (
-                <option key={j.id} value={j.id}>{j.title}</option>
-              ))}
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Candidate *</Label>
+              <Select value={candidateId} onChange={e => setCandidateId(e.target.value)} className="mt-1">
+                <option value="">Select candidate...</option>
+                {candidates.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label>Job Position *</Label>
+              <Select value={jobId} onChange={e => setJobId(e.target.value)} className="mt-1">
+                <option value="">Select job...</option>
+                {jobs.map(j => (
+                  <option key={j.id} value={j.id}>{j.title}</option>
+                ))}
+              </Select>
+            </div>
           </div>
           <div>
             <Label>Offer Title</Label>
@@ -539,12 +736,41 @@ export function RecruiterOffersPage() {
               />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Reporting To</Label>
+              <Input
+                value={reportingTo}
+                onChange={e => setReportingTo(e.target.value)}
+                placeholder="e.g. VP of Engineering"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Location</Label>
+              <Input
+                value={location}
+                onChange={e => setLocation(e.target.value)}
+                placeholder="e.g. San Francisco, CA"
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <div>
+            <Label>Employment Type</Label>
+            <Select value={employmentType} onChange={e => setEmploymentType(e.target.value)} className="mt-1">
+              <option value="full-time">Full-time</option>
+              <option value="part-time">Part-time</option>
+              <option value="contract">Contract</option>
+              <option value="internship">Internship</option>
+            </Select>
+          </div>
           <div>
             <Label>Benefits</Label>
             <Textarea
               value={benefits}
               onChange={e => setBenefits(e.target.value)}
-              placeholder="Health insurance, 401k, PTO, etc..."
+              placeholder="Health insurance, 401k, PTO, stock options, etc..."
               rows={3}
               className="mt-1"
             />
@@ -585,6 +811,11 @@ function OfferRow({ offer, onSend, sending, onClick }: {
               <Badge variant={config.variant} className="gap-1">
                 <Icon className="h-3 w-3" /> {config.label}
               </Badge>
+              {offer.has_letter && (
+                <Badge variant="default" className="gap-1 text-xs bg-indigo-100 text-indigo-700 border-indigo-200">
+                  <FileText className="h-3 w-3" /> Letter
+                </Badge>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
@@ -608,7 +839,7 @@ function OfferRow({ offer, onSend, sending, onClick }: {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {offer.status === 'draft' && onSend && (
-              <Button size="sm" onClick={onSend} disabled={sending} className="gap-1">
+              <Button size="sm" onClick={onSend} disabled={sending || !offer.has_letter} className="gap-1">
                 {sending ? (
                   <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
                 ) : (

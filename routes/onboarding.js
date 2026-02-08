@@ -8,10 +8,11 @@ const polsiaAI = require('../lib/polsia-ai');
 // OFFER GENERATION
 // ============================================
 
-// Create offer from template
+// Create offer
 router.post('/offers', authMiddleware, async (req, res) => {
   try {
-    const { candidate_id, job_id, title, salary, start_date, benefits, template_data } = req.body;
+    const { candidate_id, job_id, title, salary, start_date, benefits, template_data,
+            reporting_to, location, employment_type } = req.body;
 
     const job = await pool.query('SELECT * FROM jobs WHERE id = $1 AND company_id = $2', [job_id, req.user.company_id]);
     if (job.rows.length === 0) {
@@ -21,17 +22,145 @@ router.post('/offers', authMiddleware, async (req, res) => {
     const result = await pool.query(
       `INSERT INTO offers (
         candidate_id, job_id, recruiter_id, company_id, title, company_name,
-        salary, start_date, benefits, template_data, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        salary, start_date, benefits, template_data, reporting_to, location,
+        employment_type, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *`,
-      [candidate_id, job_id, req.user.id, req.user.company_id, title, job.rows[0].company || 'Rekrut AI',
-       salary, start_date, benefits, JSON.stringify(template_data || {}), 'draft']
+      [candidate_id, job_id, req.user.id, req.user.company_id, title, job.rows[0].company || 'HireLoop',
+       salary, start_date, benefits, JSON.stringify(template_data || {}),
+       reporting_to || null, location || job.rows[0].location || null,
+       employment_type || 'full-time', 'draft']
     );
 
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error creating offer:', err);
     res.status(500).json({ error: 'Failed to create offer' });
+  }
+});
+
+// AI-generate professional offer letter
+router.post('/offers/:id/generate-letter', authMiddleware, async (req, res) => {
+  try {
+    // Get offer with all related data
+    const offerResult = await pool.query(
+      `SELECT o.*,
+        u.name as candidate_name,
+        u.email as candidate_email,
+        j.title as job_title,
+        j.description as job_description,
+        j.location as job_location,
+        r.name as recruiter_name
+      FROM offers o
+      JOIN users u ON o.candidate_id = u.id
+      LEFT JOIN jobs j ON o.job_id = j.id
+      LEFT JOIN users r ON o.recruiter_id = r.id
+      WHERE o.id = $1 AND o.company_id = $2`,
+      [req.params.id, req.user.company_id]
+    );
+
+    if (offerResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Offer not found' });
+    }
+
+    const offer = offerResult.rows[0];
+
+    const prompt = `Generate a professional, formal employment offer letter. Return ONLY the HTML content (no markdown, no code fences). Use clean, semantic HTML with inline styles for professional formatting.
+
+OFFER DETAILS:
+- Company Name: ${offer.company_name || 'The Company'}
+- Candidate Name: ${offer.candidate_name}
+- Job Title: ${offer.job_title || offer.title}
+- Annual Salary: $${Number(offer.salary).toLocaleString()}
+- Start Date: ${offer.start_date ? new Date(offer.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'To be determined'}
+- Employment Type: ${offer.employment_type || 'Full-time'}
+- Location: ${offer.location || offer.job_location || 'To be discussed'}
+- Reporting To: ${offer.reporting_to || 'Department Manager'}
+- Benefits: ${offer.benefits || 'Standard company benefits package'}
+- Recruiter/HR Contact: ${offer.recruiter_name || 'HR Department'}
+
+REQUIREMENTS:
+1. Professional business letter format with company letterhead area at top
+2. Today's date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+3. Formal greeting to the candidate by name
+4. Opening paragraph expressing excitement about extending the offer
+5. Position details section (title, department, reporting structure, start date)
+6. Compensation section (salary, pay frequency)
+7. Benefits section (list the provided benefits professionally)
+8. Employment terms (at-will employment, contingencies like background check)
+9. Acceptance section with a placeholder line for signature and date
+10. Warm closing from the company
+11. Use inline CSS styles for clean formatting (the HTML will be rendered directly)
+12. Use a professional color scheme (dark navy #1e3a5f for headers, #333 for body text)
+13. Include proper spacing, margins, and a clean border/outline for the document
+14. The document should look like a real PDF offer letter when rendered
+
+FORMAT RULES:
+- Wrap everything in a single <div> with max-width: 800px and margin: 0 auto
+- Use a subtle border and padding to frame the letter
+- Company name at top should be bold and prominent
+- Include horizontal rules to separate sections
+- The signature block should have clear lines for name, signature, and date`;
+
+    const letterHtml = await polsiaAI.chat(prompt, {
+      system: 'You are an expert HR document writer. Generate professional, legally appropriate employment offer letters. Return ONLY clean HTML with inline styles. No markdown, no code blocks, no explanations.'
+    });
+
+    // Clean up any accidental code fences
+    let cleanHtml = letterHtml.trim();
+    if (cleanHtml.startsWith('```')) {
+      cleanHtml = cleanHtml.replace(/^```(?:html)?\n?/, '').replace(/\n?```$/, '');
+    }
+
+    // Store the generated letter
+    await pool.query(
+      `UPDATE offers SET
+        offer_letter_html = $1,
+        offer_letter_generated_at = NOW(),
+        updated_at = NOW()
+      WHERE id = $2`,
+      [cleanHtml, req.params.id]
+    );
+
+    res.json({
+      success: true,
+      offer_letter_html: cleanHtml,
+      generated_at: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Error generating offer letter:', err);
+    res.status(500).json({ error: 'Failed to generate offer letter' });
+  }
+});
+
+// Get offer letter HTML for viewing
+router.get('/offers/:id/letter', authMiddleware, async (req, res) => {
+  try {
+    // Allow both recruiter (company_id match) and candidate (candidate_id match)
+    const result = await pool.query(
+      `SELECT offer_letter_html, offer_letter_generated_at, status, candidate_signature, candidate_signed_at
+       FROM offers
+       WHERE id = $1 AND (company_id = $2 OR candidate_id = $2)`,
+      [req.params.id, req.user.company_id || req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      // Try candidate match specifically
+      const candidateResult = await pool.query(
+        `SELECT offer_letter_html, offer_letter_generated_at, status, candidate_signature, candidate_signed_at
+         FROM offers WHERE id = $1 AND candidate_id = $2`,
+        [req.params.id, req.user.id]
+      );
+      if (candidateResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Offer not found' });
+      }
+      return res.json(candidateResult.rows[0]);
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error fetching offer letter:', err);
+    res.status(500).json({ error: 'Failed to fetch offer letter' });
   }
 });
 
@@ -43,7 +172,8 @@ router.get('/offers', authMiddleware, async (req, res) => {
         u.name as candidate_name,
         u.email as candidate_email,
         j.title as job_title,
-        r.name as recruiter_name
+        r.name as recruiter_name,
+        CASE WHEN o.offer_letter_html IS NOT NULL THEN true ELSE false END as has_letter
       FROM offers o
       JOIN users u ON o.candidate_id = u.id
       LEFT JOIN jobs j ON o.job_id = j.id
@@ -66,7 +196,8 @@ router.get('/offers/me', authMiddleware, async (req, res) => {
     const result = await pool.query(
       `SELECT o.*,
         j.title as job_title,
-        j.company
+        j.company,
+        CASE WHEN o.offer_letter_html IS NOT NULL THEN true ELSE false END as has_letter
       FROM offers o
       LEFT JOIN jobs j ON o.job_id = j.id
       WHERE o.candidate_id = $1
@@ -127,17 +258,20 @@ router.post('/offers/:id/view', authMiddleware, async (req, res) => {
   }
 });
 
-// Accept offer
+// Accept offer (with e-signature)
 router.post('/offers/:id/accept', authMiddleware, async (req, res) => {
   try {
-    const { signature_url } = req.body;
+    const { signature_url, signature_data } = req.body;
+    const signerIp = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
 
     const result = await pool.query(
       `UPDATE offers
-       SET status = 'accepted', accepted_at = NOW(), signature_url = $3, updated_at = NOW()
+       SET status = 'accepted', accepted_at = NOW(), signature_url = $3,
+           candidate_signature = $4, candidate_signed_at = NOW(), candidate_sign_ip = $5,
+           updated_at = NOW()
        WHERE id = $1 AND candidate_id = $2
        RETURNING *`,
-      [req.params.id, req.user.id, signature_url]
+      [req.params.id, req.user.id, signature_url, signature_data || null, signerIp]
     );
 
     if (result.rows.length === 0) {

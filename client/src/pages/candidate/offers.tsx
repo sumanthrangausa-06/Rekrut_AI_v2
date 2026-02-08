@@ -1,12 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { apiCall } from '@/lib/api'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   Gift, DollarSign, Calendar, Building2, CheckCircle, XCircle, Clock, Eye,
+  FileText, PenTool, Shield,
 } from 'lucide-react'
 
 interface Offer {
@@ -25,6 +28,9 @@ interface Offer {
   declined_at: string
   decline_reason: string
   created_at: string
+  has_letter: boolean
+  candidate_signature: string
+  candidate_signed_at: string
 }
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive'; icon: React.ElementType }> = {
@@ -42,6 +48,12 @@ export function CandidateOffersPage() {
   const [declineDialog, setDeclineDialog] = useState(false)
   const [declineReason, setDeclineReason] = useState('')
   const [acting, setActing] = useState(false)
+  const [letterHtml, setLetterHtml] = useState('')
+  const [showLetter, setShowLetter] = useState(false)
+  const [loadingLetter, setLoadingLetter] = useState(false)
+  const [signDialog, setSignDialog] = useState(false)
+  const [signatureName, setSignatureName] = useState('')
+  const [signing, setSigning] = useState(false)
 
   useEffect(() => {
     loadOffers()
@@ -69,17 +81,48 @@ export function CandidateOffersPage() {
     setSelectedOffer(offer)
   }
 
-  async function acceptOffer() {
-    if (!selectedOffer) return
-    setActing(true)
+  async function viewOfferLetter(offerId: number) {
+    setLoadingLetter(true)
     try {
-      await apiCall(`/onboarding/offers/${selectedOffer.id}/accept`, { method: 'POST' })
+      const result = await apiCall<{ offer_letter_html: string }>(`/onboarding/offers/${offerId}/letter`)
+      if (result.offer_letter_html) {
+        setLetterHtml(result.offer_letter_html)
+        setShowLetter(true)
+      } else {
+        alert('No offer letter document available yet.')
+      }
+    } catch {
+      alert('Failed to load offer letter')
+    } finally {
+      setLoadingLetter(false)
+    }
+  }
+
+  async function acceptWithSignature() {
+    if (!selectedOffer || !signatureName.trim()) {
+      alert('Please type your full legal name to sign')
+      return
+    }
+    setSigning(true)
+    try {
+      const signatureData = JSON.stringify({
+        typed_name: signatureName.trim(),
+        signed_at: new Date().toISOString(),
+        method: 'typed_name'
+      })
+
+      await apiCall(`/onboarding/offers/${selectedOffer.id}/accept`, {
+        method: 'POST',
+        body: { signature_data: signatureData },
+      })
+      setSignDialog(false)
+      setSignatureName('')
       setSelectedOffer(null)
       loadOffers()
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to accept offer')
     } finally {
-      setActing(false)
+      setSigning(false)
     }
   }
 
@@ -152,10 +195,13 @@ export function CandidateOffersPage() {
       )}
 
       {/* Offer detail dialog */}
-      {selectedOffer && !declineDialog && (
+      {selectedOffer && !declineDialog && !signDialog && !showLetter && (
         <Dialog open={true} onClose={() => setSelectedOffer(null)} className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{selectedOffer.title || selectedOffer.job_title}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Gift className="h-5 w-5 text-primary" />
+              {selectedOffer.title || selectedOffer.job_title}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
@@ -182,6 +228,7 @@ export function CandidateOffersPage() {
                 </p>
               </div>
             </div>
+
             {selectedOffer.benefits && (
               <div className="rounded-lg bg-muted/50 p-3">
                 <p className="text-xs text-muted-foreground mb-1">Benefits</p>
@@ -189,10 +236,44 @@ export function CandidateOffersPage() {
               </div>
             )}
 
+            {/* View Offer Letter button */}
+            {selectedOffer.has_letter && (
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => viewOfferLetter(selectedOffer.id)}
+                disabled={loadingLetter}
+              >
+                {loadingLetter ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                ) : (
+                  <FileText className="h-4 w-4" />
+                )}
+                View Full Offer Letter
+              </Button>
+            )}
+
+            {/* E-signature status */}
+            {selectedOffer.candidate_signed_at && (
+              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+                <div className="flex items-center gap-2">
+                  <PenTool className="h-4 w-4 text-emerald-600" />
+                  <span className="font-medium text-sm text-emerald-800">You signed this offer</span>
+                </div>
+                <p className="text-xs text-emerald-700 mt-1">
+                  Signed on {new Date(selectedOffer.candidate_signed_at).toLocaleString()}
+                </p>
+              </div>
+            )}
+
             {['sent', 'viewed'].includes(selectedOffer.status) && (
               <div className="flex gap-2 pt-2">
-                <Button onClick={acceptOffer} disabled={acting} className="flex-1 gap-2">
-                  <CheckCircle className="h-4 w-4" /> Accept Offer
+                <Button
+                  onClick={() => setSignDialog(true)}
+                  disabled={acting}
+                  className="flex-1 gap-2"
+                >
+                  <PenTool className="h-4 w-4" /> Sign & Accept Offer
                 </Button>
                 <Button
                   variant="outline"
@@ -220,6 +301,122 @@ export function CandidateOffersPage() {
                 )}
               </div>
             )}
+          </div>
+        </Dialog>
+      )}
+
+      {/* Offer Letter Document View */}
+      {showLetter && (
+        <Dialog
+          open={true}
+          onClose={() => { setShowLetter(false); setLetterHtml('') }}
+          className="max-w-4xl"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Offer Letter
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-white rounded-lg border shadow-inner overflow-auto max-h-[70vh]">
+              <div
+                className="p-8"
+                dangerouslySetInnerHTML={{ __html: letterHtml }}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => { setShowLetter(false); setLetterHtml('') }}
+              >
+                Close
+              </Button>
+              {selectedOffer && ['sent', 'viewed'].includes(selectedOffer.status) && (
+                <Button
+                  className="gap-2"
+                  onClick={() => {
+                    setShowLetter(false)
+                    setLetterHtml('')
+                    setSignDialog(true)
+                  }}
+                >
+                  <PenTool className="h-4 w-4" />
+                  Sign & Accept
+                </Button>
+              )}
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      {/* E-Signature Dialog */}
+      {signDialog && selectedOffer && (
+        <Dialog open={true} onClose={() => { setSignDialog(false); setSignatureName('') }} className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PenTool className="h-5 w-5 text-primary" />
+              Sign Offer Letter
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+              <div className="flex items-start gap-2">
+                <Shield className="h-4 w-4 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800">E-Signature Agreement</p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    By typing your full legal name below and clicking "Sign & Accept", you are
+                    electronically signing and accepting the offer for <strong>{selectedOffer.job_title || selectedOffer.title}</strong> at{' '}
+                    <strong>{selectedOffer.company_name || selectedOffer.company}</strong> with an annual salary of{' '}
+                    <strong>${Number(selectedOffer.salary).toLocaleString()}</strong>.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border p-4">
+              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
+              <div className="space-y-2">
+                <Label>Type your full legal name to sign *</Label>
+                <Input
+                  value={signatureName}
+                  onChange={e => setSignatureName(e.target.value)}
+                  placeholder="e.g. John A. Smith"
+                  className="text-lg font-serif"
+                  autoFocus
+                />
+                {signatureName.trim() && (
+                  <div className="mt-3 p-3 border-b-2 border-gray-800">
+                    <p className="text-2xl font-serif italic text-gray-800">{signatureName}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={acceptWithSignature}
+                disabled={signing || !signatureName.trim()}
+                className="flex-1 gap-2"
+              >
+                {signing ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                ) : (
+                  <CheckCircle className="h-4 w-4" />
+                )}
+                Sign & Accept Offer
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => { setSignDialog(false); setSignatureName('') }}
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
         </Dialog>
       )}
@@ -270,6 +467,11 @@ function OfferCard({ offer, onClick }: { offer: Offer; onClick: () => void }) {
               <Badge variant={config.variant} className="gap-1">
                 <Icon className="h-3 w-3" /> {config.label}
               </Badge>
+              {offer.has_letter && (
+                <Badge variant="default" className="gap-1 text-xs bg-indigo-100 text-indigo-700 border-indigo-200">
+                  <FileText className="h-3 w-3" /> Letter
+                </Badge>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
