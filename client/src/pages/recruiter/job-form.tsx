@@ -7,13 +7,33 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 import {
-  ArrowLeft, Save, Plus, X, Briefcase,
+  ArrowLeft, Save, Plus, X, Briefcase, ListChecks, GripVertical, AlertCircle, Sparkles,
 } from 'lucide-react'
 
 interface ScreeningQuestion {
+  id?: string
   question: string
+  type: 'text' | 'yes_no' | 'select'
   required: boolean
+  options?: string[]
+  placeholder?: string
+  category?: string
+}
+
+const defaultQuestionTemplates: ScreeningQuestion[] = [
+  { question: 'Are you legally authorized to work in this country?', type: 'yes_no', required: true, category: 'work_authorization' },
+  { question: 'What are your salary expectations? (annual, USD)', type: 'text', required: false, placeholder: 'e.g. $80,000 - $100,000', category: 'salary' },
+  { question: 'When can you start?', type: 'select', required: true, options: ['Immediately', 'Within 2 weeks', 'Within 1 month', 'More than 1 month'], category: 'availability' },
+  { question: 'Are you willing to relocate for this position?', type: 'yes_no', required: false, category: 'relocation' },
+  { question: 'How many years of relevant experience do you have?', type: 'select', required: true, options: ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'], category: 'experience' },
+]
+
+const typeLabels: Record<string, string> = {
+  text: 'Text',
+  yes_no: 'Yes / No',
+  select: 'Dropdown',
 }
 
 export function RecruiterJobFormPage() {
@@ -24,12 +44,15 @@ export function RecruiterJobFormPage() {
   const [saving, setSaving] = useState(false)
 
   const [title, setTitle] = useState('')
+  const [company, setCompany] = useState('')
   const [description, setDescription] = useState('')
   const [requirements, setRequirements] = useState('')
   const [location, setLocation] = useState('')
   const [salaryRange, setSalaryRange] = useState('')
   const [jobType, setJobType] = useState('full-time')
   const [screeningQuestions, setScreeningQuestions] = useState<ScreeningQuestion[]>([])
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [titleError, setTitleError] = useState('')
 
   useEffect(() => {
     if (isEdit) loadJob()
@@ -37,9 +60,10 @@ export function RecruiterJobFormPage() {
 
   async function loadJob() {
     try {
-      const data = await apiCall<{ job: { title: string; description: string; requirements: string; location: string; salary_range: string; job_type: string; screening_questions: string } }>(`/jobs/${id}`)
+      const data = await apiCall<{ job: { title: string; company: string; description: string; requirements: string; location: string; salary_range: string; job_type: string; screening_questions: string | ScreeningQuestion[] } }>(`/jobs/${id}`)
       const job = data.job
       setTitle(job.title || '')
+      setCompany(job.company || '')
       setDescription(job.description || '')
       setRequirements(job.requirements || '')
       setLocation(job.location || '')
@@ -49,7 +73,13 @@ export function RecruiterJobFormPage() {
         const parsed = typeof job.screening_questions === 'string'
           ? JSON.parse(job.screening_questions)
           : job.screening_questions
-        setScreeningQuestions(Array.isArray(parsed) ? parsed : [])
+        if (Array.isArray(parsed)) {
+          setScreeningQuestions(parsed.map((q: ScreeningQuestion) => ({
+            ...q,
+            type: q.type || 'text',
+            required: q.required ?? false,
+          })))
+        }
       }
     } catch {
       navigate('/recruiter/jobs')
@@ -60,20 +90,31 @@ export function RecruiterJobFormPage() {
 
   async function handleSave() {
     if (!title.trim()) {
-      alert('Job title is required')
+      setTitleError('Job title is required')
       return
     }
+    setTitleError('')
     setSaving(true)
     try {
+      const payload = {
+        title,
+        company: company || undefined,
+        description,
+        requirements,
+        location,
+        salary_range: salaryRange,
+        job_type: jobType,
+        screening_questions: screeningQuestions.filter(q => q.question.trim()),
+      }
       if (isEdit) {
         await apiCall(`/recruiter/jobs/${id}`, {
           method: 'PUT',
-          body: { title, description, requirements, location, salary_range: salaryRange, job_type: jobType, screening_questions: JSON.stringify(screeningQuestions) },
+          body: { ...payload, screening_questions: JSON.stringify(payload.screening_questions) },
         })
       } else {
         await apiCall('/recruiter/jobs', {
           method: 'POST',
-          body: { title, description, requirements, location, salary_range: salaryRange, job_type: jobType, screening_questions: screeningQuestions },
+          body: payload,
         })
       }
       navigate('/recruiter/jobs')
@@ -84,20 +125,47 @@ export function RecruiterJobFormPage() {
     }
   }
 
-  function addQuestion() {
-    setScreeningQuestions(prev => [...prev, { question: '', required: false }])
+  function addQuestion(template?: ScreeningQuestion) {
+    const newQ: ScreeningQuestion = template
+      ? { ...template, id: `sq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` }
+      : { question: '', type: 'text', required: false, id: `sq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` }
+    setScreeningQuestions(prev => [...prev, newQ])
+    setShowTemplates(false)
   }
 
-  function updateQuestion(index: number, question: string) {
-    setScreeningQuestions(prev => prev.map((q, i) => i === index ? { ...q, question } : q))
+  function addAllDefaults() {
+    const existing = new Set(screeningQuestions.map(q => q.question.toLowerCase()))
+    const toAdd = defaultQuestionTemplates
+      .filter(t => !existing.has(t.question.toLowerCase()))
+      .map(t => ({ ...t, id: `sq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` }))
+    setScreeningQuestions(prev => [...prev, ...toAdd])
+    setShowTemplates(false)
   }
 
-  function toggleRequired(index: number) {
-    setScreeningQuestions(prev => prev.map((q, i) => i === index ? { ...q, required: !q.required } : q))
+  function updateQuestion(index: number, updates: Partial<ScreeningQuestion>) {
+    setScreeningQuestions(prev => prev.map((q, i) => i === index ? { ...q, ...updates } : q))
   }
 
   function removeQuestion(index: number) {
     setScreeningQuestions(prev => prev.filter((_, i) => i !== index))
+  }
+
+  function addOption(qIndex: number) {
+    setScreeningQuestions(prev => prev.map((q, i) =>
+      i === qIndex ? { ...q, options: [...(q.options || []), ''] } : q
+    ))
+  }
+
+  function updateOption(qIndex: number, optIndex: number, value: string) {
+    setScreeningQuestions(prev => prev.map((q, i) =>
+      i === qIndex ? { ...q, options: (q.options || []).map((o, j) => j === optIndex ? value : o) } : q
+    ))
+  }
+
+  function removeOption(qIndex: number, optIndex: number) {
+    setScreeningQuestions(prev => prev.map((q, i) =>
+      i === qIndex ? { ...q, options: (q.options || []).filter((_, j) => j !== optIndex) } : q
+    ))
   }
 
   if (loading) {
@@ -118,12 +186,13 @@ export function RecruiterJobFormPage() {
           <h1 className="font-heading text-2xl font-bold">
             {isEdit ? 'Edit Job' : 'Post New Job'}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             {isEdit ? 'Update your job listing' : 'Create a new job posting'}
           </p>
         </div>
       </div>
 
+      {/* Job details */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -135,13 +204,28 @@ export function RecruiterJobFormPage() {
             <Label>Job Title *</Label>
             <Input
               value={title}
-              onChange={e => setTitle(e.target.value)}
+              onChange={e => { setTitle(e.target.value); setTitleError('') }}
               placeholder="e.g. Senior Software Engineer"
+              className={`mt-1 ${titleError ? 'border-destructive' : ''}`}
+            />
+            {titleError && (
+              <p className="text-xs text-destructive mt-1 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />{titleError}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <Label>Company Name <span className="text-muted-foreground text-xs">(auto-filled from your account if blank)</span></Label>
+            <Input
+              value={company}
+              onChange={e => setCompany(e.target.value)}
+              placeholder="Leave blank to use your company name"
               className="mt-1"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <Label>Job Type</Label>
               <Select value={jobType} onChange={e => setJobType(e.target.value)} className="mt-1">
@@ -150,6 +234,7 @@ export function RecruiterJobFormPage() {
                 <option value="contract">Contract</option>
                 <option value="internship">Internship</option>
                 <option value="remote">Remote</option>
+                <option value="freelance">Freelance</option>
               </Select>
             </div>
             <div>
@@ -157,7 +242,7 @@ export function RecruiterJobFormPage() {
               <Input
                 value={location}
                 onChange={e => setLocation(e.target.value)}
-                placeholder="e.g. New York, NY"
+                placeholder="e.g. New York, NY or Remote"
                 className="mt-1"
               />
             </div>
@@ -199,41 +284,162 @@ export function RecruiterJobFormPage() {
 
       {/* Screening Questions */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Pre-screening Questions</CardTitle>
-          <Button variant="outline" size="sm" onClick={addQuestion} className="gap-1">
-            <Plus className="h-3 w-3" /> Add Question
-          </Button>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <CardTitle className="flex items-center gap-2">
+            <ListChecks className="h-5 w-5" /> Pre-screening Questions
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowTemplates(!showTemplates)} className="gap-1">
+              <Sparkles className="h-3 w-3" /> Templates
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => addQuestion()} className="gap-1">
+              <Plus className="h-3 w-3" /> Custom
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
+          {/* Templates dropdown */}
+          {showTemplates && (
+            <div className="mb-4 rounded-lg border bg-muted/30 p-3 space-y-2">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium">Common Questions</p>
+                <Button variant="ghost" size="sm" onClick={addAllDefaults} className="text-xs">
+                  Add All
+                </Button>
+              </div>
+              {defaultQuestionTemplates.map((t, i) => {
+                const alreadyAdded = screeningQuestions.some(q => q.question.toLowerCase() === t.question.toLowerCase())
+                return (
+                  <button
+                    key={i}
+                    onClick={() => !alreadyAdded && addQuestion(t)}
+                    disabled={alreadyAdded}
+                    className={`w-full text-left rounded-md border p-2.5 text-sm transition-colors ${
+                      alreadyAdded
+                        ? 'opacity-50 cursor-not-allowed bg-muted'
+                        : 'hover:bg-background hover:border-primary/30 cursor-pointer'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>{t.question}</span>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant="outline" className="text-[10px]">{typeLabels[t.type]}</Badge>
+                        {t.required && <Badge variant="secondary" className="text-[10px]">Required</Badge>}
+                        {alreadyAdded && <span className="text-[10px] text-muted-foreground">Added</span>}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           {screeningQuestions.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              No screening questions. Add questions to filter candidates before reviewing applications.
-            </p>
+            <div className="text-center py-8">
+              <ListChecks className="mx-auto mb-2 h-8 w-8 opacity-30" />
+              <p className="text-sm text-muted-foreground mb-1">No screening questions</p>
+              <p className="text-xs text-muted-foreground">Add questions to filter candidates before reviewing applications</p>
+            </div>
           ) : (
             <div className="space-y-3">
               {screeningQuestions.map((q, i) => (
-                <div key={i} className="flex items-start gap-2 rounded-lg border p-3">
-                  <div className="flex-1">
-                    <Input
-                      value={q.question}
-                      onChange={e => updateQuestion(i, e.target.value)}
-                      placeholder={`Question ${i + 1}...`}
-                      className="mb-2"
-                    />
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <input
-                        type="checkbox"
-                        checked={q.required}
-                        onChange={() => toggleRequired(i)}
-                        className="rounded"
+                <div key={q.id || i} className="rounded-lg border p-4 space-y-3 group">
+                  <div className="flex items-start gap-2">
+                    <GripVertical className="h-4 w-4 mt-2.5 text-muted-foreground/40 shrink-0" />
+                    <div className="flex-1 space-y-3">
+                      {/* Question text */}
+                      <Input
+                        value={q.question}
+                        onChange={e => updateQuestion(i, { question: e.target.value })}
+                        placeholder={`Question ${i + 1}...`}
                       />
-                      Required
-                    </label>
+
+                      {/* Type and options row */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Select
+                          value={q.type}
+                          onChange={e => {
+                            const newType = e.target.value as ScreeningQuestion['type']
+                            const updates: Partial<ScreeningQuestion> = { type: newType }
+                            if (newType === 'select' && (!q.options || q.options.length === 0)) {
+                              updates.options = ['']
+                            }
+                            if (newType !== 'select') {
+                              updates.options = undefined
+                            }
+                            updateQuestion(i, updates)
+                          }}
+                          className="w-32 text-xs"
+                        >
+                          <option value="text">Text</option>
+                          <option value="yes_no">Yes / No</option>
+                          <option value="select">Dropdown</option>
+                        </Select>
+
+                        <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={q.required}
+                            onChange={() => updateQuestion(i, { required: !q.required })}
+                            className="rounded"
+                          />
+                          Required
+                        </label>
+
+                        {q.type === 'text' && (
+                          <Input
+                            value={q.placeholder || ''}
+                            onChange={e => updateQuestion(i, { placeholder: e.target.value })}
+                            placeholder="Placeholder text..."
+                            className="flex-1 text-xs h-8"
+                          />
+                        )}
+                      </div>
+
+                      {/* Options for select type */}
+                      {q.type === 'select' && (
+                        <div className="space-y-2 pl-2 border-l-2 border-muted">
+                          <p className="text-xs text-muted-foreground font-medium">Dropdown Options</p>
+                          {(q.options || []).map((opt, oi) => (
+                            <div key={oi} className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground w-4">{oi + 1}.</span>
+                              <Input
+                                value={opt}
+                                onChange={e => updateOption(i, oi, e.target.value)}
+                                placeholder={`Option ${oi + 1}`}
+                                className="flex-1 text-sm h-8"
+                              />
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 shrink-0"
+                                onClick={() => removeOption(i, oi)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => addOption(i)}
+                            className="text-xs gap-1"
+                          >
+                            <Plus className="h-3 w-3" /> Add Option
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeQuestion(i)}
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => removeQuestion(i)}>
-                    <X className="h-4 w-4" />
-                  </Button>
                 </div>
               ))}
             </div>
@@ -242,7 +448,7 @@ export function RecruiterJobFormPage() {
       </Card>
 
       {/* Actions */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 sticky bottom-4 bg-background/80 backdrop-blur-sm py-3 rounded-lg">
         <Button onClick={handleSave} disabled={saving} className="gap-2">
           {saving ? (
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
