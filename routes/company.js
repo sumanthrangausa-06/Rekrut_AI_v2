@@ -26,7 +26,8 @@ router.post('/register', async (req, res) => {
     const {
       email, password, name,
       company_name, company_description, industry, company_size,
-      website, linkedin_url, headquarters, founded_year
+      website, linkedin_url, headquarters, founded_year,
+      primary_country, operating_countries
     } = req.body;
 
     // Validation
@@ -75,17 +76,20 @@ router.post('/register', async (req, res) => {
     try {
       await client.query('BEGIN');
 
-      // Create company
+      // Create company (with country support)
+      const companyCountry = primary_country || 'US';
+      const companyCountries = operating_countries || [companyCountry];
       const companyResult = await client.query(
         `INSERT INTO companies (
           name, slug, email_domain, description, industry, company_size,
-          website, linkedin_url, headquarters, founded_year, is_verified
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          website, linkedin_url, headquarters, founded_year, is_verified,
+          primary_country, operating_countries
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING *`,
         [company_name, finalSlug, isWorkEmail ? email_domain : null,
          company_description, industry, company_size,
          website, linkedin_url, headquarters, founded_year,
-         isWorkEmail] // Auto-verify if using work email
+         isWorkEmail, companyCountry, JSON.stringify(companyCountries)]
       );
       const company = companyResult.rows[0];
 
@@ -197,7 +201,8 @@ router.put('/profile', authMiddleware, async (req, res) => {
     const {
       name, description, industry, company_size, website,
       linkedin_url, headquarters, founded_year, logo_url,
-      culture_description, core_values, benefits, office_locations
+      culture_description, core_values, benefits, office_locations,
+      primary_country, operating_countries
     } = req.body;
 
     // Calculate profile completeness
@@ -226,13 +231,17 @@ router.put('/profile', authMiddleware, async (req, res) => {
         core_values = COALESCE($11::jsonb, core_values),
         benefits = COALESCE($12::jsonb, benefits),
         office_locations = COALESCE($13::jsonb, office_locations),
+        primary_country = COALESCE($15, primary_country),
+        operating_countries = COALESCE($16::jsonb, operating_countries),
         updated_at = NOW()
        WHERE id = $14
        RETURNING *`,
       [name, description, industry, company_size, website,
        linkedin_url, headquarters, founded_year, logo_url,
        culture_description, core_values, benefits, office_locations,
-       req.user.company_id]
+       req.user.company_id,
+       primary_country || null,
+       operating_countries ? JSON.stringify(operating_countries) : null]
     );
 
     // Add behavior points for profile completeness

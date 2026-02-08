@@ -54,9 +54,34 @@ export function RecruiterJobFormPage() {
   const [showTemplates, setShowTemplates] = useState(false)
   const [titleError, setTitleError] = useState('')
 
+  // Multi-country fields
+  const [countryCode, setCountryCode] = useState('US')
+  const [currencyCode, setCurrencyCode] = useState('USD')
+  const [currencySymbol, setCurrencySymbol] = useState('$')
+  const [salaryMin, setSalaryMin] = useState('')
+  const [salaryMax, setSalaryMax] = useState('')
+  const [countries, setCountries] = useState<{ country_code: string; country_name: string; currency_code: string; currency_symbol: string }[]>([])
+
   useEffect(() => {
+    loadCountries()
     if (isEdit) loadJob()
   }, [id])
+
+  async function loadCountries() {
+    try {
+      const data = await apiCall<{ countries: any[] }>('/countries')
+      setCountries(data.countries)
+    } catch { /* fallback to US only */ }
+  }
+
+  function handleCountryChange(code: string) {
+    setCountryCode(code)
+    const country = countries.find(c => c.country_code === code)
+    if (country) {
+      setCurrencyCode(country.currency_code)
+      setCurrencySymbol(country.currency_symbol)
+    }
+  }
 
   async function loadJob() {
     try {
@@ -105,6 +130,10 @@ export function RecruiterJobFormPage() {
         salary_range: salaryRange,
         job_type: jobType,
         screening_questions: screeningQuestions.filter(q => q.question.trim()),
+        country_code: countryCode,
+        currency_code: currencyCode,
+        salary_min: salaryMin ? parseFloat(salaryMin) : undefined,
+        salary_max: salaryMax ? parseFloat(salaryMax) : undefined,
       }
       if (isEdit) {
         await apiCall(`/recruiter/jobs/${id}`, {
@@ -225,7 +254,7 @@ export function RecruiterJobFormPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <Label>Job Type</Label>
               <Select value={jobType} onChange={e => setJobType(e.target.value)} className="mt-1">
@@ -235,6 +264,25 @@ export function RecruiterJobFormPage() {
                 <option value="internship">Internship</option>
                 <option value="remote">Remote</option>
                 <option value="freelance">Freelance</option>
+              </Select>
+            </div>
+            <div>
+              <Label>Country</Label>
+              <Select value={countryCode} onChange={e => handleCountryChange(e.target.value)} className="mt-1">
+                {countries.length > 0 ? countries.map(c => (
+                  <option key={c.country_code} value={c.country_code}>{c.country_name}</option>
+                )) : (
+                  <>
+                    <option value="US">United States</option>
+                    <option value="IN">India</option>
+                    <option value="GB">United Kingdom</option>
+                    <option value="CA">Canada</option>
+                    <option value="DE">Germany</option>
+                    <option value="FR">France</option>
+                    <option value="AU">Australia</option>
+                    <option value="SG">Singapore</option>
+                  </>
+                )}
               </Select>
             </div>
             <div>
@@ -248,15 +296,45 @@ export function RecruiterJobFormPage() {
             </div>
           </div>
 
-          <div>
-            <Label>Salary Range</Label>
-            <Input
-              value={salaryRange}
-              onChange={e => setSalaryRange(e.target.value)}
-              placeholder="e.g. $80,000 - $120,000"
-              className="mt-1"
-            />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <Label>Min Salary ({currencySymbol})</Label>
+              <Input
+                type="number"
+                value={salaryMin}
+                onChange={e => setSalaryMin(e.target.value)}
+                placeholder={`e.g. ${currencyCode === 'INR' ? '800000' : currencyCode === 'GBP' ? '40000' : '80000'}`}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Max Salary ({currencySymbol})</Label>
+              <Input
+                type="number"
+                value={salaryMax}
+                onChange={e => setSalaryMax(e.target.value)}
+                placeholder={`e.g. ${currencyCode === 'INR' ? '1500000' : currencyCode === 'GBP' ? '70000' : '120000'}`}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Salary Range (text) <span className="text-muted-foreground text-xs">(optional override)</span></Label>
+              <Input
+                value={salaryRange}
+                onChange={e => setSalaryRange(e.target.value)}
+                placeholder={`e.g. ${currencySymbol}80,000 - ${currencySymbol}120,000`}
+                className="mt-1"
+              />
+            </div>
           </div>
+          {currencyCode !== 'USD' && (
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-xs">
+                {currencyCode} ({currencySymbol})
+              </Badge>
+              <span className="text-xs text-muted-foreground">Salary will be displayed in {currencyCode}</span>
+            </div>
+          )}
 
           <div>
             <Label>Job Description</Label>

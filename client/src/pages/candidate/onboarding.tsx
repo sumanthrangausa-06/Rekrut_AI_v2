@@ -85,11 +85,31 @@ interface ChecklistData {
   start_date: string
 }
 
+interface WizardStepDef {
+  id: number
+  label: string
+  icon: string
+  description: string
+  documents?: any[]
+  country_code?: string
+}
+
+interface CountryInfo {
+  country_name: string
+  currency_code: string
+  currency_symbol: string
+  date_format: string
+  employment_model: string
+}
+
 interface ProgressResponse {
   has_onboarding: boolean
   checklist?: ChecklistData
   wizard?: WizardData
   documents?: OnboardingDoc[]
+  country_code?: string
+  country_info?: CountryInfo | null
+  wizard_steps?: WizardStepDef[]
 }
 
 interface W4Guidance {
@@ -102,14 +122,453 @@ interface W4Guidance {
   withholding_impact: string
 }
 
+// ─── Non-US Dynamic Wizard Step Component ─────────────────────────────
+// Renders country-specific forms based on the step definition from backend
+function NonUSWizardStep({ step, stepDef, countryCode, countryInfo, countryFields, setCountryFields,
+  firstName, setFirstName, lastName, setLastName, dob, setDob, phone, setPhone,
+  address1, setAddress1, city, setCity, ecName, setEcName, ecPhone, setEcPhone,
+  ecRelationship, setEcRelationship, bankName, setBankName, stepErrors,
+}: any) {
+  const updateField = (key: string, value: string) => {
+    setCountryFields((prev: any) => ({ ...prev, [key]: value }))
+  }
+
+  const StepIcon = stepDef?.icon || FileText
+
+  // ─── Country-specific form fields ───────────────────────────
+  const COUNTRY_FORMS: Record<string, Record<number, JSX.Element>> = {
+    IN: {
+      1: (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              PAN Card & Aadhaar Verification
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">Required for income tax and identity verification in India</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label>First Name *</Label><Input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Legal first name" className="mt-1" /></div>
+            <div><Label>Last Name *</Label><Input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Legal last name" className="mt-1" /></div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label>Date of Birth *</Label><Input type="date" value={dob} onChange={e => setDob(e.target.value)} className="mt-1" /></div>
+            <div><Label>Phone Number *</Label><Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+91 98765 43210" className="mt-1" /></div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label>PAN Number *</Label>
+              <Input value={countryFields.pan_number || ''} onChange={e => updateField('pan_number', e.target.value.toUpperCase())} placeholder="ABCDE1234F" className="mt-1 font-mono" maxLength={10} />
+              <p className="text-xs text-muted-foreground mt-1">10-character alphanumeric (e.g., ABCDE1234F)</p>
+            </div>
+            <div>
+              <Label>Aadhaar Number *</Label>
+              <Input value={countryFields.aadhaar_number || ''} onChange={e => updateField('aadhaar_number', e.target.value.replace(/[^0-9\s]/g, ''))} placeholder="1234 5678 9012" className="mt-1 font-mono" maxLength={14} />
+              <p className="text-xs text-muted-foreground mt-1">12-digit unique identity number</p>
+            </div>
+          </div>
+          <div>
+            <Label>Father's/Husband's Name</Label>
+            <Input value={countryFields.fathers_name || ''} onChange={e => updateField('fathers_name', e.target.value)} placeholder="As per PAN card" className="mt-1" />
+          </div>
+          <div>
+            <Label>Current Address *</Label>
+            <Input value={address1} onChange={e => setAddress1(e.target.value)} placeholder="Street address" className="mt-1" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label>City *</Label><Input value={city} onChange={e => setCity(e.target.value)} placeholder="City" className="mt-1" /></div>
+            <div>
+              <Label>State *</Label>
+              <Input value={countryFields.state || ''} onChange={e => updateField('state', e.target.value)} placeholder="State" className="mt-1" />
+            </div>
+          </div>
+          <div><Label>PIN Code</Label><Input value={countryFields.pin_code || ''} onChange={e => updateField('pin_code', e.target.value)} placeholder="6-digit PIN" className="mt-1 font-mono" maxLength={6} /></div>
+        </div>
+      ),
+      2: (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-primary" />
+              Provident Fund & ESI Declarations
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">Employees' Provident Fund (EPF Form 11) and Employee State Insurance</p>
+          </div>
+          <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+            <p className="text-sm text-blue-800"><strong>EPF Form 11:</strong> Declaration for new employees joining an establishment covered under the EPF Act. Your employer will contribute 12% of basic salary to PF.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label>Universal Account Number (UAN)</Label>
+              <Input value={countryFields.uan_number || ''} onChange={e => updateField('uan_number', e.target.value)} placeholder="UAN from previous employer (if any)" className="mt-1 font-mono" />
+            </div>
+            <div>
+              <Label>Previous PF Account Number</Label>
+              <Input value={countryFields.prev_pf_number || ''} onChange={e => updateField('prev_pf_number', e.target.value)} placeholder="e.g., MH/BOM/12345/000/0012345" className="mt-1 font-mono" />
+            </div>
+          </div>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={countryFields.is_first_pf === 'true'} onChange={e => updateField('is_first_pf', String(e.target.checked))} className="rounded" />
+            <span className="text-sm">This is my first employment — I don't have a previous PF account</span>
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label>PF Nomination Name *</Label><Input value={countryFields.pf_nominee_name || ''} onChange={e => updateField('pf_nominee_name', e.target.value)} placeholder="Nominee full name" className="mt-1" /></div>
+            <div><Label>Relationship *</Label><Input value={countryFields.pf_nominee_relationship || ''} onChange={e => updateField('pf_nominee_relationship', e.target.value)} placeholder="e.g., Spouse, Parent" className="mt-1" /></div>
+          </div>
+          <div className="border-t pt-4 mt-4">
+            <h3 className="font-medium mb-2">ESI Declaration (if basic salary ≤ ₹21,000/month)</h3>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={countryFields.esi_applicable === 'true'} onChange={e => updateField('esi_applicable', String(e.target.checked))} className="rounded" />
+              <span className="text-sm">I am eligible for ESI (monthly salary ≤ ₹21,000)</span>
+            </label>
+          </div>
+        </div>
+      ),
+      3: (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              Gratuity Nomination & Bank Details
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">Gratuity Form F nomination and salary account information</p>
+          </div>
+          <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+            <p className="text-sm text-amber-800"><strong>Gratuity:</strong> Under Payment of Gratuity Act, 1972, you're entitled to gratuity after 5 years of continuous service. Nominate a beneficiary below.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label>Gratuity Nominee Name *</Label><Input value={countryFields.gratuity_nominee_name || ''} onChange={e => updateField('gratuity_nominee_name', e.target.value)} placeholder="Nominee full name" className="mt-1" /></div>
+            <div><Label>Nominee Relationship *</Label><Input value={countryFields.gratuity_nominee_relationship || ''} onChange={e => updateField('gratuity_nominee_relationship', e.target.value)} placeholder="e.g., Spouse, Parent" className="mt-1" /></div>
+          </div>
+          <div className="border-t pt-4 mt-4">
+            <h3 className="font-medium mb-3">Bank Account for Salary Credit</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><Label>Bank Name *</Label><Input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g., State Bank of India" className="mt-1" /></div>
+              <div><Label>IFSC Code *</Label><Input value={countryFields.ifsc_code || ''} onChange={e => updateField('ifsc_code', e.target.value.toUpperCase())} placeholder="e.g., SBIN0001234" className="mt-1 font-mono" maxLength={11} /></div>
+            </div>
+            <div className="mt-4"><Label>Account Number *</Label><Input value={countryFields.account_number || ''} onChange={e => updateField('account_number', e.target.value)} placeholder="Bank account number" className="mt-1 font-mono" /></div>
+          </div>
+          <div className="border-t pt-4 mt-4">
+            <h3 className="font-medium mb-3">Emergency Contact</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><Label>Contact Name *</Label><Input value={ecName} onChange={e => setEcName(e.target.value)} placeholder="Emergency contact name" className="mt-1" /></div>
+              <div><Label>Relationship *</Label><Input value={ecRelationship} onChange={e => setEcRelationship(e.target.value)} placeholder="Relationship" className="mt-1" /></div>
+            </div>
+            <div className="mt-4"><Label>Contact Phone *</Label><Input value={ecPhone} onChange={e => setEcPhone(e.target.value)} placeholder="+91 98765 43210" className="mt-1" /></div>
+          </div>
+        </div>
+      ),
+      4: (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Employee Handbook Acknowledgment
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">Review and acknowledge company policies</p>
+          </div>
+          <div className="p-4 rounded-lg bg-muted/50 border">
+            <p className="text-sm">By proceeding, you acknowledge that you have received and will review the Employee Handbook. The handbook covers company policies including leave policy, code of conduct, anti-harassment policy, and IT usage guidelines as per Indian labor laws.</p>
+          </div>
+          <label className="flex items-center gap-2 p-3 rounded-lg border bg-background">
+            <input type="checkbox" checked={countryFields.handbook_acknowledged === 'true'} onChange={e => updateField('handbook_acknowledged', String(e.target.checked))} className="rounded" />
+            <span className="text-sm font-medium">I acknowledge receipt of the Employee Handbook and agree to review its contents</span>
+          </label>
+        </div>
+      ),
+    },
+    GB: {
+      1: (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              Right to Work in the UK
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">Employers must verify your right to work in the UK before employment begins</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label>First Name *</Label><Input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Legal first name" className="mt-1" /></div>
+            <div><Label>Last Name *</Label><Input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Legal surname" className="mt-1" /></div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label>Date of Birth *</Label><Input type="date" value={dob} onChange={e => setDob(e.target.value)} className="mt-1" /></div>
+            <div><Label>Phone *</Label><Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 900000" className="mt-1" /></div>
+          </div>
+          <div>
+            <Label>Right to Work Document Type *</Label>
+            <select value={countryFields.rtw_document_type || ''} onChange={e => updateField('rtw_document_type', e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+              <option value="">Select document type...</option>
+              <option value="uk_passport">UK Passport</option>
+              <option value="eu_settled_status">EU Settled/Pre-Settled Status</option>
+              <option value="biometric_residence_permit">Biometric Residence Permit (BRP)</option>
+              <option value="visa">Work Visa</option>
+              <option value="birth_certificate_ni">UK Birth Certificate + NI Number</option>
+            </select>
+          </div>
+          <div><Label>Document Number *</Label><Input value={countryFields.rtw_document_number || ''} onChange={e => updateField('rtw_document_number', e.target.value)} placeholder="Document/passport number" className="mt-1 font-mono" /></div>
+          {(countryFields.rtw_document_type === 'visa' || countryFields.rtw_document_type === 'biometric_residence_permit') && (
+            <div><Label>Document Expiry Date *</Label><Input type="date" value={countryFields.rtw_expiry || ''} onChange={e => updateField('rtw_expiry', e.target.value)} className="mt-1" /></div>
+          )}
+          <div><Label>Address *</Label><Input value={address1} onChange={e => setAddress1(e.target.value)} placeholder="Street address" className="mt-1" /></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label>City/Town *</Label><Input value={city} onChange={e => setCity(e.target.value)} placeholder="City or town" className="mt-1" /></div>
+            <div><Label>Postcode *</Label><Input value={countryFields.postcode || ''} onChange={e => updateField('postcode', e.target.value)} placeholder="e.g., SW1A 1AA" className="mt-1 font-mono" /></div>
+          </div>
+        </div>
+      ),
+      2: (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-primary" />
+              Tax & National Insurance
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">HMRC tax setup and National Insurance number</p>
+          </div>
+          <div>
+            <Label>Do you have a P45 from your previous employer?</Label>
+            <select value={countryFields.has_p45 || ''} onChange={e => updateField('has_p45', e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+              <option value="">Select...</option>
+              <option value="yes">Yes — I have a P45</option>
+              <option value="no">No — I need a Starter Checklist</option>
+            </select>
+          </div>
+          {countryFields.has_p45 === 'yes' && (
+            <div className="space-y-4 pl-4 border-l-2 border-primary/20">
+              <div><Label>Previous Employer Tax Reference</Label><Input value={countryFields.p45_employer_ref || ''} onChange={e => updateField('p45_employer_ref', e.target.value)} className="mt-1 font-mono" /></div>
+              <div><Label>Total Pay to Date (£)</Label><Input type="number" value={countryFields.p45_total_pay || ''} onChange={e => updateField('p45_total_pay', e.target.value)} className="mt-1" /></div>
+              <div><Label>Total Tax Paid to Date (£)</Label><Input type="number" value={countryFields.p45_total_tax || ''} onChange={e => updateField('p45_total_tax', e.target.value)} className="mt-1" /></div>
+            </div>
+          )}
+          {countryFields.has_p45 === 'no' && (
+            <div className="space-y-4 pl-4 border-l-2 border-primary/20">
+              <p className="text-sm text-muted-foreground">HMRC Starter Checklist — select your statement:</p>
+              <select value={countryFields.starter_statement || ''} onChange={e => updateField('starter_statement', e.target.value)} className="w-full rounded-md border px-3 py-2 text-sm">
+                <option value="">Select statement...</option>
+                <option value="A">A: This is my first job since 6 April and I haven't received benefits/pension</option>
+                <option value="B">B: This is my only job but I had another since 6 April</option>
+                <option value="C">C: I have another job or receive a pension</option>
+              </select>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={countryFields.has_student_loan === 'true'} onChange={e => updateField('has_student_loan', String(e.target.checked))} className="rounded" />
+                <span className="text-sm">I have a student loan</span>
+              </label>
+            </div>
+          )}
+          <div>
+            <Label>National Insurance Number *</Label>
+            <Input value={countryFields.ni_number || ''} onChange={e => updateField('ni_number', e.target.value.toUpperCase())} placeholder="e.g., QQ 12 34 56 A" className="mt-1 font-mono" maxLength={13} />
+            <p className="text-xs text-muted-foreground mt-1">Format: 2 letters, 6 digits, 1 letter (e.g., QQ123456A)</p>
+          </div>
+        </div>
+      ),
+      3: (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              Bank Details & Emergency Contact
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label>Bank Name *</Label><Input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g., HSBC, Barclays" className="mt-1" /></div>
+            <div><Label>Sort Code *</Label><Input value={countryFields.sort_code || ''} onChange={e => updateField('sort_code', e.target.value)} placeholder="XX-XX-XX" className="mt-1 font-mono" maxLength={8} /></div>
+          </div>
+          <div><Label>Account Number *</Label><Input value={countryFields.account_number || ''} onChange={e => updateField('account_number', e.target.value)} placeholder="8-digit account number" className="mt-1 font-mono" maxLength={8} /></div>
+          <div className="border-t pt-4 mt-4">
+            <h3 className="font-medium mb-3">Emergency Contact</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><Label>Contact Name *</Label><Input value={ecName} onChange={e => setEcName(e.target.value)} className="mt-1" /></div>
+              <div><Label>Relationship *</Label><Input value={ecRelationship} onChange={e => setEcRelationship(e.target.value)} className="mt-1" /></div>
+            </div>
+            <div className="mt-4"><Label>Phone *</Label><Input value={ecPhone} onChange={e => setEcPhone(e.target.value)} placeholder="+44 ..." className="mt-1" /></div>
+          </div>
+        </div>
+      ),
+      4: (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Employee Handbook Acknowledgment
+            </h2>
+          </div>
+          <div className="p-4 rounded-lg bg-muted/50 border">
+            <p className="text-sm">By proceeding, you acknowledge receipt of the Employee Handbook covering UK employment rights, company policies, GDPR data processing, holiday entitlement, and grievance procedures.</p>
+          </div>
+          <label className="flex items-center gap-2 p-3 rounded-lg border bg-background">
+            <input type="checkbox" checked={countryFields.handbook_acknowledged === 'true'} onChange={e => updateField('handbook_acknowledged', String(e.target.checked))} className="rounded" />
+            <span className="text-sm font-medium">I acknowledge receipt of the Employee Handbook</span>
+          </label>
+        </div>
+      ),
+    },
+    CA: {
+      1: (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-primary" />
+              TD1 Personal Tax Credits Return
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">Federal and Provincial TD1 forms for tax credit calculations</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label>First Name *</Label><Input value={firstName} onChange={e => setFirstName(e.target.value)} className="mt-1" /></div>
+            <div><Label>Last Name *</Label><Input value={lastName} onChange={e => setLastName(e.target.value)} className="mt-1" /></div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label>Date of Birth *</Label><Input type="date" value={dob} onChange={e => setDob(e.target.value)} className="mt-1" /></div>
+            <div><Label>Phone *</Label><Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 (416) 555-0100" className="mt-1" /></div>
+          </div>
+          <div><Label>Address *</Label><Input value={address1} onChange={e => setAddress1(e.target.value)} placeholder="Street address" className="mt-1" /></div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div><Label>City *</Label><Input value={city} onChange={e => setCity(e.target.value)} className="mt-1" /></div>
+            <div>
+              <Label>Province *</Label>
+              <select value={countryFields.province || ''} onChange={e => updateField('province', e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+                <option value="">Select...</option>
+                {['AB','BC','MB','NB','NL','NS','NT','NU','ON','PE','QC','SK','YT'].map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div><Label>Postal Code</Label><Input value={countryFields.postal_code || ''} onChange={e => updateField('postal_code', e.target.value.toUpperCase())} placeholder="A1A 1A1" className="mt-1 font-mono" /></div>
+          </div>
+          <div className="border-t pt-4 mt-4">
+            <h3 className="font-medium mb-3">TD1 Federal — Total Claim Amount</h3>
+            <p className="text-sm text-muted-foreground mb-2">Enter your total personal tax credits claim (basic personal amount for 2025-2026 is approximately C$15,705)</p>
+            <Input type="number" value={countryFields.td1_total_claim || ''} onChange={e => updateField('td1_total_claim', e.target.value)} placeholder="15705" className="mt-1" />
+          </div>
+          <div className="border-t pt-4 mt-4">
+            <h3 className="font-medium mb-3">TD1 Provincial — Total Claim Amount</h3>
+            <p className="text-sm text-muted-foreground mb-2">Provincial personal tax credit amount (varies by province)</p>
+            <Input type="number" value={countryFields.td1_provincial_claim || ''} onChange={e => updateField('td1_provincial_claim', e.target.value)} placeholder="Enter provincial claim" className="mt-1" />
+          </div>
+        </div>
+      ),
+      2: (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              Social Insurance Number (SIN)
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">Required for CPP/QPP contributions and EI premiums</p>
+          </div>
+          <div>
+            <Label>Social Insurance Number *</Label>
+            <Input value={countryFields.sin_number || ''} onChange={e => updateField('sin_number', e.target.value.replace(/[^0-9\s-]/g, ''))} placeholder="XXX-XXX-XXX" className="mt-1 font-mono" maxLength={11} />
+            <p className="text-xs text-muted-foreground mt-1">9-digit number (format: XXX-XXX-XXX). Securely encrypted.</p>
+          </div>
+        </div>
+      ),
+      3: (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              Bank Details & Emergency Contact
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label>Bank/Institution Name *</Label><Input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g., RBC, TD Bank" className="mt-1" /></div>
+            <div><Label>Transit Number *</Label><Input value={countryFields.transit_number || ''} onChange={e => updateField('transit_number', e.target.value)} placeholder="5-digit transit" className="mt-1 font-mono" maxLength={5} /></div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label>Institution Number *</Label><Input value={countryFields.institution_number || ''} onChange={e => updateField('institution_number', e.target.value)} placeholder="3-digit code" className="mt-1 font-mono" maxLength={3} /></div>
+            <div><Label>Account Number *</Label><Input value={countryFields.account_number || ''} onChange={e => updateField('account_number', e.target.value)} placeholder="Account number" className="mt-1 font-mono" /></div>
+          </div>
+          <div className="border-t pt-4 mt-4">
+            <h3 className="font-medium mb-3">Emergency Contact</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><Label>Contact Name *</Label><Input value={ecName} onChange={e => setEcName(e.target.value)} className="mt-1" /></div>
+              <div><Label>Relationship *</Label><Input value={ecRelationship} onChange={e => setEcRelationship(e.target.value)} className="mt-1" /></div>
+            </div>
+            <div className="mt-4"><Label>Phone *</Label><Input value={ecPhone} onChange={e => setEcPhone(e.target.value)} placeholder="+1 ..." className="mt-1" /></div>
+          </div>
+        </div>
+      ),
+      4: (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2"><FileText className="h-5 w-5 text-primary" /> Employee Handbook</h2>
+          </div>
+          <div className="p-4 rounded-lg bg-muted/50 border">
+            <p className="text-sm">By proceeding, you acknowledge receipt of the Employee Handbook covering Canadian employment standards, company policies, and your rights under provincial/federal labor law.</p>
+          </div>
+          <label className="flex items-center gap-2 p-3 rounded-lg border bg-background">
+            <input type="checkbox" checked={countryFields.handbook_acknowledged === 'true'} onChange={e => updateField('handbook_acknowledged', String(e.target.checked))} className="rounded" />
+            <span className="text-sm font-medium">I acknowledge receipt of the Employee Handbook</span>
+          </label>
+        </div>
+      ),
+    },
+  }
+
+  // Fallback: generic country form
+  const genericStepForm = (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <StepIcon className="h-5 w-5 text-primary" />
+          {stepDef?.label || `Step ${step}`}
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">{stepDef?.description || ''}</p>
+        {countryInfo && (
+          <Badge variant="outline" className="mt-2 text-xs">{countryInfo.country_name}</Badge>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div><Label>First Name *</Label><Input value={firstName} onChange={e => setFirstName(e.target.value)} className="mt-1" /></div>
+        <div><Label>Last Name *</Label><Input value={lastName} onChange={e => setLastName(e.target.value)} className="mt-1" /></div>
+      </div>
+      {step === 1 && (
+        <>
+          <div><Label>Date of Birth</Label><Input type="date" value={dob} onChange={e => setDob(e.target.value)} className="mt-1" /></div>
+          <div><Label>Phone</Label><Input value={phone} onChange={e => setPhone(e.target.value)} className="mt-1" /></div>
+          <div><Label>Address</Label><Input value={address1} onChange={e => setAddress1(e.target.value)} className="mt-1" /></div>
+          <div><Label>City</Label><Input value={city} onChange={e => setCity(e.target.value)} className="mt-1" /></div>
+        </>
+      )}
+      {stepDef?.documents?.map((doc: any) => (
+        <div key={doc.document_key} className="p-3 rounded-lg border bg-muted/30">
+          <p className="font-medium text-sm">{doc.document_name}</p>
+          <p className="text-xs text-muted-foreground">{doc.description}</p>
+          {doc.government_form_id && <Badge variant="outline" className="text-[10px] mt-1">{doc.government_form_id}</Badge>}
+        </div>
+      ))}
+      <p className="text-xs text-muted-foreground">Contact your HR representative if you need help completing this step.</p>
+    </div>
+  )
+
+  // Return country-specific form or generic fallback
+  const countryForms = COUNTRY_FORMS[countryCode]
+  if (countryForms && countryForms[step]) {
+    return countryForms[step]
+  }
+  return genericStepForm
+}
+
 // ─── Steps config ────────────────────────────────────────────────────
-const STEPS = [
+const US_STEPS = [
   { id: 1, label: 'I-9 Form', icon: Globe, description: 'Personal info & employment eligibility' },
   { id: 2, label: 'Emergency Contact', icon: Phone, description: 'Emergency contact details' },
   { id: 3, label: 'Direct Deposit', icon: Building2, description: 'Banking information' },
   { id: 4, label: 'W-4 Tax Form', icon: Receipt, description: 'Federal tax withholding' },
   { id: 5, label: 'Review & Sign', icon: PenTool, description: 'Review documents & e-sign' },
 ]
+
+// Icon mapping for dynamic steps from backend
+const ICON_MAP: Record<string, any> = {
+  Globe, Shield, Receipt, Building2, FileText, PenTool, Phone, User, CreditCard, Lock, ClipboardCheck,
+}
+
+function mapDynamicSteps(backendSteps: WizardStepDef[]) {
+  return backendSteps.map(s => ({
+    ...s,
+    icon: ICON_MAP[s.icon] || FileText,
+  }))
+}
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA',
@@ -126,6 +585,13 @@ export function CandidateOnboardingPage() {
   const [error, setError] = useState('')
   const [stepErrors, setStepErrors] = useState<Record<string, string>>({})
   const [prefillLoaded, setPrefillLoaded] = useState(false)
+
+  // Country-aware state
+  const [countryCode, setCountryCode] = useState('US')
+  const [countryInfo, setCountryInfo] = useState<CountryInfo | null>(null)
+  const [dynamicSteps, setDynamicSteps] = useState<any[]>(US_STEPS)
+  // Country-specific field storage (for non-US countries)
+  const [countryFields, setCountryFields] = useState<Record<string, string>>({})
 
   // Step 1: Personal Info + I-9
   const [firstName, setFirstName] = useState('')
@@ -241,6 +707,24 @@ export function CandidateOnboardingPage() {
       }
       if (data.documents) setDocuments(data.documents)
 
+      // Set country from backend response
+      if (data.country_code) {
+        setCountryCode(data.country_code)
+      }
+      if (data.country_info) {
+        setCountryInfo(data.country_info)
+      }
+      // Use dynamic wizard steps from backend for non-US countries
+      if (data.country_code && data.country_code !== 'US' && data.wizard_steps?.length) {
+        setDynamicSteps(mapDynamicSteps(data.wizard_steps))
+      } else {
+        setDynamicSteps(US_STEPS)
+      }
+      // Load country-specific data from wizard
+      if (data.wizard?.country_specific_data) {
+        setCountryFields(data.wizard.country_specific_data as any || {})
+      }
+
       // Load AI pre-fill if first visit (no data saved yet)
       if (data.has_onboarding && data.wizard && !data.wizard.legal_first_name && !prefillLoaded) {
         loadAIPrefill()
@@ -335,7 +819,10 @@ export function CandidateOnboardingPage() {
   }
 
   async function saveStep(step: number) {
-    if (!validateStep(step)) return false
+    // For non-US countries, use relaxed validation
+    if (countryCode === 'US') {
+      if (!validateStep(step)) return false
+    }
     if (!progress?.checklist) return false
 
     setSaving(true)
@@ -343,54 +830,72 @@ export function CandidateOnboardingPage() {
     try {
       let data: any = {}
 
-      if (step === 1) {
-        data = {
-          legal_first_name: firstName.trim(),
-          legal_middle_name: middleName.trim() || null,
-          legal_last_name: lastName.trim(),
-          date_of_birth: dob,
-          ssn: ssn.replace(/[^0-9]/g, '') || undefined,
-          address_line1: address1.trim(),
-          address_line2: address2.trim() || null,
-          city: city.trim(),
-          state,
-          zip_code: zip.trim(),
-          phone: phone.trim(),
-          i9_citizenship_status: citizenshipStatus,
-          i9_alien_number: alienNumber.trim() || null,
-          i9_admission_number: admissionNumber.trim() || null,
-          i9_passport_number: passportNumber.trim() || null,
-          i9_country_of_issuance: countryOfIssuance.trim() || null,
-          i9_work_auth_expiry: workAuthExpiry || null,
-          i9_other_last_names: otherLastNames.trim() || null,
-          i9_email: i9Email.trim() || null,
-          i9_preparer_used: preparerUsed,
+      // ─── US-specific step data ─────────────────────
+      if (countryCode === 'US') {
+        if (step === 1) {
+          data = {
+            legal_first_name: firstName.trim(),
+            legal_middle_name: middleName.trim() || null,
+            legal_last_name: lastName.trim(),
+            date_of_birth: dob,
+            ssn: ssn.replace(/[^0-9]/g, '') || undefined,
+            address_line1: address1.trim(),
+            address_line2: address2.trim() || null,
+            city: city.trim(),
+            state,
+            zip_code: zip.trim(),
+            phone: phone.trim(),
+            i9_citizenship_status: citizenshipStatus,
+            i9_alien_number: alienNumber.trim() || null,
+            i9_admission_number: admissionNumber.trim() || null,
+            i9_passport_number: passportNumber.trim() || null,
+            i9_country_of_issuance: countryOfIssuance.trim() || null,
+            i9_work_auth_expiry: workAuthExpiry || null,
+            i9_other_last_names: otherLastNames.trim() || null,
+            i9_email: i9Email.trim() || null,
+            i9_preparer_used: preparerUsed,
+          }
+        } else if (step === 2) {
+          data = {
+            emergency_contact_name: ecName.trim(),
+            emergency_contact_relationship: ecRelationship.trim(),
+            emergency_contact_phone: ecPhone.trim(),
+            emergency_contact_email: ecEmail.trim() || null,
+          }
+        } else if (step === 3) {
+          data = {
+            bank_name: bankName.trim(),
+            routing_number: routingNumber || undefined,
+            account_number: accountNumber || undefined,
+            account_type: accountType,
+          }
+        } else if (step === 4) {
+          data = {
+            w4_filing_status: filingStatus,
+            w4_multiple_jobs: multipleJobs,
+            w4_spouse_works: spouseWorks,
+            w4_num_dependents_under_17: dependentsUnder17,
+            w4_num_other_dependents: otherDependents,
+            w4_other_income: parseFloat(otherIncome) || 0,
+            w4_deductions: parseFloat(deductions) || 0,
+            w4_extra_withholding: parseFloat(extraWithholding) || 0,
+            w4_exempt: w4Exempt,
+          }
         }
-      } else if (step === 2) {
+      } else {
+        // ─── Non-US: send country-specific data ──────────
         data = {
-          emergency_contact_name: ecName.trim(),
-          emergency_contact_relationship: ecRelationship.trim(),
-          emergency_contact_phone: ecPhone.trim(),
-          emergency_contact_email: ecEmail.trim() || null,
-        }
-      } else if (step === 3) {
-        data = {
-          bank_name: bankName.trim(),
-          routing_number: routingNumber || undefined,
-          account_number: accountNumber || undefined,
-          account_type: accountType,
-        }
-      } else if (step === 4) {
-        data = {
-          w4_filing_status: filingStatus,
-          w4_multiple_jobs: multipleJobs,
-          w4_spouse_works: spouseWorks,
-          w4_num_dependents_under_17: dependentsUnder17,
-          w4_num_other_dependents: otherDependents,
-          w4_other_income: parseFloat(otherIncome) || 0,
-          w4_deductions: parseFloat(deductions) || 0,
-          w4_extra_withholding: parseFloat(extraWithholding) || 0,
-          w4_exempt: w4Exempt,
+          country_code: countryCode,
+          legal_first_name: firstName.trim() || undefined,
+          legal_last_name: lastName.trim() || undefined,
+          date_of_birth: dob || undefined,
+          phone: phone.trim() || undefined,
+          address_line1: address1.trim() || undefined,
+          city: city.trim() || undefined,
+          emergency_contact_name: ecName.trim() || undefined,
+          emergency_contact_phone: ecPhone.trim() || undefined,
+          bank_name: bankName.trim() || undefined,
+          country_specific_data: countryFields,
         }
       }
 
@@ -596,6 +1101,7 @@ export function CandidateOnboardingPage() {
   }
 
   // ─── Active wizard ────────────────────────────────────────────────
+  const STEPS = dynamicSteps
   const completedSteps = wizard?.steps_completed || []
   const progressPct = Math.round(((currentStep - 1) / STEPS.length) * 100)
 
@@ -624,6 +1130,15 @@ export function CandidateOnboardingPage() {
             <> — starting {new Date(checklist.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</>
           )}
         </p>
+        {countryInfo && countryCode !== 'US' && (
+          <div className="flex items-center gap-2 mt-2">
+            <Badge variant="outline" className="text-xs">
+              <Globe className="h-3 w-3 mr-1" />
+              {countryInfo.country_name}
+            </Badge>
+            <Badge variant="outline" className="text-xs">{countryInfo.currency_code}</Badge>
+          </div>
+        )}
       </div>
 
       {/* Progress bar */}
@@ -679,8 +1194,31 @@ export function CandidateOnboardingPage() {
       <Card>
         <CardContent className="p-6 sm:p-8">
 
+          {/* ══════════ NON-US COUNTRY DYNAMIC WIZARD ══════════ */}
+          {countryCode !== 'US' && currentStep <= (STEPS.length - 1) && (
+            <NonUSWizardStep
+              step={currentStep}
+              stepDef={STEPS[currentStep - 1]}
+              countryCode={countryCode}
+              countryInfo={countryInfo}
+              countryFields={countryFields}
+              setCountryFields={setCountryFields}
+              firstName={firstName} setFirstName={setFirstName}
+              lastName={lastName} setLastName={setLastName}
+              dob={dob} setDob={setDob}
+              phone={phone} setPhone={setPhone}
+              address1={address1} setAddress1={setAddress1}
+              city={city} setCity={setCity}
+              ecName={ecName} setEcName={setEcName}
+              ecPhone={ecPhone} setEcPhone={setEcPhone}
+              ecRelationship={ecRelationship} setEcRelationship={setEcRelationship}
+              bankName={bankName} setBankName={setBankName}
+              stepErrors={stepErrors}
+            />
+          )}
+
           {/* ══════════ STEP 1: I-9 Form (Personal Info + Employment Eligibility) ══════════ */}
-          {currentStep === 1 && (
+          {countryCode === 'US' && currentStep === 1 && (
             <div className="space-y-6">
               <div>
                 <div className="flex items-center gap-2 mb-1">
@@ -863,7 +1401,7 @@ export function CandidateOnboardingPage() {
           )}
 
           {/* ══════════ STEP 2: Emergency Contact ══════════ */}
-          {currentStep === 2 && (
+          {countryCode === 'US' && currentStep === 2 && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -901,7 +1439,7 @@ export function CandidateOnboardingPage() {
           )}
 
           {/* ══════════ STEP 3: Direct Deposit ══════════ */}
-          {currentStep === 3 && (
+          {countryCode === 'US' && currentStep === 3 && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -957,7 +1495,7 @@ export function CandidateOnboardingPage() {
           )}
 
           {/* ══════════ STEP 4: Full W-4 Tax Form ══════════ */}
-          {currentStep === 4 && (
+          {countryCode === 'US' && currentStep === 4 && (
             <div className="space-y-6">
               <div>
                 <div className="flex items-center justify-between">

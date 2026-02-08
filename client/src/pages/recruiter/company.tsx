@@ -38,6 +38,8 @@ interface Company {
   office_locations?: string[]
   trust_score?: number
   score_tier?: string
+  primary_country?: string
+  operating_countries?: string[]
 }
 
 interface TeamMember {
@@ -355,6 +357,59 @@ function CompanyOverviewTab({ company, setCompany, saving, setSaving, showMessag
           <div>
             <Label>Headquarters</Label>
             <Input value={form.headquarters || ''} onChange={e => update('headquarters', e.target.value)} placeholder="San Francisco, CA" />
+          </div>
+          <div>
+            <Label className="flex items-center gap-1"><Globe className="h-3 w-3" /> Primary Country</Label>
+            <select
+              value={(form as any).primary_country || 'US'}
+              onChange={e => update('primary_country' as any, e.target.value)}
+              className="w-full rounded-md border px-3 py-2 text-sm"
+            >
+              <option value="US">United States</option>
+              <option value="IN">India</option>
+              <option value="GB">United Kingdom</option>
+              <option value="CA">Canada</option>
+              <option value="DE">Germany</option>
+              <option value="FR">France</option>
+              <option value="AU">Australia</option>
+              <option value="SG">Singapore</option>
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <Label className="flex items-center gap-1"><MapPin className="h-3 w-3" /> Operating Countries</Label>
+            <p className="text-xs text-muted-foreground mb-2">Select all countries where you hire employees</p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { code: 'US', name: 'United States' },
+                { code: 'IN', name: 'India' },
+                { code: 'GB', name: 'United Kingdom' },
+                { code: 'CA', name: 'Canada' },
+                { code: 'DE', name: 'Germany' },
+                { code: 'FR', name: 'France' },
+                { code: 'AU', name: 'Australia' },
+                { code: 'SG', name: 'Singapore' },
+              ].map(c => {
+                const opCountries: string[] = (form as any).operating_countries || ['US']
+                const isSelected = opCountries.includes(c.code)
+                return (
+                  <button
+                    key={c.code}
+                    type="button"
+                    onClick={() => {
+                      const updated = isSelected
+                        ? opCountries.filter(x => x !== c.code)
+                        : [...opCountries, c.code]
+                      update('operating_countries' as any, updated.length > 0 ? updated : ['US'] as any)
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                      isSelected ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground border-border hover:border-primary/50'
+                    }`}
+                  >
+                    {c.name}
+                  </button>
+                )
+              })}
+            </div>
           </div>
           <div>
             <Label>Website</Label>
