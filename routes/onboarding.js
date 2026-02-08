@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const polsiaAI = require('../lib/polsia-ai');
+const countryConfig = require('../services/country-config');
 
 // ============================================
 // OFFER GENERATION
@@ -278,18 +279,71 @@ router.post('/offers/:id/accept', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Offer not found' });
     }
 
-    // Create default onboarding checklist
+    // Create country-aware onboarding checklist
     const offer = result.rows[0];
-    const defaultItems = [
-      { id: 1, task: 'Complete I-9 form', required: true },
-      { id: 2, task: 'Upload government-issued ID', required: true },
-      { id: 3, task: 'Set up direct deposit', required: true },
-      { id: 4, task: 'Complete tax withholding (W-4)', required: true },
-      { id: 5, task: 'Sign employee handbook acknowledgment', required: true },
-      { id: 6, task: 'Submit emergency contact information', required: true },
-      { id: 7, task: 'Complete IT setup (email, laptop)', required: false },
-      { id: 8, task: 'Schedule first day orientation', required: true }
-    ];
+
+    // Determine country from the offer/job
+    let offerCountryCode = offer.country_code || 'US';
+    if (!offer.country_code) {
+      // Try to get from job
+      try {
+        const jobCountry = await pool.query('SELECT country_code FROM jobs WHERE id = $1', [offer.job_id]);
+        if (jobCountry.rows.length > 0 && jobCountry.rows[0].country_code) {
+          offerCountryCode = jobCountry.rows[0].country_code;
+        }
+      } catch (e) { /* fallback to US */ }
+    }
+
+    // Get country-specific checklist items
+    let defaultItems;
+    const COUNTRY_CHECKLIST_ITEMS = {
+      US: [
+        { id: 1, task: 'Complete I-9 form (Employment Eligibility)', required: true },
+        { id: 2, task: 'Upload government-issued ID', required: true },
+        { id: 3, task: 'Set up direct deposit', required: true },
+        { id: 4, task: 'Complete tax withholding (W-4)', required: true },
+        { id: 5, task: 'Sign employee handbook acknowledgment', required: true },
+        { id: 6, task: 'Submit emergency contact information', required: true },
+        { id: 7, task: 'Complete IT setup (email, laptop)', required: false },
+        { id: 8, task: 'Schedule first day orientation', required: true },
+      ],
+      IN: [
+        { id: 1, task: 'Submit PAN card details', required: true },
+        { id: 2, task: 'Submit Aadhaar verification', required: true },
+        { id: 3, task: 'Complete PF Form 11 declaration', required: true },
+        { id: 4, task: 'Submit PF nomination (Form 2)', required: true },
+        { id: 5, task: 'Complete ESI form (if applicable)', required: false },
+        { id: 6, task: 'Submit gratuity nomination (Form F)', required: true },
+        { id: 7, task: 'Provide bank account details', required: true },
+        { id: 8, task: 'Sign employee handbook acknowledgment', required: true },
+        { id: 9, task: 'Submit emergency contact information', required: true },
+      ],
+      GB: [
+        { id: 1, task: 'Complete Right to Work check', required: true },
+        { id: 2, task: 'Submit P45 or Starter Checklist', required: true },
+        { id: 3, task: 'Provide National Insurance number', required: true },
+        { id: 4, task: 'Provide bank account details', required: true },
+        { id: 5, task: 'Sign employee handbook acknowledgment', required: true },
+        { id: 6, task: 'Submit emergency contact information', required: true },
+      ],
+      CA: [
+        { id: 1, task: 'Complete TD1 Federal tax credits form', required: true },
+        { id: 2, task: 'Complete TD1 Provincial tax credits form', required: true },
+        { id: 3, task: 'Provide Social Insurance Number (SIN)', required: true },
+        { id: 4, task: 'Provide bank account details', required: true },
+        { id: 5, task: 'Sign employee handbook acknowledgment', required: true },
+        { id: 6, task: 'Submit emergency contact information', required: true },
+      ],
+      DE: [
+        { id: 1, task: 'Sign GDPR data processing consent', required: true },
+        { id: 2, task: 'Provide Tax ID (Steuer-ID)', required: true },
+        { id: 3, task: 'Submit social insurance details', required: true },
+        { id: 4, task: 'Provide work permit (non-EU only)', required: false },
+        { id: 5, task: 'Provide IBAN for salary', required: true },
+        { id: 6, task: 'Sign employee handbook', required: true },
+      ],
+    };
+    defaultItems = COUNTRY_CHECKLIST_ITEMS[offerCountryCode] || COUNTRY_CHECKLIST_ITEMS['US'];
 
     await pool.query(
       `INSERT INTO onboarding_checklists
@@ -947,11 +1001,47 @@ router.get('/wizard/progress', authMiddleware, async (req, res) => {
       [req.user.id, cl.id]
     );
 
+    // Determine country from offer → job → company chain
+    const offerCountry = await pool.query(
+      `SELECT o.country_code as offer_country, j.country_code as job_country,
+              c.primary_country as company_country
+       FROM offers o
+       LEFT JOIN jobs j ON o.job_id = j.id
+       LEFT JOIN companies c ON o.company_id = c.id
+       WHERE o.id = $1`,
+      [cl.offer_id]
+    );
+
+    let employeeCountry = 'US'; // default
+    if (offerCountry.rows.length > 0) {
+      const oc = offerCountry.rows[0];
+      employeeCountry = oc.offer_country || oc.job_country || oc.company_country || 'US';
+    }
+
+    // Get country-specific wizard steps
+    let wizardSteps = [];
+    let countryInfo = null;
+    try {
+      wizardSteps = await countryConfig.getWizardSteps(employeeCountry);
+      countryInfo = await countryConfig.getCountry(employeeCountry);
+    } catch (e) {
+      console.error('Error loading country config:', e.message);
+    }
+
     res.json({
       has_onboarding: true,
       checklist: cl,
       wizard: wizardData.rows[0],
-      documents: documents.rows
+      documents: documents.rows,
+      country_code: employeeCountry,
+      country_info: countryInfo ? {
+        country_name: countryInfo.country_name,
+        currency_code: countryInfo.currency_code,
+        currency_symbol: countryInfo.currency_symbol,
+        date_format: countryInfo.date_format,
+        employment_model: countryInfo.employment_model,
+      } : null,
+      wizard_steps: wizardSteps,
     });
   } catch (err) {
     console.error('Error getting wizard progress:', err);
@@ -1111,6 +1201,65 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
       ]);
 
       await completeChecklistItem(checklist_id, req.user.id, 4);
+      return res.json({ success: true, wizard: result.rows[0] });
+    }
+
+    // ── Country-specific step handling (non-US countries) ──
+    // If the save includes country_code and country_specific_data, store in JSONB
+    if (data.country_code && data.country_code !== 'US') {
+      const cc = data.country_code;
+      const csd = data.country_specific_data || {};
+
+      // Merge new country-specific data with existing
+      const existing = await pool.query(
+        'SELECT country_specific_data, country_code FROM candidate_onboarding_data WHERE candidate_id = $1 AND checklist_id = $2',
+        [req.user.id, checklist_id]
+      );
+
+      const existingData = existing.rows[0]?.country_specific_data || {};
+      const mergedData = { ...existingData, ...csd };
+
+      const result = await pool.query(`
+        UPDATE candidate_onboarding_data SET
+          country_code = $1,
+          country_specific_data = $2,
+          legal_first_name = COALESCE($3, legal_first_name),
+          legal_last_name = COALESCE($4, legal_last_name),
+          date_of_birth = COALESCE($5, date_of_birth),
+          phone = COALESCE($6, phone),
+          address_line1 = COALESCE($7, address_line1),
+          city = COALESCE($8, city),
+          emergency_contact_name = COALESCE($9, emergency_contact_name),
+          emergency_contact_phone = COALESCE($10, emergency_contact_phone),
+          bank_name = COALESCE($11, bank_name),
+          current_step = GREATEST(current_step, $12),
+          steps_completed = CASE
+            WHEN steps_completed @> to_jsonb($13::text)
+            THEN steps_completed
+            ELSE steps_completed || to_jsonb($13::text)
+          END,
+          updated_at = NOW()
+        WHERE candidate_id = $14 AND checklist_id = $15
+        RETURNING *
+      `, [
+        cc,
+        JSON.stringify(mergedData),
+        data.legal_first_name || null,
+        data.legal_last_name || null,
+        data.date_of_birth || null,
+        data.phone || null,
+        data.address_line1 || null,
+        data.city || null,
+        data.emergency_contact_name || null,
+        data.emergency_contact_phone || null,
+        data.bank_name || null,
+        step + 1,
+        String(step),
+        req.user.id,
+        checklist_id,
+      ]);
+
+      await completeChecklistItem(checklist_id, req.user.id, step);
       return res.json({ success: true, wizard: result.rows[0] });
     }
 

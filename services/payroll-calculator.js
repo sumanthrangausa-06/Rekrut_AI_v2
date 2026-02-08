@@ -157,6 +157,123 @@ function calculatePaycheck(employee, config, hoursWorked = null, ytdGross = 0) {
 }
 
 /**
+ * Calculate paycheck for non-US countries
+ * Uses simplified models per country (production would integrate actual tax APIs)
+ */
+function calculateInternationalPaycheck(employee, config, countryCode, hoursWorked = null) {
+  const grossPay = calculateGrossPay(config, hoursWorked);
+
+  const calculators = {
+    // India: Income tax slabs + PF + ESI
+    IN: () => {
+      const annualized = grossPay * 12;
+      let incomeTax = 0;
+      // New Tax Regime (2025-26)
+      const slabs = [
+        { min: 0, max: 300000, rate: 0 },
+        { min: 300000, max: 700000, rate: 0.05 },
+        { min: 700000, max: 1000000, rate: 0.10 },
+        { min: 1000000, max: 1200000, rate: 0.15 },
+        { min: 1200000, max: 1500000, rate: 0.20 },
+        { min: 1500000, max: Infinity, rate: 0.30 },
+      ];
+      for (const slab of slabs) {
+        if (annualized <= slab.min) break;
+        incomeTax += Math.min(annualized - slab.min, slab.max - slab.min) * slab.rate;
+      }
+      const monthlyTax = incomeTax / 12;
+      const pfEmployee = grossPay * 0.12; // 12% employee PF
+      const esiEmployee = grossPay <= 21000 ? grossPay * 0.0075 : 0; // 0.75% ESI
+      const professionalTax = 200; // Max ₹200/month in most states
+      const totalDeductions = monthlyTax + pfEmployee + esiEmployee + professionalTax;
+      return {
+        grossPay: parseFloat(grossPay.toFixed(2)),
+        incomeTax: parseFloat(monthlyTax.toFixed(2)),
+        providentFund: parseFloat(pfEmployee.toFixed(2)),
+        esi: parseFloat(esiEmployee.toFixed(2)),
+        professionalTax,
+        totalDeductions: parseFloat(totalDeductions.toFixed(2)),
+        netPay: parseFloat((grossPay - totalDeductions).toFixed(2)),
+        country: 'IN', currency: 'INR',
+      };
+    },
+    // UK: PAYE + National Insurance
+    GB: () => {
+      const annualized = grossPay * 12;
+      const personalAllowance = 12570;
+      const taxable = Math.max(0, annualized - personalAllowance);
+      let incomeTax = 0;
+      if (taxable <= 37700) incomeTax = taxable * 0.20;
+      else if (taxable <= 125140) incomeTax = 37700 * 0.20 + (taxable - 37700) * 0.40;
+      else incomeTax = 37700 * 0.20 + (125140 - 37700) * 0.40 + (taxable - 125140) * 0.45;
+      const monthlyTax = incomeTax / 12;
+      // NI Class 1: 8% on earnings between £12,570-£50,270, 2% above
+      const niThreshold = 12570 / 12;
+      const niUpper = 50270 / 12;
+      let ni = 0;
+      if (grossPay > niThreshold) ni = Math.min(grossPay - niThreshold, niUpper - niThreshold) * 0.08;
+      if (grossPay > niUpper) ni += (grossPay - niUpper) * 0.02;
+      const totalDeductions = monthlyTax + ni;
+      return {
+        grossPay: parseFloat(grossPay.toFixed(2)),
+        incomeTax: parseFloat(monthlyTax.toFixed(2)),
+        nationalInsurance: parseFloat(ni.toFixed(2)),
+        totalDeductions: parseFloat(totalDeductions.toFixed(2)),
+        netPay: parseFloat((grossPay - totalDeductions).toFixed(2)),
+        country: 'GB', currency: 'GBP',
+      };
+    },
+    // Canada: Federal + Provincial tax + CPP + EI
+    CA: () => {
+      const annualized = grossPay * (config.pay_frequency === 'monthly' ? 12 : 26);
+      const basicPersonal = 15705;
+      const taxable = Math.max(0, annualized - basicPersonal);
+      let federalTax = 0;
+      const brackets = [
+        { min: 0, max: 55867, rate: 0.15 },
+        { min: 55867, max: 111733, rate: 0.205 },
+        { min: 111733, max: 154906, rate: 0.26 },
+        { min: 154906, max: 220000, rate: 0.29 },
+        { min: 220000, max: Infinity, rate: 0.33 },
+      ];
+      for (const b of brackets) {
+        if (taxable <= b.min) break;
+        federalTax += Math.min(taxable - b.min, b.max - b.min) * b.rate;
+      }
+      const periods = config.pay_frequency === 'monthly' ? 12 : 26;
+      const periodTax = federalTax / periods;
+      const provincialTax = periodTax * 0.5; // Simplified: ~50% of federal
+      const cpp = Math.min(grossPay * 0.0595, 3867.50 / periods);
+      const ei = Math.min(grossPay * 0.0166, 1049.12 / periods);
+      const totalDeductions = periodTax + provincialTax + cpp + ei;
+      return {
+        grossPay: parseFloat(grossPay.toFixed(2)),
+        federalTax: parseFloat(periodTax.toFixed(2)),
+        provincialTax: parseFloat(provincialTax.toFixed(2)),
+        cpp: parseFloat(cpp.toFixed(2)),
+        ei: parseFloat(ei.toFixed(2)),
+        totalDeductions: parseFloat(totalDeductions.toFixed(2)),
+        netPay: parseFloat((grossPay - totalDeductions).toFixed(2)),
+        country: 'CA', currency: 'CAD',
+      };
+    },
+  };
+
+  if (calculators[countryCode]) return calculators[countryCode]();
+
+  // Fallback: simple flat 25% estimated tax
+  const estimatedTax = grossPay * 0.25;
+  return {
+    grossPay: parseFloat(grossPay.toFixed(2)),
+    estimatedTax: parseFloat(estimatedTax.toFixed(2)),
+    totalDeductions: parseFloat(estimatedTax.toFixed(2)),
+    netPay: parseFloat((grossPay - estimatedTax).toFixed(2)),
+    country: countryCode, currency: 'USD',
+    note: 'Estimated tax calculation. Consult local tax authority for exact figures.',
+  };
+}
+
+/**
  * Generate pay stub content
  */
 function generatePayStub(employee, paycheck, payPeriod) {
@@ -185,5 +302,6 @@ module.exports = {
   calculateSocialSecurity,
   calculateMedicare,
   calculatePaycheck,
+  calculateInternationalPaycheck,
   generatePayStub
 };
