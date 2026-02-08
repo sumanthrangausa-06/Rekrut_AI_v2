@@ -283,6 +283,136 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
         `, [JSON.stringify(parsedData), resumeRecord.rows[0].id]);
 
         console.log(`Successfully parsed ${req.file.mimetype} resume for user ${req.user.id}`);
+
+        // ====== AUTO-APPLY parsed data to profile ======
+        try {
+          const applySummary = { profile: false, experience: 0, education: 0, skills: 0 };
+
+          // 1. Apply contact/profile info
+          if (parsedData.contact) {
+            await pool.query(`
+              INSERT INTO candidate_profiles (user_id, headline, bio, location, phone, linkedin_url, github_url, portfolio_url, years_experience)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+              ON CONFLICT (user_id) DO UPDATE SET
+                headline = COALESCE(NULLIF($2, ''), candidate_profiles.headline),
+                bio = COALESCE(NULLIF($3, ''), candidate_profiles.bio),
+                location = COALESCE(NULLIF($4, ''), candidate_profiles.location),
+                phone = COALESCE(NULLIF($5, ''), candidate_profiles.phone),
+                linkedin_url = COALESCE(NULLIF($6, ''), candidate_profiles.linkedin_url),
+                github_url = COALESCE(NULLIF($7, ''), candidate_profiles.github_url),
+                portfolio_url = COALESCE(NULLIF($8, ''), candidate_profiles.portfolio_url),
+                years_experience = COALESCE($9, candidate_profiles.years_experience),
+                updated_at = NOW()
+            `, [
+              req.user.id,
+              parsedData.headline || null,
+              parsedData.bio || null,
+              parsedData.contact.location || null,
+              parsedData.contact.phone || null,
+              parsedData.contact.linkedin || null,
+              parsedData.contact.github || null,
+              parsedData.contact.portfolio || null,
+              parsedData.years_experience || null
+            ]);
+            applySummary.profile = true;
+
+            // Update user name/email if empty
+            if (parsedData.contact.name) {
+              await pool.query(
+                `UPDATE users SET name = $1 WHERE id = $2 AND (name IS NULL OR name = '')`,
+                [parsedData.contact.name, req.user.id]
+              );
+            }
+          }
+
+          // 2. Apply work experience (with dedup: skip if same company+title exists)
+          if (parsedData.experience && Array.isArray(parsedData.experience)) {
+            for (let i = 0; i < parsedData.experience.length; i++) {
+              const exp = parsedData.experience[i];
+              if (!exp.company || !exp.title) continue;
+
+              // Check for duplicate
+              const existing = await pool.query(
+                `SELECT id FROM work_experience WHERE user_id = $1 AND LOWER(company_name) = LOWER($2) AND LOWER(title) = LOWER($3)`,
+                [req.user.id, exp.company, exp.title]
+              );
+              if (existing.rows.length > 0) continue;
+
+              await pool.query(`
+                INSERT INTO work_experience (user_id, company_name, title, location, start_date, end_date, is_current, description, achievements, skills_used, order_index)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+              `, [
+                req.user.id,
+                exp.company,
+                exp.title,
+                exp.location || null,
+                exp.start_date ? new Date(exp.start_date.length === 4 ? exp.start_date + '-01-01' : exp.start_date + '-01') : null,
+                exp.end_date && exp.end_date !== 'Present' ? new Date(exp.end_date.length === 4 ? exp.end_date + '-01-01' : exp.end_date + '-01') : null,
+                exp.is_current || exp.end_date === 'Present',
+                exp.description || null,
+                JSON.stringify(exp.achievements || []),
+                JSON.stringify(exp.skills_used || []),
+                i
+              ]);
+              applySummary.experience++;
+            }
+          }
+
+          // 3. Apply education (with dedup: skip if same institution+degree exists)
+          if (parsedData.education && Array.isArray(parsedData.education)) {
+            for (let i = 0; i < parsedData.education.length; i++) {
+              const edu = parsedData.education[i];
+              if (!edu.institution) continue;
+
+              // Check for duplicate
+              const existing = await pool.query(
+                `SELECT id FROM education WHERE user_id = $1 AND LOWER(institution) = LOWER($2) AND LOWER(COALESCE(degree, '')) = LOWER(COALESCE($3, ''))`,
+                [req.user.id, edu.institution, edu.degree || '']
+              );
+              if (existing.rows.length > 0) continue;
+
+              await pool.query(`
+                INSERT INTO education (user_id, institution, degree, field_of_study, start_date, end_date, gpa, achievements, order_index)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+              `, [
+                req.user.id,
+                edu.institution,
+                edu.degree || null,
+                edu.field || null,
+                edu.start_date ? new Date(edu.start_date + '-01-01') : null,
+                edu.end_date && edu.end_date !== 'Present' ? new Date(edu.end_date + '-01-01') : null,
+                edu.gpa || null,
+                JSON.stringify(edu.achievements || []),
+                i
+              ]);
+              applySummary.education++;
+            }
+          }
+
+          // 4. Apply skills (upsert — won't duplicate due to UNIQUE constraint)
+          if (parsedData.skills && Array.isArray(parsedData.skills)) {
+            for (const skill of parsedData.skills) {
+              if (!skill.name) continue;
+              try {
+                await pool.query(`
+                  INSERT INTO candidate_skills (user_id, skill_name, category, level)
+                  VALUES ($1, $2, $3, $4)
+                  ON CONFLICT (user_id, skill_name) DO UPDATE SET
+                    category = COALESCE(NULLIF($3, ''), candidate_skills.category),
+                    level = GREATEST(candidate_skills.level, $4)
+                `, [req.user.id, skill.name, skill.category || 'technical', skill.level || 3]);
+                applySummary.skills++;
+              } catch (skillErr) {
+                console.error('Skip skill insert:', skillErr.message);
+              }
+            }
+          }
+
+          parsedData._applySummary = applySummary;
+          console.log(`Auto-applied resume data for user ${req.user.id}:`, applySummary);
+        } catch (applyErr) {
+          console.error('Auto-apply resume data failed (non-fatal):', applyErr.message);
+        }
       } else {
         console.log('Extracted text too short - marking as uploaded');
         await pool.query(`

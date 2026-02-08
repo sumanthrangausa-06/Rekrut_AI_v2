@@ -271,6 +271,7 @@ export function CandidateProfilePage() {
             profile={profile}
             setProfile={setProfile}
             showMessage={showMessage}
+            onResumeApplied={loadProfile}
           />
         </TabsContent>
       </Tabs>
@@ -976,32 +977,85 @@ function SkillsTab({ skills, setSkills, showMessage }: {
 
 // ============= Resume Tab =============
 
-function ResumeTab({ profile, setProfile, showMessage }: {
+interface ApplySummary {
+  profile?: boolean
+  experience?: number
+  education?: number
+  skills?: number
+}
+
+interface ParsedData {
+  contact?: { name?: string; email?: string; phone?: string; location?: string; linkedin?: string; github?: string; portfolio?: string }
+  headline?: string
+  bio?: string
+  experience?: Array<{ company: string; title: string; location?: string; start_date?: string; end_date?: string; description?: string }>
+  education?: Array<{ institution: string; degree?: string; field?: string; start_date?: string; end_date?: string }>
+  skills?: Array<{ name: string; category?: string; level?: number }>
+  years_experience?: number
+  _applySummary?: ApplySummary
+}
+
+function ResumeTab({ profile, setProfile, showMessage, onResumeApplied }: {
   profile: Profile
   setProfile: React.Dispatch<React.SetStateAction<Profile>>
   showMessage: (type: 'success' | 'error', text: string) => void
+  onResumeApplied: () => Promise<void>
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [lastParsed, setLastParsed] = useState<ParsedData | null>(null)
+  const [parseStep, setParseStep] = useState<string>('')
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
+    setLastParsed(null)
+    setParseStep('Uploading resume...')
     try {
+      setParseStep('Analyzing with AI...')
       const formData = new FormData()
       formData.append('resume', file)
-      const data = await apiCall<{ success: boolean; resume_url: string; parsed_data?: Record<string, unknown> }>('/candidate/resume/upload', {
+      const data = await apiCall<{ success: boolean; resume_url: string; parsed_data?: ParsedData }>('/candidate/resume/upload', {
         method: 'POST',
         body: formData,
         isFormData: true,
       })
       setProfile(p => ({ ...p, resume_url: data.resume_url }))
-      showMessage('success', data.parsed_data ? 'Resume uploaded & parsed!' : 'Resume uploaded')
+
+      if (data.parsed_data) {
+        setLastParsed(data.parsed_data)
+        setParseStep('Refreshing profile...')
+        // Reload the full profile to reflect auto-applied data
+        await onResumeApplied()
+
+        const summary = data.parsed_data._applySummary
+        if (summary) {
+          const parts: string[] = []
+          if (summary.profile) parts.push('profile info')
+          if (summary.experience && summary.experience > 0) parts.push(`${summary.experience} job${summary.experience > 1 ? 's' : ''}`)
+          if (summary.education && summary.education > 0) parts.push(`${summary.education} education`)
+          if (summary.skills && summary.skills > 0) parts.push(`${summary.skills} skill${summary.skills > 1 ? 's' : ''}`)
+
+          if (parts.length > 0) {
+            showMessage('success', `AI imported: ${parts.join(', ')}`)
+          } else {
+            showMessage('success', 'Resume parsed — profile already up to date')
+          }
+        } else {
+          showMessage('success', 'Resume uploaded & parsed!')
+        }
+      } else {
+        showMessage('success', 'Resume uploaded')
+      }
+      setParseStep('')
     } catch {
       showMessage('error', 'Failed to upload resume')
+      setParseStep('')
     } finally {
       setUploading(false)
+      // Reset file input so same file can be re-uploaded
+      if (fileRef.current) fileRef.current.value = ''
     }
   }
 
@@ -1030,9 +1084,15 @@ function ResumeTab({ profile, setProfile, showMessage }: {
                   ) : (
                     <Upload className="h-4 w-4" />
                   )}
-                  Replace Resume
+                  {uploading ? 'Processing...' : 'Replace Resume'}
                 </Button>
               </div>
+              {uploading && parseStep && (
+                <div className="flex items-center gap-2 text-sm text-primary animate-pulse">
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  {parseStep}
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-8">
@@ -1041,7 +1101,7 @@ function ResumeTab({ profile, setProfile, showMessage }: {
               </div>
               <h4 className="font-semibold mb-1">Upload Your Resume</h4>
               <p className="text-sm text-muted-foreground mb-4">
-                Support for PDF, DOC, DOCX files (max 10MB). We'll try to parse it automatically.
+                Upload a PDF or DOCX (max 10MB). AI will automatically parse your resume and fill in your profile.
               </p>
               <Button onClick={() => fileRef.current?.click()} disabled={uploading} className="gap-2">
                 {uploading ? (
@@ -1049,12 +1109,66 @@ function ResumeTab({ profile, setProfile, showMessage }: {
                 ) : (
                   <Upload className="h-4 w-4" />
                 )}
-                Choose File
+                {uploading ? 'Analyzing...' : 'Choose File'}
               </Button>
+              {uploading && parseStep && (
+                <p className="text-sm text-primary mt-3 animate-pulse">{parseStep}</p>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Show parsed data summary after successful import */}
+      {lastParsed && !uploading && (
+        <Card className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20">
+          <CardContent className="p-5">
+            <div className="flex items-start gap-3">
+              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <div className="flex-1 space-y-3">
+                <div>
+                  <h4 className="font-semibold text-emerald-900 dark:text-emerald-100">AI Resume Import Complete</h4>
+                  <p className="text-sm text-emerald-700 dark:text-emerald-300">
+                    Your profile has been auto-filled from your resume. Review each tab to confirm the data is correct.
+                  </p>
+                </div>
+
+                {/* Summary grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {lastParsed.contact && (
+                    <div className="rounded-md bg-white/60 dark:bg-white/5 px-3 py-2 text-center">
+                      <User className="h-4 w-4 mx-auto mb-1 text-emerald-600" />
+                      <p className="text-xs font-medium">Profile Info</p>
+                      <p className="text-[10px] text-muted-foreground">{lastParsed.contact.name || 'Updated'}</p>
+                    </div>
+                  )}
+                  {lastParsed.experience && lastParsed.experience.length > 0 && (
+                    <div className="rounded-md bg-white/60 dark:bg-white/5 px-3 py-2 text-center">
+                      <Briefcase className="h-4 w-4 mx-auto mb-1 text-emerald-600" />
+                      <p className="text-xs font-medium">{lastParsed.experience.length} Job{lastParsed.experience.length > 1 ? 's' : ''}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{lastParsed.experience[0]?.company}</p>
+                    </div>
+                  )}
+                  {lastParsed.education && lastParsed.education.length > 0 && (
+                    <div className="rounded-md bg-white/60 dark:bg-white/5 px-3 py-2 text-center">
+                      <GraduationCap className="h-4 w-4 mx-auto mb-1 text-emerald-600" />
+                      <p className="text-xs font-medium">{lastParsed.education.length} Education</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{lastParsed.education[0]?.institution}</p>
+                    </div>
+                  )}
+                  {lastParsed.skills && lastParsed.skills.length > 0 && (
+                    <div className="rounded-md bg-white/60 dark:bg-white/5 px-3 py-2 text-center">
+                      <Wrench className="h-4 w-4 mx-auto mb-1 text-emerald-600" />
+                      <p className="text-xs font-medium">{lastParsed.skills.length} Skills</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{lastParsed.skills.slice(0, 3).map(s => s.name).join(', ')}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={handleUpload} />
     </div>
