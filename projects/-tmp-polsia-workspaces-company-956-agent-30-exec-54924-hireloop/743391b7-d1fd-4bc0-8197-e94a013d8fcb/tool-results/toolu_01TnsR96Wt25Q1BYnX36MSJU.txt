@@ -1,0 +1,108 @@
+     1→const express = require('express');
+     2→const session = require('express-session');
+     3→const cookieParser = require('cookie-parser');
+     4→const cors = require('cors');
+     5→const path = require('path');
+     6→const fs = require('fs');
+     7→const pool = require('./lib/db');
+     8→const authRoutes = require('./routes/auth');
+     9→const jobRoutes = require('./routes/jobs');
+    10→const interviewRoutes = require('./routes/interviews');
+    11→const omniscoreRoutes = require('./routes/omniscore');
+    12→const companyRoutes = require('./routes/company');
+    13→const trustscoreRoutes = require('./routes/trustscore');
+    14→const recruiterRoutes = require('./routes/recruiter');
+    15→const candidateRoutes = require('./routes/candidate');
+    16→const assessmentRoutes = require('./routes/assessments');
+    17→const matchingRoutes = require('./routes/matching');
+    18→const documentRoutes = require('./routes/documents');
+    19→const payrollRoutes = require('./routes/payroll');
+    20→const complianceRoutes = require('./routes/compliance');
+    21→const onboardingRoutes = require('./routes/onboarding');
+    22→const analyticsRoutes = require('./routes/analytics');
+    23→
+    24→const app = express();
+    25→const PORT = process.env.PORT || 3000;
+    26→
+    27→// Middleware
+    28→app.use(cors());
+    29→app.use(express.json());
+    30→app.use(express.urlencoded({ extended: true }));
+    31→app.use(cookieParser());
+    32→app.use(session({
+    33→  secret: process.env.SESSION_SECRET || 'rekrutai-secret-key-change-in-prod',
+    34→  resave: false,
+    35→  saveUninitialized: false,
+    36→  cookie: { secure: process.env.NODE_ENV === 'production', maxAge: 7 * 24 * 60 * 60 * 1000 }
+    37→}));
+    38→
+    39→// API Routes - Candidate side
+    40→app.use('/api/auth', authRoutes);
+    41→app.use('/api/jobs', jobRoutes);
+    42→app.use('/api/interviews', interviewRoutes);
+    43→app.use('/api/omniscore', omniscoreRoutes);
+    44→app.use('/api/candidate', candidateRoutes);
+    45→app.use('/api/assessments', assessmentRoutes);
+    46→
+    47→// API Routes - Recruiter/Company side
+    48→app.use('/api/company', companyRoutes);
+    49→app.use('/api/trustscore', trustscoreRoutes);
+    50→app.use('/api/recruiter', recruiterRoutes);
+    51→
+    52→// API Routes - Matching Engine
+    53→app.use('/api/matching', matchingRoutes);
+    54→
+    55→// API Routes - Document Verification
+    56→app.use('/api/documents', documentRoutes);
+    57→
+    58→// API Routes - Payroll
+    59→app.use('/api/payroll', payrollRoutes);
+    60→
+    61→// API Routes - Compliance & GDPR
+    62→app.use('/api/compliance', complianceRoutes);
+    63→
+    64→// API Routes - Onboarding & Post-Hire
+    65→app.use('/api/onboarding', onboardingRoutes);
+    66→
+    67→// API Routes - Analytics
+    68→app.use('/api/analytics', analyticsRoutes);
+    69→
+    70→// Health check
+    71→app.get('/health', (req, res) => {
+    72→  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    73→});
+    74→
+    75→// Determine which frontend to serve
+    76→const reactBuildPath = path.join(__dirname, 'client', 'dist');
+    77→const legacyPublicPath = path.join(__dirname, 'public');
+    78→const useReactApp = fs.existsSync(path.join(reactBuildPath, 'index.html'));
+    79→
+    80→if (useReactApp) {
+    81→  console.log('[server] Serving React SPA from client/dist');
+    82→  app.use(express.static(reactBuildPath));
+    83→
+    84→  // SPA fallback - serve index.html for all non-API routes
+    85→  app.get('*', (req, res) => {
+    86→    if (!req.path.startsWith('/api')) {
+    87→      res.sendFile(path.join(reactBuildPath, 'index.html'));
+    88→    }
+    89→  });
+    90→} else {
+    91→  console.log('[server] React build not found, serving legacy public/');
+    92→  app.use(express.static(legacyPublicPath));
+    93→
+    94→  app.get('*', (req, res) => {
+    95→    if (!req.path.startsWith('/api')) {
+    96→      res.sendFile(path.join(legacyPublicPath, 'index.html'));
+    97→    }
+    98→  });
+    99→}
+   100→
+   101→app.listen(PORT, () => {
+   102→  console.log(`HireLoop running on port ${PORT}`);
+   103→});
+   104→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
