@@ -47,6 +47,9 @@ interface WizardData {
   i9_passport_number: string | null
   i9_country_of_issuance: string | null
   i9_work_auth_expiry: string | null
+  i9_other_last_names: string | null
+  i9_email: string | null
+  i9_preparer_used: boolean
   w4_multiple_jobs: boolean
   w4_spouse_works: boolean
   w4_num_dependents_under_17: number
@@ -136,13 +139,16 @@ export function CandidateOnboardingPage() {
   const [state, setState] = useState('')
   const [zip, setZip] = useState('')
   const [phone, setPhone] = useState('')
-  // I-9 Attestation
+  // I-9 Attestation (USCIS Form I-9, Edition 01/20/2025)
   const [citizenshipStatus, setCitizenshipStatus] = useState('citizen')
   const [alienNumber, setAlienNumber] = useState('')
   const [admissionNumber, setAdmissionNumber] = useState('')
   const [passportNumber, setPassportNumber] = useState('')
   const [countryOfIssuance, setCountryOfIssuance] = useState('')
   const [workAuthExpiry, setWorkAuthExpiry] = useState('')
+  const [otherLastNames, setOtherLastNames] = useState('')
+  const [i9Email, setI9Email] = useState('')
+  const [preparerUsed, setPreparerUsed] = useState(false)
 
   // Step 2: Emergency Contact
   const [ecName, setEcName] = useState('')
@@ -208,6 +214,9 @@ export function CandidateOnboardingPage() {
         setPassportNumber(w.i9_passport_number || '')
         setCountryOfIssuance(w.i9_country_of_issuance || '')
         setWorkAuthExpiry(w.i9_work_auth_expiry ? w.i9_work_auth_expiry.split('T')[0] : '')
+        setOtherLastNames(w.i9_other_last_names || '')
+        setI9Email(w.i9_email || '')
+        setPreparerUsed(w.i9_preparer_used || false)
         setEcName(w.emergency_contact_name || '')
         setEcRelationship(w.emergency_contact_relationship || '')
         setEcPhone(w.emergency_contact_phone || '')
@@ -353,6 +362,9 @@ export function CandidateOnboardingPage() {
           i9_passport_number: passportNumber.trim() || null,
           i9_country_of_issuance: countryOfIssuance.trim() || null,
           i9_work_auth_expiry: workAuthExpiry || null,
+          i9_other_last_names: otherLastNames.trim() || null,
+          i9_email: i9Email.trim() || null,
+          i9_preparer_used: preparerUsed,
         }
       } else if (step === 2) {
         data = {
@@ -674,11 +686,11 @@ export function CandidateOnboardingPage() {
                 <div className="flex items-center gap-2 mb-1">
                   <h2 className="text-lg font-semibold flex items-center gap-2">
                     <Globe className="h-5 w-5 text-primary" />
-                    Form I-9 — Employment Eligibility Verification
+                    USCIS Form I-9 — Employment Eligibility Verification
                   </h2>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Section 1: Employee Information and Attestation (USCIS Form I-9)
+                  Section 1. Employee Information and Attestation — Edition 01/20/2025, OMB No. 1615-0047, Expires 05/31/2027
                 </p>
                 <div className="mt-2 p-2 rounded bg-blue-50 border border-blue-200 text-xs text-blue-800 flex gap-2">
                   <Sparkles className="h-3.5 w-3.5 mt-0.5 shrink-0" />
@@ -686,23 +698,56 @@ export function CandidateOnboardingPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <FieldGroup label="Legal First Name *" error={stepErrors.firstName}>
+              {/* Row 1: Name fields per official I-9 layout */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <FieldGroup label="Last Name (Family Name) *" error={stepErrors.lastName}>
+                  <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Doe" />
+                </FieldGroup>
+                <FieldGroup label="First Name (Given Name) *" error={stepErrors.firstName}>
                   <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="John" />
                 </FieldGroup>
-                <FieldGroup label="Middle Name">
-                  <Input value={middleName} onChange={(e) => setMiddleName(e.target.value)} placeholder="Michael" />
+                <FieldGroup label="Middle Initial">
+                  <Input value={middleName} onChange={(e) => setMiddleName(e.target.value)} placeholder="M" maxLength={50} />
                 </FieldGroup>
-                <FieldGroup label="Legal Last Name *" error={stepErrors.lastName}>
-                  <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Doe" />
+                <FieldGroup label="Other Last Names Used">
+                  <Input value={otherLastNames} onChange={(e) => setOtherLastNames(e.target.value)} placeholder="Maiden name, etc." />
                 </FieldGroup>
               </div>
 
+              {/* Row 2: Address per official I-9 layout */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  <div className="sm:col-span-2">
+                    <FieldGroup label="Address (Street Number and Name) *" error={stepErrors.address1}>
+                      <Input value={address1} onChange={(e) => setAddress1(e.target.value)} placeholder="123 Main St" />
+                    </FieldGroup>
+                  </div>
+                  <FieldGroup label="Apt. Number">
+                    <Input value={address2} onChange={(e) => setAddress2(e.target.value)} placeholder="Apt 4B" />
+                  </FieldGroup>
+                  <FieldGroup label="City or Town *" error={stepErrors.city}>
+                    <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="New York" />
+                  </FieldGroup>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <FieldGroup label="State *" error={stepErrors.state}>
+                    <Select value={state} onChange={(e) => setState(e.target.value)}>
+                      <option value="">Select</option>
+                      {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </Select>
+                  </FieldGroup>
+                  <FieldGroup label="ZIP Code *" error={stepErrors.zip}>
+                    <Input value={zip} onChange={(e) => setZip(e.target.value)} placeholder="10001" />
+                  </FieldGroup>
+                </div>
+              </div>
+
+              {/* Row 3: DOB, SSN, Email, Phone per official I-9 layout */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FieldGroup label="Date of Birth *" error={stepErrors.dob}>
+                <FieldGroup label="Date of Birth (mm/dd/yyyy) *" error={stepErrors.dob}>
                   <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
                 </FieldGroup>
-                <FieldGroup label="Social Security Number *" error={stepErrors.ssn}>
+                <FieldGroup label="U.S. Social Security Number *" error={stepErrors.ssn}>
                   <div className="relative">
                     <Input type="password" value={ssn} onChange={(e) => setSsn(e.target.value)}
                       placeholder={progress?.wizard?.ssn_encrypted ? '••••••••• (saved)' : 'XXX-XX-XXXX'} />
@@ -710,33 +755,13 @@ export function CandidateOnboardingPage() {
                   </div>
                 </FieldGroup>
               </div>
-
-              <FieldGroup label="Phone *" error={stepErrors.phone}>
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" className="max-w-xs" />
-              </FieldGroup>
-
-              <div className="space-y-4">
-                <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Address</h3>
-                <FieldGroup label="Street Address *" error={stepErrors.address1}>
-                  <Input value={address1} onChange={(e) => setAddress1(e.target.value)} placeholder="123 Main St" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FieldGroup label="Employee's Email Address">
+                  <Input type="email" value={i9Email} onChange={(e) => setI9Email(e.target.value)} placeholder="john.doe@email.com" />
                 </FieldGroup>
-                <FieldGroup label="Apt / Suite / Unit">
-                  <Input value={address2} onChange={(e) => setAddress2(e.target.value)} placeholder="Apt 4B" />
+                <FieldGroup label="Employee's Telephone Number *" error={stepErrors.phone}>
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
                 </FieldGroup>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  <FieldGroup label="City *" error={stepErrors.city}>
-                    <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="New York" />
-                  </FieldGroup>
-                  <FieldGroup label="State *" error={stepErrors.state}>
-                    <Select value={state} onChange={(e) => setState(e.target.value)}>
-                      <option value="">Select</option>
-                      {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-                    </Select>
-                  </FieldGroup>
-                  <FieldGroup label="ZIP *" error={stepErrors.zip}>
-                    <Input value={zip} onChange={(e) => setZip(e.target.value)} placeholder="10001" />
-                  </FieldGroup>
-                </div>
               </div>
 
               {/* I-9 Section 1 Attestation */}
@@ -744,20 +769,20 @@ export function CandidateOnboardingPage() {
                 <div>
                   <h3 className="font-semibold text-base flex items-center gap-2">
                     <Shield className="h-4 w-4 text-primary" />
-                    Employment Eligibility Attestation
+                    Citizenship / Immigration Status Attestation
                   </h3>
                   <p className="text-xs text-muted-foreground mt-1">
                     I attest, under penalty of perjury, that I am (check one of the following boxes):
                   </p>
                 </div>
 
-                <FieldGroup label="Citizenship / Immigration Status *" error={stepErrors.citizenshipStatus}>
+                <FieldGroup label="" error={stepErrors.citizenshipStatus}>
                   <div className="space-y-2">
                     {[
-                      { value: 'citizen', label: 'A citizen of the United States' },
-                      { value: 'noncitizen_national', label: 'A noncitizen national of the United States' },
-                      { value: 'permanent_resident', label: 'A lawful permanent resident (provide Alien Registration Number below)' },
-                      { value: 'work_authorized', label: 'An alien authorized to work (provide work authorization details below)' },
+                      { value: 'citizen', label: '1. A citizen of the United States' },
+                      { value: 'noncitizen_national', label: '2. A noncitizen national of the United States' },
+                      { value: 'permanent_resident', label: '3. A lawful permanent resident (Alien Registration Number/USCIS Number)' },
+                      { value: 'work_authorized', label: '4. An alien authorized to work until (expiration date, if applicable)' },
                     ].map(opt => (
                       <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                         citizenshipStatus === opt.value ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
@@ -771,42 +796,68 @@ export function CandidateOnboardingPage() {
                   </div>
                 </FieldGroup>
 
-                {/* Conditional fields based on citizenship status */}
+                {/* Conditional fields for lawful permanent resident */}
                 {citizenshipStatus === 'permanent_resident' && (
                   <FieldGroup label="Alien Registration Number / USCIS Number *" error={stepErrors.alienNumber}>
-                    <Input value={alienNumber} onChange={(e) => setAlienNumber(e.target.value)} placeholder="A-number" className="max-w-xs" />
+                    <Input value={alienNumber} onChange={(e) => setAlienNumber(e.target.value)} placeholder="A-number (e.g., A012345678)" className="max-w-xs" />
                   </FieldGroup>
                 )}
 
+                {/* Conditional fields for alien authorized to work */}
                 {citizenshipStatus === 'work_authorized' && (
                   <div className="space-y-4 p-4 rounded-lg bg-muted/50 border">
+                    <p className="text-xs text-blue-700 bg-blue-50 p-2 rounded border border-blue-200">
+                      <strong>Note:</strong> Provide only <strong>ONE</strong> of the following document numbers: Alien Registration Number/USCIS Number <em>OR</em> Form I-94 Admission Number <em>OR</em> Foreign Passport Number and Country of Issuance.
+                    </p>
+                    <FieldGroup label="Work Authorization Expiration Date *" error={stepErrors.workAuthExpiry}>
+                      <Input type="date" value={workAuthExpiry} onChange={(e) => setWorkAuthExpiry(e.target.value)} className="max-w-xs" />
+                    </FieldGroup>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <FieldGroup label="Work Authorization Expiry Date *" error={stepErrors.workAuthExpiry}>
-                        <Input type="date" value={workAuthExpiry} onChange={(e) => setWorkAuthExpiry(e.target.value)} />
-                      </FieldGroup>
-                      <FieldGroup label="Alien Registration Number">
+                      <FieldGroup label="Alien Registration Number / USCIS Number">
                         <Input value={alienNumber} onChange={(e) => setAlienNumber(e.target.value)} placeholder="A-number (if applicable)" />
                       </FieldGroup>
+                      <FieldGroup label="Form I-94 Admission Number">
+                        <Input value={admissionNumber} onChange={(e) => setAdmissionNumber(e.target.value)} placeholder="I-94 number (if applicable)" />
+                      </FieldGroup>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <FieldGroup label="I-94 Admission Number">
-                        <Input value={admissionNumber} onChange={(e) => setAdmissionNumber(e.target.value)} placeholder="I-94 number" />
-                      </FieldGroup>
                       <FieldGroup label="Foreign Passport Number">
-                        <Input value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} placeholder="Passport number" />
+                        <Input value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} placeholder="Passport number (if applicable)" />
                       </FieldGroup>
+                      {passportNumber && (
+                        <FieldGroup label="Country of Issuance *">
+                          <Input value={countryOfIssuance} onChange={(e) => setCountryOfIssuance(e.target.value)} placeholder="Country" />
+                        </FieldGroup>
+                      )}
                     </div>
-                    {passportNumber && (
-                      <FieldGroup label="Country of Issuance">
-                        <Input value={countryOfIssuance} onChange={(e) => setCountryOfIssuance(e.target.value)} placeholder="Country" className="max-w-xs" />
-                      </FieldGroup>
-                    )}
                   </div>
                 )}
 
+                {/* Preparer/Translator Certification */}
+                <div className="border-t pt-4">
+                  <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    preparerUsed ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
+                  }`}>
+                    <input type="checkbox" checked={preparerUsed} onChange={(e) => setPreparerUsed(e.target.checked)} className="mt-0.5" />
+                    <div>
+                      <span className="text-sm font-medium">A preparer and/or translator assisted me in completing Section 1</span>
+                      <p className="text-xs text-muted-foreground">Check this box if someone helped you fill out this form. (Preparer and/or Translator Certification)</p>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Perjury and false statements warning */}
                 <p className="text-xs text-muted-foreground italic p-3 bg-amber-50 border border-amber-200 rounded">
-                  I am aware that federal law provides for imprisonment and/or fines for false statements, or the use of false documents, in connection with the completion of this form. I attest that all information provided is true and correct.
+                  I am aware that federal law provides for imprisonment and/or fines for false statements, or the use of false documents, in connection with the completion of this form. I attest, under penalty of perjury, that the information I have provided is true and correct.
                 </p>
+
+                {/* Anti-Discrimination Notice */}
+                <div className="p-3 rounded bg-slate-50 border border-slate-200 text-xs text-slate-700">
+                  <p className="font-semibold mb-1">Anti-Discrimination Notice</p>
+                  <p>
+                    It is illegal to discriminate against work-authorized individuals in hiring, firing, recruitment or referral for a fee, or in the employment eligibility verification (Form I-9 and E-Verify) process based on that individual's citizenship status, immigration status, or national origin. Employers <strong>cannot</strong> specify which document(s) an employee may present. For more information, contact the Immigrant and Employee Rights Section (IER), Department of Justice, Civil Rights Division: <strong>1-800-255-7688</strong> (employees) or <strong>1-800-255-8155</strong> (employers).
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -912,7 +963,7 @@ export function CandidateOnboardingPage() {
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold flex items-center gap-2">
                     <Receipt className="h-5 w-5 text-primary" />
-                    Form W-4 — Employee's Withholding Certificate
+                    IRS Form W-4 — Employee's Withholding Certificate
                   </h2>
                   <Button variant="outline" size="sm" onClick={loadW4Guidance} disabled={loadingGuidance}>
                     {loadingGuidance ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> :
@@ -921,7 +972,11 @@ export function CandidateOnboardingPage() {
                   </Button>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">
-                  IRS Form W-4 determines how much federal income tax is withheld from your paycheck.
+                  Department of the Treasury — Internal Revenue Service — 2025 — OMB No. 1545-0074
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Complete Form W-4 so that your employer can withhold the correct federal income tax from your pay.
+                  Complete Steps 2–4 <strong>ONLY</strong> if they apply to you; otherwise, skip to Step 5 (Sign).
                 </p>
               </div>
 
@@ -948,47 +1003,60 @@ export function CandidateOnboardingPage() {
                 </div>
               )}
 
-              {/* Step 1: Filing Status */}
+              {/* Step 1(c): Filing Status */}
               <div className="space-y-3">
                 <h3 className="font-medium flex items-center gap-2">
-                  Step 1: Filing Status
+                  Step 1(c): Filing Status
                   <span className="text-xs text-muted-foreground font-normal">(Required)</span>
                 </h3>
                 <FieldGroup label="" error={stepErrors.filingStatus}>
                   <div className="space-y-2">
                     {[
                       { value: 'single', label: 'Single or Married filing separately' },
-                      { value: 'married', label: 'Married filing jointly (or Qualifying surviving spouse)' },
-                      { value: 'head_of_household', label: 'Head of household' },
+                      { value: 'married', label: 'Married filing jointly or Qualifying surviving spouse' },
+                      { value: 'head_of_household', label: 'Head of household', description: 'Check only if you\'re unmarried and pay more than half the costs of keeping up a home for yourself and a qualifying individual.' },
                     ].map(opt => (
-                      <label key={opt.value} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                      <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                         filingStatus === opt.value ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
                       }`}>
                         <input type="radio" name="filing" value={opt.value} checked={filingStatus === opt.value}
-                          onChange={() => setFilingStatus(opt.value)} />
-                        <span className="text-sm">{opt.label}</span>
+                          onChange={() => setFilingStatus(opt.value)} className="mt-0.5" />
+                        <div>
+                          <span className="text-sm">{opt.label}</span>
+                          {'description' in opt && opt.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{opt.description}</p>
+                          )}
+                        </div>
                       </label>
                     ))}
                   </div>
                 </FieldGroup>
               </div>
 
-              {/* Step 2: Multiple Jobs */}
+              {/* Step 2: Multiple Jobs or Spouse Works */}
               <div className="space-y-3 border-t pt-4">
                 <h3 className="font-medium flex items-center gap-2">
                   Step 2: Multiple Jobs or Spouse Works
-                  <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
+                  <span className="text-xs text-muted-foreground font-normal">(Complete only if applies)</span>
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Complete this step if you (1) hold more than one job at a time, or (2) are married filing jointly and your spouse also works.
+                  Complete this step if you (1) hold more than one job at a time, or (2) are married filing jointly and your spouse also works. The correct amount of withholding depends on income earned from all of these jobs.
                 </p>
-                <label className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+
+                <div className="space-y-2 text-xs text-muted-foreground p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <p className="font-medium text-slate-700">Choose one approach:</p>
+                  <p><strong>(a)</strong> For the most accurate withholding, use the IRS Tax Withholding Estimator at <a href="https://www.irs.gov/W4App" target="_blank" rel="noopener noreferrer" className="text-primary underline">www.irs.gov/W4App</a></p>
+                  <p><strong>(b)</strong> Use the Multiple Jobs Worksheet on page 3 of the official W-4 form.</p>
+                  <p><strong>(c)</strong> If there are only two jobs total, check the box below. Do the same on the W-4 for the other job. This option is generally more accurate if pay at the lower paying job is more than half of the pay at the higher paying job.</p>
+                </div>
+
+                <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                   multipleJobs ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
                 }`}>
-                  <input type="checkbox" checked={multipleJobs} onChange={(e) => setMultipleJobs(e.target.checked)} />
+                  <input type="checkbox" checked={multipleJobs} onChange={(e) => setMultipleJobs(e.target.checked)} className="mt-0.5" />
                   <div>
-                    <span className="text-sm font-medium">Two jobs total / spouse also works</span>
-                    <p className="text-xs text-muted-foreground">Check if there are only two jobs total (yours and your spouse's) and both earn similar pay</p>
+                    <span className="text-sm font-medium">Step 2(c): Two jobs total</span>
+                    <p className="text-xs text-muted-foreground">Check if there are only two jobs total (yours and your spouse's). Also check the box on Form W-4 for the other job.</p>
                   </div>
                 </label>
               </div>
@@ -1075,9 +1143,20 @@ export function CandidateOnboardingPage() {
                     <input type="checkbox" checked={w4Exempt} onChange={(e) => setW4Exempt(e.target.checked)} className="mt-0.5" />
                     <div>
                       <span className="text-sm font-medium">Claim exemption from withholding</span>
-                      <p className="text-xs text-muted-foreground">Only if you had no federal income tax liability last year AND expect none this year</p>
+                      <p className="text-xs text-muted-foreground">
+                        You may claim exemption only if: (1) you had no federal income tax liability last year, AND (2) you expect no liability this year.
+                        If claiming exempt, do not complete Steps 2–4. You must submit a new W-4 by February 17 of next year.
+                      </p>
                     </div>
                   </label>
+                </div>
+
+                {/* Privacy Act Notice */}
+                <div className="p-3 rounded bg-slate-50 border border-slate-200 text-xs text-slate-600 mt-4">
+                  <p className="font-semibold text-slate-700 mb-1">Privacy Act and Paperwork Reduction Act Notice</p>
+                  <p>
+                    The IRS asks for the information on this form to carry out the Internal Revenue laws of the United States. You are required to give this information to your employer, but you are not required to respond to any questions that are not relevant to your tax situation. The estimated average time to complete this form is 12 minutes.
+                  </p>
                 </div>
               </div>
             </div>

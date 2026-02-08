@@ -984,7 +984,7 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
     let updateQuery = '';
 
     if (step === 1) {
-      // Personal Information + I-9 Section 1 Attestation
+      // Personal Information + I-9 Section 1 Attestation (USCIS Form I-9, Edition 01/20/2025)
       const ssnEncrypted = data.ssn ? Buffer.from(data.ssn).toString('base64') : null;
       updateQuery = `
         UPDATE candidate_onboarding_data SET
@@ -998,10 +998,13 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
           i9_passport_number = $15,
           i9_country_of_issuance = $16,
           i9_work_auth_expiry = $17,
+          i9_other_last_names = $18,
+          i9_email = $19,
+          i9_preparer_used = $20,
           current_step = GREATEST(current_step, 2),
           steps_completed = CASE WHEN steps_completed @> '"1"'::jsonb THEN steps_completed ELSE steps_completed || '"1"'::jsonb END,
           updated_at = NOW()
-        WHERE candidate_id = $18 AND checklist_id = $19
+        WHERE candidate_id = $21 AND checklist_id = $22
         RETURNING *
       `;
       const result = await pool.query(updateQuery, [
@@ -1015,6 +1018,9 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
         data.i9_passport_number || null,
         data.i9_country_of_issuance || null,
         data.i9_work_auth_expiry || null,
+        data.i9_other_last_names || null,
+        data.i9_email || null,
+        data.i9_preparer_used || false,
         req.user.id, checklist_id
       ]);
 
@@ -1160,26 +1166,33 @@ router.post('/wizard/generate-documents', authMiddleware, async (req, res) => {
 
     const documents = [];
 
-    // ── I-9 Employment Eligibility Verification ──
+    // ── I-9 Employment Eligibility Verification (USCIS Form I-9, Edition 01/20/2025, OMB No. 1615-0047) ──
     const citizenshipLabels = {
       citizen: 'A citizen of the United States',
       noncitizen_national: 'A noncitizen national of the United States',
-      permanent_resident: 'A lawful permanent resident (Alien Registration Number/USCIS Number)',
+      permanent_resident: 'A lawful permanent resident',
       work_authorized: 'An alien authorized to work'
     };
 
     const i9Content = {
       form_type: 'I-9',
+      form_edition: '01/20/2025',
+      omb_number: '1615-0047',
+      omb_expiry: '05/31/2027',
       employee_name: fullName,
       first_name: wd.legal_first_name,
-      middle_name: wd.legal_middle_name,
+      middle_initial: wd.legal_middle_name ? wd.legal_middle_name.charAt(0).toUpperCase() : '',
       last_name: wd.legal_last_name,
+      other_last_names: wd.i9_other_last_names || 'N/A',
       date_of_birth: wd.date_of_birth,
       address: `${wd.address_line1}${wd.address_line2 ? ', ' + wd.address_line2 : ''}`,
+      apt_number: wd.address_line2 || '',
       city: wd.city,
       state: wd.state,
       zip: wd.zip_code,
       ssn_last_four: wd.ssn_encrypted ? '****' : 'N/A',
+      email: wd.i9_email || '',
+      phone: wd.phone || '',
       citizenship_status: wd.i9_citizenship_status || 'citizen',
       citizenship_label: citizenshipLabels[wd.i9_citizenship_status] || citizenshipLabels.citizen,
       alien_number: wd.i9_alien_number || null,
@@ -1187,6 +1200,10 @@ router.post('/wizard/generate-documents', authMiddleware, async (req, res) => {
       passport_number: wd.i9_passport_number || null,
       country_of_issuance: wd.i9_country_of_issuance || null,
       work_auth_expiry: wd.i9_work_auth_expiry || null,
+      preparer_used: wd.i9_preparer_used || false,
+      anti_discrimination_notice: 'It is illegal to discriminate against work-authorized individuals in hiring, firing, recruitment or referral for a fee, or in the employment eligibility verification (Form I-9 and E-Verify) process based on that individual\'s citizenship status, immigration status, or national origin. For more information, call the Immigrant and Employee Rights Section (IER) in the Department of Justice\'s Civil Rights Division at 1-800-255-7688 (employees), 1-800-255-8155 (employers), or 1-800-237-2515 (TTY).',
+      perjury_statement: 'I attest, under penalty of perjury, that I am (check one of the following boxes):',
+      false_statements_warning: 'I am aware that federal law provides for imprisonment and/or fines for false statements, or the use of false documents, in connection with the completion of this form. I attest, under penalty of perjury, that the information I have provided is true and correct.',
       generated_at: new Date().toISOString(),
       company: cl.company_name
     };
@@ -1207,10 +1224,10 @@ router.post('/wizard/generate-documents', authMiddleware, async (req, res) => {
     );
     documents.push(i9);
 
-    // ── W-4 Employee's Withholding Certificate (Full IRS Format) ──
+    // ── W-4 Employee's Withholding Certificate (IRS Form W-4, 2025, OMB No. 1545-0074) ──
     const filingStatusLabels = {
       single: 'Single or Married filing separately',
-      married: 'Married filing jointly (or Qualifying surviving spouse)',
+      married: 'Married filing jointly or Qualifying surviving spouse',
       head_of_household: 'Head of household'
     };
 
@@ -1219,26 +1236,40 @@ router.post('/wizard/generate-documents', authMiddleware, async (req, res) => {
 
     const w4Content = {
       form_type: 'W-4',
+      form_year: '2025',
+      omb_number: '1545-0074',
       employee_name: fullName,
       first_name: wd.legal_first_name,
+      middle_initial: wd.legal_middle_name ? wd.legal_middle_name.charAt(0).toUpperCase() : '',
       last_name: wd.legal_last_name,
       ssn_last_four: wd.ssn_encrypted ? '****' : 'N/A',
       address: `${wd.address_line1}${wd.address_line2 ? ', ' + wd.address_line2 : ''}`,
       city_state_zip: `${wd.city}, ${wd.state} ${wd.zip_code}`,
       filing_status: wd.w4_filing_status || 'single',
       filing_status_label: filingStatusLabels[wd.w4_filing_status] || filingStatusLabels.single,
-      multiple_jobs: wd.w4_multiple_jobs || false,
-      spouse_works: wd.w4_spouse_works || false,
+      // Step 2: Multiple Jobs or Spouse Works (Option c checkbox)
+      multiple_jobs_checkbox: wd.w4_multiple_jobs || false,
+      // Step 3: Claim Dependents
       num_dependents_under_17: parseInt(wd.w4_num_dependents_under_17) || 0,
       num_other_dependents: parseInt(wd.w4_num_other_dependents) || 0,
       dependent_credits: dependentCredits,
+      child_tax_credit_amount: 2000,
+      other_dependent_credit_amount: 500,
+      income_threshold_single: 200000,
+      income_threshold_married: 400000,
+      // Step 4: Other Adjustments
       other_income: parseFloat(wd.w4_other_income) || 0,
       deductions: parseFloat(wd.w4_deductions) || 0,
       extra_withholding: parseFloat(wd.w4_extra_withholding) || 0,
+      // Exempt
       exempt: wd.w4_exempt || false,
+      exempt_note: 'To claim exemption, employee must have had no federal income tax liability last year and expect none this year. Must submit new W-4 by February 17 of next year.',
+      // Employer section (Step 5)
       employer: cl.company_name,
+      employer_address: 'On file',
       employer_ein: 'On file',
       first_date_of_employment: cl.start_date ? new Date(cl.start_date).toLocaleDateString('en-US') : 'TBD',
+      privacy_act_notice: 'The IRS asks for the information on this form to carry out the Internal Revenue laws of the United States. You are required to give this information to your employer but you do not have to respond to any questions that are not relevant to your tax situation.',
       generated_at: new Date().toISOString(),
       company: cl.company_name
     };
@@ -1763,65 +1794,104 @@ async function generateAIDocument(formType, content, companyName) {
   let prompt = '';
 
   if (formType === 'I-9') {
-    prompt = `Generate a professional HTML version of USCIS Form I-9 (Employment Eligibility Verification) Section 1, pre-filled with this employee data:
+    prompt = `Generate a professional HTML version of USCIS Form I-9 (Employment Eligibility Verification) Section 1 — Employee Information and Attestation.
+This is the official USCIS Form I-9, Edition ${content.form_edition || '01/20/2025'}, OMB No. ${content.omb_number || '1615-0047'}, Expires ${content.omb_expiry || '05/31/2027'}.
 
-EMPLOYEE DATA:
-- Full Name: ${content.employee_name}
-- First Name: ${content.first_name} | Middle: ${content.middle_name || 'N/A'} | Last: ${content.last_name}
-- Date of Birth: ${content.date_of_birth ? new Date(content.date_of_birth).toLocaleDateString('en-US') : 'N/A'}
-- Address: ${content.address}
-- City: ${content.city} | State: ${content.state} | ZIP: ${content.zip}
-- SSN: ${content.ssn_last_four}
-- Citizenship Status: ${content.citizenship_label}
-${content.alien_number ? `- Alien Registration Number: ${content.alien_number}` : ''}
-${content.admission_number ? `- I-94 Admission Number: ${content.admission_number}` : ''}
+PRE-FILLED EMPLOYEE DATA:
+- Last Name (Family Name): ${content.last_name}
+- First Name (Given Name): ${content.first_name}
+- Middle Initial: ${content.middle_initial || 'N/A'}
+- Other Last Names Used (e.g., maiden name): ${content.other_last_names || 'N/A'}
+- Address (Street Number and Name): ${content.address}
+- Apt. Number: ${content.apt_number || 'N/A'}
+- City or Town: ${content.city}
+- State: ${content.state}
+- ZIP Code: ${content.zip}
+- Date of Birth (mm/dd/yyyy): ${content.date_of_birth ? new Date(content.date_of_birth).toLocaleDateString('en-US') : 'N/A'}
+- U.S. Social Security Number: ${content.ssn_last_four}
+- Employee's Email Address: ${content.email || 'N/A'}
+- Employee's Telephone Number: ${content.phone || 'N/A'}
+
+CITIZENSHIP/IMMIGRATION STATUS ATTESTATION (checked box):
+"${content.citizenship_label}"
+${content.alien_number ? `- Alien Registration Number/USCIS Number: ${content.alien_number}` : ''}
+${content.admission_number ? `- Form I-94 Admission Number: ${content.admission_number}` : ''}
 ${content.passport_number ? `- Foreign Passport Number: ${content.passport_number}` : ''}
 ${content.country_of_issuance ? `- Country of Issuance: ${content.country_of_issuance}` : ''}
-${content.work_auth_expiry ? `- Work Authorization Expiry: ${new Date(content.work_auth_expiry).toLocaleDateString('en-US')}` : ''}
-- Employer: ${content.company}
-- Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+${content.work_auth_expiry ? `- Expiration Date (if applicable, mm/dd/yyyy): ${new Date(content.work_auth_expiry).toLocaleDateString('en-US')}` : ''}
 
-FORMAT REQUIREMENTS:
-1. Match the real USCIS I-9 form layout (Section 1 - Employee Information and Attestation)
-2. Include the official header "Employment Eligibility Verification" and "Department of Homeland Security - U.S. Citizenship and Immigration Services - Form I-9"
-3. Include the anti-discrimination notice
-4. Show the citizenship attestation section with the selected status checked
-5. Include the perjury attestation text
-6. Signature line at the bottom
-7. Use professional formatting: max-width 800px, centered, serif font, border
-8. Use navy (#1e3a5f) for headers, #333 for body text`;
+Employer: ${content.company}
+Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+
+EXACT LAYOUT REQUIREMENTS (match official USCIS form):
+1. Top header: "Employment Eligibility Verification" (large), beneath it: "Department of Homeland Security", "U.S. Citizenship and Immigration Services", "USCIS Form I-9", "OMB No. ${content.omb_number || '1615-0047'}", "Expires ${content.omb_expiry || '05/31/2027'}"
+2. "Section 1. Employee Information and Attestation" as section header
+3. Row of fields: Last Name | First Name | Middle Initial | Other Last Names Used
+4. Row: Address | Apt. Number | City or Town | State | ZIP Code
+5. Row: Date of Birth | U.S. Social Security Number | Employee's Email | Employee's Telephone Number
+6. Attestation preamble: "I attest, under penalty of perjury, that I am (check one of the following boxes):"
+7. Four checkbox options (show which is selected with a checkmark):
+   - "1. A citizen of the United States"
+   - "2. A noncitizen national of the United States"
+   - "3. A lawful permanent resident (Alien Registration Number/USCIS Number: ___)"
+   - "4. An alien authorized to work until (expiration date, if applicable): ___"
+   - Below option 4: "Aliens authorized to work must provide only ONE of the following document numbers: Alien Registration Number/USCIS Number OR Form I-94 Admission Number OR Foreign Passport Number and Country of Issuance"
+8. Employee signature line with date
+9. Anti-Discrimination Notice box: "${content.anti_discrimination_notice}"
+10. False statements warning: "${content.false_statements_warning}"
+11. Use professional formatting: max-width 800px, centered, serif font, light border
+12. Use navy (#1e3a5f) for headers, #333 for body text, gray (#f5f5f5) backgrounds for field boxes`;
   } else if (formType === 'W-4') {
-    prompt = `Generate a professional HTML version of IRS Form W-4 (Employee's Withholding Certificate) 2024/2025, pre-filled with this employee data:
+    prompt = `Generate a professional HTML version of IRS Form W-4 (Employee's Withholding Certificate) ${content.form_year || '2025'}, OMB No. ${content.omb_number || '1545-0074'}.
 
-EMPLOYEE DATA:
-- Full Name: ${content.employee_name}
-- SSN: ${content.ssn_last_four}
+PRE-FILLED EMPLOYEE DATA:
+- First name and middle initial: ${content.first_name} ${content.middle_initial || ''}
+- Last name: ${content.last_name}
+- Social Security number: ${content.ssn_last_four}
 - Address: ${content.address}
-- City, State, ZIP: ${content.city_state_zip}
-- Filing Status: ${content.filing_status_label}
-- Multiple jobs or spouse works: ${content.multiple_jobs ? 'Yes (Step 2 checkbox checked)' : 'No'}
-- Qualifying children under 17: ${content.num_dependents_under_17} × $2,000 = $${content.num_dependents_under_17 * 2000}
-- Other dependents: ${content.num_other_dependents} × $500 = $${content.num_other_dependents * 500}
-- Total dependent credits (Step 3): $${content.dependent_credits}
-- Other income not from jobs (Step 4a): $${content.other_income}
-- Deductions beyond standard (Step 4b): $${content.deductions}
-- Extra withholding per period (Step 4c): $${content.extra_withholding}
-- Exempt: ${content.exempt ? 'Yes' : 'No'}
-- Employer: ${content.employer}
-- First date of employment: ${content.first_date_of_employment}
-- Employer EIN: ${content.employer_ein}
+- City or town, state, and ZIP code: ${content.city_state_zip}
 
-FORMAT REQUIREMENTS:
-1. Match the real IRS W-4 form layout with all 4 steps clearly shown
-2. Include official header "Employee's Withholding Certificate - Department of the Treasury - Internal Revenue Service - Form W-4"
-3. Step 1: Personal info + filing status (show which is selected)
-4. Step 2: Multiple Jobs checkbox
-5. Step 3: Claim Dependents with calculation shown
-6. Step 4: Other Adjustments (4a, 4b, 4c)
-7. Step 5: Signature line
-8. Employer section at bottom
-9. Use professional formatting: max-width 800px, centered, serif font
-10. Use navy (#1e3a5f) for headers, light gray boxes for data fields`;
+STEP 1 - Filing Status (show selected with checkmark):
+- ${content.filing_status === 'single' ? '[X]' : '[ ]'} Single or Married filing separately
+- ${content.filing_status === 'married' ? '[X]' : '[ ]'} Married filing jointly or Qualifying surviving spouse
+- ${content.filing_status === 'head_of_household' ? '[X]' : '[ ]'} Head of household (Check only if you're unmarried and pay more than half the costs of keeping up a home for yourself and a qualifying individual.)
+
+STEP 2 - Multiple Jobs or Spouse Works:
+Complete this step if you (1) hold more than one job at a time, or (2) are married filing jointly and your spouse also works.
+- Step 2(c) checkbox: ${content.multiple_jobs_checkbox ? 'CHECKED — Two jobs total (or spouse works)' : 'Not checked'}
+- Note: Other options include (a) using IRS Tax Withholding Estimator at www.irs.gov/W4App, or (b) the Multiple Jobs Worksheet.
+
+STEP 3 - Claim Dependents:
+(If total income $200,000 or less; $400,000 if married filing jointly)
+- Qualifying children under age 17: ${content.num_dependents_under_17} × $${content.child_tax_credit_amount || 2000} = $${content.num_dependents_under_17 * (content.child_tax_credit_amount || 2000)}
+- Other dependents: ${content.num_other_dependents} × $${content.other_dependent_credit_amount || 500} = $${content.num_other_dependents * (content.other_dependent_credit_amount || 500)}
+- Total amount of credit for dependents (Step 3 line total): $${content.dependent_credits}
+
+STEP 4 - Other Adjustments (Optional):
+- 4(a) Other income (not from jobs): $${content.other_income}
+- 4(b) Deductions (if claiming deductions other than standard deduction): $${content.deductions}
+- 4(c) Extra withholding per pay period: $${content.extra_withholding}
+${content.exempt ? '- EXEMPT: Employee claims exemption from withholding' : ''}
+
+STEP 5 - Sign Here:
+Under penalties of perjury, I declare that this certificate, to the best of my knowledge and belief, is true, correct, and complete.
+Employee signature line with date.
+
+EMPLOYERS ONLY (bottom section):
+- Employer's name and address: ${content.employer}
+- First date of employment: ${content.first_date_of_employment}
+- Employer identification number (EIN): ${content.employer_ein}
+
+EXACT LAYOUT REQUIREMENTS:
+1. Top header: "Form W-4" (large, left), "Employee's Withholding Certificate" (center), "Department of the Treasury / Internal Revenue Service" (right), "OMB No. ${content.omb_number || '1545-0074'}", year "${content.form_year || '2025'}"
+2. Instruction note: "Complete Form W-4 so that your employer can withhold the correct federal income tax from your pay."
+3. Step 1(a) and 1(b): Personal info fields in a row, then filing status checkboxes
+4. Step 2: Section with checkbox option, note about IRS estimator
+5. Step 3: Dependents section with multiplication and totals
+6. Step 4: Three sub-fields (4a, 4b, 4c) with dollar amounts
+7. Step 5: Signature line, date, employer section below
+8. Professional formatting: max-width 800px, centered, serif font, light border
+9. Use navy (#1e3a5f) for headers, light gray (#f5f5f5) boxes for data fields, clear step separators`;
   }
 
   const html = await polsiaAI.chat(prompt, {
