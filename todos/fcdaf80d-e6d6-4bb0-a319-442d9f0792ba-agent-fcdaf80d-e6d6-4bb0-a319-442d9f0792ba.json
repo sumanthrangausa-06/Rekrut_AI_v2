@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate current state - git log, app logs, code structure",
+    "status": "completed",
+    "activeForm": "Investigating current state of the codebase"
+  },
+  {
+    "content": "Write and run comprehensive E2E test script",
+    "status": "completed",
+    "activeForm": "Writing and running E2E test script for all Phase 2 modules"
+  },
+  {
+    "content": "Fix offer view status bug + other issues found in review",
+    "status": "in_progress",
+    "activeForm": "Fixing offer view status bug and other issues"
+  },
+  {
+    "content": "Deploy and final verification",
+    "status": "pending",
+    "activeForm": "Deploying and doing final verification"
+  }
+]

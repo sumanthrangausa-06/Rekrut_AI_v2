@@ -1,0 +1,20 @@
+3b0f5f6 Agent changes
+4c44c57 Fix: Auth-aware landing header + error boundary + JSON.parse crash
+67bb895 Agent changes
+0d5243e Phase 3c: AI Onboarding Module — candidate wizard + HR dashboard
+24350b1 Agent changes
+6c5c959 Phase 3b: Interviews module — scheduling, calendar, feedback, candidate response
+f56260e Agent changes
+6ac8d5a Phase 3a: Add candidate profile & recruiter company profile pages
+89bf933 Agent changes
+291de98 Fix: auto-create company for recruiter/employer registration
+c56e768 Agent changes
+c9543fd Phase 2c: Skill Tests module - fix navigation bug, add recruiter assessments
+4aa3562 Agent changes
+557bdc4 Phase 2b: Applications module - screening answers, date filters, sort, search
+825a205 Agent changes
+2b56c34 Build: Rebuild React client for Jobs module
+9677f33 Agent changes
+3f8fab9 Phase 2a: Enhance Jobs module - type-aware screening questions, search/filter, polish
+439838f Agent changes
+9c9cf17 Fix Render build: skip tsc type-check, install dev deps for vite
