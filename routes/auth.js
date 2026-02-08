@@ -42,6 +42,33 @@ router.post('/register', async (req, res) => {
     );
 
     const user = result.rows[0];
+
+    // Auto-create company for recruiter/employer roles
+    const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+    if (recruiterRoles.includes(role) && company_name) {
+      try {
+        const slug = company_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').substring(0, 50);
+        const companyResult = await pool.query(
+          `INSERT INTO companies (owner_id, name, slug)
+           VALUES ($1, $2, $3)
+           ON CONFLICT DO NOTHING
+           RETURNING id`,
+          [user.id, company_name, slug + '-' + user.id]
+        );
+
+        if (companyResult.rows.length > 0) {
+          const companyId = companyResult.rows[0].id;
+          await pool.query(
+            'UPDATE users SET company_id = $1 WHERE id = $2',
+            [companyId, user.id]
+          );
+          user.company_id = companyId;
+        }
+      } catch (companyErr) {
+        console.error('Auto-create company error (non-blocking):', companyErr.message);
+      }
+    }
+
     const accessToken = generateToken(user);
     const { token: refreshToken } = await generateRefreshToken(user.id);
 
@@ -57,7 +84,7 @@ router.post('/register', async (req, res) => {
 
     res.json({
       success: true,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, company_id: user.company_id },
       token: accessToken,
       accessToken,
       refreshToken
