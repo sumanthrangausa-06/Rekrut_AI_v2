@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Explore codebase — understand current React client state and API routes",
+    "status": "completed",
+    "activeForm": "Exploring codebase and API routes"
+  },
+  {
+    "content": "Fix candidate job-detail screening questions (handle yes_no, select, text types)",
+    "status": "completed",
+    "activeForm": "Fixing candidate screening question rendering"
+  },
+  {
+    "content": "Enhance recruiter job form with rich screening question builder",
+    "status": "completed",
+    "activeForm": "Enhancing recruiter screening question builder"
+  },
+  {
+    "content": "Build and deploy to production",
+    "status": "in_progress",
+    "activeForm": "Building and deploying to production"
+  }
+]
