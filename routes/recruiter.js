@@ -621,7 +621,7 @@ router.post('/interviews/schedule', authMiddleware, requireRecruiter, async (req
 // Get scheduled interviews
 router.get('/interviews', authMiddleware, requireRecruiter, async (req, res) => {
   try {
-    const { upcoming_only = 'true', limit = 20 } = req.query;
+    const { upcoming_only = 'false', status, limit = 50 } = req.query;
 
     let query = `
       SELECT si.*,
@@ -632,14 +632,21 @@ router.get('/interviews', authMiddleware, requireRecruiter, async (req, res) => 
       JOIN jobs j ON si.job_id = j.id
       WHERE si.company_id = $1
     `;
+    const params = [req.user.company_id];
 
     if (upcoming_only === 'true') {
-      query += ` AND si.scheduled_at > NOW() AND si.status = 'scheduled'`;
+      query += ` AND si.scheduled_at > NOW() AND si.status IN ('scheduled', 'confirmed')`;
     }
 
-    query += ` ORDER BY si.scheduled_at LIMIT $2`;
+    if (status) {
+      query += ` AND si.status = $${params.length + 1}`;
+      params.push(status);
+    }
 
-    const result = await pool.query(query, [req.user.company_id, limit]);
+    query += ` ORDER BY si.scheduled_at DESC LIMIT $${params.length + 1}`;
+    params.push(limit);
+
+    const result = await pool.query(query, params);
 
     res.json({ interviews: result.rows });
   } catch (err) {

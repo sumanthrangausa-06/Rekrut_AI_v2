@@ -1108,27 +1108,116 @@ router.get('/dashboard/stats', authMiddleware, async (req, res) => {
 
 // ============= SCHEDULED INTERVIEWS (from recruiters) =============
 
+// Get all interviews for candidate (upcoming + past)
 router.get('/interviews/scheduled', authMiddleware, async (req, res) => {
   try {
-    const interviews = await pool.query(`
+    const { status, upcoming_only } = req.query;
+
+    let query = `
       SELECT
         si.id, si.scheduled_at, si.duration_minutes, si.interview_type,
-        si.meeting_link, si.notes, si.status,
-        j.title as job_title, j.company as company_name,
-        u.name as recruiter_name
+        si.meeting_link, si.notes, si.status, si.outcome, si.feedback,
+        si.created_at, si.updated_at,
+        j.title as job_title, j.company as company_name, j.id as job_id,
+        u.name as recruiter_name, u.email as recruiter_email,
+        c.name as company_full_name
       FROM scheduled_interviews si
       JOIN jobs j ON si.job_id = j.id
       LEFT JOIN users u ON si.recruiter_id = u.id
+      LEFT JOIN companies c ON si.company_id = c.id
       WHERE si.candidate_id = $1
-        AND si.status = 'scheduled'
-        AND si.scheduled_at > NOW() - INTERVAL '1 hour'
-      ORDER BY si.scheduled_at ASC
-    `, [req.user.id]);
+    `;
+    const params = [req.user.id];
+
+    if (status) {
+      query += ` AND si.status = $${params.length + 1}`;
+      params.push(status);
+    }
+
+    if (upcoming_only === 'true') {
+      query += ` AND si.scheduled_at > NOW() - INTERVAL '1 hour' AND si.status = 'scheduled'`;
+    }
+
+    query += ` ORDER BY si.scheduled_at DESC`;
+
+    const interviews = await pool.query(query, params);
 
     res.json({ success: true, interviews: interviews.rows });
   } catch (err) {
     console.error('Get scheduled interviews error:', err);
     res.status(500).json({ error: 'Failed to get scheduled interviews' });
+  }
+});
+
+// Accept an interview
+router.put('/interviews/:id/accept', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE scheduled_interviews
+       SET status = 'confirmed', updated_at = NOW()
+       WHERE id = $1 AND candidate_id = $2 AND status = 'scheduled'
+       RETURNING *`,
+      [req.params.id, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Interview not found or already responded' });
+    }
+
+    res.json({ success: true, interview: result.rows[0] });
+  } catch (err) {
+    console.error('Accept interview error:', err);
+    res.status(500).json({ error: 'Failed to accept interview' });
+  }
+});
+
+// Decline an interview
+router.put('/interviews/:id/decline', authMiddleware, async (req, res) => {
+  try {
+    const { reason } = req.body;
+
+    const result = await pool.query(
+      `UPDATE scheduled_interviews
+       SET status = 'declined', outcome = $3, updated_at = NOW()
+       WHERE id = $1 AND candidate_id = $2 AND status IN ('scheduled', 'confirmed')
+       RETURNING *`,
+      [req.params.id, req.user.id, reason || 'Candidate declined']
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Interview not found or cannot be declined' });
+    }
+
+    res.json({ success: true, interview: result.rows[0] });
+  } catch (err) {
+    console.error('Decline interview error:', err);
+    res.status(500).json({ error: 'Failed to decline interview' });
+  }
+});
+
+// Request reschedule
+router.put('/interviews/:id/reschedule', authMiddleware, async (req, res) => {
+  try {
+    const { preferred_time, reason } = req.body;
+
+    const result = await pool.query(
+      `UPDATE scheduled_interviews
+       SET status = 'reschedule_requested',
+           notes = COALESCE(notes, '') || E'\n[Reschedule request] ' || COALESCE($3, 'Candidate requested reschedule') || COALESCE(' - Preferred: ' || $4, ''),
+           updated_at = NOW()
+       WHERE id = $1 AND candidate_id = $2 AND status IN ('scheduled', 'confirmed')
+       RETURNING *`,
+      [req.params.id, req.user.id, reason, preferred_time]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Interview not found or cannot be rescheduled' });
+    }
+
+    res.json({ success: true, interview: result.rows[0] });
+  } catch (err) {
+    console.error('Reschedule interview error:', err);
+    res.status(500).json({ error: 'Failed to request reschedule' });
   }
 });
 

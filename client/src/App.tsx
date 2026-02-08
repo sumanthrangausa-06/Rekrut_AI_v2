@@ -34,6 +34,10 @@ import { RecruiterAssessmentsPage } from '@/pages/recruiter/assessments'
 import { CandidateProfilePage } from '@/pages/candidate/profile'
 import { RecruiterCompanyPage } from '@/pages/recruiter/company'
 
+// Interviews
+import { CandidateInterviewsPage } from '@/pages/candidate/interviews'
+import { RecruiterInterviewsPage } from '@/pages/recruiter/interviews'
+
 function RoleRedirect() {
   const { user, loading } = useAuth()
 
@@ -62,7 +66,7 @@ function AppRoutes() {
         <Route path="profile" element={<CandidateProfilePage />} />
         <Route path="assessments" element={<CandidateAssessmentsPage />} />
         <Route path="assessments/:id/take" element={<AssessmentTakePage />} />
-        <Route path="interviews" element={<PlaceholderPage />} />
+        <Route path="interviews" element={<CandidateInterviewsPage />} />
         <Route path="omniscore" element={<PlaceholderPage />} />
         <Route path="documents" element={<PlaceholderPage />} />
         <Route path="offers" element={<CandidateOffersPage />} />
@@ -79,7 +83,7 @@ function AppRoutes() {
         <Route path="applications" element={<RecruiterApplicationsPage />} />
         <Route path="assessments" element={<RecruiterAssessmentsPage />} />
         <Route path="candidates" element={<PlaceholderPage />} />
-        <Route path="interviews" element={<PlaceholderPage />} />
+        <Route path="interviews" element={<RecruiterInterviewsPage />} />
         <Route path="offers" element={<RecruiterOffersPage />} />
         <Route path="onboarding" element={<PlaceholderPage />} />
         <Route path="analytics" element={<PlaceholderPage />} />
