@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Explore existing interview DB schema and API routes",
+    "status": "completed",
+    "activeForm": "Exploring existing interview infrastructure"
+  },
+  {
+    "content": "Add candidate-side interview API endpoints",
+    "status": "completed",
+    "activeForm": "Adding candidate-side interview API endpoints"
+  },
+  {
+    "content": "Build all interview pages and API enhancements",
+    "status": "completed",
+    "activeForm": "Building all interview pages and API enhancements"
+  },
+  {
+    "content": "Build, test, and deploy",
+    "status": "in_progress",
+    "activeForm": "Building, testing, and deploying"
+  }
+]
