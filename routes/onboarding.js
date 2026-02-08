@@ -108,7 +108,9 @@ router.post('/offers/:id/view', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
       `UPDATE offers
-       SET viewed_at = NOW(), updated_at = NOW()
+       SET viewed_at = COALESCE(viewed_at, NOW()),
+           status = CASE WHEN status = 'sent' THEN 'viewed' ELSE status END,
+           updated_at = NOW()
        WHERE id = $1 AND candidate_id = $2
        RETURNING *`,
       [req.params.id, req.user.id]
