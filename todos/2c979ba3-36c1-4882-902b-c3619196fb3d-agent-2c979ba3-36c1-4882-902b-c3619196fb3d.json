@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Investigate header auth state bug",
+    "status": "completed",
+    "activeForm": "Investigating header auth state bug"
+  },
+  {
+    "content": "Investigate job board blank page bug",
+    "status": "completed",
+    "activeForm": "Investigating job board blank page"
+  },
+  {
+    "content": "Fix landing page to be auth-aware",
+    "status": "completed",
+    "activeForm": "Fixing landing page auth state"
+  },
+  {
+    "content": "Add error boundary to prevent white screens",
+    "status": "completed",
+    "activeForm": "Adding error boundary"
+  },
+  {
+    "content": "Fix JSON.parse crash in jobs page",
+    "status": "completed",
+    "activeForm": "Fixing JSON.parse crash"
+  },
+  {
+    "content": "Build, deploy, and verify",
+    "status": "in_progress",
+    "activeForm": "Building and deploying"
+  }
+]

@@ -1323,6 +1323,25 @@
         "main.js"
       ],
       "exampleFilesGeneratedAt": 1770533900923
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-55129/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "server.js",
+        "candidate.js",
+        "recruiter.js",
+        "main.js",
+        "App.tsx"
+      ],
+      "exampleFilesGeneratedAt": 1770551302327
     }
   },
   "opusProMigrationComplete": true,
