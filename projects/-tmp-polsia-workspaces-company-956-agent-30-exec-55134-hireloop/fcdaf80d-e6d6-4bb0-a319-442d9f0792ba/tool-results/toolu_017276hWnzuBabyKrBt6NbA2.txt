@@ -1,0 +1,84 @@
+   100→  } catch (err) {
+   101→    console.error('Error sending offer:', err);
+   102→    res.status(500).json({ error: 'Failed to send offer' });
+   103→  }
+   104→});
+   105→
+   106→// Candidate views offer (track engagement)
+   107→router.post('/offers/:id/view', authMiddleware, async (req, res) => {
+   108→  try {
+   109→    const result = await pool.query(
+   110→      `UPDATE offers
+   111→       SET viewed_at = NOW(), updated_at = NOW()
+   112→       WHERE id = $1 AND candidate_id = $2
+   113→       RETURNING *`,
+   114→      [req.params.id, req.user.id]
+   115→    );
+   116→
+   117→    if (result.rows.length === 0) {
+   118→      return res.status(404).json({ error: 'Offer not found' });
+   119→    }
+   120→
+   121→    res.json(result.rows[0]);
+   122→  } catch (err) {
+   123→    console.error('Error marking offer as viewed:', err);
+   124→    res.status(500).json({ error: 'Failed to update offer' });
+   125→  }
+   126→});
+   127→
+   128→// Accept offer
+   129→router.post('/offers/:id/accept', authMiddleware, async (req, res) => {
+   130→  try {
+   131→    const { signature_url } = req.body;
+   132→
+   133→    const result = await pool.query(
+   134→      `UPDATE offers
+   135→       SET status = 'accepted', accepted_at = NOW(), signature_url = $3, updated_at = NOW()
+   136→       WHERE id = $1 AND candidate_id = $2
+   137→       RETURNING *`,
+   138→      [req.params.id, req.user.id, signature_url]
+   139→    );
+   140→
+   141→    if (result.rows.length === 0) {
+   142→      return res.status(404).json({ error: 'Offer not found' });
+   143→    }
+   144→
+   145→    // Create default onboarding checklist
+   146→    const offer = result.rows[0];
+   147→    const defaultItems = [
+   148→      { id: 1, task: 'Complete I-9 form', required: true },
+   149→      { id: 2, task: 'Upload government-issued ID', required: true },
+   150→      { id: 3, task: 'Set up direct deposit', required: true },
+   151→      { id: 4, task: 'Complete tax withholding (W-4)', required: true },
+   152→      { id: 5, task: 'Sign employee handbook acknowledgment', required: true },
+   153→      { id: 6, task: 'Submit emergency contact information', required: true },
+   154→      { id: 7, task: 'Complete IT setup (email, laptop)', required: false },
+   155→      { id: 8, task: 'Schedule first day orientation', required: true }
+   156→    ];
+   157→
+   158→    await pool.query(
+   159→      `INSERT INTO onboarding_checklists
+   160→       (offer_id, candidate_id, title, description, items, due_date)
+   161→       VALUES ($1, $2, $3, $4, $5, $6)`,
+   162→      [
+   163→        offer.id,
+   164→        offer.candidate_id,
+   165→        'Pre-Onboarding Checklist',
+   166→        'Complete these tasks before your first day',
+   167→        JSON.stringify(defaultItems),
+   168→        offer.start_date
+   169→      ]
+   170→    );
+   171→
+   172→    // Auto-create employee record for payroll (bridges hiring → payroll pipeline)
+   173→    try {
+   174→      const empNum = 'EMP-' + String(offer.candidate_id).padStart(4, '0');
+   175→      const empResult = await pool.query(`
+   176→        INSERT INTO employees (user_id, employer_id, company_id, employee_number, position, employment_type, start_date, status)
+   177→        VALUES ($1, $2, $3, $4, $5, 'full-time', $6, 'active')
+   178→        ON CONFLICT DO NOTHING
+   179→        RETURNING id
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
