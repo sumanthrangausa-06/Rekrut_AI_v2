@@ -69,7 +69,7 @@ export function CandidateAssessmentsPage() {
   async function startAssessment(skill: SkillCatalog) {
     setStarting(skill.catalog_name)
     try {
-      const data = await apiCall<{ sessionId: number }>('/assessments/start', {
+      const data = await apiCall<{ sessionId: number; skillName: string; question: unknown }>('/assessments/start', {
         method: 'POST',
         body: {
           skillName: skill.catalog_name,
@@ -77,6 +77,11 @@ export function CandidateAssessmentsPage() {
           skillId: skill.skill_id,
         },
       })
+      // Store the first question in sessionStorage so assessment-take can pick it up
+      sessionStorage.setItem(`assessment_${data.sessionId}`, JSON.stringify({
+        question: data.question,
+        skillName: data.skillName || skill.catalog_name,
+      }))
       navigate(`/candidate/assessments/${data.sessionId}/take`)
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to start assessment')

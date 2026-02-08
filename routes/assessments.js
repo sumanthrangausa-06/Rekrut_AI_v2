@@ -649,6 +649,103 @@ async function completeAssessment(client, sessionId, userId) {
   return assessmentResult.rows[0].id;
 }
 
+// Get current session state (supports page refresh during assessment + completed results)
+router.get('/session/:sessionId/current', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const sessionId = req.params.sessionId;
+
+    // Get the session
+    const sessionResult = await pool.query(
+      'SELECT * FROM assessment_sessions WHERE id = $1 AND user_id = $2',
+      [sessionId, userId]
+    );
+
+    if (sessionResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const session = sessionResult.rows[0];
+
+    // Get skill name
+    const skillResult = await pool.query(
+      'SELECT skill_name, category FROM candidate_skills WHERE id = $1',
+      [session.skill_id]
+    );
+    const skillName = skillResult.rows.length > 0 ? skillResult.rows[0].skill_name : 'Unknown';
+
+    if (session.status === 'completed') {
+      // Get the skill_assessment record for full results
+      const assessmentResult = await pool.query(`
+        SELECT sa.score, sa.passed, sa.anti_cheat_score, sa.duration_seconds
+        FROM skill_assessments sa
+        WHERE sa.session_id = $1 AND sa.user_id = $2
+        ORDER BY sa.completed_at DESC LIMIT 1
+      `, [sessionId, userId]);
+
+      const assessment = assessmentResult.rows[0] || {};
+      return res.json({
+        status: 'completed',
+        skillName,
+        score: assessment.score || session.score || 0,
+        passed: assessment.passed || false,
+        antiCheatScore: assessment.anti_cheat_score || 100,
+        durationSeconds: assessment.duration_seconds || 0,
+        maxDifficultyReached: session.max_difficulty_reached || 0,
+      });
+    }
+
+    if (session.status === 'in_progress') {
+      // Find the last question that was asked
+      const questionsAsked = typeof session.questions_asked === 'string'
+        ? JSON.parse(session.questions_asked) : (session.questions_asked || []);
+      const answersGiven = typeof session.answers_given === 'string'
+        ? JSON.parse(session.answers_given) : (session.answers_given || []);
+
+      // If there's a question asked but not yet answered, return it
+      if (questionsAsked.length > answersGiven.length) {
+        const lastAsked = questionsAsked[questionsAsked.length - 1];
+        const questionResult = await pool.query(
+          'SELECT * FROM assessment_questions WHERE id = $1',
+          [lastAsked.questionId]
+        );
+
+        if (questionResult.rows.length > 0) {
+          const q = questionResult.rows[0];
+          return res.json({
+            status: 'in_progress',
+            skillName,
+            question: {
+              id: q.id,
+              text: q.question_text,
+              type: q.question_type,
+              options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options,
+              timeLimit: q.time_limit_seconds || 120,
+              questionNumber: session.current_question_index || questionsAsked.length,
+              totalQuestions: 10,
+            },
+          });
+        }
+      }
+
+      // All questions answered but session not completed - might need to generate next
+      // For now, return the state so client can handle
+      return res.json({
+        status: 'in_progress',
+        skillName,
+        currentQuestionIndex: session.current_question_index || 0,
+      });
+    }
+
+    // Abandoned or other status
+    return res.json({ status: session.status, skillName });
+
+  } catch (error) {
+    console.error('Error fetching session current state:', error);
+    res.status(500).json({ error: 'Failed to fetch session state' });
+  }
+});
+
 // Get single session result (for results page redirect)
 router.get('/session/:sessionId', authMiddleware, async (req, res) => {
   try {
@@ -705,6 +802,178 @@ router.get('/candidate/:candidateId', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Error fetching candidate assessments:', error);
     res.status(500).json({ error: 'Failed to fetch candidate assessments' });
+  }
+});
+
+// ========== RECRUITER ASSESSMENT MANAGEMENT ==========
+
+// Recruiter: Get all assessment results across all candidates
+router.get('/recruiter/all', authMiddleware, async (req, res) => {
+  try {
+    const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+    if (!recruiterRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Recruiter access required' });
+    }
+
+    const { skill, status, sort } = req.query;
+
+    let query = `
+      SELECT sa.id, sa.score, sa.max_score, sa.passed, sa.anti_cheat_score,
+             sa.duration_seconds, sa.completed_at, sa.title,
+             cs.skill_name, cs.category, cs.is_verified,
+             ass.max_difficulty_reached, ass.tab_switches, ass.copy_paste_attempts,
+             u.name as candidate_name, u.email as candidate_email, u.id as candidate_id
+      FROM skill_assessments sa
+      LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
+      LEFT JOIN assessment_sessions ass ON sa.session_id = ass.id
+      LEFT JOIN users u ON sa.user_id = u.id
+      WHERE sa.completed_at IS NOT NULL
+    `;
+    const params = [];
+    let paramIdx = 1;
+
+    if (skill) {
+      query += ` AND LOWER(cs.skill_name) = LOWER($${paramIdx})`;
+      params.push(skill);
+      paramIdx++;
+    }
+
+    if (status === 'passed') {
+      query += ` AND sa.passed = true`;
+    } else if (status === 'failed') {
+      query += ` AND sa.passed = false`;
+    }
+
+    if (sort === 'score_desc') {
+      query += ` ORDER BY sa.score DESC`;
+    } else if (sort === 'score_asc') {
+      query += ` ORDER BY sa.score ASC`;
+    } else {
+      query += ` ORDER BY sa.completed_at DESC`;
+    }
+
+    query += ` LIMIT 100`;
+
+    const result = await pool.query(query, params);
+
+    // Also get summary stats
+    const statsResult = await pool.query(`
+      SELECT
+        COUNT(DISTINCT sa.user_id) as total_candidates,
+        COUNT(*) as total_assessments,
+        COUNT(*) FILTER (WHERE sa.passed = true) as total_passed,
+        ROUND(AVG(sa.score), 1) as avg_score,
+        COUNT(DISTINCT cs.skill_name) as skills_tested
+      FROM skill_assessments sa
+      LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
+      WHERE sa.completed_at IS NOT NULL
+    `);
+
+    // Get skill breakdown
+    const skillBreakdown = await pool.query(`
+      SELECT cs.skill_name, cs.category,
+             COUNT(*) as attempt_count,
+             COUNT(*) FILTER (WHERE sa.passed = true) as pass_count,
+             ROUND(AVG(sa.score), 1) as avg_score
+      FROM skill_assessments sa
+      LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
+      WHERE sa.completed_at IS NOT NULL
+      GROUP BY cs.skill_name, cs.category
+      ORDER BY attempt_count DESC
+    `);
+
+    res.json({
+      assessments: result.rows,
+      stats: statsResult.rows[0] || {},
+      skillBreakdown: skillBreakdown.rows,
+    });
+  } catch (error) {
+    console.error('Error fetching recruiter assessments:', error);
+    res.status(500).json({ error: 'Failed to fetch assessments' });
+  }
+});
+
+// Recruiter: Get assessment detail with individual question answers
+router.get('/recruiter/detail/:assessmentId', authMiddleware, async (req, res) => {
+  try {
+    const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+    if (!recruiterRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Recruiter access required' });
+    }
+
+    const assessmentId = req.params.assessmentId;
+
+    const result = await pool.query(`
+      SELECT sa.*, cs.skill_name, cs.category,
+             ass.questions_asked, ass.answers_given, ass.tab_switches,
+             ass.copy_paste_attempts, ass.time_anomalies, ass.max_difficulty_reached,
+             ass.started_at as session_started, ass.completed_at as session_completed,
+             u.name as candidate_name, u.email as candidate_email
+      FROM skill_assessments sa
+      LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
+      LEFT JOIN assessment_sessions ass ON sa.session_id = ass.id
+      LEFT JOIN users u ON sa.user_id = u.id
+      WHERE sa.id = $1
+    `, [assessmentId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Assessment not found' });
+    }
+
+    const assessment = result.rows[0];
+
+    // Get the actual questions for the detailed view
+    const answersGiven = typeof assessment.answers_given === 'string'
+      ? JSON.parse(assessment.answers_given) : (assessment.answers_given || []);
+
+    const questionIds = answersGiven.map(a => a.questionId).filter(Boolean);
+    let questions = [];
+    if (questionIds.length > 0) {
+      const qResult = await pool.query(
+        `SELECT id, question_text, question_type, correct_answer, explanation, difficulty_level
+         FROM assessment_questions WHERE id = ANY($1)`,
+        [questionIds]
+      );
+      questions = qResult.rows;
+    }
+
+    // Merge questions with answers
+    const detailedAnswers = answersGiven.map(answer => {
+      const q = questions.find(q => q.id === answer.questionId);
+      return {
+        ...answer,
+        questionText: q ? q.question_text : 'Question not found',
+        questionType: q ? q.question_type : 'unknown',
+        correctAnswer: q ? q.correct_answer : null,
+        explanation: q ? q.explanation : null,
+        difficulty: q ? q.difficulty_level : null,
+      };
+    });
+
+    res.json({
+      assessment: {
+        ...assessment,
+        detailedAnswers,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching assessment detail:', error);
+    res.status(500).json({ error: 'Failed to fetch assessment detail' });
+  }
+});
+
+// Recruiter: Get the available skill catalog (for assigning)
+router.get('/recruiter/catalog', authMiddleware, async (req, res) => {
+  try {
+    const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+    if (!recruiterRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Recruiter access required' });
+    }
+
+    res.json({ catalog: SKILL_CATALOG });
+  } catch (error) {
+    console.error('Error fetching skill catalog:', error);
+    res.status(500).json({ error: 'Failed to fetch catalog' });
   }
 });
 

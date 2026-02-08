@@ -45,6 +45,7 @@ const recruiterNav: NavItem[] = [
   { label: 'Dashboard', href: '/recruiter', icon: LayoutDashboard },
   { label: 'Jobs', href: '/recruiter/jobs', icon: Briefcase },
   { label: 'Applications', href: '/recruiter/applications', icon: FileText },
+  { label: 'Assessments', href: '/recruiter/assessments', icon: GraduationCap },
   { label: 'Candidates', href: '/recruiter/candidates', icon: Users },
   { label: 'Interviews', href: '/recruiter/interviews', icon: MessageSquare },
   { label: 'Offers', href: '/recruiter/offers', icon: CreditCard },
