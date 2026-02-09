@@ -1,6 +1,6 @@
 const OpenAI = require('openai');
 const pool = require('../lib/db');
-const { pgvector } = require('pgvector/pg');
+const { toSql, registerType } = require('pgvector/pg');
 
 // Lazy-load OpenAI client to avoid initialization errors when env vars are missing
 let openai = null;
@@ -166,7 +166,7 @@ async function updateCandidateEmbedding(userId) {
         skills_summary = $4,
         experience_summary = $5,
         last_updated = NOW()
-    `, [userId, pgvector.toSql(embedding), profileText, skillsSummary, experienceSummary]);
+    `, [userId, toSql(embedding), profileText, skillsSummary, experienceSummary]);
 
     console.log(`Updated embedding for candidate ${userId}`);
     return embedding;
@@ -212,7 +212,7 @@ async function updateJobEmbedding(jobId) {
         job_text = $3,
         requirements_summary = $4,
         last_updated = NOW()
-    `, [jobId, pgvector.toSql(embedding), jobText, job.requirements]);
+    `, [jobId, toSql(embedding), jobText, job.requirements]);
 
     console.log(`Updated embedding for job ${jobId}`);
     return embedding;
