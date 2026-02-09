@@ -1,0 +1,42 @@
+[
+  {
+    "content": "Investigate current payroll backend + auth issues",
+    "status": "completed",
+    "activeForm": "Investigating current payroll state and auth issues"
+  },
+  {
+    "content": "Fix auth middleware to prevent redirect loops",
+    "status": "completed",
+    "activeForm": "Fixing auth middleware redirect issues"
+  },
+  {
+    "content": "Build payroll database tables (migration)",
+    "status": "completed",
+    "activeForm": "Creating payroll database migration"
+  },
+  {
+    "content": "Build payroll API routes (recruiter + candidate)",
+    "status": "completed",
+    "activeForm": "Building payroll API endpoints"
+  },
+  {
+    "content": "Build React recruiter payroll page",
+    "status": "completed",
+    "activeForm": "Building recruiter payroll dashboard"
+  },
+  {
+    "content": "Build React candidate payroll page",
+    "status": "completed",
+    "activeForm": "Building candidate payroll view"
+  },
+  {
+    "content": "Update App.tsx routes + sidebar navigation",
+    "status": "completed",
+    "activeForm": "Updating routes and sidebar navigation"
+  },
+  {
+    "content": "Deploy and verify both roles can access payroll",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying payroll access"
+  }
+]
