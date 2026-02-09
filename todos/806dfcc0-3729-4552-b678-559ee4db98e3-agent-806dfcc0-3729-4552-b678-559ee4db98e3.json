@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Fix startCamera() for iOS Safari compatibility",
+    "status": "completed",
+    "activeForm": "Fixing startCamera() for iOS Safari"
+  },
+  {
+    "content": "Build and deploy the fix",
+    "status": "in_progress",
+    "activeForm": "Building and deploying the fix"
+  },
+  {
+    "content": "Verify fix via logs",
+    "status": "pending",
+    "activeForm": "Verifying fix via logs"
+  }
+]
