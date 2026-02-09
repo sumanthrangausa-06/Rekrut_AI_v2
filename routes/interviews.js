@@ -1,7 +1,7 @@
 const express = require('express');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
-const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching } = require('../lib/polsia-ai');
+const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching, analyzeVideoInterviewResponse } = require('../lib/polsia-ai');
 const omniscoreService = require('../services/omniscore');
 const multer = require('multer');
 const fetch = require('node-fetch');
@@ -603,6 +603,63 @@ router.post('/practice/submit', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Submit practice response error:', err);
     res.status(500).json({ error: 'Failed to analyze response' });
+  }
+});
+
+// Submit video practice response and get comprehensive AI coaching
+router.post('/practice/submit-video', authMiddleware, async (req, res) => {
+  try {
+    const { question_id, question, category, transcription, frames, duration_seconds } = req.body;
+
+    if (!transcription || transcription.trim().length < 20) {
+      return res.status(400).json({ error: 'Transcription too short. Please speak for at least 15-20 seconds.' });
+    }
+
+    if (!frames || !Array.isArray(frames) || frames.length === 0) {
+      return res.status(400).json({ error: 'No video frames captured. Please allow camera access.' });
+    }
+
+    // Look up key_points from question library
+    const libraryQuestion = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
+    const keyPoints = libraryQuestion ? libraryQuestion.key_points : ['Content quality', 'Structure', 'Clarity', 'Relevance'];
+
+    // Run comprehensive multi-modal analysis
+    const coaching = await analyzeVideoInterviewResponse(
+      question,
+      transcription,
+      frames,
+      duration_seconds || 60,
+      keyPoints,
+      { subscriptionId: req.user.stripe_subscription_id }
+    );
+
+    // Save practice session with video data
+    await pool.query(
+      `INSERT INTO practice_sessions
+       (user_id, question_id, question, category, response_text, score, coaching_data, response_type, transcription, audio_analysis, video_analysis, duration_seconds, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'video', $8, $9, $10, $11, NOW())`,
+      [
+        req.user.id,
+        question_id,
+        question,
+        category,
+        transcription,
+        Math.round(coaching.overall_score),
+        JSON.stringify(coaching),
+        transcription,
+        JSON.stringify(coaching.communication),
+        JSON.stringify(coaching.presentation),
+        duration_seconds || 60
+      ]
+    );
+
+    res.json({
+      success: true,
+      coaching
+    });
+  } catch (err) {
+    console.error('Submit video practice response error:', err);
+    res.status(500).json({ error: 'Failed to analyze video response. Please try again.' });
   }
 });
 
