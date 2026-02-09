@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * HireLoop Phase 2 QA — End-to-End Test Script
+ * Rekrut AI Phase 2 QA — End-to-End Test Script
  * Tests: Jobs, Applications, Skill Tests, Offers (both candidate + recruiter)
  */
 
@@ -48,7 +48,7 @@ const REC_EMAIL = `qa_rec_${TS}@test.com`;
 const PASSWORD = 'TestPass123!';
 
 async function run() {
-  console.log('\n🏁 HireLoop Phase 2 QA — E2E Test Suite');
+  console.log('\n🏁 Rekrut AI Phase 2 QA — E2E Test Suite');
   console.log(`   Base: ${BASE}\n`);
 
   // ==============================

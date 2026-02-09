@@ -1,8 +1,8 @@
 /**
- * HireLoop v2 — Core Application Module
+ * Rekrut AI v2 — Core Application Module
  * Auth state management, API client, toast notifications, utilities
  */
-const HireLoop = (() => {
+const Rekrut AI = (() => {
   const TOKEN_KEY = 'rekrutai_token';
   const REFRESH_KEY = 'rekrutai_refresh';
   const USER_KEY = 'rekrutai_user';
@@ -240,6 +240,6 @@ const HireLoop = (() => {
 })();
 
 // Shorthand exports
-const { Auth, API, Toast, Utils } = HireLoop;
+const { Auth, API, Toast, Utils } = Rekrut AI;
 const $ = Utils.$;
 const $$ = Utils.$$;

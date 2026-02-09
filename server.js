@@ -110,5 +110,5 @@ if (useReactApp) {
 }
 
 app.listen(PORT, () => {
-  console.log(`HireLoop running on port ${PORT}`);
+  console.log(`Rekrut AI running on port ${PORT}`);
 });

@@ -87,7 +87,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-heading font-bold text-sm">
               H
             </div>
-            <span className="font-heading text-lg font-bold">HireLoop</span>
+            <span className="font-heading text-lg font-bold">Rekrut AI</span>
           </NavLink>
           <button
             onClick={onClose}

@@ -66,7 +66,7 @@ export function LandingPage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-heading font-bold text-sm">
               H
             </div>
-            <span className="font-heading text-xl font-bold">HireLoop</span>
+            <span className="font-heading text-xl font-bold">Rekrut AI</span>
           </Link>
           <div className="flex items-center gap-3">
             {isAuthenticated && user ? (
@@ -150,7 +150,7 @@ export function LandingPage() {
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="font-heading text-3xl font-bold">Everything you need to hire</h2>
             <p className="mt-3 text-muted-foreground">
-              From job posting to onboarding, HireLoop handles it all.
+              From job posting to onboarding, Rekrut AI handles it all.
             </p>
           </div>
 
@@ -178,7 +178,7 @@ export function LandingPage() {
               Ready to transform your hiring?
             </h2>
             <p className="mt-3 text-primary-foreground/80 lg:text-lg">
-              Join companies already using HireLoop to build better teams.
+              Join companies already using Rekrut AI to build better teams.
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Link to="/register">
@@ -195,7 +195,7 @@ export function LandingPage() {
       {/* Footer */}
       <footer className="border-t py-8">
         <div className="mx-auto max-w-6xl px-4 text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} HireLoop. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Rekrut AI. All rights reserved.</p>
         </div>
       </footer>
     </div>

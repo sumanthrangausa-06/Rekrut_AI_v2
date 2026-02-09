@@ -55,14 +55,14 @@ export function RegisterPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-heading font-bold">
               H
             </div>
-            <span className="font-heading text-2xl font-bold">HireLoop</span>
+            <span className="font-heading text-2xl font-bold">Rekrut AI</span>
           </Link>
         </div>
 
         <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-xl">Create an account</CardTitle>
-            <CardDescription>Get started with HireLoop</CardDescription>
+            <CardDescription>Get started with Rekrut AI</CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">

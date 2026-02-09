@@ -878,7 +878,7 @@ async function testJobDelete() {
 // ======================================
 async function main() {
   console.log('╔══════════════════════════════════════════╗');
-  console.log('║   HireLoop Phase 2 E2E QA Test Suite     ║');
+  console.log('║   Rekrut AI Phase 2 E2E QA Test Suite     ║');
   console.log('║   Jobs • Applications • Tests • Offers   ║');
   console.log('╚══════════════════════════════════════════╝');
   console.log(`\nTarget: ${BASE_URL}`);

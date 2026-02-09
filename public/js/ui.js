@@ -1,5 +1,5 @@
 /**
- * HireLoop v2 — UI Components
+ * Rekrut AI v2 — UI Components
  * Renders sidebar, topbar, handles mobile toggle
  */
 const UI = (() => {

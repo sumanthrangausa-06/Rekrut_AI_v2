@@ -386,7 +386,7 @@ router.post('/interviews', authMiddleware, requireRecruiter, async (req, res) =>
     // Auto-generate Jitsi meeting link for video interviews
     let meeting_link = null;
     if (interview_type === 'video') {
-      const roomId = `HireLoop-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
+      const roomId = `Rekrut AI-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
       meeting_link = `https://meet.jit.si/${roomId}`;
     }
 
@@ -582,7 +582,7 @@ router.post('/interviews/schedule', authMiddleware, requireRecruiter, async (req
 
     // Auto-generate Jitsi meeting link for video interviews if not provided
     if (interview_type === 'video' && !meeting_link) {
-      const roomId = `HireLoop-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
+      const roomId = `Rekrut AI-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
       meeting_link = `https://meet.jit.si/${roomId}`;
     }
 
