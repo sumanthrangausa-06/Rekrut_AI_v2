@@ -363,14 +363,9 @@ function PersonalInfoTab({ profile, setProfile, saving, setSaving, showMessage }
   setSaving: React.Dispatch<React.SetStateAction<boolean>>
   showMessage: (type: 'success' | 'error', text: string) => void
 }) {
-  const [form, setForm] = useState({ ...profile })
-
-  useEffect(() => {
-    setForm({ ...profile })
-  }, [profile])
-
-  function updateForm(key: string, value: string | number) {
-    setForm(f => ({ ...f, [key]: value }))
+  // Update profile state directly so header card syncs in real-time
+  function updateField(key: string, value: string | number) {
+    setProfile(p => ({ ...p, [key]: value }))
   }
 
   async function handleSave() {
@@ -378,9 +373,8 @@ function PersonalInfoTab({ profile, setProfile, saving, setSaving, showMessage }
     try {
       await apiCall('/candidate/profile', {
         method: 'PUT',
-        body: form,
+        body: profile,
       })
-      setProfile(f => ({ ...f, ...form }))
       showMessage('success', 'Profile saved')
     } catch {
       showMessage('error', 'Failed to save profile')
@@ -397,27 +391,27 @@ function PersonalInfoTab({ profile, setProfile, saving, setSaving, showMessage }
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label>Full Name</Label>
-            <Input value={form.name || ''} onChange={e => updateForm('name', e.target.value)} placeholder="John Doe" />
+            <Input value={profile.name || ''} onChange={e => updateField('name', e.target.value)} placeholder="John Doe" />
           </div>
           <div>
             <Label>Headline</Label>
-            <Input value={form.headline || ''} onChange={e => updateForm('headline', e.target.value)} placeholder="Senior Software Engineer" />
+            <Input value={profile.headline || ''} onChange={e => updateField('headline', e.target.value)} placeholder="Senior Software Engineer" />
           </div>
           <div>
             <Label>Phone</Label>
-            <Input value={form.phone || ''} onChange={e => updateForm('phone', e.target.value)} placeholder="+1 (555) 000-0000" />
+            <Input value={profile.phone || ''} onChange={e => updateField('phone', e.target.value)} placeholder="+1 (555) 000-0000" />
           </div>
           <div>
             <Label>Location</Label>
-            <Input value={form.location || ''} onChange={e => updateForm('location', e.target.value)} placeholder="San Francisco, CA" />
+            <Input value={profile.location || ''} onChange={e => updateField('location', e.target.value)} placeholder="San Francisco, CA" />
           </div>
         </div>
 
         <div>
           <Label>Bio / Summary</Label>
           <Textarea
-            value={form.bio || ''}
-            onChange={e => updateForm('bio', e.target.value)}
+            value={profile.bio || ''}
+            onChange={e => updateField('bio', e.target.value)}
             placeholder="Brief professional summary..."
             rows={4}
           />
@@ -428,15 +422,15 @@ function PersonalInfoTab({ profile, setProfile, saving, setSaving, showMessage }
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label className="flex items-center gap-1"><Linkedin className="h-3 w-3" /> LinkedIn URL</Label>
-            <Input value={form.linkedin_url || ''} onChange={e => updateForm('linkedin_url', e.target.value)} placeholder="https://linkedin.com/in/..." />
+            <Input value={profile.linkedin_url || ''} onChange={e => updateField('linkedin_url', e.target.value)} placeholder="https://linkedin.com/in/..." />
           </div>
           <div>
             <Label className="flex items-center gap-1"><Github className="h-3 w-3" /> GitHub URL</Label>
-            <Input value={form.github_url || ''} onChange={e => updateForm('github_url', e.target.value)} placeholder="https://github.com/..." />
+            <Input value={profile.github_url || ''} onChange={e => updateField('github_url', e.target.value)} placeholder="https://github.com/..." />
           </div>
           <div>
             <Label className="flex items-center gap-1"><Globe className="h-3 w-3" /> Portfolio URL</Label>
-            <Input value={form.portfolio_url || ''} onChange={e => updateForm('portfolio_url', e.target.value)} placeholder="https://yoursite.com" />
+            <Input value={profile.portfolio_url || ''} onChange={e => updateField('portfolio_url', e.target.value)} placeholder="https://yoursite.com" />
           </div>
         </div>
 
@@ -447,16 +441,16 @@ function PersonalInfoTab({ profile, setProfile, saving, setSaving, showMessage }
             <Label>Years of Experience</Label>
             <Input
               type="number"
-              value={form.years_experience ?? ''}
-              onChange={e => updateForm('years_experience', parseInt(e.target.value) || 0)}
+              value={profile.years_experience ?? ''}
+              onChange={e => updateField('years_experience', parseInt(e.target.value) || 0)}
               placeholder="5"
             />
           </div>
           <div>
             <Label>Remote Preference</Label>
             <select
-              value={form.remote_preference || 'hybrid'}
-              onChange={e => updateForm('remote_preference', e.target.value)}
+              value={profile.remote_preference || 'hybrid'}
+              onChange={e => updateField('remote_preference', e.target.value)}
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <option value="remote">Remote Only</option>
@@ -468,8 +462,8 @@ function PersonalInfoTab({ profile, setProfile, saving, setSaving, showMessage }
           <div>
             <Label>Availability</Label>
             <select
-              value={form.availability || 'open'}
-              onChange={e => updateForm('availability', e.target.value)}
+              value={profile.availability || 'open'}
+              onChange={e => updateField('availability', e.target.value)}
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <option value="open">Open to Opportunities</option>
@@ -482,8 +476,8 @@ function PersonalInfoTab({ profile, setProfile, saving, setSaving, showMessage }
             <Label>Minimum Salary ($)</Label>
             <Input
               type="number"
-              value={form.salary_min ?? ''}
-              onChange={e => updateForm('salary_min', parseInt(e.target.value) || 0)}
+              value={profile.salary_min ?? ''}
+              onChange={e => updateField('salary_min', parseInt(e.target.value) || 0)}
               placeholder="80000"
             />
           </div>
