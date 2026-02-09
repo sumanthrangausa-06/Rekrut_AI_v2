@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate profile headline not syncing to header",
+    "status": "completed",
+    "activeForm": "Investigating profile headline sync issue"
+  },
+  {
+    "content": "Fix headline sync between form and header display",
+    "status": "completed",
+    "activeForm": "Fixing headline sync"
+  },
+  {
+    "content": "Remove test/seed data from production jobs table",
+    "status": "completed",
+    "activeForm": "Removing test data from jobs"
+  },
+  {
+    "content": "Build, deploy, and verify fixes",
+    "status": "in_progress",
+    "activeForm": "Building and deploying fixes"
+  }
+]
