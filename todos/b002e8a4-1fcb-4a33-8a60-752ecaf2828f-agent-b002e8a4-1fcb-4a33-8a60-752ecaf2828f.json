@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate AI Coaching page — find code, understand current state",
+    "status": "completed",
+    "activeForm": "Investigating AI Coaching page"
+  },
+  {
+    "content": "Build React AI Coaching page with practice flow + stats",
+    "status": "completed",
+    "activeForm": "Building React AI Coaching page"
+  },
+  {
+    "content": "Add route and sidebar link",
+    "status": "completed",
+    "activeForm": "Adding route and sidebar link"
+  },
+  {
+    "content": "Build and deploy",
+    "status": "in_progress",
+    "activeForm": "Building and deploying"
+  },
+  {
+    "content": "Verify end-to-end, update memory",
+    "status": "pending",
+    "activeForm": "Verifying and updating memory"
+  }
+]
