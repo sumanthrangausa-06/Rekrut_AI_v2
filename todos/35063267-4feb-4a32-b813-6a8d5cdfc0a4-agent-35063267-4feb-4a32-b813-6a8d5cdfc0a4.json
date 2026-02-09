@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Build video recording component with MediaRecorder + Web Speech API",
+    "status": "completed",
+    "activeForm": "Building video recording component"
+  },
+  {
+    "content": "Add backend endpoint for video-based practice with multi-modal AI analysis",
+    "status": "completed",
+    "activeForm": "Adding backend video analysis endpoint"
+  },
+  {
+    "content": "Add AI vision analysis function for body language/eye contact",
+    "status": "completed",
+    "activeForm": "Adding AI vision analysis function"
+  },
+  {
+    "content": "Build enhanced feedback dashboard with category breakdowns",
+    "status": "completed",
+    "activeForm": "Building enhanced feedback dashboard"
+  },
+  {
+    "content": "Build and deploy, verify end-to-end",
+    "status": "in_progress",
+    "activeForm": "Building and deploying"
+  }
+]

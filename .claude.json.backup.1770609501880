@@ -1457,11 +1457,87 @@
         "main.js"
       ],
       "exampleFilesGeneratedAt": 1770587097552
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-56074/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "server.js",
+        "onboarding.js",
+        "candidate.js",
+        "recruiter.js",
+        "App.tsx"
+      ],
+      "exampleFilesGeneratedAt": 1770589050356
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-56174/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "server.js",
+        "candidate.js",
+        "onboarding.js",
+        "App.tsx",
+        "main.js"
+      ],
+      "exampleFilesGeneratedAt": 1770595404129
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-56312/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "onboarding.js",
+        "candidate.js",
+        "server.js",
+        "main.js",
+        "App.tsx"
+      ],
+      "exampleFilesGeneratedAt": 1770604943732
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-56379/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "server.js",
+        "onboarding.js",
+        "candidate.js",
+        "recruiter.js",
+        "App.tsx"
+      ],
+      "exampleFilesGeneratedAt": 1770608080339
     }
   },
   "opusProMigrationComplete": true,
   "clientDataCache": {
     "data": null,
-    "timestamp": 1770524429702
+    "timestamp": 1770587099172
   }
 }
