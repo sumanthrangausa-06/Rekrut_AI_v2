@@ -2112,7 +2112,7 @@ router.get('/wizard/ai-prefill', authMiddleware, async (req, res) => {
     // Get most recent application data
     const application = await pool.query(
       `SELECT a.*, j.title as job_title, j.company
-       FROM applications a
+       FROM job_applications a
        LEFT JOIN jobs j ON a.job_id = j.id
        WHERE a.user_id = $1
        ORDER BY a.created_at DESC LIMIT 1`,
