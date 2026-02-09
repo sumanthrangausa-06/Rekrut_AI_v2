@@ -43,6 +43,10 @@ import { RecruiterInterviewsPage } from '@/pages/recruiter/interviews'
 import { CandidateOnboardingPage } from '@/pages/candidate/onboarding'
 import { RecruiterOnboardingPage } from '@/pages/recruiter/onboarding'
 
+// Payroll
+import { CandidatePayrollPage } from '@/pages/candidate/payroll'
+import { RecruiterPayrollPage } from '@/pages/recruiter/payroll'
+
 function RoleRedirect() {
   const { user, loading } = useAuth()
 
@@ -76,6 +80,7 @@ function AppRoutes() {
         <Route path="documents" element={<PlaceholderPage />} />
         <Route path="offers" element={<CandidateOffersPage />} />
         <Route path="onboarding" element={<CandidateOnboardingPage />} />
+        <Route path="payroll" element={<CandidatePayrollPage />} />
       </Route>
 
       {/* Recruiter routes */}
@@ -94,7 +99,7 @@ function AppRoutes() {
         <Route path="onboarding" element={<RecruiterOnboardingPage />} />
         <Route path="analytics" element={<PlaceholderPage />} />
         <Route path="company" element={<RecruiterCompanyPage />} />
-        <Route path="payroll" element={<PlaceholderPage />} />
+        <Route path="payroll" element={<RecruiterPayrollPage />} />
       </Route>
 
       {/* Settings */}
