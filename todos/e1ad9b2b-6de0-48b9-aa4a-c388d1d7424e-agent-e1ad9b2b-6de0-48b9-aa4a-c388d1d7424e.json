@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate video analysis 500 error in logs",
+    "status": "completed",
+    "activeForm": "Investigating video analysis 500 error"
+  },
+  {
+    "content": "Read analyzeVideoPresentation code and trace the full request path",
+    "status": "completed",
+    "activeForm": "Reading video analysis code"
+  },
+  {
+    "content": "Identify root cause — why OpenAI vision call returns 500",
+    "status": "completed",
+    "activeForm": "Identifying root cause"
+  },
+  {
+    "content": "Implement fix: upload frames to R2, pass URLs to vision API",
+    "status": "completed",
+    "activeForm": "Implementing fix: R2 upload + URL-based vision"
+  },
+  {
+    "content": "Build, deploy, and verify fix via logs",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying fix"
+  }
+]
