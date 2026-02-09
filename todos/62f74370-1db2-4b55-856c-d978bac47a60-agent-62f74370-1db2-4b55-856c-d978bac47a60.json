@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate previous Safari-only fix and current camera code",
+    "status": "completed",
+    "activeForm": "Investigating previous fix and current camera code"
+  },
+  {
+    "content": "Implement universal camera/mic solution",
+    "status": "completed",
+    "activeForm": "Implementing universal camera/mic solution"
+  },
+  {
+    "content": "Build, deploy, and verify fix",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying fix"
+  },
+  {
+    "content": "Update memory with learnings",
+    "status": "pending",
+    "activeForm": "Updating memory with learnings"
+  }
+]
