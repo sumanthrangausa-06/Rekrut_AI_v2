@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate root cause — why permission prompt never shows",
+    "status": "completed",
+    "activeForm": "Investigating root cause of camera permission bug"
+  },
+  {
+    "content": "Research how real interview platforms handle camera/mic",
+    "status": "completed",
+    "activeForm": "Researching real interview platform camera handling"
+  },
+  {
+    "content": "Implement proper fix — prompt MUST appear before denied state",
+    "status": "completed",
+    "activeForm": "Implementing camera permission fix"
+  },
+  {
+    "content": "Build, deploy, and verify on live URL",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying fix"
+  },
+  {
+    "content": "Update memory and complete task",
+    "status": "pending",
+    "activeForm": "Updating memory and completing task"
+  }
+]
