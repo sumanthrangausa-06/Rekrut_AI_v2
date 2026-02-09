@@ -282,29 +282,23 @@ export function AiCoachingPage() {
     setCountdown(null)
   }
 
-  // Start camera when entering video mode (delayed to let iOS Safari render the UI first)
-  useEffect(() => {
-    if (responseMode === 'video' && !cameraReady && !cameraError) {
-      // Small delay ensures iOS Safari has finished DOM transitions before
-      // showing the getUserMedia permission prompt. Without this, iOS suppresses the prompt.
-      const timer = setTimeout(() => { startCamera() }, 150)
-      return () => clearTimeout(timer)
-    }
-  }, [responseMode]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Camera management — progressive constraint fallback for iOS Safari
+  // Camera management — universal cross-browser implementation.
+  // IMPORTANT: This must ONLY be called from a direct user gesture (click/tap)
+  // to ensure the browser shows the permission prompt on all platforms.
+  // Do NOT call from useEffect or setTimeout — that breaks the gesture chain
+  // on Chrome iOS, Firefox, and other mobile browsers.
   async function startCamera() {
     try {
       setCameraError(null)
 
       // Check if mediaDevices API is available (requires HTTPS)
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setCameraError('Camera not available. Please use HTTPS and a supported browser.')
+        setCameraError('Camera not available. Make sure you\'re using HTTPS and a modern browser.')
         return
       }
 
-      // Progressive constraints: iOS Safari is strict about exact values,
-      // so we try ideal constraints first, then fall back to simpler ones.
+      // Progressive constraints — try ideal first, fall back to simpler ones.
+      // This handles devices that don't support specific resolutions or facingMode.
       const constraintOptions = [
         { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }, audio: true },
         { video: { facingMode: 'user' }, audio: true },
@@ -337,42 +331,37 @@ export function AiCoachingPage() {
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream
-        // Explicit play() needed for iOS Safari — autoPlay alone is unreliable
         try {
           await videoRef.current.play()
         } catch (playErr) {
-          console.warn('Video autoplay failed, stream still active:', playErr)
+          // Stream is still active even if autoplay policy blocks play()
+          console.warn('Video play() blocked by autoplay policy:', playErr)
         }
       }
       setCameraReady(true)
     } catch (err: any) {
       console.error('Camera error:', err)
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 
+      // Universal error messages — no browser sniffing.
+      // Each browser has its own settings path, so we give general guidance.
       if (err.name === 'NotAllowedError') {
-        if (isIOS) {
-          setCameraError(
-            'Camera access denied. On iPhone/iPad:\n' +
-            '1. Open Settings → Safari → Camera & Microphone Access\n' +
-            '2. Make sure this site is allowed\n' +
-            '3. Come back and tap Retry below'
-          )
-        } else {
-          setCameraError(
-            'Camera access denied. Please click the camera icon in your browser\'s address bar to allow access, then tap Retry.'
-          )
-        }
+        setCameraError(
+          'Camera access denied.\n\n' +
+          'To fix this:\n' +
+          '1. Check your browser\'s camera permissions for this site\n' +
+          '2. On mobile: Open your device Settings → find your browser → allow Camera & Microphone\n' +
+          '3. Tap Retry below'
+        )
       } else if (err.name === 'NotFoundError') {
-        setCameraError('No camera found. Please connect a webcam to use video mode.')
+        setCameraError('No camera found. Please connect a camera or webcam and tap Retry.')
       } else if (err.name === 'OverconstrainedError') {
-        setCameraError('Camera settings not supported on this device. Please tap Retry to try with default settings.')
+        setCameraError('Camera settings not supported on this device. Tap Retry to try with default settings.')
       } else if (err.name === 'NotReadableError') {
         setCameraError(
-          'Camera is in use by another app. Please close other apps using the camera, then tap Retry.'
+          'Camera is in use by another app. Close other apps using the camera, then tap Retry.'
         )
       } else {
-        setCameraError('Could not start camera. Please check your device settings and tap Retry.')
+        setCameraError('Could not access camera. Check your device settings and tap Retry.')
       }
     }
   }
@@ -978,21 +967,42 @@ export function AiCoachingPage() {
                 <div className="mt-4 space-y-4">
                   {/* Camera Preview */}
                   <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
-                    {/* eslint-disable-next-line */}
                     <video
                       ref={videoRef}
                       autoPlay
                       muted
                       playsInline
-                      // @ts-ignore — webkit-playsinline needed for older iOS Safari
-                      webkit-playsinline="true"
                       className="w-full h-full object-cover mirror"
                       style={{ transform: 'scaleX(-1)' }}
                     />
 
+                    {/* Enable Camera prompt — shown before camera is started.
+                        getUserMedia MUST be called from a direct user gesture (tap/click)
+                        for reliable cross-browser permission prompts. */}
+                    {!cameraReady && !cameraError && (
+                      <div className="absolute inset-0 bg-black/90 flex items-center justify-center p-4">
+                        <div className="text-center text-white max-w-xs">
+                          <div className="p-4 rounded-full bg-white/10 inline-flex mb-3">
+                            <Camera className="h-8 w-8 text-white" />
+                          </div>
+                          <p className="font-medium mb-1">Camera & Microphone</p>
+                          <p className="text-xs text-white/70 mb-4">
+                            Tap below to enable your camera. Your browser will ask for permission.
+                          </p>
+                          <Button
+                            onClick={() => startCamera()}
+                            className="bg-white text-black hover:bg-white/90"
+                          >
+                            <Camera className="h-4 w-4 mr-2" />
+                            Enable Camera
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Camera error overlay */}
                     {cameraError && (
-                      <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-4">
+                      <div className="absolute inset-0 bg-black/90 flex items-center justify-center p-4">
                         <div className="text-center text-white max-w-xs">
                           <AlertCircle className="h-8 w-8 mx-auto mb-2 text-red-400" />
                           <p className="text-sm whitespace-pre-line">{cameraError}</p>
