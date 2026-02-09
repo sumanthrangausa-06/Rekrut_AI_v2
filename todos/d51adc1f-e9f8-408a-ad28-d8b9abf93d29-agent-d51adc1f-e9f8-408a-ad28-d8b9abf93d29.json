@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate root cause of video analysis failure",
+    "status": "completed",
+    "activeForm": "Investigating root cause"
+  },
+  {
+    "content": "Report platform bug for Polsia AI proxy vision support",
+    "status": "completed",
+    "activeForm": "Reporting platform bug"
+  },
+  {
+    "content": "Implement video analysis fix using OpenAI vision",
+    "status": "completed",
+    "activeForm": "Implementing video analysis fix"
+  },
+  {
+    "content": "Build, deploy, and verify fix",
+    "status": "in_progress",
+    "activeForm": "Building and deploying"
+  }
+]
