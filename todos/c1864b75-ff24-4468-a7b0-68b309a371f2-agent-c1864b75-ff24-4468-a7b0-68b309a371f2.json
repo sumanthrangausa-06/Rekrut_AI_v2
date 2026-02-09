@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate root cause — check server headers, permissions policy, deployed code",
+    "status": "completed",
+    "activeForm": "Investigating root cause"
+  },
+  {
+    "content": "Fix camera permission flow and error UX for Chrome iOS",
+    "status": "completed",
+    "activeForm": "Fixing camera permission flow"
+  },
+  {
+    "content": "Build, deploy, and verify fix via logs",
+    "status": "in_progress",
+    "activeForm": "Building and deploying fix"
+  },
+  {
+    "content": "Update memory and complete task",
+    "status": "pending",
+    "activeForm": "Updating memory and completing task"
+  }
+]
