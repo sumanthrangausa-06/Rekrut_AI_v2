@@ -288,64 +288,34 @@ export function AiCoachingPage() {
   const isChromeIOS = isIOS && /CriOS/.test(navigator.userAgent)
   const isSafari = isIOS && !isChromeIOS && /Safari/.test(navigator.userAgent)
 
-  // Camera management — universal cross-browser implementation.
-  // IMPORTANT: This must ONLY be called from a direct user gesture (click/tap)
-  // to ensure the browser shows the permission prompt on all platforms.
-  // Do NOT call from useEffect or setTimeout — that breaks the gesture chain
-  // on Chrome iOS, Firefox, and other mobile browsers.
+  // Camera management — cross-browser implementation following Google Meet / HireVue patterns.
+  //
+  // CRITICAL: getUserMedia() MUST be the FIRST async call after the user gesture.
+  // On iOS (all browsers use WebKit), inserting ANY await before getUserMedia
+  // (e.g., Permissions API query) can expire the user gesture activation,
+  // causing iOS to block the camera with NotAllowedError WITHOUT ever showing
+  // the permission prompt. This was the root cause of the "never asked" bug.
+  //
+  // Pattern: User taps → getUserMedia() immediately → handle result.
+  // NO Permissions API pre-check. NO async delays. NO retry loops.
   async function startCamera() {
     try {
       setCameraError(null)
 
-      // Check if mediaDevices API is available (requires HTTPS)
+      // Check if mediaDevices API is available (requires HTTPS) — synchronous, no delay
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setCameraError('not_supported')
         return
       }
 
-      // Check permission state if Permissions API is available
-      // This lets us detect "permanently denied" before triggering getUserMedia
-      try {
-        if (navigator.permissions && navigator.permissions.query) {
-          const camPerm = await navigator.permissions.query({ name: 'camera' as PermissionName })
-          if (camPerm.state === 'denied') {
-            setCameraError('denied')
-            return
-          }
-        }
-      } catch (_) {
-        // Permissions API not supported or 'camera' not queryable — proceed anyway
-      }
-
-      // Progressive constraints — try ideal first, fall back to simpler ones.
-      // This handles devices that don't support specific resolutions or facingMode.
-      const constraintOptions = [
-        { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }, audio: true },
-        { video: { facingMode: 'user' }, audio: true },
-        { video: true, audio: true },
-      ]
-
-      let stream: MediaStream | null = null
-      let lastError: any = null
-
-      for (const constraints of constraintOptions) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia(constraints)
-          break
-        } catch (e: any) {
-          lastError = e
-          // Permission denied or no device — don't retry, these won't change
-          if (e.name === 'NotAllowedError' || e.name === 'NotFoundError') {
-            break
-          }
-          // OverconstrainedError or other — try next constraint set
-          continue
-        }
-      }
-
-      if (!stream) {
-        throw lastError || new Error('Could not access camera')
-      }
+      // Call getUserMedia IMMEDIATELY — this is the ONLY reliable way to trigger
+      // the browser permission prompt. On iOS, this must be the first async call
+      // in the gesture handler chain. Using `ideal` constraints avoids the need
+      // for a retry loop (the browser picks the closest match automatically).
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+        audio: true,
+      })
 
       streamRef.current = stream
 
@@ -360,16 +330,32 @@ export function AiCoachingPage() {
       }
       setCameraReady(true)
     } catch (err: any) {
-      console.error('Camera error:', err)
+      console.error('Camera access error:', err?.name, err?.message)
 
       if (err.name === 'NotAllowedError') {
         setCameraError('denied')
       } else if (err.name === 'NotFoundError') {
         setCameraError('not_found')
-      } else if (err.name === 'OverconstrainedError') {
-        setCameraError('overconstrained')
-      } else if (err.name === 'NotReadableError') {
-        setCameraError('in_use')
+      } else if (err.name === 'OverconstrainedError' || err.name === 'NotReadableError') {
+        // Overconstrained: try one more time with bare minimum constraints
+        try {
+          const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+          streamRef.current = fallbackStream
+          if (videoRef.current) {
+            videoRef.current.srcObject = fallbackStream
+            try { await videoRef.current.play() } catch (_) {}
+          }
+          setCameraReady(true)
+          return
+        } catch (fallbackErr: any) {
+          if (fallbackErr.name === 'NotAllowedError') {
+            setCameraError('denied')
+          } else if (fallbackErr.name === 'NotReadableError') {
+            setCameraError('in_use')
+          } else {
+            setCameraError('unknown')
+          }
+        }
       } else {
         setCameraError('unknown')
       }
@@ -997,12 +983,18 @@ export function AiCoachingPage() {
                               <Camera className="h-8 w-8 text-white" />
                             </div>
                             <p className="font-medium mb-1">Camera & Microphone</p>
-                            <p className="text-xs text-white/70 mb-4">
-                              {isIOS
-                                ? 'Tap below. If your browser asks for permission, tap "Allow".'
-                                : 'Tap below to enable your camera. Your browser will ask for permission.'
-                              }
-                            </p>
+                            {isIOS ? (
+                              <div className="text-xs text-white/70 mb-4 space-y-2">
+                                <p>Your browser will ask for camera access.</p>
+                                <p className="text-white/50">
+                                  If no prompt appears, check <strong className="text-white/80">iPhone Settings → {isChromeIOS ? 'Chrome' : 'Safari'} → Camera</strong> is on.
+                                </p>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-white/70 mb-4">
+                                Your browser will ask for permission. Tap <strong className="text-white/80">"Allow"</strong> when prompted.
+                              </p>
+                            )}
                             <Button
                               onClick={() => startCamera()}
                               className="bg-white text-black hover:bg-white/90"
@@ -1057,15 +1049,18 @@ export function AiCoachingPage() {
                         </div>
                         <div>
                           <h4 className="font-semibold text-sm text-red-900">
-                            {cameraError === 'denied' ? 'Camera Permission Blocked' :
-                             cameraError === 'not_found' ? 'No Camera Detected' :
-                             cameraError === 'in_use' ? 'Camera In Use' :
-                             cameraError === 'not_supported' ? 'Camera Not Supported' :
-                             'Camera Unavailable'}
+                            {cameraError === 'denied'
+                              ? (isIOS ? 'Camera Access Required' : 'Camera Permission Blocked')
+                              : cameraError === 'not_found' ? 'No Camera Detected'
+                              : cameraError === 'in_use' ? 'Camera In Use'
+                              : cameraError === 'not_supported' ? 'Camera Not Supported'
+                              : 'Camera Unavailable'}
                           </h4>
                           <p className="text-xs text-red-700 mt-1">
                             {cameraError === 'denied'
-                              ? 'Your browser blocked camera access for this site.'
+                              ? (isIOS
+                                  ? `Camera access needs to be enabled in your iPhone Settings for ${isChromeIOS ? 'Chrome' : 'Safari'}.`
+                                  : 'Your browser blocked camera access for this site.')
                               : cameraError === 'not_found'
                               ? 'No camera or webcam was found on this device.'
                               : cameraError === 'in_use'
@@ -1080,7 +1075,9 @@ export function AiCoachingPage() {
                       {/* iOS-specific instructions */}
                       {cameraError === 'denied' && isIOS && (
                         <div className="bg-white rounded-lg p-4 border border-red-100 space-y-3">
-                          <p className="text-xs font-semibold text-gray-900">How to fix on {isChromeIOS ? 'Chrome' : 'Safari'} (iPhone/iPad):</p>
+                          <p className="text-xs font-semibold text-gray-900">
+                            Enable camera for {isChromeIOS ? 'Chrome' : 'Safari'}:
+                          </p>
                           <ol className="text-xs text-gray-700 space-y-2 list-none">
                             <li className="flex items-start gap-2">
                               <span className="font-bold text-primary shrink-0">1.</span>
@@ -1094,7 +1091,7 @@ export function AiCoachingPage() {
                               <span className="font-bold text-primary shrink-0">3.</span>
                               <span>
                                 {isChromeIOS
-                                  ? <>Turn on <strong>Camera</strong> and <strong>Microphone</strong></>
+                                  ? <>Make sure <strong>Camera</strong> and <strong>Microphone</strong> toggles are <strong className="text-green-700">green (on)</strong></>
                                   : <>Under "Settings for Websites", tap <strong>Camera</strong> and set to <strong>Allow</strong>. Do the same for <strong>Microphone</strong>.</>
                                 }
                               </span>
