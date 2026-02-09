@@ -17,6 +17,7 @@ import {
   Building2,
   X,
   Wallet,
+  Sparkles,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -37,6 +38,7 @@ const candidateNav: NavItem[] = [
   { label: 'Profile', href: '/candidate/profile', icon: UserCheck },
   { label: 'Assessments', href: '/candidate/assessments', icon: GraduationCap },
   { label: 'Interviews', href: '/candidate/interviews', icon: MessageSquare },
+  { label: 'AI Coaching', href: '/candidate/ai-coaching', icon: Sparkles },
   { label: 'Offers', href: '/candidate/offers', icon: CreditCard },
   { label: 'Onboarding', href: '/candidate/onboarding', icon: ClipboardCheck },
   { label: 'Pay & Compensation', href: '/candidate/payroll', icon: CreditCard },

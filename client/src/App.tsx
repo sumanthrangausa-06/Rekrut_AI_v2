@@ -47,6 +47,9 @@ import { RecruiterOnboardingPage } from '@/pages/recruiter/onboarding'
 import { CandidatePayrollPage } from '@/pages/candidate/payroll'
 import { RecruiterPayrollPage } from '@/pages/recruiter/payroll'
 
+// AI Coaching
+import { AiCoachingPage } from '@/pages/candidate/ai-coaching'
+
 function RoleRedirect() {
   const { user, loading } = useAuth()
 
@@ -76,6 +79,7 @@ function AppRoutes() {
         <Route path="assessments" element={<CandidateAssessmentsPage />} />
         <Route path="assessments/:id/take" element={<AssessmentTakePage />} />
         <Route path="interviews" element={<CandidateInterviewsPage />} />
+        <Route path="ai-coaching" element={<AiCoachingPage />} />
         <Route path="omniscore" element={<PlaceholderPage />} />
         <Route path="documents" element={<PlaceholderPage />} />
         <Route path="offers" element={<CandidateOffersPage />} />
