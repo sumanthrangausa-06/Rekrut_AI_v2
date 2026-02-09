@@ -282,6 +282,12 @@ export function AiCoachingPage() {
     setCountdown(null)
   }
 
+  // Detect iOS (all browsers on iOS use WebKit)
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  const isChromeIOS = isIOS && /CriOS/.test(navigator.userAgent)
+  const isSafari = isIOS && !isChromeIOS && /Safari/.test(navigator.userAgent)
+
   // Camera management — universal cross-browser implementation.
   // IMPORTANT: This must ONLY be called from a direct user gesture (click/tap)
   // to ensure the browser shows the permission prompt on all platforms.
@@ -293,8 +299,22 @@ export function AiCoachingPage() {
 
       // Check if mediaDevices API is available (requires HTTPS)
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setCameraError('Camera not available. Make sure you\'re using HTTPS and a modern browser.')
+        setCameraError('not_supported')
         return
+      }
+
+      // Check permission state if Permissions API is available
+      // This lets us detect "permanently denied" before triggering getUserMedia
+      try {
+        if (navigator.permissions && navigator.permissions.query) {
+          const camPerm = await navigator.permissions.query({ name: 'camera' as PermissionName })
+          if (camPerm.state === 'denied') {
+            setCameraError('denied')
+            return
+          }
+        }
+      } catch (_) {
+        // Permissions API not supported or 'camera' not queryable — proceed anyway
       }
 
       // Progressive constraints — try ideal first, fall back to simpler ones.
@@ -342,26 +362,16 @@ export function AiCoachingPage() {
     } catch (err: any) {
       console.error('Camera error:', err)
 
-      // Universal error messages — no browser sniffing.
-      // Each browser has its own settings path, so we give general guidance.
       if (err.name === 'NotAllowedError') {
-        setCameraError(
-          'Camera access denied.\n\n' +
-          'To fix this:\n' +
-          '1. Check your browser\'s camera permissions for this site\n' +
-          '2. On mobile: Open your device Settings → find your browser → allow Camera & Microphone\n' +
-          '3. Tap Retry below'
-        )
+        setCameraError('denied')
       } else if (err.name === 'NotFoundError') {
-        setCameraError('No camera found. Please connect a camera or webcam and tap Retry.')
+        setCameraError('not_found')
       } else if (err.name === 'OverconstrainedError') {
-        setCameraError('Camera settings not supported on this device. Tap Retry to try with default settings.')
+        setCameraError('overconstrained')
       } else if (err.name === 'NotReadableError') {
-        setCameraError(
-          'Camera is in use by another app. Close other apps using the camera, then tap Retry.'
-        )
+        setCameraError('in_use')
       } else {
-        setCameraError('Could not access camera. Check your device settings and tap Retry.')
+        setCameraError('unknown')
       }
     }
   }
@@ -965,194 +975,296 @@ export function AiCoachingPage() {
               {/* Video Recording Mode */}
               {responseMode === 'video' && (
                 <div className="mt-4 space-y-4">
-                  {/* Camera Preview */}
-                  <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover mirror"
-                      style={{ transform: 'scaleX(-1)' }}
-                    />
+                  {/* Camera Preview — only show when no error blocking everything */}
+                  {!cameraError && (
+                    <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover mirror"
+                        style={{ transform: 'scaleX(-1)' }}
+                      />
 
-                    {/* Enable Camera prompt — shown before camera is started.
-                        getUserMedia MUST be called from a direct user gesture (tap/click)
-                        for reliable cross-browser permission prompts. */}
-                    {!cameraReady && !cameraError && (
-                      <div className="absolute inset-0 bg-black/90 flex items-center justify-center p-4">
-                        <div className="text-center text-white max-w-xs">
-                          <div className="p-4 rounded-full bg-white/10 inline-flex mb-3">
-                            <Camera className="h-8 w-8 text-white" />
+                      {/* Enable Camera prompt — shown before camera is started.
+                          getUserMedia MUST be called from a direct user gesture (tap/click)
+                          for reliable cross-browser permission prompts. */}
+                      {!cameraReady && (
+                        <div className="absolute inset-0 bg-black/90 flex items-center justify-center p-4">
+                          <div className="text-center text-white max-w-xs">
+                            <div className="p-4 rounded-full bg-white/10 inline-flex mb-3">
+                              <Camera className="h-8 w-8 text-white" />
+                            </div>
+                            <p className="font-medium mb-1">Camera & Microphone</p>
+                            <p className="text-xs text-white/70 mb-4">
+                              {isIOS
+                                ? 'Tap below. If your browser asks for permission, tap "Allow".'
+                                : 'Tap below to enable your camera. Your browser will ask for permission.'
+                              }
+                            </p>
+                            <Button
+                              onClick={() => startCamera()}
+                              className="bg-white text-black hover:bg-white/90"
+                            >
+                              <Camera className="h-4 w-4 mr-2" />
+                              Enable Camera
+                            </Button>
                           </div>
-                          <p className="font-medium mb-1">Camera & Microphone</p>
-                          <p className="text-xs text-white/70 mb-4">
-                            Tap below to enable your camera. Your browser will ask for permission.
+                        </div>
+                      )}
+
+                      {/* Countdown overlay */}
+                      {countdown !== null && (
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                          <div className="text-7xl font-bold text-white animate-pulse">{countdown}</div>
+                        </div>
+                      )}
+
+                      {/* Recording indicator */}
+                      {isRecording && (
+                        <div className="absolute top-3 left-3 flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 rounded-full text-sm font-medium">
+                          <div className="h-2.5 w-2.5 rounded-full bg-white animate-pulse" />
+                          REC {formatTime(recordingTime)}
+                        </div>
+                      )}
+
+                      {/* Frame count */}
+                      {isRecording && (
+                        <div className="absolute top-3 right-3 bg-black/60 text-white px-2 py-1 rounded text-xs">
+                          {capturedFrames.length} frames
+                        </div>
+                      )}
+
+                      {/* Transcription status */}
+                      {isRecording && (
+                        <div className="absolute bottom-3 left-3 right-3">
+                          <div className="bg-black/70 rounded-lg p-2 text-white text-xs max-h-16 overflow-y-auto">
+                            {isTranscribing && <Mic className="h-3 w-3 inline mr-1 text-green-400" />}
+                            {transcription || 'Listening...'}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ===== CAMERA ERROR — full replacement panel ===== */}
+                  {cameraError && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-5 space-y-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-full bg-red-100 shrink-0">
+                          <VideoOff className="h-5 w-5 text-red-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-sm text-red-900">
+                            {cameraError === 'denied' ? 'Camera Permission Blocked' :
+                             cameraError === 'not_found' ? 'No Camera Detected' :
+                             cameraError === 'in_use' ? 'Camera In Use' :
+                             cameraError === 'not_supported' ? 'Camera Not Supported' :
+                             'Camera Unavailable'}
+                          </h4>
+                          <p className="text-xs text-red-700 mt-1">
+                            {cameraError === 'denied'
+                              ? 'Your browser blocked camera access for this site.'
+                              : cameraError === 'not_found'
+                              ? 'No camera or webcam was found on this device.'
+                              : cameraError === 'in_use'
+                              ? 'Another app is currently using your camera.'
+                              : cameraError === 'not_supported'
+                              ? 'Your browser does not support camera access. Try Safari or Chrome.'
+                              : 'Something went wrong accessing your camera.'}
                           </p>
-                          <Button
-                            onClick={() => startCamera()}
-                            className="bg-white text-black hover:bg-white/90"
-                          >
-                            <Camera className="h-4 w-4 mr-2" />
-                            Enable Camera
-                          </Button>
                         </div>
                       </div>
-                    )}
 
-                    {/* Camera error overlay */}
-                    {cameraError && (
-                      <div className="absolute inset-0 bg-black/90 flex items-center justify-center p-4">
-                        <div className="text-center text-white max-w-xs">
-                          <AlertCircle className="h-8 w-8 mx-auto mb-2 text-red-400" />
-                          <p className="text-sm whitespace-pre-line">{cameraError}</p>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="mt-3 text-white border-white/30"
-                            onClick={() => {
-                              setCameraError(null)
-                              setCameraReady(false)
-                              startCamera()
-                            }}
-                          >
-                            Retry
-                          </Button>
+                      {/* iOS-specific instructions */}
+                      {cameraError === 'denied' && isIOS && (
+                        <div className="bg-white rounded-lg p-4 border border-red-100 space-y-3">
+                          <p className="text-xs font-semibold text-gray-900">How to fix on {isChromeIOS ? 'Chrome' : 'Safari'} (iPhone/iPad):</p>
+                          <ol className="text-xs text-gray-700 space-y-2 list-none">
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-primary shrink-0">1.</span>
+                              <span>Open your iPhone <strong>Settings</strong> app</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-primary shrink-0">2.</span>
+                              <span>Scroll down and tap <strong>{isChromeIOS ? 'Chrome' : 'Safari'}</strong></span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-primary shrink-0">3.</span>
+                              <span>
+                                {isChromeIOS
+                                  ? <>Turn on <strong>Camera</strong> and <strong>Microphone</strong></>
+                                  : <>Under "Settings for Websites", tap <strong>Camera</strong> and set to <strong>Allow</strong>. Do the same for <strong>Microphone</strong>.</>
+                                }
+                              </span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-primary shrink-0">4.</span>
+                              <span>Come back here and tap <strong>Try Again</strong></span>
+                            </li>
+                          </ol>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {/* Countdown overlay */}
-                    {countdown !== null && (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                        <div className="text-7xl font-bold text-white animate-pulse">{countdown}</div>
-                      </div>
-                    )}
-
-                    {/* Recording indicator */}
-                    {isRecording && (
-                      <div className="absolute top-3 left-3 flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 rounded-full text-sm font-medium">
-                        <div className="h-2.5 w-2.5 rounded-full bg-white animate-pulse" />
-                        REC {formatTime(recordingTime)}
-                      </div>
-                    )}
-
-                    {/* Frame count */}
-                    {isRecording && (
-                      <div className="absolute top-3 right-3 bg-black/60 text-white px-2 py-1 rounded text-xs">
-                        {capturedFrames.length} frames
-                      </div>
-                    )}
-
-                    {/* Transcription status */}
-                    {isRecording && (
-                      <div className="absolute bottom-3 left-3 right-3">
-                        <div className="bg-black/70 rounded-lg p-2 text-white text-xs max-h-16 overflow-y-auto">
-                          {isTranscribing && <Mic className="h-3 w-3 inline mr-1 text-green-400" />}
-                          {transcription || 'Listening...'}
+                      {/* Desktop/Android instructions */}
+                      {cameraError === 'denied' && !isIOS && (
+                        <div className="bg-white rounded-lg p-4 border border-red-100 space-y-2">
+                          <p className="text-xs font-semibold text-gray-900">How to fix:</p>
+                          <ol className="text-xs text-gray-700 space-y-1.5 list-none">
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-primary shrink-0">1.</span>
+                              <span>Click the <strong>lock icon</strong> (or tune icon) in your browser's address bar</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-primary shrink-0">2.</span>
+                              <span>Set <strong>Camera</strong> and <strong>Microphone</strong> to "Allow"</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-primary shrink-0">3.</span>
+                              <span>Refresh the page and try again</span>
+                            </li>
+                          </ol>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
 
-                  {/* Recording Controls */}
-                  <div className="flex items-center justify-center gap-3">
-                    {!isRecording && !recordingDone && (
-                      <Button
-                        onClick={startCountdownThenRecord}
-                        disabled={!cameraReady || countdown !== null}
-                        className="bg-red-600 hover:bg-red-700 text-white px-6"
-                      >
-                        <Play className="h-4 w-4 mr-2" />
-                        {countdown !== null ? `Starting in ${countdown}...` : 'Start Recording'}
-                      </Button>
-                    )}
-
-                    {isRecording && (
-                      <Button
-                        onClick={stopRecording}
-                        variant="outline"
-                        className="border-red-300 text-red-600 hover:bg-red-50 px-6"
-                      >
-                        <Square className="h-4 w-4 mr-2" />
-                        Stop Recording ({formatTime(recordingTime)})
-                      </Button>
-                    )}
-
-                    {recordingDone && !submitting && (
-                      <div className="flex gap-2 w-full">
+                      {/* Action buttons */}
+                      <div className="flex gap-2">
                         <Button
                           variant="outline"
+                          size="sm"
                           onClick={() => {
-                            setRecordingDone(false)
-                            setTranscription('')
-                            setCapturedFrames([])
-                            setRecordingTime(0)
+                            setCameraError(null)
+                            setCameraReady(false)
+                            startCamera()
                           }}
                           className="flex-1"
                         >
-                          Re-record
+                          <Camera className="h-4 w-4 mr-1.5" />
+                          Try Again
                         </Button>
                         <Button
-                          onClick={submitVideoResponse}
-                          disabled={transcription.trim().length < 20}
+                          size="sm"
+                          onClick={() => {
+                            stopCamera()
+                            setCameraError(null)
+                            setResponseMode('text')
+                          }}
                           className="flex-1"
                         >
-                          <Sparkles className="h-4 w-4 mr-1.5" />
-                          Get AI Coaching
+                          <MessageSquare className="h-4 w-4 mr-1.5" />
+                          Use Text Mode
                         </Button>
                       </div>
-                    )}
-                  </div>
 
-                  {/* Recording summary when done */}
-                  {recordingDone && (
-                    <div className="p-3 rounded-lg bg-muted/50 space-y-2">
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <Timer className="h-3.5 w-3.5" /> {formatTime(recordingTime)}
-                        </span>
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <Camera className="h-3.5 w-3.5" /> {capturedFrames.length} frames
-                        </span>
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <Volume2 className="h-3.5 w-3.5" /> {transcription.split(/\s+/).filter(w => w).length} words
-                        </span>
+                      <p className="text-[10px] text-center text-muted-foreground">
+                        Text mode lets you type your answer — AI still analyzes content and structure
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Recording Controls — ONLY shown when camera is working, NO error */}
+                  {!cameraError && (
+                    <>
+                      <div className="flex items-center justify-center gap-3">
+                        {!isRecording && !recordingDone && (
+                          <Button
+                            onClick={startCountdownThenRecord}
+                            disabled={!cameraReady || countdown !== null}
+                            className="bg-red-600 hover:bg-red-700 text-white px-6"
+                          >
+                            <Play className="h-4 w-4 mr-2" />
+                            {countdown !== null ? `Starting in ${countdown}...` : 'Start Recording'}
+                          </Button>
+                        )}
+
+                        {isRecording && (
+                          <Button
+                            onClick={stopRecording}
+                            variant="outline"
+                            className="border-red-300 text-red-600 hover:bg-red-50 px-6"
+                          >
+                            <Square className="h-4 w-4 mr-2" />
+                            Stop Recording ({formatTime(recordingTime)})
+                          </Button>
+                        )}
+
+                        {recordingDone && !submitting && (
+                          <div className="flex gap-2 w-full">
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setRecordingDone(false)
+                                setTranscription('')
+                                setCapturedFrames([])
+                                setRecordingTime(0)
+                              }}
+                              className="flex-1"
+                            >
+                              Re-record
+                            </Button>
+                            <Button
+                              onClick={submitVideoResponse}
+                              disabled={transcription.trim().length < 20}
+                              className="flex-1"
+                            >
+                              <Sparkles className="h-4 w-4 mr-1.5" />
+                              Get AI Coaching
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                      <details className="text-xs">
-                        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                          View transcription
-                        </summary>
-                        <p className="mt-1 p-2 bg-white rounded border text-muted-foreground leading-relaxed">
-                          {transcription || 'No speech detected'}
-                        </p>
-                      </details>
-                    </div>
+
+                      {/* Recording summary when done */}
+                      {recordingDone && (
+                        <div className="p-3 rounded-lg bg-muted/50 space-y-2">
+                          <div className="flex items-center gap-4 text-sm">
+                            <span className="flex items-center gap-1 text-muted-foreground">
+                              <Timer className="h-3.5 w-3.5" /> {formatTime(recordingTime)}
+                            </span>
+                            <span className="flex items-center gap-1 text-muted-foreground">
+                              <Camera className="h-3.5 w-3.5" /> {capturedFrames.length} frames
+                            </span>
+                            <span className="flex items-center gap-1 text-muted-foreground">
+                              <Volume2 className="h-3.5 w-3.5" /> {transcription.split(/\s+/).filter(w => w).length} words
+                            </span>
+                          </div>
+                          <details className="text-xs">
+                            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                              View transcription
+                            </summary>
+                            <p className="mt-1 p-2 bg-white rounded border text-muted-foreground leading-relaxed">
+                              {transcription || 'No speech detected'}
+                            </p>
+                          </details>
+                        </div>
+                      )}
+
+                      {/* Submitting state */}
+                      {submitting && (
+                        <div className="text-center py-6 space-y-3">
+                          <div className="animate-spin rounded-full h-10 w-10 border-3 border-primary border-t-transparent mx-auto" />
+                          <div>
+                            <p className="font-medium text-sm">Analyzing your interview...</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              AI is reviewing your body language, speech patterns, and answer content
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Tip */}
+                      {!isRecording && !recordingDone && !submitting && cameraReady && (
+                        <div className="text-center text-xs text-muted-foreground space-y-1">
+                          <p>💡 Look at your camera as if it were the interviewer</p>
+                          <p>Speak clearly and take your time — aim for 1-2 minutes</p>
+                        </div>
+                      )}
+                    </>
                   )}
 
-                  {/* Submitting state */}
-                  {submitting && (
-                    <div className="text-center py-6 space-y-3">
-                      <div className="animate-spin rounded-full h-10 w-10 border-3 border-primary border-t-transparent mx-auto" />
-                      <div>
-                        <p className="font-medium text-sm">Analyzing your interview...</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          AI is reviewing your body language, speech patterns, and answer content
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Tip */}
-                  {!isRecording && !recordingDone && !submitting && cameraReady && (
-                    <div className="text-center text-xs text-muted-foreground space-y-1">
-                      <p>💡 Look at your camera as if it were the interviewer</p>
-                      <p>Speak clearly and take your time — aim for 1-2 minutes</p>
-                    </div>
-                  )}
-
-                  {/* Back to mode select */}
-                  {!isRecording && !recordingDone && !submitting && (
+                  {/* Back to mode select — always available when not recording */}
+                  {!isRecording && !recordingDone && !submitting && !cameraError && (
                     <div className="text-center">
                       <button
                         onClick={() => { stopCamera(); setResponseMode('select'); setCameraError(null) }}
