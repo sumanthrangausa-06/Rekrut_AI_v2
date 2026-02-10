@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Analyze root cause of black video on iOS despite valid track",
+    "status": "completed",
+    "activeForm": "Analyzing root cause"
+  },
+  {
+    "content": "Implement fix for video rendering deadlock",
+    "status": "completed",
+    "activeForm": "Implementing video rendering fix"
+  },
+  {
+    "content": "Build, deploy, and verify",
+    "status": "in_progress",
+    "activeForm": "Building and deploying"
+  },
+  {
+    "content": "Update memory and complete task",
+    "status": "pending",
+    "activeForm": "Updating memory and completing task"
+  }
+]
