@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Investigate existing OmniScore code (service, routes, React pages, DB schema)",
+    "status": "completed",
+    "activeForm": "Investigating existing OmniScore code"
+  },
+  {
+    "content": "Create migration 030 for company_ratings table",
+    "status": "completed",
+    "activeForm": "Creating database migration for company ratings"
+  },
+  {
+    "content": "Enhance backend API routes for two-sided scoring + mutual matching",
+    "status": "completed",
+    "activeForm": "Building backend API for scoring system"
+  },
+  {
+    "content": "Build React candidate OmniScore page",
+    "status": "completed",
+    "activeForm": "Building React candidate OmniScore page"
+  },
+  {
+    "content": "Build React recruiter OmniScore page",
+    "status": "completed",
+    "activeForm": "Building React recruiter OmniScore page"
+  },
+  {
+    "content": "Wire routes + sidebar + build + deploy",
+    "status": "in_progress",
+    "activeForm": "Wiring routes and deploying"
+  }
+]
