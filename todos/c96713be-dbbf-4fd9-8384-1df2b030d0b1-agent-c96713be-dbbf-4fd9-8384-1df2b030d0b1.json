@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Read and understand current camera/video code",
+    "status": "completed",
+    "activeForm": "Reading camera/video code"
+  },
+  {
+    "content": "Identify all parent containers with overflow:hidden + border-radius",
+    "status": "completed",
+    "activeForm": "Identifying CSS containers"
+  },
+  {
+    "content": "Apply research-backed CSS fix (isolation:isolate, transform on video)",
+    "status": "completed",
+    "activeForm": "Applying CSS fix"
+  },
+  {
+    "content": "Remove canvas-based fallback and GPU hacks",
+    "status": "completed",
+    "activeForm": "Removing old workarounds"
+  },
+  {
+    "content": "Build, deploy, and verify",
+    "status": "in_progress",
+    "activeForm": "Building and deploying"
+  }
+]
