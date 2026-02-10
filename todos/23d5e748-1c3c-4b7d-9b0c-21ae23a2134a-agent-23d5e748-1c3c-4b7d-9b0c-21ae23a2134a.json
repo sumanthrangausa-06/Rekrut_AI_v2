@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Investigate root cause of black video on iOS Chrome",
+    "status": "completed",
+    "activeForm": "Investigating root cause of black video"
+  },
+  {
+    "content": "Implement fix for camera stream rendering",
+    "status": "completed",
+    "activeForm": "Implementing camera stream fix"
+  },
+  {
+    "content": "Build, deploy, and verify fix",
+    "status": "in_progress",
+    "activeForm": "Building and deploying fix"
+  }
+]
