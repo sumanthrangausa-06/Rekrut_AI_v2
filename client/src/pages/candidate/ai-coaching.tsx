@@ -289,164 +289,223 @@ export function AiCoachingPage() {
   const isChromeIOS = isIOS && /CriOS/.test(navigator.userAgent)
   const isSafari = isIOS && !isChromeIOS && /Safari/.test(navigator.userAgent)
 
-  // Camera management — cross-browser implementation following Google Meet / HireVue patterns.
+  // Camera management — 8th FIX (Feb 10 2026)
   //
-  // CRITICAL: getUserMedia() MUST be the FIRST async call after the user gesture.
-  // On iOS (all browsers use WebKit), inserting ANY await before getUserMedia
-  // (e.g., Permissions API query) can expire the user gesture activation,
-  // causing iOS to block the camera with NotAllowedError WITHOUT ever showing
-  // the permission prompt. This was the root cause of the "never asked" bug.
+  // ROOT CAUSE: On iOS Chrome (CriOS / WKWebView), calling getUserMedia with
+  // BOTH video + audio in a single request can result in iOS granting only
+  // microphone access. The returned stream has a "ghost" video track that
+  // reports readyState='live' but delivers zero frames (video.readyState=0).
   //
-  // Pattern: User taps → getUserMedia() immediately → handle result.
-  // NO Permissions API pre-check. NO async delays. NO retry loops.
+  // FIX: Request VIDEO-ONLY first (forces iOS to specifically prompt for camera),
+  // verify we get real frames, then request audio separately and merge tracks.
+  // If video-only also fails, try progressively simpler constraints.
+  //
+  // getUserMedia MUST be the FIRST async call after user gesture (iOS requirement).
 
-  // 7th FIX — Direct <video> in JSX with NO overflow context ancestors.
-  //
-  // Root cause of 6 failed attempts:
-  // 1) Attempts 1-4: <video> inside Dialog's overflow-y:auto + rounded-lg triggers
-  //    WebKit compositor bug — video frames never composited.
-  // 2) Attempt 5 (canvas): Canvas inside same overflow context — same bug.
-  // 3) Attempt 6 (detached video at body + canvas): Detached video was 1x1 px with
-  //    opacity:0.01 — iOS WebKit power-saves by skipping frame decoding for
-  //    near-invisible video elements. canvas.drawImage() got black frames.
-  //    Also, canvas diagnostic text was hidden under the !cameraReady overlay
-  //    (z-10 bg-black/90), so user never saw debug info.
-  //
-  // This fix:
-  // - Direct <video> element in JSX (no canvas, no detached elements)
-  // - Camera container uses clip-path for rounded corners (NOT overflow-hidden)
-  // - Camera sits OUTSIDE all overflow-y scroll containers
-  // - Dialog gets overflow-visible override
-  // - DOM-based status indicator (always visible, not canvas-drawn)
-  // - Force GPU compositing with translateZ(0) on video
+  // Helper: attach stream to video element and wait for frames
+  async function attachStreamToVideo(stream: MediaStream): Promise<boolean> {
+    const video = videoRef.current
+    if (!video) {
+      console.error('[camera] video ref not available')
+      setCameraStatus('No video element')
+      return false
+    }
+
+    // Detach first (clean slate)
+    video.srcObject = null
+    await new Promise(r => setTimeout(r, 50))
+    video.srcObject = stream
+
+    // Explicit play() — on iOS autoPlay can be unreliable after getUserMedia
+    try {
+      await video.play()
+    } catch (playErr: any) {
+      console.warn('[camera] play() error:', playErr?.message)
+      // Don't fail — muted+playsInline videos may auto-start
+    }
+
+    // Poll for actual frame data (up to 5 seconds)
+    return new Promise<boolean>((resolve) => {
+      const start = Date.now()
+      const check = () => {
+        const v = videoRef.current
+        if (!v || v.srcObject !== stream) { resolve(false); return }
+
+        const elapsed = Date.now() - start
+        if (v.readyState >= 2 && v.videoWidth > 0) {
+          console.log(`[camera] frames flowing after ${elapsed}ms — ${v.videoWidth}x${v.videoHeight}`)
+          resolve(true)
+          return
+        }
+
+        // Diagnostic info
+        const vt = stream.getVideoTracks()[0]
+        const diag = vt
+          ? `trk:${vt.readyState} muted:${vt.muted} enabled:${vt.enabled}`
+          : 'no-vt'
+        setCameraStatus(`Waiting ${Math.round(elapsed / 1000)}s rs=${v.readyState} ${diag}`)
+
+        if (elapsed > 5000) {
+          console.warn('[camera] no frames after 5s')
+          resolve(false)
+          return
+        }
+        setTimeout(check, 250)
+      }
+      setTimeout(check, 100)
+    })
+  }
 
   async function startCamera() {
     try {
       setCameraError(null)
+      setCameraReady(false)
       setCameraStatus('Requesting camera...')
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setCameraError('not_supported')
-        setCameraStatus('Not supported')
+        setCameraStatus('Camera not supported')
         return
       }
 
-      // getUserMedia MUST be the FIRST async call after user gesture (iOS requirement)
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-        audio: true,
-      })
+      // ── STEP 1: Request VIDEO-ONLY (forces camera permission prompt on iOS) ──
+      let videoStream: MediaStream | null = null
+      const constraintSets = [
+        { video: { facingMode: 'user' }, label: 'video:user' },
+        { video: true, label: 'video:true' },
+      ]
 
-      streamRef.current = stream
-      setCameraStatus('Stream acquired')
-
-      const videoTrack = stream.getVideoTracks()[0]
-      if (!videoTrack || videoTrack.readyState !== 'live') {
-        console.error('[camera] no live video track in stream')
-        setCameraError('not_found')
-        setCameraStatus('No live track')
-        return
-      }
-
-      setCameraStatus(`Track live: ${videoTrack.label}`)
-
-      // Attach stream to the <video> element in JSX (ref-based)
-      const video = videoRef.current
-      if (!video) {
-        console.error('[camera] video ref not available')
-        setCameraError('unknown')
-        setCameraStatus('No video element')
-        return
-      }
-
-      video.srcObject = stream
-
-      // Play — on iOS the autoPlay attribute can be unreliable after getUserMedia
-      // consumed the user gesture, so we explicitly call play()
-      try {
-        await video.play()
-        setCameraStatus('Playing')
-      } catch (playErr: any) {
-        console.warn('[camera] play() failed, retrying:', playErr?.message)
-        setCameraStatus(`Play failed: ${playErr?.message}`)
-        await new Promise(r => setTimeout(r, 500))
+      for (const { video: vc, label } of constraintSets) {
         try {
-          await video.play()
-          setCameraStatus('Playing (retry)')
-        } catch (retryErr: any) {
-          console.warn('[camera] retry play() failed:', retryErr?.message)
-          setCameraStatus(`Retry failed: ${retryErr?.message}`)
-          // autoPlay + muted + playsInline should eventually start; don't error out
+          setCameraStatus(`Trying ${label}...`)
+          // @ts-ignore — vc can be boolean or object
+          videoStream = await navigator.mediaDevices.getUserMedia({ video: vc })
+
+          const vt = videoStream.getVideoTracks()[0]
+          if (!vt) {
+            console.warn(`[camera] ${label}: no video track returned`)
+            videoStream.getTracks().forEach(t => t.stop())
+            videoStream = null
+            continue
+          }
+
+          // Check track has real settings (width/height > 0 means camera is actually active)
+          const settings = vt.getSettings?.() || {}
+          console.log(`[camera] ${label}: track=${vt.readyState} muted=${vt.muted} ${settings.width}x${settings.height}`)
+          setCameraStatus(`Got ${label}: ${settings.width || '?'}x${settings.height || '?'}`)
+
+          // Attach and verify frames flow
+          const framesOk = await attachStreamToVideo(videoStream)
+          if (framesOk) {
+            setCameraStatus(`Video OK via ${label}`)
+            break // Success!
+          }
+
+          // Frames didn't flow — try reattach once (srcObject can be finicky on iOS)
+          console.warn(`[camera] ${label}: no frames, retrying attach...`)
+          setCameraStatus(`Retry attach ${label}...`)
+          const retryOk = await attachStreamToVideo(videoStream)
+          if (retryOk) {
+            setCameraStatus(`Video OK via ${label} (retry)`)
+            break
+          }
+
+          // This constraint set failed
+          console.warn(`[camera] ${label}: failed after retry`)
+          videoStream.getTracks().forEach(t => t.stop())
+          videoStream = null
+        } catch (err: any) {
+          console.warn(`[camera] ${label} error: ${err?.name} ${err?.message}`)
+          setCameraStatus(`${label}: ${err?.name}`)
+          if (err.name === 'NotAllowedError') {
+            setCameraError('denied')
+            return
+          }
+          // Try next constraint set for OverconstrainedError, NotFoundError, etc.
         }
       }
 
-      // Wait for actual frame data — poll readyState
-      const waitStart = Date.now()
-      const checkReady = () => {
-        const v = videoRef.current
-        if (!v) return
-
-        const elapsed = Date.now() - waitStart
-        if (v.readyState >= 2 && v.videoWidth > 0) {
-          // Video is decoding frames
-          console.log(`[camera] ready after ${elapsed}ms — ${v.videoWidth}x${v.videoHeight}`)
-          setCameraStatus(`OK ${v.videoWidth}x${v.videoHeight}`)
-          setCameraReady(true)
+      if (!videoStream) {
+        // Last resort: try combined video+audio (some devices need it)
+        try {
+          setCameraStatus('Trying video+audio...')
+          videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+          const framesOk = await attachStreamToVideo(videoStream)
+          if (!framesOk) {
+            videoStream.getTracks().forEach(t => t.stop())
+            videoStream = null
+          } else {
+            setCameraStatus('Video OK via combined')
+          }
+        } catch (err: any) {
+          console.warn('[camera] combined fallback error:', err?.name)
+          if (err.name === 'NotAllowedError') {
+            setCameraError('denied')
+          } else {
+            setCameraError('not_found')
+          }
+          setCameraStatus(`All methods failed: ${err?.name}`)
           return
         }
-
-        setCameraStatus(`Waiting... readyState=${v.readyState} ${Math.round(elapsed / 1000)}s`)
-
-        if (elapsed > 8000) {
-          // Safety: force ready after 8s so user isn't stuck forever
-          console.warn('[camera] forcing ready after 8s timeout')
-          setCameraStatus(`Timeout — readyState=${v.readyState}`)
-          setCameraReady(true)
-          return
-        }
-
-        setTimeout(checkReady, 200)
       }
-      setTimeout(checkReady, 100)
+
+      if (!videoStream) {
+        setCameraError('not_found')
+        setCameraStatus('Camera not working — tap Retry')
+        return
+      }
+
+      // ── STEP 2: Add audio track (separate request) ──
+      const hasAudio = videoStream.getAudioTracks().length > 0
+      if (!hasAudio) {
+        try {
+          setCameraStatus('Adding microphone...')
+          const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+          const audioTrack = audioStream.getAudioTracks()[0]
+          if (audioTrack) {
+            videoStream.addTrack(audioTrack)
+            console.log('[camera] audio track added')
+          }
+        } catch (audioErr: any) {
+          // Audio failure is non-fatal — recording can work without mic
+          console.warn('[camera] audio request failed:', audioErr?.name)
+        }
+      }
+
+      // ── STEP 3: Finalize ──
+      streamRef.current = videoStream
+      const video = videoRef.current
+      if (video) {
+        // Ensure video element has the final stream (might have been set in attachStreamToVideo)
+        if (video.srcObject !== videoStream) {
+          video.srcObject = videoStream
+          try { await video.play() } catch {}
+        }
+      }
+
+      const vt = videoStream.getVideoTracks()[0]
+      const at = videoStream.getAudioTracks()
+      const settings = vt?.getSettings?.() || {}
+      setCameraStatus(`OK ${settings.width || '?'}x${settings.height || '?'} a:${at.length}`)
+      setCameraReady(true)
 
       // Monitor track ending (user revokes permission)
-      videoTrack.addEventListener('ended', () => {
-        console.warn('[camera] video track ended')
-        setCameraReady(false)
-        setCameraError('denied')
-        setCameraStatus('Track ended')
-      })
+      if (vt) {
+        vt.addEventListener('ended', () => {
+          console.warn('[camera] video track ended')
+          setCameraReady(false)
+          setCameraError('denied')
+          setCameraStatus('Track ended')
+        })
+      }
     } catch (err: any) {
       console.error('Camera access error:', err?.name, err?.message)
-      setCameraStatus(`Error: ${err?.name}`)
+      setCameraStatus(`Error: ${err?.name} ${err?.message}`)
 
       if (err.name === 'NotAllowedError') {
         setCameraError('denied')
       } else if (err.name === 'NotFoundError') {
         setCameraError('not_found')
-      } else if (err.name === 'OverconstrainedError' || err.name === 'NotReadableError') {
-        try {
-          const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-          streamRef.current = fallbackStream
-          setCameraStatus('Fallback stream acquired')
-          const video = videoRef.current
-          if (video) {
-            video.srcObject = fallbackStream
-            try { await video.play() } catch {}
-            setCameraReady(true)
-            setCameraStatus('Fallback OK')
-          }
-          return
-        } catch (fallbackErr: any) {
-          setCameraStatus(`Fallback error: ${fallbackErr?.name}`)
-          if (fallbackErr.name === 'NotAllowedError') {
-            setCameraError('denied')
-          } else if (fallbackErr.name === 'NotReadableError') {
-            setCameraError('in_use')
-          } else {
-            setCameraError('unknown')
-          }
-        }
       } else {
         setCameraError('unknown')
       }
@@ -1167,7 +1226,7 @@ export function AiCoachingPage() {
                           <h4 className="font-semibold text-sm text-red-900">
                             {cameraError === 'denied'
                               ? (isIOS ? 'Camera Access Required' : 'Camera Permission Blocked')
-                              : cameraError === 'not_found' ? 'No Camera Detected'
+                              : cameraError === 'not_found' ? 'Camera Not Working'
                               : cameraError === 'in_use' ? 'Camera In Use'
                               : cameraError === 'not_supported' ? 'Camera Not Supported'
                               : 'Camera Unavailable'}
@@ -1178,7 +1237,9 @@ export function AiCoachingPage() {
                                   ? `Camera access needs to be enabled in your iPhone Settings for ${isChromeIOS ? 'Chrome' : 'Safari'}.`
                                   : 'Your browser blocked camera access for this site.')
                               : cameraError === 'not_found'
-                              ? 'No camera or webcam was found on this device.'
+                              ? (isIOS
+                                  ? `Camera couldn't start. Try: close ${isChromeIOS ? 'Chrome' : 'Safari'} completely (swipe up from app switcher), reopen, and try again.`
+                                  : 'Camera was detected but not delivering video. Try closing and reopening your browser.')
                               : cameraError === 'in_use'
                               ? 'Another app is currently using your camera.'
                               : cameraError === 'not_supported'
@@ -1187,6 +1248,27 @@ export function AiCoachingPage() {
                           </p>
                         </div>
                       </div>
+
+                      {/* iOS-specific instructions for camera not working */}
+                      {cameraError === 'not_found' && isIOS && (
+                        <div className="bg-white rounded-lg p-4 border border-red-100 space-y-3">
+                          <p className="text-xs font-semibold text-gray-900">Steps to fix:</p>
+                          <ol className="text-xs text-gray-700 space-y-2 list-none">
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-primary shrink-0">1.</span>
+                              <span>Open <strong>Settings</strong> → <strong>{isChromeIOS ? 'Chrome' : 'Safari'}</strong> → ensure <strong>Camera</strong> is <strong className="text-green-700">ON</strong></span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-primary shrink-0">2.</span>
+                              <span>Close {isChromeIOS ? 'Chrome' : 'Safari'} completely (swipe up in app switcher)</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="font-bold text-primary shrink-0">3.</span>
+                              <span>Reopen {isChromeIOS ? 'Chrome' : 'Safari'} and navigate back to this page</span>
+                            </li>
+                          </ol>
+                        </div>
+                      )}
 
                       {/* iOS-specific instructions */}
                       {cameraError === 'denied' && isIOS && (
