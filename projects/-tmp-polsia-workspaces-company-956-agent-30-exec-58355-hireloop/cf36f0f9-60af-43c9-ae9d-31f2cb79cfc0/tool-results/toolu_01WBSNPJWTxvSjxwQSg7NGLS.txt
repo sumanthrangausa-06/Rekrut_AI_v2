@@ -1,0 +1,1966 @@
+     1→import { useEffect, useState, useCallback, useRef } from 'react'
+     2→import { apiCall } from '@/lib/api'
+     3→import { Card, CardContent } from '@/components/ui/card'
+     4→import { Button } from '@/components/ui/button'
+     5→import { Badge } from '@/components/ui/badge'
+     6→import { Textarea } from '@/components/ui/textarea'
+     7→import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+     8→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+     9→import {
+    10→  Brain, Target, Lightbulb, MessageSquare, Trophy, TrendingUp,
+    11→  Flame, BookOpen, CheckCircle, ArrowRight, Sparkles, BarChart3,
+    12→  Clock, Star, Zap, Video, VideoOff, Mic, MicOff, Camera, Eye,
+    13→  Volume2, AlertCircle, ChevronDown, ChevronUp, Play, Square,
+    14→  Timer, User, Monitor,
+    15→} from 'lucide-react'
+    16→
+    17→// Types
+    18→interface PracticeQuestion {
+    19→  id: string
+    20→  category: string
+    21→  difficulty: string
+    22→  question: string
+    23→  key_points: string[]
+    24→  times_practiced: number
+    25→  last_score: number | null
+    26→  avg_score: number | null
+    27→  last_practiced: string | null
+    28→}
+    29→
+    30→interface PracticeStats {
+    31→  total_questions: number
+    32→  average_score: number | null
+    33→  improvement: number | null
+    34→  day_streak: number
+    35→  last_practice: string | null
+    36→}
+    37→
+    38→interface CategoryScoreDetail {
+    39→  score: number
+    40→  feedback: string
+    41→}
+    42→
+    43→interface VideoCoaching {
+    44→  overall_score: number
+    45→  content: {
+    46→    score: number
+    47→    strengths: string[]
+    48→    improvements: string[]
+    49→    covered_points: string[]
+    50→    missed_points: string[]
+    51→    detailed_feedback: string
+    52→    improved_response: string
+    53→    specific_tips: string[]
+    54→    common_mistake: string
+    55→    practice_prompt: string
+    56→  }
+    57→  communication: {
+    58→    score: number
+    59→    word_count: number
+    60→    words_per_minute: number
+    61→    duration_seconds: number
+    62→    filler_words: Record<string, number>
+    63→    total_fillers: number
+    64→    filler_rate: number
+    65→    pace: { assessment: string; wpm: number; feedback: string }
+    66→    tips: string[]
+    67→  }
+    68→  presentation: {
+    69→    score: number
+    70→    eye_contact: CategoryScoreDetail
+    71→    facial_expressions: CategoryScoreDetail
+    72→    body_language: CategoryScoreDetail
+    73→    professional_appearance: CategoryScoreDetail
+    74→    summary: string
+    75→    timestamped_notes: { frame: number; note: string }[]
+    76→  }
+    77→}
+    78→
+    79→// Legacy text coaching (kept for fallback)
+    80→interface TextCoaching {
+    81→  score: number
+    82→  strengths: string[]
+    83→  improvements: string[]
+    84→  specific_tips?: string[]
+    85→  improved_response?: string
+    86→  common_mistake?: string
+    87→  body_language_tips?: string[]
+    88→  practice_prompt?: string
+    89→}
+    90→
+    91→interface CategoryProgress {
+    92→  category: string
+    93→  count: number
+    94→  average_score: number
+    95→}
+    96→
+    97→interface RecentSession {
+    98→  question: string
+    99→  category: string
+   100→  score: number
+   101→  improvements: string[]
+   102→  created_at: string
+   103→}
+   104→
+   105→const categoryConfig: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
+   106→  behavioral: { label: 'Behavioral', icon: Brain, color: 'text-violet-700', bg: 'bg-violet-100' },
+   107→  technical: { label: 'Technical', icon: Zap, color: 'text-rose-700', bg: 'bg-rose-100' },
+   108→  situational: { label: 'Situational', icon: Lightbulb, color: 'text-sky-700', bg: 'bg-sky-100' },
+   109→}
+   110→
+   111→const difficultyColors: Record<string, string> = {
+   112→  Easy: 'bg-green-100 text-green-700',
+   113→  Medium: 'bg-amber-100 text-amber-700',
+   114→  Hard: 'bg-red-100 text-red-700',
+   115→}
+   116→
+   117→// Score color helper
+   118→function scoreColor(score: number): string {
+   119→  if (score >= 8) return 'text-green-600'
+   120→  if (score >= 6) return 'text-amber-600'
+   121→  return 'text-red-600'
+   122→}
+   123→
+   124→function scoreBg(score: number): string {
+   125→  if (score >= 8) return 'bg-green-50 border-green-200'
+   126→  if (score >= 6) return 'bg-amber-50 border-amber-200'
+   127→  return 'bg-red-50 border-red-200'
+   128→}
+   129→
+   130→function scoreLabel(score: number): string {
+   131→  if (score >= 9) return 'Excellent'
+   132→  if (score >= 8) return 'Great'
+   133→  if (score >= 7) return 'Good'
+   134→  if (score >= 6) return 'Decent'
+   135→  if (score >= 5) return 'Average'
+   136→  return 'Needs Work'
+   137→}
+   138→
+   139→// Score bar component
+   140→function ScoreBar({ score, label, icon: Icon }: { score: number; label: string; icon: React.ElementType }) {
+   141→  const pct = (score / 10) * 100
+   142→  const barColor = score >= 8 ? 'bg-green-500' : score >= 6 ? 'bg-amber-500' : 'bg-red-500'
+   143→
+   144→  return (
+   145→    <div className="space-y-1">
+   146→      <div className="flex items-center justify-between text-sm">
+   147→        <span className="flex items-center gap-1.5 font-medium">
+   148→          <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+   149→          {label}
+   150→        </span>
+   151→        <span className={`font-bold ${scoreColor(score)}`}>{score}/10</span>
+   152→      </div>
+   153→      <div className="h-2 bg-muted rounded-full overflow-hidden">
+   154→        <div className={`h-full ${barColor} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
+   155→      </div>
+   156→    </div>
+   157→  )
+   158→}
+   159→
+   160→export function AiCoachingPage() {
+   161→  const [tab, setTab] = useState('practice')
+   162→  const [stats, setStats] = useState<PracticeStats | null>(null)
+   163→  const [questions, setQuestions] = useState<PracticeQuestion[]>([])
+   164→  const [categoryFilter, setCategoryFilter] = useState('all')
+   165→  const [loading, setLoading] = useState(true)
+   166→
+   167→  // Practice modal state
+   168→  const [practiceQuestion, setPracticeQuestion] = useState<PracticeQuestion | null>(null)
+   169→  const [responseMode, setResponseMode] = useState<'select' | 'video' | 'text'>('select')
+   170→  const [responseText, setResponseText] = useState('')
+   171→  const [submitting, setSubmitting] = useState(false)
+   172→  const [coaching, setCoaching] = useState<VideoCoaching | null>(null)
+   173→  const [textCoaching, setTextCoaching] = useState<TextCoaching | null>(null)
+   174→
+   175→  // Video recording state
+   176→  const [isRecording, setIsRecording] = useState(false)
+   177→  const [recordingTime, setRecordingTime] = useState(0)
+   178→  const [cameraReady, setCameraReady] = useState(false)
+   179→  const [cameraError, setCameraError] = useState<string | null>(null)
+   180→  const [transcription, setTranscription] = useState('')
+   181→  const [isTranscribing, setIsTranscribing] = useState(false)
+   182→  const [capturedFrames, setCapturedFrames] = useState<string[]>([])
+   183→  const [recordingDone, setRecordingDone] = useState(false)
+   184→  const [countdown, setCountdown] = useState<number | null>(null)
+   185→  const [cameraStatus, setCameraStatus] = useState('')
+   186→
+   187→  // Refs
+   188→  const videoRef = useRef<HTMLVideoElement>(null)
+   189→  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+   190→  const streamRef = useRef<MediaStream | null>(null)
+   191→  const canvasRef = useRef<HTMLCanvasElement>(null)
+   192→  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+   193→  const frameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+   194→  const recognitionRef = useRef<any>(null)
+   195→
+   196→  // Feedback detail sections
+   197→  const [expandedSection, setExpandedSection] = useState<string | null>('content')
+   198→
+   199→  // Progress state
+   200→  const [categoryProgress, setCategoryProgress] = useState<CategoryProgress[]>([])
+   201→  const [recentSessions, setRecentSessions] = useState<RecentSession[]>([])
+   202→
+   203→  const loadStats = useCallback(async () => {
+   204→    try {
+   205→      const res = await apiCall<{ success: boolean; stats: PracticeStats }>('/interviews/practice/stats')
+   206→      if (res.success) setStats(res.stats)
+   207→    } catch (err) {
+   208→      console.error('Failed to load stats:', err)
+   209→    }
+   210→  }, [])
+   211→
+   212→  const loadQuestions = useCallback(async () => {
+   213→    try {
+   214→      const res = await apiCall<{ success: boolean; questions: PracticeQuestion[] }>('/interviews/practice/library')
+   215→      if (res.success) setQuestions(res.questions)
+   216→    } catch (err) {
+   217→      console.error('Failed to load questions:', err)
+   218→    }
+   219→  }, [])
+   220→
+   221→  const loadProgress = useCallback(async () => {
+   222→    try {
+   223→      const res = await apiCall<{
+   224→        success: boolean
+   225→        progress: { by_category: CategoryProgress[]; recent_sessions: RecentSession[] }
+   226→      }>('/interviews/practice/progress')
+   227→      if (res.success) {
+   228→        setCategoryProgress(res.progress.by_category)
+   229→        setRecentSessions(res.progress.recent_sessions)
+   230→      }
+   231→    } catch (err) {
+   232→      console.error('Failed to load progress:', err)
+   233→    }
+   234→  }, [])
+   235→
+   236→  useEffect(() => {
+   237→    async function init() {
+   238→      setLoading(true)
+   239→      await Promise.all([loadStats(), loadQuestions(), loadProgress()])
+   240→      setLoading(false)
+   241→    }
+   242→    init()
+   243→  }, [loadStats, loadQuestions, loadProgress])
+   244→
+   245→  // Cleanup on unmount
+   246→  useEffect(() => {
+   247→    return () => {
+   248→      stopCamera()
+   249→      if (timerRef.current) clearInterval(timerRef.current)
+   250→      if (frameIntervalRef.current) clearInterval(frameIntervalRef.current)
+   251→    }
+   252→  }, [])
+   253→
+   254→  // 10TH FIX (Feb 10 2026): On iOS WebKit, a <video> element that had srcObject
+   255→  // set while hidden behind an opaque overlay never starts rendering — iOS's power
+   256→  // optimization paused the decoder and won't restart it even after overlay removal
+   257→  // and play(). The <video> element uses a key prop that changes when cameraReady
+   258→  // becomes true, forcing React to create a BRAND NEW DOM element that was never
+   259→  // hidden. This useEffect then attaches the stream to the fresh element.
+   260→  useEffect(() => {
+   261→    if (!cameraReady) return
+   262→    const video = videoRef.current
+   263→    const stream = streamRef.current
+   264→    if (!video || !stream) return
+   265→
+   266→    // Attach stream to the fresh video element (created by key change)
+   267→    // Use a small delay to ensure React has committed the new element to the DOM
+   268→    const timer = setTimeout(() => {
+   269→      const v = videoRef.current
+   270→      if (!v) return
+   271→      v.srcObject = stream
+   272→      v.play().then(() => {
+   273→        console.log(`[camera] 10th fix: play() succeeded on fresh element, readyState=${v.readyState}`)
+   274→        setCameraStatus(prev => prev + ' ▶')
+   275→      }).catch((e: any) => {
+   276→        console.warn('[camera] play() on fresh element:', e?.message)
+   277→      })
+   278→    }, 80)
+   279→
+   280→    return () => clearTimeout(timer)
+   281→  }, [cameraReady])
+   282→
+   283→  function openPractice(q: PracticeQuestion) {
+   284→    setPracticeQuestion(q)
+   285→    setResponseMode('select')
+   286→    setResponseText('')
+   287→    setCoaching(null)
+   288→    setTextCoaching(null)
+   289→    setSubmitting(false)
+   290→    setRecordingDone(false)
+   291→    setTranscription('')
+   292→    setCapturedFrames([])
+   293→    setRecordingTime(0)
+   294→    setCameraError(null)
+   295→    setExpandedSection('content')
+   296→  }
+   297→
+   298→  function closePractice() {
+   299→    stopCamera()
+   300→    stopRecording()
+   301→    setPracticeQuestion(null)
+   302→    setResponseMode('select')
+   303→    setResponseText('')
+   304→    setCoaching(null)
+   305→    setTextCoaching(null)
+   306→    setSubmitting(false)
+   307→    setRecordingDone(false)
+   308→    setTranscription('')
+   309→    setCapturedFrames([])
+   310→    setRecordingTime(0)
+   311→    setCameraError(null)
+   312→    setCountdown(null)
+   313→  }
+   314→
+   315→  // Detect iOS (all browsers on iOS use WebKit)
+   316→  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+   317→    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+   318→  const isChromeIOS = isIOS && /CriOS/.test(navigator.userAgent)
+   319→  const isSafari = isIOS && !isChromeIOS && /Safari/.test(navigator.userAgent)
+   320→
+   321→  // Camera management — 8th FIX (Feb 10 2026)
+   322→  //
+   323→  // ROOT CAUSE: On iOS Chrome (CriOS / WKWebView), calling getUserMedia with
+   324→  // BOTH video + audio in a single request can result in iOS granting only
+   325→  // microphone access. The returned stream has a "ghost" video track that
+   326→  // reports readyState='live' but delivers zero frames (video.readyState=0).
+   327→  //
+   328→  // FIX: Request VIDEO-ONLY first (forces iOS to specifically prompt for camera),
+   329→  // verify we get real frames, then request audio separately and merge tracks.
+   330→  // If video-only also fails, try progressively simpler constraints.
+   331→  //
+   332→  // getUserMedia MUST be the FIRST async call after user gesture (iOS requirement).
+   333→
+   334→  // Helper: attach stream to video element and verify it's working
+   335→  //
+   336→  // 9TH FIX (Feb 10 2026): On iOS WebKit, the video element doesn't decode
+   337→  // frames when completely covered by an opaque overlay (power optimization).
+   338→  // The !cameraReady overlay (z-10 bg-black/90) covers the <video> during
+   339→  // this entire check, so video.readyState NEVER reaches >=2 and videoWidth
+   340→  // stays 0 — creating a deadlock: we need frames to remove the overlay,
+   341→  // but need the overlay removed to get frames.
+   342→  //
+   343→  // FIX: Trust the MediaStreamTrack's getSettings() instead of polling
+   344→  // video.readyState. If the track is 'live' with valid width/height,
+   345→  // the camera IS working. Return true immediately so the caller can
+   346→  // set cameraReady=true, which removes the overlay, which lets iOS
+   347→  // start rendering.
+   348→  async function attachStreamToVideo(stream: MediaStream): Promise<boolean> {
+   349→    const video = videoRef.current
+   350→    if (!video) {
+   351→      console.error('[camera] video ref not available')
+   352→      setCameraStatus('No video element')
+   353→      return false
+   354→    }
+   355→
+   356→    // Detach first (clean slate)
+   357→    video.srcObject = null
+   358→    await new Promise(r => setTimeout(r, 50))
+   359→    video.srcObject = stream
+   360→
+   361→    // Explicit play() — on iOS autoPlay can be unreliable after getUserMedia
+   362→    try {
+   363→      await video.play()
+   364→    } catch (playErr: any) {
+   365→      console.warn('[camera] play() error:', playErr?.message)
+   366→      // Don't fail — muted+playsInline videos may auto-start
+   367→    }
+   368→
+   369→    // ── PRIMARY CHECK: Trust the track's settings ──
+   370→    // If the track is live and reports valid dimensions, the camera IS active.
+   371→    // Don't wait for video.readyState (which won't update while overlay covers video on iOS).
+   372→    const vt = stream.getVideoTracks()[0]
+   373→    if (vt && vt.readyState === 'live') {
+   374→      const settings = vt.getSettings?.() || {}
+   375→      if ((settings.width || 0) > 0 && (settings.height || 0) > 0) {
+   376→        console.log(`[camera] track live with valid settings ${settings.width}x${settings.height} — trusting track (iOS fix)`)
+   377→        setCameraStatus(`Live ${settings.width}x${settings.height}`)
+   378→        return true
+   379→      }
+   380→    }
+   381→
+   382→    // ── FALLBACK: Poll for frame data OR track settings (up to 4 seconds) ──
+   383→    // Handles edge cases where track settings aren't immediately available
+   384→    return new Promise<boolean>((resolve) => {
+   385→      const start = Date.now()
+   386→      const check = () => {
+   387→        const v = videoRef.current
+   388→        if (!v || v.srcObject !== stream) { resolve(false); return }
+   389→
+   390→        const elapsed = Date.now() - start
+   391→
+   392→        // Check video element (works on desktop / non-overlay scenarios)
+   393→        if (v.readyState >= 2 && v.videoWidth > 0) {
+   394→          console.log(`[camera] frames confirmed after ${elapsed}ms — ${v.videoWidth}x${v.videoHeight}`)
+   395→          resolve(true)
+   396→          return
+   397→        }
+   398→
+   399→        // Re-check track settings (may become available after a delay)
+   400→        const vt2 = stream.getVideoTracks()[0]
+   401→        if (vt2 && vt2.readyState === 'live' && elapsed > 300) {
+   402→          const s = vt2.getSettings?.() || {}
+   403→          if ((s.width || 0) > 0 && (s.height || 0) > 0) {
+   404→            console.log(`[camera] track settings available after ${elapsed}ms: ${s.width}x${s.height} — trusting`)
+   405→            setCameraStatus(`Live ${s.width}x${s.height}`)
+   406→            resolve(true)
+   407→            return
+   408→          }
+   409→        }
+   410→
+   411→        // Also accept if track is live and enabled (even without settings)
+   412→        if (vt2 && vt2.readyState === 'live' && vt2.enabled && !vt2.muted && elapsed > 1500) {
+   413→          console.log(`[camera] track live+enabled after ${elapsed}ms — accepting without settings`)
+   414→          setCameraStatus('Live (no settings)')
+   415→          resolve(true)
+   416→          return
+   417→        }
+   418→
+   419→        // Diagnostic info
+   420→        const diag = vt2
+   421→          ? `trk:${vt2.readyState} muted:${vt2.muted} enabled:${vt2.enabled}`
+   422→          : 'no-vt'
+   423→        setCameraStatus(`Waiting ${Math.round(elapsed / 1000)}s rs=${v.readyState} ${diag}`)
+   424→
+   425→        if (elapsed > 4000) {
+   426→          console.warn('[camera] no frames or track settings after 4s')
+   427→          resolve(false)
+   428→          return
+   429→        }
+   430→        setTimeout(check, 200)
+   431→      }
+   432→      setTimeout(check, 100)
+   433→    })
+   434→  }
+   435→
+   436→  async function startCamera() {
+   437→    try {
+   438→      setCameraError(null)
+   439→      setCameraReady(false)
+   440→      setCameraStatus('Requesting camera...')
+   441→
+   442→      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+   443→        setCameraError('not_supported')
+   444→        setCameraStatus('Camera not supported')
+   445→        return
+   446→      }
+   447→
+   448→      // ── STEP 1: Request VIDEO-ONLY (forces camera permission prompt on iOS) ──
+   449→      let videoStream: MediaStream | null = null
+   450→      const constraintSets = [
+   451→        { video: { facingMode: 'user' }, label: 'video:user' },
+   452→        { video: true, label: 'video:true' },
+   453→      ]
+   454→
+   455→      for (const { video: vc, label } of constraintSets) {
+   456→        try {
+   457→          setCameraStatus(`Trying ${label}...`)
+   458→          // @ts-ignore — vc can be boolean or object
+   459→          videoStream = await navigator.mediaDevices.getUserMedia({ video: vc })
+   460→
+   461→          const vt = videoStream.getVideoTracks()[0]
+   462→          if (!vt) {
+   463→            console.warn(`[camera] ${label}: no video track returned`)
+   464→            videoStream.getTracks().forEach(t => t.stop())
+   465→            videoStream = null
+   466→            continue
+   467→          }
+   468→
+   469→          // Check track has real settings (width/height > 0 means camera is actually active)
+   470→          const settings = vt.getSettings?.() || {}
+   471→          console.log(`[camera] ${label}: track=${vt.readyState} muted=${vt.muted} ${settings.width}x${settings.height}`)
+   472→          setCameraStatus(`Got ${label}: ${settings.width || '?'}x${settings.height || '?'}`)
+   473→
+   474→          // Attach and verify frames flow
+   475→          const framesOk = await attachStreamToVideo(videoStream)
+   476→          if (framesOk) {
+   477→            setCameraStatus(`Video OK via ${label}`)
+   478→            break // Success!
+   479→          }
+   480→
+   481→          // Frames didn't flow — try reattach once (srcObject can be finicky on iOS)
+   482→          console.warn(`[camera] ${label}: no frames, retrying attach...`)
+   483→          setCameraStatus(`Retry attach ${label}...`)
+   484→          const retryOk = await attachStreamToVideo(videoStream)
+   485→          if (retryOk) {
+   486→            setCameraStatus(`Video OK via ${label} (retry)`)
+   487→            break
+   488→          }
+   489→
+   490→          // This constraint set failed
+   491→          console.warn(`[camera] ${label}: failed after retry`)
+   492→          videoStream.getTracks().forEach(t => t.stop())
+   493→          videoStream = null
+   494→        } catch (err: any) {
+   495→          console.warn(`[camera] ${label} error: ${err?.name} ${err?.message}`)
+   496→          setCameraStatus(`${label}: ${err?.name}`)
+   497→          if (err.name === 'NotAllowedError') {
+   498→            setCameraError('denied')
+   499→            return
+   500→          }
+   501→          // Try next constraint set for OverconstrainedError, NotFoundError, etc.
+   502→        }
+   503→      }
+   504→
+   505→      if (!videoStream) {
+   506→        // Last resort: try combined video+audio (some devices need it)
+   507→        try {
+   508→          setCameraStatus('Trying video+audio...')
+   509→          videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+   510→          const framesOk = await attachStreamToVideo(videoStream)
+   511→          if (!framesOk) {
+   512→            videoStream.getTracks().forEach(t => t.stop())
+   513→            videoStream = null
+   514→          } else {
+   515→            setCameraStatus('Video OK via combined')
+   516→          }
+   517→        } catch (err: any) {
+   518→          console.warn('[camera] combined fallback error:', err?.name)
+   519→          if (err.name === 'NotAllowedError') {
+   520→            setCameraError('denied')
+   521→          } else {
+   522→            setCameraError('not_found')
+   523→          }
+   524→          setCameraStatus(`All methods failed: ${err?.name}`)
+   525→          return
+   526→        }
+   527→      }
+   528→
+   529→      if (!videoStream) {
+   530→        setCameraError('not_found')
+   531→        setCameraStatus('Camera not working — tap Retry')
+   532→        return
+   533→      }
+   534→
+   535→      // ── STEP 2: Add audio track (separate request) ──
+   536→      const hasAudio = videoStream.getAudioTracks().length > 0
+   537→      if (!hasAudio) {
+   538→        try {
+   539→          setCameraStatus('Adding microphone...')
+   540→          const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+   541→          const audioTrack = audioStream.getAudioTracks()[0]
+   542→          if (audioTrack) {
+   543→            videoStream.addTrack(audioTrack)
+   544→            console.log('[camera] audio track added')
+   545→          }
+   546→        } catch (audioErr: any) {
+   547→          // Audio failure is non-fatal — recording can work without mic
+   548→          console.warn('[camera] audio request failed:', audioErr?.name)
+   549→        }
+   550→      }
+   551→
+   552→      // ── STEP 3: Finalize ──
+   553→      streamRef.current = videoStream
+   554→      const video = videoRef.current
+   555→      if (video) {
+   556→        // Ensure video element has the final stream (might have been set in attachStreamToVideo)
+   557→        if (video.srcObject !== videoStream) {
+   558→          video.srcObject = videoStream
+   559→          try { await video.play() } catch {}
+   560→        }
+   561→      }
+   562→
+   563→      const vt = videoStream.getVideoTracks()[0]
+   564→      const at = videoStream.getAudioTracks()
+   565→      const settings = vt?.getSettings?.() || {}
+   566→      setCameraStatus(`OK ${settings.width || '?'}x${settings.height || '?'} a:${at.length}`)
+   567→      setCameraReady(true)
+   568→
+   569→      // ── 10TH FIX: After cameraReady=true, React recreates <video> via key prop ──
+   570→      // The useEffect handles stream reattachment. This rAF is a backup that also
+   571→      // ensures srcObject is set on the new element if the useEffect hasn't fired yet.
+   572→      requestAnimationFrame(() => {
+   573→        requestAnimationFrame(() => {
+   574→          const v = videoRef.current
+   575→          const s = streamRef.current
+   576→          if (v && s) {
+   577→            if (!v.srcObject) {
+   578→              v.srcObject = s
+   579→              console.log('[camera] rAF backup: attached stream to fresh element')
+   580→            }
+   581→            v.play().catch(() => {})
+   582→          }
+   583→        })
+   584→      })
+   585→
+   586→      // Monitor track ending (user revokes permission)
+   587→      if (vt) {
+   588→        vt.addEventListener('ended', () => {
+   589→          console.warn('[camera] video track ended')
+   590→          setCameraReady(false)
+   591→          setCameraError('denied')
+   592→          setCameraStatus('Track ended')
+   593→        })
+   594→      }
+   595→    } catch (err: any) {
+   596→      console.error('Camera access error:', err?.name, err?.message)
+   597→      setCameraStatus(`Error: ${err?.name} ${err?.message}`)
+   598→
+   599→      if (err.name === 'NotAllowedError') {
+   600→        setCameraError('denied')
+   601→      } else if (err.name === 'NotFoundError') {
+   602→        setCameraError('not_found')
+   603→      } else {
+   604→        setCameraError('unknown')
+   605→      }
+   606→    }
+   607→  }
+   608→
+   609→  function stopCamera() {
+   610→    if (streamRef.current) {
+   611→      streamRef.current.getTracks().forEach(track => track.stop())
+   612→      streamRef.current = null
+   613→    }
+   614→    if (videoRef.current) {
+   615→      videoRef.current.srcObject = null
+   616→    }
+   617→    setCameraReady(false)
+   618→    setCameraStatus('')
+   619→  }
+   620→
+   621→  // Frame capture
+   622→  function captureFrame(): string | null {
+   623→    if (!videoRef.current || !canvasRef.current) return null
+   624→    const canvas = canvasRef.current
+   625→    const video = videoRef.current
+   626→    canvas.width = 320
+   627→    canvas.height = 240
+   628→    const ctx = canvas.getContext('2d')
+   629→    if (!ctx) return null
+   630→    ctx.drawImage(video, 0, 0, 320, 240)
+   631→    return canvas.toDataURL('image/jpeg', 0.7)
+   632→  }
+   633→
+   634→  // Speech Recognition
+   635→  function startSpeechRecognition() {
+   636→    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+   637→    if (!SpeechRecognition) {
+   638→      console.warn('Speech recognition not supported')
+   639→      return
+   640→    }
+   641→
+   642→    const recognition = new SpeechRecognition()
+   643→    recognition.continuous = true
+   644→    recognition.interimResults = true
+   645→    recognition.lang = 'en-US'
+   646→
+   647→    let finalTranscript = ''
+   648→
+   649→    recognition.onresult = (event: any) => {
+   650→      let interim = ''
+   651→      for (let i = event.resultIndex; i < event.results.length; i++) {
+   652→        const result = event.results[i]
+   653→        if (result.isFinal) {
+   654→          finalTranscript += result[0].transcript + ' '
+   655→        } else {
+   656→          interim = result[0].transcript
+   657→        }
+   658→      }
+   659→      setTranscription(finalTranscript + interim)
+   660→      setIsTranscribing(true)
+   661→    }
+   662→
+   663→    recognition.onerror = (event: any) => {
+   664→      console.warn('Speech recognition error:', event.error)
+   665→      if (event.error === 'no-speech') {
+   666→        // Restart
+   667→        try { recognition.start() } catch (_) {}
+   668→      }
+   669→    }
+   670→
+   671→    recognition.onend = () => {
+   672→      setIsTranscribing(false)
+   673→      // Restart if still recording
+   674→      if (isRecording) {
+   675→        try { recognition.start() } catch (_) {}
+   676→      }
+   677→    }
+   678→
+   679→    recognition.start()
+   680→    recognitionRef.current = recognition
+   681→    setIsTranscribing(true)
+   682→  }
+   683→
+   684→  function stopSpeechRecognition() {
+   685→    if (recognitionRef.current) {
+   686→      try { recognitionRef.current.stop() } catch (_) {}
+   687→      recognitionRef.current = null
+   688→    }
+   689→    setIsTranscribing(false)
+   690→  }
+   691→
+   692→  // Recording
+   693→  function startCountdownThenRecord() {
+   694→    setCountdown(3)
+   695→    let count = 3
+   696→    const interval = setInterval(() => {
+   697→      count--
+   698→      if (count <= 0) {
+   699→        clearInterval(interval)
+   700→        setCountdown(null)
+   701→        startRecording()
+   702→      } else {
+   703→        setCountdown(count)
+   704→      }
+   705→    }, 1000)
+   706→  }
+   707→
+   708→  function startRecording() {
+   709→    if (!streamRef.current) return
+   710→
+   711→    setIsRecording(true)
+   712→    setRecordingTime(0)
+   713→    setTranscription('')
+   714→    setCapturedFrames([])
+   715→    setRecordingDone(false)
+   716→
+   717→    // Start timer
+   718→    timerRef.current = setInterval(() => {
+   719→      setRecordingTime(prev => prev + 1)
+   720→    }, 1000)
+   721→
+   722→    // Start frame capture (every 4 seconds)
+   723→    frameIntervalRef.current = setInterval(() => {
+   724→      const frame = captureFrame()
+   725→      if (frame) {
+   726→        setCapturedFrames(prev => [...prev, frame])
+   727→      }
+   728→    }, 4000)
+   729→
+   730→    // Capture first frame immediately
+   731→    setTimeout(() => {
+   732→      const frame = captureFrame()
+   733→      if (frame) setCapturedFrames(prev => [...prev, frame])
+   734→    }, 500)
+   735→
+   736→    // Start speech recognition
+   737→    startSpeechRecognition()
+   738→  }
+   739→
+   740→  function stopRecording() {
+   741→    setIsRecording(false)
+   742→
+   743→    if (timerRef.current) {
+   744→      clearInterval(timerRef.current)
+   745→      timerRef.current = null
+   746→    }
+   747→
+   748→    if (frameIntervalRef.current) {
+   749→      clearInterval(frameIntervalRef.current)
+   750→      frameIntervalRef.current = null
+   751→    }
+   752→
+   753→    // Capture final frame
+   754→    const frame = captureFrame()
+   755→    if (frame) setCapturedFrames(prev => [...prev, frame])
+   756→
+   757→    stopSpeechRecognition()
+   758→    setRecordingDone(true)
+   759→  }
+   760→
+   761→  // Submit video response
+   762→  async function submitVideoResponse() {
+   763→    if (!practiceQuestion) return
+   764→
+   765→    const finalTranscription = transcription.trim()
+   766→    if (finalTranscription.length < 20) {
+   767→      alert('Your response was too short. Please try recording again and speak for at least 15-20 seconds.')
+   768→      return
+   769→    }
+   770→
+   771→    if (capturedFrames.length === 0) {
+   772→      alert('No video frames were captured. Please try again with camera enabled.')
+   773→      return
+   774→    }
+   775→
+   776→    setSubmitting(true)
+   777→    try {
+   778→      const res = await apiCall<{ success: boolean; coaching: VideoCoaching }>('/interviews/practice/submit-video', {
+   779→        method: 'POST',
+   780→        body: {
+   781→          question_id: practiceQuestion.id,
+   782→          question: practiceQuestion.question,
+   783→          category: practiceQuestion.category,
+   784→          transcription: finalTranscription,
+   785→          frames: capturedFrames,
+   786→          duration_seconds: recordingTime,
+   787→        },
+   788→      })
+   789→
+   790→      if (res.success) {
+   791→        setCoaching(res.coaching)
+   792→        stopCamera()
+   793→        loadStats()
+   794→        loadQuestions()
+   795→        loadProgress()
+   796→      }
+   797→    } catch (err: any) {
+   798→      alert(err.message || 'Failed to get AI coaching. Please try again.')
+   799→    } finally {
+   800→      setSubmitting(false)
+   801→    }
+   802→  }
+   803→
+   804→  // Submit text response (fallback)
+   805→  async function submitTextResponse() {
+   806→    if (!practiceQuestion) return
+   807→    if (responseText.trim().length < 50) {
+   808→      alert('Please write at least 50 characters for a meaningful response.')
+   809→      return
+   810→    }
+   811→
+   812→    setSubmitting(true)
+   813→    try {
+   814→      const res = await apiCall<{ success: boolean; coaching: TextCoaching }>('/interviews/practice/submit', {
+   815→        method: 'POST',
+   816→        body: {
+   817→          question_id: practiceQuestion.id,
+   818→          question: practiceQuestion.question,
+   819→          category: practiceQuestion.category,
+   820→          response_text: responseText,
+   821→        },
+   822→      })
+   823→
+   824→      if (res.success) {
+   825→        setTextCoaching(res.coaching)
+   826→        loadStats()
+   827→        loadQuestions()
+   828→        loadProgress()
+   829→      }
+   830→    } catch (err: any) {
+   831→      alert(err.message || 'Failed to get AI coaching. Please try again.')
+   832→    } finally {
+   833→      setSubmitting(false)
+   834→    }
+   835→  }
+   836→
+   837→  function practiceAnother() {
+   838→    setCoaching(null)
+   839→    setTextCoaching(null)
+   840→    setResponseText('')
+   841→    setTranscription('')
+   842→    setCapturedFrames([])
+   843→    setRecordingDone(false)
+   844→    setRecordingTime(0)
+   845→    setPracticeQuestion(null)
+   846→    setResponseMode('select')
+   847→    stopCamera()
+   848→  }
+   849→
+   850→  function formatTime(seconds: number): string {
+   851→    const m = Math.floor(seconds / 60)
+   852→    const s = seconds % 60
+   853→    return `${m}:${s.toString().padStart(2, '0')}`
+   854→  }
+   855→
+   856→  const filteredQuestions =
+   857→    categoryFilter === 'all' ? questions : questions.filter(q => q.category === categoryFilter)
+   858→
+   859→  const categoryCounts = questions.reduce<Record<string, number>>((acc, q) => {
+   860→    acc[q.category] = (acc[q.category] || 0) + 1
+   861→    return acc
+   862→  }, {})
+   863→
+   864→  if (loading) {
+   865→    return (
+   866→      <div className="flex items-center justify-center py-20">
+   867→        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+   868→      </div>
+   869→    )
+   870→  }
+   871→
+   872→  // ==================== RENDER ====================
+   873→  return (
+   874→    <div className="space-y-6">
+   875→      {/* Header */}
+   876→      <div>
+   877→        <div className="flex items-center gap-2">
+   878→          <div className="p-2 rounded-lg bg-primary/10">
+   879→            <Video className="h-5 w-5 text-primary" />
+   880→          </div>
+   881→          <div>
+   882→            <h1 className="text-2xl font-heading font-bold">AI Interview Coach</h1>
+   883→            <p className="text-muted-foreground text-sm">Record video responses — get AI feedback on content, delivery, and body language</p>
+   884→          </div>
+   885→        </div>
+   886→      </div>
+   887→
+   888→      {/* Feature Highlights */}
+   889→      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+   890→        <div className="flex items-center gap-3 p-3 rounded-lg bg-violet-50 border border-violet-100">
+   891→          <Camera className="h-5 w-5 text-violet-600 shrink-0" />
+   892→          <div>
+   893→            <p className="text-sm font-medium text-violet-900">Video Recording</p>
+   894→            <p className="text-xs text-violet-600">Record yourself answering like a real interview</p>
+   895→          </div>
+   896→        </div>
+   897→        <div className="flex items-center gap-3 p-3 rounded-lg bg-sky-50 border border-sky-100">
+   898→          <Eye className="h-5 w-5 text-sky-600 shrink-0" />
+   899→          <div>
+   900→            <p className="text-sm font-medium text-sky-900">Body Language AI</p>
+   901→            <p className="text-xs text-sky-600">Eye contact, expressions, posture analysis</p>
+   902→          </div>
+   903→        </div>
+   904→        <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+   905→          <Volume2 className="h-5 w-5 text-emerald-600 shrink-0" />
+   906→          <div>
+   907→            <p className="text-sm font-medium text-emerald-900">Speech Analysis</p>
+   908→            <p className="text-xs text-emerald-600">Pace, filler words, clarity scoring</p>
+   909→          </div>
+   910→        </div>
+   911→      </div>
+   912→
+   913→      {/* Stats Cards */}
+   914→      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+   915→        <Card>
+   916→          <CardContent className="p-4 text-center">
+   917→            <div className="inline-flex p-2 rounded-lg bg-primary/10 mb-2">
+   918→              <Target className="h-5 w-5 text-primary" />
+   919→            </div>
+   920→            <div className="text-2xl font-bold">{stats?.total_questions || 0}</div>
+   921→            <div className="text-xs text-muted-foreground">Sessions</div>
+   922→          </CardContent>
+   923→        </Card>
+   924→        <Card>
+   925→          <CardContent className="p-4 text-center">
+   926→            <div className="inline-flex p-2 rounded-lg bg-amber-100 mb-2">
+   927→              <Star className="h-5 w-5 text-amber-600" />
+   928→            </div>
+   929→            <div className="text-2xl font-bold">
+   930→              {stats?.average_score != null ? `${Math.round(stats.average_score * 10) / 10}/10` : '—'}
+   931→            </div>
+   932→            <div className="text-xs text-muted-foreground">Avg Score</div>
+   933→          </CardContent>
+   934→        </Card>
+   935→        <Card>
+   936→          <CardContent className="p-4 text-center">
+   937→            <div className="inline-flex p-2 rounded-lg bg-green-100 mb-2">
+   938→              <TrendingUp className="h-5 w-5 text-green-600" />
+   939→            </div>
+   940→            <div className="text-2xl font-bold">
+   941→              {stats?.improvement != null ? `${stats.improvement > 0 ? '+' : ''}${Math.round(stats.improvement)}%` : '—'}
+   942→            </div>
+   943→            <div className="text-xs text-muted-foreground">Improvement</div>
+   944→          </CardContent>
+   945→        </Card>
+   946→        <Card>
+   947→          <CardContent className="p-4 text-center">
+   948→            <div className="inline-flex p-2 rounded-lg bg-orange-100 mb-2">
+   949→              <Flame className="h-5 w-5 text-orange-600" />
+   950→            </div>
+   951→            <div className="text-2xl font-bold">{stats?.day_streak || 0}</div>
+   952→            <div className="text-xs text-muted-foreground">Day Streak</div>
+   953→          </CardContent>
+   954→        </Card>
+   955→      </div>
+   956→
+   957→      {/* Tabs */}
+   958→      <Tabs value={tab} onValueChange={setTab}>
+   959→        <TabsList>
+   960→          <TabsTrigger value="practice">
+   961→            <BookOpen className="h-4 w-4 mr-1.5" /> Practice
+   962→          </TabsTrigger>
+   963→          <TabsTrigger value="progress">
+   964→            <BarChart3 className="h-4 w-4 mr-1.5" /> Progress
+   965→          </TabsTrigger>
+   966→        </TabsList>
+   967→
+   968→        {/* Practice Tab */}
+   969→        <TabsContent value="practice">
+   970→          <div className="flex flex-wrap gap-2 mb-4">
+   971→            <Button
+   972→              size="sm"
+   973→              variant={categoryFilter === 'all' ? 'default' : 'outline'}
+   974→              onClick={() => setCategoryFilter('all')}
+   975→            >
+   976→              All ({questions.length})
+   977→            </Button>
+   978→            {Object.entries(categoryConfig).map(([key, cfg]) => {
+   979→              const Icon = cfg.icon
+   980→              return (
+   981→                <Button
+   982→                  key={key}
+   983→                  size="sm"
+   984→                  variant={categoryFilter === key ? 'default' : 'outline'}
+   985→                  onClick={() => setCategoryFilter(key)}
+   986→                >
+   987→                  <Icon className="h-3.5 w-3.5 mr-1" /> {cfg.label} ({categoryCounts[key] || 0})
+   988→                </Button>
+   989→              )
+   990→            })}
+   991→          </div>
+   992→
+   993→          <div className="grid gap-3">
+   994→            {filteredQuestions.map(q => {
+   995→              const catCfg = categoryConfig[q.category] || categoryConfig.behavioral
+   996→              const CatIcon = catCfg.icon
+   997→              return (
+   998→                <Card
+   999→                  key={q.id}
+  1000→                  className="cursor-pointer hover:border-primary/50 transition-colors"
+  1001→                  onClick={() => openPractice(q)}
+  1002→                >
+  1003→                  <CardContent className="p-4">
+  1004→                    <div className="flex items-start gap-4">
+  1005→                      <div className={`p-2 rounded-lg ${catCfg.bg} shrink-0`}>
+  1006→                        <CatIcon className={`h-4 w-4 ${catCfg.color}`} />
+  1007→                      </div>
+  1008→                      <div className="flex-1 min-w-0">
+  1009→                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+  1010→                          <Badge variant="secondary" className={catCfg.bg + ' ' + catCfg.color + ' border-0'}>
+  1011→                            {catCfg.label}
+  1012→                          </Badge>
+  1013→                          <Badge variant="secondary" className={difficultyColors[q.difficulty] + ' border-0'}>
+  1014→                            {q.difficulty}
+  1015→                          </Badge>
+  1016→                          {q.times_practiced > 0 && (
+  1017→                            <Badge variant="outline" className="text-xs">
+  1018→                              Practiced {q.times_practiced}x
+  1019→                            </Badge>
+  1020→                          )}
+  1021→                          {q.last_score != null && (
+  1022→                            <Badge variant="outline" className="text-xs">
+  1023→                              Best: {q.last_score}/10
+  1024→                            </Badge>
+  1025→                          )}
+  1026→                        </div>
+  1027→                        <p className="font-medium text-sm">{q.question}</p>
+  1028→                        <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+  1029→                          <span>Key topics: {q.key_points.join(', ')}</span>
+  1030→                        </div>
+  1031→                      </div>
+  1032→                      <div className="flex items-center gap-1 shrink-0">
+  1033→                        <Video className="h-4 w-4 text-muted-foreground" />
+  1034→                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+  1035→                      </div>
+  1036→                    </div>
+  1037→                  </CardContent>
+  1038→                </Card>
+  1039→              )
+  1040→            })}
+  1041→          </div>
+  1042→        </TabsContent>
+  1043→
+  1044→        {/* Progress Tab */}
+  1045→        <TabsContent value="progress">
+  1046→          <div className="space-y-6">
+  1047→            <Card>
+  1048→              <CardContent className="p-5">
+  1049→                <h3 className="font-semibold mb-4 flex items-center gap-2">
+  1050→                  <BarChart3 className="h-4 w-4 text-primary" />
+  1051→                  Performance by Category
+  1052→                </h3>
+  1053→                {categoryProgress.length === 0 ? (
+  1054→                  <p className="text-sm text-muted-foreground text-center py-4">
+  1055→                    No practice sessions yet. Start practicing to see your progress!
+  1056→                  </p>
+  1057→                ) : (
+  1058→                  <div className="space-y-4">
+  1059→                    {categoryProgress.map(cp => {
+  1060→                      const catCfg = categoryConfig[cp.category] || categoryConfig.behavioral
+  1061→                      const CatIcon = catCfg.icon
+  1062→                      const avgScore = parseFloat(String(cp.average_score)) || 0
+  1063→                      const pct = (avgScore / 10) * 100
+  1064→                      return (
+  1065→                        <div key={cp.category} className="space-y-1.5">
+  1066→                          <div className="flex items-center justify-between text-sm">
+  1067→                            <span className="flex items-center gap-2 font-medium">
+  1068→                              <CatIcon className={`h-4 w-4 ${catCfg.color}`} />
+  1069→                              {catCfg.label}
+  1070→                            </span>
+  1071→                            <span className="text-muted-foreground">
+  1072→                              {Math.round(avgScore * 10) / 10}/10 ({cp.count} sessions)
+  1073→                            </span>
+  1074→                          </div>
+  1075→                          <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+  1076→                            <div
+  1077→                              className="h-full bg-primary rounded-full transition-all duration-500"
+  1078→                              style={{ width: `${pct}%` }}
+  1079→                            />
+  1080→                          </div>
+  1081→                        </div>
+  1082→                      )
+  1083→                    })}
+  1084→                  </div>
+  1085→                )}
+  1086→              </CardContent>
+  1087→            </Card>
+  1088→
+  1089→            <Card>
+  1090→              <CardContent className="p-5">
+  1091→                <h3 className="font-semibold mb-4 flex items-center gap-2">
+  1092→                  <Clock className="h-4 w-4 text-primary" />
+  1093→                  Recent Practice Sessions
+  1094→                </h3>
+  1095→                {recentSessions.length === 0 ? (
+  1096→                  <p className="text-sm text-muted-foreground text-center py-4">
+  1097→                    No practice sessions yet. Pick a question and start practicing!
+  1098→                  </p>
+  1099→                ) : (
+  1100→                  <div className="space-y-3">
+  1101→                    {recentSessions.map((s, i) => {
+  1102→                      const catCfg = categoryConfig[s.category] || categoryConfig.behavioral
+  1103→                      return (
+  1104→                        <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+  1105→                          <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary/10 text-primary font-bold text-sm shrink-0">
+  1106→                            {s.score}/10
+  1107→                          </div>
+  1108→                          <div className="flex-1 min-w-0">
+  1109→                            <p className="text-sm font-medium line-clamp-1">{s.question}</p>
+  1110→                            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+  1111→                              <Badge variant="secondary" className={catCfg.bg + ' ' + catCfg.color + ' text-xs border-0'}>
+  1112→                                {catCfg.label}
+  1113→                              </Badge>
+  1114→                              <span>{new Date(s.created_at).toLocaleDateString()}</span>
+  1115→                            </div>
+  1116→                          </div>
+  1117→                        </div>
+  1118→                      )
+  1119→                    })}
+  1120→                  </div>
+  1121→                )}
+  1122→              </CardContent>
+  1123→            </Card>
+  1124→          </div>
+  1125→        </TabsContent>
+  1126→      </Tabs>
+  1127→
+  1128→      {/* Hidden canvas for frame capture */}
+  1129→      <canvas ref={canvasRef} className="hidden" />
+  1130→
+  1131→      {/* ==================== Practice Dialog ==================== */}
+  1132→      {/* 11TH FIX (Feb 10 2026): WebKit bug #98538 — overflow:hidden + border-radius on parent
+  1133→          containers kills video rendering on iOS. Fix: isolation:isolate creates a new stacking
+  1134→          context, and inline overflow:visible guarantees override of base overflow-y-auto. */}
+  1135→      <Dialog open={!!practiceQuestion} onClose={closePractice}
+  1136→        className={`max-w-2xl ${responseMode === 'video' && !cameraError ? 'overflow-visible isolate max-h-none' : ''}`}
+  1137→        style={responseMode === 'video' && !cameraError ? { overflow: 'visible', isolation: 'isolate' } : undefined}>
+  1138→        <div className={responseMode === 'video' && !cameraError ? '' : 'max-h-[85vh] overflow-y-auto'}>
+  1139→          {practiceQuestion && !coaching && !textCoaching && (
+  1140→            <>
+  1141→              <DialogHeader>
+  1142→                <DialogTitle className="flex items-center gap-2">
+  1143→                  <Sparkles className="h-5 w-5 text-primary" />
+  1144→                  Mock Interview
+  1145→                </DialogTitle>
+  1146→                <DialogDescription>
+  1147→                  Answer as if you're in a real interview — AI analyzes everything
+  1148→                </DialogDescription>
+  1149→              </DialogHeader>
+  1150→
+  1151→              {/* Question display */}
+  1152→              <div className="mt-4 p-4 rounded-xl bg-primary/5 border border-primary/10">
+  1153→                <div className="flex items-center gap-2 mb-2">
+  1154→                  {(() => {
+  1155→                    const catCfg = categoryConfig[practiceQuestion.category] || categoryConfig.behavioral
+  1156→                    return (
+  1157→                      <>
+  1158→                        <Badge variant="secondary" className={catCfg.bg + ' ' + catCfg.color + ' border-0'}>
+  1159→                          {catCfg.label}
+  1160→                        </Badge>
+  1161→                        <Badge variant="secondary" className={difficultyColors[practiceQuestion.difficulty] + ' border-0'}>
+  1162→                          {practiceQuestion.difficulty}
+  1163→                        </Badge>
+  1164→                      </>
+  1165→                    )
+  1166→                  })()}
+  1167→                </div>
+  1168→                <p className="font-semibold text-sm leading-relaxed">{practiceQuestion.question}</p>
+  1169→              </div>
+  1170→
+  1171→              {/* Mode Selection */}
+  1172→              {responseMode === 'select' && (
+  1173→                <div className="mt-5 space-y-3">
+  1174→                  <p className="text-sm font-medium text-center text-muted-foreground">How would you like to respond?</p>
+  1175→                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+  1176→                    <button
+  1177→                      onClick={() => setResponseMode('video')}
+  1178→                      className="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-primary/20 hover:border-primary/50 hover:bg-primary/5 transition-all group"
+  1179→                    >
+  1180→                      <div className="p-3 rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
+  1181→                        <Video className="h-6 w-6 text-primary" />
+  1182→                      </div>
+  1183→                      <div className="text-center">
+  1184→                        <p className="font-semibold text-sm">Record Video</p>
+  1185→                        <p className="text-xs text-muted-foreground mt-0.5">
+  1186→                          AI analyzes body language, eye contact, speech pace & content
+  1187→                        </p>
+  1188→                      </div>
+  1189→                      <Badge className="bg-primary/10 text-primary border-0">Recommended</Badge>
+  1190→                    </button>
+  1191→
+  1192→                    <button
+  1193→                      onClick={() => setResponseMode('text')}
+  1194→                      className="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-muted hover:border-muted-foreground/30 hover:bg-muted/50 transition-all group"
+  1195→                    >
+  1196→                      <div className="p-3 rounded-full bg-muted group-hover:bg-muted-foreground/10 transition-colors">
+  1197→                        <MessageSquare className="h-6 w-6 text-muted-foreground" />
+  1198→                      </div>
+  1199→                      <div className="text-center">
+  1200→                        <p className="font-semibold text-sm">Type Response</p>
+  1201→                        <p className="text-xs text-muted-foreground mt-0.5">
+  1202→                          AI analyzes answer content & structure only
+  1203→                        </p>
+  1204→                      </div>
+  1205→                      <Badge variant="outline" className="text-xs">Text only</Badge>
+  1206→                    </button>
+  1207→                  </div>
+  1208→                </div>
+  1209→              )}
+  1210→
+  1211→              {/* Video Recording Mode */}
+  1212→              {responseMode === 'video' && (
+  1213→                <div className="mt-4 space-y-4">
+  1214→                  {/* Camera Preview — only show when no error blocking everything */}
+  1215→                  {!cameraError && (
+  1216→                    <div className="relative bg-black aspect-video rounded-xl isolate overflow-hidden">
+  1217→                      {/* Key prop forces fresh DOM element when cameraReady transitions.
+  1218→                          Combined with isolation:isolate on parent (11th fix), this ensures
+  1219→                          iOS WebKit's video decoder starts cleanly. */}
+  1220→                      {/* 11TH FIX: isolation:isolate on parent + overflow-hidden handles
+  1221→                          rounded corners. Video gets NO border-radius, NO will-change,
+  1222→                          NO clipPath — just the mirror transform directly on the element.
+  1223→                          This avoids WebKit bug #98538 compositing conflicts. */}
+  1224→                      <video
+  1225→                        key={cameraReady ? 'cam-active' : 'cam-pending'}
+  1226→                        ref={videoRef}
+  1227→                        autoPlay
+  1228→                        muted
+  1229→                        playsInline
+  1230→                        // @ts-ignore — webkit-playsinline is a non-standard attribute
+  1231→                        webkit-playsinline=""
+  1232→                        width={640}
+  1233→                        height={480}
+  1234→                        className="absolute inset-0 w-full h-full object-cover"
+  1235→                        style={{ transform: 'scaleX(-1)' }}
+  1236→                      />
+  1237→
+  1238→                      {/* DOM-based debug status — ALWAYS visible (not hidden by overlays).
+  1239→                          This is critical for debugging — canvas-drawn text was invisible
+  1240→                          under the !cameraReady overlay in all previous attempts. */}
+  1241→                      {cameraStatus && (
+  1242→                        <div className="absolute bottom-2 left-2 z-30 bg-black/80 text-green-400 text-[10px] px-2 py-0.5 rounded font-mono pointer-events-none">
+  1243→                          {cameraStatus}
+  1244→                        </div>
+  1245→                      )}
+  1246→
+  1247→                      {/* Enable Camera prompt — shown before camera is started.
+  1248→                          getUserMedia MUST be called from a direct user gesture. */}
+  1249→                      {!cameraReady && (
+  1250→                        <div className="absolute inset-0 z-10 bg-black/90 flex items-center justify-center p-4">
+  1251→                          <div className="text-center text-white max-w-xs">
+  1252→                            <div className="p-4 rounded-full bg-white/10 inline-flex mb-3">
+  1253→                              <Camera className="h-8 w-8 text-white" />
+  1254→                            </div>
+  1255→                            <p className="font-medium mb-1">Camera & Microphone</p>
+  1256→                            {isIOS ? (
+  1257→                              <div className="text-xs text-white/70 mb-4 space-y-2">
+  1258→                                <p>Your browser will ask for camera access.</p>
+  1259→                                <p className="text-white/50">
+  1260→                                  If no prompt appears, check <strong className="text-white/80">iPhone Settings → {isChromeIOS ? 'Chrome' : 'Safari'} → Camera</strong> is on.
+  1261→                                </p>
+  1262→                              </div>
+  1263→                            ) : (
+  1264→                              <p className="text-xs text-white/70 mb-4">
+  1265→                                Your browser will ask for permission. Tap <strong className="text-white/80">"Allow"</strong> when prompted.
+  1266→                              </p>
+  1267→                            )}
+  1268→                            <Button
+  1269→                              onClick={() => startCamera()}
+  1270→                              className="bg-white text-black hover:bg-white/90"
+  1271→                            >
+  1272→                              <Camera className="h-4 w-4 mr-2" />
+  1273→                              Enable Camera
+  1274→                            </Button>
+  1275→                          </div>
+  1276→                        </div>
+  1277→                      )}
+  1278→
+  1279→                      {/* Countdown overlay */}
+  1280→                      {countdown !== null && (
+  1281→                        <div className="absolute inset-0 z-10 bg-black/60 flex items-center justify-center">
+  1282→                          <div className="text-7xl font-bold text-white animate-pulse">{countdown}</div>
+  1283→                        </div>
+  1284→                      )}
+  1285→
+  1286→                      {/* Recording indicator */}
+  1287→                      {isRecording && (
+  1288→                        <div className="absolute top-3 left-3 z-10 flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 rounded-full text-sm font-medium">
+  1289→                          <div className="h-2.5 w-2.5 rounded-full bg-white animate-pulse" />
+  1290→                          REC {formatTime(recordingTime)}
+  1291→                        </div>
+  1292→                      )}
+  1293→
+  1294→                      {/* Frame count */}
+  1295→                      {isRecording && (
+  1296→                        <div className="absolute top-3 right-3 z-10 bg-black/60 text-white px-2 py-1 rounded text-xs">
+  1297→                          {capturedFrames.length} frames
+  1298→                        </div>
+  1299→                      )}
+  1300→
+  1301→                      {/* Transcription status */}
+  1302→                      {isRecording && (
+  1303→                        <div className="absolute bottom-3 left-3 right-3 z-10">
+  1304→                          <div className="bg-black/70 rounded-lg p-2 text-white text-xs max-h-16 overflow-y-auto">
+  1305→                            {isTranscribing && <Mic className="h-3 w-3 inline mr-1 text-green-400" />}
+  1306→                            {transcription || 'Listening...'}
+  1307→                          </div>
+  1308→                        </div>
+  1309→                      )}
+  1310→                    </div>
+  1311→                  )}
+  1312→
+  1313→                  {/* ===== CAMERA ERROR — full replacement panel ===== */}
+  1314→                  {cameraError && (
+  1315→                    <div className="rounded-xl border border-red-200 bg-red-50 p-5 space-y-4">
+  1316→                      <div className="flex items-start gap-3">
+  1317→                        <div className="p-2 rounded-full bg-red-100 shrink-0">
+  1318→                          <VideoOff className="h-5 w-5 text-red-600" />
+  1319→                        </div>
+  1320→                        <div>
+  1321→                          <h4 className="font-semibold text-sm text-red-900">
+  1322→                            {cameraError === 'denied'
+  1323→                              ? (isIOS ? 'Camera Access Required' : 'Camera Permission Blocked')
+  1324→                              : cameraError === 'not_found' ? 'Camera Not Working'
+  1325→                              : cameraError === 'in_use' ? 'Camera In Use'
+  1326→                              : cameraError === 'not_supported' ? 'Camera Not Supported'
+  1327→                              : 'Camera Unavailable'}
+  1328→                          </h4>
+  1329→                          <p className="text-xs text-red-700 mt-1">
+  1330→                            {cameraError === 'denied'
+  1331→                              ? (isIOS
+  1332→                                  ? `Camera access needs to be enabled in your iPhone Settings for ${isChromeIOS ? 'Chrome' : 'Safari'}.`
+  1333→                                  : 'Your browser blocked camera access for this site.')
+  1334→                              : cameraError === 'not_found'
+  1335→                              ? (isIOS
+  1336→                                  ? `Camera couldn't start. Try: close ${isChromeIOS ? 'Chrome' : 'Safari'} completely (swipe up from app switcher), reopen, and try again.`
+  1337→                                  : 'Camera was detected but not delivering video. Try closing and reopening your browser.')
+  1338→                              : cameraError === 'in_use'
+  1339→                              ? 'Another app is currently using your camera.'
+  1340→                              : cameraError === 'not_supported'
+  1341→                              ? 'Your browser does not support camera access. Try Safari or Chrome.'
+  1342→                              : 'Something went wrong accessing your camera.'}
+  1343→                          </p>
+  1344→                        </div>
+  1345→                      </div>
+  1346→
+  1347→                      {/* iOS-specific instructions for camera not working */}
+  1348→                      {cameraError === 'not_found' && isIOS && (
+  1349→                        <div className="bg-white rounded-lg p-4 border border-red-100 space-y-3">
+  1350→                          <p className="text-xs font-semibold text-gray-900">Steps to fix:</p>
+  1351→                          <ol className="text-xs text-gray-700 space-y-2 list-none">
+  1352→                            <li className="flex items-start gap-2">
+  1353→                              <span className="font-bold text-primary shrink-0">1.</span>
+  1354→                              <span>Open <strong>Settings</strong> → <strong>{isChromeIOS ? 'Chrome' : 'Safari'}</strong> → ensure <strong>Camera</strong> is <strong className="text-green-700">ON</strong></span>
+  1355→                            </li>
+  1356→                            <li className="flex items-start gap-2">
+  1357→                              <span className="font-bold text-primary shrink-0">2.</span>
+  1358→                              <span>Close {isChromeIOS ? 'Chrome' : 'Safari'} completely (swipe up in app switcher)</span>
+  1359→                            </li>
+  1360→                            <li className="flex items-start gap-2">
+  1361→                              <span className="font-bold text-primary shrink-0">3.</span>
+  1362→                              <span>Reopen {isChromeIOS ? 'Chrome' : 'Safari'} and navigate back to this page</span>
+  1363→                            </li>
+  1364→                          </ol>
+  1365→                        </div>
+  1366→                      )}
+  1367→
+  1368→                      {/* iOS-specific instructions */}
+  1369→                      {cameraError === 'denied' && isIOS && (
+  1370→                        <div className="bg-white rounded-lg p-4 border border-red-100 space-y-3">
+  1371→                          <p className="text-xs font-semibold text-gray-900">
+  1372→                            Enable camera for {isChromeIOS ? 'Chrome' : 'Safari'}:
+  1373→                          </p>
+  1374→                          <ol className="text-xs text-gray-700 space-y-2 list-none">
+  1375→                            <li className="flex items-start gap-2">
+  1376→                              <span className="font-bold text-primary shrink-0">1.</span>
+  1377→                              <span>Open your iPhone <strong>Settings</strong> app</span>
+  1378→                            </li>
+  1379→                            <li className="flex items-start gap-2">
+  1380→                              <span className="font-bold text-primary shrink-0">2.</span>
+  1381→                              <span>Scroll down and tap <strong>{isChromeIOS ? 'Chrome' : 'Safari'}</strong></span>
+  1382→                            </li>
+  1383→                            <li className="flex items-start gap-2">
+  1384→                              <span className="font-bold text-primary shrink-0">3.</span>
+  1385→                              <span>
+  1386→                                {isChromeIOS
+  1387→                                  ? <>Make sure <strong>Camera</strong> and <strong>Microphone</strong> toggles are <strong className="text-green-700">green (on)</strong></>
+  1388→                                  : <>Under "Settings for Websites", tap <strong>Camera</strong> and set to <strong>Allow</strong>. Do the same for <strong>Microphone</strong>.</>
+  1389→                                }
+  1390→                              </span>
+  1391→                            </li>
+  1392→                            <li className="flex items-start gap-2">
+  1393→                              <span className="font-bold text-primary shrink-0">4.</span>
+  1394→                              <span>Come back here and tap <strong>Try Again</strong></span>
+  1395→                            </li>
+  1396→                          </ol>
+  1397→                        </div>
+  1398→                      )}
+  1399→
+  1400→                      {/* Desktop/Android instructions */}
+  1401→                      {cameraError === 'denied' && !isIOS && (
+  1402→                        <div className="bg-white rounded-lg p-4 border border-red-100 space-y-2">
+  1403→                          <p className="text-xs font-semibold text-gray-900">How to fix:</p>
+  1404→                          <ol className="text-xs text-gray-700 space-y-1.5 list-none">
+  1405→                            <li className="flex items-start gap-2">
+  1406→                              <span className="font-bold text-primary shrink-0">1.</span>
+  1407→                              <span>Click the <strong>lock icon</strong> (or tune icon) in your browser's address bar</span>
+  1408→                            </li>
+  1409→                            <li className="flex items-start gap-2">
+  1410→                              <span className="font-bold text-primary shrink-0">2.</span>
+  1411→                              <span>Set <strong>Camera</strong> and <strong>Microphone</strong> to "Allow"</span>
+  1412→                            </li>
+  1413→                            <li className="flex items-start gap-2">
+  1414→                              <span className="font-bold text-primary shrink-0">3.</span>
+  1415→                              <span>Refresh the page and try again</span>
+  1416→                            </li>
+  1417→                          </ol>
+  1418→                        </div>
+  1419→                      )}
+  1420→
+  1421→                      {/* Action buttons */}
+  1422→                      <div className="flex gap-2">
+  1423→                        <Button
+  1424→                          variant="outline"
+  1425→                          size="sm"
+  1426→                          onClick={() => {
+  1427→                            setCameraError(null)
+  1428→                            setCameraReady(false)
+  1429→                            startCamera()
+  1430→                          }}
+  1431→                          className="flex-1"
+  1432→                        >
+  1433→                          <Camera className="h-4 w-4 mr-1.5" />
+  1434→                          Try Again
+  1435→                        </Button>
+  1436→                        <Button
+  1437→                          size="sm"
+  1438→                          onClick={() => {
+  1439→                            stopCamera()
+  1440→                            setCameraError(null)
+  1441→                            setResponseMode('text')
+  1442→                          }}
+  1443→                          className="flex-1"
+  1444→                        >
+  1445→                          <MessageSquare className="h-4 w-4 mr-1.5" />
+  1446→                          Use Text Mode
+  1447→                        </Button>
+  1448→                      </div>
+  1449→
+  1450→                      <p className="text-[10px] text-center text-muted-foreground">
+  1451→                        Text mode lets you type your answer — AI still analyzes content and structure
+  1452→                      </p>
+  1453→                    </div>
+  1454→                  )}
+  1455→
+  1456→                  {/* Recording Controls — ONLY shown when camera is working, NO error */}
+  1457→                  {!cameraError && (
+  1458→                    <>
+  1459→                      <div className="flex items-center justify-center gap-3">
+  1460→                        {!isRecording && !recordingDone && (
+  1461→                          <Button
+  1462→                            onClick={startCountdownThenRecord}
+  1463→                            disabled={!cameraReady || countdown !== null}
+  1464→                            className="bg-red-600 hover:bg-red-700 text-white px-6"
+  1465→                          >
+  1466→                            <Play className="h-4 w-4 mr-2" />
+  1467→                            {countdown !== null ? `Starting in ${countdown}...` : 'Start Recording'}
+  1468→                          </Button>
+  1469→                        )}
+  1470→
+  1471→                        {isRecording && (
+  1472→                          <Button
+  1473→                            onClick={stopRecording}
+  1474→                            variant="outline"
+  1475→                            className="border-red-300 text-red-600 hover:bg-red-50 px-6"
+  1476→                          >
+  1477→                            <Square className="h-4 w-4 mr-2" />
+  1478→                            Stop Recording ({formatTime(recordingTime)})
+  1479→                          </Button>
+  1480→                        )}
+  1481→
+  1482→                        {recordingDone && !submitting && (
+  1483→                          <div className="flex gap-2 w-full">
+  1484→                            <Button
+  1485→                              variant="outline"
+  1486→                              onClick={() => {
+  1487→                                setRecordingDone(false)
+  1488→                                setTranscription('')
+  1489→                                setCapturedFrames([])
+  1490→                                setRecordingTime(0)
+  1491→                              }}
+  1492→                              className="flex-1"
+  1493→                            >
+  1494→                              Re-record
+  1495→                            </Button>
+  1496→                            <Button
+  1497→                              onClick={submitVideoResponse}
+  1498→                              disabled={transcription.trim().length < 20}
+  1499→                              className="flex-1"
+  1500→                            >
+  1501→                              <Sparkles className="h-4 w-4 mr-1.5" />
+  1502→                              Get AI Coaching
+  1503→                            </Button>
+  1504→                          </div>
+  1505→                        )}
+  1506→                      </div>
+  1507→
+  1508→                      {/* Recording summary when done */}
+  1509→                      {recordingDone && (
+  1510→                        <div className="p-3 rounded-lg bg-muted/50 space-y-2">
+  1511→                          <div className="flex items-center gap-4 text-sm">
+  1512→                            <span className="flex items-center gap-1 text-muted-foreground">
+  1513→                              <Timer className="h-3.5 w-3.5" /> {formatTime(recordingTime)}
+  1514→                            </span>
+  1515→                            <span className="flex items-center gap-1 text-muted-foreground">
+  1516→                              <Camera className="h-3.5 w-3.5" /> {capturedFrames.length} frames
+  1517→                            </span>
+  1518→                            <span className="flex items-center gap-1 text-muted-foreground">
+  1519→                              <Volume2 className="h-3.5 w-3.5" /> {transcription.split(/\s+/).filter(w => w).length} words
+  1520→                            </span>
+  1521→                          </div>
+  1522→                          <details className="text-xs">
+  1523→                            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+  1524→                              View transcription
+  1525→                            </summary>
+  1526→                            <p className="mt-1 p-2 bg-white rounded border text-muted-foreground leading-relaxed">
+  1527→                              {transcription || 'No speech detected'}
+  1528→                            </p>
+  1529→                          </details>
+  1530→                        </div>
+  1531→                      )}
+  1532→
+  1533→                      {/* Submitting state */}
+  1534→                      {submitting && (
+  1535→                        <div className="text-center py-6 space-y-3">
+  1536→                          <div className="animate-spin rounded-full h-10 w-10 border-3 border-primary border-t-transparent mx-auto" />
+  1537→                          <div>
+  1538→                            <p className="font-medium text-sm">Analyzing your interview...</p>
+  1539→                            <p className="text-xs text-muted-foreground mt-1">
+  1540→                              AI is reviewing your body language, speech patterns, and answer content
+  1541→                            </p>
+  1542→                          </div>
+  1543→                        </div>
+  1544→                      )}
+  1545→
+  1546→                      {/* Tip */}
+  1547→                      {!isRecording && !recordingDone && !submitting && cameraReady && (
+  1548→                        <div className="text-center text-xs text-muted-foreground space-y-1">
+  1549→                          <p>💡 Look at your camera as if it were the interviewer</p>
+  1550→                          <p>Speak clearly and take your time — aim for 1-2 minutes</p>
+  1551→                        </div>
+  1552→                      )}
+  1553→                    </>
+  1554→                  )}
+  1555→
+  1556→                  {/* Back to mode select — always available when not recording */}
+  1557→                  {!isRecording && !recordingDone && !submitting && !cameraError && (
+  1558→                    <div className="text-center">
+  1559→                      <button
+  1560→                        onClick={() => { stopCamera(); setResponseMode('select'); setCameraError(null) }}
+  1561→                        className="text-xs text-muted-foreground hover:text-foreground underline"
+  1562→                      >
+  1563→                        ← Back to mode selection
+  1564→                      </button>
+  1565→                    </div>
+  1566→                  )}
+  1567→                </div>
+  1568→              )}
+  1569→
+  1570→              {/* Text Response Mode (fallback) */}
+  1571→              {responseMode === 'text' && !submitting && (
+  1572→                <div className="mt-4 space-y-2">
+  1573→                  <label className="text-sm font-medium">Your Response</label>
+  1574→                  <Textarea
+  1575→                    value={responseText}
+  1576→                    onChange={e => setResponseText(e.target.value)}
+  1577→                    placeholder="Take your time to craft a thoughtful response. Use the STAR method (Situation, Task, Action, Result) for behavioral questions..."
+  1578→                    rows={8}
+  1579→                    className="resize-y"
+  1580→                  />
+  1581→                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+  1582→                    <span>{responseText.length} characters {responseText.length < 50 && '(minimum 50)'}</span>
+  1583→                    {responseText.length >= 50 && <CheckCircle className="h-3.5 w-3.5 text-green-500" />}
+  1584→                  </div>
+  1585→
+  1586→                  <div className="flex gap-2 mt-3">
+  1587→                    <Button variant="outline" onClick={() => setResponseMode('select')} className="flex-1">
+  1588→                      Back
+  1589→                    </Button>
+  1590→                    <Button
+  1591→                      onClick={submitTextResponse}
+  1592→                      disabled={submitting || responseText.trim().length < 50}
+  1593→                      className="flex-1"
+  1594→                    >
+  1595→                      <Sparkles className="h-4 w-4 mr-1.5" />
+  1596→                      Get AI Coaching
+  1597→                    </Button>
+  1598→                  </div>
+  1599→                </div>
+  1600→              )}
+  1601→
+  1602→              {responseMode === 'text' && submitting && (
+  1603→                <div className="text-center py-8 space-y-3">
+  1604→                  <div className="animate-spin rounded-full h-10 w-10 border-3 border-primary border-t-transparent mx-auto" />
+  1605→                  <p className="font-medium text-sm">Analyzing your response...</p>
+  1606→                </div>
+  1607→              )}
+  1608→            </>
+  1609→          )}
+  1610→
+  1611→          {/* ==================== Video Coaching Results ==================== */}
+  1612→          {practiceQuestion && coaching && (
+  1613→            <>
+  1614→              <DialogHeader>
+  1615→                <DialogTitle className="flex items-center gap-2">
+  1616→                  <Trophy className="h-5 w-5 text-primary" />
+  1617→                  Interview Analysis
+  1618→                </DialogTitle>
+  1619→              </DialogHeader>
+  1620→
+  1621→              {/* Overall Score */}
+  1622→              <div className={`mt-4 text-center p-5 rounded-xl border ${scoreBg(coaching.overall_score)}`}>
+  1623→                <div className={`text-5xl font-bold ${scoreColor(coaching.overall_score)}`}>
+  1624→                  {coaching.overall_score}/10
+  1625→                </div>
+  1626→                <div className="text-sm text-muted-foreground mt-1">
+  1627→                  {scoreLabel(coaching.overall_score)} — Overall Interview Score
+  1628→                </div>
+  1629→              </div>
+  1630→
+  1631→              {/* Category Score Bars */}
+  1632→              <div className="mt-4 p-4 rounded-lg bg-muted/30 space-y-3">
+  1633→                <ScoreBar score={coaching.content.score} label="Answer Content" icon={Brain} />
+  1634→                <ScoreBar score={coaching.communication.score} label="Communication" icon={Volume2} />
+  1635→                <ScoreBar score={coaching.presentation.score} label="Presentation" icon={Eye} />
+  1636→              </div>
+  1637→
+  1638→              {/* Expandable Detail Sections */}
+  1639→              <div className="mt-4 space-y-2">
+  1640→
+  1641→                {/* Content Analysis */}
+  1642→                <div className="border rounded-lg overflow-hidden">
+  1643→                  <button
+  1644→                    onClick={() => setExpandedSection(expandedSection === 'content' ? null : 'content')}
+  1645→                    className="w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors"
+  1646→                  >
+  1647→                    <span className="flex items-center gap-2 font-medium text-sm">
+  1648→                      <Brain className="h-4 w-4 text-violet-600" />
+  1649→                      Answer Content
+  1650→                      <span className={`text-xs font-bold ${scoreColor(coaching.content.score)}`}>
+  1651→                        {coaching.content.score}/10
+  1652→                      </span>
+  1653→                    </span>
+  1654→                    {expandedSection === 'content' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+  1655→                  </button>
+  1656→                  {expandedSection === 'content' && (
+  1657→                    <div className="p-3 pt-0 space-y-3">
+  1658→                      {coaching.content.strengths.length > 0 && (
+  1659→                        <div className="p-3 rounded-lg bg-green-50 border border-green-100">
+  1660→                          <h5 className="text-xs font-semibold text-green-800 mb-1.5">✓ Strengths</h5>
+  1661→                          <ul className="space-y-1">
+  1662→                            {coaching.content.strengths.map((s, i) => (
+  1663→                              <li key={i} className="text-xs text-green-700">{s}</li>
+  1664→                            ))}
+  1665→                          </ul>
+  1666→                        </div>
+  1667→                      )}
+  1668→                      {coaching.content.improvements.length > 0 && (
+  1669→                        <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
+  1670→                          <h5 className="text-xs font-semibold text-amber-800 mb-1.5">↑ Improve</h5>
+  1671→                          <ul className="space-y-1">
+  1672→                            {coaching.content.improvements.map((s, i) => (
+  1673→                              <li key={i} className="text-xs text-amber-700">{s}</li>
+  1674→                            ))}
+  1675→                          </ul>
+  1676→                        </div>
+  1677→                      )}
+  1678→                      {coaching.content.specific_tips && coaching.content.specific_tips.length > 0 && (
+  1679→                        <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
+  1680→                          <h5 className="text-xs font-semibold text-blue-800 mb-1.5">💡 Tips</h5>
+  1681→                          <ul className="space-y-1">
+  1682→                            {coaching.content.specific_tips.map((s, i) => (
+  1683→                              <li key={i} className="text-xs text-blue-700">{s}</li>
+  1684→                            ))}
+  1685→                          </ul>
+  1686→                        </div>
+  1687→                      )}
+  1688→                      {coaching.content.improved_response && (
+  1689→                        <div className="p-3 rounded-lg bg-purple-50 border border-purple-100">
+  1690→                          <h5 className="text-xs font-semibold text-purple-800 mb-1.5">⭐ Example Strong Response</h5>
+  1691→                          <p className="text-xs text-purple-700 italic leading-relaxed">
+  1692→                            "{coaching.content.improved_response}"
+  1693→                          </p>
+  1694→                        </div>
+  1695→                      )}
+  1696→                      {coaching.content.common_mistake && (
+  1697→                        <div className="p-3 rounded-lg bg-red-50 border border-red-100">
+  1698→                          <h5 className="text-xs font-semibold text-red-800 mb-1.5">⚠️ Common Mistake</h5>
+  1699→                          <p className="text-xs text-red-700">{coaching.content.common_mistake}</p>
+  1700→                        </div>
+  1701→                      )}
+  1702→                    </div>
+  1703→                  )}
+  1704→                </div>
+  1705→
+  1706→                {/* Communication Analysis */}
+  1707→                <div className="border rounded-lg overflow-hidden">
+  1708→                  <button
+  1709→                    onClick={() => setExpandedSection(expandedSection === 'communication' ? null : 'communication')}
+  1710→                    className="w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors"
+  1711→                  >
+  1712→                    <span className="flex items-center gap-2 font-medium text-sm">
+  1713→                      <Volume2 className="h-4 w-4 text-sky-600" />
+  1714→                      Communication & Speech
+  1715→                      <span className={`text-xs font-bold ${scoreColor(coaching.communication.score)}`}>
+  1716→                        {coaching.communication.score}/10
+  1717→                      </span>
+  1718→                    </span>
+  1719→                    {expandedSection === 'communication' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+  1720→                  </button>
+  1721→                  {expandedSection === 'communication' && (
+  1722→                    <div className="p-3 pt-0 space-y-3">
+  1723→                      {/* Speech metrics */}
+  1724→                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+  1725→                        <div className="p-2 rounded bg-muted/50 text-center">
+  1726→                          <div className="text-lg font-bold">{coaching.communication.words_per_minute}</div>
+  1727→                          <div className="text-[10px] text-muted-foreground">Words/min</div>
+  1728→                        </div>
+  1729→                        <div className="p-2 rounded bg-muted/50 text-center">
+  1730→                          <div className="text-lg font-bold">{coaching.communication.word_count}</div>
+  1731→                          <div className="text-[10px] text-muted-foreground">Total Words</div>
+  1732→                        </div>
+  1733→                        <div className="p-2 rounded bg-muted/50 text-center">
+  1734→                          <div className="text-lg font-bold">{coaching.communication.total_fillers}</div>
+  1735→                          <div className="text-[10px] text-muted-foreground">Filler Words</div>
+  1736→                        </div>
+  1737→                        <div className="p-2 rounded bg-muted/50 text-center">
+  1738→                          <div className="text-lg font-bold">{formatTime(coaching.communication.duration_seconds)}</div>
+  1739→                          <div className="text-[10px] text-muted-foreground">Duration</div>
+  1740→                        </div>
+  1741→                      </div>
+  1742→
+  1743→                      {/* Pace feedback */}
+  1744→                      <div className={`p-3 rounded-lg ${
+  1745→                        coaching.communication.pace.assessment === 'good' ? 'bg-green-50 border border-green-100' :
+  1746→                        coaching.communication.pace.assessment.includes('slight') ? 'bg-amber-50 border border-amber-100' :
+  1747→                        'bg-red-50 border border-red-100'
+  1748→                      }`}>
+  1749→                        <h5 className="text-xs font-semibold mb-1">🎙️ Speaking Pace</h5>
+  1750→                        <p className="text-xs">{coaching.communication.pace.feedback}</p>
+  1751→                      </div>
+  1752→
+  1753→                      {/* Filler words breakdown */}
+  1754→                      {coaching.communication.total_fillers > 0 && (
+  1755→                        <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
+  1756→                          <h5 className="text-xs font-semibold text-amber-800 mb-1.5">
+  1757→                            Filler Words ({coaching.communication.filler_rate}% of speech)
+  1758→                          </h5>
+  1759→                          <div className="flex flex-wrap gap-1.5">
+  1760→                            {Object.entries(coaching.communication.filler_words).map(([word, count]) => (
+  1761→                              <Badge key={word} variant="outline" className="text-[10px] bg-white">
+  1762→                                "{word}" × {count as number}
+  1763→                              </Badge>
+  1764→                            ))}
+  1765→                          </div>
+  1766→                        </div>
+  1767→                      )}
+  1768→
+  1769→                      {/* Tips */}
+  1770→                      {coaching.communication.tips.length > 0 && (
+  1771→                        <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
+  1772→                          <h5 className="text-xs font-semibold text-blue-800 mb-1.5">💡 Speech Tips</h5>
+  1773→                          <ul className="space-y-1">
+  1774→                            {coaching.communication.tips.map((tip, i) => (
+  1775→                              <li key={i} className="text-xs text-blue-700">{tip}</li>
+  1776→                            ))}
+  1777→                          </ul>
+  1778→                        </div>
+  1779→                      )}
+  1780→                    </div>
+  1781→                  )}
+  1782→                </div>
+  1783→
+  1784→                {/* Presentation Analysis */}
+  1785→                <div className="border rounded-lg overflow-hidden">
+  1786→                  <button
+  1787→                    onClick={() => setExpandedSection(expandedSection === 'presentation' ? null : 'presentation')}
+  1788→                    className="w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors"
+  1789→                  >
+  1790→                    <span className="flex items-center gap-2 font-medium text-sm">
+  1791→                      <Eye className="h-4 w-4 text-emerald-600" />
+  1792→                      Body Language & Presentation
+  1793→                      <span className={`text-xs font-bold ${scoreColor(coaching.presentation.score)}`}>
+  1794→                        {coaching.presentation.score}/10
+  1795→                      </span>
+  1796→                    </span>
+  1797→                    {expandedSection === 'presentation' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+  1798→                  </button>
+  1799→                  {expandedSection === 'presentation' && (
+  1800→                    <div className="p-3 pt-0 space-y-3">
+  1801→                      {/* Sub-scores */}
+  1802→                      <div className="grid grid-cols-2 gap-2">
+  1803→                        {[
+  1804→                          { key: 'eye_contact', label: 'Eye Contact', icon: Eye },
+  1805→                          { key: 'facial_expressions', label: 'Expressions', icon: User },
+  1806→                          { key: 'body_language', label: 'Body Language', icon: User },
+  1807→                          { key: 'professional_appearance', label: 'Appearance', icon: Monitor },
+  1808→                        ].map(item => {
+  1809→                          const data = (coaching.presentation as any)[item.key] as CategoryScoreDetail
+  1810→                          return (
+  1811→                            <div key={item.key} className={`p-2.5 rounded-lg border ${scoreBg(data.score)}`}>
+  1812→                              <div className="flex items-center justify-between mb-1">
+  1813→                                <span className="text-[10px] font-medium text-muted-foreground">{item.label}</span>
+  1814→                                <span className={`text-sm font-bold ${scoreColor(data.score)}`}>{data.score}/10</span>
+  1815→                              </div>
+  1816→                              <p className="text-[10px] text-muted-foreground leading-relaxed">{data.feedback}</p>
+  1817→                            </div>
+  1818→                          )
+  1819→                        })}
+  1820→                      </div>
+  1821→
+  1822→                      {/* Summary */}
+  1823→                      {coaching.presentation.summary && (
+  1824→                        <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+  1825→                          <h5 className="text-xs font-semibold text-emerald-800 mb-1">📊 Overall Assessment</h5>
+  1826→                          <p className="text-xs text-emerald-700">{coaching.presentation.summary}</p>
+  1827→                        </div>
+  1828→                      )}
+  1829→
+  1830→                      {/* Timestamped notes */}
+  1831→                      {coaching.presentation.timestamped_notes && coaching.presentation.timestamped_notes.length > 0 && (
+  1832→                        <div className="p-3 rounded-lg bg-muted/50">
+  1833→                          <h5 className="text-xs font-semibold mb-1.5">📝 Moment-by-Moment Notes</h5>
+  1834→                          <ul className="space-y-1">
+  1835→                            {coaching.presentation.timestamped_notes.map((note, i) => (
+  1836→                              <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
+  1837→                                <Badge variant="outline" className="text-[9px] shrink-0 mt-0.5">
+  1838→                                  Frame {note.frame}
+  1839→                                </Badge>
+  1840→                                {note.note}
+  1841→                              </li>
+  1842→                            ))}
+  1843→                          </ul>
+  1844→                        </div>
+  1845→                      )}
+  1846→                    </div>
+  1847→                  )}
+  1848→                </div>
+  1849→              </div>
+  1850→
+  1851→              {/* Actions */}
+  1852→              <div className="mt-5 flex gap-2">
+  1853→                <Button variant="outline" onClick={closePractice} className="flex-1">
+  1854→                  Close
+  1855→                </Button>
+  1856→                <Button onClick={practiceAnother} className="flex-1">
+  1857→                  <ArrowRight className="h-4 w-4 mr-1.5" />
+  1858→                  Practice Another
+  1859→                </Button>
+  1860→              </div>
+  1861→            </>
+  1862→          )}
+  1863→
+  1864→          {/* ==================== Text Coaching Results (fallback) ==================== */}
+  1865→          {practiceQuestion && textCoaching && (
+  1866→            <>
+  1867→              <DialogHeader>
+  1868→                <DialogTitle className="flex items-center gap-2">
+  1869→                  <Trophy className="h-5 w-5 text-primary" />
+  1870→                  AI Coaching Feedback
+  1871→                </DialogTitle>
+  1872→              </DialogHeader>
+  1873→
+  1874→              <div className={`mt-4 text-center p-5 rounded-xl border ${scoreBg(textCoaching.score)}`}>
+  1875→                <div className={`text-4xl font-bold ${scoreColor(textCoaching.score)}`}>{textCoaching.score}/10</div>
+  1876→                <div className="text-sm text-muted-foreground mt-1">
+  1877→                  {textCoaching.score >= 8 ? 'Excellent response!' : textCoaching.score >= 6 ? 'Good effort!' : 'Keep practicing!'}
+  1878→                </div>
+  1879→              </div>
+  1880→
+  1881→              {textCoaching.strengths && textCoaching.strengths.length > 0 && (
+  1882→                <div className="mt-4 p-4 rounded-lg bg-green-50 border border-green-100">
+  1883→                  <h4 className="font-semibold text-sm flex items-center gap-1.5 text-green-800 mb-2">
+  1884→                    <CheckCircle className="h-4 w-4" /> Strengths
+  1885→                  </h4>
+  1886→                  <ul className="space-y-1.5">
+  1887→                    {textCoaching.strengths.map((s, i) => (
+  1888→                      <li key={i} className="text-sm text-green-700 flex items-start gap-2">
+  1889→                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-green-500 shrink-0" />
+  1890→                        {s}
+  1891→                      </li>
+  1892→                    ))}
+  1893→                  </ul>
+  1894→                </div>
+  1895→              )}
+  1896→
+  1897→              {textCoaching.improvements && textCoaching.improvements.length > 0 && (
+  1898→                <div className="mt-3 p-4 rounded-lg bg-amber-50 border border-amber-100">
+  1899→                  <h4 className="font-semibold text-sm flex items-center gap-1.5 text-amber-800 mb-2">
+  1900→                    <TrendingUp className="h-4 w-4" /> Areas for Improvement
+  1901→                  </h4>
+  1902→                  <ul className="space-y-1.5">
+  1903→                    {textCoaching.improvements.map((imp, i) => (
+  1904→                      <li key={i} className="text-sm text-amber-700 flex items-start gap-2">
+  1905→                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
+  1906→                        {imp}
+  1907→                      </li>
+  1908→                    ))}
+  1909→                  </ul>
+  1910→                </div>
+  1911→              )}
+  1912→
+  1913→              {textCoaching.specific_tips && textCoaching.specific_tips.length > 0 && (
+  1914→                <div className="mt-3 p-4 rounded-lg bg-blue-50 border border-blue-100">
+  1915→                  <h4 className="font-semibold text-sm flex items-center gap-1.5 text-blue-800 mb-2">
+  1916→                    <Target className="h-4 w-4" /> Specific Tips
+  1917→                  </h4>
+  1918→                  <ul className="space-y-1.5">
+  1919→                    {textCoaching.specific_tips.map((tip, i) => (
+  1920→                      <li key={i} className="text-sm text-blue-700 flex items-start gap-2">
+  1921→                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+  1922→                        {tip}
+  1923→                      </li>
+  1924→                    ))}
+  1925→                  </ul>
+  1926→                </div>
+  1927→              )}
+  1928→
+  1929→              {textCoaching.improved_response && (
+  1930→                <div className="mt-3 p-4 rounded-lg bg-purple-50 border border-purple-100">
+  1931→                  <h4 className="font-semibold text-sm flex items-center gap-1.5 text-purple-800 mb-2">
+  1932→                    <Sparkles className="h-4 w-4" /> Example Strong Response
+  1933→                  </h4>
+  1934→                  <p className="text-sm text-purple-700 italic leading-relaxed">
+  1935→                    "{textCoaching.improved_response}"
+  1936→                  </p>
+  1937→                </div>
+  1938→              )}
+  1939→
+  1940→              <div className="mt-3 p-3 rounded-lg bg-muted/50 text-center">
+  1941→                <p className="text-xs text-muted-foreground">
+  1942→                  💡 Try <strong>video mode</strong> next time for body language, eye contact, and speech analysis!
+  1943→                </p>
+  1944→              </div>
+  1945→
+  1946→              <div className="mt-5 flex gap-2">
+  1947→                <Button variant="outline" onClick={closePractice} className="flex-1">
+  1948→                  Close
+  1949→                </Button>
+  1950→                <Button onClick={practiceAnother} className="flex-1">
+  1951→                  <ArrowRight className="h-4 w-4 mr-1.5" />
+  1952→                  Practice Another
+  1953→                </Button>
+  1954→              </div>
+  1955→            </>
+  1956→          )}
+  1957→        </div>
+  1958→      </Dialog>
+  1959→    </div>
+  1960→  )
+  1961→}
+  1962→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

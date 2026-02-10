@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Read current ai-coaching.tsx code and understand camera + AI flow",
+    "status": "completed",
+    "activeForm": "Reading ai-coaching.tsx to understand camera + AI flow"
+  },
+  {
+    "content": "Find the Gemini→OpenAI migration commits and diff them",
+    "status": "completed",
+    "activeForm": "Finding Gemini→OpenAI migration commits"
+  },
+  {
+    "content": "Identify root cause — how OpenAI code interferes with camera preview",
+    "status": "completed",
+    "activeForm": "Identifying root cause of camera interference"
+  },
+  {
+    "content": "Implement fix based on confirmed root cause",
+    "status": "completed",
+    "activeForm": "Implementing the fix"
+  },
+  {
+    "content": "Build, deploy, verify",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying"
+  }
+]
