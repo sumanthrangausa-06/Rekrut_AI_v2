@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Find and investigate video analysis code (Gemini usage)",
+    "status": "completed",
+    "activeForm": "Investigating video analysis code"
+  },
+  {
+    "content": "Replace Gemini with OpenAI Vision API — add task field to proxy call",
+    "status": "completed",
+    "activeForm": "Replacing Gemini with OpenAI Vision API"
+  },
+  {
+    "content": "Deploy and verify fix",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying fix"
+  },
+  {
+    "content": "Update memory and complete task",
+    "status": "pending",
+    "activeForm": "Updating memory and completing task"
+  }
+]
