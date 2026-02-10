@@ -251,6 +251,35 @@ export function AiCoachingPage() {
     }
   }, [])
 
+  // 10TH FIX (Feb 10 2026): On iOS WebKit, a <video> element that had srcObject
+  // set while hidden behind an opaque overlay never starts rendering — iOS's power
+  // optimization paused the decoder and won't restart it even after overlay removal
+  // and play(). The <video> element uses a key prop that changes when cameraReady
+  // becomes true, forcing React to create a BRAND NEW DOM element that was never
+  // hidden. This useEffect then attaches the stream to the fresh element.
+  useEffect(() => {
+    if (!cameraReady) return
+    const video = videoRef.current
+    const stream = streamRef.current
+    if (!video || !stream) return
+
+    // Attach stream to the fresh video element (created by key change)
+    // Use a small delay to ensure React has committed the new element to the DOM
+    const timer = setTimeout(() => {
+      const v = videoRef.current
+      if (!v) return
+      v.srcObject = stream
+      v.play().then(() => {
+        console.log(`[camera] 10th fix: play() succeeded on fresh element, readyState=${v.readyState}`)
+        setCameraStatus(prev => prev + ' ▶')
+      }).catch((e: any) => {
+        console.warn('[camera] play() on fresh element:', e?.message)
+      })
+    }, 80)
+
+    return () => clearTimeout(timer)
+  }, [cameraReady])
+
   function openPractice(q: PracticeQuestion) {
     setPracticeQuestion(q)
     setResponseMode('select')
@@ -537,17 +566,19 @@ export function AiCoachingPage() {
       setCameraStatus(`OK ${settings.width || '?'}x${settings.height || '?'} a:${at.length}`)
       setCameraReady(true)
 
-      // ── iOS FIX: Re-trigger play() after overlay is removed ──
-      // Setting cameraReady=true causes React to remove the opaque overlay.
-      // On iOS, the video element may need another play() call once it's
-      // actually visible (no longer covered by the overlay). Schedule this
-      // for the next animation frame (after React re-render).
+      // ── 10TH FIX: After cameraReady=true, React recreates <video> via key prop ──
+      // The useEffect handles stream reattachment. This rAF is a backup that also
+      // ensures srcObject is set on the new element if the useEffect hasn't fired yet.
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           const v = videoRef.current
-          if (v && v.srcObject) {
+          const s = streamRef.current
+          if (v && s) {
+            if (!v.srcObject) {
+              v.srcObject = s
+              console.log('[camera] rAF backup: attached stream to fresh element')
+            }
             v.play().catch(() => {})
-            console.log('[camera] re-triggered play() after overlay removed')
           }
         })
       })
@@ -1180,27 +1211,25 @@ export function AiCoachingPage() {
                 <div className="mt-4 space-y-4">
                   {/* Camera Preview — only show when no error blocking everything */}
                   {!cameraError && (
-                    <div
-                      className="relative bg-black aspect-video"
-                      style={{ clipPath: 'inset(0 round 12px)' }}
-                    >
-                      {/* Direct <video> element — NO canvas, NO detached elements.
-                          clip-path on container provides rounded corners WITHOUT creating
-                          an overflow context (which triggers WebKit compositor bug).
-                          translateZ(0) forces own GPU compositing layer. */}
+                    <div className="relative bg-black aspect-video rounded-xl">
+                      {/* 10TH FIX: key prop forces React to create a BRAND NEW <video>
+                          DOM element when cameraReady transitions to true. The fresh element
+                          was never hidden behind the overlay, so iOS WebKit's decoder starts
+                          immediately. Stream is attached via useEffect + rAF backup.
+                          No clipPath, no translateZ(0), no willChange — these create
+                          compositing layers that prevent iOS WebKit from rendering video. */}
                       <video
+                        key={cameraReady ? 'cam-active' : 'cam-pending'}
                         ref={videoRef}
                         autoPlay
                         muted
                         playsInline
                         // @ts-ignore — webkit-playsinline is a non-standard attribute
                         webkit-playsinline=""
-                        className="absolute inset-0 w-full h-full object-cover"
-                        style={{
-                          transform: 'scaleX(-1) translateZ(0)',
-                          WebkitTransform: 'scaleX(-1) translateZ(0)',
-                          willChange: 'transform',
-                        }}
+                        width={640}
+                        height={480}
+                        className="absolute inset-0 w-full h-full object-cover rounded-xl"
+                        style={{ transform: 'scaleX(-1)' }}
                       />
 
                       {/* DOM-based debug status — ALWAYS visible (not hidden by overlays).
