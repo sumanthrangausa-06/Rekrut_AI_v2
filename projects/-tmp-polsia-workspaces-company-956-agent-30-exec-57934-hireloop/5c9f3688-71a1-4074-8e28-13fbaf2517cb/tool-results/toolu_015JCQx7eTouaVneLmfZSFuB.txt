@@ -1,0 +1,836 @@
+     1→import { useEffect, useState } from 'react'
+     2→import { apiCall } from '@/lib/api'
+     3→import { Card, CardContent } from '@/components/ui/card'
+     4→import { Button } from '@/components/ui/button'
+     5→import { Badge } from '@/components/ui/badge'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Label } from '@/components/ui/label'
+     8→import { Select } from '@/components/ui/select'
+     9→import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    10→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+    11→import {
+    12→  DollarSign, Users, Calendar, Clock, CheckCircle, Play,
+    13→  FileText, Search, Building2, Briefcase, TrendingUp,
+    14→  CreditCard, AlertCircle, ArrowRight, Receipt,
+    15→} from 'lucide-react'
+    16→
+    17→interface Employee {
+    18→  id: number
+    19→  user_id: number
+    20→  employee_name: string
+    21→  employee_email: string
+    22→  employee_number: string
+    23→  department: string
+    24→  position: string
+    25→  employment_type: string
+    26→  start_date: string
+    27→  status: string
+    28→  salary_type: string | null
+    29→  salary_amount: number | null
+    30→  pay_frequency: string | null
+    31→  payment_method: string | null
+    32→}
+    33→
+    34→interface PayrollRun {
+    35→  id: number
+    36→  pay_period_start: string
+    37→  pay_period_end: string
+    38→  pay_date: string
+    39→  status: string
+    40→  total_gross: number
+    41→  total_net: number
+    42→  total_taxes: number
+    43→  employee_count: number
+    44→  created_at: string
+    45→  processed_at: string | null
+    46→}
+    47→
+    48→interface Paycheck {
+    49→  id: number
+    50→  employee_id: number
+    51→  employee_name: string
+    52→  employee_number: string
+    53→  gross_pay: number
+    54→  federal_tax: number
+    55→  state_tax: number
+    56→  social_security: number
+    57→  medicare: number
+    58→  other_deductions: number
+    59→  net_pay: number
+    60→  hours_worked: number | null
+    61→  status: string
+    62→  pay_date: string
+    63→}
+    64→
+    65→interface DashboardData {
+    66→  activeEmployees: number
+    67→  upcomingPayrolls: PayrollRun[]
+    68→  recentPayrolls: PayrollRun[]
+    69→  monthlyTotal: number
+    70→}
+    71→
+    72→const fmt = (n: number) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    73→
+    74→export function RecruiterPayrollPage() {
+    75→  const [tab, setTab] = useState('dashboard')
+    76→  const [loading, setLoading] = useState(true)
+    77→  const [dashboard, setDashboard] = useState<DashboardData | null>(null)
+    78→  const [employees, setEmployees] = useState<Employee[]>([])
+    79→  const [search, setSearch] = useState('')
+    80→  const [showRunCreate, setShowRunCreate] = useState(false)
+    81→  const [creating, setCreating] = useState(false)
+    82→  const [selectedRun, setSelectedRun] = useState<PayrollRun | null>(null)
+    83→  const [runPaychecks, setRunPaychecks] = useState<Paycheck[]>([])
+    84→  const [loadingRun, setLoadingRun] = useState(false)
+    85→  const [processing, setProcessing] = useState(false)
+    86→  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
+    87→  const [savingConfig, setSavingConfig] = useState(false)
+    88→
+    89→  // Run form
+    90→  const [periodStart, setPeriodStart] = useState('')
+    91→  const [periodEnd, setPeriodEnd] = useState('')
+    92→  const [payDate, setPayDate] = useState('')
+    93→
+    94→  // Employee config form
+    95→  const [cfgSalaryType, setCfgSalaryType] = useState('salary')
+    96→  const [cfgSalaryAmount, setCfgSalaryAmount] = useState('')
+    97→  const [cfgPayFrequency, setCfgPayFrequency] = useState('bi-weekly')
+    98→  const [cfgPaymentMethod, setCfgPaymentMethod] = useState('direct_deposit')
+    99→  const [cfgTaxStatus, setCfgTaxStatus] = useState('single')
+   100→  const [cfgFederalAllow, setCfgFederalAllow] = useState('0')
+   101→  const [cfgStateAllow, setCfgStateAllow] = useState('0')
+   102→
+   103→  useEffect(() => {
+   104→    loadAll()
+   105→  }, [])
+   106→
+   107→  async function loadAll() {
+   108→    setLoading(true)
+   109→    try {
+   110→      const [dashRes, empRes] = await Promise.allSettled([
+   111→        apiCall<DashboardData>('/payroll/dashboard'),
+   112→        apiCall<{ employees: Employee[] }>('/payroll/employees'),
+   113→      ])
+   114→      if (dashRes.status === 'fulfilled') setDashboard(dashRes.value)
+   115→      if (empRes.status === 'fulfilled') setEmployees(empRes.value.employees || [])
+   116→    } catch {
+   117→      // silent
+   118→    } finally {
+   119→      setLoading(false)
+   120→    }
+   121→  }
+   122→
+   123→  async function createPayrollRun() {
+   124→    if (!periodStart || !periodEnd || !payDate) return
+   125→    setCreating(true)
+   126→    try {
+   127→      await apiCall('/payroll/runs', {
+   128→        method: 'POST',
+   129→        body: { pay_period_start: periodStart, pay_period_end: periodEnd, pay_date: payDate },
+   130→      })
+   131→      setShowRunCreate(false)
+   132→      setPeriodStart('')
+   133→      setPeriodEnd('')
+   134→      setPayDate('')
+   135→      await loadAll()
+   136→      setTab('runs')
+   137→    } catch (err: unknown) {
+   138→      alert(err instanceof Error ? err.message : 'Failed to create payroll run')
+   139→    } finally {
+   140→      setCreating(false)
+   141→    }
+   142→  }
+   143→
+   144→  async function viewRun(run: PayrollRun) {
+   145→    setSelectedRun(run)
+   146→    setLoadingRun(true)
+   147→    try {
+   148→      const res = await apiCall<{ payrollRun: PayrollRun; paychecks: Paycheck[] }>(`/payroll/runs/${run.id}`)
+   149→      setRunPaychecks(res.paychecks || [])
+   150→      setSelectedRun(res.payrollRun)
+   151→    } catch {
+   152→      setRunPaychecks([])
+   153→    } finally {
+   154→      setLoadingRun(false)
+   155→    }
+   156→  }
+   157→
+   158→  async function processRun(runId: number) {
+   159→    if (!confirm('Process this payroll? This will mark all paychecks as paid.')) return
+   160→    setProcessing(true)
+   161→    try {
+   162→      await apiCall(`/payroll/runs/${runId}/process`, { method: 'POST' })
+   163→      setSelectedRun(null)
+   164→      await loadAll()
+   165→    } catch (err: unknown) {
+   166→      alert(err instanceof Error ? err.message : 'Failed to process payroll')
+   167→    } finally {
+   168→      setProcessing(false)
+   169→    }
+   170→  }
+   171→
+   172→  function openEmployeeConfig(emp: Employee) {
+   173→    setSelectedEmployee(emp)
+   174→    setCfgSalaryType(emp.salary_type || 'salary')
+   175→    setCfgSalaryAmount(String(emp.salary_amount || ''))
+   176→    setCfgPayFrequency(emp.pay_frequency || 'bi-weekly')
+   177→    setCfgPaymentMethod(emp.payment_method || 'direct_deposit')
+   178→    setCfgTaxStatus('single')
+   179→    setCfgFederalAllow('0')
+   180→    setCfgStateAllow('0')
+   181→  }
+   182→
+   183→  async function saveEmployeeConfig() {
+   184→    if (!selectedEmployee || !cfgSalaryAmount) return
+   185→    setSavingConfig(true)
+   186→    try {
+   187→      await apiCall(`/payroll/employees/${selectedEmployee.id}/onboard`, {
+   188→        method: 'POST',
+   189→        body: {
+   190→          salary_type: cfgSalaryType,
+   191→          salary_amount: Number(cfgSalaryAmount),
+   192→          pay_frequency: cfgPayFrequency,
+   193→          payment_method: cfgPaymentMethod,
+   194→          tax_filing_status: cfgTaxStatus,
+   195→          federal_allowances: Number(cfgFederalAllow),
+   196→          state_allowances: Number(cfgStateAllow),
+   197→        },
+   198→      })
+   199→      setSelectedEmployee(null)
+   200→      await loadAll()
+   201→    } catch (err: unknown) {
+   202→      alert(err instanceof Error ? err.message : 'Failed to save pay config')
+   203→    } finally {
+   204→      setSavingConfig(false)
+   205→    }
+   206→  }
+   207→
+   208→  const filteredEmployees = employees.filter(e =>
+   209→    !search ||
+   210→    e.employee_name?.toLowerCase().includes(search.toLowerCase()) ||
+   211→    e.employee_email?.toLowerCase().includes(search.toLowerCase()) ||
+   212→    e.employee_number?.toLowerCase().includes(search.toLowerCase())
+   213→  )
+   214→
+   215→  const allRuns = [
+   216→    ...(dashboard?.upcomingPayrolls || []),
+   217→    ...(dashboard?.recentPayrolls || []),
+   218→  ].filter((r, i, arr) => arr.findIndex(x => x.id === r.id) === i)
+   219→    .sort((a, b) => new Date(b.pay_date).getTime() - new Date(a.pay_date).getTime())
+   220→
+   221→  if (loading) {
+   222→    return (
+   223→      <div className="flex items-center justify-center py-20">
+   224→        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+   225→      </div>
+   226→    )
+   227→  }
+   228→
+   229→  return (
+   230→    <div className="space-y-6">
+   231→      <div className="flex items-center justify-between">
+   232→        <div>
+   233→          <h1 className="font-heading text-2xl font-bold">Payroll</h1>
+   234→          <p className="text-muted-foreground">Manage employee compensation, run payroll, and generate pay stubs</p>
+   235→        </div>
+   236→        <Button onClick={() => setShowRunCreate(true)} className="gap-2">
+   237→          <Play className="h-4 w-4" /> Run Payroll
+   238→        </Button>
+   239→      </div>
+   240→
+   241→      {/* Stats */}
+   242→      <div className="grid gap-3 sm:grid-cols-4">
+   243→        <Card>
+   244→          <CardContent className="p-4">
+   245→            <div className="flex items-center gap-3">
+   246→              <div className="rounded-lg bg-blue-100 p-2">
+   247→                <Users className="h-5 w-5 text-blue-600" />
+   248→              </div>
+   249→              <div>
+   250→                <p className="text-2xl font-bold">{dashboard?.activeEmployees || 0}</p>
+   251→                <p className="text-xs text-muted-foreground">Active Employees</p>
+   252→              </div>
+   253→            </div>
+   254→          </CardContent>
+   255→        </Card>
+   256→        <Card>
+   257→          <CardContent className="p-4">
+   258→            <div className="flex items-center gap-3">
+   259→              <div className="rounded-lg bg-emerald-100 p-2">
+   260→                <DollarSign className="h-5 w-5 text-emerald-600" />
+   261→              </div>
+   262→              <div>
+   263→                <p className="text-2xl font-bold">{fmt(dashboard?.monthlyTotal || 0)}</p>
+   264→                <p className="text-xs text-muted-foreground">This Month</p>
+   265→              </div>
+   266→            </div>
+   267→          </CardContent>
+   268→        </Card>
+   269→        <Card>
+   270→          <CardContent className="p-4">
+   271→            <div className="flex items-center gap-3">
+   272→              <div className="rounded-lg bg-amber-100 p-2">
+   273→                <Clock className="h-5 w-5 text-amber-600" />
+   274→              </div>
+   275→              <div>
+   276→                <p className="text-2xl font-bold">{dashboard?.upcomingPayrolls?.length || 0}</p>
+   277→                <p className="text-xs text-muted-foreground">Upcoming Runs</p>
+   278→              </div>
+   279→            </div>
+   280→          </CardContent>
+   281→        </Card>
+   282→        <Card>
+   283→          <CardContent className="p-4">
+   284→            <div className="flex items-center gap-3">
+   285→              <div className="rounded-lg bg-purple-100 p-2">
+   286→                <TrendingUp className="h-5 w-5 text-purple-600" />
+   287→              </div>
+   288→              <div>
+   289→                <p className="text-2xl font-bold">{dashboard?.recentPayrolls?.length || 0}</p>
+   290→                <p className="text-xs text-muted-foreground">Completed Runs</p>
+   291→              </div>
+   292→            </div>
+   293→          </CardContent>
+   294→        </Card>
+   295→      </div>
+   296→
+   297→      {/* Tabs */}
+   298→      <Tabs value={tab} onValueChange={setTab}>
+   299→        <TabsList>
+   300→          <TabsTrigger value="dashboard">Overview</TabsTrigger>
+   301→          <TabsTrigger value="employees">Employees ({employees.length})</TabsTrigger>
+   302→          <TabsTrigger value="runs">Payroll Runs</TabsTrigger>
+   303→        </TabsList>
+   304→
+   305→        {/* Overview Tab */}
+   306→        <TabsContent value="dashboard">
+   307→          <div className="grid gap-6 lg:grid-cols-2">
+   308→            {/* Upcoming payrolls */}
+   309→            <Card>
+   310→              <CardContent className="p-5">
+   311→                <div className="flex items-center justify-between mb-4">
+   312→                  <h3 className="font-semibold flex items-center gap-2">
+   313→                    <Calendar className="h-4 w-4 text-amber-500" /> Upcoming Payrolls
+   314→                  </h3>
+   315→                </div>
+   316→                {(dashboard?.upcomingPayrolls || []).length === 0 ? (
+   317→                  <div className="text-center py-8">
+   318→                    <Calendar className="mx-auto mb-2 h-8 w-8 opacity-20" />
+   319→                    <p className="text-sm text-muted-foreground">No upcoming payrolls</p>
+   320→                    <Button size="sm" variant="outline" className="mt-3 gap-1" onClick={() => setShowRunCreate(true)}>
+   321→                      <Play className="h-3 w-3" /> Schedule Run
+   322→                    </Button>
+   323→                  </div>
+   324→                ) : (
+   325→                  <div className="space-y-3">
+   326→                    {dashboard!.upcomingPayrolls.map(run => (
+   327→                      <div
+   328→                        key={run.id}
+   329→                        className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+   330→                        onClick={() => viewRun(run)}
+   331→                      >
+   332→                        <div>
+   333→                          <p className="font-medium text-sm">
+   334→                            {new Date(run.pay_period_start).toLocaleDateString()} – {new Date(run.pay_period_end).toLocaleDateString()}
+   335→                          </p>
+   336→                          <p className="text-xs text-muted-foreground">
+   337→                            Pay date: {new Date(run.pay_date).toLocaleDateString()} · {run.employee_count || 0} employees
+   338→                          </p>
+   339→                        </div>
+   340→                        <Badge variant={run.status === 'draft' ? 'warning' : 'default'}>
+   341→                          {run.status}
+   342→                        </Badge>
+   343→                      </div>
+   344→                    ))}
+   345→                  </div>
+   346→                )}
+   347→              </CardContent>
+   348→            </Card>
+   349→
+   350→            {/* Recent payrolls */}
+   351→            <Card>
+   352→              <CardContent className="p-5">
+   353→                <div className="flex items-center justify-between mb-4">
+   354→                  <h3 className="font-semibold flex items-center gap-2">
+   355→                    <CheckCircle className="h-4 w-4 text-emerald-500" /> Recent Payrolls
+   356→                  </h3>
+   357→                </div>
+   358→                {(dashboard?.recentPayrolls || []).length === 0 ? (
+   359→                  <div className="text-center py-8">
+   360→                    <Receipt className="mx-auto mb-2 h-8 w-8 opacity-20" />
+   361→                    <p className="text-sm text-muted-foreground">No completed payrolls yet</p>
+   362→                  </div>
+   363→                ) : (
+   364→                  <div className="space-y-3">
+   365→                    {dashboard!.recentPayrolls.map(run => (
+   366→                      <div
+   367→                        key={run.id}
+   368→                        className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+   369→                        onClick={() => viewRun(run)}
+   370→                      >
+   371→                        <div>
+   372→                          <p className="font-medium text-sm">
+   373→                            {new Date(run.pay_period_start).toLocaleDateString()} – {new Date(run.pay_period_end).toLocaleDateString()}
+   374→                          </p>
+   375→                          <p className="text-xs text-muted-foreground">
+   376→                            Paid {new Date(run.pay_date).toLocaleDateString()} · {fmt(run.total_net)} net
+   377→                          </p>
+   378→                        </div>
+   379→                        <Badge variant="success">Completed</Badge>
+   380→                      </div>
+   381→                    ))}
+   382→                  </div>
+   383→                )}
+   384→              </CardContent>
+   385→            </Card>
+   386→
+   387→            {/* Quick employee list */}
+   388→            <Card className="lg:col-span-2">
+   389→              <CardContent className="p-5">
+   390→                <div className="flex items-center justify-between mb-4">
+   391→                  <h3 className="font-semibold flex items-center gap-2">
+   392→                    <Users className="h-4 w-4 text-blue-500" /> Employees on Payroll
+   393→                  </h3>
+   394→                  <Button size="sm" variant="outline" onClick={() => setTab('employees')} className="gap-1">
+   395→                    View All <ArrowRight className="h-3 w-3" />
+   396→                  </Button>
+   397→                </div>
+   398→                {employees.length === 0 ? (
+   399→                  <div className="text-center py-8">
+   400→                    <Users className="mx-auto mb-2 h-8 w-8 opacity-20" />
+   401→                    <p className="text-sm text-muted-foreground">No employees yet</p>
+   402→                    <p className="text-xs text-muted-foreground mt-1">Employees are created when candidates accept job offers</p>
+   403→                  </div>
+   404→                ) : (
+   405→                  <div className="overflow-x-auto">
+   406→                    <table className="w-full text-sm">
+   407→                      <thead>
+   408→                        <tr className="border-b text-left text-muted-foreground">
+   409→                          <th className="pb-2 font-medium">Employee</th>
+   410→                          <th className="pb-2 font-medium">Position</th>
+   411→                          <th className="pb-2 font-medium">Salary</th>
+   412→                          <th className="pb-2 font-medium">Frequency</th>
+   413→                          <th className="pb-2 font-medium">Status</th>
+   414→                        </tr>
+   415→                      </thead>
+   416→                      <tbody>
+   417→                        {employees.slice(0, 5).map(emp => (
+   418→                          <tr key={emp.id} className="border-b last:border-0 cursor-pointer hover:bg-muted/50" onClick={() => openEmployeeConfig(emp)}>
+   419→                            <td className="py-3">
+   420→                              <p className="font-medium">{emp.employee_name || 'Unknown'}</p>
+   421→                              <p className="text-xs text-muted-foreground">{emp.employee_number}</p>
+   422→                            </td>
+   423→                            <td className="py-3">{emp.position || '—'}</td>
+   424→                            <td className="py-3 font-medium text-emerald-600">
+   425→                              {emp.salary_amount ? fmt(emp.salary_amount) : '—'}
+   426→                              {emp.salary_type === 'hourly' ? '/hr' : '/yr'}
+   427→                            </td>
+   428→                            <td className="py-3 capitalize">{emp.pay_frequency || '—'}</td>
+   429→                            <td className="py-3">
+   430→                              {emp.salary_amount ? (
+   431→                                <Badge variant="success" className="gap-1">
+   432→                                  <CheckCircle className="h-3 w-3" /> Configured
+   433→                                </Badge>
+   434→                              ) : (
+   435→                                <Badge variant="warning" className="gap-1">
+   436→                                  <AlertCircle className="h-3 w-3" /> Needs Setup
+   437→                                </Badge>
+   438→                              )}
+   439→                            </td>
+   440→                          </tr>
+   441→                        ))}
+   442→                      </tbody>
+   443→                    </table>
+   444→                  </div>
+   445→                )}
+   446→              </CardContent>
+   447→            </Card>
+   448→          </div>
+   449→        </TabsContent>
+   450→
+   451→        {/* Employees Tab */}
+   452→        <TabsContent value="employees">
+   453→          <Card>
+   454→            <CardContent className="p-5">
+   455→              <div className="flex items-center gap-3 mb-4">
+   456→                <div className="relative flex-1 max-w-sm">
+   457→                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   458→                  <Input
+   459→                    placeholder="Search employees..."
+   460→                    value={search}
+   461→                    onChange={e => setSearch(e.target.value)}
+   462→                    className="pl-9"
+   463→                  />
+   464→                </div>
+   465→                <p className="text-sm text-muted-foreground">{filteredEmployees.length} employees</p>
+   466→              </div>
+   467→
+   468→              {filteredEmployees.length === 0 ? (
+   469→                <div className="text-center py-12">
+   470→                  <Users className="mx-auto mb-3 h-10 w-10 opacity-20" />
+   471→                  <p className="text-muted-foreground">
+   472→                    {employees.length === 0
+   473→                      ? 'No employees yet. Employees are created when candidates accept job offers.'
+   474→                      : 'No employees match your search.'}
+   475→                  </p>
+   476→                </div>
+   477→              ) : (
+   478→                <div className="overflow-x-auto">
+   479→                  <table className="w-full text-sm">
+   480→                    <thead>
+   481→                      <tr className="border-b text-left text-muted-foreground">
+   482→                        <th className="pb-2 font-medium">ID</th>
+   483→                        <th className="pb-2 font-medium">Employee</th>
+   484→                        <th className="pb-2 font-medium">Position</th>
+   485→                        <th className="pb-2 font-medium">Type</th>
+   486→                        <th className="pb-2 font-medium">Compensation</th>
+   487→                        <th className="pb-2 font-medium">Pay Frequency</th>
+   488→                        <th className="pb-2 font-medium">Payment Method</th>
+   489→                        <th className="pb-2 font-medium">Pay Config</th>
+   490→                      </tr>
+   491→                    </thead>
+   492→                    <tbody>
+   493→                      {filteredEmployees.map(emp => (
+   494→                        <tr
+   495→                          key={emp.id}
+   496→                          className="border-b last:border-0 cursor-pointer hover:bg-muted/50 transition-colors"
+   497→                          onClick={() => openEmployeeConfig(emp)}
+   498→                        >
+   499→                          <td className="py-3 font-mono text-xs">{emp.employee_number}</td>
+   500→                          <td className="py-3">
+   501→                            <p className="font-medium">{emp.employee_name || 'Unknown'}</p>
+   502→                            <p className="text-xs text-muted-foreground">{emp.employee_email}</p>
+   503→                          </td>
+   504→                          <td className="py-3">{emp.position || '—'}</td>
+   505→                          <td className="py-3 capitalize">{emp.employment_type || '—'}</td>
+   506→                          <td className="py-3">
+   507→                            {emp.salary_amount ? (
+   508→                              <span className="font-medium text-emerald-600">
+   509→                                {fmt(emp.salary_amount)}{emp.salary_type === 'hourly' ? '/hr' : '/yr'}
+   510→                              </span>
+   511→                            ) : (
+   512→                              <span className="text-muted-foreground">Not set</span>
+   513→                            )}
+   514→                          </td>
+   515→                          <td className="py-3 capitalize">{emp.pay_frequency || '—'}</td>
+   516→                          <td className="py-3 capitalize">{(emp.payment_method || '—').replace(/_/g, ' ')}</td>
+   517→                          <td className="py-3">
+   518→                            {emp.salary_amount ? (
+   519→                              <Badge variant="success" className="gap-1">
+   520→                                <CheckCircle className="h-3 w-3" /> Ready
+   521→                              </Badge>
+   522→                            ) : (
+   523→                              <Badge variant="warning" className="gap-1">
+   524→                                <AlertCircle className="h-3 w-3" /> Setup
+   525→                              </Badge>
+   526→                            )}
+   527→                          </td>
+   528→                        </tr>
+   529→                      ))}
+   530→                    </tbody>
+   531→                  </table>
+   532→                </div>
+   533→              )}
+   534→            </CardContent>
+   535→          </Card>
+   536→        </TabsContent>
+   537→
+   538→        {/* Payroll Runs Tab */}
+   539→        <TabsContent value="runs">
+   540→          <Card>
+   541→            <CardContent className="p-5">
+   542→              <div className="flex items-center justify-between mb-4">
+   543→                <h3 className="font-semibold">Payroll Runs</h3>
+   544→                <Button size="sm" onClick={() => setShowRunCreate(true)} className="gap-1">
+   545→                  <Play className="h-3 w-3" /> New Run
+   546→                </Button>
+   547→              </div>
+   548→
+   549→              {allRuns.length === 0 ? (
+   550→                <div className="text-center py-12">
+   551→                  <Receipt className="mx-auto mb-3 h-10 w-10 opacity-20" />
+   552→                  <p className="text-muted-foreground mb-3">No payroll runs yet</p>
+   553→                  <Button onClick={() => setShowRunCreate(true)} className="gap-2">
+   554→                    <Play className="h-4 w-4" /> Create First Payroll Run
+   555→                  </Button>
+   556→                </div>
+   557→              ) : (
+   558→                <div className="space-y-2">
+   559→                  {allRuns.map(run => (
+   560→                    <div
+   561→                      key={run.id}
+   562→                      className="flex items-center justify-between rounded-lg border p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+   563→                      onClick={() => viewRun(run)}
+   564→                    >
+   565→                      <div className="flex items-center gap-4">
+   566→                        <div className={`rounded-lg p-2 ${run.status === 'completed' ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+   567→                          {run.status === 'completed'
+   568→                            ? <CheckCircle className="h-5 w-5 text-emerald-600" />
+   569→                            : <Clock className="h-5 w-5 text-amber-600" />
+   570→                          }
+   571→                        </div>
+   572→                        <div>
+   573→                          <p className="font-medium">
+   574→                            {new Date(run.pay_period_start).toLocaleDateString()} – {new Date(run.pay_period_end).toLocaleDateString()}
+   575→                          </p>
+   576→                          <p className="text-xs text-muted-foreground">
+   577→                            Pay date: {new Date(run.pay_date).toLocaleDateString()} · {run.employee_count || 0} employees
+   578→                          </p>
+   579→                        </div>
+   580→                      </div>
+   581→                      <div className="text-right">
+   582→                        <p className="font-semibold">{fmt(run.total_net)}</p>
+   583→                        <Badge variant={run.status === 'completed' ? 'success' : run.status === 'draft' ? 'warning' : 'secondary'}>
+   584→                          {run.status}
+   585→                        </Badge>
+   586→                      </div>
+   587→                    </div>
+   588→                  ))}
+   589→                </div>
+   590→              )}
+   591→            </CardContent>
+   592→          </Card>
+   593→        </TabsContent>
+   594→      </Tabs>
+   595→
+   596→      {/* Create Payroll Run Dialog */}
+   597→      <Dialog open={showRunCreate} onClose={() => setShowRunCreate(false)} className="max-w-md">
+   598→        <DialogHeader>
+   599→          <DialogTitle className="flex items-center gap-2">
+   600→            <Play className="h-5 w-5 text-primary" /> Create Payroll Run
+   601→          </DialogTitle>
+   602→        </DialogHeader>
+   603→        <div className="space-y-4">
+   604→          <p className="text-sm text-muted-foreground">
+   605→            Create a payroll run to calculate paychecks for all configured employees.
+   606→          </p>
+   607→          <div>
+   608→            <Label>Pay Period Start *</Label>
+   609→            <Input type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)} className="mt-1" />
+   610→          </div>
+   611→          <div>
+   612→            <Label>Pay Period End *</Label>
+   613→            <Input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="mt-1" />
+   614→          </div>
+   615→          <div>
+   616→            <Label>Pay Date *</Label>
+   617→            <Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} className="mt-1" />
+   618→          </div>
+   619→          <div className="rounded-lg bg-muted/50 p-3">
+   620→            <p className="text-xs text-muted-foreground">
+   621→              <AlertCircle className="h-3 w-3 inline mr-1" />
+   622→              Paychecks will be auto-calculated for {employees.filter(e => e.salary_amount).length} configured employees.
+   623→              {employees.filter(e => !e.salary_amount).length > 0 && (
+   624→                <span className="text-amber-600"> {employees.filter(e => !e.salary_amount).length} employees need pay setup first.</span>
+   625→              )}
+   626→            </p>
+   627→          </div>
+   628→          <div className="flex gap-2 pt-2">
+   629→            <Button onClick={createPayrollRun} disabled={creating || !periodStart || !periodEnd || !payDate} className="gap-2">
+   630→              {creating ? (
+   631→                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+   632→              ) : (
+   633→                <Play className="h-4 w-4" />
+   634→              )}
+   635→              Create Run
+   636→            </Button>
+   637→            <Button variant="outline" onClick={() => setShowRunCreate(false)}>Cancel</Button>
+   638→          </div>
+   639→        </div>
+   640→      </Dialog>
+   641→
+   642→      {/* Payroll Run Detail Dialog */}
+   643→      {selectedRun && (
+   644→        <Dialog open={true} onClose={() => { setSelectedRun(null); setRunPaychecks([]) }} className="max-w-3xl">
+   645→          <DialogHeader>
+   646→            <DialogTitle className="flex items-center gap-2">
+   647→              <Receipt className="h-5 w-5 text-primary" /> Payroll Run Detail
+   648→            </DialogTitle>
+   649→          </DialogHeader>
+   650→          <div className="space-y-4">
+   651→            {/* Run summary */}
+   652→            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+   653→              <div className="rounded-lg bg-muted/50 p-3">
+   654→                <p className="text-xs text-muted-foreground">Period</p>
+   655→                <p className="font-medium text-sm">
+   656→                  {new Date(selectedRun.pay_period_start).toLocaleDateString()} – {new Date(selectedRun.pay_period_end).toLocaleDateString()}
+   657→                </p>
+   658→              </div>
+   659→              <div className="rounded-lg bg-muted/50 p-3">
+   660→                <p className="text-xs text-muted-foreground">Pay Date</p>
+   661→                <p className="font-medium text-sm">{new Date(selectedRun.pay_date).toLocaleDateString()}</p>
+   662→              </div>
+   663→              <div className="rounded-lg bg-muted/50 p-3">
+   664→                <p className="text-xs text-muted-foreground">Gross Total</p>
+   665→                <p className="font-medium text-sm">{fmt(selectedRun.total_gross)}</p>
+   666→              </div>
+   667→              <div className="rounded-lg bg-emerald-50 p-3">
+   668→                <p className="text-xs text-muted-foreground">Net Total</p>
+   669→                <p className="font-bold text-sm text-emerald-600">{fmt(selectedRun.total_net)}</p>
+   670→              </div>
+   671→            </div>
+   672→
+   673→            <Badge variant={selectedRun.status === 'completed' ? 'success' : 'warning'} className="gap-1">
+   674→              {selectedRun.status === 'completed' ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+   675→              {selectedRun.status}
+   676→            </Badge>
+   677→
+   678→            {/* Paychecks table */}
+   679→            {loadingRun ? (
+   680→              <div className="flex justify-center py-8">
+   681→                <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+   682→              </div>
+   683→            ) : runPaychecks.length === 0 ? (
+   684→              <p className="text-sm text-muted-foreground text-center py-4">No paychecks in this run</p>
+   685→            ) : (
+   686→              <div className="overflow-x-auto">
+   687→                <table className="w-full text-sm">
+   688→                  <thead>
+   689→                    <tr className="border-b text-left text-muted-foreground">
+   690→                      <th className="pb-2 font-medium">Employee</th>
+   691→                      <th className="pb-2 font-medium text-right">Gross</th>
+   692→                      <th className="pb-2 font-medium text-right">Fed Tax</th>
+   693→                      <th className="pb-2 font-medium text-right">State Tax</th>
+   694→                      <th className="pb-2 font-medium text-right">SS</th>
+   695→                      <th className="pb-2 font-medium text-right">Medicare</th>
+   696→                      <th className="pb-2 font-medium text-right">Net Pay</th>
+   697→                      <th className="pb-2 font-medium">Status</th>
+   698→                    </tr>
+   699→                  </thead>
+   700→                  <tbody>
+   701→                    {runPaychecks.map(pc => (
+   702→                      <tr key={pc.id} className="border-b last:border-0">
+   703→                        <td className="py-2">
+   704→                          <p className="font-medium">{pc.employee_name}</p>
+   705→                          <p className="text-xs text-muted-foreground">{pc.employee_number}</p>
+   706→                        </td>
+   707→                        <td className="py-2 text-right">{fmt(pc.gross_pay)}</td>
+   708→                        <td className="py-2 text-right text-red-600">{fmt(pc.federal_tax)}</td>
+   709→                        <td className="py-2 text-right text-red-600">{fmt(pc.state_tax)}</td>
+   710→                        <td className="py-2 text-right text-red-600">{fmt(pc.social_security)}</td>
+   711→                        <td className="py-2 text-right text-red-600">{fmt(pc.medicare)}</td>
+   712→                        <td className="py-2 text-right font-bold text-emerald-600">{fmt(pc.net_pay)}</td>
+   713→                        <td className="py-2">
+   714→                          <Badge variant={pc.status === 'paid' ? 'success' : 'secondary'} className="text-xs">
+   715→                            {pc.status}
+   716→                          </Badge>
+   717→                        </td>
+   718→                      </tr>
+   719→                    ))}
+   720→                  </tbody>
+   721→                </table>
+   722→              </div>
+   723→            )}
+   724→
+   725→            {/* Process button for draft runs */}
+   726→            {selectedRun.status === 'draft' && (
+   727→              <div className="flex gap-2 pt-2">
+   728→                <Button onClick={() => processRun(selectedRun.id)} disabled={processing} className="gap-2">
+   729→                  {processing ? (
+   730→                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+   731→                  ) : (
+   732→                    <CheckCircle className="h-4 w-4" />
+   733→                  )}
+   734→                  Process Payroll
+   735→                </Button>
+   736→                <Button variant="outline" onClick={() => { setSelectedRun(null); setRunPaychecks([]) }}>Close</Button>
+   737→              </div>
+   738→            )}
+   739→          </div>
+   740→        </Dialog>
+   741→      )}
+   742→
+   743→      {/* Employee Pay Config Dialog */}
+   744→      {selectedEmployee && (
+   745→        <Dialog open={true} onClose={() => setSelectedEmployee(null)} className="max-w-md">
+   746→          <DialogHeader>
+   747→            <DialogTitle className="flex items-center gap-2">
+   748→              <CreditCard className="h-5 w-5 text-primary" /> Pay Configuration
+   749→            </DialogTitle>
+   750→          </DialogHeader>
+   751→          <div className="space-y-4">
+   752→            <div className="rounded-lg bg-muted/50 p-3">
+   753→              <p className="font-medium">{selectedEmployee.employee_name}</p>
+   754→              <p className="text-xs text-muted-foreground">{selectedEmployee.employee_number} · {selectedEmployee.position || 'No position'}</p>
+   755→            </div>
+   756→
+   757→            <div className="grid grid-cols-2 gap-4">
+   758→              <div>
+   759→                <Label>Salary Type</Label>
+   760→                <Select value={cfgSalaryType} onChange={e => setCfgSalaryType(e.target.value)} className="mt-1">
+   761→                  <option value="salary">Salary (Annual)</option>
+   762→                  <option value="hourly">Hourly</option>
+   763→                </Select>
+   764→              </div>
+   765→              <div>
+   766→                <Label>{cfgSalaryType === 'hourly' ? 'Hourly Rate ($)' : 'Annual Salary ($)'}</Label>
+   767→                <Input
+   768→                  type="number"
+   769→                  value={cfgSalaryAmount}
+   770→                  onChange={e => setCfgSalaryAmount(e.target.value)}
+   771→                  placeholder={cfgSalaryType === 'hourly' ? '25.00' : '75000'}
+   772→                  className="mt-1"
+   773→                />
+   774→              </div>
+   775→            </div>
+   776→
+   777→            <div className="grid grid-cols-2 gap-4">
+   778→              <div>
+   779→                <Label>Pay Frequency</Label>
+   780→                <Select value={cfgPayFrequency} onChange={e => setCfgPayFrequency(e.target.value)} className="mt-1">
+   781→                  <option value="weekly">Weekly</option>
+   782→                  <option value="bi-weekly">Bi-weekly</option>
+   783→                  <option value="semi-monthly">Semi-monthly</option>
+   784→                  <option value="monthly">Monthly</option>
+   785→                </Select>
+   786→              </div>
+   787→              <div>
+   788→                <Label>Payment Method</Label>
+   789→                <Select value={cfgPaymentMethod} onChange={e => setCfgPaymentMethod(e.target.value)} className="mt-1">
+   790→                  <option value="direct_deposit">Direct Deposit</option>
+   791→                  <option value="check">Paper Check</option>
+   792→                </Select>
+   793→              </div>
+   794→            </div>
+   795→
+   796→            <div className="grid grid-cols-3 gap-4">
+   797→              <div>
+   798→                <Label>Tax Filing Status</Label>
+   799→                <Select value={cfgTaxStatus} onChange={e => setCfgTaxStatus(e.target.value)} className="mt-1">
+   800→                  <option value="single">Single</option>
+   801→                  <option value="married">Married</option>
+   802→                  <option value="head_of_household">Head of Household</option>
+   803→                </Select>
+   804→              </div>
+   805→              <div>
+   806→                <Label>Federal Allow.</Label>
+   807→                <Input type="number" min="0" value={cfgFederalAllow} onChange={e => setCfgFederalAllow(e.target.value)} className="mt-1" />
+   808→              </div>
+   809→              <div>
+   810→                <Label>State Allow.</Label>
+   811→                <Input type="number" min="0" value={cfgStateAllow} onChange={e => setCfgStateAllow(e.target.value)} className="mt-1" />
+   812→              </div>
+   813→            </div>
+   814→
+   815→            <div className="flex gap-2 pt-2">
+   816→              <Button onClick={saveEmployeeConfig} disabled={savingConfig || !cfgSalaryAmount} className="gap-2">
+   817→                {savingConfig ? (
+   818→                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+   819→                ) : (
+   820→                  <CheckCircle className="h-4 w-4" />
+   821→                )}
+   822→                Save Configuration
+   823→              </Button>
+   824→              <Button variant="outline" onClick={() => setSelectedEmployee(null)}>Cancel</Button>
+   825→            </div>
+   826→          </div>
+   827→        </Dialog>
+   828→      )}
+   829→    </div>
+   830→  )
+   831→}
+   832→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

@@ -1,0 +1,458 @@
+     1→import { useEffect, useState } from 'react'
+     2→import { apiCall } from '@/lib/api'
+     3→import { Card, CardContent } from '@/components/ui/card'
+     4→import { Button } from '@/components/ui/button'
+     5→import { Badge } from '@/components/ui/badge'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Label } from '@/components/ui/label'
+     8→import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+     9→import {
+    10→  DollarSign, Calendar, CheckCircle, Clock,
+    11→  FileText, Receipt, TrendingUp, Building2,
+    12→  CreditCard, AlertCircle, Wallet,
+    13→} from 'lucide-react'
+    14→
+    15→interface EmployeeProfile {
+    16→  id: number
+    17→  employee_number: string
+    18→  position: string
+    19→  department: string
+    20→  employment_type: string
+    21→  start_date: string
+    22→  salary_type: string
+    23→  salary_amount: number
+    24→  pay_frequency: string
+    25→  payment_method: string
+    26→  bank_name: string | null
+    27→  bank_account_last4: string | null
+    28→  employer_name: string
+    29→}
+    30→
+    31→interface PaycheckItem {
+    32→  id: number
+    33→  pay_period_start: string
+    34→  pay_period_end: string
+    35→  pay_date: string
+    36→  hours_worked: number | null
+    37→  gross_pay: number
+    38→  federal_tax: number
+    39→  state_tax: number
+    40→  social_security: number
+    41→  medicare: number
+    42→  other_deductions: number
+    43→  net_pay: number
+    44→  status: string
+    45→  payroll_status: string
+    46→}
+    47→
+    48→const fmt = (n: number) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    49→
+    50→export function CandidatePayrollPage() {
+    51→  const [loading, setLoading] = useState(true)
+    52→  const [profile, setProfile] = useState<EmployeeProfile | null>(null)
+    53→  const [paychecks, setPaychecks] = useState<PaycheckItem[]>([])
+    54→  const [selectedPaycheck, setSelectedPaycheck] = useState<PaycheckItem | null>(null)
+    55→  const [noProfile, setNoProfile] = useState(false)
+    56→  const [showBank, setShowBank] = useState(false)
+    57→  const [savingBank, setSavingBank] = useState(false)
+    58→  const [bankName, setBankName] = useState('')
+    59→  const [bankLast4, setBankLast4] = useState('')
+    60→  const [bankRouting, setBankRouting] = useState('')
+    61→
+    62→  useEffect(() => {
+    63→    loadData()
+    64→  }, [])
+    65→
+    66→  async function loadData() {
+    67→    setLoading(true)
+    68→    try {
+    69→      const [profRes, checkRes] = await Promise.allSettled([
+    70→        apiCall<{ profile: EmployeeProfile }>('/payroll/employee/profile'),
+    71→        apiCall<{ paychecks: PaycheckItem[] }>('/payroll/employee/paychecks'),
+    72→      ])
+    73→
+    74→      if (profRes.status === 'fulfilled') {
+    75→        setProfile(profRes.value.profile)
+    76→        setNoProfile(false)
+    77→      } else {
+    78→        setNoProfile(true)
+    79→      }
+    80→
+    81→      if (checkRes.status === 'fulfilled') {
+    82→        setPaychecks(checkRes.value.paychecks || [])
+    83→      }
+    84→    } catch {
+    85→      setNoProfile(true)
+    86→    } finally {
+    87→      setLoading(false)
+    88→    }
+    89→  }
+    90→
+    91→  async function saveBankAccount() {
+    92→    if (!bankName || !bankLast4) return
+    93→    setSavingBank(true)
+    94→    try {
+    95→      await apiCall('/payroll/employee/bank-account', {
+    96→        method: 'POST',
+    97→        body: {
+    98→          bank_name: bankName,
+    99→          bank_account_last4: bankLast4,
+   100→          bank_routing_number: bankRouting,
+   101→        },
+   102→      })
+   103→      setShowBank(false)
+   104→      await loadData()
+   105→    } catch (err: unknown) {
+   106→      alert(err instanceof Error ? err.message : 'Failed to update bank account')
+   107→    } finally {
+   108→      setSavingBank(false)
+   109→    }
+   110→  }
+   111→
+   112→  // Calculate YTD
+   113→  const currentYear = new Date().getFullYear()
+   114→  const ytdPaychecks = paychecks.filter(p =>
+   115→    new Date(p.pay_date).getFullYear() === currentYear && p.status === 'paid'
+   116→  )
+   117→  const ytdGross = ytdPaychecks.reduce((sum, p) => sum + Number(p.gross_pay), 0)
+   118→  const ytdNet = ytdPaychecks.reduce((sum, p) => sum + Number(p.net_pay), 0)
+   119→  const ytdTaxes = ytdPaychecks.reduce((sum, p) =>
+   120→    sum + Number(p.federal_tax) + Number(p.state_tax) + Number(p.social_security) + Number(p.medicare), 0
+   121→  )
+   122→
+   123→  if (loading) {
+   124→    return (
+   125→      <div className="flex items-center justify-center py-20">
+   126→        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+   127→      </div>
+   128→    )
+   129→  }
+   130→
+   131→  if (noProfile) {
+   132→    return (
+   133→      <div className="space-y-6">
+   134→        <div>
+   135→          <h1 className="font-heading text-2xl font-bold">Pay & Compensation</h1>
+   136→          <p className="text-muted-foreground">View your pay stubs and earnings</p>
+   137→        </div>
+   138→        <Card>
+   139→          <CardContent className="py-16 text-center">
+   140→            <Wallet className="mx-auto mb-3 h-12 w-12 opacity-20" />
+   141→            <h3 className="font-semibold text-lg mb-2">No Payroll Profile Yet</h3>
+   142→            <p className="text-muted-foreground max-w-md mx-auto">
+   143→              Your payroll profile will be set up once you've been onboarded as an employee.
+   144→              Accept a job offer and complete onboarding to get started.
+   145→            </p>
+   146→          </CardContent>
+   147→        </Card>
+   148→      </div>
+   149→    )
+   150→  }
+   151→
+   152→  return (
+   153→    <div className="space-y-6">
+   154→      <div className="flex items-center justify-between">
+   155→        <div>
+   156→          <h1 className="font-heading text-2xl font-bold">Pay & Compensation</h1>
+   157→          <p className="text-muted-foreground">View your pay stubs, earnings, and direct deposit</p>
+   158→        </div>
+   159→      </div>
+   160→
+   161→      {/* YTD Summary */}
+   162→      <div className="grid gap-3 sm:grid-cols-4">
+   163→        <Card>
+   164→          <CardContent className="p-4">
+   165→            <div className="flex items-center gap-3">
+   166→              <div className="rounded-lg bg-emerald-100 p-2">
+   167→                <DollarSign className="h-5 w-5 text-emerald-600" />
+   168→              </div>
+   169→              <div>
+   170→                <p className="text-2xl font-bold text-emerald-600">{fmt(ytdNet)}</p>
+   171→                <p className="text-xs text-muted-foreground">YTD Net Pay</p>
+   172→              </div>
+   173→            </div>
+   174→          </CardContent>
+   175→        </Card>
+   176→        <Card>
+   177→          <CardContent className="p-4">
+   178→            <div className="flex items-center gap-3">
+   179→              <div className="rounded-lg bg-blue-100 p-2">
+   180→                <TrendingUp className="h-5 w-5 text-blue-600" />
+   181→              </div>
+   182→              <div>
+   183→                <p className="text-2xl font-bold">{fmt(ytdGross)}</p>
+   184→                <p className="text-xs text-muted-foreground">YTD Gross</p>
+   185→              </div>
+   186→            </div>
+   187→          </CardContent>
+   188→        </Card>
+   189→        <Card>
+   190→          <CardContent className="p-4">
+   191→            <div className="flex items-center gap-3">
+   192→              <div className="rounded-lg bg-red-100 p-2">
+   193→                <Receipt className="h-5 w-5 text-red-600" />
+   194→              </div>
+   195→              <div>
+   196→                <p className="text-2xl font-bold">{fmt(ytdTaxes)}</p>
+   197→                <p className="text-xs text-muted-foreground">YTD Taxes</p>
+   198→              </div>
+   199→            </div>
+   200→          </CardContent>
+   201→        </Card>
+   202→        <Card>
+   203→          <CardContent className="p-4">
+   204→            <div className="flex items-center gap-3">
+   205→              <div className="rounded-lg bg-purple-100 p-2">
+   206→                <FileText className="h-5 w-5 text-purple-600" />
+   207→              </div>
+   208→              <div>
+   209→                <p className="text-2xl font-bold">{ytdPaychecks.length}</p>
+   210→                <p className="text-xs text-muted-foreground">Pay Stubs</p>
+   211→              </div>
+   212→            </div>
+   213→          </CardContent>
+   214→        </Card>
+   215→      </div>
+   216→
+   217→      <div className="grid gap-6 lg:grid-cols-3">
+   218→        {/* Profile Summary */}
+   219→        <Card>
+   220→          <CardContent className="p-5">
+   221→            <h3 className="font-semibold flex items-center gap-2 mb-4">
+   222→              <Building2 className="h-4 w-4 text-blue-500" /> Employment Details
+   223→            </h3>
+   224→            {profile && (
+   225→              <div className="space-y-3">
+   226→                <div className="rounded-lg bg-muted/50 p-3">
+   227→                  <p className="text-xs text-muted-foreground">Employee ID</p>
+   228→                  <p className="font-mono font-medium">{profile.employee_number}</p>
+   229→                </div>
+   230→                <div className="rounded-lg bg-muted/50 p-3">
+   231→                  <p className="text-xs text-muted-foreground">Position</p>
+   232→                  <p className="font-medium">{profile.position || 'Not set'}</p>
+   233→                </div>
+   234→                <div className="rounded-lg bg-muted/50 p-3">
+   235→                  <p className="text-xs text-muted-foreground">Compensation</p>
+   236→                  <p className="font-medium text-emerald-600">
+   237→                    {fmt(profile.salary_amount)}{profile.salary_type === 'hourly' ? '/hr' : '/yr'}
+   238→                  </p>
+   239→                  <p className="text-xs text-muted-foreground capitalize">
+   240→                    {profile.pay_frequency} · {(profile.payment_method || '').replace(/_/g, ' ')}
+   241→                  </p>
+   242→                </div>
+   243→                <div className="rounded-lg bg-muted/50 p-3">
+   244→                  <p className="text-xs text-muted-foreground">Direct Deposit</p>
+   245→                  {profile.bank_name ? (
+   246→                    <div>
+   247→                      <p className="font-medium">{profile.bank_name}</p>
+   248→                      <p className="text-xs text-muted-foreground">Account ending in {profile.bank_account_last4}</p>
+   249→                    </div>
+   250→                  ) : (
+   251→                    <p className="text-sm text-amber-600">Not configured</p>
+   252→                  )}
+   253→                  <Button
+   254→                    size="sm"
+   255→                    variant="outline"
+   256→                    className="mt-2 gap-1"
+   257→                    onClick={() => {
+   258→                      setBankName(profile.bank_name || '')
+   259→                      setBankLast4(profile.bank_account_last4 || '')
+   260→                      setBankRouting('')
+   261→                      setShowBank(true)
+   262→                    }}
+   263→                  >
+   264→                    <CreditCard className="h-3 w-3" />
+   265→                    {profile.bank_name ? 'Update' : 'Set Up'}
+   266→                  </Button>
+   267→                </div>
+   268→              </div>
+   269→            )}
+   270→          </CardContent>
+   271→        </Card>
+   272→
+   273→        {/* Pay Stubs */}
+   274→        <Card className="lg:col-span-2">
+   275→          <CardContent className="p-5">
+   276→            <h3 className="font-semibold flex items-center gap-2 mb-4">
+   277→              <Receipt className="h-4 w-4 text-emerald-500" /> Pay Stubs
+   278→            </h3>
+   279→            {paychecks.length === 0 ? (
+   280→              <div className="text-center py-12">
+   281→                <Receipt className="mx-auto mb-3 h-10 w-10 opacity-20" />
+   282→                <p className="text-muted-foreground">No pay stubs yet</p>
+   283→                <p className="text-xs text-muted-foreground mt-1">Pay stubs will appear here after payroll is processed</p>
+   284→              </div>
+   285→            ) : (
+   286→              <div className="space-y-2">
+   287→                {paychecks.map(pc => (
+   288→                  <div
+   289→                    key={pc.id}
+   290→                    className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+   291→                    onClick={() => setSelectedPaycheck(pc)}
+   292→                  >
+   293→                    <div className="flex items-center gap-3">
+   294→                      <div className={`rounded-lg p-2 ${pc.status === 'paid' ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+   295→                        {pc.status === 'paid'
+   296→                          ? <CheckCircle className="h-4 w-4 text-emerald-600" />
+   297→                          : <Clock className="h-4 w-4 text-amber-600" />
+   298→                        }
+   299→                      </div>
+   300→                      <div>
+   301→                        <p className="font-medium text-sm">
+   302→                          {new Date(pc.pay_period_start).toLocaleDateString()} – {new Date(pc.pay_period_end).toLocaleDateString()}
+   303→                        </p>
+   304→                        <p className="text-xs text-muted-foreground">
+   305→                          Pay date: {new Date(pc.pay_date).toLocaleDateString()}
+   306→                        </p>
+   307→                      </div>
+   308→                    </div>
+   309→                    <div className="text-right">
+   310→                      <p className="font-bold text-emerald-600">{fmt(pc.net_pay)}</p>
+   311→                      <Badge variant={pc.status === 'paid' ? 'success' : 'secondary'} className="text-xs">
+   312→                        {pc.status}
+   313→                      </Badge>
+   314→                    </div>
+   315→                  </div>
+   316→                ))}
+   317→              </div>
+   318→            )}
+   319→          </CardContent>
+   320→        </Card>
+   321→      </div>
+   322→
+   323→      {/* Pay Stub Detail Dialog */}
+   324→      {selectedPaycheck && (
+   325→        <Dialog open={true} onClose={() => setSelectedPaycheck(null)} className="max-w-md">
+   326→          <DialogHeader>
+   327→            <DialogTitle className="flex items-center gap-2">
+   328→              <FileText className="h-5 w-5 text-primary" /> Pay Stub
+   329→            </DialogTitle>
+   330→          </DialogHeader>
+   331→          <div className="space-y-4">
+   332→            {/* Header */}
+   333→            <div className="rounded-lg bg-muted/50 p-3 text-center">
+   334→              <p className="text-sm text-muted-foreground">Pay Period</p>
+   335→              <p className="font-semibold">
+   336→                {new Date(selectedPaycheck.pay_period_start).toLocaleDateString()} – {new Date(selectedPaycheck.pay_period_end).toLocaleDateString()}
+   337→              </p>
+   338→              <p className="text-xs text-muted-foreground">
+   339→                Pay date: {new Date(selectedPaycheck.pay_date).toLocaleDateString()}
+   340→              </p>
+   341→            </div>
+   342→
+   343→            {/* Earnings */}
+   344→            <div>
+   345→              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Earnings</p>
+   346→              <div className="rounded-lg border p-3 space-y-2">
+   347→                {selectedPaycheck.hours_worked && (
+   348→                  <div className="flex justify-between text-sm">
+   349→                    <span className="text-muted-foreground">Hours Worked</span>
+   350→                    <span>{selectedPaycheck.hours_worked}</span>
+   351→                  </div>
+   352→                )}
+   353→                <div className="flex justify-between text-sm font-medium">
+   354→                  <span>Gross Pay</span>
+   355→                  <span>{fmt(selectedPaycheck.gross_pay)}</span>
+   356→                </div>
+   357→              </div>
+   358→            </div>
+   359→
+   360→            {/* Deductions */}
+   361→            <div>
+   362→              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Deductions</p>
+   363→              <div className="rounded-lg border p-3 space-y-2">
+   364→                <div className="flex justify-between text-sm">
+   365→                  <span className="text-muted-foreground">Federal Income Tax</span>
+   366→                  <span className="text-red-600">-{fmt(selectedPaycheck.federal_tax)}</span>
+   367→                </div>
+   368→                <div className="flex justify-between text-sm">
+   369→                  <span className="text-muted-foreground">State Income Tax</span>
+   370→                  <span className="text-red-600">-{fmt(selectedPaycheck.state_tax)}</span>
+   371→                </div>
+   372→                <div className="flex justify-between text-sm">
+   373→                  <span className="text-muted-foreground">Social Security</span>
+   374→                  <span className="text-red-600">-{fmt(selectedPaycheck.social_security)}</span>
+   375→                </div>
+   376→                <div className="flex justify-between text-sm">
+   377→                  <span className="text-muted-foreground">Medicare</span>
+   378→                  <span className="text-red-600">-{fmt(selectedPaycheck.medicare)}</span>
+   379→                </div>
+   380→                {Number(selectedPaycheck.other_deductions) > 0 && (
+   381→                  <div className="flex justify-between text-sm">
+   382→                    <span className="text-muted-foreground">Other Deductions</span>
+   383→                    <span className="text-red-600">-{fmt(selectedPaycheck.other_deductions)}</span>
+   384→                  </div>
+   385→                )}
+   386→                <div className="border-t pt-2 flex justify-between text-sm font-medium">
+   387→                  <span>Total Deductions</span>
+   388→                  <span className="text-red-600">
+   389→                    -{fmt(
+   390→                      Number(selectedPaycheck.federal_tax) +
+   391→                      Number(selectedPaycheck.state_tax) +
+   392→                      Number(selectedPaycheck.social_security) +
+   393→                      Number(selectedPaycheck.medicare) +
+   394→                      Number(selectedPaycheck.other_deductions)
+   395→                    )}
+   396→                  </span>
+   397→                </div>
+   398→              </div>
+   399→            </div>
+   400→
+   401→            {/* Net Pay */}
+   402→            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
+   403→              <p className="text-xs text-emerald-700 mb-1">Net Pay</p>
+   404→              <p className="text-3xl font-bold text-emerald-600">{fmt(selectedPaycheck.net_pay)}</p>
+   405→            </div>
+   406→
+   407→            <Badge variant={selectedPaycheck.status === 'paid' ? 'success' : 'secondary'} className="gap-1">
+   408→              {selectedPaycheck.status === 'paid' ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+   409→              {selectedPaycheck.status}
+   410→            </Badge>
+   411→          </div>
+   412→        </Dialog>
+   413→      )}
+   414→
+   415→      {/* Bank Account Dialog */}
+   416→      <Dialog open={showBank} onClose={() => setShowBank(false)} className="max-w-sm">
+   417→        <DialogHeader>
+   418→          <DialogTitle className="flex items-center gap-2">
+   419→            <CreditCard className="h-5 w-5 text-primary" /> Direct Deposit
+   420→          </DialogTitle>
+   421→        </DialogHeader>
+   422→        <div className="space-y-4">
+   423→          <p className="text-sm text-muted-foreground">
+   424→            Update your bank account information for direct deposit payments.
+   425→          </p>
+   426→          <div>
+   427→            <Label>Bank Name *</Label>
+   428→            <Input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g. Chase Bank" className="mt-1" />
+   429→          </div>
+   430→          <div>
+   431→            <Label>Account Last 4 Digits *</Label>
+   432→            <Input value={bankLast4} onChange={e => setBankLast4(e.target.value.slice(0, 4))} placeholder="1234" maxLength={4} className="mt-1" />
+   433→          </div>
+   434→          <div>
+   435→            <Label>Routing Number</Label>
+   436→            <Input value={bankRouting} onChange={e => setBankRouting(e.target.value)} placeholder="021000021" className="mt-1" />
+   437→          </div>
+   438→          <div className="flex gap-2 pt-2">
+   439→            <Button onClick={saveBankAccount} disabled={savingBank || !bankName || !bankLast4} className="gap-2">
+   440→              {savingBank ? (
+   441→                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+   442→              ) : (
+   443→                <CheckCircle className="h-4 w-4" />
+   444→              )}
+   445→              Save
+   446→            </Button>
+   447→            <Button variant="outline" onClick={() => setShowBank(false)}>Cancel</Button>
+   448→          </div>
+   449→        </div>
+   450→      </Dialog>
+   451→    </div>
+   452→  )
+   453→}
+   454→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

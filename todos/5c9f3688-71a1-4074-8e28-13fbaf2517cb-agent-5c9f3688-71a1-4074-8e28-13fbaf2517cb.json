@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Investigate current payroll code & auth system",
+    "status": "completed",
+    "activeForm": "Investigating current payroll code & auth system"
+  },
+  {
+    "content": "Create migration for global payroll (country_code, region deductions)",
+    "status": "completed",
+    "activeForm": "Creating migration for global payroll schema"
+  },
+  {
+    "content": "Update payroll API routes for India region-aware tax calculation",
+    "status": "completed",
+    "activeForm": "Updating payroll API routes for India support"
+  },
+  {
+    "content": "Update recruiter payroll dashboard for global support",
+    "status": "completed",
+    "activeForm": "Updating recruiter payroll dashboard"
+  },
+  {
+    "content": "Update employee self-service payroll view for India deductions",
+    "status": "completed",
+    "activeForm": "Updating employee self-service payroll view"
+  },
+  {
+    "content": "Build, deploy, and verify end-to-end",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying end-to-end"
+  }
+]

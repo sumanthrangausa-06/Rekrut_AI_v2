@@ -1,0 +1,6 @@
+/tmp/polsia-workspaces/company-956/agent-30/exec-57934/hireloop/client/src/pages/candidate/payroll.tsx
+/tmp/polsia-workspaces/company-956/agent-30/exec-57934/hireloop/client/src/pages/recruiter/payroll.tsx
+/tmp/polsia-workspaces/company-956/agent-30/exec-57934/hireloop/public/payroll-run.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-57934/hireloop/public/payroll-dashboard.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-57934/hireloop/routes/payroll.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-57934/hireloop/services/payroll-calculator.js

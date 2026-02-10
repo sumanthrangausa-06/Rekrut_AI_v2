@@ -1,0 +1,20 @@
+70bae00 Agent changes
+8641231 fix: add task field to OpenAI vision API call — proxy was routing to geo-restricted Gemini
+e40b339 Agent changes
+a3c4c4d fix: resolve 30+ production errors — broken DB queries, NOT NULL violations, type mismatches
+65fa9f2 Agent changes
+a680724 Rebrand HireLoop to Rekrut AI + complete module audit
+a04edf9 Agent changes
+3c2de96 fix: upload video frames to R2 before vision API call — proxy rejects base64 data URIs
+e13aa60 Agent changes
+60bc663 fix: switch video analysis to OpenAI vision API — Polsia AI proxy doesn't support multimodal
+5166705 Agent changes
+0ff3474 fix: remove Permissions API pre-check that blocked camera prompt on iOS
+2edbfa3 Agent changes
+7764c51 fix: camera denial UX overhaul — iOS-specific instructions + text mode escape
+457e77a Agent changes
+856450d fix: universal camera/mic support — works on all browsers
+439a328 Agent changes
+b21b28c fix: correct table name in onboarding AI prefill query
+b69bb76 Agent changes
+19f44fe fix: correct pgvector/pg import — destructure toSql and registerType

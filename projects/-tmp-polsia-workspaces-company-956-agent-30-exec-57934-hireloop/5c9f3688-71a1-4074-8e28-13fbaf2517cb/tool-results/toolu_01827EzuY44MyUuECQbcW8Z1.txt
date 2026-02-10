@@ -1,0 +1,119 @@
+     1→const express = require('express');
+     2→const session = require('express-session');
+     3→const cookieParser = require('cookie-parser');
+     4→const cors = require('cors');
+     5→const path = require('path');
+     6→const fs = require('fs');
+     7→const pool = require('./lib/db');
+     8→const authRoutes = require('./routes/auth');
+     9→const jobRoutes = require('./routes/jobs');
+    10→const interviewRoutes = require('./routes/interviews');
+    11→const omniscoreRoutes = require('./routes/omniscore');
+    12→const companyRoutes = require('./routes/company');
+    13→const trustscoreRoutes = require('./routes/trustscore');
+    14→const recruiterRoutes = require('./routes/recruiter');
+    15→const candidateRoutes = require('./routes/candidate');
+    16→const assessmentRoutes = require('./routes/assessments');
+    17→const matchingRoutes = require('./routes/matching');
+    18→const documentRoutes = require('./routes/documents');
+    19→const payrollRoutes = require('./routes/payroll');
+    20→const complianceRoutes = require('./routes/compliance');
+    21→const onboardingRoutes = require('./routes/onboarding');
+    22→const analyticsRoutes = require('./routes/analytics');
+    23→const countryRoutes = require('./routes/countries');
+    24→
+    25→const app = express();
+    26→const PORT = process.env.PORT || 3000;
+    27→
+    28→// Middleware
+    29→app.use(cors());
+    30→
+    31→// Explicitly allow camera and microphone access (prevents CDN/proxy stripping)
+    32→app.use((req, res, next) => {
+    33→  res.setHeader('Permissions-Policy', 'camera=*, microphone=*');
+    34→  next();
+    35→});
+    36→
+    37→app.use(express.json({ limit: '50mb' }));
+    38→app.use(express.urlencoded({ extended: true }));
+    39→app.use(cookieParser());
+    40→app.use(session({
+    41→  secret: process.env.SESSION_SECRET || 'rekrutai-secret-key-change-in-prod',
+    42→  resave: false,
+    43→  saveUninitialized: false,
+    44→  cookie: { secure: process.env.NODE_ENV === 'production', maxAge: 7 * 24 * 60 * 60 * 1000 }
+    45→}));
+    46→
+    47→// API Routes - Candidate side
+    48→app.use('/api/auth', authRoutes);
+    49→app.use('/api/jobs', jobRoutes);
+    50→app.use('/api/interviews', interviewRoutes);
+    51→app.use('/api/omniscore', omniscoreRoutes);
+    52→app.use('/api/candidate', candidateRoutes);
+    53→app.use('/api/assessments', assessmentRoutes);
+    54→
+    55→// API Routes - Recruiter/Company side
+    56→app.use('/api/company', companyRoutes);
+    57→app.use('/api/trustscore', trustscoreRoutes);
+    58→app.use('/api/recruiter', recruiterRoutes);
+    59→
+    60→// API Routes - Matching Engine
+    61→app.use('/api/matching', matchingRoutes);
+    62→
+    63→// API Routes - Document Verification
+    64→app.use('/api/documents', documentRoutes);
+    65→
+    66→// API Routes - Payroll
+    67→app.use('/api/payroll', payrollRoutes);
+    68→
+    69→// API Routes - Compliance & GDPR
+    70→app.use('/api/compliance', complianceRoutes);
+    71→
+    72→// API Routes - Onboarding & Post-Hire
+    73→app.use('/api/onboarding', onboardingRoutes);
+    74→
+    75→// API Routes - Analytics
+    76→app.use('/api/analytics', analyticsRoutes);
+    77→
+    78→// API Routes - Country Configuration
+    79→app.use('/api/countries', countryRoutes);
+    80→
+    81→// Health check
+    82→app.get('/health', (req, res) => {
+    83→  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    84→});
+    85→
+    86→// Determine which frontend to serve
+    87→const reactBuildPath = path.join(__dirname, 'client', 'dist');
+    88→const legacyPublicPath = path.join(__dirname, 'public');
+    89→const useReactApp = fs.existsSync(path.join(reactBuildPath, 'index.html'));
+    90→
+    91→if (useReactApp) {
+    92→  console.log('[server] Serving React SPA from client/dist');
+    93→  app.use(express.static(reactBuildPath));
+    94→
+    95→  // SPA fallback - serve index.html for all non-API routes
+    96→  app.get('*', (req, res) => {
+    97→    if (!req.path.startsWith('/api')) {
+    98→      res.sendFile(path.join(reactBuildPath, 'index.html'));
+    99→    }
+   100→  });
+   101→} else {
+   102→  console.log('[server] React build not found, serving legacy public/');
+   103→  app.use(express.static(legacyPublicPath));
+   104→
+   105→  app.get('*', (req, res) => {
+   106→    if (!req.path.startsWith('/api')) {
+   107→      res.sendFile(path.join(legacyPublicPath, 'index.html'));
+   108→    }
+   109→  });
+   110→}
+   111→
+   112→app.listen(PORT, () => {
+   113→  console.log(`Rekrut AI running on port ${PORT}`);
+   114→});
+   115→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

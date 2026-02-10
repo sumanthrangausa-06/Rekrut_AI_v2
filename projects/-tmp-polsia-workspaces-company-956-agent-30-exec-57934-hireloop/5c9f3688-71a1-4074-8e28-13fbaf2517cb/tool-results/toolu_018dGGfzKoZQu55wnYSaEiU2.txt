@@ -1,0 +1,482 @@
+     1→const express = require('express');
+     2→const router = express.Router();
+     3→const pool = require('../lib/db');
+     4→const { authMiddleware, requireRole } = require('../lib/auth');
+     5→const payrollCalculator = require('../services/payroll-calculator');
+     6→
+     7→// Helper: get company_id for the current user (works for any recruiter/hiring_manager in same company)
+     8→function getCompanyId(user) {
+     9→  return user.company_id || null;
+    10→}
+    11→
+    12→// ============== EMPLOYER ENDPOINTS ==============
+    13→
+    14→/**
+    15→ * GET /api/payroll/employees
+    16→ * Get all employees for the company's payroll
+    17→ */
+    18→router.get('/employees', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
+    19→  try {
+    20→    const companyId = getCompanyId(req.user);
+    21→    if (!companyId) {
+    22→      return res.status(400).json({ error: 'No company associated with your account. Please contact support.' });
+    23→    }
+    24→
+    25→    const result = await pool.query(`
+    26→      SELECT
+    27→        e.*,
+    28→        u.name as employee_name,
+    29→        u.email as employee_email,
+    30→        pc.salary_type,
+    31→        pc.salary_amount,
+    32→        pc.pay_frequency,
+    33→        pc.payment_method
+    34→      FROM employees e
+    35→      LEFT JOIN users u ON e.user_id = u.id
+    36→      LEFT JOIN payroll_configs pc ON e.id = pc.employee_id
+    37→      WHERE e.company_id = $1 AND e.status = 'active'
+    38→      ORDER BY u.name
+    39→    `, [companyId]);
+    40→
+    41→    res.json({ employees: result.rows });
+    42→  } catch (err) {
+    43→    console.error('Get employees error:', err);
+    44→    res.status(500).json({ error: 'Failed to fetch employees' });
+    45→  }
+    46→});
+    47→
+    48→/**
+    49→ * POST /api/payroll/employees/:employeeId/onboard
+    50→ * Complete employee onboarding with payroll setup
+    51→ */
+    52→router.post('/employees/:employeeId/onboard', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
+    53→  const client = await pool.connect();
+    54→  try {
+    55→    const { employeeId } = req.params;
+    56→    const companyId = getCompanyId(req.user);
+    57→    const {
+    58→      salary_type,
+    59→      salary_amount,
+    60→      pay_frequency,
+    61→      payment_method,
+    62→      bank_name,
+    63→      bank_account_last4,
+    64→      tax_filing_status,
+    65→      federal_allowances,
+    66→      state_allowances
+    67→    } = req.body;
+    68→
+    69→    await client.query('BEGIN');
+    70→
+    71→    // Verify employee belongs to this company
+    72→    const empCheck = await client.query(
+    73→      'SELECT id FROM employees WHERE id = $1 AND company_id = $2',
+    74→      [employeeId, companyId]
+    75→    );
+    76→
+    77→    if (empCheck.rows.length === 0) {
+    78→      await client.query('ROLLBACK');
+    79→      return res.status(404).json({ error: 'Employee not found' });
+    80→    }
+    81→
+    82→    // Create or update payroll config
+    83→    await client.query(`
+    84→      INSERT INTO payroll_configs (
+    85→        employee_id, salary_type, salary_amount, pay_frequency,
+    86→        payment_method, bank_name, bank_account_last4,
+    87→        tax_filing_status, federal_allowances, state_allowances
+    88→      )
+    89→      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    90→      ON CONFLICT (employee_id)
+    91→      DO UPDATE SET
+    92→        salary_type = $2,
+    93→        salary_amount = $3,
+    94→        pay_frequency = $4,
+    95→        payment_method = $5,
+    96→        bank_name = $6,
+    97→        bank_account_last4 = $7,
+    98→        tax_filing_status = $8,
+    99→        federal_allowances = $9,
+   100→        state_allowances = $10,
+   101→        updated_at = NOW()
+   102→    `, [
+   103→      employeeId, salary_type, salary_amount, pay_frequency,
+   104→      payment_method, bank_name, bank_account_last4,
+   105→      tax_filing_status, federal_allowances, state_allowances
+   106→    ]);
+   107→
+   108→    await client.query('COMMIT');
+   109→    res.json({ message: 'Employee onboarded successfully' });
+   110→  } catch (err) {
+   111→    await client.query('ROLLBACK');
+   112→    console.error('Onboard employee error:', err);
+   113→    res.status(500).json({ error: 'Failed to onboard employee' });
+   114→  } finally {
+   115→    client.release();
+   116→  }
+   117→});
+   118→
+   119→/**
+   120→ * GET /api/payroll/dashboard
+   121→ * Get payroll dashboard overview for the company
+   122→ */
+   123→router.get('/dashboard', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
+   124→  try {
+   125→    const companyId = getCompanyId(req.user);
+   126→    if (!companyId) {
+   127→      return res.json({
+   128→        activeEmployees: 0,
+   129→        upcomingPayrolls: [],
+   130→        recentPayrolls: [],
+   131→        monthlyTotal: 0
+   132→      });
+   133→    }
+   134→
+   135→    // Get active employees count (by company_id)
+   136→    const employeesResult = await pool.query(
+   137→      'SELECT COUNT(*) as count FROM employees WHERE company_id = $1 AND status = $2',
+   138→      [companyId, 'active']
+   139→    );
+   140→
+   141→    // Get upcoming payroll runs (by company_id via employer's company)
+   142→    const upcomingResult = await pool.query(`
+   143→      SELECT pr.*, COUNT(pc.id) as employee_count
+   144→      FROM payroll_runs pr
+   145→      LEFT JOIN paychecks pc ON pr.id = pc.payroll_run_id
+   146→      WHERE pr.company_id = $1
+   147→        AND pr.pay_date >= CURRENT_DATE
+   148→        AND pr.status != 'cancelled'
+   149→      GROUP BY pr.id
+   150→      ORDER BY pr.pay_date ASC
+   151→      LIMIT 3
+   152→    `, [companyId]);
+   153→
+   154→    // Get recent payroll history
+   155→    const recentResult = await pool.query(`
+   156→      SELECT pr.*, COUNT(pc.id) as employee_count
+   157→      FROM payroll_runs pr
+   158→      LEFT JOIN paychecks pc ON pr.id = pc.payroll_run_id
+   159→      WHERE pr.company_id = $1 AND pr.status = 'completed'
+   160→      GROUP BY pr.id
+   161→      ORDER BY pr.pay_date DESC
+   162→      LIMIT 5
+   163→    `, [companyId]);
+   164→
+   165→    // Get monthly total
+   166→    const monthlyResult = await pool.query(`
+   167→      SELECT COALESCE(SUM(total_net), 0) as total
+   168→      FROM payroll_runs
+   169→      WHERE company_id = $1
+   170→        AND status = 'completed'
+   171→        AND pay_date >= DATE_TRUNC('month', CURRENT_DATE)
+   172→    `, [companyId]);
+   173→
+   174→    res.json({
+   175→      activeEmployees: parseInt(employeesResult.rows[0].count),
+   176→      upcomingPayrolls: upcomingResult.rows,
+   177→      recentPayrolls: recentResult.rows,
+   178→      monthlyTotal: parseFloat(monthlyResult.rows[0].total || 0)
+   179→    });
+   180→  } catch (err) {
+   181→    console.error('Payroll dashboard error:', err);
+   182→    res.status(500).json({ error: 'Failed to load dashboard' });
+   183→  }
+   184→});
+   185→
+   186→/**
+   187→ * POST /api/payroll/runs
+   188→ * Create a new payroll run
+   189→ */
+   190→router.post('/runs', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
+   191→  const client = await pool.connect();
+   192→  try {
+   193→    const companyId = getCompanyId(req.user);
+   194→    if (!companyId) {
+   195→      return res.status(400).json({ error: 'No company associated with your account' });
+   196→    }
+   197→
+   198→    const { pay_period_start, pay_period_end, pay_date } = req.body;
+   199→
+   200→    await client.query('BEGIN');
+   201→
+   202→    // Create payroll run with company_id
+   203→    const runResult = await client.query(`
+   204→      INSERT INTO payroll_runs (
+   205→        employer_id, company_id, pay_period_start, pay_period_end, pay_date, status
+   206→      )
+   207→      VALUES ($1, $2, $3, $4, $5, 'draft')
+   208→      RETURNING *
+   209→    `, [req.user.id, companyId, pay_period_start, pay_period_end, pay_date]);
+   210→
+   211→    const payrollRun = runResult.rows[0];
+   212→
+   213→    // Get all active employees with payroll configs (by company_id)
+   214→    const employeesResult = await client.query(`
+   215→      SELECT e.*, u.name, pc.*
+   216→      FROM employees e
+   217→      JOIN users u ON e.user_id = u.id
+   218→      JOIN payroll_configs pc ON e.id = pc.employee_id
+   219→      WHERE e.company_id = $1 AND e.status = 'active'
+   220→    `, [companyId]);
+   221→
+   222→    let totalGross = 0;
+   223→    let totalNet = 0;
+   224→    let totalTaxes = 0;
+   225→
+   226→    // Generate paychecks for each employee
+   227→    for (const emp of employeesResult.rows) {
+   228→      // Calculate YTD gross for tax calculations
+   229→      const ytdResult = await client.query(`
+   230→        SELECT COALESCE(SUM(gross_pay), 0) as ytd_gross
+   231→        FROM paychecks
+   232→        WHERE employee_id = $1
+   233→          AND EXTRACT(YEAR FROM pay_date) = EXTRACT(YEAR FROM $2::date)
+   234→      `, [emp.id, pay_date]);
+   235→
+   236→      const ytdGross = parseFloat(ytdResult.rows[0].ytd_gross);
+   237→
+   238→      // Calculate paycheck
+   239→      const paycheck = payrollCalculator.calculatePaycheck(
+   240→        emp,
+   241→        emp,
+   242→        emp.salary_type === 'hourly' ? 80 : null,
+   243→        ytdGross
+   244→      );
+   245→
+   246→      // Insert paycheck
+   247→      await client.query(`
+   248→        INSERT INTO paychecks (
+   249→          payroll_run_id, employee_id, pay_period_start, pay_period_end,
+   250→          pay_date, hours_worked, gross_pay, federal_tax, state_tax,
+   251→          social_security, medicare, other_deductions, net_pay, status
+   252→        )
+   253→        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'pending')
+   254→      `, [
+   255→        payrollRun.id, emp.id, pay_period_start, pay_period_end, pay_date,
+   256→        paycheck.hoursWorked, paycheck.grossPay, paycheck.federalTax,
+   257→        paycheck.stateTax, paycheck.socialSecurity, paycheck.medicare,
+   258→        paycheck.otherDeductions, paycheck.netPay
+   259→      ]);
+   260→
+   261→      totalGross += paycheck.grossPay;
+   262→      totalNet += paycheck.netPay;
+   263→      totalTaxes += paycheck.totalDeductions;
+   264→    }
+   265→
+   266→    // Update payroll run totals
+   267→    await client.query(`
+   268→      UPDATE payroll_runs
+   269→      SET total_gross = $1, total_net = $2, total_taxes = $3, updated_at = NOW()
+   270→      WHERE id = $4
+   271→    `, [totalGross, totalNet, totalTaxes, payrollRun.id]);
+   272→
+   273→    await client.query('COMMIT');
+   274→
+   275→    res.json({
+   276→      message: 'Payroll run created successfully',
+   277→      payrollRun: { ...payrollRun, total_gross: totalGross, total_net: totalNet, total_taxes: totalTaxes }
+   278→    });
+   279→  } catch (err) {
+   280→    await client.query('ROLLBACK');
+   281→    console.error('Create payroll run error:', err);
+   282→    res.status(500).json({ error: 'Failed to create payroll run' });
+   283→  } finally {
+   284→    client.release();
+   285→  }
+   286→});
+   287→
+   288→/**
+   289→ * GET /api/payroll/runs/:runId
+   290→ * Get details of a specific payroll run
+   291→ */
+   292→router.get('/runs/:runId', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
+   293→  try {
+   294→    const { runId } = req.params;
+   295→    const companyId = getCompanyId(req.user);
+   296→
+   297→    // Get payroll run (by company_id)
+   298→    const runResult = await pool.query(
+   299→      'SELECT * FROM payroll_runs WHERE id = $1 AND company_id = $2',
+   300→      [runId, companyId]
+   301→    );
+   302→
+   303→    if (runResult.rows.length === 0) {
+   304→      return res.status(404).json({ error: 'Payroll run not found' });
+   305→    }
+   306→
+   307→    // Get paychecks for this run
+   308→    const paychecksResult = await pool.query(`
+   309→      SELECT pc.*, e.employee_number, u.name as employee_name
+   310→      FROM paychecks pc
+   311→      JOIN employees e ON pc.employee_id = e.id
+   312→      JOIN users u ON e.user_id = u.id
+   313→      WHERE pc.payroll_run_id = $1
+   314→      ORDER BY u.name
+   315→    `, [runId]);
+   316→
+   317→    res.json({
+   318→      payrollRun: runResult.rows[0],
+   319→      paychecks: paychecksResult.rows
+   320→    });
+   321→  } catch (err) {
+   322→    console.error('Get payroll run error:', err);
+   323→    res.status(500).json({ error: 'Failed to fetch payroll run' });
+   324→  }
+   325→});
+   326→
+   327→/**
+   328→ * POST /api/payroll/runs/:runId/process
+   329→ * Process and approve a payroll run
+   330→ */
+   331→router.post('/runs/:runId/process', authMiddleware, requireRole('employer', 'recruiter', 'hiring_manager', 'admin'), async (req, res) => {
+   332→  const client = await pool.connect();
+   333→  try {
+   334→    const { runId } = req.params;
+   335→    const companyId = getCompanyId(req.user);
+   336→
+   337→    await client.query('BEGIN');
+   338→
+   339→    // Update payroll run status (by company_id)
+   340→    const updateResult = await client.query(`
+   341→      UPDATE payroll_runs
+   342→      SET status = 'completed', processed_at = NOW(), processed_by = $1, updated_at = NOW()
+   343→      WHERE id = $2 AND company_id = $3 AND status = 'draft'
+   344→      RETURNING id
+   345→    `, [req.user.id, runId, companyId]);
+   346→
+   347→    if (updateResult.rows.length === 0) {
+   348→      await client.query('ROLLBACK');
+   349→      return res.status(404).json({ error: 'Payroll run not found or already processed' });
+   350→    }
+   351→
+   352→    // Update all paychecks in this run
+   353→    await client.query(`
+   354→      UPDATE paychecks
+   355→      SET status = 'paid', paid_at = NOW(), updated_at = NOW()
+   356→      WHERE payroll_run_id = $1
+   357→    `, [runId]);
+   358→
+   359→    await client.query('COMMIT');
+   360→
+   361→    res.json({ message: 'Payroll processed successfully' });
+   362→  } catch (err) {
+   363→    await client.query('ROLLBACK');
+   364→    console.error('Process payroll error:', err);
+   365→    res.status(500).json({ error: 'Failed to process payroll' });
+   366→  } finally {
+   367→    client.release();
+   368→  }
+   369→});
+   370→
+   371→// ============== EMPLOYEE ENDPOINTS ==============
+   372→
+   373→/**
+   374→ * GET /api/payroll/employee/profile
+   375→ * Get employee's payroll profile
+   376→ */
+   377→router.get('/employee/profile', authMiddleware, async (req, res) => {
+   378→  try {
+   379→    const result = await pool.query(`
+   380→      SELECT e.*, pc.*, u.name as employer_name
+   381→      FROM employees e
+   382→      LEFT JOIN payroll_configs pc ON e.id = pc.employee_id
+   383→      LEFT JOIN users u ON e.employer_id = u.id
+   384→      WHERE e.user_id = $1
+   385→    `, [req.user.id]);
+   386→
+   387→    if (result.rows.length === 0) {
+   388→      return res.status(404).json({ error: 'Employee profile not found' });
+   389→    }
+   390→
+   391→    res.json({ profile: result.rows[0] });
+   392→  } catch (err) {
+   393→    console.error('Get employee profile error:', err);
+   394→    res.status(500).json({ error: 'Failed to fetch profile' });
+   395→  }
+   396→});
+   397→
+   398→/**
+   399→ * GET /api/payroll/employee/paychecks
+   400→ * Get employee's paycheck history
+   401→ */
+   402→router.get('/employee/paychecks', authMiddleware, async (req, res) => {
+   403→  try {
+   404→    const result = await pool.query(`
+   405→      SELECT pc.*, pr.status as payroll_status
+   406→      FROM paychecks pc
+   407→      JOIN payroll_runs pr ON pc.payroll_run_id = pr.id
+   408→      JOIN employees e ON pc.employee_id = e.id
+   409→      WHERE e.user_id = $1
+   410→      ORDER BY pc.pay_date DESC
+   411→      LIMIT 50
+   412→    `, [req.user.id]);
+   413→
+   414→    res.json({ paychecks: result.rows });
+   415→  } catch (err) {
+   416→    console.error('Get paychecks error:', err);
+   417→    res.status(500).json({ error: 'Failed to fetch paychecks' });
+   418→  }
+   419→});
+   420→
+   421→/**
+   422→ * GET /api/payroll/employee/paychecks/:paycheckId
+   423→ * Get detailed pay stub for a specific paycheck
+   424→ */
+   425→router.get('/employee/paychecks/:paycheckId', authMiddleware, async (req, res) => {
+   426→  try {
+   427→    const { paycheckId } = req.params;
+   428→
+   429→    const result = await pool.query(`
+   430→      SELECT pc.*, e.employee_number, u.name as employee_name,
+   431→             emp.name as employer_name, emp.company_name
+   432→      FROM paychecks pc
+   433→      JOIN employees e ON pc.employee_id = e.id
+   434→      JOIN users u ON e.user_id = u.id
+   435→      JOIN users emp ON e.employer_id = emp.id
+   436→      WHERE pc.id = $1 AND e.user_id = $2
+   437→    `, [paycheckId, req.user.id]);
+   438→
+   439→    if (result.rows.length === 0) {
+   440→      return res.status(404).json({ error: 'Paycheck not found' });
+   441→    }
+   442→
+   443→    res.json({ paycheck: result.rows[0] });
+   444→  } catch (err) {
+   445→    console.error('Get paycheck detail error:', err);
+   446→    res.status(500).json({ error: 'Failed to fetch paycheck' });
+   447→  }
+   448→});
+   449→
+   450→/**
+   451→ * POST /api/payroll/employee/bank-account
+   452→ * Update employee's bank account for direct deposit
+   453→ */
+   454→router.post('/employee/bank-account', authMiddleware, async (req, res) => {
+   455→  try {
+   456→    const { bank_name, bank_account_last4, bank_routing_number } = req.body;
+   457→
+   458→    await pool.query(`
+   459→      UPDATE payroll_configs pc
+   460→      SET
+   461→        bank_name = $1,
+   462→        bank_account_last4 = $2,
+   463→        bank_routing_number = $3,
+   464→        payment_method = 'direct_deposit',
+   465→        updated_at = NOW()
+   466→      FROM employees e
+   467→      WHERE pc.employee_id = e.id AND e.user_id = $4
+   468→    `, [bank_name, bank_account_last4, bank_routing_number, req.user.id]);
+   469→
+   470→    res.json({ message: 'Bank account updated successfully' });
+   471→  } catch (err) {
+   472→    console.error('Update bank account error:', err);
+   473→    res.status(500).json({ error: 'Failed to update bank account' });
+   474→  }
+   475→});
+   476→
+   477→module.exports = router;
+   478→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
