@@ -50,6 +50,10 @@ import { RecruiterPayrollPage } from '@/pages/recruiter/payroll'
 // AI Coaching
 import { AiCoachingPage } from '@/pages/candidate/ai-coaching'
 
+// OmniScore (Two-Sided Scoring)
+import { CandidateOmniScorePage } from '@/pages/candidate/omniscore'
+import { RecruiterOmniScorePage } from '@/pages/recruiter/omniscore'
+
 function RoleRedirect() {
   const { user, loading } = useAuth()
 
@@ -80,7 +84,7 @@ function AppRoutes() {
         <Route path="assessments/:id/take" element={<AssessmentTakePage />} />
         <Route path="interviews" element={<CandidateInterviewsPage />} />
         <Route path="ai-coaching" element={<AiCoachingPage />} />
-        <Route path="omniscore" element={<PlaceholderPage />} />
+        <Route path="omniscore" element={<CandidateOmniScorePage />} />
         <Route path="documents" element={<PlaceholderPage />} />
         <Route path="offers" element={<CandidateOffersPage />} />
         <Route path="onboarding" element={<CandidateOnboardingPage />} />
@@ -104,6 +108,7 @@ function AppRoutes() {
         <Route path="analytics" element={<PlaceholderPage />} />
         <Route path="company" element={<RecruiterCompanyPage />} />
         <Route path="payroll" element={<RecruiterPayrollPage />} />
+        <Route path="omniscore" element={<RecruiterOmniScorePage />} />
       </Route>
 
       {/* Settings */}
