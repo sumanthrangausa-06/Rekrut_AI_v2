@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "lastComputedDate": "2026-02-08",
+  "lastComputedDate": "2026-02-09",
   "dailyActivity": [
     {
       "date": "2026-01-22",
@@ -91,6 +91,12 @@
       "messageCount": 1991,
       "sessionCount": 17,
       "toolCallCount": 765
+    },
+    {
+      "date": "2026-02-09",
+      "messageCount": 998,
+      "sessionCount": 13,
+      "toolCallCount": 386
     }
   ],
   "dailyModelTokens": [
@@ -188,6 +194,13 @@
         "claude-haiku-4-5-20251001": 227,
         "claude-sonnet-4-5-20250929": 531
       }
+    },
+    {
+      "date": "2026-02-09",
+      "tokensByModel": {
+        "claude-opus-4-6": 22043,
+        "claude-haiku-4-5-20251001": 2601
+      }
     }
   ],
   "modelUsage": {
@@ -212,28 +225,28 @@
       "maxOutputTokens": 0
     },
     "claude-haiku-4-5-20251001": {
-      "inputTokens": 44014,
-      "outputTokens": 9702,
-      "cacheReadInputTokens": 12282757,
-      "cacheCreationInputTokens": 730363,
+      "inputTokens": 46563,
+      "outputTokens": 9754,
+      "cacheReadInputTokens": 14037833,
+      "cacheCreationInputTokens": 938552,
       "webSearchRequests": 0,
       "costUSD": 0,
       "contextWindow": 0,
       "maxOutputTokens": 0
     },
     "claude-opus-4-6": {
-      "inputTokens": 73567,
-      "outputTokens": 31567,
-      "cacheReadInputTokens": 293658962,
-      "cacheCreationInputTokens": 18776367,
+      "inputTokens": 89780,
+      "outputTokens": 37397,
+      "cacheReadInputTokens": 329698799,
+      "cacheCreationInputTokens": 22318060,
       "webSearchRequests": 0,
       "costUSD": 0,
       "contextWindow": 0,
       "maxOutputTokens": 0
     }
   },
-  "totalSessions": 76,
-  "totalMessages": 9291,
+  "totalSessions": 89,
+  "totalMessages": 10289,
   "longestSession": {
     "sessionId": "fc6da922-a534-4389-8090-eeeab43ed344",
     "duration": 792217,
@@ -242,13 +255,15 @@
   },
   "firstSessionDate": "2026-01-22T04:11:30.680Z",
   "hourCounts": {
-    "0": 8,
+    "0": 9,
     "1": 1,
-    "3": 1,
-    "4": 8,
-    "5": 2,
-    "6": 2,
-    "7": 1,
+    "2": 1,
+    "3": 3,
+    "4": 11,
+    "5": 4,
+    "6": 3,
+    "7": 3,
+    "8": 1,
     "9": 3,
     "10": 3,
     "11": 5,

@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Fix Error 1+2: AI prefill broken queries (relation 'applications', column 'a.user_id')",
+    "status": "completed",
+    "activeForm": "Fixing AI prefill broken query"
+  },
+  {
+    "content": "Fix Error 3: NOT NULL violations (work_experience, portfolio_projects, offers, practice_sessions)",
+    "status": "completed",
+    "activeForm": "Fixing NOT NULL constraint violations with input validation"
+  },
+  {
+    "content": "Fix Error 4: pgvector toSql undefined in recommendations + candidates",
+    "status": "completed",
+    "activeForm": "Fixing pgvector toSql import in matching engine"
+  },
+  {
+    "content": "Fix Error 5: Skills type mismatch — 'advanced' sent as string, expects integer",
+    "status": "completed",
+    "activeForm": "Fixing skills level type coercion"
+  },
+  {
+    "content": "Deploy and verify all fixes in production logs",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying production fixes"
+  }
+]

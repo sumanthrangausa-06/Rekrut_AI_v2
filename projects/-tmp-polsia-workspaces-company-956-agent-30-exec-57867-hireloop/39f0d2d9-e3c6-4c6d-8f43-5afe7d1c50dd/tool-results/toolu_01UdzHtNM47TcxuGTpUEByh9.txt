@@ -1,0 +1,191 @@
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-1-const express = require('express');
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-2-const router = express.Router();
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-3-const pool = require('../lib/db');
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-4-const { authMiddleware } = require('../lib/auth');
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-5-const polsiaAI = require('../lib/polsia-ai');
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-6-const countryConfig = require('../services/country-config');
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-7-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-8-// ============================================
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-9-// OFFER GENERATION
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-10-// ============================================
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-11-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-12-// Create offer
+routes/onboarding.js:13:router.post('/offers', authMiddleware, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-14-  try {
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-15-    const { candidate_id, job_id, title, salary, start_date, benefits, template_data,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-16-            reporting_to, location, employment_type } = req.body;
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-17-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-18-    const job = await pool.query('SELECT * FROM jobs WHERE id = $1 AND company_id = $2', [job_id, req.user.company_id]);
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-19-    if (job.rows.length === 0) {
+routes/onboarding.js-20-      return res.status(404).json({ error: 'Job not found' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-21-    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-22-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-23-    const result = await pool.query(
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-24-      `INSERT INTO offers (
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-25-        candidate_id, job_id, recruiter_id, company_id, title, company_name,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-26-        salary, start_date, benefits, template_data, reporting_to, location,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-27-        employment_type, status
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-28-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-29-      RETURNING *`,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-30-      [candidate_id, job_id, req.user.id, req.user.company_id, title, job.rows[0].company || 'Rekrut AI',
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-31-       salary, start_date, benefits, JSON.stringify(template_data || {}),
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-32-       reporting_to || null, location || job.rows[0].location || null,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-33-       employment_type || 'full-time', 'draft']
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-34-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-35-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-36-    res.json(result.rows[0]);
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-37-  } catch (err) {
+routes/onboarding.js:38:    console.error('Error creating offer:', err);
+routes/onboarding.js-39-    res.status(500).json({ error: 'Failed to create offer' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-40-  }
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-41-});
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-42-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-43-// AI-generate professional offer letter
+routes/onboarding.js:44:router.post('/offers/:id/generate-letter', authMiddleware, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-45-  try {
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-46-    // Get offer with all related data
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-47-    const offerResult = await pool.query(
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-48-      `SELECT o.*,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-49-        u.name as candidate_name,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-50-        u.email as candidate_email,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-51-        j.title as job_title,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-52-        j.description as job_description,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-53-        j.location as job_location,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-54-        r.name as recruiter_name
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-55-      FROM offers o
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-56-      JOIN users u ON o.candidate_id = u.id
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-57-      LEFT JOIN jobs j ON o.job_id = j.id
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-58-      LEFT JOIN users r ON o.recruiter_id = r.id
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-59-      WHERE o.id = $1 AND o.company_id = $2`,
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-202-      FROM offers o
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-203-      LEFT JOIN jobs j ON o.job_id = j.id
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-204-      WHERE o.candidate_id = $1
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-205-      ORDER BY o.created_at DESC`,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-206-      [req.user.id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-207-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-208-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-209-    res.json(result.rows);
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-210-  } catch (err) {
+routes/onboarding.js-211-    console.error('Error fetching offers:', err);
+routes/onboarding.js-212-    res.status(500).json({ error: 'Failed to fetch offers' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-213-  }
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-214-});
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-215-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-216-// Send offer to candidate
+routes/onboarding.js:217:router.post('/offers/:id/send', authMiddleware, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-218-  try {
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-219-    const result = await pool.query(
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-220-      `UPDATE offers
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-221-       SET status = 'sent', sent_at = NOW(), updated_at = NOW()
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-222-       WHERE id = $1 AND company_id = $2
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-223-       RETURNING *`,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-224-      [req.params.id, req.user.company_id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-225-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-226-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-227-    if (result.rows.length === 0) {
+routes/onboarding.js-228-      return res.status(404).json({ error: 'Offer not found' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-229-    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-230-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-231-    res.json(result.rows[0]);
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-232-  } catch (err) {
+routes/onboarding.js-233-    console.error('Error sending offer:', err);
+routes/onboarding.js-234-    res.status(500).json({ error: 'Failed to send offer' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-235-  }
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-236-});
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-237-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-238-// Candidate views offer (track engagement)
+routes/onboarding.js:239:router.post('/offers/:id/view', authMiddleware, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-240-  try {
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-241-    const result = await pool.query(
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-242-      `UPDATE offers
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-243-       SET viewed_at = COALESCE(viewed_at, NOW()),
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-244-           status = CASE WHEN status = 'sent' THEN 'viewed' ELSE status END,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-245-           updated_at = NOW()
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-246-       WHERE id = $1 AND candidate_id = $2
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-247-       RETURNING *`,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-248-      [req.params.id, req.user.id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-249-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-250-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-251-    if (result.rows.length === 0) {
+routes/onboarding.js-252-      return res.status(404).json({ error: 'Offer not found' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-253-    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-254-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-255-    res.json(result.rows[0]);
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-256-  } catch (err) {
+routes/onboarding.js-257-    console.error('Error marking offer as viewed:', err);
+routes/onboarding.js-258-    res.status(500).json({ error: 'Failed to update offer' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-259-  }
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-260-});
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-261-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-262-// Accept offer (with e-signature)
+routes/onboarding.js:263:router.post('/offers/:id/accept', authMiddleware, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-264-  try {
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-265-    const { signature_url, signature_data } = req.body;
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-266-    const signerIp = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-267-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-268-    const result = await pool.query(
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-269-      `UPDATE offers
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-270-       SET status = 'accepted', accepted_at = NOW(), signature_url = $3,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-271-           candidate_signature = $4, candidate_signed_at = NOW(), candidate_sign_ip = $5,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-272-           updated_at = NOW()
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-273-       WHERE id = $1 AND candidate_id = $2
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-274-       RETURNING *`,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-275-      [req.params.id, req.user.id, signature_url, signature_data || null, signerIp]
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-276-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-277-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-278-    if (result.rows.length === 0) {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-384-          ON CONFLICT (employee_id) DO NOTHING
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-385-        `, [empResult.rows[0].id, annualSalary]);
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-386-      }
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-387-    } catch (empErr) {
+routes/onboarding.js-388-      console.error('Auto-create employee record failed (non-blocking):', empErr.message);
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-389-    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-390-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-391-    res.json(result.rows[0]);
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-392-  } catch (err) {
+routes/onboarding.js-393-    console.error('Error accepting offer:', err);
+routes/onboarding.js-394-    res.status(500).json({ error: 'Failed to accept offer' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-395-  }
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-396-});
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-397-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-398-// Withdraw offer (recruiter-side)
+routes/onboarding.js:399:router.post('/offers/:id/withdraw', authMiddleware, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-400-  try {
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-401-    const result = await pool.query(
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-402-      `UPDATE offers
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-403-       SET status = 'withdrawn', updated_at = NOW()
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-404-       WHERE id = $1 AND company_id = $2 AND status IN ('draft', 'sent', 'viewed')
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-405-       RETURNING *`,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-406-      [req.params.id, req.user.company_id]
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-407-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-408-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-409-    if (result.rows.length === 0) {
+routes/onboarding.js-410-      return res.status(404).json({ error: 'Offer not found or cannot be withdrawn' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-411-    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-412-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-413-    res.json(result.rows[0]);
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-414-  } catch (err) {
+routes/onboarding.js-415-    console.error('Error withdrawing offer:', err);
+routes/onboarding.js-416-    res.status(500).json({ error: 'Failed to withdraw offer' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-417-  }
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-418-});
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-419-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-420-// Decline offer
+routes/onboarding.js:421:router.post('/offers/:id/decline', authMiddleware, async (req, res) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-422-  try {
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-423-    const { reason, decline_reason } = req.body;
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-424-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-425-    const result = await pool.query(
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-426-      `UPDATE offers
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-427-       SET status = 'declined', declined_at = NOW(), decline_reason = $3, updated_at = NOW()
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-428-       WHERE id = $1 AND candidate_id = $2
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-429-       RETURNING *`,
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-430-      [req.params.id, req.user.id, decline_reason || reason || null]
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-431-    );
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-432-
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-433-    if (result.rows.length === 0) {
+routes/onboarding.js-434-      return res.status(404).json({ error: 'Offer not found' });
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-435-    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-57867/hireloop/routes/onboarding.js-436-
