@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate why diagnostic text isn't showing — check if code is actually deployed",
+    "status": "completed",
+    "activeForm": "Investigating diagnostic text absence and deployment state"
+  },
+  {
+    "content": "Check git diff for camera code changes across all 6 attempts",
+    "status": "completed",
+    "activeForm": "Checking git diff for camera code history"
+  },
+  {
+    "content": "Read current ai-coaching.tsx and understand the camera implementation",
+    "status": "completed",
+    "activeForm": "Reading current camera implementation"
+  },
+  {
+    "content": "Implement a fundamentally different approach to iOS camera",
+    "status": "completed",
+    "activeForm": "Implementing new iOS camera approach"
+  },
+  {
+    "content": "Build, deploy, and verify with logs",
+    "status": "in_progress",
+    "activeForm": "Building and deploying fix"
+  }
+]
