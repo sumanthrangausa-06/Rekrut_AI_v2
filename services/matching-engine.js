@@ -1,6 +1,23 @@
 const OpenAI = require('openai');
 const pool = require('../lib/db');
-const { toSql, registerType } = require('pgvector/pg');
+
+// Defensive pgvector import — fallback to manual vector formatting if unavailable
+let toSql, registerType;
+try {
+  const pgvectorPg = require('pgvector/pg');
+  toSql = pgvectorPg.toSql;
+  registerType = pgvectorPg.registerType;
+} catch (e) {
+  console.warn('pgvector/pg not available, using vector string fallback');
+}
+
+// Fallback: format array as Postgres vector literal
+if (typeof toSql !== 'function') {
+  toSql = function(vec) {
+    if (!Array.isArray(vec)) throw new Error('expected array for toSql');
+    return '[' + vec.join(',') + ']';
+  };
+}
 
 // Lazy-load OpenAI client to avoid initialization errors when env vars are missing
 let openai = null;
@@ -57,7 +74,7 @@ function buildCandidateProfileText(profile) {
   // Experience
   if (profile.experience && profile.experience.length > 0) {
     profile.experience.forEach(exp => {
-      parts.push(`Experience: ${exp.title} at ${exp.company}. ${exp.description || ''}`);
+      parts.push(`Experience: ${exp.title} at ${exp.company_name || exp.company || 'Unknown'}. ${exp.description || ''}`);
       if (exp.skills_used && exp.skills_used.length > 0) {
         parts.push(`Skills used: ${exp.skills_used.join(', ')}`);
       }
@@ -148,10 +165,15 @@ async function updateCandidateEmbedding(userId) {
     // Generate embedding
     const embedding = await generateEmbedding(profileText);
 
+    if (!embedding || !Array.isArray(embedding)) {
+      console.warn(`Skipping embedding for user ${userId} - embedding generation failed`);
+      return null;
+    }
+
     // Build summaries
     const skillsSummary = profile.skills.map(s => s.skill_name).join(', ');
     const experienceSummary = profile.experience
-      .map(e => `${e.title} at ${e.company}`)
+      .map(e => `${e.title} at ${e.company_name || e.company || 'Unknown'}`)
       .slice(0, 3)
       .join('; ');
 
@@ -201,6 +223,11 @@ async function updateJobEmbedding(jobId) {
 
     // Generate embedding
     const embedding = await generateEmbedding(jobText);
+
+    if (!embedding || !Array.isArray(embedding)) {
+      console.warn(`Skipping embedding for job ${jobId} - embedding generation failed`);
+      return null;
+    }
 
     // Upsert embedding
     await client.query(`
@@ -252,8 +279,12 @@ async function findMatchingCandidates(jobId, options = {}) {
 
   const client = await pool.connect();
   try {
-    // Ensure job embedding exists
-    await updateJobEmbedding(jobId);
+    // Ensure job embedding exists (non-blocking if it fails)
+    try {
+      await updateJobEmbedding(jobId);
+    } catch (embedErr) {
+      console.warn(`Failed to update job embedding for ${jobId}:`, embedErr.message);
+    }
 
     // Get job details and TrustScore
     const jobResult = await client.query(`
@@ -387,8 +418,12 @@ async function findMatchingJobs(userId, options = {}) {
 
   const client = await pool.connect();
   try {
-    // Ensure candidate embedding exists
-    await updateCandidateEmbedding(userId);
+    // Ensure candidate embedding exists (non-blocking if it fails)
+    try {
+      await updateCandidateEmbedding(userId);
+    } catch (embedErr) {
+      console.warn(`Failed to update candidate embedding for ${userId}:`, embedErr.message);
+    }
 
     // Get candidate's OmniScore
     const userResult = await client.query(`

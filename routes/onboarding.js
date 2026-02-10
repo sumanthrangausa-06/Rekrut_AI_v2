@@ -12,12 +12,23 @@ const countryConfig = require('../services/country-config');
 // Create offer
 router.post('/offers', authMiddleware, async (req, res) => {
   try {
-    const { candidate_id, job_id, title, salary, start_date, benefits, template_data,
+    const { candidate_id, job_id, salary, start_date, benefits, template_data,
             reporting_to, location, employment_type } = req.body;
+    // title can come from body or be derived from the job
+    let title = req.body.title;
+
+    if (!candidate_id || !job_id) {
+      return res.status(400).json({ error: 'candidate_id and job_id are required' });
+    }
 
     const job = await pool.query('SELECT * FROM jobs WHERE id = $1 AND company_id = $2', [job_id, req.user.company_id]);
     if (job.rows.length === 0) {
       return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // Default title to job title if not provided
+    if (!title || !title.trim()) {
+      title = job.rows[0].title || 'Employment Offer';
     }
 
     const result = await pool.query(
@@ -2114,7 +2125,7 @@ router.get('/wizard/ai-prefill', authMiddleware, async (req, res) => {
       `SELECT a.*, j.title as job_title, j.company
        FROM job_applications a
        LEFT JOIN jobs j ON a.job_id = j.id
-       WHERE a.user_id = $1
+       WHERE a.candidate_id = $1
        ORDER BY a.created_at DESC LIMIT 1`,
       [req.user.id]
     );

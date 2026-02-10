@@ -546,7 +546,10 @@ router.get('/practice/library', authMiddleware, async (req, res) => {
 // Submit practice response and get AI coaching
 router.post('/practice/submit', authMiddleware, async (req, res) => {
   try {
-    const { question_id, question, category, response_text } = req.body;
+    const { question_id, category, response_text } = req.body;
+    // Default question text from library if not provided
+    const libraryQ = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
+    const question = req.body.question || (libraryQ && libraryQ.question) || `Practice question ${question_id || 'unknown'}`;
 
     if (!response_text || response_text.trim().length < 50) {
       return res.status(400).json({ error: 'Response must be at least 50 characters' });
@@ -609,7 +612,10 @@ router.post('/practice/submit', authMiddleware, async (req, res) => {
 // Submit video practice response and get comprehensive AI coaching
 router.post('/practice/submit-video', authMiddleware, async (req, res) => {
   try {
-    const { question_id, question, category, transcription, frames, duration_seconds } = req.body;
+    const { question_id, category, transcription, frames, duration_seconds } = req.body;
+    // Default question text from library if not provided
+    const libQ = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
+    const question = req.body.question || (libQ && libQ.question) || `Practice question ${question_id || 'unknown'}`;
 
     if (!transcription || transcription.trim().length < 20) {
       return res.status(400).json({ error: 'Transcription too short. Please speak for at least 15-20 seconds.' });

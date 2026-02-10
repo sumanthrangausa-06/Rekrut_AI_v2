@@ -394,13 +394,20 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
             for (const skill of parsedData.skills) {
               if (!skill.name) continue;
               try {
+                // Coerce string level names to integers
+                let skillLevel = skill.level || 3;
+                if (typeof skillLevel === 'string') {
+                  const lvlMap = { 'beginner': 1, 'basic': 2, 'intermediate': 3, 'advanced': 4, 'expert': 5 };
+                  skillLevel = lvlMap[skillLevel.toLowerCase()] || parseInt(skillLevel, 10) || 3;
+                }
+                skillLevel = Math.max(1, Math.min(5, parseInt(skillLevel, 10) || 3));
                 await pool.query(`
                   INSERT INTO candidate_skills (user_id, skill_name, category, level)
                   VALUES ($1, $2, $3, $4)
                   ON CONFLICT (user_id, skill_name) DO UPDATE SET
                     category = COALESCE(NULLIF($3, ''), candidate_skills.category),
                     level = GREATEST(candidate_skills.level, $4)
-                `, [req.user.id, skill.name, skill.category || 'technical', skill.level || 3]);
+                `, [req.user.id, skill.name, skill.category || 'technical', skillLevel]);
                 applySummary.skills++;
               } catch (skillErr) {
                 console.error('Skip skill insert:', skillErr.message);
@@ -532,13 +539,20 @@ router.post('/resume/apply', authMiddleware, async (req, res) => {
     // Apply skills
     if (sections.includes('skills') && parsed_data.skills) {
       for (const skill of parsed_data.skills) {
+        // Coerce string level names to integers
+        let skillLevel = skill.level || 3;
+        if (typeof skillLevel === 'string') {
+          const lvlMap = { 'beginner': 1, 'basic': 2, 'intermediate': 3, 'advanced': 4, 'expert': 5 };
+          skillLevel = lvlMap[skillLevel.toLowerCase()] || parseInt(skillLevel, 10) || 3;
+        }
+        skillLevel = Math.max(1, Math.min(5, parseInt(skillLevel, 10) || 3));
         await pool.query(`
           INSERT INTO candidate_skills (user_id, skill_name, category, level)
           VALUES ($1, $2, $3, $4)
           ON CONFLICT (user_id, skill_name) DO UPDATE SET
             category = COALESCE($3, candidate_skills.category),
             level = GREATEST(candidate_skills.level, $4)
-        `, [req.user.id, skill.name, skill.category || 'technical', skill.level || 3]);
+        `, [req.user.id, skill.name, skill.category || 'technical', skillLevel]);
       }
     }
 
@@ -555,11 +569,18 @@ router.post('/experience', authMiddleware, async (req, res) => {
   try {
     const { company_name, title, location, start_date, end_date, is_current, description, achievements, skills_used } = req.body;
 
+    if (!company_name || !String(company_name).trim()) {
+      return res.status(400).json({ error: 'Company name is required' });
+    }
+    if (!title || !String(title).trim()) {
+      return res.status(400).json({ error: 'Job title is required' });
+    }
+
     const result = await pool.query(`
       INSERT INTO work_experience (user_id, company_name, title, location, start_date, end_date, is_current, description, achievements, skills_used)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
-    `, [req.user.id, company_name, title, location, start_date, end_date, is_current, description,
+    `, [req.user.id, String(company_name).trim(), String(title).trim(), location, start_date, end_date, is_current, description,
         JSON.stringify(achievements || []), JSON.stringify(skills_used || [])]);
 
     res.json({ success: true, experience: result.rows[0] });
@@ -689,7 +710,19 @@ router.get('/skills', authMiddleware, async (req, res) => {
 
 router.post('/skills', authMiddleware, async (req, res) => {
   try {
-    const { skill_name, category, level, years_experience } = req.body;
+    const { skill_name, category, years_experience } = req.body;
+    let { level } = req.body;
+
+    if (!skill_name || !String(skill_name).trim()) {
+      return res.status(400).json({ error: 'Skill name is required' });
+    }
+
+    // Coerce string level names to integers (DB expects integer 1-5)
+    if (typeof level === 'string') {
+      const levelMap = { 'beginner': 1, 'basic': 2, 'intermediate': 3, 'advanced': 4, 'expert': 5 };
+      level = levelMap[level.toLowerCase()] || parseInt(level, 10) || 3;
+    }
+    level = Math.max(1, Math.min(5, parseInt(level, 10) || 3));
 
     const result = await pool.query(`
       INSERT INTO candidate_skills (user_id, skill_name, category, level, years_experience)
@@ -699,7 +732,7 @@ router.post('/skills', authMiddleware, async (req, res) => {
         level = COALESCE($4, candidate_skills.level),
         years_experience = COALESCE($5, candidate_skills.years_experience)
       RETURNING *
-    `, [req.user.id, skill_name, category || 'technical', level || 3, years_experience || 0]);
+    `, [req.user.id, String(skill_name).trim(), category || 'technical', level, years_experience || 0]);
 
     res.json({ success: true, skill: result.rows[0] });
   } catch (err) {
@@ -873,11 +906,15 @@ router.post('/projects', authMiddleware, async (req, res) => {
   try {
     const { title, description, project_url, github_url, image_url, technologies, role, start_date, end_date, highlights } = req.body;
 
+    if (!title || !String(title).trim()) {
+      return res.status(400).json({ error: 'Project title is required' });
+    }
+
     const result = await pool.query(`
       INSERT INTO portfolio_projects (user_id, title, description, project_url, github_url, image_url, technologies, role, start_date, end_date, highlights)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
-    `, [req.user.id, title, description, project_url, github_url, image_url,
+    `, [req.user.id, String(title).trim(), description, project_url, github_url, image_url,
         JSON.stringify(technologies || []), role, start_date, end_date, JSON.stringify(highlights || [])]);
 
     res.json({ success: true, project: result.rows[0] });
