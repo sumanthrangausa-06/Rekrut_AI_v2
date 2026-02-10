@@ -243,7 +243,7 @@ export function AiCoachingPage() {
     init()
   }, [loadStats, loadQuestions, loadProgress])
 
-  // Cleanup on unmount
+  // Cleanup on unmount — must remove detached video from document.body
   useEffect(() => {
     return () => {
       stopPreviewLoop()
@@ -302,63 +302,51 @@ export function AiCoachingPage() {
   // Pattern: User taps → getUserMedia() immediately → handle result.
   // NO Permissions API pre-check. NO async delays. NO retry loops.
 
-  // Attach a MediaStream to the hidden video element.
-  // On iOS WebKit (all iOS browsers), <video srcObject=MediaStream> often renders
-  // as a black rectangle — the WebKit compositor fails to connect decoded frames
-  // to the rendering surface, especially inside scrollable containers or modals
-  // with CSS overflow/border-radius. play() resolves and the 'playing' event fires,
-  // but no actual pixels appear on screen.
+  // Create a video element at document.body level for stream decoding.
   //
-  // Fix: We use a <canvas> for the live preview instead. canvas.drawImage(video)
-  // reads from the decoded frame buffer (not the compositor), so it works even
-  // when the <video> element itself renders black. This matches the approach used
-  // by Google Meet, Zoom Web, and Loom on iOS.
-  async function attachStreamToVideo(stream: MediaStream): Promise<void> {
-    const video = videoRef.current
-    if (!video) {
-      console.error('[camera] video element ref not available')
-      return
+  // CRITICAL iOS FIX (6th attempt — all 5 previous fixes failed):
+  // Every prior attempt placed the <video> inside the Dialog's DOM tree,
+  // where it was subject to: overflow-y:auto (scrollable dialog content),
+  // overflow:hidden + border-radius (camera container). These CSS properties
+  // trigger a well-known WebKit compositor bug that prevents the video decode
+  // pipeline from delivering frames — both <video> rendering and canvas.drawImage()
+  // produce black output because the source frames are empty.
+  //
+  // Solution: Create the video at document.body, OUTSIDE the modal's CSS context.
+  // It's in the DOM (required for play() on iOS) but invisible and off-screen.
+  // The preview canvas inside the dialog reads frames via drawImage(), which
+  // works because the video's decode pipeline is healthy outside the modal.
+  function createDecodingVideo(stream: MediaStream): HTMLVideoElement {
+    // Clean up any prior detached video
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+      if (videoRef.current.parentNode) {
+        videoRef.current.parentNode.removeChild(videoRef.current)
+      }
     }
 
-    // iOS WebKit: programmatic muted + webkit-playsinline are required
-    video.muted = true
-    video.setAttribute('webkit-playsinline', '')
+    const video = document.createElement('video')
     video.setAttribute('playsinline', '')
-
+    video.setAttribute('webkit-playsinline', '')
+    video.muted = true
+    // Invisible, off-screen, at body level — outside ALL modal/dialog CSS context
+    video.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-1;'
+    document.body.appendChild(video)
     video.srcObject = stream
-
-    try {
-      await video.play()
-    } catch (playErr: any) {
-      console.warn('[camera] play() failed, retrying:', playErr?.message)
-      await new Promise(r => setTimeout(r, 300))
-      try { await video.play() } catch {}
-    }
+    return video
   }
 
-  // Canvas-based preview loop — draws video frames to a visible <canvas>.
-  // Bypasses iOS WebKit's broken video compositor. Works on ALL platforms.
+  // Canvas-based preview loop — draws video frames from the DETACHED video
+  // element to a visible <canvas> inside the dialog. The detached video is at
+  // document.body level, immune to the modal's CSS context issues on iOS WebKit.
   function startPreviewLoop() {
     let readySignaled = false
-    let frameAttempts = 0
+    const startTime = Date.now()
 
     const draw = () => {
       const video = videoRef.current
       const canvas = previewCanvasRef.current
       if (!video || !canvas) {
-        animFrameRef.current = requestAnimationFrame(draw)
-        return
-      }
-
-      // Wait until the video has decoded frame data
-      if (video.readyState < 2) {
-        frameAttempts++
-        // Safety: after ~8 seconds (480 frames at 60fps), force ready
-        if (frameAttempts > 480 && !readySignaled) {
-          console.warn('[camera] video never reached readyState 2 — forcing ready')
-          readySignaled = true
-          setCameraReady(true)
-        }
         animFrameRef.current = requestAnimationFrame(draw)
         return
       }
@@ -377,6 +365,31 @@ export function AiCoachingPage() {
       if (canvas.width !== cw || canvas.height !== ch) {
         canvas.width = cw
         canvas.height = ch
+      }
+
+      const elapsed = Date.now() - startTime
+
+      // Wait until the video has decoded frame data
+      if (video.readyState < 2) {
+        // Show diagnostic info while waiting — helps debug if camera stays black
+        ctx.fillStyle = '#000'
+        ctx.fillRect(0, 0, cw, ch)
+        ctx.fillStyle = '#fff'
+        ctx.font = `${Math.round(14 * dpr)}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.fillText('Initializing camera...', cw / 2, ch / 2 - 10 * dpr)
+        ctx.fillStyle = '#888'
+        ctx.font = `${Math.round(11 * dpr)}px monospace`
+        ctx.fillText(`readyState: ${video.readyState} | ${Math.round(elapsed / 1000)}s`, cw / 2, ch / 2 + 15 * dpr)
+
+        // Safety: after 10 seconds, force ready so user isn't stuck
+        if (elapsed > 10000 && !readySignaled) {
+          console.warn('[camera] video never reached readyState 2 after 10s — forcing ready')
+          readySignaled = true
+          setCameraReady(true)
+        }
+        animFrameRef.current = requestAnimationFrame(draw)
+        return
       }
 
       // Calculate "object-cover" crop from the video frame
@@ -399,8 +412,19 @@ export function AiCoachingPage() {
       ctx.drawImage(video, sx, sy, sw, sh, -cw, 0, cw, ch)
       ctx.restore()
 
+      // Brief diagnostic overlay for the first 3 seconds after first frame
+      if (elapsed < 5000 && readySignaled) {
+        ctx.fillStyle = 'rgba(0,0,0,0.4)'
+        ctx.fillRect(0, ch - 28 * dpr, cw, 28 * dpr)
+        ctx.fillStyle = '#0f0'
+        ctx.font = `${Math.round(10 * dpr)}px monospace`
+        ctx.textAlign = 'center'
+        ctx.fillText(`Camera OK | ${vw}x${vh} | readyState:${video.readyState}`, cw / 2, ch - 9 * dpr)
+      }
+
       // Signal camera ready once we've successfully drawn a real frame
       if (!readySignaled) {
+        console.log(`[camera] first frame drawn after ${elapsed}ms — ${video.videoWidth}x${video.videoHeight}`)
         readySignaled = true
         setCameraReady(true)
       }
@@ -448,12 +472,20 @@ export function AiCoachingPage() {
         return
       }
 
-      // Attach stream to hidden video element
-      await attachStreamToVideo(stream)
+      // Create DETACHED video element at document.body — outside the modal
+      const video = createDecodingVideo(stream)
+      videoRef.current = video
 
-      // Start canvas preview loop — it draws frames from the video to a
-      // visible canvas, bypassing iOS WebKit rendering bugs. The loop
-      // sets cameraReady=true once the first real frame is drawn.
+      try {
+        await video.play()
+      } catch (playErr: any) {
+        console.warn('[camera] play() failed, retrying:', playErr?.message)
+        await new Promise(r => setTimeout(r, 300))
+        try { await video.play() } catch {}
+      }
+
+      // Start canvas preview loop — draws from the detached video to the
+      // visible canvas inside the dialog. Sets cameraReady once first frame drawn.
       startPreviewLoop()
 
       // Monitor — if user revokes camera permission in browser settings
@@ -476,7 +508,9 @@ export function AiCoachingPage() {
         try {
           const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
           streamRef.current = fallbackStream
-          await attachStreamToVideo(fallbackStream)
+          const fbVideo = createDecodingVideo(fallbackStream)
+          videoRef.current = fbVideo
+          try { await fbVideo.play() } catch {}
           startPreviewLoop()
           return
         } catch (fallbackErr: any) {
@@ -500,8 +534,13 @@ export function AiCoachingPage() {
       streamRef.current.getTracks().forEach(track => track.stop())
       streamRef.current = null
     }
+    // Clean up detached video element from document.body
     if (videoRef.current) {
       videoRef.current.srcObject = null
+      if (videoRef.current.parentNode) {
+        videoRef.current.parentNode.removeChild(videoRef.current)
+      }
+      videoRef.current = null
     }
     setCameraReady(false)
   }
@@ -1096,24 +1135,17 @@ export function AiCoachingPage() {
                 <div className="mt-4 space-y-4">
                   {/* Camera Preview — only show when no error blocking everything */}
                   {!cameraError && (
-                    <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
-                      {/* Video element: receives the MediaStream and decodes frames.
-                          Hidden behind the canvas — iOS WebKit often fails to render
-                          <video srcObject=MediaStream> to screen (black rectangle bug).
-                          The video still decodes frames so canvas.drawImage() can read them. */}
-                      <video
-                        ref={videoRef}
-                        autoPlay
-                        muted
-                        playsInline
-                        className="absolute inset-0 w-full h-full object-cover"
-                      />
-                      {/* Canvas preview: draws decoded frames from the video element.
-                          Bypasses iOS WebKit's broken video compositor — works on ALL
-                          platforms including iOS Safari, iOS Chrome, and desktop browsers. */}
+                    <div className="relative rounded-xl bg-black aspect-video">
+                      {/* Canvas preview: the ONLY visible element for camera.
+                          Draws frames from a DETACHED video element at document.body
+                          (not in this modal). This completely bypasses iOS WebKit's
+                          compositor bug that causes black video in modals/overflow
+                          containers. The detached video decodes frames healthily
+                          outside the modal CSS context. */}
                       <canvas
                         ref={previewCanvasRef}
-                        className="absolute inset-0 w-full h-full"
+                        className="absolute inset-0 w-full h-full rounded-xl"
+                        style={{ WebkitTransform: 'translateZ(0)' }}
                       />
 
                       {/* Enable Camera prompt — shown before camera is started.
