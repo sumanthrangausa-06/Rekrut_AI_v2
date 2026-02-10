@@ -302,7 +302,20 @@ export function AiCoachingPage() {
   //
   // getUserMedia MUST be the FIRST async call after user gesture (iOS requirement).
 
-  // Helper: attach stream to video element and wait for frames
+  // Helper: attach stream to video element and verify it's working
+  //
+  // 9TH FIX (Feb 10 2026): On iOS WebKit, the video element doesn't decode
+  // frames when completely covered by an opaque overlay (power optimization).
+  // The !cameraReady overlay (z-10 bg-black/90) covers the <video> during
+  // this entire check, so video.readyState NEVER reaches >=2 and videoWidth
+  // stays 0 — creating a deadlock: we need frames to remove the overlay,
+  // but need the overlay removed to get frames.
+  //
+  // FIX: Trust the MediaStreamTrack's getSettings() instead of polling
+  // video.readyState. If the track is 'live' with valid width/height,
+  // the camera IS working. Return true immediately so the caller can
+  // set cameraReady=true, which removes the overlay, which lets iOS
+  // start rendering.
   async function attachStreamToVideo(stream: MediaStream): Promise<boolean> {
     const video = videoRef.current
     if (!video) {
@@ -324,7 +337,21 @@ export function AiCoachingPage() {
       // Don't fail — muted+playsInline videos may auto-start
     }
 
-    // Poll for actual frame data (up to 5 seconds)
+    // ── PRIMARY CHECK: Trust the track's settings ──
+    // If the track is live and reports valid dimensions, the camera IS active.
+    // Don't wait for video.readyState (which won't update while overlay covers video on iOS).
+    const vt = stream.getVideoTracks()[0]
+    if (vt && vt.readyState === 'live') {
+      const settings = vt.getSettings?.() || {}
+      if ((settings.width || 0) > 0 && (settings.height || 0) > 0) {
+        console.log(`[camera] track live with valid settings ${settings.width}x${settings.height} — trusting track (iOS fix)`)
+        setCameraStatus(`Live ${settings.width}x${settings.height}`)
+        return true
+      }
+    }
+
+    // ── FALLBACK: Poll for frame data OR track settings (up to 4 seconds) ──
+    // Handles edge cases where track settings aren't immediately available
     return new Promise<boolean>((resolve) => {
       const start = Date.now()
       const check = () => {
@@ -332,25 +359,46 @@ export function AiCoachingPage() {
         if (!v || v.srcObject !== stream) { resolve(false); return }
 
         const elapsed = Date.now() - start
+
+        // Check video element (works on desktop / non-overlay scenarios)
         if (v.readyState >= 2 && v.videoWidth > 0) {
-          console.log(`[camera] frames flowing after ${elapsed}ms — ${v.videoWidth}x${v.videoHeight}`)
+          console.log(`[camera] frames confirmed after ${elapsed}ms — ${v.videoWidth}x${v.videoHeight}`)
+          resolve(true)
+          return
+        }
+
+        // Re-check track settings (may become available after a delay)
+        const vt2 = stream.getVideoTracks()[0]
+        if (vt2 && vt2.readyState === 'live' && elapsed > 300) {
+          const s = vt2.getSettings?.() || {}
+          if ((s.width || 0) > 0 && (s.height || 0) > 0) {
+            console.log(`[camera] track settings available after ${elapsed}ms: ${s.width}x${s.height} — trusting`)
+            setCameraStatus(`Live ${s.width}x${s.height}`)
+            resolve(true)
+            return
+          }
+        }
+
+        // Also accept if track is live and enabled (even without settings)
+        if (vt2 && vt2.readyState === 'live' && vt2.enabled && !vt2.muted && elapsed > 1500) {
+          console.log(`[camera] track live+enabled after ${elapsed}ms — accepting without settings`)
+          setCameraStatus('Live (no settings)')
           resolve(true)
           return
         }
 
         // Diagnostic info
-        const vt = stream.getVideoTracks()[0]
-        const diag = vt
-          ? `trk:${vt.readyState} muted:${vt.muted} enabled:${vt.enabled}`
+        const diag = vt2
+          ? `trk:${vt2.readyState} muted:${vt2.muted} enabled:${vt2.enabled}`
           : 'no-vt'
         setCameraStatus(`Waiting ${Math.round(elapsed / 1000)}s rs=${v.readyState} ${diag}`)
 
-        if (elapsed > 5000) {
-          console.warn('[camera] no frames after 5s')
+        if (elapsed > 4000) {
+          console.warn('[camera] no frames or track settings after 4s')
           resolve(false)
           return
         }
-        setTimeout(check, 250)
+        setTimeout(check, 200)
       }
       setTimeout(check, 100)
     })
@@ -488,6 +536,21 @@ export function AiCoachingPage() {
       const settings = vt?.getSettings?.() || {}
       setCameraStatus(`OK ${settings.width || '?'}x${settings.height || '?'} a:${at.length}`)
       setCameraReady(true)
+
+      // ── iOS FIX: Re-trigger play() after overlay is removed ──
+      // Setting cameraReady=true causes React to remove the opaque overlay.
+      // On iOS, the video element may need another play() call once it's
+      // actually visible (no longer covered by the overlay). Schedule this
+      // for the next animation frame (after React re-render).
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const v = videoRef.current
+          if (v && v.srcObject) {
+            v.play().catch(() => {})
+            console.log('[camera] re-triggered play() after overlay removed')
+          }
+        })
+      })
 
       // Monitor track ending (user revokes permission)
       if (vt) {
