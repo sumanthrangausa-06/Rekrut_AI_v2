@@ -54,6 +54,9 @@ import { AiCoachingPage } from '@/pages/candidate/ai-coaching'
 import { CandidateOmniScorePage } from '@/pages/candidate/omniscore'
 import { RecruiterOmniScorePage } from '@/pages/recruiter/omniscore'
 
+// Camera Test (isolation debugging)
+import { TestCameraPage } from '@/pages/test-camera'
+
 function RoleRedirect() {
   const { user, loading } = useAuth()
 
@@ -69,6 +72,7 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/test-camera" element={<TestCameraPage />} />
 
       {/* Auto-redirect based on role */}
       <Route path="/dashboard" element={<RoleRedirect />} />
