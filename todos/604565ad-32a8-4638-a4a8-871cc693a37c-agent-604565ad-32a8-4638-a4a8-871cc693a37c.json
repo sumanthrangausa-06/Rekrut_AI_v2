@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate getUserMedia constraints in ai-coaching code",
+    "status": "completed",
+    "activeForm": "Investigating getUserMedia constraints"
+  },
+  {
+    "content": "Check git history for regression",
+    "status": "completed",
+    "activeForm": "Checking git history for regression"
+  },
+  {
+    "content": "Implement fix: separate video/audio getUserMedia + retry mechanism + diagnostics",
+    "status": "completed",
+    "activeForm": "Implementing camera fix with separate video/audio requests"
+  },
+  {
+    "content": "Build, deploy, and verify",
+    "status": "in_progress",
+    "activeForm": "Building and deploying fix"
+  }
+]
