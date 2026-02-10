@@ -1129,10 +1129,12 @@ export function AiCoachingPage() {
       <canvas ref={canvasRef} className="hidden" />
 
       {/* ==================== Practice Dialog ==================== */}
-      {/* When camera is active: Dialog gets overflow-visible to remove the scroll+border-radius
-          compositor context that causes black video on iOS WebKit. */}
+      {/* 11TH FIX (Feb 10 2026): WebKit bug #98538 — overflow:hidden + border-radius on parent
+          containers kills video rendering on iOS. Fix: isolation:isolate creates a new stacking
+          context, and inline overflow:visible guarantees override of base overflow-y-auto. */}
       <Dialog open={!!practiceQuestion} onClose={closePractice}
-        className={`max-w-2xl ${responseMode === 'video' && !cameraError ? 'overflow-visible' : ''}`}>
+        className={`max-w-2xl ${responseMode === 'video' && !cameraError ? 'overflow-visible isolate max-h-none' : ''}`}
+        style={responseMode === 'video' && !cameraError ? { overflow: 'visible', isolation: 'isolate' } : undefined}>
         <div className={responseMode === 'video' && !cameraError ? '' : 'max-h-[85vh] overflow-y-auto'}>
           {practiceQuestion && !coaching && !textCoaching && (
             <>
@@ -1211,13 +1213,14 @@ export function AiCoachingPage() {
                 <div className="mt-4 space-y-4">
                   {/* Camera Preview — only show when no error blocking everything */}
                   {!cameraError && (
-                    <div className="relative bg-black aspect-video rounded-xl">
-                      {/* 10TH FIX: key prop forces React to create a BRAND NEW <video>
-                          DOM element when cameraReady transitions to true. The fresh element
-                          was never hidden behind the overlay, so iOS WebKit's decoder starts
-                          immediately. Stream is attached via useEffect + rAF backup.
-                          No clipPath, no translateZ(0), no willChange — these create
-                          compositing layers that prevent iOS WebKit from rendering video. */}
+                    <div className="relative bg-black aspect-video rounded-xl isolate overflow-hidden">
+                      {/* Key prop forces fresh DOM element when cameraReady transitions.
+                          Combined with isolation:isolate on parent (11th fix), this ensures
+                          iOS WebKit's video decoder starts cleanly. */}
+                      {/* 11TH FIX: isolation:isolate on parent + overflow-hidden handles
+                          rounded corners. Video gets NO border-radius, NO will-change,
+                          NO clipPath — just the mirror transform directly on the element.
+                          This avoids WebKit bug #98538 compositing conflicts. */}
                       <video
                         key={cameraReady ? 'cam-active' : 'cam-pending'}
                         ref={videoRef}
@@ -1228,7 +1231,7 @@ export function AiCoachingPage() {
                         webkit-playsinline=""
                         width={640}
                         height={480}
-                        className="absolute inset-0 w-full h-full object-cover rounded-xl"
+                        className="absolute inset-0 w-full h-full object-cover"
                         style={{ transform: 'scaleX(-1)' }}
                       />
 
