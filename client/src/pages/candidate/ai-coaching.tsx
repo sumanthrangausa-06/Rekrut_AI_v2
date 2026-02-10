@@ -186,7 +186,6 @@ export function AiCoachingPage() {
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -251,31 +250,35 @@ export function AiCoachingPage() {
     }
   }, [])
 
-  // 10TH FIX (Feb 10 2026): On iOS WebKit, a <video> element that had srcObject
-  // set while hidden behind an opaque overlay never starts rendering — iOS's power
-  // optimization paused the decoder and won't restart it even after overlay removal
-  // and play(). The <video> element uses a key prop that changes when cameraReady
-  // becomes true, forcing React to create a BRAND NEW DOM element that was never
-  // hidden. This useEffect then attaches the stream to the fresh element.
+  // Stream attachment — runs AFTER cameraReady=true removes the overlay.
+  // The key prop forces React to create a fresh <video key="cam-active"> element
+  // that was never hidden behind the overlay. We attach the stream here (not in
+  // startCamera) to avoid iOS WebKit's decoder pause for hidden video elements.
   useEffect(() => {
     if (!cameraReady) return
-    const video = videoRef.current
     const stream = streamRef.current
-    if (!video || !stream) return
+    if (!stream) return
 
-    // Attach stream to the fresh video element (created by key change)
-    // Use a small delay to ensure React has committed the new element to the DOM
+    // Small delay ensures React has committed the new key="cam-active" element
     const timer = setTimeout(() => {
       const v = videoRef.current
       if (!v) return
       v.srcObject = stream
       v.play().then(() => {
-        console.log(`[camera] 10th fix: play() succeeded on fresh element, readyState=${v.readyState}`)
+        console.log(`[camera] play() succeeded, readyState=${v.readyState}`)
         setCameraStatus(prev => prev + ' ▶')
       }).catch((e: any) => {
-        console.warn('[camera] play() on fresh element:', e?.message)
+        console.warn('[camera] play() failed:', e?.message)
+        // Retry once — iOS sometimes needs a second attempt
+        setTimeout(() => {
+          const v2 = videoRef.current
+          if (v2 && streamRef.current) {
+            v2.srcObject = streamRef.current
+            v2.play().catch(() => {})
+          }
+        }, 200)
       })
-    }, 80)
+    }, 100)
 
     return () => clearTimeout(timer)
   }, [cameraReady])
@@ -318,120 +321,23 @@ export function AiCoachingPage() {
   const isChromeIOS = isIOS && /CriOS/.test(navigator.userAgent)
   const isSafari = isIOS && !isChromeIOS && /Safari/.test(navigator.userAgent)
 
-  // Camera management — 8th FIX (Feb 10 2026)
+  // Camera management — 12TH FIX (Feb 10 2026)
   //
-  // ROOT CAUSE: On iOS Chrome (CriOS / WKWebView), calling getUserMedia with
-  // BOTH video + audio in a single request can result in iOS granting only
-  // microphone access. The returned stream has a "ghost" video track that
-  // reports readyState='live' but delivers zero frames (video.readyState=0).
+  // ROOT CAUSE OF BLACK SCREEN: The 8th fix split getUserMedia into two calls
+  // (video-only, then audio separately). On iOS WebKit, the second
+  // getUserMedia({ audio: true }) call DISRUPTS the already-active video track,
+  // causing it to report readyState='live' with valid settings but deliver
+  // ZERO frames — hence the black screen despite "OK 480x640 a:1" debug text.
   //
-  // FIX: Request VIDEO-ONLY first (forces iOS to specifically prompt for camera),
-  // verify we get real frames, then request audio separately and merge tracks.
-  // If video-only also fails, try progressively simpler constraints.
+  // The audio track was COMPLETELY UNUSED:
+  // - Frame capture uses canvas.drawImage (video only)
+  // - Transcription uses SpeechRecognition API (independent of stream)
+  // - MediaRecorder was never used (ref was declared but never referenced)
   //
-  // getUserMedia MUST be the FIRST async call after user gesture (iOS requirement).
-
-  // Helper: attach stream to video element and verify it's working
-  //
-  // 9TH FIX (Feb 10 2026): On iOS WebKit, the video element doesn't decode
-  // frames when completely covered by an opaque overlay (power optimization).
-  // The !cameraReady overlay (z-10 bg-black/90) covers the <video> during
-  // this entire check, so video.readyState NEVER reaches >=2 and videoWidth
-  // stays 0 — creating a deadlock: we need frames to remove the overlay,
-  // but need the overlay removed to get frames.
-  //
-  // FIX: Trust the MediaStreamTrack's getSettings() instead of polling
-  // video.readyState. If the track is 'live' with valid width/height,
-  // the camera IS working. Return true immediately so the caller can
-  // set cameraReady=true, which removes the overlay, which lets iOS
-  // start rendering.
-  async function attachStreamToVideo(stream: MediaStream): Promise<boolean> {
-    const video = videoRef.current
-    if (!video) {
-      console.error('[camera] video ref not available')
-      setCameraStatus('No video element')
-      return false
-    }
-
-    // Detach first (clean slate)
-    video.srcObject = null
-    await new Promise(r => setTimeout(r, 50))
-    video.srcObject = stream
-
-    // Explicit play() — on iOS autoPlay can be unreliable after getUserMedia
-    try {
-      await video.play()
-    } catch (playErr: any) {
-      console.warn('[camera] play() error:', playErr?.message)
-      // Don't fail — muted+playsInline videos may auto-start
-    }
-
-    // ── PRIMARY CHECK: Trust the track's settings ──
-    // If the track is live and reports valid dimensions, the camera IS active.
-    // Don't wait for video.readyState (which won't update while overlay covers video on iOS).
-    const vt = stream.getVideoTracks()[0]
-    if (vt && vt.readyState === 'live') {
-      const settings = vt.getSettings?.() || {}
-      if ((settings.width || 0) > 0 && (settings.height || 0) > 0) {
-        console.log(`[camera] track live with valid settings ${settings.width}x${settings.height} — trusting track (iOS fix)`)
-        setCameraStatus(`Live ${settings.width}x${settings.height}`)
-        return true
-      }
-    }
-
-    // ── FALLBACK: Poll for frame data OR track settings (up to 4 seconds) ──
-    // Handles edge cases where track settings aren't immediately available
-    return new Promise<boolean>((resolve) => {
-      const start = Date.now()
-      const check = () => {
-        const v = videoRef.current
-        if (!v || v.srcObject !== stream) { resolve(false); return }
-
-        const elapsed = Date.now() - start
-
-        // Check video element (works on desktop / non-overlay scenarios)
-        if (v.readyState >= 2 && v.videoWidth > 0) {
-          console.log(`[camera] frames confirmed after ${elapsed}ms — ${v.videoWidth}x${v.videoHeight}`)
-          resolve(true)
-          return
-        }
-
-        // Re-check track settings (may become available after a delay)
-        const vt2 = stream.getVideoTracks()[0]
-        if (vt2 && vt2.readyState === 'live' && elapsed > 300) {
-          const s = vt2.getSettings?.() || {}
-          if ((s.width || 0) > 0 && (s.height || 0) > 0) {
-            console.log(`[camera] track settings available after ${elapsed}ms: ${s.width}x${s.height} — trusting`)
-            setCameraStatus(`Live ${s.width}x${s.height}`)
-            resolve(true)
-            return
-          }
-        }
-
-        // Also accept if track is live and enabled (even without settings)
-        if (vt2 && vt2.readyState === 'live' && vt2.enabled && !vt2.muted && elapsed > 1500) {
-          console.log(`[camera] track live+enabled after ${elapsed}ms — accepting without settings`)
-          setCameraStatus('Live (no settings)')
-          resolve(true)
-          return
-        }
-
-        // Diagnostic info
-        const diag = vt2
-          ? `trk:${vt2.readyState} muted:${vt2.muted} enabled:${vt2.enabled}`
-          : 'no-vt'
-        setCameraStatus(`Waiting ${Math.round(elapsed / 1000)}s rs=${v.readyState} ${diag}`)
-
-        if (elapsed > 4000) {
-          console.warn('[camera] no frames or track settings after 4s')
-          resolve(false)
-          return
-        }
-        setTimeout(check, 200)
-      }
-      setTimeout(check, 100)
-    })
-  }
+  // FIX: Request VIDEO-ONLY. Never request audio via getUserMedia.
+  // Also: don't attach stream to the hidden <video> element during init.
+  // Wait for cameraReady=true (overlay removed) then attach via useEffect.
+  // This avoids iOS's power optimization that pauses decoders for hidden video.
 
   async function startCamera() {
     try {
@@ -445,9 +351,10 @@ export function AiCoachingPage() {
         return
       }
 
-      // ── STEP 1: Request VIDEO-ONLY (forces camera permission prompt on iOS) ──
+      // VIDEO ONLY — no audio needed. Transcription uses SpeechRecognition API.
+      // CRITICAL: Do NOT call getUserMedia for audio — it kills video on iOS.
       let videoStream: MediaStream | null = null
-      const constraintSets = [
+      const constraintSets: Array<{ video: MediaStreamConstraints['video'], label: string }> = [
         { video: { facingMode: 'user' }, label: 'video:user' },
         { video: true, label: 'video:true' },
       ]
@@ -455,42 +362,21 @@ export function AiCoachingPage() {
       for (const { video: vc, label } of constraintSets) {
         try {
           setCameraStatus(`Trying ${label}...`)
-          // @ts-ignore — vc can be boolean or object
           videoStream = await navigator.mediaDevices.getUserMedia({ video: vc })
 
           const vt = videoStream.getVideoTracks()[0]
-          if (!vt) {
-            console.warn(`[camera] ${label}: no video track returned`)
+          if (!vt || vt.readyState !== 'live') {
+            console.warn(`[camera] ${label}: no live video track`)
             videoStream.getTracks().forEach(t => t.stop())
             videoStream = null
             continue
           }
 
-          // Check track has real settings (width/height > 0 means camera is actually active)
+          // Trust track settings — don't attach to video element yet (it's behind overlay)
           const settings = vt.getSettings?.() || {}
-          console.log(`[camera] ${label}: track=${vt.readyState} muted=${vt.muted} ${settings.width}x${settings.height}`)
+          console.log(`[camera] ${label}: track=${vt.readyState} ${settings.width}x${settings.height}`)
           setCameraStatus(`Got ${label}: ${settings.width || '?'}x${settings.height || '?'}`)
-
-          // Attach and verify frames flow
-          const framesOk = await attachStreamToVideo(videoStream)
-          if (framesOk) {
-            setCameraStatus(`Video OK via ${label}`)
-            break // Success!
-          }
-
-          // Frames didn't flow — try reattach once (srcObject can be finicky on iOS)
-          console.warn(`[camera] ${label}: no frames, retrying attach...`)
-          setCameraStatus(`Retry attach ${label}...`)
-          const retryOk = await attachStreamToVideo(videoStream)
-          if (retryOk) {
-            setCameraStatus(`Video OK via ${label} (retry)`)
-            break
-          }
-
-          // This constraint set failed
-          console.warn(`[camera] ${label}: failed after retry`)
-          videoStream.getTracks().forEach(t => t.stop())
-          videoStream = null
+          break // Live track — success
         } catch (err: any) {
           console.warn(`[camera] ${label} error: ${err?.name} ${err?.message}`)
           setCameraStatus(`${label}: ${err?.name}`)
@@ -503,85 +389,22 @@ export function AiCoachingPage() {
       }
 
       if (!videoStream) {
-        // Last resort: try combined video+audio (some devices need it)
-        try {
-          setCameraStatus('Trying video+audio...')
-          videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-          const framesOk = await attachStreamToVideo(videoStream)
-          if (!framesOk) {
-            videoStream.getTracks().forEach(t => t.stop())
-            videoStream = null
-          } else {
-            setCameraStatus('Video OK via combined')
-          }
-        } catch (err: any) {
-          console.warn('[camera] combined fallback error:', err?.name)
-          if (err.name === 'NotAllowedError') {
-            setCameraError('denied')
-          } else {
-            setCameraError('not_found')
-          }
-          setCameraStatus(`All methods failed: ${err?.name}`)
-          return
-        }
-      }
-
-      if (!videoStream) {
         setCameraError('not_found')
         setCameraStatus('Camera not working — tap Retry')
         return
       }
 
-      // ── STEP 2: Add audio track (separate request) ──
-      const hasAudio = videoStream.getAudioTracks().length > 0
-      if (!hasAudio) {
-        try {
-          setCameraStatus('Adding microphone...')
-          const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-          const audioTrack = audioStream.getAudioTracks()[0]
-          if (audioTrack) {
-            videoStream.addTrack(audioTrack)
-            console.log('[camera] audio track added')
-          }
-        } catch (audioErr: any) {
-          // Audio failure is non-fatal — recording can work without mic
-          console.warn('[camera] audio request failed:', audioErr?.name)
-        }
-      }
-
-      // ── STEP 3: Finalize ──
+      // Store stream — DO NOT attach to video element here.
+      // The <video> is currently behind the !cameraReady overlay.
+      // On iOS WebKit, attaching a stream to a hidden video can permanently
+      // pause the decoder. The useEffect([cameraReady]) will attach the stream
+      // AFTER the overlay is removed (when key="cam-active" element is visible).
       streamRef.current = videoStream
-      const video = videoRef.current
-      if (video) {
-        // Ensure video element has the final stream (might have been set in attachStreamToVideo)
-        if (video.srcObject !== videoStream) {
-          video.srcObject = videoStream
-          try { await video.play() } catch {}
-        }
-      }
 
       const vt = videoStream.getVideoTracks()[0]
-      const at = videoStream.getAudioTracks()
       const settings = vt?.getSettings?.() || {}
-      setCameraStatus(`OK ${settings.width || '?'}x${settings.height || '?'} a:${at.length}`)
+      setCameraStatus(`OK ${settings.width || '?'}x${settings.height || '?'}`)
       setCameraReady(true)
-
-      // ── 10TH FIX: After cameraReady=true, React recreates <video> via key prop ──
-      // The useEffect handles stream reattachment. This rAF is a backup that also
-      // ensures srcObject is set on the new element if the useEffect hasn't fired yet.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const v = videoRef.current
-          const s = streamRef.current
-          if (v && s) {
-            if (!v.srcObject) {
-              v.srcObject = s
-              console.log('[camera] rAF backup: attached stream to fresh element')
-            }
-            v.play().catch(() => {})
-          }
-        })
-      })
 
       // Monitor track ending (user revokes permission)
       if (vt) {
@@ -1214,13 +1037,9 @@ export function AiCoachingPage() {
                   {/* Camera Preview — only show when no error blocking everything */}
                   {!cameraError && (
                     <div className="relative bg-black aspect-video rounded-xl isolate overflow-hidden">
-                      {/* Key prop forces fresh DOM element when cameraReady transitions.
-                          Combined with isolation:isolate on parent (11th fix), this ensures
-                          iOS WebKit's video decoder starts cleanly. */}
-                      {/* 11TH FIX: isolation:isolate on parent + overflow-hidden handles
-                          rounded corners. Video gets NO border-radius, NO will-change,
-                          NO clipPath — just the mirror transform directly on the element.
-                          This avoids WebKit bug #98538 compositing conflicts. */}
+                      {/* Key prop forces fresh DOM element when cameraReady changes.
+                          Stream is ONLY attached via useEffect AFTER overlay is removed.
+                          This avoids iOS WebKit decoder pause for hidden video elements. */}
                       <video
                         key={cameraReady ? 'cam-active' : 'cam-pending'}
                         ref={videoRef}
@@ -1229,8 +1048,6 @@ export function AiCoachingPage() {
                         playsInline
                         // @ts-ignore — webkit-playsinline is a non-standard attribute
                         webkit-playsinline=""
-                        width={640}
-                        height={480}
                         className="absolute inset-0 w-full h-full object-cover"
                         style={{ transform: 'scaleX(-1)' }}
                       />
