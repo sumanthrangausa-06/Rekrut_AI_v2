@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Analyze root cause of black video on iOS despite live track",
+    "status": "completed",
+    "activeForm": "Analyzing root cause"
+  },
+  {
+    "content": "Implement fix: key prop + useEffect + stripped CSS compositing",
+    "status": "completed",
+    "activeForm": "Implementing video rendering fix"
+  },
+  {
+    "content": "Build and deploy",
+    "status": "in_progress",
+    "activeForm": "Building and deploying"
+  },
+  {
+    "content": "Update memory with findings",
+    "status": "pending",
+    "activeForm": "Updating memory"
+  }
+]
