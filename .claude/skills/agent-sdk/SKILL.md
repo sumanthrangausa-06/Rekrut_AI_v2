@@ -2,7 +2,7 @@
 
 Build AI agents that work autonomously for end users. Every Polsia company can be an AI company.
 
-**Default:** Opus 4.5 with extended thinking. Polsia handles model selection and turn limits.
+**Default:** Opus 4.6 with extended thinking. Polsia handles model selection and turn limits.
 
 ## MANDATORY: All AI Features Must Use Polsia API
 
