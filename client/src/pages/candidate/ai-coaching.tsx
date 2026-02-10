@@ -298,6 +298,82 @@ export function AiCoachingPage() {
   //
   // Pattern: User taps → getUserMedia() immediately → handle result.
   // NO Permissions API pre-check. NO async delays. NO retry loops.
+
+  // Attach a MediaStream to the video element and wait for confirmed playback.
+  // On iOS WebKit (all iOS browsers), video.play() can resolve before the video
+  // pipeline is actually rendering frames, resulting in a black rectangle.
+  // We wait for the 'playing' event which fires when frames are being presented.
+  async function attachStreamToVideo(stream: MediaStream): Promise<void> {
+    const video = videoRef.current
+    if (!video) {
+      console.error('[camera] video element ref not available')
+      return
+    }
+
+    // iOS quirk: the HTML `muted` attribute alone is sometimes insufficient
+    // for autoplay policy. Setting it programmatically ensures iOS treats
+    // the element as muted for autoplay purposes.
+    video.muted = true
+
+    // Set up a promise that resolves when the video is CONFIRMED playing.
+    // Attach listener BEFORE setting srcObject to avoid race conditions
+    // where autoPlay triggers the event before our listener is registered.
+    const playingConfirmed = new Promise<void>((resolve) => {
+      let settled = false
+      const settle = () => {
+        if (settled) return
+        settled = true
+        video.removeEventListener('playing', onPlaying)
+        resolve()
+      }
+
+      function onPlaying() { settle() }
+
+      // If video is already playing (e.g. from a prior stream), settle now
+      if (!video.paused && video.readyState >= 2) {
+        settle()
+        return
+      }
+
+      video.addEventListener('playing', onPlaying)
+
+      // Safety timeout: don't hang forever if 'playing' never fires.
+      // After 5s, try one last play() and resolve regardless.
+      setTimeout(() => {
+        if (!settled) {
+          console.warn('[camera] playing event timeout — forcing ready')
+          video.play().catch(() => {})
+          settle()
+        }
+      }, 5000)
+    })
+
+    // Assign the stream — this triggers autoPlay if the attribute is set
+    video.srcObject = stream
+
+    // Explicitly call play() as a belt-and-suspenders approach.
+    // On iOS the autoPlay attribute alone can be unreliable after an
+    // async gap (getUserMedia consumed the original user gesture).
+    try {
+      await video.play()
+    } catch (playErr: any) {
+      console.warn('[camera] initial play() failed:', playErr?.message)
+      // Retry after a short delay — iOS WebKit sometimes needs a tick
+      // for the rendering pipeline to initialize after srcObject is set.
+      await new Promise(r => setTimeout(r, 300))
+      try {
+        await video.play()
+      } catch (retryErr: any) {
+        console.warn('[camera] retry play() failed:', retryErr?.message)
+        // autoPlay + muted + playsInline should eventually start playback;
+        // we'll rely on the playingConfirmed timeout as last resort.
+      }
+    }
+
+    // Wait until the video is confirmed rendering frames
+    await playingConfirmed
+  }
+
   async function startCamera() {
     try {
       setCameraError(null)
@@ -319,16 +395,26 @@ export function AiCoachingPage() {
 
       streamRef.current = stream
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        try {
-          await videoRef.current.play()
-        } catch (playErr) {
-          // Stream is still active even if autoplay policy blocks play()
-          console.warn('Video play() blocked by autoplay policy:', playErr)
-        }
+      // Verify we actually got a live video track. If the track is already
+      // ended (e.g. permission was immediately revoked), show an error.
+      const videoTrack = stream.getVideoTracks()[0]
+      if (!videoTrack || videoTrack.readyState !== 'live') {
+        console.error('[camera] no live video track in stream')
+        setCameraError('not_found')
+        return
       }
+
+      // Attach stream and wait for confirmed playback
+      await attachStreamToVideo(stream)
       setCameraReady(true)
+
+      // Monitor — if user revokes camera permission in browser settings
+      // while the page is open, the track ends. Detect and show error.
+      videoTrack.addEventListener('ended', () => {
+        console.warn('[camera] video track ended — permission may have been revoked')
+        setCameraReady(false)
+        setCameraError('denied')
+      })
     } catch (err: any) {
       console.error('Camera access error:', err?.name, err?.message)
 
@@ -341,10 +427,7 @@ export function AiCoachingPage() {
         try {
           const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
           streamRef.current = fallbackStream
-          if (videoRef.current) {
-            videoRef.current.srcObject = fallbackStream
-            try { await videoRef.current.play() } catch (_) {}
-          }
+          await attachStreamToVideo(fallbackStream)
           setCameraReady(true)
           return
         } catch (fallbackErr: any) {
