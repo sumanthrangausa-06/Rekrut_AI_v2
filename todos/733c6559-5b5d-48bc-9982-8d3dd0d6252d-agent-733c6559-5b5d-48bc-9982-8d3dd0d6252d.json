@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Create minimal /test-camera page with progressive isolation levels",
+    "status": "completed",
+    "activeForm": "Creating minimal /test-camera isolation page"
+  },
+  {
+    "content": "Add route to App.tsx",
+    "status": "completed",
+    "activeForm": "Adding route to App.tsx"
+  },
+  {
+    "content": "Build, deploy, and verify",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying"
+  }
+]
