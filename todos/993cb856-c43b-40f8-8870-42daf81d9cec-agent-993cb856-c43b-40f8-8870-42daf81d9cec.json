@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate root cause of black camera on iOS",
+    "status": "completed",
+    "activeForm": "Investigating black camera root cause"
+  },
+  {
+    "content": "Implement canvas-based video preview fix",
+    "status": "completed",
+    "activeForm": "Implementing canvas-based video preview"
+  },
+  {
+    "content": "Build, deploy, and verify",
+    "status": "in_progress",
+    "activeForm": "Building and deploying fix"
+  },
+  {
+    "content": "Update memory and complete task",
+    "status": "pending",
+    "activeForm": "Updating memory and completing task"
+  }
+]
