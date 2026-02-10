@@ -191,6 +191,8 @@ export function AiCoachingPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const frameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const recognitionRef = useRef<any>(null)
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null)
+  const animFrameRef = useRef<number>(0)
 
   // Feedback detail sections
   const [expandedSection, setExpandedSection] = useState<string | null>('content')
@@ -244,6 +246,7 @@ export function AiCoachingPage() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      stopPreviewLoop()
       stopCamera()
       if (timerRef.current) clearInterval(timerRef.current)
       if (frameIntervalRef.current) clearInterval(frameIntervalRef.current)
@@ -299,10 +302,17 @@ export function AiCoachingPage() {
   // Pattern: User taps → getUserMedia() immediately → handle result.
   // NO Permissions API pre-check. NO async delays. NO retry loops.
 
-  // Attach a MediaStream to the video element and wait for confirmed playback.
-  // On iOS WebKit (all iOS browsers), video.play() can resolve before the video
-  // pipeline is actually rendering frames, resulting in a black rectangle.
-  // We wait for the 'playing' event which fires when frames are being presented.
+  // Attach a MediaStream to the hidden video element.
+  // On iOS WebKit (all iOS browsers), <video srcObject=MediaStream> often renders
+  // as a black rectangle — the WebKit compositor fails to connect decoded frames
+  // to the rendering surface, especially inside scrollable containers or modals
+  // with CSS overflow/border-radius. play() resolves and the 'playing' event fires,
+  // but no actual pixels appear on screen.
+  //
+  // Fix: We use a <canvas> for the live preview instead. canvas.drawImage(video)
+  // reads from the decoded frame buffer (not the compositor), so it works even
+  // when the <video> element itself renders black. This matches the approach used
+  // by Google Meet, Zoom Web, and Loom on iOS.
   async function attachStreamToVideo(stream: MediaStream): Promise<void> {
     const video = videoRef.current
     if (!video) {
@@ -310,68 +320,102 @@ export function AiCoachingPage() {
       return
     }
 
-    // iOS quirk: the HTML `muted` attribute alone is sometimes insufficient
-    // for autoplay policy. Setting it programmatically ensures iOS treats
-    // the element as muted for autoplay purposes.
+    // iOS WebKit: programmatic muted + webkit-playsinline are required
     video.muted = true
+    video.setAttribute('webkit-playsinline', '')
+    video.setAttribute('playsinline', '')
 
-    // Set up a promise that resolves when the video is CONFIRMED playing.
-    // Attach listener BEFORE setting srcObject to avoid race conditions
-    // where autoPlay triggers the event before our listener is registered.
-    const playingConfirmed = new Promise<void>((resolve) => {
-      let settled = false
-      const settle = () => {
-        if (settled) return
-        settled = true
-        video.removeEventListener('playing', onPlaying)
-        resolve()
-      }
-
-      function onPlaying() { settle() }
-
-      // If video is already playing (e.g. from a prior stream), settle now
-      if (!video.paused && video.readyState >= 2) {
-        settle()
-        return
-      }
-
-      video.addEventListener('playing', onPlaying)
-
-      // Safety timeout: don't hang forever if 'playing' never fires.
-      // After 5s, try one last play() and resolve regardless.
-      setTimeout(() => {
-        if (!settled) {
-          console.warn('[camera] playing event timeout — forcing ready')
-          video.play().catch(() => {})
-          settle()
-        }
-      }, 5000)
-    })
-
-    // Assign the stream — this triggers autoPlay if the attribute is set
     video.srcObject = stream
 
-    // Explicitly call play() as a belt-and-suspenders approach.
-    // On iOS the autoPlay attribute alone can be unreliable after an
-    // async gap (getUserMedia consumed the original user gesture).
     try {
       await video.play()
     } catch (playErr: any) {
-      console.warn('[camera] initial play() failed:', playErr?.message)
-      // Retry after a short delay — iOS WebKit sometimes needs a tick
-      // for the rendering pipeline to initialize after srcObject is set.
+      console.warn('[camera] play() failed, retrying:', playErr?.message)
       await new Promise(r => setTimeout(r, 300))
-      try {
-        await video.play()
-      } catch (retryErr: any) {
-        console.warn('[camera] retry play() failed:', retryErr?.message)
-        // autoPlay + muted + playsInline should eventually start playback;
-        // we'll rely on the playingConfirmed timeout as last resort.
+      try { await video.play() } catch {}
+    }
+  }
+
+  // Canvas-based preview loop — draws video frames to a visible <canvas>.
+  // Bypasses iOS WebKit's broken video compositor. Works on ALL platforms.
+  function startPreviewLoop() {
+    let readySignaled = false
+    let frameAttempts = 0
+
+    const draw = () => {
+      const video = videoRef.current
+      const canvas = previewCanvasRef.current
+      if (!video || !canvas) {
+        animFrameRef.current = requestAnimationFrame(draw)
+        return
       }
+
+      // Wait until the video has decoded frame data
+      if (video.readyState < 2) {
+        frameAttempts++
+        // Safety: after ~8 seconds (480 frames at 60fps), force ready
+        if (frameAttempts > 480 && !readySignaled) {
+          console.warn('[camera] video never reached readyState 2 — forcing ready')
+          readySignaled = true
+          setCameraReady(true)
+        }
+        animFrameRef.current = requestAnimationFrame(draw)
+        return
+      }
+
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        animFrameRef.current = requestAnimationFrame(draw)
+        return
+      }
+
+      // Match canvas internal resolution to display size
+      const rect = canvas.getBoundingClientRect()
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const cw = Math.round(rect.width * dpr)
+      const ch = Math.round(rect.height * dpr)
+      if (canvas.width !== cw || canvas.height !== ch) {
+        canvas.width = cw
+        canvas.height = ch
+      }
+
+      // Calculate "object-cover" crop from the video frame
+      const vw = video.videoWidth || 640
+      const vh = video.videoHeight || 480
+      const videoAspect = vw / vh
+      const canvasAspect = cw / ch
+      let sx = 0, sy = 0, sw = vw, sh = vh
+      if (videoAspect > canvasAspect) {
+        sw = vh * canvasAspect
+        sx = (vw - sw) / 2
+      } else {
+        sh = vw / canvasAspect
+        sy = (vh - sh) / 2
+      }
+
+      // Draw mirrored (selfie) frame
+      ctx.save()
+      ctx.scale(-1, 1)
+      ctx.drawImage(video, sx, sy, sw, sh, -cw, 0, cw, ch)
+      ctx.restore()
+
+      // Signal camera ready once we've successfully drawn a real frame
+      if (!readySignaled) {
+        readySignaled = true
+        setCameraReady(true)
+      }
+
+      animFrameRef.current = requestAnimationFrame(draw)
     }
 
-    // Wait until the video is confirmed rendering frames
-    await playingConfirmed
+    animFrameRef.current = requestAnimationFrame(draw)
+  }
+
+  function stopPreviewLoop() {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current)
+      animFrameRef.current = 0
+    }
   }
 
   async function startCamera() {
@@ -404,14 +448,19 @@ export function AiCoachingPage() {
         return
       }
 
-      // Attach stream and wait for confirmed playback
+      // Attach stream to hidden video element
       await attachStreamToVideo(stream)
-      setCameraReady(true)
+
+      // Start canvas preview loop — it draws frames from the video to a
+      // visible canvas, bypassing iOS WebKit rendering bugs. The loop
+      // sets cameraReady=true once the first real frame is drawn.
+      startPreviewLoop()
 
       // Monitor — if user revokes camera permission in browser settings
       // while the page is open, the track ends. Detect and show error.
       videoTrack.addEventListener('ended', () => {
         console.warn('[camera] video track ended — permission may have been revoked')
+        stopPreviewLoop()
         setCameraReady(false)
         setCameraError('denied')
       })
@@ -428,7 +477,7 @@ export function AiCoachingPage() {
           const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
           streamRef.current = fallbackStream
           await attachStreamToVideo(fallbackStream)
-          setCameraReady(true)
+          startPreviewLoop()
           return
         } catch (fallbackErr: any) {
           if (fallbackErr.name === 'NotAllowedError') {
@@ -446,6 +495,7 @@ export function AiCoachingPage() {
   }
 
   function stopCamera() {
+    stopPreviewLoop()
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop())
       streamRef.current = null
@@ -1047,20 +1097,30 @@ export function AiCoachingPage() {
                   {/* Camera Preview — only show when no error blocking everything */}
                   {!cameraError && (
                     <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
+                      {/* Video element: receives the MediaStream and decodes frames.
+                          Hidden behind the canvas — iOS WebKit often fails to render
+                          <video srcObject=MediaStream> to screen (black rectangle bug).
+                          The video still decodes frames so canvas.drawImage() can read them. */}
                       <video
                         ref={videoRef}
                         autoPlay
                         muted
                         playsInline
-                        className="w-full h-full object-cover mirror"
-                        style={{ transform: 'scaleX(-1)' }}
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                      {/* Canvas preview: draws decoded frames from the video element.
+                          Bypasses iOS WebKit's broken video compositor — works on ALL
+                          platforms including iOS Safari, iOS Chrome, and desktop browsers. */}
+                      <canvas
+                        ref={previewCanvasRef}
+                        className="absolute inset-0 w-full h-full"
                       />
 
                       {/* Enable Camera prompt — shown before camera is started.
                           getUserMedia MUST be called from a direct user gesture (tap/click)
                           for reliable cross-browser permission prompts. */}
                       {!cameraReady && (
-                        <div className="absolute inset-0 bg-black/90 flex items-center justify-center p-4">
+                        <div className="absolute inset-0 z-10 bg-black/90 flex items-center justify-center p-4">
                           <div className="text-center text-white max-w-xs">
                             <div className="p-4 rounded-full bg-white/10 inline-flex mb-3">
                               <Camera className="h-8 w-8 text-white" />
@@ -1091,14 +1151,14 @@ export function AiCoachingPage() {
 
                       {/* Countdown overlay */}
                       {countdown !== null && (
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <div className="absolute inset-0 z-10 bg-black/60 flex items-center justify-center">
                           <div className="text-7xl font-bold text-white animate-pulse">{countdown}</div>
                         </div>
                       )}
 
                       {/* Recording indicator */}
                       {isRecording && (
-                        <div className="absolute top-3 left-3 flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 rounded-full text-sm font-medium">
+                        <div className="absolute top-3 left-3 z-10 flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 rounded-full text-sm font-medium">
                           <div className="h-2.5 w-2.5 rounded-full bg-white animate-pulse" />
                           REC {formatTime(recordingTime)}
                         </div>
@@ -1106,14 +1166,14 @@ export function AiCoachingPage() {
 
                       {/* Frame count */}
                       {isRecording && (
-                        <div className="absolute top-3 right-3 bg-black/60 text-white px-2 py-1 rounded text-xs">
+                        <div className="absolute top-3 right-3 z-10 bg-black/60 text-white px-2 py-1 rounded text-xs">
                           {capturedFrames.length} frames
                         </div>
                       )}
 
                       {/* Transcription status */}
                       {isRecording && (
-                        <div className="absolute bottom-3 left-3 right-3">
+                        <div className="absolute bottom-3 left-3 right-3 z-10">
                           <div className="bg-black/70 rounded-lg p-2 text-white text-xs max-h-16 overflow-y-auto">
                             {isTranscribing && <Mic className="h-3 w-3 inline mr-1 text-green-400" />}
                             {transcription || 'Listening...'}
