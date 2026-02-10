@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate root cause of black camera on iOS (6th attempt)",
+    "status": "completed",
+    "activeForm": "Investigating root cause of black camera"
+  },
+  {
+    "content": "Implement detached video element approach (outside modal DOM)",
+    "status": "completed",
+    "activeForm": "Implementing detached video element approach"
+  },
+  {
+    "content": "Add visible debug diagnostics on canvas",
+    "status": "completed",
+    "activeForm": "Adding debug diagnostics to canvas"
+  },
+  {
+    "content": "Build, deploy, and verify",
+    "status": "in_progress",
+    "activeForm": "Building and deploying fix"
+  },
+  {
+    "content": "Update memory with learnings",
+    "status": "pending",
+    "activeForm": "Updating memory with learnings"
+  }
+]
