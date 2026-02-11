@@ -1081,18 +1081,19 @@ router.post('/mock/start', authMiddleware, async (req, res) => {
     // Create mock interview session
     const questionIds = bankQuestions.map(q => q.id);
 
-    // Build opening message from the AI interviewer
+    // Build opening message — natural interview greeting, NO format explanation
+    // The first actual question comes AFTER the candidate introduces themselves
     const openingMessage = {
       role: 'interviewer',
-      text: `Hi! Thanks for joining this mock interview for the ${role} position. I'll be asking you a series of questions to assess your fit. Take your time with each answer — I may ask follow-ups based on what you share. Let's get started.\n\n${bankQuestions[0].question_text}`,
-      action: 'transition',
+      text: `Hi there! I'm Alex, and I'll be interviewing you today for the ${role} position. Thanks for taking the time — before we dive in, could you tell me a little about yourself and what drew you to this role?`,
+      action: 'introduction',
       timestamp: new Date().toISOString()
     };
 
     const session = await pool.query(
       `INSERT INTO mock_interview_sessions
        (user_id, target_role, job_description, jd_hash, question_ids, conversation, current_question_index, questions_asked)
-       VALUES ($1, $2, $3, $4, $5, $6, 1, 1)
+       VALUES ($1, $2, $3, $4, $5, $6, 0, 0)
        RETURNING *`,
       [
         req.user.id,
@@ -1104,8 +1105,7 @@ router.post('/mock/start', authMiddleware, async (req, res) => {
       ]
     );
 
-    // Increment times_used for first question
-    await pool.query('UPDATE question_bank SET times_used = times_used + 1 WHERE id = $1', [bankQuestions[0].id]);
+    // Don't increment times_used yet — first question comes after candidate intro
 
     res.json({
       success: true,
@@ -1218,6 +1218,23 @@ router.post('/mock/:sessionId/respond', authMiddleware, async (req, res) => {
       ]
     );
 
+    // BUG FIX: Pre-generate feedback in background after 3+ candidate turns
+    // This dramatically reduces wait time when user clicks "End"
+    const candidateTurnCount = conversation.filter(t => t.role === 'candidate').length;
+    if (candidateTurnCount >= 3 && !isWrappingUp) {
+      // Fire and forget — generate text feedback in background and cache it
+      generateSessionFeedback(conversation, session.target_role, { subscriptionId: req.user.stripe_subscription_id })
+        .then(feedback => {
+          // Store cached feedback in session (overwrite each time for freshest data)
+          pool.query(
+            `UPDATE mock_interview_sessions SET cached_feedback = $1 WHERE id = $2 AND status = 'in_progress'`,
+            [JSON.stringify(feedback), sessionId]
+          ).catch(() => {}); // Non-fatal
+          console.log(`[mock] Background feedback cached for session ${sessionId} (${candidateTurnCount} turns)`);
+        })
+        .catch(err => console.warn('[mock] Background feedback generation failed:', err.message));
+    }
+
     res.json({
       success: true,
       interviewer_message: interviewerMessage,
@@ -1258,8 +1275,22 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
     const durationSeconds = Math.round((Date.now() - new Date(session.started_at).getTime()) / 1000);
     const options = { subscriptionId: req.user.stripe_subscription_id };
 
+    // BUG FIX: Use cached feedback if available (pre-generated in background during interview)
+    // This dramatically reduces wait time when clicking "End"
+    let cachedFeedback = null;
+    if (session.cached_feedback) {
+      try {
+        cachedFeedback = typeof session.cached_feedback === 'string'
+          ? JSON.parse(session.cached_feedback)
+          : session.cached_feedback;
+        console.log(`[mock-end] Using cached feedback (pre-generated during interview)`);
+      } catch { cachedFeedback = null; }
+    }
+
     const analysisPromises = [
-      generateSessionFeedback(conversation, session.target_role, options)
+      cachedFeedback
+        ? Promise.resolve(cachedFeedback)
+        : generateSessionFeedback(conversation, session.target_role, options)
     ];
 
     // Add video/body language analysis if frames are provided
@@ -1443,6 +1474,63 @@ router.get('/mock/question-bank', authMiddleware, async (req, res) => {
 // =============== VOICE INTERVIEW (TTS + STT) ===============
 
 // Text-to-Speech endpoint — converts interviewer text to spoken audio
+// Real-time single-frame body language analysis (lightweight, called every ~20s during interview)
+router.post('/mock/analyze-frame', authMiddleware, async (req, res) => {
+  try {
+    const { frame } = req.body;
+    if (!frame) {
+      return res.status(400).json({ error: 'No frame provided' });
+    }
+
+    // Upload single frame to R2
+    const { uploadFrameToR2 } = require('../lib/polsia-ai');
+    const frameUrl = await uploadFrameToR2(frame, 0);
+    if (!frameUrl) {
+      return res.json({ success: false, error: 'Frame upload failed' });
+    }
+
+    // Quick analysis with GPT-4o mini vision — short prompt for speed
+    const openai = new (require('openai').default)();
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      task: 'interview-realtime-body-language',
+      max_tokens: 200,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: `Quick interview body language check. Rate each as "good", "fair", or "poor" with a 2-3 word tip. Return JSON only:
+{"eye_contact":"good|fair|poor","posture":"good|fair|poor","confidence":"good|fair|poor","expression":"good|fair|poor","tip":"brief tip"}`
+          },
+          {
+            type: 'image_url',
+            image_url: { url: frameUrl, detail: 'low' }
+          }
+        ]
+      }]
+    });
+
+    const text = response.choices?.[0]?.message?.content || '';
+    let indicators;
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      indicators = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    } catch {
+      indicators = null;
+    }
+
+    if (indicators) {
+      res.json({ success: true, indicators });
+    } else {
+      res.json({ success: false, error: 'Could not parse analysis' });
+    }
+  } catch (err) {
+    console.error('[analyze-frame] Error:', err.message);
+    res.json({ success: false, error: 'Analysis failed' });
+  }
+});
+
 router.post('/mock/tts', authMiddleware, async (req, res) => {
   try {
     const { text, voice } = req.body;
@@ -1546,6 +1634,34 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
       transcribedText = req.body.response_text.trim();
     }
 
+    // BUG FIX: Whisper hallucinates known phrases when given silent/near-silent audio.
+    // Filter out common phantom phrases before proceeding.
+    const WHISPER_HALLUCINATIONS = [
+      'ご視聴ありがとうございました', // "Thank you for watching" (Japanese)
+      '視聴ありがとうございました',
+      'ありがとうございました',
+      'ご視聴ありがとうございます',
+      '字幕', // "Subtitles" (Japanese/Chinese)
+      'サブスクライブ', // "Subscribe" (Japanese)
+      'チャンネル登録', // "Channel registration" (Japanese)
+      '谢谢观看', // "Thanks for watching" (Chinese)
+      '感谢观看',
+      'Sous-titres', // "Subtitles" (French)
+      'Sottotitoli', // "Subtitles" (Italian)
+      'Untertitel', // "Subtitles" (German)
+      'Thanks for watching',
+      'Thank you for watching',
+      'Please subscribe',
+      'Like and subscribe',
+    ];
+    const isHallucination = WHISPER_HALLUCINATIONS.some(phrase =>
+      transcribedText.toLowerCase().includes(phrase.toLowerCase())
+    );
+    if (isHallucination) {
+      console.log(`[voice-respond] Filtered Whisper hallucination: "${transcribedText}"`);
+      return res.status(400).json({ error: 'I didn\'t catch that. Could you please repeat your answer?' });
+    }
+
     if (!transcribedText || transcribedText.length < 5) {
       return res.status(400).json({ error: 'Could not transcribe your response. Please try speaking louder and more clearly.' });
     }
@@ -1621,6 +1737,20 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
         sessionId
       ]
     );
+
+    // BUG FIX: Pre-generate feedback in background after 3+ candidate turns (same as text respond)
+    const voiceCandidateTurnCount = conversation.filter(t => t.role === 'candidate').length;
+    if (voiceCandidateTurnCount >= 3 && !isWrappingUp) {
+      generateSessionFeedback(conversation, session.target_role, { subscriptionId: req.user.stripe_subscription_id })
+        .then(feedback => {
+          pool.query(
+            `UPDATE mock_interview_sessions SET cached_feedback = $1 WHERE id = $2 AND status = 'in_progress'`,
+            [JSON.stringify(feedback), sessionId]
+          ).catch(() => {});
+          console.log(`[voice-respond] Background feedback cached for session ${sessionId} (${voiceCandidateTurnCount} turns)`);
+        })
+        .catch(err => console.warn('[voice-respond] Background feedback generation failed:', err.message));
+    }
 
     // Step 5: Generate TTS for interviewer response
     let audioBase64 = null;

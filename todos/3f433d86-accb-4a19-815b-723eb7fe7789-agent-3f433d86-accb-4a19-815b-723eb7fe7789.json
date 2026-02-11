@@ -1,0 +1,37 @@
+[
+  {
+    "content": "Investigate codebase — git log, previous attempts, find key files",
+    "status": "completed",
+    "activeForm": "Investigating codebase and previous attempts"
+  },
+  {
+    "content": "Phase 1: Fix camera auto-enable on session start",
+    "status": "completed",
+    "activeForm": "Fixing camera auto-enable on session start"
+  },
+  {
+    "content": "Phase 2: Fix live transcription + body language display on screen",
+    "status": "completed",
+    "activeForm": "Fixing live transcription and body language display"
+  },
+  {
+    "content": "Phase 3: Add interview introduction flow",
+    "status": "completed",
+    "activeForm": "Adding interview introduction flow"
+  },
+  {
+    "content": "Phase 4: Fix Whisper hallucination on silence",
+    "status": "completed",
+    "activeForm": "Fixing Whisper hallucination on silence"
+  },
+  {
+    "content": "Phase 5: Fix feedback timing — background generation",
+    "status": "completed",
+    "activeForm": "Fixing feedback timing with background generation"
+  },
+  {
+    "content": "Build frontend and deploy",
+    "status": "in_progress",
+    "activeForm": "Building frontend and deploying"
+  }
+]

@@ -352,7 +352,21 @@ export function AiCoachingPage() {
   const mockRecognitionRef = useRef<any>(null)
   const mockAudioSourceRef = useRef<AudioBufferSourceNode | null>(null)
 
+  // Real-time body language indicators (updated periodically during interview)
+  const [bodyLanguageIndicators, setBodyLanguageIndicators] = useState<{
+    eye_contact: string
+    posture: string
+    confidence: string
+    expression: string
+    last_updated: string
+  } | null>(null)
+  const bodyLanguageIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   // Start camera for mock interview
+  // BUG FIX: The video element only renders when mockSession is set (in_progress).
+  // So when called from startMockInterview(), mockVideoRef.current is often NULL.
+  // We obtain the stream here and store it in mockStreamRef.current.
+  // A separate useEffect (below) attaches it to the video element once it renders.
   async function startMockCamera() {
     try {
       setMockCameraError(null)
@@ -381,11 +395,13 @@ export function AiCoachingPage() {
         return
       }
       mockStreamRef.current = stream
+      // Try to attach immediately if video element already exists
       const v = mockVideoRef.current
       if (v) {
         v.srcObject = stream
         try { await v.play() } catch { try { await v.play() } catch {} }
       }
+      // Note: if v is null (element not yet rendered), the useEffect below will handle attachment
       setMockCameraReady(true)
     } catch (err: any) {
       setMockCameraError(err.message || 'Camera error')
@@ -399,6 +415,22 @@ export function AiCoachingPage() {
     }
     setMockCameraReady(false)
   }
+
+  // BUG FIX: Attach camera stream to video element after it renders.
+  // When startMockCamera() is called from startMockInterview(), the video element
+  // doesn't exist yet (it renders inside the mockSession && in_progress condition).
+  // This useEffect fires once mockSession is set AND mockCameraReady is true,
+  // and attaches the already-obtained stream to the now-rendered video element.
+  useEffect(() => {
+    if (mockCameraReady && mockStreamRef.current && mockSession && mockSession.status === 'in_progress') {
+      const v = mockVideoRef.current
+      if (v && !v.srcObject) {
+        console.log('[camera] Attaching stream to video element (deferred)')
+        v.srcObject = mockStreamRef.current
+        v.play().catch(() => { v.play().catch(() => {}) })
+      }
+    }
+  }, [mockCameraReady, mockSession])
 
   // Capture a frame from mock interview camera
   function captureMockFrame(): string | null {
@@ -441,6 +473,45 @@ export function AiCoachingPage() {
       clearInterval(mockFrameIntervalRef.current)
       mockFrameIntervalRef.current = null
     }
+    if (bodyLanguageIntervalRef.current) {
+      clearInterval(bodyLanguageIntervalRef.current)
+      bodyLanguageIntervalRef.current = null
+    }
+  }
+
+  // Periodically analyze a frame for real-time body language feedback
+  async function analyzeRealtimeBodyLanguage() {
+    const frame = captureMockFrame()
+    if (!frame) return
+    try {
+      const token = getToken()
+      const res = await fetch('/api/interviews/mock/analyze-frame', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ frame })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success && data.indicators) {
+          setBodyLanguageIndicators({
+            ...data.indicators,
+            last_updated: new Date().toISOString()
+          })
+        }
+      }
+    } catch (err) {
+      console.warn('[body-language] Real-time analysis error:', err)
+    }
+  }
+
+  // Start periodic body language analysis (every 20 seconds)
+  function startBodyLanguageAnalysis() {
+    // First analysis after 5 seconds
+    setTimeout(() => analyzeRealtimeBodyLanguage(), 5000)
+    // Then every 20 seconds
+    bodyLanguageIntervalRef.current = setInterval(() => {
+      analyzeRealtimeBodyLanguage()
+    }, 20000)
   }
 
   // Start live speech recognition during mock interview recording
@@ -1061,6 +1132,9 @@ export function AiCoachingPage() {
       // Start frame capture for body language analysis
       startMockFrameCapture()
 
+      // Start real-time body language analysis (periodic frame analysis)
+      startBodyLanguageAnalysis()
+
       // Show transcript by default for live transcription
       setShowTranscript(true)
 
@@ -1183,6 +1257,7 @@ export function AiCoachingPage() {
     setMockShowSetup(false)
     setShowTranscript(false)
     setVoiceMode(false)
+    setBodyLanguageIndicators(null)
   }
 
   // ===== VOICE INTERVIEW FUNCTIONS =====
@@ -1345,6 +1420,22 @@ export function AiCoachingPage() {
 
         if (voiceChunksRef.current.length === 0) return
 
+        // BUG FIX: Check if the entire recording was silence before sending to Whisper.
+        // Whisper hallucinates Japanese/Chinese text when given silent audio.
+        // If silence count was high (meaning mostly silent), skip sending.
+        const totalSilenceChecks = silenceCountRef.current
+        // If we got here from the auto-silence stop (>=18 checks of silence),
+        // AND the live transcript is empty, the user likely didn't say anything.
+        if (totalSilenceChecks >= 16 && !mockLiveTranscript.trim()) {
+          console.log('[voice] Skipping Whisper — recording was mostly silence')
+          setMockLiveTranscript('')
+          // Auto-restart recording for next attempt
+          if (voiceMode && !aiSpeaking) {
+            setTimeout(() => startVoiceRecording(), 500)
+          }
+          return
+        }
+
         setVoiceProcessing(true)
         try {
           const audioBlob = new Blob(voiceChunksRef.current, { type: mimeType })
@@ -1429,7 +1520,17 @@ export function AiCoachingPage() {
               playInterviewerAudio(data.interviewer_message.text)
             }
           } else {
-            setVoiceError(data.error || 'Failed to process your response')
+            // If it's a hallucination filter or "didn't catch that" error, auto-restart recording
+            const errorMsg = data.error || 'Failed to process your response'
+            if (errorMsg.includes("didn't catch") || errorMsg.includes('Could not transcribe')) {
+              console.log('[voice] Whisper error, auto-restarting recording')
+              setMockLiveTranscript('')
+              if (voiceMode && !aiSpeaking) {
+                setTimeout(() => startVoiceRecording(), 500)
+              }
+            } else {
+              setVoiceError(errorMsg)
+            }
           }
         } catch (err: any) {
           setVoiceError(err.message || 'Voice processing failed')
@@ -1802,6 +1903,59 @@ export function AiCoachingPage() {
                     </div>
                   )
                 })()}
+
+                {/* Body Language Indicators overlay (top-right, below top bar) */}
+                {bodyLanguageIndicators && (
+                  <div className="absolute top-14 right-3 z-10">
+                    <div className="bg-black/60 backdrop-blur-sm rounded-lg p-2 space-y-1 min-w-[120px]">
+                      <p className="text-[9px] font-semibold text-white/50 uppercase tracking-wider mb-1">Body Language</p>
+                      {[
+                        { label: 'Eye Contact', value: bodyLanguageIndicators.eye_contact, icon: '👁' },
+                        { label: 'Posture', value: bodyLanguageIndicators.posture, icon: '🧍' },
+                        { label: 'Confidence', value: bodyLanguageIndicators.confidence, icon: '💪' },
+                        { label: 'Expression', value: bodyLanguageIndicators.expression, icon: '😊' },
+                      ].map((item) => (
+                        <div key={item.label} className="flex items-center justify-between gap-2">
+                          <span className="text-[9px] text-white/70">{item.icon} {item.label}</span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                            item.value === 'good' ? 'bg-green-500/30 text-green-300' :
+                            item.value === 'fair' ? 'bg-amber-500/30 text-amber-300' :
+                            'bg-red-500/30 text-red-300'
+                          }`}>
+                            {item.value || '...'}
+                          </span>
+                        </div>
+                      ))}
+                      {bodyLanguageIndicators.tip && (
+                        <p className="text-[8px] text-amber-300/80 mt-1 border-t border-white/10 pt-1">
+                          💡 {bodyLanguageIndicators.tip}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Live transcript overlay (inside video, bottom of screen) */}
+                {showTranscript && mockSession.conversation.length > 0 && (
+                  <div className="absolute bottom-28 left-3 right-48 sm:right-52 z-10 max-h-20 overflow-y-auto">
+                    <div className="bg-black/50 backdrop-blur-sm rounded-lg px-2 py-1.5 space-y-0.5">
+                      {mockSession.conversation.slice(-3).map((turn, i) => (
+                        <div key={i} className="flex gap-1.5">
+                          <span className={`text-[9px] font-bold shrink-0 ${turn.role === 'interviewer' ? 'text-violet-300' : 'text-green-300'}`}>
+                            {turn.role === 'interviewer' ? 'AI' : 'You'}:
+                          </span>
+                          <p className="text-[10px] text-white/80 leading-tight line-clamp-2">{turn.text}</p>
+                        </div>
+                      ))}
+                      {candidateRecording && mockLiveTranscript && (
+                        <div className="flex gap-1.5 opacity-70">
+                          <span className="text-[9px] font-bold shrink-0 text-green-300">You:</span>
+                          <p className="text-[10px] text-green-300 leading-tight italic">{mockLiveTranscript}...</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Controls bar */}
