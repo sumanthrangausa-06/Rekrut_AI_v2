@@ -1,0 +1,32 @@
+[
+  {
+    "content": "PHASE 0: Study working Quick Practice code vs broken Mock Interview code",
+    "status": "completed",
+    "activeForm": "Studying Quick Practice vs Mock Interview code side-by-side"
+  },
+  {
+    "content": "PHASE 1: Web research on AI interview platform patterns",
+    "status": "completed",
+    "activeForm": "Researching AI interview platform patterns"
+  },
+  {
+    "content": "PHASE 2: Fix root cause — fallback questions when AI 429s, fix stale role",
+    "status": "completed",
+    "activeForm": "Fixing session start with fallback questions and role handling"
+  },
+  {
+    "content": "PHASE 3: Fix AI voice with browser speech synthesis fallback + stale session fix",
+    "status": "completed",
+    "activeForm": "Adding browser speech synthesis fallback and fixing stale session"
+  },
+  {
+    "content": "PHASE 4: Fix transcript + feedback + voice-respond undefined sessionId",
+    "status": "completed",
+    "activeForm": "Fixing transcript, feedback, and sessionId bug"
+  },
+  {
+    "content": "Deploy, verify, notify owner",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying end-to-end"
+  }
+]

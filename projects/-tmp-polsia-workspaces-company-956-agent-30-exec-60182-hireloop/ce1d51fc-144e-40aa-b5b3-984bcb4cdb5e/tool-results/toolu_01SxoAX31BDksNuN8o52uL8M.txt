@@ -1,0 +1,25 @@
+75a380a Agent changes
+5de3ace fix: 5 mock interview bugs — recording loop, body language, transcript, speed, feedback
+db8014a Agent changes
+6295849 fix: 6 mock interview bugs — camera auto-on, intro flow, whisper hallucination, live transcript, body language display, faster feedback
+fc40dad Agent changes
+ca8a885 fix: mock interview — real-time audio, live transcription, body language & voice analysis
+c1d5d2e Agent changes
+40223fb fix: auto conversation flow + professional avatar + UX polish
+35122d6 Agent changes
+48bb399 fix: Whisper audio format rejection + TTS resilience + multipart upload
+ea4e920 Agent changes
+cef418b fix: always play TTS in mock interview, remove voiceMode gate, cleanup camera on unmount
+91874c7 Agent changes
+5d6900a feat: replace mock interview chat UI with video call layout
+a2f2524 Agent changes
+669c49a feat: Phase 3 polish — progress indicator, voice toggle in setup, AI goodbye, transcript
+74ee85f Agent changes
+dd52253 feat: voice-based AI mock interviewer — TTS + mic recording + Whisper transcription
+cf0aeea Agent changes
+3f31e2a feat: dynamic AI mock interviews — question bank + conversational interviewer
+4fec449 Agent changes
+c15a8f4 feat: coaching session history — candidates review past feedback, recruiters track preparation
+824aa9f Agent changes
+5d2560d fix: restore scroll on AI coaching feedback — overflow-visible only during recording
+77b6dd7 Agent changes
