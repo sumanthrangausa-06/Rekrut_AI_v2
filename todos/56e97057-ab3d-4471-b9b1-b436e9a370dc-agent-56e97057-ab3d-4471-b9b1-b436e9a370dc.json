@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate: git log, read key files, understand current state",
+    "status": "completed",
+    "activeForm": "Investigating codebase and recent changes"
+  },
+  {
+    "content": "Phase 1: Fix recording loop + remove real-time frame analysis + send client transcript fallback",
+    "status": "completed",
+    "activeForm": "Fixing recording loop and removing real-time frame analysis"
+  },
+  {
+    "content": "Phase 2: Make feedback instant — async video/voice analysis",
+    "status": "completed",
+    "activeForm": "Making feedback generation instant"
+  },
+  {
+    "content": "Phase 3: Remove AI lines from transcript + add AI thinking indicator",
+    "status": "completed",
+    "activeForm": "Removing AI lines from transcript"
+  },
+  {
+    "content": "Build frontend and deploy all fixes",
+    "status": "in_progress",
+    "activeForm": "Building frontend and deploying all fixes"
+  }
+]
