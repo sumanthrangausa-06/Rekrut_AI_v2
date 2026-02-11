@@ -1,7 +1,7 @@
 const express = require('express');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
-const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching, analyzeVideoInterviewResponse, analyzeVideoPresentation, analyzeVoiceQuality, generateQuestionBank, conductInterviewTurn, generateSessionFeedback, textToSpeech, transcribeAudioWithWhisper } = require('../lib/polsia-ai');
+const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching, analyzeVideoInterviewResponse, analyzeVideoPresentation, analyzeVoiceQuality, generateQuestionBank, conductInterviewTurn, generateSessionFeedback, textToSpeech, transcribeAudioWithWhisper, aiProvider } = require('../lib/polsia-ai');
 const crypto = require('crypto');
 const omniscoreService = require('../services/omniscore');
 const multer = require('multer');
@@ -1680,53 +1680,36 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
     let usedFallback = false;
 
     if (req.file) {
-      // Audio file uploaded as multipart — send buffer directly to Whisper
+      // Audio file uploaded as multipart — use ASR fallback chain (Whisper → NIM Parakeet v2 → v3)
       const baseMime = (req.file.mimetype || 'audio/webm').split(';')[0];
       const ext = baseMime.includes('mp4') ? 'mp4' : baseMime.includes('ogg') ? 'ogg' : 'webm';
+      const filename = `recording.${ext}`;
       console.log(`[voice-respond] Received file: ${req.file.size} bytes, mime: ${req.file.mimetype}, client transcript: ${clientTranscript.length} chars`);
 
-      const whisperFormData = new FormData();
-      whisperFormData.append('file', req.file.buffer, {
-        filename: `recording.${ext}`,
-        contentType: baseMime
-      });
-      whisperFormData.append('model', 'whisper-1');
-      whisperFormData.append('response_format', 'verbose_json');
-
-      const baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
-      const apiKey = process.env.OPENAI_API_KEY;
-      const whisperHeaders = { 'Authorization': `Bearer ${apiKey}` };
-      if (req.user.stripe_subscription_id) whisperHeaders['X-Subscription-ID'] = req.user.stripe_subscription_id;
-
       try {
-        const whisperRes = await fetch(`${baseUrl}/audio/transcriptions`, {
-          method: 'POST',
-          headers: whisperHeaders,
-          body: whisperFormData
-        });
-        if (whisperRes.ok) {
-          const whisperResult = await whisperRes.json();
-          if (whisperResult && whisperResult.text) {
-            transcribedText = whisperResult.text.trim();
-            console.log(`[voice-respond] Whisper transcription: "${transcribedText.substring(0, 100)}..."`);
-          }
-        } else {
-          const errText = await whisperRes.text();
-          console.error('[voice-respond] Whisper API error:', whisperRes.status, errText);
-          // BUG FIX: On 429 or other Whisper failure, use client-side SpeechRecognition transcript
-          if (clientTranscript.length >= 10) {
-            transcribedText = clientTranscript;
-            usedFallback = true;
-            console.log(`[voice-respond] Using client SpeechRecognition fallback: "${transcribedText.substring(0, 100)}..."`);
-          }
+        // Use the full ASR fallback chain (OpenAI Whisper → NIM Parakeet v2 → NIM Parakeet v3)
+        const asrResult = await aiProvider.transcribeAudio(
+          req.file.buffer,
+          filename,
+          baseMime,
+          { subscriptionId: req.user.stripe_subscription_id }
+        );
+        if (asrResult && asrResult.text) {
+          transcribedText = asrResult.text.trim();
+          console.log(`[voice-respond] ASR transcription: "${transcribedText.substring(0, 100)}..."`);
+        } else if (clientTranscript.length >= 10) {
+          // ASR returned nothing — use client transcript
+          transcribedText = clientTranscript;
+          usedFallback = true;
+          console.log(`[voice-respond] ASR empty, using client transcript`);
         }
-      } catch (whisperErr) {
-        console.error('[voice-respond] Whisper call failed:', whisperErr.message);
-        // BUG FIX: Use client transcript on Whisper failure
+      } catch (asrErr) {
+        console.error('[voice-respond] ASR fallback chain failed:', asrErr.message);
+        // All ASR providers failed — fall back to client-side SpeechRecognition transcript
         if (clientTranscript.length >= 10) {
           transcribedText = clientTranscript;
           usedFallback = true;
-          console.log(`[voice-respond] Using client SpeechRecognition fallback after error`);
+          console.log(`[voice-respond] Using client SpeechRecognition fallback: "${transcribedText.substring(0, 100)}..."`);
         }
       }
     } else if (req.body.audio_base64) {
