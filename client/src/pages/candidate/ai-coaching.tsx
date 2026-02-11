@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { apiCall } from '@/lib/api'
+import { apiCall, getToken } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -315,6 +315,61 @@ export function AiCoachingPage() {
   const silenceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const silenceCountRef = useRef<number>(0)
+
+  // Mock interview camera state
+  const [mockCameraReady, setMockCameraReady] = useState(false)
+  const [mockCameraError, setMockCameraError] = useState<string | null>(null)
+  const mockVideoRef = useRef<HTMLVideoElement>(null)
+  const mockStreamRef = useRef<MediaStream | null>(null)
+  const [showTranscript, setShowTranscript] = useState(false)
+
+  // Start camera for mock interview
+  async function startMockCamera() {
+    try {
+      setMockCameraError(null)
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setMockCameraError('Camera not supported in this browser')
+        return
+      }
+      const constraints = [
+        { video: { facingMode: 'user' }, audio: true },
+        { video: true, audio: true },
+        { video: { facingMode: 'user' }, audio: false },
+        { video: true, audio: false },
+      ]
+      let stream: MediaStream | null = null
+      for (const c of constraints) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(c)
+          const vt = stream.getVideoTracks()[0]
+          if (vt?.readyState === 'live') break
+          stream.getTracks().forEach(t => t.stop())
+          stream = null
+        } catch { stream = null }
+      }
+      if (!stream) {
+        setMockCameraError('Could not access camera')
+        return
+      }
+      mockStreamRef.current = stream
+      const v = mockVideoRef.current
+      if (v) {
+        v.srcObject = stream
+        try { await v.play() } catch { try { await v.play() } catch {} }
+      }
+      setMockCameraReady(true)
+    } catch (err: any) {
+      setMockCameraError(err.message || 'Camera error')
+    }
+  }
+
+  function stopMockCamera() {
+    if (mockStreamRef.current) {
+      mockStreamRef.current.getTracks().forEach(t => t.stop())
+      mockStreamRef.current = null
+    }
+    setMockCameraReady(false)
+  }
 
   const loadStats = useCallback(async () => {
     try {
@@ -861,6 +916,11 @@ export function AiCoachingPage() {
     if (!mockTargetRole.trim()) return
     setMockStarting(true)
     try {
+      // Always start in voice mode for video call experience
+      setVoiceMode(true)
+      // Start camera
+      startMockCamera()
+
       const res = await apiCall<{ success: boolean; session: MockSession; first_message: MockConversationTurn }>('/interviews/mock/start', {
         method: 'POST',
         body: { target_role: mockTargetRole.trim(), job_description: mockJobDescription.trim() || undefined }
@@ -869,10 +929,10 @@ export function AiCoachingPage() {
         setMockSession(res.session)
         setMockShowSetup(false)
         setMockFeedback(null)
-        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
       }
     } catch (err: any) {
       alert(err.message || 'Failed to start interview')
+      stopMockCamera()
     } finally {
       setMockStarting(false)
     }
@@ -934,6 +994,7 @@ export function AiCoachingPage() {
       })
       if (res.success) {
         stopVoiceMode()
+        stopMockCamera()
         setMockFeedback(res.feedback)
         setMockSession(prev => prev ? { ...prev, status: 'completed' } : null)
         loadMockSessions()
@@ -948,12 +1009,14 @@ export function AiCoachingPage() {
 
   function resetMockInterview() {
     stopVoiceMode()
+    stopMockCamera()
     setMockSession(null)
     setMockFeedback(null)
     setMockResponseText('')
     setMockTargetRole('')
     setMockJobDescription('')
     setMockShowSetup(false)
+    setShowTranscript(false)
     setVoiceMode(false)
   }
 
@@ -965,7 +1028,7 @@ export function AiCoachingPage() {
     setAiSpeaking(true)
     setVoiceError(null)
     try {
-      const token = localStorage.getItem('token')
+      const token = getToken()
       const response = await fetch('/api/interviews/mock/tts', {
         method: 'POST',
         headers: {
@@ -1083,7 +1146,7 @@ export function AiCoachingPage() {
           reader.readAsDataURL(audioBlob)
           const audioBase64 = await base64Promise
 
-          const token = localStorage.getItem('token')
+          const token = getToken()
           const res = await fetch(`/api/interviews/mock/${mockSession?.id}/voice-respond`, {
             method: 'POST',
             headers: {
@@ -1313,7 +1376,7 @@ export function AiCoachingPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="mock">
-            <Volume2 className="h-4 w-4 mr-1.5" /> Mock Interview
+            <Video className="h-4 w-4 mr-1.5" /> Mock Interview
           </TabsTrigger>
           <TabsTrigger value="practice">
             <BookOpen className="h-4 w-4 mr-1.5" /> Quick Practice
@@ -1328,258 +1391,280 @@ export function AiCoachingPage() {
 
         {/* Mock Interview Tab */}
         <TabsContent value="mock">
-          {/* Active interview session */}
+          {/* Active interview session — VIDEO CALL LAYOUT */}
           {mockSession && mockSession.status === 'in_progress' && !mockFeedback ? (
-            <div className="space-y-4">
-              {/* Session header */}
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-green-100 text-green-700 border-0">
-                    <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse mr-1.5" />
-                    Live Interview
-                  </Badge>
-                  <span className="text-sm font-medium">{mockSession.target_role}</span>
-                  {voiceMode && (
-                    <Badge className="bg-violet-100 text-violet-700 border-0">
-                      <Volume2 className="h-3 w-3 mr-1" /> Voice Mode
-                    </Badge>
-                  )}
+            <div className="space-y-3">
+              {/* Video call container */}
+              <div className="relative rounded-2xl overflow-hidden bg-gray-950 border-2 border-gray-800" style={{ minHeight: '60vh' }}>
+                {/* Main area: AI Interviewer (large) */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  {/* AI Avatar / Waveform area */}
+                  <div className="flex flex-col items-center gap-4">
+                    {/* AI avatar circle */}
+                    <div className={`relative h-28 w-28 sm:h-36 sm:w-36 rounded-full flex items-center justify-center transition-all duration-300 ${
+                      aiSpeaking ? 'bg-violet-500/30 ring-4 ring-violet-400/50 scale-105' :
+                      voiceProcessing ? 'bg-amber-500/20 ring-2 ring-amber-400/30' :
+                      'bg-gray-800 ring-2 ring-gray-700'
+                    }`}>
+                      {/* Animated waveform rings when speaking */}
+                      {aiSpeaking && (
+                        <>
+                          <div className="absolute inset-0 rounded-full bg-violet-400/20 animate-ping" style={{ animationDuration: '1.5s' }} />
+                          <div className="absolute inset-[-8px] rounded-full border-2 border-violet-400/30 animate-pulse" />
+                          <div className="absolute inset-[-16px] rounded-full border border-violet-400/15 animate-pulse" style={{ animationDelay: '300ms' }} />
+                        </>
+                      )}
+                      <Brain className={`h-12 w-12 sm:h-16 sm:w-16 transition-colors ${
+                        aiSpeaking ? 'text-violet-300' : 'text-gray-400'
+                      }`} />
+                    </div>
+
+                    {/* AI name and status */}
+                    <div className="text-center">
+                      <p className="text-white font-semibold text-sm sm:text-base">AI Interviewer</p>
+                      <p className={`text-xs mt-1 transition-colors ${
+                        aiSpeaking ? 'text-violet-300' :
+                        voiceProcessing ? 'text-amber-300' :
+                        candidateRecording ? 'text-green-300' :
+                        'text-gray-500'
+                      }`}>
+                        {aiSpeaking ? 'Speaking...' :
+                         voiceProcessing ? 'Processing your answer...' :
+                         candidateRecording ? 'Listening to you...' :
+                         'Waiting for your answer'}
+                      </p>
+                    </div>
+
+                    {/* Waveform bars when AI is speaking */}
+                    {aiSpeaking && (
+                      <div className="flex items-end gap-1 h-8">
+                        {[...Array(9)].map((_, i) => (
+                          <div
+                            key={i}
+                            className="w-1.5 bg-violet-400 rounded-full animate-pulse"
+                            style={{
+                              height: `${20 + Math.random() * 80}%`,
+                              animationDelay: `${i * 80}ms`,
+                              animationDuration: `${400 + Math.random() * 300}ms`
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {/* Voice mode toggle */}
-                  <Button
-                    size="sm"
-                    variant={voiceMode ? 'default' : 'outline'}
-                    onClick={() => {
-                      if (voiceMode) {
-                        stopVoiceMode()
-                        setVoiceMode(false)
-                      } else {
-                        setVoiceMode(true)
-                        // Play the last interviewer message
-                        const lastInterviewer = [...mockSession.conversation].reverse().find(t => t.role === 'interviewer')
-                        if (lastInterviewer) setTimeout(() => playInterviewerAudio(lastInterviewer.text), 300)
-                      }
-                    }}
-                    className={voiceMode ? 'bg-violet-600 hover:bg-violet-700' : ''}
-                  >
-                    {voiceMode ? <Volume2 className="h-3.5 w-3.5 mr-1.5" /> : <Mic className="h-3.5 w-3.5 mr-1.5" />}
-                    {voiceMode ? 'Voice On' : 'Voice Mode'}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => { stopVoiceMode(); endMockInterview() }} disabled={mockEnding}
-                    className="text-red-600 border-red-200 hover:bg-red-50">
-                    {mockEnding ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <StopCircle className="h-3.5 w-3.5 mr-1.5" />}
-                    End Interview
-                  </Button>
+
+                {/* Candidate camera (picture-in-picture, bottom-right) */}
+                <div className="absolute bottom-3 right-3 z-10">
+                  <div className={`relative w-32 h-24 sm:w-44 sm:h-32 rounded-xl overflow-hidden border-2 shadow-2xl ${
+                    candidateRecording ? 'border-green-400 ring-2 ring-green-400/30' : 'border-gray-600'
+                  }`}>
+                    <video
+                      ref={mockVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover bg-gray-900 scale-x-[-1]"
+                    />
+                    {!mockCameraReady && (
+                      <div className="absolute inset-0 bg-gray-900 flex items-center justify-center">
+                        <button
+                          onClick={startMockCamera}
+                          className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition-colors"
+                        >
+                          <Camera className="h-5 w-5" />
+                          <span className="text-[10px]">Enable Camera</span>
+                        </button>
+                      </div>
+                    )}
+                    {candidateRecording && (
+                      <div className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-red-600/90 text-white text-[9px] px-1.5 py-0.5 rounded-full">
+                        <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                        REC
+                      </div>
+                    )}
+                    <div className="absolute bottom-1 left-1 text-[9px] text-white/70 bg-black/50 px-1 rounded">You</div>
+                  </div>
                 </div>
+
+                {/* Top bar: Session info */}
+                <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/60 to-transparent p-3 z-10">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-green-600/80 text-white border-0 text-[10px]">
+                        <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse mr-1" />
+                        LIVE
+                      </Badge>
+                      <span className="text-white/80 text-xs font-medium">{mockSession.target_role}</span>
+                    </div>
+                    {/* Progress */}
+                    {(() => {
+                      const candidateTurns = mockSession.conversation.filter(t => t.role === 'candidate').length
+                      return (
+                        <span className="text-white/60 text-xs">
+                          Q{candidateTurns} of ~8
+                        </span>
+                      )
+                    })()}
+                  </div>
+                  {/* Progress bar */}
+                  {(() => {
+                    const candidateTurns = mockSession.conversation.filter(t => t.role === 'candidate').length
+                    const progress = Math.min(100, Math.round((candidateTurns / 8) * 100))
+                    return (
+                      <div className="mt-2 h-0.5 bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-green-400/60 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+                      </div>
+                    )
+                  })()}
+                </div>
+
+                {/* Current question overlay (subtle, bottom-left) */}
+                {mockSession.conversation.length > 0 && (() => {
+                  const lastInterviewer = [...mockSession.conversation].reverse().find(t => t.role === 'interviewer')
+                  if (!lastInterviewer) return null
+                  return (
+                    <div className="absolute bottom-3 left-3 right-48 sm:right-52 z-10">
+                      <div className="bg-black/60 backdrop-blur-sm rounded-xl p-3 max-h-24 overflow-y-auto">
+                        <p className="text-white/90 text-xs sm:text-sm leading-relaxed">{lastInterviewer.text}</p>
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
 
-              {/* Progress indicator */}
-              {(() => {
-                const interviewerTurns = mockSession.conversation.filter(t => t.role === 'interviewer').length
-                const candidateTurns = mockSession.conversation.filter(t => t.role === 'candidate').length
-                const totalQuestions = mockSession.questions_asked || interviewerTurns
-                const estTotal = 8 // typical number of questions
-                const progress = Math.min(100, Math.round((candidateTurns / estTotal) * 100))
-                return (
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary rounded-full transition-all duration-500"
-                        style={{ width: `${progress}%` }}
-                      />
+              {/* Controls bar */}
+              <div className="flex items-center justify-center gap-3 py-2">
+                {/* Mic / Record button */}
+                {!candidateRecording && !aiSpeaking && !voiceProcessing ? (
+                  <Button
+                    onClick={startVoiceRecording}
+                    size="lg"
+                    className="bg-green-600 hover:bg-green-700 rounded-full h-14 w-14 p-0"
+                    title="Start speaking"
+                  >
+                    <Mic className="h-6 w-6" />
+                  </Button>
+                ) : candidateRecording ? (
+                  <Button
+                    onClick={stopVoiceRecording}
+                    size="lg"
+                    className="bg-red-600 hover:bg-red-700 rounded-full h-14 w-14 p-0 animate-pulse"
+                    title="Stop recording"
+                  >
+                    <Square className="h-5 w-5" />
+                  </Button>
+                ) : aiSpeaking ? (
+                  <div className="h-14 w-14 rounded-full bg-violet-600/20 border-2 border-violet-400/40 flex items-center justify-center">
+                    <Volume2 className="h-6 w-6 text-violet-400 animate-pulse" />
+                  </div>
+                ) : (
+                  <div className="h-14 w-14 rounded-full bg-amber-600/20 border-2 border-amber-400/40 flex items-center justify-center">
+                    <Loader2 className="h-5 w-5 text-amber-400 animate-spin" />
+                  </div>
+                )}
+
+                {/* Camera toggle */}
+                <Button
+                  onClick={() => mockCameraReady ? stopMockCamera() : startMockCamera()}
+                  variant="outline"
+                  className={`rounded-full h-11 w-11 p-0 ${!mockCameraReady ? 'bg-gray-200 text-gray-500' : ''}`}
+                  title={mockCameraReady ? 'Turn off camera' : 'Turn on camera'}
+                >
+                  {mockCameraReady ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
+                </Button>
+
+                {/* Transcript toggle */}
+                <Button
+                  onClick={() => setShowTranscript(!showTranscript)}
+                  variant="outline"
+                  className={`rounded-full h-11 w-11 p-0 ${showTranscript ? 'bg-primary/10 border-primary' : ''}`}
+                  title="Show transcript"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                </Button>
+
+                {/* End call */}
+                <Button
+                  onClick={() => { stopVoiceMode(); endMockInterview() }}
+                  disabled={mockEnding}
+                  className="bg-red-600 hover:bg-red-700 text-white rounded-full h-11 px-5"
+                >
+                  {mockEnding ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <StopCircle className="h-4 w-4 mr-1.5" />}
+                  End
+                </Button>
+              </div>
+
+              {/* Status text */}
+              <div className="text-center">
+                {voiceError ? (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-red-700 text-xs">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    {voiceError}
+                    <button onClick={() => setVoiceError(null)} className="text-red-400 hover:text-red-600 ml-1">✕</button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {aiSpeaking ? 'Listen to the question, then click the green mic button to answer' :
+                     candidateRecording ? 'Speaking... click the red button when done (auto-stops after 3.5s silence)' :
+                     voiceProcessing ? 'Processing your answer...' :
+                     'Click the green mic button to start answering'}
+                  </p>
+                )}
+              </div>
+
+              {/* Collapsible transcript */}
+              {showTranscript && mockSession.conversation.length > 0 && (
+                <Card className="border">
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                        <FileText className="h-3.5 w-3.5" /> Live Transcript
+                      </h4>
+                      <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setShowTranscript(false)}>Hide</Button>
                     </div>
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      Q{candidateTurns} of ~{estTotal}
-                    </span>
-                  </div>
-                )
-              })()}
-
-              {/* Voice status bar */}
-              {voiceMode && (
-                <div className={`flex items-center justify-center gap-3 p-3 rounded-xl border-2 transition-all ${
-                  aiSpeaking ? 'bg-violet-50 border-violet-200' :
-                  candidateRecording ? 'bg-green-50 border-green-200' :
-                  voiceProcessing ? 'bg-amber-50 border-amber-200' :
-                  'bg-muted/30 border-muted'
-                }`}>
-                  {aiSpeaking ? (
-                    <>
-                      <div className="flex items-center gap-1.5">
-                        <div className="flex items-end gap-0.5 h-5">
-                          <div className="w-1 bg-violet-500 rounded-full animate-pulse" style={{height: '60%', animationDelay: '0ms'}} />
-                          <div className="w-1 bg-violet-500 rounded-full animate-pulse" style={{height: '100%', animationDelay: '150ms'}} />
-                          <div className="w-1 bg-violet-500 rounded-full animate-pulse" style={{height: '40%', animationDelay: '300ms'}} />
-                          <div className="w-1 bg-violet-500 rounded-full animate-pulse" style={{height: '80%', animationDelay: '100ms'}} />
-                          <div className="w-1 bg-violet-500 rounded-full animate-pulse" style={{height: '50%', animationDelay: '250ms'}} />
+                    <div className="max-h-40 overflow-y-auto space-y-2">
+                      {mockSession.conversation.map((turn, i) => (
+                        <div key={i} className="flex gap-2">
+                          <span className={`text-[10px] font-bold shrink-0 w-8 ${turn.role === 'interviewer' ? 'text-violet-600' : 'text-green-600'}`}>
+                            {turn.role === 'interviewer' ? 'AI' : 'You'}
+                          </span>
+                          <p className="text-xs text-muted-foreground leading-relaxed">{turn.text}</p>
                         </div>
-                        <span className="text-sm font-medium text-violet-700">AI Interviewer is speaking...</span>
-                      </div>
-                    </>
-                  ) : candidateRecording ? (
-                    <>
-                      <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
-                      <span className="text-sm font-medium text-green-700">Recording your answer...</span>
-                      {silenceTimer > 0 && (
-                        <span className="text-xs text-muted-foreground">
-                          (auto-stop in {Math.max(0, Math.round(3.6 - silenceTimer))}s of silence)
-                        </span>
-                      )}
-                      <Button size="sm" variant="outline" onClick={stopVoiceRecording}
-                        className="ml-2 text-xs h-7">
-                        <Square className="h-3 w-3 mr-1" /> Done
-                      </Button>
-                    </>
-                  ) : voiceProcessing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
-                      <span className="text-sm font-medium text-amber-700">Processing your response...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">Voice mode active — waiting</span>
-                    </>
-                  )}
-                </div>
+                      ))}
+                      <div ref={chatEndRef} />
+                    </div>
+                  </CardContent>
+                </Card>
               )}
 
-              {voiceError && (
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                  {voiceError}
-                  <Button size="sm" variant="ghost" className="ml-auto h-6 text-xs" onClick={() => setVoiceError(null)}>Dismiss</Button>
+              {/* Hidden text fallback input */}
+              {!candidateRecording && !aiSpeaking && !voiceProcessing && (
+                <div className="flex gap-2 px-1">
+                  <Textarea
+                    value={mockResponseText}
+                    onChange={e => setMockResponseText(e.target.value)}
+                    placeholder="Or type your answer here..."
+                    rows={1}
+                    className="resize-none text-xs text-muted-foreground"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        sendMockResponse()
+                      }
+                    }}
+                  />
+                  <Button
+                    onClick={sendMockResponse}
+                    disabled={mockSending || mockResponseText.trim().length < 10}
+                    className="shrink-0 self-end"
+                    size="sm"
+                    variant="outline"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               )}
-
-              {/* Chat window */}
-              <Card className="border-2">
-                <CardContent className="p-0">
-                  <div className="h-[50vh] overflow-y-auto p-4 space-y-4">
-                    {mockSession.conversation.map((turn, i) => (
-                      <div key={i} className={`flex ${turn.role === 'candidate' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                          turn.role === 'interviewer'
-                            ? 'bg-primary/5 border border-primary/10 text-foreground'
-                            : 'bg-primary text-primary-foreground'
-                        }`}>
-                          {turn.role === 'interviewer' && (
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center">
-                                <Brain className="h-3 w-3 text-primary" />
-                              </div>
-                              <span className="text-[10px] font-medium text-primary">AI Interviewer</span>
-                              {voiceMode && i === mockSession.conversation.length - 1 && turn.role === 'interviewer' && !aiSpeaking && (
-                                <button
-                                  onClick={() => playInterviewerAudio(turn.text)}
-                                  className="ml-1 p-0.5 rounded hover:bg-primary/10 transition-colors"
-                                  title="Replay audio"
-                                >
-                                  <Volume2 className="h-3 w-3 text-primary/50 hover:text-primary" />
-                                </button>
-                              )}
-                            </div>
-                          )}
-                          {turn.role === 'candidate' && (
-                            <div className="flex items-center gap-1.5 mb-1.5 justify-end">
-                              <span className="text-[10px] font-medium opacity-70">You</span>
-                              {voiceMode && <Mic className="h-2.5 w-2.5 opacity-50" />}
-                            </div>
-                          )}
-                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{turn.text}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {(mockSending || voiceProcessing) && (
-                      <div className="flex justify-start">
-                        <div className="bg-primary/5 border border-primary/10 rounded-2xl px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                            <span className="text-xs text-muted-foreground">
-                              {voiceProcessing ? 'Transcribing & generating response...' : 'AI is thinking...'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    <div ref={chatEndRef} />
-                  </div>
-
-                  {/* Input area */}
-                  <div className="border-t p-3">
-                    {voiceMode ? (
-                      <div className="text-center space-y-2">
-                        {!candidateRecording && !aiSpeaking && !voiceProcessing ? (
-                          <div className="flex items-center justify-center gap-3">
-                            <Button
-                              onClick={startVoiceRecording}
-                              size="lg"
-                              className="bg-green-600 hover:bg-green-700 gap-2"
-                            >
-                              <Mic className="h-5 w-5" /> Start Speaking
-                            </Button>
-                            <span className="text-xs text-muted-foreground">or type below</span>
-                          </div>
-                        ) : null}
-                        {/* Also show text input as fallback in voice mode */}
-                        <div className="flex gap-2">
-                          <Textarea
-                            value={mockResponseText}
-                            onChange={e => setMockResponseText(e.target.value)}
-                            placeholder="Or type your answer here..."
-                            rows={1}
-                            className="resize-none text-sm"
-                            onKeyDown={e => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault()
-                                sendMockResponse()
-                              }
-                            }}
-                          />
-                          <Button
-                            onClick={sendMockResponse}
-                            disabled={mockSending || mockResponseText.trim().length < 10}
-                            className="shrink-0 self-end"
-                            size="sm"
-                          >
-                            <Send className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex gap-2">
-                          <Textarea
-                            value={mockResponseText}
-                            onChange={e => setMockResponseText(e.target.value)}
-                            placeholder="Type your answer... (be detailed, use the STAR method for behavioral questions)"
-                            rows={2}
-                            className="resize-none text-sm"
-                            onKeyDown={e => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault()
-                                sendMockResponse()
-                              }
-                            }}
-                          />
-                          <Button
-                            onClick={sendMockResponse}
-                            disabled={mockSending || mockResponseText.trim().length < 10}
-                            className="shrink-0 self-end"
-                            size="sm"
-                          >
-                            <Send className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mt-1.5">
-                          Press Enter to send · Shift+Enter for new line · Min 10 characters · Try <button className="text-primary underline" onClick={() => setVoiceMode(true)}>Voice Mode</button> for a real interview experience
-                        </p>
-                      </>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
             </div>
           ) : mockFeedback ? (
             /* Session feedback display */
@@ -1751,25 +1836,25 @@ export function AiCoachingPage() {
                 <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
                   <CardContent className="p-6 text-center">
                     <div className="inline-flex p-4 rounded-2xl bg-primary/10 mb-4">
-                      <Volume2 className="h-8 w-8 text-primary" />
+                      <Video className="h-8 w-8 text-primary" />
                     </div>
-                    <h3 className="text-lg font-bold mb-2">AI Voice Interview</h3>
+                    <h3 className="text-lg font-bold mb-2">AI Video Interview</h3>
                     <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-                      Your AI interviewer <strong>speaks out loud</strong> — just like a real video call. Answer with your voice or by typing. The AI asks follow-ups, challenges weak answers, and adapts in real-time.
+                      Practice with a <strong>real video call experience</strong>. Your AI interviewer speaks out loud while you answer on camera — just like Zoom. Get scored and get feedback after.
                     </p>
-                    <div className="flex items-center justify-center gap-3 mb-3">
+                    <div className="flex items-center justify-center gap-3 mb-3 flex-wrap">
                       <div className="flex items-center gap-1.5 text-xs text-violet-600 bg-violet-50 px-3 py-1.5 rounded-full">
                         <Volume2 className="h-3.5 w-3.5" /> AI speaks questions
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-3 py-1.5 rounded-full">
-                        <Mic className="h-3.5 w-3.5" /> Answer by voice
+                        <Camera className="h-3.5 w-3.5" /> You're on camera
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-sky-600 bg-sky-50 px-3 py-1.5 rounded-full">
                         <Brain className="h-3.5 w-3.5" /> AI adapts in real-time
                       </div>
                     </div>
                     <Button onClick={() => setMockShowSetup(true)} size="lg">
-                      <Briefcase className="h-4 w-4 mr-2" /> Start Mock Interview
+                      <Video className="h-4 w-4 mr-2" /> Start Mock Interview
                     </Button>
                   </CardContent>
                 </Card>
@@ -1810,17 +1895,14 @@ export function AiCoachingPage() {
                       />
                     </div>
 
-                    {/* Voice mode option */}
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-violet-50 border border-violet-100">
-                      <button
-                        onClick={() => setVoiceMode(!voiceMode)}
-                        className={`relative w-11 h-6 rounded-full transition-colors ${voiceMode ? 'bg-violet-600' : 'bg-gray-300'}`}
-                      >
-                        <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform shadow ${voiceMode ? 'translate-x-5' : ''}`} />
-                      </button>
+                    {/* Camera/mic notice */}
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-sky-50 border border-sky-100">
+                      <div className="h-9 w-9 rounded-full bg-sky-100 flex items-center justify-center shrink-0">
+                        <Video className="h-4 w-4 text-sky-600" />
+                      </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-violet-900">🎙️ Voice Mode {voiceMode ? '(On)' : '(Off)'}</p>
-                        <p className="text-xs text-violet-600">AI speaks questions out loud. Answer by talking — like a real interview.</p>
+                        <p className="text-sm font-medium text-sky-900">Video call experience</p>
+                        <p className="text-xs text-sky-600">Camera & mic will be enabled. AI speaks questions, you answer verbally — like a real interview.</p>
                       </div>
                     </div>
 
@@ -1831,7 +1913,7 @@ export function AiCoachingPage() {
                       <Button
                         onClick={startMockInterview}
                         disabled={mockStarting || mockTargetRole.trim().length < 2}
-                        className={`flex-1 ${voiceMode ? 'bg-violet-600 hover:bg-violet-700' : ''}`}
+                        className="flex-1"
                       >
                         {mockStarting ? (
                           <>
@@ -1840,8 +1922,8 @@ export function AiCoachingPage() {
                           </>
                         ) : (
                           <>
-                            {voiceMode ? <Volume2 className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
-                            {voiceMode ? 'Start Voice Interview' : 'Start Interview'}
+                            <Video className="h-4 w-4 mr-2" />
+                            Start Video Interview
                           </>
                         )}
                       </Button>
