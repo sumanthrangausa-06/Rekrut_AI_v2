@@ -2369,6 +2369,25 @@
         "candidate.js"
       ],
       "exampleFilesGeneratedAt": 1770840691446
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-61177/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "ai-coaching.tsx",
+        "interviews.js",
+        "polsia-ai.js",
+        "server.js",
+        "App.tsx"
+      ],
+      "exampleFilesGeneratedAt": 1770841702399
     }
   },
   "opusProMigrationComplete": true,
