@@ -284,7 +284,7 @@ router.get('/ratable-companies', authMiddleware, async (req, res) => {
       SELECT DISTINCT c.id as company_id, c.name, c.logo_url, c.industry, c.is_verified,
              ja.status as application_status, j.title as job_title, j.id as job_id,
              ts.total_score as trust_score, ts.score_tier,
-             cr.overall_rating as my_rating
+             cr.overall_rating as my_rating, ja.applied_at
       FROM job_applications ja
       JOIN jobs j ON ja.job_id = j.id
       JOIN companies c ON ja.company_id = c.id
