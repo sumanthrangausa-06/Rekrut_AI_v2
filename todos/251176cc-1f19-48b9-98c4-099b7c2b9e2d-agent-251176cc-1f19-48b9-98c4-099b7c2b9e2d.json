@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Phase 1: Web research on AI interview platforms (voice, STT, TTS)",
+    "status": "completed",
+    "activeForm": "Researching AI interview platforms for voice best practices"
+  },
+  {
+    "content": "Phase 2: Fix core voice (TTS + STT) bugs",
+    "status": "in_progress",
+    "activeForm": "Fixing core voice TTS and STT bugs"
+  },
+  {
+    "content": "Phase 3: Fix auto conversation flow (camera, mic, greeting)",
+    "status": "pending",
+    "activeForm": "Fixing auto conversation flow"
+  },
+  {
+    "content": "Phase 4: UI polish (avatar, error toasts)",
+    "status": "pending",
+    "activeForm": "Polishing UI and replacing brain icon"
+  }
+]
