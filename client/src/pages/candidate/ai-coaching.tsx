@@ -1288,17 +1288,53 @@ export function AiCoachingPage() {
       utterance.rate = 1.0
       utterance.pitch = 1.0
       utterance.volume = 1.0
+
       // Try to use a female English voice for consistency with "Alex"
-      const voices = window.speechSynthesis.getVoices()
-      const preferred = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
-        || voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('samantha'))
-        || voices.find(v => v.lang.startsWith('en-US'))
-        || voices.find(v => v.lang.startsWith('en'))
-      if (preferred) utterance.voice = preferred
-      utterance.onend = () => resolve()
-      utterance.onerror = () => resolve()
+      let voices = window.speechSynthesis.getVoices()
+      // Chrome sometimes returns empty voices on first call — try again after short delay
+      if (voices.length === 0) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          voices = window.speechSynthesis.getVoices()
+          const preferred = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
+            || voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('samantha'))
+            || voices.find(v => v.lang.startsWith('en-US'))
+            || voices.find(v => v.lang.startsWith('en'))
+          if (preferred) utterance.voice = preferred
+        }
+      } else {
+        const preferred = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
+          || voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('samantha'))
+          || voices.find(v => v.lang.startsWith('en-US'))
+          || voices.find(v => v.lang.startsWith('en'))
+        if (preferred) utterance.voice = preferred
+      }
+
+      // Safety timeout — if speech doesn't complete in 30s, resolve anyway
+      const timeout = setTimeout(() => {
+        console.warn('[browser-tts] Safety timeout — resolving after 30s')
+        resolve()
+      }, 30000)
+
+      utterance.onend = () => { clearTimeout(timeout); resolve() }
+      utterance.onerror = (e) => {
+        clearTimeout(timeout)
+        console.warn('[browser-tts] Speech error:', e)
+        resolve()
+      }
+
       window.speechSynthesis.speak(utterance)
       console.log('[browser-tts] Speaking via browser speechSynthesis')
+
+      // Chrome bug: speechSynthesis sometimes pauses. Periodically resume it.
+      const keepAlive = setInterval(() => {
+        if (window.speechSynthesis.speaking) {
+          window.speechSynthesis.resume()
+        } else {
+          clearInterval(keepAlive)
+        }
+      }, 5000)
+      utterance.onend = () => { clearTimeout(timeout); clearInterval(keepAlive); resolve() }
+      utterance.onerror = (e) => { clearTimeout(timeout); clearInterval(keepAlive); console.warn('[browser-tts] error:', e); resolve() }
     })
   }
 
