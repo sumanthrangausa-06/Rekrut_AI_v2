@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate root cause of mic not working",
+    "status": "completed",
+    "activeForm": "Investigating root cause"
+  },
+  {
+    "content": "Update frontend: re-enable mic in single getUserMedia call + MediaRecorder",
+    "status": "completed",
+    "activeForm": "Updating frontend for mic + audio recording"
+  },
+  {
+    "content": "Update backend: accept audio data, add Whisper transcription + voice analysis",
+    "status": "completed",
+    "activeForm": "Updating backend for audio analysis"
+  },
+  {
+    "content": "Build and deploy",
+    "status": "in_progress",
+    "activeForm": "Building and deploying"
+  },
+  {
+    "content": "Verify via logs and notify owner",
+    "status": "pending",
+    "activeForm": "Verifying deployment and notifying owner"
+  }
+]
