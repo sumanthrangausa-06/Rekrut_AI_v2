@@ -1,7 +1,7 @@
 const express = require('express');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
-const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching, analyzeVideoInterviewResponse, generateQuestionBank, conductInterviewTurn, generateSessionFeedback } = require('../lib/polsia-ai');
+const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching, analyzeVideoInterviewResponse, generateQuestionBank, conductInterviewTurn, generateSessionFeedback, textToSpeech, transcribeAudioWithWhisper } = require('../lib/polsia-ai');
 const crypto = require('crypto');
 const omniscoreService = require('../services/omniscore');
 const multer = require('multer');
@@ -1389,6 +1389,188 @@ router.get('/mock/question-bank', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Get question bank error:', err);
     res.status(500).json({ error: 'Failed to fetch question bank' });
+  }
+});
+
+// =============== VOICE INTERVIEW (TTS + STT) ===============
+
+// Text-to-Speech endpoint — converts interviewer text to spoken audio
+router.post('/mock/tts', authMiddleware, async (req, res) => {
+  try {
+    const { text, voice } = req.body;
+
+    if (!text || text.trim().length < 2) {
+      return res.status(400).json({ error: 'No text provided' });
+    }
+
+    const audioBuffer = await textToSpeech(text.trim(), {
+      voice: voice || 'nova',
+      subscriptionId: req.user.stripe_subscription_id
+    });
+
+    if (!audioBuffer) {
+      return res.status(500).json({ error: 'TTS generation failed' });
+    }
+
+    // Return audio as binary MP3
+    res.set({
+      'Content-Type': 'audio/mpeg',
+      'Content-Length': audioBuffer.length,
+      'Cache-Control': 'no-cache',
+    });
+    res.send(audioBuffer);
+  } catch (err) {
+    console.error('TTS endpoint error:', err);
+    res.status(500).json({ error: 'Failed to generate speech' });
+  }
+});
+
+// Voice response endpoint — candidate audio → Whisper transcription → AI response → TTS audio
+router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('audio'), async (req, res) => {
+  try {
+    const sessionId = req.params.sessionId;
+
+    // Get session
+    const sessionResult = await pool.query(
+      'SELECT * FROM mock_interview_sessions WHERE id = $1 AND user_id = $2 AND status = $3',
+      [sessionId, req.user.id, 'in_progress']
+    );
+
+    if (sessionResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found or already completed' });
+    }
+
+    const session = sessionResult.rows[0];
+    const conversation = session.conversation || [];
+    const questionIds = session.question_ids || [];
+
+    // Step 1: Transcribe audio with Whisper
+    let transcribedText = '';
+    if (req.file) {
+      // Audio file uploaded as multipart
+      const audioBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+      const whisperResult = await transcribeAudioWithWhisper(audioBase64, {
+        subscriptionId: req.user.stripe_subscription_id
+      });
+      if (whisperResult && whisperResult.text) {
+        transcribedText = whisperResult.text.trim();
+      }
+    } else if (req.body.audio_base64) {
+      // Audio sent as base64 in JSON
+      const whisperResult = await transcribeAudioWithWhisper(req.body.audio_base64, {
+        subscriptionId: req.user.stripe_subscription_id
+      });
+      if (whisperResult && whisperResult.text) {
+        transcribedText = whisperResult.text.trim();
+      }
+    } else if (req.body.response_text) {
+      // Fallback: text directly (for cases where transcription happens client-side)
+      transcribedText = req.body.response_text.trim();
+    }
+
+    if (!transcribedText || transcribedText.length < 5) {
+      return res.status(400).json({ error: 'Could not transcribe your response. Please try speaking louder and more clearly.' });
+    }
+
+    // Step 2: Add candidate response to conversation
+    const candidateMessage = {
+      role: 'candidate',
+      text: transcribedText,
+      timestamp: new Date().toISOString()
+    };
+    conversation.push(candidateMessage);
+
+    // Step 3: Get base questions and AI response
+    const questionsResult = await pool.query(
+      'SELECT * FROM question_bank WHERE id = ANY($1)',
+      [questionIds]
+    );
+    const questionMap = {};
+    questionsResult.rows.forEach(q => { questionMap[q.id] = q; });
+    const baseQuestions = questionIds.map(id => questionMap[id]).filter(Boolean);
+
+    const aiTurn = await conductInterviewTurn(
+      conversation,
+      baseQuestions,
+      session.current_question_index,
+      session.target_role,
+      { subscriptionId: req.user.stripe_subscription_id }
+    );
+
+    // Build interviewer message
+    let interviewerText = aiTurn.reaction || '';
+    if (aiTurn.question) {
+      interviewerText += (interviewerText ? '\n\n' : '') + aiTurn.question;
+    }
+
+    const interviewerMessage = {
+      role: 'interviewer',
+      text: interviewerText,
+      action: aiTurn.action || 'transition',
+      score_hint: aiTurn.score_hint || null,
+      notes: aiTurn.notes || null,
+      timestamp: new Date().toISOString()
+    };
+    conversation.push(interviewerMessage);
+
+    // Step 4: Update session in DB
+    const isWrappingUp = aiTurn.action === 'wrap_up';
+    const isTransition = aiTurn.action === 'transition';
+    const newQuestionIndex = isTransition
+      ? Math.min(session.current_question_index + 1, baseQuestions.length)
+      : session.current_question_index;
+    const newFollowUps = (aiTurn.action === 'follow_up' || aiTurn.action === 'challenge')
+      ? (session.follow_ups_asked || 0) + 1
+      : session.follow_ups_asked || 0;
+
+    if (isTransition && newQuestionIndex < baseQuestions.length) {
+      const nextQ = baseQuestions[newQuestionIndex];
+      if (nextQ) {
+        await pool.query('UPDATE question_bank SET times_used = times_used + 1 WHERE id = $1', [nextQ.id]);
+      }
+    }
+
+    await pool.query(
+      `UPDATE mock_interview_sessions
+       SET conversation = $1, current_question_index = $2,
+           questions_asked = $3, follow_ups_asked = $4
+       WHERE id = $5`,
+      [
+        JSON.stringify(conversation),
+        newQuestionIndex,
+        isTransition ? (session.questions_asked || 0) + 1 : session.questions_asked || 0,
+        newFollowUps,
+        sessionId
+      ]
+    );
+
+    // Step 5: Generate TTS for interviewer response
+    let audioBase64 = null;
+    try {
+      const audioBuffer = await textToSpeech(interviewerText, {
+        voice: 'nova',
+        subscriptionId: req.user.stripe_subscription_id
+      });
+      if (audioBuffer) {
+        audioBase64 = audioBuffer.toString('base64');
+      }
+    } catch (ttsErr) {
+      console.error('TTS generation failed for voice-respond:', ttsErr.message);
+      // Non-fatal — response still works without audio
+    }
+
+    res.json({
+      success: true,
+      transcribed_text: transcribedText,
+      interviewer_message: interviewerMessage,
+      interviewer_audio_base64: audioBase64,
+      action: aiTurn.action,
+      questions_asked: isTransition ? (session.questions_asked || 0) + 1 : session.questions_asked || 0,
+      is_wrapping_up: isWrappingUp
+    });
+  } catch (err) {
+    console.error('Voice respond error:', err);
+    res.status(500).json({ error: 'Failed to process voice response. Please try again.' });
   }
 });
 
