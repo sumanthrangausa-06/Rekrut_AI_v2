@@ -1106,9 +1106,15 @@ export function AiCoachingPage() {
   async function startVoiceRecording() {
     setVoiceError(null)
     try {
-      // Get mic access
+      // Reuse camera stream's audio tracks if available (avoids second permission prompt)
       if (!voiceStreamRef.current) {
-        voiceStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true })
+        if (mockStreamRef.current && mockStreamRef.current.getAudioTracks().length > 0) {
+          // Create audio-only stream from camera's mic track
+          const audioTrack = mockStreamRef.current.getAudioTracks()[0]
+          voiceStreamRef.current = new MediaStream([audioTrack])
+        } else {
+          voiceStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true })
+        }
       }
 
       voiceChunksRef.current = []
@@ -1254,10 +1260,14 @@ export function AiCoachingPage() {
       aiAudioRef.current = null
     }
     stopVoiceRecording()
-    if (voiceStreamRef.current) {
-      voiceStreamRef.current.getTracks().forEach(t => t.stop())
-      voiceStreamRef.current = null
+    // Only stop tracks if they're NOT from the camera stream (avoid killing camera audio)
+    if (voiceStreamRef.current && voiceStreamRef.current !== mockStreamRef.current) {
+      const cameraAudioIds = mockStreamRef.current?.getAudioTracks().map(t => t.id) || []
+      voiceStreamRef.current.getTracks().forEach(t => {
+        if (!cameraAudioIds.includes(t.id)) t.stop()
+      })
     }
+    voiceStreamRef.current = null
     setAiSpeaking(false)
     setCandidateRecording(false)
     setVoiceProcessing(false)
@@ -1276,6 +1286,14 @@ export function AiCoachingPage() {
       }
     }
   }, [voiceMode, mockSession?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-dismiss voice errors after 5 seconds
+  useEffect(() => {
+    if (voiceError) {
+      const t = setTimeout(() => setVoiceError(null), 5000)
+      return () => clearTimeout(t)
+    }
+  }, [voiceError])
 
   // Cleanup voice and camera on unmount
   useEffect(() => {
@@ -1422,11 +1440,11 @@ export function AiCoachingPage() {
                 <div className="absolute inset-0 flex items-center justify-center">
                   {/* AI Avatar / Waveform area */}
                   <div className="flex flex-col items-center gap-4">
-                    {/* AI avatar circle */}
+                    {/* AI avatar circle — professional interviewer look */}
                     <div className={`relative h-28 w-28 sm:h-36 sm:w-36 rounded-full flex items-center justify-center transition-all duration-300 ${
-                      aiSpeaking ? 'bg-violet-500/30 ring-4 ring-violet-400/50 scale-105' :
+                      aiSpeaking ? 'bg-gradient-to-br from-violet-500/40 to-blue-500/40 ring-4 ring-violet-400/50 scale-105' :
                       voiceProcessing ? 'bg-amber-500/20 ring-2 ring-amber-400/30' :
-                      'bg-gray-800 ring-2 ring-gray-700'
+                      'bg-gradient-to-br from-gray-700 to-gray-800 ring-2 ring-gray-600'
                     }`}>
                       {/* Animated waveform rings when speaking */}
                       {aiSpeaking && (
@@ -1436,9 +1454,15 @@ export function AiCoachingPage() {
                           <div className="absolute inset-[-16px] rounded-full border border-violet-400/15 animate-pulse" style={{ animationDelay: '300ms' }} />
                         </>
                       )}
-                      <Brain className={`h-12 w-12 sm:h-16 sm:w-16 transition-colors ${
-                        aiSpeaking ? 'text-violet-300' : 'text-gray-400'
-                      }`} />
+                      {/* Professional interviewer avatar with initials */}
+                      <div className="flex flex-col items-center">
+                        <User className={`h-10 w-10 sm:h-14 sm:w-14 transition-colors ${
+                          aiSpeaking ? 'text-violet-200' : 'text-gray-300'
+                        }`} />
+                        <span className={`text-[9px] sm:text-[10px] font-semibold mt-0.5 ${
+                          aiSpeaking ? 'text-violet-200' : 'text-gray-400'
+                        }`}>AI</span>
+                      </div>
                     </div>
 
                     {/* AI name and status */}
@@ -1620,17 +1644,17 @@ export function AiCoachingPage() {
               {/* Status text */}
               <div className="text-center">
                 {voiceError ? (
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-red-700 text-xs">
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-900/50 border border-red-700/50 text-red-300 text-xs animate-in fade-in">
                     <AlertCircle className="h-3.5 w-3.5" />
                     {voiceError}
-                    <button onClick={() => setVoiceError(null)} className="text-red-400 hover:text-red-600 ml-1">✕</button>
+                    <button onClick={() => setVoiceError(null)} className="text-red-400 hover:text-red-200 ml-1">✕</button>
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    {aiSpeaking ? 'Listen to the question, then click the green mic button to answer' :
-                     candidateRecording ? 'Speaking... click the red button when done (auto-stops after 3.5s silence)' :
+                    {aiSpeaking ? 'Listening to interviewer... mic will auto-activate when they finish' :
+                     candidateRecording ? `Speaking... ${silenceTimer > 0 ? `paused ${silenceTimer}s (auto-sends at 3.5s)` : 'auto-sends when you stop talking'}` :
                      voiceProcessing ? 'Processing your answer...' :
-                     'Click the green mic button to start answering'}
+                     'Mic will activate automatically — or tap the green button to start'}
                   </p>
                 )}
               </div>
