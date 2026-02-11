@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Investigate current mock interview codebase (ai-coaching.tsx, routes, polsia-ai.js)",
+    "status": "completed",
+    "activeForm": "Investigating current mock interview codebase"
+  },
+  {
+    "content": "Phase 1: Add TTS — AI speaks questions via OpenAI TTS API",
+    "status": "completed",
+    "activeForm": "Adding TTS — AI speaks questions via OpenAI TTS API"
+  },
+  {
+    "content": "Phase 2: Voice conversation loop — mic capture + Whisper transcription",
+    "status": "completed",
+    "activeForm": "Building voice conversation loop"
+  },
+  {
+    "content": "Deploy Phases 1+2 and verify",
+    "status": "in_progress",
+    "activeForm": "Deploying Phases 1+2 and verifying"
+  },
+  {
+    "content": "Phase 3: Polish UI — speaking indicators, progress, summary",
+    "status": "pending",
+    "activeForm": "Polishing UI — speaking indicators, progress, summary"
+  },
+  {
+    "content": "Deploy Phase 3 — final commit",
+    "status": "pending",
+    "activeForm": "Deploying Phase 3 — final commit"
+  }
+]
