@@ -16,12 +16,12 @@
   },
   {
     "content": "Deploy Phases 1+2 and verify",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Deploying Phases 1+2 and verifying"
   },
   {
     "content": "Phase 3: Polish UI — speaking indicators, progress, summary",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Polishing UI — speaking indicators, progress, summary"
   },
   {
