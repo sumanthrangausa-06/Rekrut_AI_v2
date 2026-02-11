@@ -1338,11 +1338,27 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
     const session = sessionResult.rows[0];
     const conversation = session.conversation || [];
 
-    // Allow ending with at least 2 messages (intro + 1 candidate turn)
-    // Previously required 3, which blocked users when AI was unavailable
+    // BUG FIX: Allow ending at any time. If 0 answers, return success with no_feedback flag
+    // instead of 400 error (which left the session stuck and the end button broken).
     const candidateTurns = conversation.filter(t => t.role === 'candidate');
     if (candidateTurns.length === 0) {
-      return res.status(400).json({ error: 'Not enough conversation to generate feedback. Answer at least one question.' });
+      // Mark session as completed even with no answers
+      await pool.query(
+        `UPDATE mock_interview_sessions SET status = 'completed', completed_at = NOW() WHERE id = $1`,
+        [sessionId]
+      );
+      return res.json({
+        success: true,
+        no_feedback: true,
+        feedback: null,
+        session: {
+          id: session.id,
+          target_role: session.target_role,
+          questions_asked: 0,
+          follow_ups_asked: 0,
+          duration_minutes: 0
+        }
+      });
     }
 
     // BUG FIX: Return text feedback IMMEDIATELY. Video/voice analysis runs in background.

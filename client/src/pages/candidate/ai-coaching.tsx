@@ -1212,44 +1212,76 @@ export function AiCoachingPage() {
     if (!mockSession) return
     setMockEnding(true)
 
-    // Stop frame capture and speech recognition
+    // IMMEDIATELY stop all audio, recording, and camera — don't wait for anything
+    stopVoiceMode()
     stopMockFrameCapture()
     stopMockSpeechRecognition()
 
-    // Capture a final frame
+    // Capture a final frame (quick, non-blocking)
     const finalFrame = captureMockFrame()
     if (finalFrame && mockFramesRef.current.length < 20) {
       mockFramesRef.current.push(finalFrame)
     }
 
-    // AI says goodbye via voice if in voice mode
+    // BUG FIX: Do NOT await TTS goodbye — this hung the end button when TTS was failing.
+    // Fire and forget with a very short timeout.
     if (voiceMode) {
-      try {
-        const goodbyeText = `That's all my questions for today. Thank you for taking the time to practice your ${mockSession.target_role} interview. I'll prepare your detailed feedback now.`
-        await playInterviewerAudio(goodbyeText)
-      } catch (_) {
-        // Non-fatal
-      }
+      const goodbyeText = `Thank you for the interview. I'll prepare your feedback now.`
+      // Best-effort TTS, abort after 3 seconds
+      Promise.race([
+        speakWithBrowserTTS(goodbyeText),
+        new Promise(resolve => setTimeout(resolve, 3000))
+      ]).catch(() => {})
     }
 
     try {
       // Send frames for body language analysis
       const frames = mockFramesRef.current.length > 0 ? mockFramesRef.current : undefined
-      const res = await apiCall<{ success: boolean; feedback: SessionFeedback }>(`/interviews/mock/${mockSession.id}/end`, {
+      const res = await apiCall<{ success: boolean; feedback: SessionFeedback; no_feedback?: boolean }>(`/interviews/mock/${mockSession.id}/end`, {
         method: 'POST',
         body: { frames }
       })
       if (res.success) {
-        stopVoiceMode()
         stopMockCamera()
-        setMockFeedback(res.feedback)
+        if (res.no_feedback) {
+          // No questions answered — show "no feedback" message
+          setMockFeedback({
+            overall_score: 0,
+            interview_readiness: 'needs_practice',
+            summary: 'Interview ended before any questions were answered. No feedback is available. Start a new interview to practice!',
+            strengths: [],
+            improvements: ['Complete at least one question to receive feedback'],
+            question_scores: [],
+            star_method_usage: { score: 0, feedback: 'N/A' },
+            communication_quality: { score: 0, feedback: 'N/A' },
+            technical_depth: { score: 0, feedback: 'N/A' },
+            top_tip: 'Try starting a new interview and answer at least one question to get personalized feedback.'
+          } as SessionFeedback)
+        } else {
+          setMockFeedback(res.feedback)
+        }
         setMockSession(prev => prev ? { ...prev, status: 'completed' } : null)
         mockFramesRef.current = []
         loadMockSessions()
         loadStats()
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to end interview')
+      // BUG FIX: Even on error, clean up and end the session visually
+      stopMockCamera()
+      setMockFeedback({
+        overall_score: 0,
+        interview_readiness: 'needs_practice',
+        summary: 'Interview ended. Feedback could not be generated — please try again.',
+        strengths: [],
+        improvements: [],
+        question_scores: [],
+        star_method_usage: { score: 0, feedback: 'N/A' },
+        communication_quality: { score: 0, feedback: 'N/A' },
+        technical_depth: { score: 0, feedback: 'N/A' },
+        top_tip: 'Start a new interview to practice.'
+      } as SessionFeedback)
+      setMockSession(prev => prev ? { ...prev, status: 'completed' } : null)
+      mockFramesRef.current = []
     } finally {
       setMockEnding(false)
     }
