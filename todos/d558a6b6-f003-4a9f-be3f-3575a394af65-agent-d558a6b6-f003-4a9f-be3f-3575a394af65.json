@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate codebase: git history, routing, current admin pages",
+    "status": "completed",
+    "activeForm": "Investigating codebase structure and recent changes"
+  },
+  {
+    "content": "Phase 1: Build admin authentication (login page, session auth, route protection, rate limiting)",
+    "status": "completed",
+    "activeForm": "Building admin authentication system"
+  },
+  {
+    "content": "Phase 2: Fix AI Health Dashboard route behind auth",
+    "status": "completed",
+    "activeForm": "Fixing AI Health Dashboard route"
+  },
+  {
+    "content": "Build React client, commit, and push to deploy",
+    "status": "in_progress",
+    "activeForm": "Building React client and deploying"
+  },
+  {
+    "content": "Set ADMIN_PASSWORD env var and notify owner",
+    "status": "pending",
+    "activeForm": "Setting admin password and notifying owner"
+  }
+]
