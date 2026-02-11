@@ -301,6 +301,21 @@ export function AiCoachingPage() {
   const [mockShowSetup, setMockShowSetup] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
+  // Voice interview state
+  const [voiceMode, setVoiceMode] = useState(false)
+  const [aiSpeaking, setAiSpeaking] = useState(false)
+  const [candidateRecording, setCandidateRecording] = useState(false)
+  const [voiceProcessing, setVoiceProcessing] = useState(false)
+  const [silenceTimer, setSilenceTimer] = useState<number>(0)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
+  const aiAudioRef = useRef<HTMLAudioElement | null>(null)
+  const voiceRecorderRef = useRef<MediaRecorder | null>(null)
+  const voiceChunksRef = useRef<Blob[]>([])
+  const voiceStreamRef = useRef<MediaStream | null>(null)
+  const silenceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const silenceCountRef = useRef<number>(0)
+
   const loadStats = useCallback(async () => {
     try {
       const res = await apiCall<{ success: boolean; stats: PracticeStats }>('/interviews/practice/stats')
@@ -887,6 +902,10 @@ export function AiCoachingPage() {
           conversation: [...prev.conversation, res.interviewer_message]
         } : null)
         setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+        // Play TTS if voice mode is on
+        if (voiceMode && res.interviewer_message?.text) {
+          playInterviewerAudio(res.interviewer_message.text)
+        }
       }
     } catch (err: any) {
       alert(err.message || 'Failed to send response')
@@ -916,13 +935,255 @@ export function AiCoachingPage() {
   }
 
   function resetMockInterview() {
+    stopVoiceMode()
     setMockSession(null)
     setMockFeedback(null)
     setMockResponseText('')
     setMockTargetRole('')
     setMockJobDescription('')
     setMockShowSetup(false)
+    setVoiceMode(false)
   }
+
+  // ===== VOICE INTERVIEW FUNCTIONS =====
+
+  // Play TTS audio for interviewer text
+  async function playInterviewerAudio(text: string) {
+    if (!voiceMode || !text) return
+    setAiSpeaking(true)
+    setVoiceError(null)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('/api/interviews/mock/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ text })
+      })
+
+      if (!response.ok) {
+        console.error('TTS failed:', response.status)
+        setAiSpeaking(false)
+        return
+      }
+
+      const audioBlob = await response.blob()
+      const audioUrl = URL.createObjectURL(audioBlob)
+
+      // Create or reuse audio element
+      if (aiAudioRef.current) {
+        aiAudioRef.current.pause()
+        URL.revokeObjectURL(aiAudioRef.current.src)
+      }
+      const audio = new Audio(audioUrl)
+      aiAudioRef.current = audio
+
+      audio.onended = () => {
+        setAiSpeaking(false)
+        URL.revokeObjectURL(audioUrl)
+        // Auto-start recording after AI finishes speaking
+        if (voiceMode && !candidateRecording) {
+          startVoiceRecording()
+        }
+      }
+      audio.onerror = () => {
+        setAiSpeaking(false)
+        URL.revokeObjectURL(audioUrl)
+        console.error('Audio playback error')
+      }
+
+      await audio.play()
+    } catch (err) {
+      console.error('TTS playback error:', err)
+      setAiSpeaking(false)
+    }
+  }
+
+  // Start recording candidate's voice
+  async function startVoiceRecording() {
+    setVoiceError(null)
+    try {
+      // Get mic access
+      if (!voiceStreamRef.current) {
+        voiceStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true })
+      }
+
+      voiceChunksRef.current = []
+
+      // Set up silence detection using Web Audio API
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const source = audioContext.createMediaStreamSource(voiceStreamRef.current)
+      const analyser = audioContext.createAnalyser()
+      analyser.fftSize = 512
+      source.connect(analyser)
+      analyserRef.current = analyser
+      silenceCountRef.current = 0
+
+      // Check for silence every 200ms — auto-stop after 3.5s of silence
+      silenceIntervalRef.current = setInterval(() => {
+        if (!analyserRef.current) return
+        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount)
+        analyserRef.current.getByteFrequencyData(dataArray)
+        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
+        if (avg < 8) {
+          silenceCountRef.current++
+          setSilenceTimer(Math.round(silenceCountRef.current * 0.2))
+          if (silenceCountRef.current >= 18) { // ~3.6 seconds of silence
+            stopVoiceRecording()
+          }
+        } else {
+          silenceCountRef.current = 0
+          setSilenceTimer(0)
+        }
+      }, 200)
+
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+          ? 'audio/mp4'
+          : 'audio/webm'
+
+      const recorder = new MediaRecorder(voiceStreamRef.current, { mimeType })
+      voiceRecorderRef.current = recorder
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) voiceChunksRef.current.push(e.data)
+      }
+
+      recorder.onstop = async () => {
+        setCandidateRecording(false)
+        if (silenceIntervalRef.current) clearInterval(silenceIntervalRef.current)
+        setSilenceTimer(0)
+
+        if (voiceChunksRef.current.length === 0) return
+
+        setVoiceProcessing(true)
+        try {
+          const audioBlob = new Blob(voiceChunksRef.current, { type: mimeType })
+
+          // Convert to base64
+          const reader = new FileReader()
+          const base64Promise = new Promise<string>((resolve) => {
+            reader.onloadend = () => resolve(reader.result as string)
+          })
+          reader.readAsDataURL(audioBlob)
+          const audioBase64 = await base64Promise
+
+          const token = localStorage.getItem('token')
+          const res = await fetch(`/api/interviews/mock/${mockSession?.id}/voice-respond`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ audio_base64: audioBase64 })
+          })
+
+          const data = await res.json()
+
+          if (data.success) {
+            // Add candidate message with transcription
+            const candidateMsg: MockConversationTurn = {
+              role: 'candidate',
+              text: data.transcribed_text,
+              timestamp: new Date().toISOString()
+            }
+            setMockSession(prev => prev ? {
+              ...prev,
+              conversation: [...prev.conversation, candidateMsg, data.interviewer_message]
+            } : null)
+            setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+
+            // Play AI response audio
+            if (data.interviewer_audio_base64) {
+              setAiSpeaking(true)
+              const audioData = Uint8Array.from(atob(data.interviewer_audio_base64), c => c.charCodeAt(0))
+              const blob = new Blob([audioData], { type: 'audio/mpeg' })
+              const url = URL.createObjectURL(blob)
+              if (aiAudioRef.current) {
+                aiAudioRef.current.pause()
+                URL.revokeObjectURL(aiAudioRef.current.src)
+              }
+              const audio = new Audio(url)
+              aiAudioRef.current = audio
+              audio.onended = () => {
+                setAiSpeaking(false)
+                URL.revokeObjectURL(url)
+                if (voiceMode && !data.is_wrapping_up) startVoiceRecording()
+              }
+              audio.onerror = () => { setAiSpeaking(false); URL.revokeObjectURL(url) }
+              await audio.play()
+            } else {
+              // No audio — try separate TTS call
+              playInterviewerAudio(data.interviewer_message.text)
+            }
+          } else {
+            setVoiceError(data.error || 'Failed to process your response')
+          }
+        } catch (err: any) {
+          setVoiceError(err.message || 'Voice processing failed')
+          console.error('Voice response error:', err)
+        } finally {
+          setVoiceProcessing(false)
+        }
+      }
+
+      recorder.start(250)
+      setCandidateRecording(true)
+    } catch (err: any) {
+      console.error('Mic access error:', err)
+      setVoiceError('Microphone access denied. Please allow microphone access to use voice mode.')
+      setCandidateRecording(false)
+    }
+  }
+
+  function stopVoiceRecording() {
+    if (voiceRecorderRef.current && voiceRecorderRef.current.state !== 'inactive') {
+      voiceRecorderRef.current.stop()
+    }
+    if (silenceIntervalRef.current) {
+      clearInterval(silenceIntervalRef.current)
+      silenceIntervalRef.current = null
+    }
+    setSilenceTimer(0)
+    silenceCountRef.current = 0
+  }
+
+  function stopVoiceMode() {
+    if (aiAudioRef.current) {
+      aiAudioRef.current.pause()
+      aiAudioRef.current = null
+    }
+    stopVoiceRecording()
+    if (voiceStreamRef.current) {
+      voiceStreamRef.current.getTracks().forEach(t => t.stop())
+      voiceStreamRef.current = null
+    }
+    setAiSpeaking(false)
+    setCandidateRecording(false)
+    setVoiceProcessing(false)
+    setSilenceTimer(0)
+  }
+
+  // When voice mode is enabled and a new session starts, play the first message
+  useEffect(() => {
+    if (voiceMode && mockSession && mockSession.status === 'in_progress' && mockSession.conversation.length > 0) {
+      const lastMsg = mockSession.conversation[mockSession.conversation.length - 1]
+      if (lastMsg.role === 'interviewer' && !aiSpeaking && !candidateRecording && !voiceProcessing) {
+        // Only auto-play the opening message when session just started
+        if (mockSession.conversation.length === 1) {
+          playInterviewerAudio(lastMsg.text)
+        }
+      }
+    }
+  }, [voiceMode, mockSession?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cleanup voice on unmount
+  useEffect(() => {
+    return () => { stopVoiceMode() }
+  }, [])
 
   // Load mock sessions when switching to mock tab
   useEffect(() => {
@@ -1059,20 +1320,104 @@ export function AiCoachingPage() {
           {mockSession && mockSession.status === 'in_progress' && !mockFeedback ? (
             <div className="space-y-4">
               {/* Session header */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <Badge className="bg-green-100 text-green-700 border-0">
                     <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse mr-1.5" />
                     Live Interview
                   </Badge>
                   <span className="text-sm font-medium">{mockSession.target_role}</span>
+                  {voiceMode && (
+                    <Badge className="bg-violet-100 text-violet-700 border-0">
+                      <Volume2 className="h-3 w-3 mr-1" /> Voice Mode
+                    </Badge>
+                  )}
                 </div>
-                <Button size="sm" variant="outline" onClick={endMockInterview} disabled={mockEnding}
-                  className="text-red-600 border-red-200 hover:bg-red-50">
-                  {mockEnding ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <StopCircle className="h-3.5 w-3.5 mr-1.5" />}
-                  End Interview
-                </Button>
+                <div className="flex items-center gap-2">
+                  {/* Voice mode toggle */}
+                  <Button
+                    size="sm"
+                    variant={voiceMode ? 'default' : 'outline'}
+                    onClick={() => {
+                      if (voiceMode) {
+                        stopVoiceMode()
+                        setVoiceMode(false)
+                      } else {
+                        setVoiceMode(true)
+                        // Play the last interviewer message
+                        const lastInterviewer = [...mockSession.conversation].reverse().find(t => t.role === 'interviewer')
+                        if (lastInterviewer) setTimeout(() => playInterviewerAudio(lastInterviewer.text), 300)
+                      }
+                    }}
+                    className={voiceMode ? 'bg-violet-600 hover:bg-violet-700' : ''}
+                  >
+                    {voiceMode ? <Volume2 className="h-3.5 w-3.5 mr-1.5" /> : <Mic className="h-3.5 w-3.5 mr-1.5" />}
+                    {voiceMode ? 'Voice On' : 'Voice Mode'}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => { stopVoiceMode(); endMockInterview() }} disabled={mockEnding}
+                    className="text-red-600 border-red-200 hover:bg-red-50">
+                    {mockEnding ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <StopCircle className="h-3.5 w-3.5 mr-1.5" />}
+                    End Interview
+                  </Button>
+                </div>
               </div>
+
+              {/* Voice status bar */}
+              {voiceMode && (
+                <div className={`flex items-center justify-center gap-3 p-3 rounded-xl border-2 transition-all ${
+                  aiSpeaking ? 'bg-violet-50 border-violet-200' :
+                  candidateRecording ? 'bg-green-50 border-green-200' :
+                  voiceProcessing ? 'bg-amber-50 border-amber-200' :
+                  'bg-muted/30 border-muted'
+                }`}>
+                  {aiSpeaking ? (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-end gap-0.5 h-5">
+                          <div className="w-1 bg-violet-500 rounded-full animate-pulse" style={{height: '60%', animationDelay: '0ms'}} />
+                          <div className="w-1 bg-violet-500 rounded-full animate-pulse" style={{height: '100%', animationDelay: '150ms'}} />
+                          <div className="w-1 bg-violet-500 rounded-full animate-pulse" style={{height: '40%', animationDelay: '300ms'}} />
+                          <div className="w-1 bg-violet-500 rounded-full animate-pulse" style={{height: '80%', animationDelay: '100ms'}} />
+                          <div className="w-1 bg-violet-500 rounded-full animate-pulse" style={{height: '50%', animationDelay: '250ms'}} />
+                        </div>
+                        <span className="text-sm font-medium text-violet-700">AI Interviewer is speaking...</span>
+                      </div>
+                    </>
+                  ) : candidateRecording ? (
+                    <>
+                      <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+                      <span className="text-sm font-medium text-green-700">Recording your answer...</span>
+                      {silenceTimer > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          (auto-stop in {Math.max(0, Math.round(3.6 - silenceTimer))}s of silence)
+                        </span>
+                      )}
+                      <Button size="sm" variant="outline" onClick={stopVoiceRecording}
+                        className="ml-2 text-xs h-7">
+                        <Square className="h-3 w-3 mr-1" /> Done
+                      </Button>
+                    </>
+                  ) : voiceProcessing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
+                      <span className="text-sm font-medium text-amber-700">Processing your response...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Voice mode active — waiting</span>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {voiceError && (
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  {voiceError}
+                  <Button size="sm" variant="ghost" className="ml-auto h-6 text-xs" onClick={() => setVoiceError(null)}>Dismiss</Button>
+                </div>
+              )}
 
               {/* Chat window */}
               <Card className="border-2">
@@ -1091,18 +1436,35 @@ export function AiCoachingPage() {
                                 <Brain className="h-3 w-3 text-primary" />
                               </div>
                               <span className="text-[10px] font-medium text-primary">AI Interviewer</span>
+                              {voiceMode && i === mockSession.conversation.length - 1 && turn.role === 'interviewer' && !aiSpeaking && (
+                                <button
+                                  onClick={() => playInterviewerAudio(turn.text)}
+                                  className="ml-1 p-0.5 rounded hover:bg-primary/10 transition-colors"
+                                  title="Replay audio"
+                                >
+                                  <Volume2 className="h-3 w-3 text-primary/50 hover:text-primary" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {turn.role === 'candidate' && (
+                            <div className="flex items-center gap-1.5 mb-1.5 justify-end">
+                              <span className="text-[10px] font-medium opacity-70">You</span>
+                              {voiceMode && <Mic className="h-2.5 w-2.5 opacity-50" />}
                             </div>
                           )}
                           <p className="text-sm leading-relaxed whitespace-pre-wrap">{turn.text}</p>
                         </div>
                       </div>
                     ))}
-                    {mockSending && (
+                    {(mockSending || voiceProcessing) && (
                       <div className="flex justify-start">
                         <div className="bg-primary/5 border border-primary/10 rounded-2xl px-4 py-3">
                           <div className="flex items-center gap-2">
                             <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                            <span className="text-xs text-muted-foreground">AI is thinking...</span>
+                            <span className="text-xs text-muted-foreground">
+                              {voiceProcessing ? 'Transcribing & generating response...' : 'AI is thinking...'}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -1112,32 +1474,75 @@ export function AiCoachingPage() {
 
                   {/* Input area */}
                   <div className="border-t p-3">
-                    <div className="flex gap-2">
-                      <Textarea
-                        value={mockResponseText}
-                        onChange={e => setMockResponseText(e.target.value)}
-                        placeholder="Type your answer... (be detailed, use the STAR method for behavioral questions)"
-                        rows={2}
-                        className="resize-none text-sm"
-                        onKeyDown={e => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault()
-                            sendMockResponse()
-                          }
-                        }}
-                      />
-                      <Button
-                        onClick={sendMockResponse}
-                        disabled={mockSending || mockResponseText.trim().length < 10}
-                        className="shrink-0 self-end"
-                        size="sm"
-                      >
-                        <Send className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-1.5">
-                      Press Enter to send · Shift+Enter for new line · Min 10 characters
-                    </p>
+                    {voiceMode ? (
+                      <div className="text-center space-y-2">
+                        {!candidateRecording && !aiSpeaking && !voiceProcessing ? (
+                          <div className="flex items-center justify-center gap-3">
+                            <Button
+                              onClick={startVoiceRecording}
+                              size="lg"
+                              className="bg-green-600 hover:bg-green-700 gap-2"
+                            >
+                              <Mic className="h-5 w-5" /> Start Speaking
+                            </Button>
+                            <span className="text-xs text-muted-foreground">or type below</span>
+                          </div>
+                        ) : null}
+                        {/* Also show text input as fallback in voice mode */}
+                        <div className="flex gap-2">
+                          <Textarea
+                            value={mockResponseText}
+                            onChange={e => setMockResponseText(e.target.value)}
+                            placeholder="Or type your answer here..."
+                            rows={1}
+                            className="resize-none text-sm"
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault()
+                                sendMockResponse()
+                              }
+                            }}
+                          />
+                          <Button
+                            onClick={sendMockResponse}
+                            disabled={mockSending || mockResponseText.trim().length < 10}
+                            className="shrink-0 self-end"
+                            size="sm"
+                          >
+                            <Send className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex gap-2">
+                          <Textarea
+                            value={mockResponseText}
+                            onChange={e => setMockResponseText(e.target.value)}
+                            placeholder="Type your answer... (be detailed, use the STAR method for behavioral questions)"
+                            rows={2}
+                            className="resize-none text-sm"
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault()
+                                sendMockResponse()
+                              }
+                            }}
+                          />
+                          <Button
+                            onClick={sendMockResponse}
+                            disabled={mockSending || mockResponseText.trim().length < 10}
+                            className="shrink-0 self-end"
+                            size="sm"
+                          >
+                            <Send className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-1.5">
+                          Press Enter to send · Shift+Enter for new line · Min 10 characters · Try <button className="text-primary underline" onClick={() => setVoiceMode(true)}>Voice Mode</button> for a real interview experience
+                        </p>
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>
