@@ -57,6 +57,9 @@ import { RecruiterOmniScorePage } from '@/pages/recruiter/omniscore'
 // Camera Test (isolation debugging)
 import { TestCameraPage } from '@/pages/test-camera'
 
+// Admin
+import { AiHealthPage } from '@/pages/admin/ai-health'
+
 function RoleRedirect() {
   const { user, loading } = useAuth()
 
@@ -119,6 +122,9 @@ function AppRoutes() {
       <Route path="/settings" element={<DashboardLayout />}>
         <Route index element={<PlaceholderPage />} />
       </Route>
+
+      {/* Admin routes (no auth required) */}
+      <Route path="/admin/ai-health" element={<AiHealthPage />} />
 
       {/* Catch all */}
       <Route path="*" element={<Navigate to="/" replace />} />
