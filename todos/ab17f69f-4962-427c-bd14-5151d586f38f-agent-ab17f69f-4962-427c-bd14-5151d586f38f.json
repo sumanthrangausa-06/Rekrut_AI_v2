@@ -1,0 +1,37 @@
+[
+  {
+    "content": "Investigate current AI usage patterns across all routes",
+    "status": "completed",
+    "activeForm": "Investigating current AI usage patterns"
+  },
+  {
+    "content": "Build unified AI provider service with fallback chains",
+    "status": "completed",
+    "activeForm": "Building unified AI provider service"
+  },
+  {
+    "content": "Integrate NIM providers (LLM, TTS, ASR, Vision)",
+    "status": "completed",
+    "activeForm": "Integrating NIM providers"
+  },
+  {
+    "content": "Add auto-detection and switching on errors (401/429/402/timeout)",
+    "status": "completed",
+    "activeForm": "Adding auto-detection and provider switching"
+  },
+  {
+    "content": "Update polsia-ai.js to use new provider service",
+    "status": "completed",
+    "activeForm": "Updating polsia-ai.js with provider fallbacks"
+  },
+  {
+    "content": "Fix direct OpenAI call in interviews.js and add health endpoint",
+    "status": "completed",
+    "activeForm": "Fixing direct OpenAI call and adding health endpoint"
+  },
+  {
+    "content": "Commit, push, and verify deployment",
+    "status": "in_progress",
+    "activeForm": "Committing and pushing to production"
+  }
+]
