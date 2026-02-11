@@ -1153,9 +1153,20 @@ export function AiCoachingPage() {
         }
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to start interview')
+      const msg = err.message || 'Failed to start interview'
+      // Show a more helpful error if rate-limited
+      if (msg.includes('429') || msg.includes('rate') || msg.includes('limit') || msg.includes('token')) {
+        alert('AI service is temporarily at capacity. Please wait a moment and try again.')
+      } else {
+        alert(msg)
+      }
+      // CRITICAL: Clean up everything on failure — prevents stale session display
       stopMockCamera()
       stopMockFrameCapture()
+      stopVoiceMode()
+      setMockSession(null)
+      setVoiceMode(false)
+      setShowTranscript(false)
     } finally {
       setMockStarting(false)
     }
@@ -1263,7 +1274,35 @@ export function AiCoachingPage() {
 
   // ===== VOICE INTERVIEW FUNCTIONS =====
 
-  // Play TTS audio for interviewer text — uses Web Audio API for reliable iOS playback
+  // Browser Speech Synthesis fallback — used when TTS API is rate-limited (429)
+  function speakWithBrowserTTS(text: string): Promise<void> {
+    return new Promise((resolve) => {
+      if (!window.speechSynthesis) {
+        console.warn('[browser-tts] speechSynthesis not available')
+        resolve()
+        return
+      }
+      // Cancel any pending speech
+      window.speechSynthesis.cancel()
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.rate = 1.0
+      utterance.pitch = 1.0
+      utterance.volume = 1.0
+      // Try to use a female English voice for consistency with "Alex"
+      const voices = window.speechSynthesis.getVoices()
+      const preferred = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
+        || voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('samantha'))
+        || voices.find(v => v.lang.startsWith('en-US'))
+        || voices.find(v => v.lang.startsWith('en'))
+      if (preferred) utterance.voice = preferred
+      utterance.onend = () => resolve()
+      utterance.onerror = () => resolve()
+      window.speechSynthesis.speak(utterance)
+      console.log('[browser-tts] Speaking via browser speechSynthesis')
+    })
+  }
+
+  // Play TTS audio for interviewer text — uses Web Audio API with browser speech fallback
   async function playInterviewerAudio(text: string) {
     if (!text) return
     setAiSpeaking(true)
@@ -1279,12 +1318,27 @@ export function AiCoachingPage() {
         body: JSON.stringify({ text })
       })
 
-      if (!response.ok) {
-        const errText = await response.text()
-        console.error('[tts-client] TTS failed:', response.status, errText)
+      // Check if response is JSON (TTS unavailable) or audio
+      const contentType = response.headers.get('content-type') || ''
+
+      if (contentType.includes('application/json')) {
+        // TTS API unavailable (rate limited) — fall back to browser speech synthesis
+        console.log('[tts-client] TTS API unavailable, falling back to browser speech synthesis')
+        await speakWithBrowserTTS(text)
         setAiSpeaking(false)
         if (voiceMode && !candidateRecording) {
-          setTimeout(() => startVoiceRecording(), 1500)
+          startVoiceRecording()
+        }
+        return
+      }
+
+      if (!response.ok) {
+        console.error('[tts-client] TTS failed:', response.status)
+        // Fall back to browser TTS
+        await speakWithBrowserTTS(text)
+        setAiSpeaking(false)
+        if (voiceMode && !candidateRecording) {
+          setTimeout(() => startVoiceRecording(), 500)
         }
         return
       }
@@ -1292,9 +1346,10 @@ export function AiCoachingPage() {
       const arrayBuffer = await response.arrayBuffer()
       if (arrayBuffer.byteLength < 100) {
         console.error('[tts-client] Audio too small:', arrayBuffer.byteLength)
+        await speakWithBrowserTTS(text)
         setAiSpeaking(false)
         if (voiceMode && !candidateRecording) {
-          setTimeout(() => startVoiceRecording(), 1500)
+          setTimeout(() => startVoiceRecording(), 500)
         }
         return
       }
@@ -1349,10 +1404,11 @@ export function AiCoachingPage() {
       }
     } catch (err) {
       console.error('[tts-client] TTS playback error:', err)
+      // Final fallback: browser speech synthesis
+      try { await speakWithBrowserTTS(text) } catch (_) {}
       setAiSpeaking(false)
-      // Fallback: start recording after TTS error
       if (voiceMode && !candidateRecording) {
-        setTimeout(() => startVoiceRecording(), 1500)
+        setTimeout(() => startVoiceRecording(), 500)
       }
     }
   }
@@ -1442,6 +1498,14 @@ export function AiCoachingPage() {
 
         setVoiceProcessing(true)
         try {
+          // BUG FIX: Guard against undefined sessionId (causes SQL "invalid input syntax" error)
+          if (!mockSession?.id) {
+            console.error('[voice] No active session — cannot send voice response')
+            setVoiceError('No active interview session. Please restart.')
+            setVoiceProcessing(false)
+            return
+          }
+
           const audioBlob = new Blob(voiceChunksRef.current, { type: mimeType })
 
           // Send as multipart FormData with client-side transcript as Whisper fallback
@@ -1454,7 +1518,7 @@ export function AiCoachingPage() {
           }
 
           const token = getToken()
-          const res = await fetch(`/api/interviews/mock/${mockSession?.id}/voice-respond`, {
+          const res = await fetch(`/api/interviews/mock/${mockSession.id}/voice-respond`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`

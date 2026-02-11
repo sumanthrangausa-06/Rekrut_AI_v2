@@ -1005,6 +1005,21 @@ function hashJD(text) {
   return crypto.createHash('sha256').update(text.trim().toLowerCase()).digest('hex').substring(0, 16);
 }
 
+// Universal fallback questions — used when AI question generation fails (429, timeout, etc.)
+// Adapted with the target role name to feel personalized
+function getFallbackMockQuestions(role) {
+  return [
+    { question_text: `Tell me about yourself and why you're interested in a ${role} position.`, question_type: 'behavioral', difficulty: 'easy', key_points: ['Self-introduction', 'Relevant experience', 'Role motivation'], skills_tested: ['communication', 'self-awareness'] },
+    { question_text: `Describe a challenging project you worked on recently. What was your role and how did you handle obstacles?`, question_type: 'behavioral', difficulty: 'medium', key_points: ['Problem-solving', 'Resilience', 'Technical skills', 'Teamwork'], skills_tested: ['problem-solving', 'resilience'] },
+    { question_text: `What specific skills or experiences make you a strong candidate for a ${role} position?`, question_type: 'competency', difficulty: 'medium', key_points: ['Core competencies', 'Specific examples', 'Self-assessment'], skills_tested: ['self-assessment', 'communication'] },
+    { question_text: `How do you prioritize your work when you have multiple deadlines?`, question_type: 'situational', difficulty: 'medium', key_points: ['Time management', 'Organization', 'Communication', 'Prioritization'], skills_tested: ['time-management', 'organization'] },
+    { question_text: `Tell me about a time you received constructive criticism. How did you respond and what did you change?`, question_type: 'behavioral', difficulty: 'medium', key_points: ['Self-awareness', 'Growth mindset', 'Professional maturity', 'Adaptability'], skills_tested: ['adaptability', 'growth-mindset'] },
+    { question_text: `How do you stay current with industry trends and developments relevant to ${role}?`, question_type: 'competency', difficulty: 'easy', key_points: ['Continuous learning', 'Industry knowledge', 'Proactive development'], skills_tested: ['learning', 'industry-knowledge'] },
+    { question_text: `Describe a situation where you had to work with someone who had a very different working style from yours.`, question_type: 'behavioral', difficulty: 'medium', key_points: ['Collaboration', 'Flexibility', 'Communication', 'Conflict resolution'], skills_tested: ['teamwork', 'communication'] },
+    { question_text: `Where do you see yourself in 3-5 years, and how does a ${role} position fit into your career plan?`, question_type: 'situational', difficulty: 'easy', key_points: ['Career vision', 'Ambition', 'Role alignment', 'Long-term thinking'], skills_tested: ['planning', 'ambition'] },
+  ];
+}
+
 // Start a mock interview session — generates or pulls questions for the role
 router.post('/mock/start', authMiddleware, async (req, res) => {
   try {
@@ -1019,6 +1034,7 @@ router.post('/mock/start', authMiddleware, async (req, res) => {
 
     // Check if we already have questions in the bank for this role/JD combo
     let bankQuestions;
+    let usedFallback = false;
     const existing = await pool.query(
       `SELECT * FROM question_bank WHERE LOWER(role) = LOWER($1) ${jdHash ? 'AND jd_hash = $2' : 'AND jd_hash IS NULL'}
        ORDER BY RANDOM()`,
@@ -1030,48 +1046,78 @@ router.post('/mock/start', authMiddleware, async (req, res) => {
       bankQuestions = existing.rows.slice(0, Math.min(10, existing.rows.length));
       console.log(`[mock] Found ${existing.rows.length} existing questions for "${role}", using ${bankQuestions.length}`);
     } else {
-      // Generate new question bank
+      // Try to generate new question bank
       console.log(`[mock] Generating new question bank for "${role}"...`);
-      const generated = await generateQuestionBank(role, job_description, {
-        subscriptionId: req.user.stripe_subscription_id
-      });
+      try {
+        const generated = await generateQuestionBank(role, job_description, {
+          subscriptionId: req.user.stripe_subscription_id
+        });
 
-      if (!generated || !Array.isArray(generated) || generated.length === 0) {
-        return res.status(500).json({ error: 'Failed to generate questions. Please try again.' });
+        if (generated && Array.isArray(generated) && generated.length > 0) {
+          // Store in question_bank
+          const insertedIds = [];
+          for (const q of generated) {
+            try {
+              const result = await pool.query(
+                `INSERT INTO question_bank (role, jd_hash, skills, question_text, question_type, difficulty, key_points)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)
+                 RETURNING id`,
+                [
+                  role,
+                  jdHash,
+                  q.skills_tested || [],
+                  q.question_text,
+                  q.question_type || 'behavioral',
+                  q.difficulty || 'medium',
+                  q.key_points || []
+                ]
+              );
+              insertedIds.push(result.rows[0].id);
+            } catch (insertErr) {
+              console.error('[mock] Failed to insert question:', insertErr.message);
+            }
+          }
+
+          console.log(`[mock] Stored ${insertedIds.length} questions in bank`);
+
+          // Pull 8-10 random from what we just inserted
+          const freshQuestions = await pool.query(
+            `SELECT * FROM question_bank WHERE id = ANY($1) ORDER BY RANDOM() LIMIT 10`,
+            [insertedIds]
+          );
+          bankQuestions = freshQuestions.rows;
+        }
+      } catch (genErr) {
+        console.warn(`[mock] AI question generation failed (${genErr.message}), using fallback questions`);
       }
 
-      // Store in question_bank
-      const insertedIds = [];
-      for (const q of generated) {
-        try {
-          const result = await pool.query(
-            `INSERT INTO question_bank (role, jd_hash, skills, question_text, question_type, difficulty, key_points)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             RETURNING id`,
-            [
-              role,
-              jdHash,
-              q.skills_tested || [],
-              q.question_text,
-              q.question_type || 'behavioral',
-              q.difficulty || 'medium',
-              q.key_points || []
-            ]
+      // FALLBACK: If AI generation failed or returned nothing, insert generic role-adapted questions
+      if (!bankQuestions || bankQuestions.length === 0) {
+        console.log(`[mock] Using fallback questions for "${role}"`);
+        usedFallback = true;
+        const fallbacks = getFallbackMockQuestions(role);
+        const insertedIds = [];
+        for (const q of fallbacks) {
+          try {
+            const result = await pool.query(
+              `INSERT INTO question_bank (role, jd_hash, skills, question_text, question_type, difficulty, key_points)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               RETURNING id`,
+              [role, jdHash, q.skills_tested || [], q.question_text, q.question_type, q.difficulty, q.key_points || []]
+            );
+            insertedIds.push(result.rows[0].id);
+          } catch (insertErr) {
+            console.error('[mock] Failed to insert fallback question:', insertErr.message);
+          }
+        }
+        if (insertedIds.length > 0) {
+          const freshQuestions = await pool.query(
+            `SELECT * FROM question_bank WHERE id = ANY($1) ORDER BY RANDOM() LIMIT 10`,
+            [insertedIds]
           );
-          insertedIds.push(result.rows[0].id);
-        } catch (insertErr) {
-          console.error('[mock] Failed to insert question:', insertErr.message);
+          bankQuestions = freshQuestions.rows;
         }
       }
-
-      console.log(`[mock] Stored ${insertedIds.length} questions in bank`);
-
-      // Pull 8-10 random from what we just inserted
-      const freshQuestions = await pool.query(
-        `SELECT * FROM question_bank WHERE id = ANY($1) ORDER BY RANDOM() LIMIT 10`,
-        [insertedIds]
-      );
-      bankQuestions = freshQuestions.rows;
     }
 
     if (!bankQuestions || bankQuestions.length === 0) {
@@ -1161,14 +1207,40 @@ router.post('/mock/:sessionId/respond', authMiddleware, async (req, res) => {
     };
     conversation.push(candidateMessage);
 
-    // AI generates next interviewer turn
-    const aiTurn = await conductInterviewTurn(
-      conversation,
-      baseQuestions,
-      session.current_question_index,
-      session.target_role,
-      { subscriptionId: req.user.stripe_subscription_id }
-    );
+    // AI generates next interviewer turn (with fallback on failure)
+    let aiTurn;
+    try {
+      aiTurn = await conductInterviewTurn(
+        conversation,
+        baseQuestions,
+        session.current_question_index,
+        session.target_role,
+        { subscriptionId: req.user.stripe_subscription_id }
+      );
+    } catch (aiErr) {
+      console.warn(`[mock] AI turn generation failed (${aiErr.message}), using scripted fallback`);
+      // Scripted fallback: acknowledge answer and move to next question from bank
+      const nextIdx = session.current_question_index + 1;
+      const nextQ = baseQuestions[nextIdx];
+      const candidateTurnCount = conversation.filter(t => t.role === 'candidate').length;
+      if (nextQ && candidateTurnCount < 8) {
+        aiTurn = {
+          reaction: "Thank you for that response. That's helpful context.",
+          action: 'transition',
+          question: nextQ.question_text,
+          score_hint: null,
+          notes: 'AI unavailable — scripted transition'
+        };
+      } else {
+        aiTurn = {
+          reaction: "Thank you for sharing all of that. I think we've covered a good range of topics.",
+          action: 'wrap_up',
+          question: "Is there anything else you'd like to add before we wrap up?",
+          score_hint: null,
+          notes: 'AI unavailable — scripted wrap-up'
+        };
+      }
+    }
 
     // Build interviewer message
     let interviewerText = aiTurn.reaction || '';
@@ -1266,13 +1338,15 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
     const session = sessionResult.rows[0];
     const conversation = session.conversation || [];
 
-    if (conversation.length < 3) {
+    // Allow ending with at least 2 messages (intro + 1 candidate turn)
+    // Previously required 3, which blocked users when AI was unavailable
+    const candidateTurns = conversation.filter(t => t.role === 'candidate');
+    if (candidateTurns.length === 0) {
       return res.status(400).json({ error: 'Not enough conversation to generate feedback. Answer at least one question.' });
     }
 
     // BUG FIX: Return text feedback IMMEDIATELY. Video/voice analysis runs in background.
-    // User was waiting too long because all analysis ran synchronously before response.
-    const candidateText = conversation.filter(t => t.role === 'candidate').map(t => t.text).join('\n\n');
+    const candidateText = candidateTurns.map(t => t.text).join('\n\n');
     const durationSeconds = Math.round((Date.now() - new Date(session.started_at).getTime()) / 1000);
     const options = { subscriptionId: req.user.stripe_subscription_id };
 
@@ -1287,7 +1361,24 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
       } catch { feedback = null; }
     }
     if (!feedback) {
-      feedback = await generateSessionFeedback(conversation, session.target_role, options);
+      try {
+        feedback = await generateSessionFeedback(conversation, session.target_role, options);
+      } catch (feedbackErr) {
+        console.warn(`[mock-end] AI feedback generation failed (${feedbackErr.message}), using basic feedback`);
+        // Generate basic feedback without AI when rate-limited
+        feedback = {
+          overall_score: 5,
+          interview_readiness: 'almost_ready',
+          summary: `You completed a ${session.target_role} mock interview with ${candidateTurns.length} response(s). AI-powered detailed feedback is temporarily unavailable — try again later for in-depth analysis.`,
+          strengths: ['You showed up and practiced — that alone puts you ahead of most candidates.'],
+          improvements: ['Try the interview again when AI analysis is available for detailed feedback on your responses.'],
+          question_scores: [],
+          star_method_usage: { score: 5, feedback: 'Detailed STAR analysis unavailable at this time.' },
+          communication_quality: { score: 5, feedback: 'Detailed communication analysis unavailable at this time.' },
+          technical_depth: { score: 5, feedback: 'Detailed technical analysis unavailable at this time.' },
+          top_tip: 'Practice makes perfect. Come back and try again for AI-powered feedback!'
+        };
+      }
     }
 
     // Step 2: Save and return text feedback immediately
@@ -1554,7 +1645,8 @@ router.post('/mock/tts', authMiddleware, async (req, res) => {
     });
 
     if (!audioBuffer) {
-      return res.status(500).json({ error: 'TTS generation failed' });
+      // Return 200 with JSON flag instead of 500 — lets frontend fall back to browser speech synthesis
+      return res.status(200).json({ tts_unavailable: true, text: text.trim() });
     }
 
     // Return audio as binary MP3
@@ -1566,7 +1658,8 @@ router.post('/mock/tts', authMiddleware, async (req, res) => {
     res.send(audioBuffer);
   } catch (err) {
     console.error('TTS endpoint error:', err);
-    res.status(500).json({ error: 'Failed to generate speech' });
+    // Return 200 with fallback flag instead of crashing
+    res.status(200).json({ tts_unavailable: true, text: req.body?.text || '' });
   }
 });
 
@@ -1575,10 +1668,15 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
   try {
     const sessionId = req.params.sessionId;
 
+    // BUG FIX: Validate sessionId is a valid integer (prevents "undefined" SQL errors)
+    if (!sessionId || sessionId === 'undefined' || sessionId === 'null' || isNaN(parseInt(sessionId))) {
+      return res.status(400).json({ error: 'Invalid session. Please restart the interview.' });
+    }
+
     // Get session
     const sessionResult = await pool.query(
       'SELECT * FROM mock_interview_sessions WHERE id = $1 AND user_id = $2 AND status = $3',
-      [sessionId, req.user.id, 'in_progress']
+      [parseInt(sessionId), req.user.id, 'in_progress']
     );
 
     if (sessionResult.rows.length === 0) {
@@ -1691,7 +1789,7 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
     };
     conversation.push(candidateMessage);
 
-    // Step 3: Get base questions and AI response
+    // Step 3: Get base questions and AI response (with fallback)
     const questionsResult = await pool.query(
       'SELECT * FROM question_bank WHERE id = ANY($1)',
       [questionIds]
@@ -1700,13 +1798,38 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
     questionsResult.rows.forEach(q => { questionMap[q.id] = q; });
     const baseQuestions = questionIds.map(id => questionMap[id]).filter(Boolean);
 
-    const aiTurn = await conductInterviewTurn(
-      conversation,
-      baseQuestions,
-      session.current_question_index,
-      session.target_role,
-      { subscriptionId: req.user.stripe_subscription_id }
-    );
+    let aiTurn;
+    try {
+      aiTurn = await conductInterviewTurn(
+        conversation,
+        baseQuestions,
+        session.current_question_index,
+        session.target_role,
+        { subscriptionId: req.user.stripe_subscription_id }
+      );
+    } catch (aiErr) {
+      console.warn(`[voice-respond] AI turn generation failed (${aiErr.message}), using scripted fallback`);
+      const nextIdx = session.current_question_index + 1;
+      const nextQ = baseQuestions[nextIdx];
+      const candidateTurnCount = conversation.filter(t => t.role === 'candidate').length;
+      if (nextQ && candidateTurnCount < 8) {
+        aiTurn = {
+          reaction: "Thank you for that response.",
+          action: 'transition',
+          question: nextQ.question_text,
+          score_hint: null,
+          notes: 'AI unavailable — scripted transition'
+        };
+      } else {
+        aiTurn = {
+          reaction: "Thank you for sharing all of that.",
+          action: 'wrap_up',
+          question: "Is there anything else you'd like to add before we wrap up?",
+          score_hint: null,
+          notes: 'AI unavailable — scripted wrap-up'
+        };
+      }
+    }
 
     // Build interviewer message
     let interviewerText = aiTurn.reaction || '';
