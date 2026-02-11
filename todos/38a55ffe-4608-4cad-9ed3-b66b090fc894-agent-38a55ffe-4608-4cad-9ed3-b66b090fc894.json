@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Understand existing UI patterns (components, layout, styles)",
+    "status": "completed",
+    "activeForm": "Understanding existing UI patterns"
+  },
+  {
+    "content": "Create AI Health Dashboard page component",
+    "status": "completed",
+    "activeForm": "Creating AI Health Dashboard page"
+  },
+  {
+    "content": "Add route to App.tsx",
+    "status": "completed",
+    "activeForm": "Adding route to App.tsx"
+  },
+  {
+    "content": "Build and deploy",
+    "status": "in_progress",
+    "activeForm": "Building and deploying"
+  }
+]
