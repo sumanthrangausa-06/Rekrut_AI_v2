@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Investigate current static question system and AI coaching flow",
+    "status": "completed",
+    "activeForm": "Investigating current static question system"
+  },
+  {
+    "content": "Create question_bank DB table migration",
+    "status": "completed",
+    "activeForm": "Creating question_bank DB migration"
+  },
+  {
+    "content": "Build backend: question bank generation + retrieval APIs",
+    "status": "completed",
+    "activeForm": "Building question bank backend APIs"
+  },
+  {
+    "content": "Build live interviewer mode with conversational AI",
+    "status": "completed",
+    "activeForm": "Building live interviewer mode"
+  },
+  {
+    "content": "Update frontend for role/JD input + dynamic session flow",
+    "status": "completed",
+    "activeForm": "Updating frontend for dynamic sessions"
+  },
+  {
+    "content": "Deploy and verify",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying"
+  }
+]
