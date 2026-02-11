@@ -6,17 +6,17 @@
   },
   {
     "content": "Phase 2: Fix core voice (TTS + STT) bugs",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Fixing core voice TTS and STT bugs"
   },
   {
     "content": "Phase 3: Fix auto conversation flow (camera, mic, greeting)",
-    "status": "pending",
+    "status": "completed",
     "activeForm": "Fixing auto conversation flow"
   },
   {
     "content": "Phase 4: UI polish (avatar, error toasts)",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Polishing UI and replacing brain icon"
   }
 ]
