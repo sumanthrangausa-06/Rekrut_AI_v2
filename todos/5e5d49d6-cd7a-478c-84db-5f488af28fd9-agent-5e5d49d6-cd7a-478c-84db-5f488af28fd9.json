@@ -1,0 +1,42 @@
+[
+  {
+    "content": "Study Quick Practice AI Coaching code — document all features",
+    "status": "completed",
+    "activeForm": "Studying Quick Practice AI Coaching code"
+  },
+  {
+    "content": "Study Mock Interview code — identify gaps vs Quick Practice",
+    "status": "completed",
+    "activeForm": "Studying Mock Interview code"
+  },
+  {
+    "content": "Fix real-time TTS audio playback (iOS autoplay issue)",
+    "status": "completed",
+    "activeForm": "Fixing real-time TTS audio playback"
+  },
+  {
+    "content": "Fix mic auto-activation + camera auto-enable",
+    "status": "completed",
+    "activeForm": "Fixing mic and camera auto-activation"
+  },
+  {
+    "content": "Add live transcription + frame capture during mock interview",
+    "status": "completed",
+    "activeForm": "Adding live transcription and frame capture"
+  },
+  {
+    "content": "Add body language + voice analysis to mock interview backend",
+    "status": "completed",
+    "activeForm": "Adding body language and voice analysis to backend"
+  },
+  {
+    "content": "Upgrade feedback page to full Quick Practice parity",
+    "status": "completed",
+    "activeForm": "Upgrading feedback page"
+  },
+  {
+    "content": "Deploy and verify all fixes",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying fixes"
+  }
+]
