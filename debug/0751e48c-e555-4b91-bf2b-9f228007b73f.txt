@@ -2833,3 +2833,56 @@ Context7 Documentation MCP Server v2.1.1 running on stdio
 2026-02-11T04:42:39.209Z [DEBUG] [API:auth] OAuth token check complete
 2026-02-11T04:42:39.850Z [DEBUG] Stream started - received first chunk
 2026-02-11T04:42:41.713Z [DEBUG] Stream started - received first chunk
+2026-02-11T04:42:42.930Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-02-11T04:42:42.930Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-02-11T04:42:42.930Z [DEBUG] Found 1 hook matchers in settings
+2026-02-11T04:42:42.930Z [DEBUG] Matched 4 unique hooks for query "Bash" (4 before deduplication)
+2026-02-11T04:42:42.932Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-11T04:42:42.932Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-11T04:42:42.932Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-11T04:42:42.932Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-11T04:42:42.932Z [DEBUG] Hook approved tool use for Bash, bypassing permission check
+2026-02-11T04:42:43.190Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-02-11T04:42:43.191Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-11T04:42:43.191Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-11T04:42:43.192Z [DEBUG] Getting matching hook commands for PostToolUse with query: Bash
+2026-02-11T04:42:43.192Z [DEBUG] Found 5 hook matchers in settings
+2026-02-11T04:42:43.192Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-02-11T04:42:43.192Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-11T04:42:43.196Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-11T04:42:43.196Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-11T04:42:43.196Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-11T04:42:43.196Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-11T04:42:43.198Z [DEBUG] autocompact: tokens=106786 threshold=167000 effectiveWindow=180000
+2026-02-11T04:42:43.198Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-11T04:42:43.212Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-11T04:42:43.212Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-11T04:42:43.213Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-11T04:42:43.614Z [DEBUG] Stream started - received first chunk
+2026-02-11T04:42:45.363Z [DEBUG] Stream started - received first chunk
+2026-02-11T04:42:50.721Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-02-11T04:42:50.721Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-02-11T04:42:50.721Z [DEBUG] Found 1 hook matchers in settings
+2026-02-11T04:42:50.721Z [DEBUG] Matched 4 unique hooks for query "Bash" (4 before deduplication)
+2026-02-11T04:42:50.722Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-11T04:42:50.722Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-11T04:42:50.722Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-11T04:42:50.722Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-11T04:42:50.723Z [DEBUG] Hook approved tool use for Bash, bypassing permission check
+2026-02-11T04:42:50.870Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-02-11T04:42:50.871Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-11T04:42:50.871Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-11T04:42:50.871Z [DEBUG] Getting matching hook commands for PostToolUse with query: Bash
+2026-02-11T04:42:50.871Z [DEBUG] Found 5 hook matchers in settings
+2026-02-11T04:42:50.871Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-02-11T04:42:50.871Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-11T04:42:50.873Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-11T04:42:50.873Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-11T04:42:50.873Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-11T04:42:50.873Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-11T04:42:50.874Z [DEBUG] autocompact: tokens=107479 threshold=167000 effectiveWindow=180000
+2026-02-11T04:42:50.874Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-11T04:42:50.884Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-11T04:42:50.884Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-11T04:42:50.884Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-11T04:42:51.367Z [DEBUG] Stream started - received first chunk
