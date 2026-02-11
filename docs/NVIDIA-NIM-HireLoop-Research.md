@@ -169,6 +169,8 @@
 
 ## 6. Speech & Audio Models
 
+### 6.1 ASR (Speech-to-Text) Models
+
 | Model | Provider | Params | Capability | Languages | Key Specs |
 |-------|----------|--------|-----------|-----------|----------|
 | **Parakeet-TDT-0.6B v2** | NVIDIA | 600M | ASR (speech-to-text) | English | 6.05% WER, 50x faster than alternatives, #1 on HF leaderboard |
@@ -178,10 +180,33 @@
 | **Parakeet-CTC-0.6B (es)** | NVIDIA | 600M | ASR | Spanish + English | CTC decoder variant |
 | **Parakeet-CTC-0.6B (vi)** | NVIDIA | 600M | ASR | Vietnamese + English | CTC decoder variant |
 | **Nemotron-Speech-Streaming** | NVIDIA | 600M | Streaming ASR | English | Cache-aware, real-time, low latency |
-| **Maxine Studio Voice** | NVIDIA | — | Audio enhancement | English | Noise removal, studio quality |
-| **Maxine BNR** | NVIDIA | — | Background noise removal | Multi-language | Improves ASR accuracy |
-| **Riva TTS** | NVIDIA | — | Text-to-speech | Multiple | Natural speech synthesis |
-| **Riva Translate 4B** | NVIDIA | 4B | Translation | 12+ languages | Neural machine translation |
+
+### 6.2 TTS (Text-to-Speech) Models — ALL AVAILABLE ON NIM
+
+| Model | Provider | Capability | Languages | Self-Hosted | Cloud API | Key Specs |
+|-------|----------|-----------|-----------|-------------|-----------|----------|
+| **Riva TTS** | NVIDIA | General TTS | Multiple | ✅ | ✅ (`integrate.api.nvidia.com`) | Natural speech synthesis, REST `/v1/audio/synthesize` |
+| **Magpie TTS Multilingual** | NVIDIA | Multi-language TTS | en-US, es-US, fr-FR, de-DE, zh-CN, vi-VN, it-IT | ✅ | ✅ (NVCF gRPC) | 70+ voices, 7 emotions, 22.05kHz WAV output, `/v1/audio/synthesize` |
+| **Magpie TTS Flow** | NVIDIA | Voice cloning | en-US | ✅ | ✅ (NVCF gRPC) | Requires audio prompt + transcript, restricted access |
+| **Magpie TTS Zeroshot** | NVIDIA | Voice cloning | en-US | ✅ | ✅ (NVCF gRPC) | Requires audio prompt only, restricted access |
+| **FastPitch HifiGAN en-US** | NVIDIA | Basic English TTS | en-US | ✅ | ✅ (NVCF gRPC) | Lightweight, fast, single voice |
+
+**API Format (all models):** `POST /v1/audio/synthesize` with `multipart/form-data`:
+- `text`: Input text (max ~4000 chars)
+- `language`: Language code (e.g., `en-US`)
+- `voice`: Voice name (e.g., `Magpie-Multilingual.EN-US.Aria`)
+- `audio_prompt`: WAV file for voice cloning (Flow/Zeroshot only)
+- `audio_prompt_transcript`: Transcript of audio prompt (Flow only)
+
+**Response:** WAV audio (mono, PCM 16-bit, 22.05kHz)
+
+### 6.3 Audio Enhancement & Other
+
+| Model | Provider | Capability | Languages | Key Specs |
+|-------|----------|-----------|-----------|----------|
+| **Maxine Studio Voice** | NVIDIA | Audio enhancement | English | Noise removal, studio quality |
+| **Maxine BNR** | NVIDIA | Background noise removal | Multi-language | Improves ASR accuracy |
+| **Riva Translate 4B** | NVIDIA | Translation | 12+ languages | Neural machine translation |
 
 ---
 
@@ -331,29 +356,35 @@
 
 Every HireLoop module has a 3-7 deep fallback chain. No module ever fully dies if one provider goes down. Chains are variant-based: `quality` (best models first), `efficient` (cheapest first), `reasoning` (logic-optimized), or `default` (balanced).
 
-### 13.1 LLM Fallback Chains
+### 13.1 LLM Fallback Chains (Updated Feb 11, 2026 — all registered models now wired)
 
 | Variant | Chain (in order) | Use Case |
 |---------|-----------------|----------|
-| **default** | Anthropic → OpenAI → Nemotron Super 49B → Kimi K2.5 → DeepSeek V3.2 → Step 3.5 Flash → GPT-OSS-120B | General purpose |
-| **quality** | Anthropic → OpenAI → DeepSeek V3.2 → Kimi K2.5 → Nemotron Super 49B → Step 3.5 Flash → GPT-OSS-120B | Mock Interview, Coaching |
-| **efficient** | Anthropic → OpenAI → Nemotron Nano 9B → Mistral Small 24B → Nemotron Super 49B → GPT-OSS-120B | Onboarding, Payroll, Offers, Scheduling |
-| **reasoning** | Anthropic → OpenAI → Step 3.5 Flash → DeepSeek V3.2 → Kimi K2.5 → Nemotron Super 49B | Assessments |
+| **default** | Anthropic → OpenAI → Nemotron Super 49B → Kimi K2.5 → DeepSeek V3.2 → DeepSeek V3.1 → Step 3.5 Flash → Qwen 2.5 72B → GPT-OSS-120B | General purpose |
+| **quality** | Anthropic → OpenAI → DeepSeek V3.2 → Kimi K2.5 → DeepSeek V3.1 → Nemotron Super 49B → Qwen 2.5 72B → Step 3.5 Flash → GPT-OSS-120B | Mock Interview, Coaching |
+| **efficient** | Anthropic → OpenAI → Nemotron Nano 9B → Mistral Small 24B → Nemotron Super 49B → Qwen 2.5 72B → GPT-OSS-120B | Onboarding, Payroll, Offers, Scheduling |
+| **reasoning** | Anthropic → OpenAI → DeepSeek R1 → QwQ-32B → Step 3.5 Flash → DeepSeek V3.2 → Kimi K2.5 → Nemotron Super 49B | Assessments |
 
-### 13.2 Vision Fallback Chains
+### 13.2 Vision Fallback Chains (Updated Feb 11, 2026 — added Gemma 3 27B)
 
 | Variant | Chain (in order) | Use Case |
 |---------|-----------------|----------|
-| **default** | OpenAI GPT-4o → Cosmos Reason2 8B → Nemotron Nano 12B VL → Kimi K2.5 | Body language analysis |
-| **document** | OpenAI GPT-4o → Nemotron Nano 12B VL → Kimi K2.5 → Cosmos Reason2 8B | Resume parsing/OCR |
+| **default** | OpenAI GPT-4o → Cosmos Reason2 8B → Nemotron Nano 12B VL → Kimi K2.5 → Gemma 3 27B | Body language analysis |
+| **document** | OpenAI GPT-4o → Nemotron Nano 12B VL → Kimi K2.5 → Gemma 3 27B → Cosmos Reason2 8B | Resume parsing/OCR |
 
-### 13.3 TTS Fallback Chain
+### 13.3 TTS Fallback Chain (Updated Feb 11, 2026 — 6 providers + browser)
 
 | Position | Provider | Details |
 |----------|----------|---------|
 | 1 | **OpenAI TTS-1** (Polsia proxy) | Primary — `nova` voice, MP3 output |
 | 2 | **NIM Riva TTS** | NVIDIA speech synthesis via `/v1/audio/synthesize` |
-| 3 | **Browser Web Speech API** | Final fallback at frontend level (no server call) |
+| 3 | **NIM Magpie TTS Multilingual** | 7 languages, 70+ voices with emotions, WAV output |
+| 4 | **NIM Magpie TTS Flow** | Voice cloning (requires audio prompt + transcript, restricted access) |
+| 5 | **NIM Magpie TTS Zeroshot** | Voice cloning (requires audio prompt, restricted access) |
+| 6 | **NIM FastPitch HifiGAN** | Basic English TTS, lightweight |
+| 7 | **Browser Web Speech API** | Final fallback at frontend level (no server call) |
+
+**Note:** Magpie TTS Flow and Zeroshot are voice-cloning models that require an audio prompt. They are skipped silently in the standard TTS chain (no circuit-breaking) and only activate when `audioPrompt` is provided in options.
 
 ### 13.4 ASR Fallback Chain
 
@@ -389,81 +420,87 @@ Every HireLoop module has a 3-7 deep fallback chain. No module ever fully dies i
 
 | HireLoop Module | LLM | TTS | ASR | Vision | Embedding | Reranking | Safety |
 |----------------|-----|-----|-----|--------|-----------|-----------|--------|
-| **Mock Interview** | quality (7) | default (2) | default (3) | default (4) | — | — | — |
-| **AI Coaching** | quality (7) | — | — | — | — | — | — |
-| **Resume Parsing** | default (7) | — | — | document (4) | — | — | — |
-| **Job Matching** | efficient (6) | — | — | — | default (3) | default (2) | — |
-| **Onboarding** | efficient (6) | — | — | — | — | — | — |
-| **Assessments** | reasoning (6) | — | — | — | — | — | — |
-| **Offer Management** | efficient (6) | — | — | — | — | — | — |
-| **Payroll** | efficient (6) | — | — | — | — | — | — |
-| **Scheduling** | efficient (6) | — | — | — | — | — | — |
-| **Profile Management** | efficient (6) | — | — | — | default (3) | — | — |
-| **Platform Safety** | default (7) | — | — | — | — | — | default (2) |
+| **Mock Interview** | quality (9) | default (6) | default (3) | default (5) | — | — | — |
+| **AI Coaching** | quality (9) | — | — | — | — | — | — |
+| **Resume Parsing** | default (9) | — | — | document (5) | — | — | — |
+| **Job Matching** | efficient (7) | — | — | — | default (3) | default (2) | — |
+| **Onboarding** | efficient (7) | — | — | — | — | — | — |
+| **Assessments** | reasoning (8) | — | — | — | — | — | — |
+| **Offer Management** | efficient (7) | — | — | — | — | — | — |
+| **Payroll** | efficient (7) | — | — | — | — | — | — |
+| **Scheduling** | efficient (7) | — | — | — | — | — | — |
+| **Profile Management** | efficient (7) | — | — | — | default (3) | — | — |
+| **Platform Safety** | default (9) | — | — | — | — | — | default (2) |
 
 *Numbers in parentheses = chain depth (providers available before total failure)*
 
 ---
 
-## 14. NIM Model Registry (22 Models Registered)
+## 14. NIM Model Registry (26 Models Registered — Updated Feb 11, 2026)
 
 All models in `lib/ai-provider.js` NIM_MODELS registry:
 
-| Key | Model ID | Category | Price (per 1M tokens) |
-|-----|----------|----------|----------------------|
-| `llm_super` | nvidia/llama-3.3-nemotron-super-49b-v1 | LLM | $0.10/$0.40 |
-| `llm_deepseek_v3` | deepseek-ai/deepseek-v3p2 | LLM | $0.28/$0.42 |
-| `llm_kimi` | moonshot-ai/kimi-k2.5 | LLM | Free trial |
-| `llm_step_flash` | stepfun-ai/step-3.5-flash | LLM | Free trial |
-| `llm_gpt_oss` | openai/gpt-oss-120b | LLM | Free trial |
-| `llm_nano` | nvidia/nemotron-nano-8b-v2 | LLM | $0.04/$0.16 |
-| `llm_mistral_small` | mistralai/mistral-small-24b-instruct | LLM | $0.20/$0.60 |
-| `llm_qwen_72b` | qwen/qwen2.5-72b-instruct | LLM | ~$0.30/$0.30 |
-| `reasoning_deepseek_r1` | deepseek-ai/deepseek-r1 | Reasoning | $0.55/$2.19 |
-| `reasoning_qwq` | qwen/qwq-32b | Reasoning | Free trial |
-| `vision_cosmos` | nvidia/cosmos-reason2-8b | Vision | Free trial |
-| `vision_nemotron_vl` | nvidia/nemotron-nano-12b-v2-vl | Vision | $0.20/$0.60 |
-| `vision_kimi` | moonshot-ai/kimi-k2.5 | Vision | Free trial |
-| `asr_parakeet_v2` | nvidia/parakeet-tdt-0.6b-v2 | ASR | Minimal |
-| `asr_parakeet_v3` | nvidia/parakeet-tdt-0.6b-v3 | ASR | Minimal |
-| `embed_qa` | nvidia/llama-3.2-nv-embedqa-1b-v2 | Embedding | Minimal |
-| `embed_vl` | nvidia/llama-nemotron-embed-vl-1b-v2 | Embedding | Minimal |
-| `rerank_qa` | nvidia/llama-3.2-nv-rerankqa-1b-v2 | Reranking | Minimal |
-| `rerank_vl` | nvidia/llama-nemotron-rerank-vl-1b-v2 | Reranking | Minimal |
-| `safety_guard` | nvidia/llama-3.1-nemotron-safety-guard-8b-v3 | Safety | Minimal |
-| `safety_reasoning` | nvidia/nemotron-content-safety-reasoning-4b | Safety | Minimal |
-| `document_parse` | nvidia/nemotron-parse | OCR/Document | Minimal |
+| Key | Model ID | Category | In Chain? | Price (per 1M tokens) |
+|-----|----------|----------|-----------|----------------------|
+| `llm_super` | nvidia/llama-3.3-nemotron-super-49b-v1 | LLM | ✅ default, quality, efficient, reasoning | $0.10/$0.40 |
+| `llm_deepseek_v3` | deepseek-ai/deepseek-v3p2 | LLM | ✅ default, quality, reasoning | $0.28/$0.42 |
+| `llm_kimi` | moonshot-ai/kimi-k2.5 | LLM | ✅ default, quality, reasoning | Free trial |
+| `llm_step_flash` | stepfun-ai/step-3.5-flash | LLM | ✅ default, quality, reasoning | Free trial |
+| `llm_gpt_oss` | openai/gpt-oss-120b | LLM | ✅ default, quality, efficient | Free trial |
+| `llm_nano` | nvidia/nemotron-nano-8b-v2 | LLM | ✅ efficient | $0.04/$0.16 |
+| `llm_deepseek_v3_1` | deepseek-ai/deepseek-v3p1 | LLM | ✅ default, quality | $0.28/$0.42 |
+| `llm_mistral_small` | mistralai/mistral-small-24b-instruct | LLM | ✅ efficient | $0.20/$0.60 |
+| `llm_qwen_72b` | qwen/qwen2.5-72b-instruct | LLM | ✅ default, quality, efficient | ~$0.30/$0.30 |
+| `reasoning_deepseek_r1` | deepseek-ai/deepseek-r1 | Reasoning | ✅ reasoning | $0.55/$2.19 |
+| `reasoning_qwq` | qwen/qwq-32b | Reasoning | ✅ reasoning | Free trial |
+| `vision_cosmos` | nvidia/cosmos-reason2-8b | Vision | ✅ default, document | Free trial |
+| `vision_nemotron_vl` | nvidia/nemotron-nano-12b-v2-vl | Vision | ✅ default, document | $0.20/$0.60 |
+| `vision_kimi` | moonshot-ai/kimi-k2.5 | Vision | ✅ default, document | Free trial |
+| `vision_gemma` | google/gemma-3-27b-it | Vision | ✅ default, document | Free trial |
+| `tts_magpie_multilingual` | nvidia/magpie-tts-multilingual | TTS | ✅ default | Minimal |
+| `tts_magpie_flow` | nvidia/magpie-tts-flow | TTS | ✅ default (voice cloning) | Minimal |
+| `tts_magpie_zeroshot` | nvidia/magpie-tts-zeroshot | TTS | ✅ default (voice cloning) | Minimal |
+| `tts_fastpitch` | nvidia/fastpitch-hifigan-tts | TTS | ✅ default | Minimal |
+| `asr_parakeet_v2` | nvidia/parakeet-tdt-0.6b-v2 | ASR | ✅ default | Minimal |
+| `asr_parakeet_v3` | nvidia/parakeet-tdt-0.6b-v3 | ASR | ✅ default | Minimal |
+| `embed_qa` | nvidia/llama-3.2-nv-embedqa-1b-v2 | Embedding | ✅ default | Minimal |
+| `embed_vl` | nvidia/llama-nemotron-embed-vl-1b-v2 | Embedding | ✅ default | Minimal |
+| `rerank_qa` | nvidia/llama-3.2-nv-rerankqa-1b-v2 | Reranking | ✅ default | Minimal |
+| `rerank_vl` | nvidia/llama-nemotron-rerank-vl-1b-v2 | Reranking | ✅ default | Minimal |
+| `safety_guard` | nvidia/llama-3.1-nemotron-safety-guard-8b-v3 | Safety | ✅ default | Minimal |
+| `safety_reasoning` | nvidia/nemotron-content-safety-reasoning-4b | Safety | ✅ default | Minimal |
+| `document_parse` | nvidia/nemotron-parse | OCR/Document | — (used directly) | Minimal |
 
 ---
 
 ## 15. Architecture: Comprehensive Fallback System
 
-### Total Provider Depth Per Modality
+### Total Provider Depth Per Modality (Updated Feb 11, 2026)
 
 | Modality | Polsia Providers | NIM Providers | Total Depth | Browser Fallback |
 |----------|-----------------|---------------|-------------|-----------------|
-| **LLM** | 2 (Anthropic + OpenAI) | 5 (Nemotron, Kimi, DeepSeek, Step, GPT-OSS) | **7** | — |
-| **Vision** | 1 (GPT-4o) | 3 (Cosmos, Nemotron VL, Kimi) | **4** | — |
-| **TTS** | 1 (OpenAI TTS-1) | 1 (Riva TTS) | **2** + browser | ✅ Web Speech API |
+| **LLM** | 2 (Anthropic + OpenAI) | 7 (Nemotron, Kimi, DeepSeek V3.2/V3.1, Step, Qwen, GPT-OSS) | **9** (default) | — |
+| **Vision** | 1 (GPT-4o) | 4 (Cosmos, Nemotron VL, Kimi, Gemma 3 27B) | **5** | — |
+| **TTS** | 1 (OpenAI TTS-1) | 5 (Riva, Magpie Multi, Magpie Flow, Magpie Zero, FastPitch) | **6** + browser | ✅ Web Speech API |
 | **ASR** | 1 (Whisper) | 2 (Parakeet v2, v3) | **3** | — |
 | **Embedding** | 1 (text-embedding-3-small) | 2 (EmbedQA, Embed-VL) | **3** | — |
 | **Reranking** | 0 | 2 (RerankQA, Rerank-VL) | **2** | Graceful degrade |
 | **Safety** | 0 | 2 (NemoGuard, Content Safety) | **2** | Allow-by-default |
 
-### What Changed from Previous System (#28587)
+### What Changed from Previous System (#28587 → #28598 → #28628)
 
-| Aspect | Before | After |
-|--------|--------|-------|
-| **Total NIM models registered** | 7 | **22** |
-| **LLM chain depth** | 5 | **7** (with variants) |
-| **TTS chain depth** | 1 + browser | **2 + browser** (added Riva TTS) |
-| **ASR chain depth** | 2 | **3** (added Parakeet v3) |
-| **Vision chain depth** | 3 | **4** (added Kimi K2.5 multimodal) |
-| **Embedding chain depth** | 2 | **3** (added Nemotron-Embed-VL) |
-| **New: Reranking** | None | **2 providers** |
-| **New: Safety** | None | **2 providers** |
-| **Per-module routing** | None | **11 modules** with variant chains |
-| **Matching engine fallback** | Direct OpenAI only | **Full 3-provider chain** |
+| Aspect | #28587 (Original) | #28598 (Partial) | #28628 (Complete) |
+|--------|--------|--------|--------|
+| **Total NIM models registered** | 7 | 22 | **26** (4 TTS added) |
+| **LLM chain depth** | 5 | 7 (with variants) | **9** default, **8** reasoning (DeepSeek R1/QwQ + Qwen 72B + DeepSeek V3.1 wired) |
+| **TTS chain depth** | 1 + browser | 2 + browser | **6 + browser** (Magpie Multi/Flow/Zeroshot + FastPitch) |
+| **ASR chain depth** | 2 | 3 | **3** (unchanged) |
+| **Vision chain depth** | 3 | 4 | **5** (added Gemma 3 27B) |
+| **Embedding chain depth** | 2 | 3 | **3** (unchanged) |
+| **Reranking** | None | 2 providers | **2** (unchanged) |
+| **Safety** | None | 2 providers | **2** (unchanged) |
+| **Per-module routing** | None | 11 modules | **11 modules** (unchanged) |
+| **Dead code fixed** | — | 5 models registered but never wired | **0** — all registered models now in chains + switch cases |
 
 ### Estimated Monthly Cost (NIM-primary, 10K interactions)
 
