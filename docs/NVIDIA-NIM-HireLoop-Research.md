@@ -325,48 +325,180 @@
 
 ---
 
-## 13. Recommended Architecture: 5-Model Strategy
+## 13. Comprehensive Fallback Chains Per HireLoop Module (IMPLEMENTED)
 
-Previous research recommended 3 models. With the full catalog visible, **5 models** covers everything:
+**Updated:** February 11, 2026 — All chains are now live in `lib/ai-provider.js`
 
-| Role | Model | Provider | Monthly Cost Est. (10K interactions) |
-|------|-------|----------|--------------------------------------|
-| **Primary LLM** | Nemotron Super 49B v1.5 | NVIDIA | ~$15-40/mo |
-| **Bulk/Simple Tasks** | Nemotron Nano 9B v2 | NVIDIA | ~$5-15/mo |
-| **Embeddings + Matching** | NV-EmbedQA-1B-v2 + NV-RerankQA-1B-v2 | NVIDIA | ~$2-5/mo |
-| **Document Parsing** | Nemotron-Parse | NVIDIA | ~$1-3/mo |
-| **Voice/ASR** | Parakeet-TDT-0.6B v2 | NVIDIA | ~$1-2/mo |
+Every HireLoop module has a 3-7 deep fallback chain. No module ever fully dies if one provider goes down. Chains are variant-based: `quality` (best models first), `efficient` (cheapest first), `reasoning` (logic-optimized), or `default` (balanced).
 
-**Estimated total: $24-65/month** vs **$775-2,210/month with GPT-4o** = **90-97% savings**
+### 13.1 LLM Fallback Chains
 
-### When to Use Non-NVIDIA Models
+| Variant | Chain (in order) | Use Case |
+|---------|-----------------|----------|
+| **default** | Anthropic → OpenAI → Nemotron Super 49B → Kimi K2.5 → DeepSeek V3.2 → Step 3.5 Flash → GPT-OSS-120B | General purpose |
+| **quality** | Anthropic → OpenAI → DeepSeek V3.2 → Kimi K2.5 → Nemotron Super 49B → Step 3.5 Flash → GPT-OSS-120B | Mock Interview, Coaching |
+| **efficient** | Anthropic → OpenAI → Nemotron Nano 9B → Mistral Small 24B → Nemotron Super 49B → GPT-OSS-120B | Onboarding, Payroll, Offers, Scheduling |
+| **reasoning** | Anthropic → OpenAI → Step 3.5 Flash → DeepSeek V3.2 → Kimi K2.5 → Nemotron Super 49B | Assessments |
 
-| Scenario | Use Instead | Why |
-|----------|------------|-----|
-| Need 256K+ context for long documents | **Kimi K2.5** or **Step 3.5 Flash** | 256K context vs 128K on Nemotron |
-| Need video analysis in interviews | **Kimi K2.5** | Native video understanding |
-| Need ultra-cheap reasoning | **DeepSeek R1 Distill 70B** | $0.03/1M input tokens |
-| Need multilingual (100+ languages) | **Qwen3-Next-80B** | 119 language support |
-| Need advanced coding/automation | **Qwen3-Coder-480B** | Best coding benchmarks |
-| Need reasoning for math/logic tests | **Step 3.5 Flash** | 97.3% AIME, 350 tok/s |
-| Free prototyping of frontier models | **GPT-OSS-120B** or **Kimi K2.5** | Free on NIM trial |
+### 13.2 Vision Fallback Chains
+
+| Variant | Chain (in order) | Use Case |
+|---------|-----------------|----------|
+| **default** | OpenAI GPT-4o → Cosmos Reason2 8B → Nemotron Nano 12B VL → Kimi K2.5 | Body language analysis |
+| **document** | OpenAI GPT-4o → Nemotron Nano 12B VL → Kimi K2.5 → Cosmos Reason2 8B | Resume parsing/OCR |
+
+### 13.3 TTS Fallback Chain
+
+| Position | Provider | Details |
+|----------|----------|---------|
+| 1 | **OpenAI TTS-1** (Polsia proxy) | Primary — `nova` voice, MP3 output |
+| 2 | **NIM Riva TTS** | NVIDIA speech synthesis via `/v1/audio/synthesize` |
+| 3 | **Browser Web Speech API** | Final fallback at frontend level (no server call) |
+
+### 13.4 ASR Fallback Chain
+
+| Position | Provider | Details |
+|----------|----------|---------|
+| 1 | **OpenAI Whisper** (Polsia proxy) | Primary — `whisper-1`, verbose_json output |
+| 2 | **NIM Parakeet TDT 0.6B v2** | English #1 on HF leaderboard, 6.05% WER |
+| 3 | **NIM Parakeet TDT 0.6B v3** | 25 European languages, auto language detect |
+
+### 13.5 Embedding Fallback Chain
+
+| Position | Provider | Details |
+|----------|----------|---------|
+| 1 | **OpenAI text-embedding-3-small** (Polsia proxy) | Primary — 1536 dimensions |
+| 2 | **NIM NV-EmbedQA-1B-v2** | 26 languages, Matryoshka embeddings |
+| 3 | **NIM Nemotron-Embed-VL-1B-v2** | Multimodal (text + image) embeddings |
+
+### 13.6 Reranking Chain (NEW)
+
+| Position | Provider | Details |
+|----------|----------|---------|
+| 1 | **NIM NV-RerankQA-1B-v2** | Text document reranking for RAG |
+| 2 | **NIM Nemotron-Rerank-VL-1B-v2** | Multimodal reranking |
+
+### 13.7 Safety/Guardrails Chain (NEW)
+
+| Position | Provider | Details |
+|----------|----------|---------|
+| 1 | **NIM NemoGuard Safety 8B** | 23 safety categories, multilingual |
+| 2 | **NIM Nemotron Content Safety 4B** | Domain-specific safety policies |
+
+### 13.8 Module → Chain Mapping
+
+| HireLoop Module | LLM | TTS | ASR | Vision | Embedding | Reranking | Safety |
+|----------------|-----|-----|-----|--------|-----------|-----------|--------|
+| **Mock Interview** | quality (7) | default (2) | default (3) | default (4) | — | — | — |
+| **AI Coaching** | quality (7) | — | — | — | — | — | — |
+| **Resume Parsing** | default (7) | — | — | document (4) | — | — | — |
+| **Job Matching** | efficient (6) | — | — | — | default (3) | default (2) | — |
+| **Onboarding** | efficient (6) | — | — | — | — | — | — |
+| **Assessments** | reasoning (6) | — | — | — | — | — | — |
+| **Offer Management** | efficient (6) | — | — | — | — | — | — |
+| **Payroll** | efficient (6) | — | — | — | — | — | — |
+| **Scheduling** | efficient (6) | — | — | — | — | — | — |
+| **Profile Management** | efficient (6) | — | — | — | default (3) | — | — |
+| **Platform Safety** | default (7) | — | — | — | — | — | default (2) |
+
+*Numbers in parentheses = chain depth (providers available before total failure)*
 
 ---
 
-## 14. API Compatibility
+## 14. NIM Model Registry (22 Models Registered)
 
-**ALL models on NIM use the OpenAI-compatible API format.** Migration from GPT-4o requires only changing:
+All models in `lib/ai-provider.js` NIM_MODELS registry:
+
+| Key | Model ID | Category | Price (per 1M tokens) |
+|-----|----------|----------|----------------------|
+| `llm_super` | nvidia/llama-3.3-nemotron-super-49b-v1 | LLM | $0.10/$0.40 |
+| `llm_deepseek_v3` | deepseek-ai/deepseek-v3p2 | LLM | $0.28/$0.42 |
+| `llm_kimi` | moonshot-ai/kimi-k2.5 | LLM | Free trial |
+| `llm_step_flash` | stepfun-ai/step-3.5-flash | LLM | Free trial |
+| `llm_gpt_oss` | openai/gpt-oss-120b | LLM | Free trial |
+| `llm_nano` | nvidia/nemotron-nano-8b-v2 | LLM | $0.04/$0.16 |
+| `llm_mistral_small` | mistralai/mistral-small-24b-instruct | LLM | $0.20/$0.60 |
+| `llm_qwen_72b` | qwen/qwen2.5-72b-instruct | LLM | ~$0.30/$0.30 |
+| `reasoning_deepseek_r1` | deepseek-ai/deepseek-r1 | Reasoning | $0.55/$2.19 |
+| `reasoning_qwq` | qwen/qwq-32b | Reasoning | Free trial |
+| `vision_cosmos` | nvidia/cosmos-reason2-8b | Vision | Free trial |
+| `vision_nemotron_vl` | nvidia/nemotron-nano-12b-v2-vl | Vision | $0.20/$0.60 |
+| `vision_kimi` | moonshot-ai/kimi-k2.5 | Vision | Free trial |
+| `asr_parakeet_v2` | nvidia/parakeet-tdt-0.6b-v2 | ASR | Minimal |
+| `asr_parakeet_v3` | nvidia/parakeet-tdt-0.6b-v3 | ASR | Minimal |
+| `embed_qa` | nvidia/llama-3.2-nv-embedqa-1b-v2 | Embedding | Minimal |
+| `embed_vl` | nvidia/llama-nemotron-embed-vl-1b-v2 | Embedding | Minimal |
+| `rerank_qa` | nvidia/llama-3.2-nv-rerankqa-1b-v2 | Reranking | Minimal |
+| `rerank_vl` | nvidia/llama-nemotron-rerank-vl-1b-v2 | Reranking | Minimal |
+| `safety_guard` | nvidia/llama-3.1-nemotron-safety-guard-8b-v3 | Safety | Minimal |
+| `safety_reasoning` | nvidia/nemotron-content-safety-reasoning-4b | Safety | Minimal |
+| `document_parse` | nvidia/nemotron-parse | OCR/Document | Minimal |
+
+---
+
+## 15. Architecture: Comprehensive Fallback System
+
+### Total Provider Depth Per Modality
+
+| Modality | Polsia Providers | NIM Providers | Total Depth | Browser Fallback |
+|----------|-----------------|---------------|-------------|-----------------|
+| **LLM** | 2 (Anthropic + OpenAI) | 5 (Nemotron, Kimi, DeepSeek, Step, GPT-OSS) | **7** | — |
+| **Vision** | 1 (GPT-4o) | 3 (Cosmos, Nemotron VL, Kimi) | **4** | — |
+| **TTS** | 1 (OpenAI TTS-1) | 1 (Riva TTS) | **2** + browser | ✅ Web Speech API |
+| **ASR** | 1 (Whisper) | 2 (Parakeet v2, v3) | **3** | — |
+| **Embedding** | 1 (text-embedding-3-small) | 2 (EmbedQA, Embed-VL) | **3** | — |
+| **Reranking** | 0 | 2 (RerankQA, Rerank-VL) | **2** | Graceful degrade |
+| **Safety** | 0 | 2 (NemoGuard, Content Safety) | **2** | Allow-by-default |
+
+### What Changed from Previous System (#28587)
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| **Total NIM models registered** | 7 | **22** |
+| **LLM chain depth** | 5 | **7** (with variants) |
+| **TTS chain depth** | 1 + browser | **2 + browser** (added Riva TTS) |
+| **ASR chain depth** | 2 | **3** (added Parakeet v3) |
+| **Vision chain depth** | 3 | **4** (added Kimi K2.5 multimodal) |
+| **Embedding chain depth** | 2 | **3** (added Nemotron-Embed-VL) |
+| **New: Reranking** | None | **2 providers** |
+| **New: Safety** | None | **2 providers** |
+| **Per-module routing** | None | **11 modules** with variant chains |
+| **Matching engine fallback** | Direct OpenAI only | **Full 3-provider chain** |
+
+### Estimated Monthly Cost (NIM-primary, 10K interactions)
+
+| Role | Model | Cost |
+|------|-------|------|
+| Primary LLM | Nemotron Super 49B | ~$15-40/mo |
+| Bulk Tasks | Nemotron Nano 9B | ~$5-15/mo |
+| Embeddings | NV-EmbedQA-1B | ~$2-5/mo |
+| Reranking | NV-RerankQA-1B | ~$1-2/mo |
+| ASR | Parakeet TDT 0.6B | ~$1-2/mo |
+| TTS | Riva TTS | ~$2-5/mo |
+| Safety | NemoGuard 8B | ~$1-2/mo |
+| **Total** | | **$27-71/mo** |
+
+vs **$775-2,210/mo with GPT-4o** = **90-97% savings**
+
+---
+
+## 16. API Compatibility
+
+**ALL LLM/Vision/Embedding models on NIM use the OpenAI-compatible API format.** Migration requires only changing:
 
 ```
 base_url: "https://integrate.api.nvidia.com/v1"
-model: "nvidia/llama-3.3-nemotron-super-49b-v1.5"  // or any other model
+model: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
 ```
 
-No code rewrite needed. Same `chat/completions` endpoint, same request/response format.
+**Exceptions** (different API formats):
+- **TTS (Riva)**: Uses `/v1/audio/synthesize` with form-data (NOT `/v1/audio/speech`)
+- **Reranking**: Uses `/v1/ranking` with query/passages JSON format
+- **Safety**: Uses chat/completions format with safety-specific system prompts
 
 ---
 
-## 15. Key Differences from Previous Research (Report #16624)
+## 17. Key Differences from Previous Research (Report #16624)
 
 | What Changed | Previous Report | This Report |
 |-------------|----------------|-------------|
@@ -376,9 +508,12 @@ No code rewrite needed. Same `chat/completions` endpoint, same request/response 
 | **GPT-OSS** | Not mentioned | ✅ OpenAI's open models on NIM, Apache 2.0 |
 | **Step 3.5 Flash** | Not mentioned | ✅ 97.3% AIME, best efficiency per parameter |
 | **DeepSeek V3.1/V3.2** | Not mentioned | ✅ GPT-5 competitive, $0.28/1M tokens |
-| **Strategy** | 3-model (all NVIDIA) | **5-model primary + situational non-NVIDIA models** |
+| **Strategy** | 3-model (all NVIDIA) | **22-model registry** with per-module variant chains |
 | **Coding models** | None | Qwen3-Coder, Devstral, Code Llama, StarCoder |
 | **Image generation** | None | Stable Diffusion 3.5, FLUX.1, Trellis |
+| **Reranking** | None | ✅ NV-RerankQA + Nemotron-Rerank-VL |
+| **Safety** | None | ✅ NemoGuard + Nemotron Content Safety |
+| **Per-module routing** | None | ✅ 11 modules with specialized chains |
 
 ---
 

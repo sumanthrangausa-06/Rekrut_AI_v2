@@ -1,5 +1,5 @@
-const OpenAI = require('openai');
 const pool = require('../lib/db');
+const aiProvider = require('../lib/ai-provider');
 
 // Defensive pgvector import — fallback to manual vector formatting if unavailable
 let toSql, registerType;
@@ -19,38 +19,16 @@ if (typeof toSql !== 'function') {
   };
 }
 
-// Lazy-load OpenAI client to avoid initialization errors when env vars are missing
-let openai = null;
-
-function getOpenAI() {
-  if (!openai) {
-    const apiKey = process.env.OPENAI_API_KEY || process.env.POLSIA_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY or POLSIA_API_KEY environment variable.');
-    }
-    openai = new OpenAI({
-      baseURL: process.env.OPENAI_BASE_URL || 'https://polsia.com/api/proxy/openai',
-      apiKey: apiKey,
-    });
-  }
-  return openai;
-}
-
 /**
- * Generate embedding for text using OpenAI API
+ * Generate embedding for text using the AI provider fallback system.
+ * Chain: OpenAI text-embedding-3-small → NIM NV-EmbedQA → NIM Nemotron-Embed-VL
  */
 async function generateEmbedding(text) {
   if (!text || text.trim().length === 0) {
     throw new Error('Cannot generate embedding for empty text');
   }
 
-  const client = getOpenAI();
-  const response = await client.embeddings.create({
-    model: 'text-embedding-3-small',
-    input: text.substring(0, 8000) // Limit to 8k chars
-  });
-
-  return response.data[0].embedding;
+  return aiProvider.generateEmbedding(text.substring(0, 8000));
 }
 
 /**
