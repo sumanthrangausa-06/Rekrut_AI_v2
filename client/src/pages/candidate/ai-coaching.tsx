@@ -1006,10 +1006,12 @@ export function AiCoachingPage() {
       {/* 11TH FIX (Feb 10 2026): WebKit bug #98538 — overflow:hidden + border-radius on parent
           containers kills video rendering on iOS. Fix: isolation:isolate creates a new stacking
           context, and inline overflow:visible guarantees override of base overflow-y-auto. */}
+      {/* overflow-visible hack is ONLY for live video recording (iOS WebKit camera fix).
+           Once coaching results are shown, restore normal scroll so feedback is scrollable. */}
       <Dialog open={!!practiceQuestion} onClose={closePractice}
-        className={`max-w-2xl ${responseMode === 'video' && !cameraError ? 'overflow-visible isolate max-h-none' : ''}`}
-        style={responseMode === 'video' && !cameraError ? { overflow: 'visible', isolation: 'isolate' } : undefined}>
-        <div className={responseMode === 'video' && !cameraError ? '' : 'max-h-[85vh] overflow-y-auto'}>
+        className={`max-w-2xl ${responseMode === 'video' && !cameraError && !coaching ? 'overflow-visible isolate max-h-none' : ''}`}
+        style={responseMode === 'video' && !cameraError && !coaching ? { overflow: 'visible', isolation: 'isolate' } : undefined}>
+        <div className={responseMode === 'video' && !cameraError && !coaching ? '' : 'max-h-[85vh] overflow-y-auto'}>
           {practiceQuestion && !coaching && !textCoaching && (
             <>
               <DialogHeader>
