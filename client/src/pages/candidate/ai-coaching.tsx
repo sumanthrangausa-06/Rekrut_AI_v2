@@ -250,38 +250,9 @@ export function AiCoachingPage() {
     }
   }, [])
 
-  // Stream attachment — runs AFTER cameraReady=true removes the overlay.
-  // The key prop forces React to create a fresh <video key="cam-active"> element
-  // that was never hidden behind the overlay. We attach the stream here (not in
-  // startCamera) to avoid iOS WebKit's decoder pause for hidden video elements.
-  useEffect(() => {
-    if (!cameraReady) return
-    const stream = streamRef.current
-    if (!stream) return
-
-    // Small delay ensures React has committed the new key="cam-active" element
-    const timer = setTimeout(() => {
-      const v = videoRef.current
-      if (!v) return
-      v.srcObject = stream
-      v.play().then(() => {
-        console.log(`[camera] play() succeeded, readyState=${v.readyState}`)
-        setCameraStatus(prev => prev + ' ▶')
-      }).catch((e: any) => {
-        console.warn('[camera] play() failed:', e?.message)
-        // Retry once — iOS sometimes needs a second attempt
-        setTimeout(() => {
-          const v2 = videoRef.current
-          if (v2 && streamRef.current) {
-            v2.srcObject = streamRef.current
-            v2.play().catch(() => {})
-          }
-        }, 200)
-      })
-    }, 100)
-
-    return () => clearTimeout(timer)
-  }, [cameraReady])
+  // NO deferred useEffect for stream attachment.
+  // 13TH FIX: The key prop swap + deferred useEffect was the root cause of black screen.
+  // Stream is now attached DIRECTLY in startCamera() — like the original working code.
 
   function openPractice(q: PracticeQuestion) {
     setPracticeQuestion(q)
@@ -321,23 +292,19 @@ export function AiCoachingPage() {
   const isChromeIOS = isIOS && /CriOS/.test(navigator.userAgent)
   const isSafari = isIOS && !isChromeIOS && /Safari/.test(navigator.userAgent)
 
-  // Camera management — 12TH FIX (Feb 10 2026)
+  // Camera management — 13TH FIX (Feb 11 2026)
   //
-  // ROOT CAUSE OF BLACK SCREEN: The 8th fix split getUserMedia into two calls
-  // (video-only, then audio separately). On iOS WebKit, the second
-  // getUserMedia({ audio: true }) call DISRUPTS the already-active video track,
-  // causing it to report readyState='live' with valid settings but deliver
-  // ZERO frames — hence the black screen despite "OK 480x640 a:1" debug text.
+  // ROOT CAUSE OF BLACK SCREEN (attempts 1-12): The key prop swap
+  // (key={cameraReady ? 'cam-active' : 'cam-pending'}) DESTROYED the video
+  // DOM element every time cameraReady changed. The deferred useEffect then
+  // attached srcObject to a freshly-created element via 100ms setTimeout.
+  // play() resolved but the browser never rendered frames to this new element.
   //
-  // The audio track was COMPLETELY UNUSED:
-  // - Frame capture uses canvas.drawImage (video only)
-  // - Transcription uses SpeechRecognition API (independent of stream)
-  // - MediaRecorder was never used (ref was declared but never referenced)
-  //
-  // FIX: Request VIDEO-ONLY. Never request audio via getUserMedia.
-  // Also: don't attach stream to the hidden <video> element during init.
-  // Wait for cameraReady=true (overlay removed) then attach via useEffect.
-  // This avoids iOS's power optimization that pauses decoders for hidden video.
+  // FIX: Return to the original working pattern from commit 01025bc:
+  // 1. No key prop on <video> — element persists across renders
+  // 2. Attach srcObject DIRECTLY in startCamera(), call play() immediately
+  // 3. Set cameraReady=true AFTER stream is attached (removes overlay)
+  // 4. Keep "Enable Camera" button for user gesture requirement
 
   async function startCamera() {
     try {
@@ -352,7 +319,6 @@ export function AiCoachingPage() {
       }
 
       // VIDEO ONLY — no audio needed. Transcription uses SpeechRecognition API.
-      // CRITICAL: Do NOT call getUserMedia for audio — it kills video on iOS.
       let videoStream: MediaStream | null = null
       const constraintSets: Array<{ video: MediaStreamConstraints['video'], label: string }> = [
         { video: { facingMode: 'user' }, label: 'video:user' },
@@ -372,7 +338,6 @@ export function AiCoachingPage() {
             continue
           }
 
-          // Trust track settings — don't attach to video element yet (it's behind overlay)
           const settings = vt.getSettings?.() || {}
           console.log(`[camera] ${label}: track=${vt.readyState} ${settings.width}x${settings.height}`)
           setCameraStatus(`Got ${label}: ${settings.width || '?'}x${settings.height || '?'}`)
@@ -384,7 +349,6 @@ export function AiCoachingPage() {
             setCameraError('denied')
             return
           }
-          // Try next constraint set for OverconstrainedError, NotFoundError, etc.
         }
       }
 
@@ -394,16 +358,30 @@ export function AiCoachingPage() {
         return
       }
 
-      // Store stream — DO NOT attach to video element here.
-      // The <video> is currently behind the !cameraReady overlay.
-      // On iOS WebKit, attaching a stream to a hidden video can permanently
-      // pause the decoder. The useEffect([cameraReady]) will attach the stream
-      // AFTER the overlay is removed (when key="cam-active" element is visible).
       streamRef.current = videoStream
+
+      // ATTACH STREAM DIRECTLY — this is what the original working code did.
+      // Do NOT defer to useEffect. Do NOT use key prop swap.
+      // The video element exists in the DOM (behind the overlay) and can receive the stream.
+      const v = videoRef.current
+      if (v) {
+        v.srcObject = videoStream
+        try {
+          await v.play()
+          console.log(`[camera] play() succeeded, readyState=${v.readyState}, videoWidth=${v.videoWidth}`)
+        } catch (e: any) {
+          console.warn('[camera] play() failed, retrying:', e?.message)
+          // One retry for autoplay policy edge cases
+          try { await v.play() } catch (_) {}
+        }
+      }
 
       const vt = videoStream.getVideoTracks()[0]
       const settings = vt?.getSettings?.() || {}
-      setCameraStatus(`OK ${settings.width || '?'}x${settings.height || '?'}`)
+      setCameraStatus(`OK ${settings.width || '?'}x${settings.height || '?'} ▶`)
+
+      // Set cameraReady AFTER stream is attached — this removes the overlay
+      // to reveal the already-playing video
       setCameraReady(true)
 
       // Monitor track ending (user revokes permission)
@@ -1037,11 +1015,10 @@ export function AiCoachingPage() {
                   {/* Camera Preview — only show when no error blocking everything */}
                   {!cameraError && (
                     <div className="relative bg-black aspect-video rounded-xl isolate overflow-hidden">
-                      {/* Key prop forces fresh DOM element when cameraReady changes.
-                          Stream is ONLY attached via useEffect AFTER overlay is removed.
-                          This avoids iOS WebKit decoder pause for hidden video elements. */}
+                      {/* 13TH FIX: NO key prop. The key swap was destroying the video
+                          element on every cameraReady change, causing black screen.
+                          Stream is attached DIRECTLY in startCamera(). */}
                       <video
-                        key={cameraReady ? 'cam-active' : 'cam-pending'}
                         ref={videoRef}
                         autoPlay
                         muted
