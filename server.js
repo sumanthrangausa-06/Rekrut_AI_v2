@@ -83,6 +83,27 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// AI Provider Health Dashboard — shows which providers are active per modality
+app.get('/api/ai-health', (req, res) => {
+  try {
+    const { aiProvider } = require('./lib/polsia-ai');
+    res.json(aiProvider.getHealth());
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get AI health status', message: err.message });
+  }
+});
+
+// Reset AI provider circuit breakers (admin/debug only)
+app.post('/api/ai-health/reset', (req, res) => {
+  try {
+    const { aiProvider } = require('./lib/polsia-ai');
+    aiProvider.resetCircuitBreakers();
+    res.json({ success: true, message: 'All circuit breakers reset', health: aiProvider.getHealth() });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reset circuit breakers', message: err.message });
+  }
+});
+
 // Determine which frontend to serve
 const reactBuildPath = path.join(__dirname, 'client', 'dist');
 const legacyPublicPath = path.join(__dirname, 'public');
