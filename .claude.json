@@ -2008,6 +2008,25 @@
         "App.tsx"
       ],
       "exampleFilesGeneratedAt": 1770758741511
+    },
+    "/tmp/polsia-workspaces/company-956/agent-30/exec-59581/hireloop": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": false,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [
+        "server.js",
+        "ai-coaching.tsx",
+        "candidate.js",
+        "interviews.js",
+        "App.tsx"
+      ],
+      "exampleFilesGeneratedAt": 1770768254923
     }
   },
   "opusProMigrationComplete": true,
