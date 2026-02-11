@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Review existing fallback system code and NIM research doc",
+    "status": "completed",
+    "activeForm": "Reviewing existing fallback system and research docs"
+  },
+  {
+    "content": "Research ALL NIM models across every category",
+    "status": "completed",
+    "activeForm": "Researching all NIM models on build.nvidia.com"
+  },
+  {
+    "content": "Map optimal fallback chains for every HireLoop module",
+    "status": "completed",
+    "activeForm": "Mapping fallback chains per module"
+  },
+  {
+    "content": "Update fallback system code with comprehensive chains",
+    "status": "completed",
+    "activeForm": "Updating fallback system code"
+  },
+  {
+    "content": "Update NIM research doc with complete mapping",
+    "status": "completed",
+    "activeForm": "Updating research documentation"
+  },
+  {
+    "content": "Push and deploy",
+    "status": "in_progress",
+    "activeForm": "Pushing to remote and deploying"
+  }
+]
