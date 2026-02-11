@@ -1516,19 +1516,18 @@ export function AiCoachingPage() {
 
         if (voiceChunksRef.current.length === 0) return
 
-        // BUG FIX: Check if the entire recording was silence before sending to Whisper.
+        // BUG FIX: Check if the entire recording was silence before sending to backend.
         // Whisper hallucinates Japanese/Chinese text when given silent audio.
         // If silence count was high (meaning mostly silent), skip sending.
         const totalSilenceChecks = silenceCountRef.current
         // If we got here from the auto-silence stop (>=18 checks of silence),
         // AND the live transcript is empty, the user likely didn't say anything.
         if (totalSilenceChecks >= 16 && !mockLiveTranscript.trim()) {
-          console.log('[voice] Skipping Whisper — recording was mostly silence')
+          console.log('[voice] Skipping — recording was mostly silence')
           setMockLiveTranscript('')
-          // Auto-restart recording for next attempt
-          if (voiceMode && !aiSpeaking) {
-            setTimeout(() => startVoiceRecording(), 500)
-          }
+          // BUG FIX: Do NOT auto-restart recording here — this caused infinite mic loop.
+          // Show a message so user knows to tap the mic button manually.
+          setVoiceError('No speech detected. Tap the mic button when ready to speak.')
           return
         }
 
@@ -1630,22 +1629,15 @@ export function AiCoachingPage() {
               await playInterviewerAudio(data.interviewer_message.text)
             }
           } else {
-            // BUG FIX: Limit auto-retry to prevent infinite recording loop
-            // When Whisper returns 429, the "Could not transcribe" error caused endless retries
+            // BUG FIX: Do NOT auto-retry on transcription failure — this caused infinite mic loop.
+            // When all ASR providers fail (429 etc), the mic would restart endlessly.
+            // Instead, show clear error and let user manually retry.
             const errorMsg = data.error || 'Failed to process your response'
+            console.warn('[voice] Transcription failed:', errorMsg)
+            voiceRetryCountRef.current = 0
+            setMockLiveTranscript('')
             if (errorMsg.includes("didn't catch") || errorMsg.includes('Could not transcribe')) {
-              voiceRetryCountRef.current++
-              if (voiceRetryCountRef.current <= 2) {
-                console.log(`[voice] Transcription error, retry ${voiceRetryCountRef.current}/2`)
-                setMockLiveTranscript('')
-                if (voiceMode && !aiSpeaking) {
-                  setTimeout(() => startVoiceRecording(), 800)
-                }
-              } else {
-                console.warn('[voice] Max retries reached, stopping auto-retry')
-                voiceRetryCountRef.current = 0
-                setVoiceError('Having trouble hearing you. Please tap the mic button to try again.')
-              }
+              setVoiceError('Could not understand your response. Tap the mic button to try again, or type your answer below.')
             } else {
               setVoiceError(errorMsg)
             }
