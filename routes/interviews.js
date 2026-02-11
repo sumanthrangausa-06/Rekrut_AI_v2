@@ -1447,16 +1447,46 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
     // Step 1: Transcribe audio with Whisper
     let transcribedText = '';
     if (req.file) {
-      // Audio file uploaded as multipart
-      const audioBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-      const whisperResult = await transcribeAudioWithWhisper(audioBase64, {
-        subscriptionId: req.user.stripe_subscription_id
+      // Audio file uploaded as multipart — send buffer directly to Whisper
+      // Strip codec params from mimetype (e.g., "audio/webm;codecs=opus" → "audio/webm")
+      const baseMime = (req.file.mimetype || 'audio/webm').split(';')[0];
+      const ext = baseMime.includes('mp4') ? 'mp4' : baseMime.includes('ogg') ? 'ogg' : 'webm';
+      console.log(`[voice-respond] Received file: ${req.file.size} bytes, mime: ${req.file.mimetype}, using: ${baseMime}/${ext}`);
+
+      const whisperFormData = new FormData();
+      whisperFormData.append('file', req.file.buffer, {
+        filename: `recording.${ext}`,
+        contentType: baseMime
       });
-      if (whisperResult && whisperResult.text) {
-        transcribedText = whisperResult.text.trim();
+      whisperFormData.append('model', 'whisper-1');
+      whisperFormData.append('response_format', 'verbose_json');
+
+      const baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+      const apiKey = process.env.OPENAI_API_KEY;
+      const whisperHeaders = { 'Authorization': `Bearer ${apiKey}` };
+      if (req.user.stripe_subscription_id) whisperHeaders['X-Subscription-ID'] = req.user.stripe_subscription_id;
+
+      try {
+        const whisperRes = await fetch(`${baseUrl}/audio/transcriptions`, {
+          method: 'POST',
+          headers: whisperHeaders,
+          body: whisperFormData
+        });
+        if (whisperRes.ok) {
+          const whisperResult = await whisperRes.json();
+          if (whisperResult && whisperResult.text) {
+            transcribedText = whisperResult.text.trim();
+            console.log(`[voice-respond] Whisper transcription: "${transcribedText.substring(0, 100)}..."`);
+          }
+        } else {
+          const errText = await whisperRes.text();
+          console.error('[voice-respond] Whisper API error:', whisperRes.status, errText);
+        }
+      } catch (whisperErr) {
+        console.error('[voice-respond] Whisper call failed:', whisperErr.message);
       }
     } else if (req.body.audio_base64) {
-      // Audio sent as base64 in JSON
+      // Audio sent as base64 in JSON (legacy fallback)
       const whisperResult = await transcribeAudioWithWhisper(req.body.audio_base64, {
         subscriptionId: req.user.stripe_subscription_id
       });

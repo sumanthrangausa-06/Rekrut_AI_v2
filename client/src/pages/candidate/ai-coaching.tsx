@@ -918,8 +918,8 @@ export function AiCoachingPage() {
     try {
       // Always start in voice mode for video call experience
       setVoiceMode(true)
-      // Start camera
-      startMockCamera()
+      // Start camera (await to ensure permissions are granted before proceeding)
+      await startMockCamera()
 
       const res = await apiCall<{ success: boolean; session: MockSession; first_message: MockConversationTurn }>('/interviews/mock/start', {
         method: 'POST',
@@ -929,6 +929,10 @@ export function AiCoachingPage() {
         setMockSession(res.session)
         setMockShowSetup(false)
         setMockFeedback(null)
+        // Directly play the AI greeting (user just clicked, so autoplay is allowed)
+        if (res.first_message?.text) {
+          playInterviewerAudio(res.first_message.text)
+        }
       }
     } catch (err: any) {
       alert(err.message || 'Failed to start interview')
@@ -1039,12 +1043,26 @@ export function AiCoachingPage() {
       })
 
       if (!response.ok) {
-        console.error('TTS failed:', response.status)
+        const errText = await response.text()
+        console.error('[tts-client] TTS failed:', response.status, errText)
         setAiSpeaking(false)
+        // Even if TTS fails, start recording after a short delay so the conversation continues
+        if (voiceMode && !candidateRecording) {
+          setTimeout(() => startVoiceRecording(), 1500)
+        }
         return
       }
 
       const audioBlob = await response.blob()
+      if (audioBlob.size < 100) {
+        console.error('[tts-client] Audio blob too small:', audioBlob.size)
+        setAiSpeaking(false)
+        if (voiceMode && !candidateRecording) {
+          setTimeout(() => startVoiceRecording(), 1500)
+        }
+        return
+      }
+
       const audioUrl = URL.createObjectURL(audioBlob)
 
       // Create or reuse audio element
@@ -1063,16 +1081,24 @@ export function AiCoachingPage() {
           startVoiceRecording()
         }
       }
-      audio.onerror = () => {
+      audio.onerror = (e) => {
+        console.error('[tts-client] Audio playback error:', e)
         setAiSpeaking(false)
         URL.revokeObjectURL(audioUrl)
-        console.error('Audio playback error')
+        // Fallback: still start recording even if audio playback fails
+        if (voiceMode && !candidateRecording) {
+          setTimeout(() => startVoiceRecording(), 1000)
+        }
       }
 
       await audio.play()
     } catch (err) {
-      console.error('TTS playback error:', err)
+      console.error('[tts-client] TTS playback error:', err)
       setAiSpeaking(false)
+      // Fallback: start recording after TTS error
+      if (voiceMode && !candidateRecording) {
+        setTimeout(() => startVoiceRecording(), 1500)
+      }
     }
   }
 
@@ -1138,22 +1164,18 @@ export function AiCoachingPage() {
         try {
           const audioBlob = new Blob(voiceChunksRef.current, { type: mimeType })
 
-          // Convert to base64
-          const reader = new FileReader()
-          const base64Promise = new Promise<string>((resolve) => {
-            reader.onloadend = () => resolve(reader.result as string)
-          })
-          reader.readAsDataURL(audioBlob)
-          const audioBase64 = await base64Promise
+          // Send as multipart FormData (more reliable than base64 for Whisper)
+          const formData = new FormData()
+          const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm'
+          formData.append('audio', audioBlob, `recording.${ext}`)
 
           const token = getToken()
           const res = await fetch(`/api/interviews/mock/${mockSession?.id}/voice-respond`, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ audio_base64: audioBase64 })
+            body: formData
           })
 
           const data = await res.json()
