@@ -6,12 +6,12 @@
   },
   {
     "content": "Phase 2: Fix mic recording / STT loop on frontend",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Fixing mic recording loop on frontend"
   },
   {
     "content": "Phase 3: Fix end button + fake feedback",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Fixing end button and fake feedback generation"
   },
   {
