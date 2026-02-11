@@ -11,7 +11,8 @@ import {
   Flame, BookOpen, CheckCircle, ArrowRight, Sparkles, BarChart3,
   Clock, Star, Zap, Video, VideoOff, Mic, MicOff, Camera, Eye,
   Volume2, AlertCircle, ChevronDown, ChevronUp, Play, Square,
-  Timer, User, Monitor, History, FileText, Calendar,
+  Timer, User, Monitor, History, FileText, Calendar, Send, Briefcase,
+  MessageCircle, Award, StopCircle, Loader2, Plus,
 } from 'lucide-react'
 
 // Types
@@ -128,6 +129,56 @@ interface HistorySession {
   created_at: string
 }
 
+// Mock Interview Session types
+interface MockConversationTurn {
+  role: 'interviewer' | 'candidate'
+  text: string
+  action?: string
+  score_hint?: number
+  notes?: string
+  timestamp: string
+}
+
+interface MockSession {
+  id: number
+  target_role: string
+  job_description: string | null
+  status: 'in_progress' | 'completed'
+  conversation: MockConversationTurn[]
+  current_question_index: number
+  overall_score: number | null
+  overall_feedback: any
+  questions_asked: number
+  follow_ups_asked: number
+  started_at: string
+  completed_at: string | null
+}
+
+interface MockSessionSummary {
+  id: number
+  target_role: string
+  status: string
+  overall_score: number | null
+  questions_asked: number
+  follow_ups_asked: number
+  started_at: string
+  completed_at: string | null
+  duration_minutes: number
+}
+
+interface SessionFeedback {
+  overall_score: number
+  interview_readiness: string
+  summary: string
+  strengths: string[]
+  improvements: string[]
+  question_scores: { question_summary: string; score: number; feedback: string }[]
+  star_method_usage: { score: number; feedback: string }
+  communication_quality: { score: number; feedback: string }
+  technical_depth: { score: number; feedback: string }
+  top_tip: string
+}
+
 const categoryConfig: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
   behavioral: { label: 'Behavioral', icon: Brain, color: 'text-violet-700', bg: 'bg-violet-100' },
   technical: { label: 'Technical', icon: Zap, color: 'text-rose-700', bg: 'bg-rose-100' },
@@ -236,6 +287,19 @@ export function AiCoachingPage() {
   const [historyFilter, setHistoryFilter] = useState('all')
   const [reviewSession, setReviewSession] = useState<HistorySession | null>(null)
   const [reviewExpanded, setReviewExpanded] = useState<string | null>('content')
+
+  // Mock Interview state
+  const [mockTargetRole, setMockTargetRole] = useState('')
+  const [mockJobDescription, setMockJobDescription] = useState('')
+  const [mockStarting, setMockStarting] = useState(false)
+  const [mockSession, setMockSession] = useState<MockSession | null>(null)
+  const [mockResponseText, setMockResponseText] = useState('')
+  const [mockSending, setMockSending] = useState(false)
+  const [mockEnding, setMockEnding] = useState(false)
+  const [mockFeedback, setMockFeedback] = useState<SessionFeedback | null>(null)
+  const [mockPastSessions, setMockPastSessions] = useState<MockSessionSummary[]>([])
+  const [mockShowSetup, setMockShowSetup] = useState(false)
+  const chatEndRef = useRef<HTMLDivElement>(null)
 
   const loadStats = useCallback(async () => {
     try {
@@ -770,6 +834,101 @@ export function AiCoachingPage() {
     stopCamera()
   }
 
+  // ===== MOCK INTERVIEW FUNCTIONS =====
+  const loadMockSessions = useCallback(async () => {
+    try {
+      const res = await apiCall<{ success: boolean; sessions: MockSessionSummary[]; total: number }>('/interviews/mock/sessions?limit=10')
+      if (res.success) setMockPastSessions(res.sessions)
+    } catch (err) { console.error('Failed to load mock sessions:', err) }
+  }, [])
+
+  async function startMockInterview() {
+    if (!mockTargetRole.trim()) return
+    setMockStarting(true)
+    try {
+      const res = await apiCall<{ success: boolean; session: MockSession; first_message: MockConversationTurn }>('/interviews/mock/start', {
+        method: 'POST',
+        body: { target_role: mockTargetRole.trim(), job_description: mockJobDescription.trim() || undefined }
+      })
+      if (res.success) {
+        setMockSession(res.session)
+        setMockShowSetup(false)
+        setMockFeedback(null)
+        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to start interview')
+    } finally {
+      setMockStarting(false)
+    }
+  }
+
+  async function sendMockResponse() {
+    if (!mockSession || !mockResponseText.trim() || mockSending) return
+    const text = mockResponseText.trim()
+    setMockResponseText('')
+    setMockSending(true)
+
+    // Optimistically add candidate message
+    const candidateMsg: MockConversationTurn = { role: 'candidate', text, timestamp: new Date().toISOString() }
+    setMockSession(prev => prev ? { ...prev, conversation: [...prev.conversation, candidateMsg] } : null)
+    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+
+    try {
+      const res = await apiCall<{
+        success: boolean; interviewer_message: MockConversationTurn; action: string; is_wrapping_up: boolean
+      }>(`/interviews/mock/${mockSession.id}/respond`, {
+        method: 'POST',
+        body: { response_text: text }
+      })
+      if (res.success) {
+        setMockSession(prev => prev ? {
+          ...prev,
+          conversation: [...prev.conversation, res.interviewer_message]
+        } : null)
+        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to send response')
+    } finally {
+      setMockSending(false)
+    }
+  }
+
+  async function endMockInterview() {
+    if (!mockSession) return
+    setMockEnding(true)
+    try {
+      const res = await apiCall<{ success: boolean; feedback: SessionFeedback }>(`/interviews/mock/${mockSession.id}/end`, {
+        method: 'POST'
+      })
+      if (res.success) {
+        setMockFeedback(res.feedback)
+        setMockSession(prev => prev ? { ...prev, status: 'completed' } : null)
+        loadMockSessions()
+        loadStats()
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to end interview')
+    } finally {
+      setMockEnding(false)
+    }
+  }
+
+  function resetMockInterview() {
+    setMockSession(null)
+    setMockFeedback(null)
+    setMockResponseText('')
+    setMockTargetRole('')
+    setMockJobDescription('')
+    setMockShowSetup(false)
+  }
+
+  // Load mock sessions when switching to mock tab
+  useEffect(() => {
+    if (tab === 'mock') loadMockSessions()
+  }, [tab, loadMockSessions])
+
   function formatTime(seconds: number): string {
     const m = Math.floor(seconds / 60)
     const s = seconds % 60
@@ -880,8 +1039,11 @@ export function AiCoachingPage() {
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
+          <TabsTrigger value="mock">
+            <MessageCircle className="h-4 w-4 mr-1.5" /> Mock Interview
+          </TabsTrigger>
           <TabsTrigger value="practice">
-            <BookOpen className="h-4 w-4 mr-1.5" /> Practice
+            <BookOpen className="h-4 w-4 mr-1.5" /> Quick Practice
           </TabsTrigger>
           <TabsTrigger value="progress">
             <BarChart3 className="h-4 w-4 mr-1.5" /> Progress
@@ -890,6 +1052,364 @@ export function AiCoachingPage() {
             <History className="h-4 w-4 mr-1.5" /> History
           </TabsTrigger>
         </TabsList>
+
+        {/* Mock Interview Tab */}
+        <TabsContent value="mock">
+          {/* Active interview session */}
+          {mockSession && mockSession.status === 'in_progress' && !mockFeedback ? (
+            <div className="space-y-4">
+              {/* Session header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-green-100 text-green-700 border-0">
+                    <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse mr-1.5" />
+                    Live Interview
+                  </Badge>
+                  <span className="text-sm font-medium">{mockSession.target_role}</span>
+                </div>
+                <Button size="sm" variant="outline" onClick={endMockInterview} disabled={mockEnding}
+                  className="text-red-600 border-red-200 hover:bg-red-50">
+                  {mockEnding ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <StopCircle className="h-3.5 w-3.5 mr-1.5" />}
+                  End Interview
+                </Button>
+              </div>
+
+              {/* Chat window */}
+              <Card className="border-2">
+                <CardContent className="p-0">
+                  <div className="h-[50vh] overflow-y-auto p-4 space-y-4">
+                    {mockSession.conversation.map((turn, i) => (
+                      <div key={i} className={`flex ${turn.role === 'candidate' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                          turn.role === 'interviewer'
+                            ? 'bg-primary/5 border border-primary/10 text-foreground'
+                            : 'bg-primary text-primary-foreground'
+                        }`}>
+                          {turn.role === 'interviewer' && (
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center">
+                                <Brain className="h-3 w-3 text-primary" />
+                              </div>
+                              <span className="text-[10px] font-medium text-primary">AI Interviewer</span>
+                            </div>
+                          )}
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{turn.text}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {mockSending && (
+                      <div className="flex justify-start">
+                        <div className="bg-primary/5 border border-primary/10 rounded-2xl px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                            <span className="text-xs text-muted-foreground">AI is thinking...</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+
+                  {/* Input area */}
+                  <div className="border-t p-3">
+                    <div className="flex gap-2">
+                      <Textarea
+                        value={mockResponseText}
+                        onChange={e => setMockResponseText(e.target.value)}
+                        placeholder="Type your answer... (be detailed, use the STAR method for behavioral questions)"
+                        rows={2}
+                        className="resize-none text-sm"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            sendMockResponse()
+                          }
+                        }}
+                      />
+                      <Button
+                        onClick={sendMockResponse}
+                        disabled={mockSending || mockResponseText.trim().length < 10}
+                        className="shrink-0 self-end"
+                        size="sm"
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1.5">
+                      Press Enter to send · Shift+Enter for new line · Min 10 characters
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : mockFeedback ? (
+            /* Session feedback display */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-amber-500" />
+                  Interview Complete — {mockSession?.target_role}
+                </h3>
+                <Button size="sm" variant="outline" onClick={resetMockInterview}>
+                  <Plus className="h-3.5 w-3.5 mr-1.5" /> New Interview
+                </Button>
+              </div>
+
+              {/* Overall score */}
+              <div className={`text-center p-6 rounded-xl border-2 ${scoreBg(mockFeedback.overall_score)}`}>
+                <div className={`text-5xl font-bold ${scoreColor(mockFeedback.overall_score)}`}>
+                  {mockFeedback.overall_score}/10
+                </div>
+                <div className="text-sm text-muted-foreground mt-1">{scoreLabel(mockFeedback.overall_score)}</div>
+                <Badge className={`mt-2 ${
+                  mockFeedback.interview_readiness === 'ready' ? 'bg-green-100 text-green-700' :
+                  mockFeedback.interview_readiness === 'almost_ready' ? 'bg-amber-100 text-amber-700' :
+                  'bg-red-100 text-red-700'
+                } border-0`}>
+                  {mockFeedback.interview_readiness === 'ready' ? 'Interview Ready' :
+                   mockFeedback.interview_readiness === 'almost_ready' ? 'Almost Ready' : 'Needs Work'}
+                </Badge>
+              </div>
+
+              {/* Summary */}
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-sm leading-relaxed">{mockFeedback.summary}</p>
+                </CardContent>
+              </Card>
+
+              {/* Skill breakdown */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {mockFeedback.star_method_usage && (
+                  <Card><CardContent className="p-3 text-center">
+                    <div className={`text-2xl font-bold ${scoreColor(mockFeedback.star_method_usage.score)}`}>
+                      {mockFeedback.star_method_usage.score}/10
+                    </div>
+                    <div className="text-xs font-medium mt-1">STAR Method</div>
+                    <p className="text-[10px] text-muted-foreground mt-1">{mockFeedback.star_method_usage.feedback}</p>
+                  </CardContent></Card>
+                )}
+                {mockFeedback.communication_quality && (
+                  <Card><CardContent className="p-3 text-center">
+                    <div className={`text-2xl font-bold ${scoreColor(mockFeedback.communication_quality.score)}`}>
+                      {mockFeedback.communication_quality.score}/10
+                    </div>
+                    <div className="text-xs font-medium mt-1">Communication</div>
+                    <p className="text-[10px] text-muted-foreground mt-1">{mockFeedback.communication_quality.feedback}</p>
+                  </CardContent></Card>
+                )}
+                {mockFeedback.technical_depth && (
+                  <Card><CardContent className="p-3 text-center">
+                    <div className={`text-2xl font-bold ${scoreColor(mockFeedback.technical_depth.score)}`}>
+                      {mockFeedback.technical_depth.score}/10
+                    </div>
+                    <div className="text-xs font-medium mt-1">Technical Depth</div>
+                    <p className="text-[10px] text-muted-foreground mt-1">{mockFeedback.technical_depth.feedback}</p>
+                  </CardContent></Card>
+                )}
+              </div>
+
+              {/* Strengths & Improvements */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {mockFeedback.strengths?.length > 0 && (
+                  <div className="p-4 rounded-lg bg-green-50 border border-green-100">
+                    <h4 className="text-sm font-semibold text-green-800 mb-2 flex items-center gap-1.5">
+                      <CheckCircle className="h-4 w-4" /> Strengths
+                    </h4>
+                    <ul className="space-y-1.5">
+                      {mockFeedback.strengths.map((s, i) => (
+                        <li key={i} className="text-xs text-green-700 flex items-start gap-2">
+                          <span className="mt-1 h-1.5 w-1.5 rounded-full bg-green-500 shrink-0" />{s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {mockFeedback.improvements?.length > 0 && (
+                  <div className="p-4 rounded-lg bg-amber-50 border border-amber-100">
+                    <h4 className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-1.5">
+                      <TrendingUp className="h-4 w-4" /> To Improve
+                    </h4>
+                    <ul className="space-y-1.5">
+                      {mockFeedback.improvements.map((s, i) => (
+                        <li key={i} className="text-xs text-amber-700 flex items-start gap-2">
+                          <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />{s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Question-by-question scores */}
+              {mockFeedback.question_scores?.length > 0 && (
+                <Card>
+                  <CardContent className="p-4">
+                    <h4 className="text-sm font-semibold mb-3">Question-by-Question Scores</h4>
+                    <div className="space-y-2">
+                      {mockFeedback.question_scores.map((qs, i) => (
+                        <div key={i} className="flex items-start gap-3 p-2 rounded-lg bg-muted/30">
+                          <div className={`text-sm font-bold shrink-0 w-10 text-center ${scoreColor(qs.score)}`}>
+                            {qs.score}/10
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium">{qs.question_summary}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{qs.feedback}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Top tip */}
+              {mockFeedback.top_tip && (
+                <div className="p-4 rounded-xl bg-primary/5 border border-primary/10">
+                  <h4 className="text-sm font-semibold flex items-center gap-1.5 mb-1">
+                    <Sparkles className="h-4 w-4 text-primary" /> #1 Tip to Improve
+                  </h4>
+                  <p className="text-sm text-muted-foreground">{mockFeedback.top_tip}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Setup / Landing */
+            <div className="space-y-6">
+              {/* Hero CTA */}
+              {!mockShowSetup && (
+                <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+                  <CardContent className="p-6 text-center">
+                    <div className="inline-flex p-4 rounded-2xl bg-primary/10 mb-4">
+                      <MessageCircle className="h-8 w-8 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-bold mb-2">AI Mock Interview</h3>
+                    <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+                      Tell us the role you're targeting — our AI generates personalized questions and conducts a live conversational interview. It asks follow-ups, challenges weak answers, and adapts in real-time.
+                    </p>
+                    <Button onClick={() => setMockShowSetup(true)} size="lg">
+                      <Briefcase className="h-4 w-4 mr-2" /> Start Mock Interview
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Setup form */}
+              {mockShowSetup && (
+                <Card className="border-2 border-primary/20">
+                  <CardContent className="p-6 space-y-4">
+                    <div>
+                      <h3 className="font-semibold flex items-center gap-2 mb-1">
+                        <Briefcase className="h-4 w-4 text-primary" /> Set Up Your Interview
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Questions are generated specifically for your target role. The more context you give, the more realistic the interview.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Target Role *</label>
+                      <input
+                        type="text"
+                        value={mockTargetRole}
+                        onChange={e => setMockTargetRole(e.target.value)}
+                        placeholder='e.g. "Senior Software Engineer", "Product Manager", "Data Scientist"'
+                        className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Job Description <span className="text-xs text-muted-foreground">(optional but recommended)</span></label>
+                      <Textarea
+                        value={mockJobDescription}
+                        onChange={e => setMockJobDescription(e.target.value)}
+                        placeholder="Paste the job description here for highly targeted questions..."
+                        rows={4}
+                        className="resize-y text-sm"
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => setMockShowSetup(false)} className="flex-1">
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={startMockInterview}
+                        disabled={mockStarting || mockTargetRole.trim().length < 2}
+                        className="flex-1"
+                      >
+                        {mockStarting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Generating questions...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4 mr-2" /> Start Interview
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {mockStarting && (
+                      <p className="text-xs text-center text-muted-foreground animate-pulse">
+                        AI is creating personalized questions for your {mockTargetRole} interview — this takes 10-20 seconds...
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Past mock interview sessions */}
+              {mockPastSessions.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                    <History className="h-4 w-4 text-muted-foreground" /> Past Mock Interviews
+                  </h3>
+                  <div className="space-y-2">
+                    {mockPastSessions.map(s => (
+                      <Card key={s.id} className="hover:border-primary/30 transition-colors">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              {s.overall_score ? (
+                                <div className={`h-10 w-10 rounded-lg flex items-center justify-center border ${scoreBg(s.overall_score)}`}>
+                                  <span className={`font-bold ${scoreColor(s.overall_score)}`}>{s.overall_score}</span>
+                                </div>
+                              ) : (
+                                <div className="h-10 w-10 rounded-lg flex items-center justify-center bg-muted">
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                </div>
+                              )}
+                              <div>
+                                <p className="text-sm font-medium">{s.target_role}</p>
+                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+                                  <span>{s.questions_asked} questions</span>
+                                  <span>·</span>
+                                  <span>{s.follow_ups_asked} follow-ups</span>
+                                  <span>·</span>
+                                  <span>{Math.round(s.duration_minutes)} min</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <Badge variant={s.status === 'completed' ? 'secondary' : 'outline'} className="text-[10px]">
+                                {s.status === 'completed' ? 'Completed' : 'In Progress'}
+                              </Badge>
+                              <p className="text-[10px] text-muted-foreground mt-1">
+                                {new Date(s.started_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </TabsContent>
 
         {/* Practice Tab */}
         <TabsContent value="practice">
