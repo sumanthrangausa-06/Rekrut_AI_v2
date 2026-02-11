@@ -1,7 +1,7 @@
 const express = require('express');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
-const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching, analyzeVideoInterviewResponse, generateQuestionBank, conductInterviewTurn, generateSessionFeedback, textToSpeech, transcribeAudioWithWhisper } = require('../lib/polsia-ai');
+const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching, analyzeVideoInterviewResponse, analyzeVideoPresentation, analyzeVoiceQuality, generateQuestionBank, conductInterviewTurn, generateSessionFeedback, textToSpeech, transcribeAudioWithWhisper } = require('../lib/polsia-ai');
 const crypto = require('crypto');
 const omniscoreService = require('../services/omniscore');
 const multer = require('multer');
@@ -1235,6 +1235,7 @@ router.post('/mock/:sessionId/respond', authMiddleware, async (req, res) => {
 router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
   try {
     const sessionId = req.params.sessionId;
+    const { frames } = req.body; // Video frames for body language analysis
 
     const sessionResult = await pool.query(
       'SELECT * FROM mock_interview_sessions WHERE id = $1 AND user_id = $2',
@@ -1252,12 +1253,59 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Not enough conversation to generate feedback. Answer at least one question.' });
     }
 
-    // Generate comprehensive feedback
-    const feedback = await generateSessionFeedback(
-      conversation,
-      session.target_role,
-      { subscriptionId: req.user.stripe_subscription_id }
-    );
+    // Run analysis in parallel: text feedback + video presentation + voice quality
+    const candidateText = conversation.filter(t => t.role === 'candidate').map(t => t.text).join('\n\n');
+    const durationSeconds = Math.round((Date.now() - new Date(session.started_at).getTime()) / 1000);
+    const options = { subscriptionId: req.user.stripe_subscription_id };
+
+    const analysisPromises = [
+      generateSessionFeedback(conversation, session.target_role, options)
+    ];
+
+    // Add video/body language analysis if frames are provided
+    if (frames && Array.isArray(frames) && frames.length > 0) {
+      console.log(`[mock-end] Running body language analysis with ${frames.length} frames`);
+      analysisPromises.push(analyzeVideoPresentation(frames, options));
+    } else {
+      analysisPromises.push(Promise.resolve(null));
+    }
+
+    // Add voice quality analysis based on candidate's transcribed text
+    if (candidateText.length > 20) {
+      console.log(`[mock-end] Running voice quality analysis (${candidateText.length} chars, ${durationSeconds}s)`);
+      analysisPromises.push(analyzeVoiceQuality(candidateText, durationSeconds, options));
+    } else {
+      analysisPromises.push(Promise.resolve(null));
+    }
+
+    const [feedback, videoAnalysis, voiceAnalysis] = await Promise.all(analysisPromises);
+
+    // Merge video/voice analysis into the feedback object
+    if (videoAnalysis) {
+      feedback.presentation = {
+        score: videoAnalysis.overall_presentation || 5,
+        eye_contact: videoAnalysis.eye_contact || { score: 5, feedback: '' },
+        facial_expressions: videoAnalysis.facial_expressions || { score: 5, feedback: '' },
+        body_language: videoAnalysis.body_language || { score: 5, feedback: '' },
+        professional_appearance: videoAnalysis.professional_appearance || { score: 5, feedback: '' },
+        summary: videoAnalysis.summary || ''
+      };
+    }
+
+    if (voiceAnalysis) {
+      feedback.voice_analysis = voiceAnalysis;
+    }
+
+    // Adjust overall score to incorporate presentation and voice
+    if (videoAnalysis || voiceAnalysis) {
+      const textScore = feedback.overall_score || 5;
+      const presScore = videoAnalysis?.overall_presentation || textScore;
+      const voiceScore = voiceAnalysis?.overall_voice_score || textScore;
+      // Weighted: 50% text/content, 25% presentation, 25% voice
+      feedback.overall_score = Math.round(
+        (textScore * 0.5 + presScore * 0.25 + voiceScore * 0.25) * 10
+      ) / 10;
+    }
 
     // Update session as completed
     await pool.query(
@@ -1278,7 +1326,7 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
           `mock-${sessionId}`,
           `Mock Interview: ${session.target_role}`,
           'mock_interview',
-          conversation.filter(t => t.role === 'candidate').map(t => t.text).join('\n\n'),
+          candidateText,
           Math.round(feedback.overall_score || 5),
           JSON.stringify(feedback)
         ]
@@ -1295,7 +1343,7 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
         target_role: session.target_role,
         questions_asked: session.questions_asked,
         follow_ups_asked: session.follow_ups_asked,
-        duration_minutes: Math.round((Date.now() - new Date(session.started_at).getTime()) / 60000)
+        duration_minutes: Math.round(durationSeconds / 60)
       }
     });
   } catch (err) {

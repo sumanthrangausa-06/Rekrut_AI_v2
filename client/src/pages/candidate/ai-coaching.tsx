@@ -177,6 +177,26 @@ interface SessionFeedback {
   communication_quality: { score: number; feedback: string }
   technical_depth: { score: number; feedback: string }
   top_tip: string
+  // Enhanced analysis (from video/voice analysis)
+  presentation?: {
+    score: number
+    eye_contact: CategoryScoreDetail
+    facial_expressions: CategoryScoreDetail
+    body_language: CategoryScoreDetail
+    professional_appearance: CategoryScoreDetail
+    summary: string
+  }
+  voice_analysis?: {
+    voice_confidence: { score: number; feedback: string }
+    vocal_variety: { score: number; feedback: string }
+    pacing_rhythm: { score: number; feedback: string }
+    articulation: { score: number; feedback: string }
+    energy: { score: number; feedback: string }
+    overall_voice_score: number
+    voice_summary: string
+    voice_tips: string[]
+  }
+  confidence_score?: { score: number; feedback: string }
 }
 
 const categoryConfig: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
@@ -323,6 +343,15 @@ export function AiCoachingPage() {
   const mockStreamRef = useRef<MediaStream | null>(null)
   const [showTranscript, setShowTranscript] = useState(false)
 
+  // Enhanced mock interview: AudioContext for reliable iOS playback, frame capture, live transcript
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const mockCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const mockFramesRef = useRef<string[]>([])
+  const mockFrameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [mockLiveTranscript, setMockLiveTranscript] = useState('')
+  const mockRecognitionRef = useRef<any>(null)
+  const mockAudioSourceRef = useRef<AudioBufferSourceNode | null>(null)
+
   // Start camera for mock interview
   async function startMockCamera() {
     try {
@@ -369,6 +398,110 @@ export function AiCoachingPage() {
       mockStreamRef.current = null
     }
     setMockCameraReady(false)
+  }
+
+  // Capture a frame from mock interview camera
+  function captureMockFrame(): string | null {
+    if (!mockVideoRef.current) return null
+    if (!mockCanvasRef.current) {
+      mockCanvasRef.current = document.createElement('canvas')
+    }
+    const canvas = mockCanvasRef.current
+    const video = mockVideoRef.current
+    canvas.width = 320
+    canvas.height = 240
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.drawImage(video, 0, 0, 320, 240)
+    return canvas.toDataURL('image/jpeg', 0.7)
+  }
+
+  // Start capturing frames throughout mock interview
+  function startMockFrameCapture() {
+    mockFramesRef.current = []
+    // Capture first frame immediately
+    setTimeout(() => {
+      const frame = captureMockFrame()
+      if (frame) mockFramesRef.current.push(frame)
+    }, 500)
+    // Then every 5 seconds
+    mockFrameIntervalRef.current = setInterval(() => {
+      const frame = captureMockFrame()
+      if (frame) {
+        // Keep max 20 frames to limit payload
+        if (mockFramesRef.current.length < 20) {
+          mockFramesRef.current.push(frame)
+        }
+      }
+    }, 5000)
+  }
+
+  function stopMockFrameCapture() {
+    if (mockFrameIntervalRef.current) {
+      clearInterval(mockFrameIntervalRef.current)
+      mockFrameIntervalRef.current = null
+    }
+  }
+
+  // Start live speech recognition during mock interview recording
+  function startMockSpeechRecognition() {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) return
+
+    const recognition = new SpeechRecognition()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = 'en-US'
+
+    let finalTranscript = ''
+
+    recognition.onresult = (event: any) => {
+      let interim = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i]
+        if (result.isFinal) {
+          finalTranscript += result[0].transcript + ' '
+        } else {
+          interim = result[0].transcript
+        }
+      }
+      setMockLiveTranscript(finalTranscript + interim)
+    }
+
+    recognition.onerror = (event: any) => {
+      if (event.error === 'no-speech') {
+        try { recognition.start() } catch (_) {}
+      }
+    }
+
+    recognition.onend = () => {
+      if (candidateRecording) {
+        try { recognition.start() } catch (_) {}
+      }
+    }
+
+    try {
+      recognition.start()
+      mockRecognitionRef.current = recognition
+    } catch (_) {}
+  }
+
+  function stopMockSpeechRecognition() {
+    if (mockRecognitionRef.current) {
+      try { mockRecognitionRef.current.stop() } catch (_) {}
+      mockRecognitionRef.current = null
+    }
+  }
+
+  // Ensure AudioContext is created and unlocked (call from user gesture)
+  function ensureAudioContext(): AudioContext {
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+      audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
+    }
+    if (audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume()
+    }
+    return audioCtxRef.current
   }
 
   const loadStats = useCallback(async () => {
@@ -918,8 +1051,18 @@ export function AiCoachingPage() {
     try {
       // Always start in voice mode for video call experience
       setVoiceMode(true)
+
+      // CRITICAL: Unlock AudioContext from user gesture context (fixes iOS audio)
+      ensureAudioContext()
+
       // Start camera (await to ensure permissions are granted before proceeding)
       await startMockCamera()
+
+      // Start frame capture for body language analysis
+      startMockFrameCapture()
+
+      // Show transcript by default for live transcription
+      setShowTranscript(true)
 
       const res = await apiCall<{ success: boolean; session: MockSession; first_message: MockConversationTurn }>('/interviews/mock/start', {
         method: 'POST',
@@ -937,6 +1080,7 @@ export function AiCoachingPage() {
     } catch (err: any) {
       alert(err.message || 'Failed to start interview')
       stopMockCamera()
+      stopMockFrameCapture()
     } finally {
       setMockStarting(false)
     }
@@ -982,6 +1126,16 @@ export function AiCoachingPage() {
     if (!mockSession) return
     setMockEnding(true)
 
+    // Stop frame capture and speech recognition
+    stopMockFrameCapture()
+    stopMockSpeechRecognition()
+
+    // Capture a final frame
+    const finalFrame = captureMockFrame()
+    if (finalFrame && mockFramesRef.current.length < 20) {
+      mockFramesRef.current.push(finalFrame)
+    }
+
     // AI says goodbye via voice if in voice mode
     if (voiceMode) {
       try {
@@ -993,14 +1147,18 @@ export function AiCoachingPage() {
     }
 
     try {
+      // Send frames for body language analysis
+      const frames = mockFramesRef.current.length > 0 ? mockFramesRef.current : undefined
       const res = await apiCall<{ success: boolean; feedback: SessionFeedback }>(`/interviews/mock/${mockSession.id}/end`, {
-        method: 'POST'
+        method: 'POST',
+        body: { frames }
       })
       if (res.success) {
         stopVoiceMode()
         stopMockCamera()
         setMockFeedback(res.feedback)
         setMockSession(prev => prev ? { ...prev, status: 'completed' } : null)
+        mockFramesRef.current = []
         loadMockSessions()
         loadStats()
       }
@@ -1014,6 +1172,9 @@ export function AiCoachingPage() {
   function resetMockInterview() {
     stopVoiceMode()
     stopMockCamera()
+    stopMockFrameCapture()
+    mockFramesRef.current = []
+    setMockLiveTranscript('')
     setMockSession(null)
     setMockFeedback(null)
     setMockResponseText('')
@@ -1026,7 +1187,7 @@ export function AiCoachingPage() {
 
   // ===== VOICE INTERVIEW FUNCTIONS =====
 
-  // Play TTS audio for interviewer text
+  // Play TTS audio for interviewer text — uses Web Audio API for reliable iOS playback
   async function playInterviewerAudio(text: string) {
     if (!text) return
     setAiSpeaking(true)
@@ -1046,16 +1207,15 @@ export function AiCoachingPage() {
         const errText = await response.text()
         console.error('[tts-client] TTS failed:', response.status, errText)
         setAiSpeaking(false)
-        // Even if TTS fails, start recording after a short delay so the conversation continues
         if (voiceMode && !candidateRecording) {
           setTimeout(() => startVoiceRecording(), 1500)
         }
         return
       }
 
-      const audioBlob = await response.blob()
-      if (audioBlob.size < 100) {
-        console.error('[tts-client] Audio blob too small:', audioBlob.size)
+      const arrayBuffer = await response.arrayBuffer()
+      if (arrayBuffer.byteLength < 100) {
+        console.error('[tts-client] Audio too small:', arrayBuffer.byteLength)
         setAiSpeaking(false)
         if (voiceMode && !candidateRecording) {
           setTimeout(() => startVoiceRecording(), 1500)
@@ -1063,35 +1223,54 @@ export function AiCoachingPage() {
         return
       }
 
-      const audioUrl = URL.createObjectURL(audioBlob)
+      // Use Web Audio API (AudioContext unlocked from user gesture in startMockInterview)
+      const ctx = ensureAudioContext()
 
-      // Create or reuse audio element
-      if (aiAudioRef.current) {
-        aiAudioRef.current.pause()
-        URL.revokeObjectURL(aiAudioRef.current.src)
-      }
-      const audio = new Audio(audioUrl)
-      aiAudioRef.current = audio
-
-      audio.onended = () => {
-        setAiSpeaking(false)
-        URL.revokeObjectURL(audioUrl)
-        // Auto-start recording after AI finishes speaking
-        if (voiceMode && !candidateRecording) {
-          startVoiceRecording()
+      try {
+        const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0))
+        // Stop any previous source
+        if (mockAudioSourceRef.current) {
+          try { mockAudioSourceRef.current.stop() } catch (_) {}
         }
-      }
-      audio.onerror = (e) => {
-        console.error('[tts-client] Audio playback error:', e)
-        setAiSpeaking(false)
-        URL.revokeObjectURL(audioUrl)
-        // Fallback: still start recording even if audio playback fails
-        if (voiceMode && !candidateRecording) {
-          setTimeout(() => startVoiceRecording(), 1000)
-        }
-      }
+        const source = ctx.createBufferSource()
+        source.buffer = audioBuffer
+        source.connect(ctx.destination)
+        mockAudioSourceRef.current = source
 
-      await audio.play()
+        source.onended = () => {
+          setAiSpeaking(false)
+          mockAudioSourceRef.current = null
+          // Auto-start recording after AI finishes speaking
+          if (voiceMode && !candidateRecording) {
+            startVoiceRecording()
+          }
+        }
+
+        source.start()
+        console.log('[tts-client] Playing via Web Audio API')
+      } catch (decodeErr) {
+        console.warn('[tts-client] Web Audio decode failed, falling back to Audio element:', decodeErr)
+        // Fallback to standard Audio element
+        const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' })
+        const audioUrl = URL.createObjectURL(blob)
+        if (aiAudioRef.current) {
+          aiAudioRef.current.pause()
+          URL.revokeObjectURL(aiAudioRef.current.src)
+        }
+        const audio = new Audio(audioUrl)
+        aiAudioRef.current = audio
+        audio.onended = () => {
+          setAiSpeaking(false)
+          URL.revokeObjectURL(audioUrl)
+          if (voiceMode && !candidateRecording) startVoiceRecording()
+        }
+        audio.onerror = () => {
+          setAiSpeaking(false)
+          URL.revokeObjectURL(audioUrl)
+          if (voiceMode && !candidateRecording) setTimeout(() => startVoiceRecording(), 1000)
+        }
+        await audio.play()
+      }
     } catch (err) {
       console.error('[tts-client] TTS playback error:', err)
       setAiSpeaking(false)
@@ -1199,25 +1378,52 @@ export function AiCoachingPage() {
             } : null)
             setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
 
-            // Play AI response audio
+            // Play AI response audio via Web Audio API (reliable on iOS)
             if (data.interviewer_audio_base64) {
               setAiSpeaking(true)
               const audioData = Uint8Array.from(atob(data.interviewer_audio_base64), c => c.charCodeAt(0))
-              const blob = new Blob([audioData], { type: 'audio/mpeg' })
-              const url = URL.createObjectURL(blob)
-              if (aiAudioRef.current) {
-                aiAudioRef.current.pause()
-                URL.revokeObjectURL(aiAudioRef.current.src)
+              const ctx = ensureAudioContext()
+
+              try {
+                const audioBuffer = await ctx.decodeAudioData(audioData.buffer.slice(0))
+                if (mockAudioSourceRef.current) {
+                  try { mockAudioSourceRef.current.stop() } catch (_) {}
+                }
+                const source = ctx.createBufferSource()
+                source.buffer = audioBuffer
+                source.connect(ctx.destination)
+                mockAudioSourceRef.current = source
+                source.onended = () => {
+                  setAiSpeaking(false)
+                  mockAudioSourceRef.current = null
+                  if (voiceMode && !data.is_wrapping_up) startVoiceRecording()
+                }
+                source.start()
+                console.log('[voice-respond] Playing AI audio via Web Audio API')
+              } catch (decodeErr) {
+                // Fallback to Audio element
+                console.warn('[voice-respond] Web Audio decode failed, fallback:', decodeErr)
+                const blob = new Blob([audioData], { type: 'audio/mpeg' })
+                const url = URL.createObjectURL(blob)
+                if (aiAudioRef.current) {
+                  aiAudioRef.current.pause()
+                  URL.revokeObjectURL(aiAudioRef.current.src)
+                }
+                const audio = new Audio(url)
+                aiAudioRef.current = audio
+                audio.onended = () => {
+                  setAiSpeaking(false)
+                  URL.revokeObjectURL(url)
+                  if (voiceMode && !data.is_wrapping_up) startVoiceRecording()
+                }
+                audio.onerror = () => {
+                  setAiSpeaking(false)
+                  URL.revokeObjectURL(url)
+                  // Still auto-start recording even on error
+                  if (voiceMode && !data.is_wrapping_up) setTimeout(() => startVoiceRecording(), 1000)
+                }
+                await audio.play()
               }
-              const audio = new Audio(url)
-              aiAudioRef.current = audio
-              audio.onended = () => {
-                setAiSpeaking(false)
-                URL.revokeObjectURL(url)
-                if (voiceMode && !data.is_wrapping_up) startVoiceRecording()
-              }
-              audio.onerror = () => { setAiSpeaking(false); URL.revokeObjectURL(url) }
-              await audio.play()
             } else {
               // No audio — try separate TTS call
               playInterviewerAudio(data.interviewer_message.text)
@@ -1235,6 +1441,10 @@ export function AiCoachingPage() {
 
       recorder.start(250)
       setCandidateRecording(true)
+
+      // Start live speech recognition for real-time transcript
+      setMockLiveTranscript('')
+      startMockSpeechRecognition()
     } catch (err: any) {
       console.error('Mic access error:', err)
       setVoiceError('Microphone access denied. Please allow microphone access to use voice mode.')
@@ -1252,14 +1462,21 @@ export function AiCoachingPage() {
     }
     setSilenceTimer(0)
     silenceCountRef.current = 0
+    stopMockSpeechRecognition()
   }
 
   function stopVoiceMode() {
+    // Stop Web Audio API source
+    if (mockAudioSourceRef.current) {
+      try { mockAudioSourceRef.current.stop() } catch (_) {}
+      mockAudioSourceRef.current = null
+    }
     if (aiAudioRef.current) {
       aiAudioRef.current.pause()
       aiAudioRef.current = null
     }
     stopVoiceRecording()
+    stopMockSpeechRecognition()
     // Only stop tracks if they're NOT from the camera stream (avoid killing camera audio)
     if (voiceStreamRef.current && voiceStreamRef.current !== mockStreamRef.current) {
       const cameraAudioIds = mockStreamRef.current?.getAudioTracks().map(t => t.id) || []
@@ -1295,9 +1512,17 @@ export function AiCoachingPage() {
     }
   }, [voiceError])
 
-  // Cleanup voice and camera on unmount
+  // Cleanup voice, camera, frames, and audio context on unmount
   useEffect(() => {
-    return () => { stopVoiceMode(); stopMockCamera() }
+    return () => {
+      stopVoiceMode()
+      stopMockCamera()
+      stopMockFrameCapture()
+      stopMockSpeechRecognition()
+      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+        try { audioCtxRef.current.close() } catch (_) {}
+      }
+    }
   }, [])
 
   // Load mock sessions when switching to mock tab
@@ -1632,7 +1857,7 @@ export function AiCoachingPage() {
 
                 {/* End call */}
                 <Button
-                  onClick={() => { stopVoiceMode(); endMockInterview() }}
+                  onClick={() => endMockInterview()}
                   disabled={mockEnding}
                   className="bg-red-600 hover:bg-red-700 text-white rounded-full h-11 px-5"
                 >
@@ -1659,17 +1884,18 @@ export function AiCoachingPage() {
                 )}
               </div>
 
-              {/* Collapsible transcript */}
-              {showTranscript && mockSession.conversation.length > 0 && (
+              {/* Live Transcript — always visible */}
+              {showTranscript && (
                 <Card className="border">
                   <CardContent className="p-3">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                         <FileText className="h-3.5 w-3.5" /> Live Transcript
+                        {candidateRecording && <span className="inline-flex h-2 w-2 rounded-full bg-green-500 animate-pulse" />}
                       </h4>
                       <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setShowTranscript(false)}>Hide</Button>
                     </div>
-                    <div className="max-h-40 overflow-y-auto space-y-2">
+                    <div className="max-h-48 overflow-y-auto space-y-2">
                       {mockSession.conversation.map((turn, i) => (
                         <div key={i} className="flex gap-2">
                           <span className={`text-[10px] font-bold shrink-0 w-8 ${turn.role === 'interviewer' ? 'text-violet-600' : 'text-green-600'}`}>
@@ -1678,6 +1904,20 @@ export function AiCoachingPage() {
                           <p className="text-xs text-muted-foreground leading-relaxed">{turn.text}</p>
                         </div>
                       ))}
+                      {/* Live transcription of current speech */}
+                      {candidateRecording && mockLiveTranscript && (
+                        <div className="flex gap-2 opacity-70">
+                          <span className="text-[10px] font-bold shrink-0 w-8 text-green-600">You</span>
+                          <p className="text-xs text-green-600 leading-relaxed italic">{mockLiveTranscript}...</p>
+                        </div>
+                      )}
+                      {/* AI speaking indicator */}
+                      {aiSpeaking && (
+                        <div className="flex gap-2 opacity-70">
+                          <span className="text-[10px] font-bold shrink-0 w-8 text-violet-600">AI</span>
+                          <p className="text-xs text-violet-600 italic">Speaking...</p>
+                        </div>
+                      )}
                       <div ref={chatEndRef} />
                     </div>
                   </CardContent>
@@ -1778,6 +2018,78 @@ export function AiCoachingPage() {
                   </CardContent></Card>
                 )}
               </div>
+
+              {/* Body Language / Presentation Analysis */}
+              {mockFeedback.presentation && (
+                <Card>
+                  <CardContent className="p-4">
+                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
+                      <Camera className="h-4 w-4 text-sky-600" /> Body Language & Presentation
+                    </h4>
+                    <div className="space-y-3">
+                      {[
+                        { key: 'eye_contact', label: 'Eye Contact', icon: Eye },
+                        { key: 'facial_expressions', label: 'Expressions', icon: User },
+                        { key: 'body_language', label: 'Body Language', icon: User },
+                        { key: 'professional_appearance', label: 'Appearance', icon: Monitor },
+                      ].map(item => {
+                        const data = (mockFeedback.presentation as any)?.[item.key]
+                        if (!data) return null
+                        return (
+                          <div key={item.key}>
+                            <ScoreBar score={data.score} label={item.label} icon={item.icon} />
+                            <p className="text-[10px] text-muted-foreground mt-0.5 ml-5">{data.feedback}</p>
+                          </div>
+                        )
+                      })}
+                      {mockFeedback.presentation.summary && (
+                        <p className="text-xs text-sky-700 bg-sky-50 p-2 rounded mt-2">{mockFeedback.presentation.summary}</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Voice Analysis */}
+              {mockFeedback.voice_analysis && (
+                <Card>
+                  <CardContent className="p-4">
+                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
+                      <Volume2 className="h-4 w-4 text-indigo-600" /> Voice & Delivery Analysis
+                    </h4>
+                    <div className="space-y-3">
+                      {[
+                        { key: 'voice_confidence', label: 'Confidence' },
+                        { key: 'vocal_variety', label: 'Vocal Variety' },
+                        { key: 'pacing_rhythm', label: 'Pacing & Rhythm' },
+                        { key: 'articulation', label: 'Articulation' },
+                        { key: 'energy', label: 'Energy' },
+                      ].map(item => {
+                        const data = (mockFeedback.voice_analysis as any)?.[item.key]
+                        if (!data) return null
+                        return (
+                          <div key={item.key}>
+                            <ScoreBar score={data.score} label={item.label} icon={Volume2} />
+                            <p className="text-[10px] text-muted-foreground mt-0.5 ml-5">{data.feedback}</p>
+                          </div>
+                        )
+                      })}
+                      {mockFeedback.voice_analysis.voice_summary && (
+                        <p className="text-xs text-indigo-700 bg-indigo-50 p-2 rounded mt-2">{mockFeedback.voice_analysis.voice_summary}</p>
+                      )}
+                      {mockFeedback.voice_analysis.voice_tips?.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {mockFeedback.voice_analysis.voice_tips.map((tip: string, i: number) => (
+                            <p key={i} className="text-[10px] text-indigo-600 flex items-start gap-1.5">
+                              <Sparkles className="h-3 w-3 shrink-0 mt-0.5" /> {tip}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Strengths & Improvements */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1890,13 +2202,13 @@ export function AiCoachingPage() {
                     </p>
                     <div className="flex items-center justify-center gap-3 mb-3 flex-wrap">
                       <div className="flex items-center gap-1.5 text-xs text-violet-600 bg-violet-50 px-3 py-1.5 rounded-full">
-                        <Volume2 className="h-3.5 w-3.5" /> AI speaks questions
+                        <Volume2 className="h-3.5 w-3.5" /> Real-time AI voice
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-3 py-1.5 rounded-full">
-                        <Camera className="h-3.5 w-3.5" /> You're on camera
+                        <Camera className="h-3.5 w-3.5" /> Body language analysis
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-sky-600 bg-sky-50 px-3 py-1.5 rounded-full">
-                        <Brain className="h-3.5 w-3.5" /> AI adapts in real-time
+                        <Brain className="h-3.5 w-3.5" /> Voice & delivery coaching
                       </div>
                     </div>
                     <Button onClick={() => setMockShowSetup(true)} size="lg">
