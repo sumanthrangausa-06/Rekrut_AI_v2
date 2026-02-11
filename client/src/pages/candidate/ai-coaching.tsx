@@ -64,6 +64,16 @@ interface VideoCoaching {
     filler_rate: number
     pace: { assessment: string; wpm: number; feedback: string }
     tips: string[]
+    voice_analysis?: {
+      voice_confidence: { score: number; feedback: string }
+      vocal_variety: { score: number; feedback: string }
+      pacing_rhythm: { score: number; feedback: string }
+      articulation: { score: number; feedback: string }
+      energy: { score: number; feedback: string }
+      overall_voice_score: number
+      voice_summary: string
+      voice_tips: string[]
+    }
   }
   presentation: {
     score: number
@@ -183,6 +193,7 @@ export function AiCoachingPage() {
   const [recordingDone, setRecordingDone] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
   const [cameraStatus, setCameraStatus] = useState('')
+  const [micActive, setMicActive] = useState(false)
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -191,6 +202,9 @@ export function AiCoachingPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const frameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const recognitionRef = useRef<any>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const audioDataRef = useRef<string | null>(null)
 
   // Feedback detail sections
   const [expandedSection, setExpandedSection] = useState<string | null>('content')
@@ -267,6 +281,9 @@ export function AiCoachingPage() {
     setRecordingTime(0)
     setCameraError(null)
     setExpandedSection('content')
+    audioDataRef.current = null
+    audioChunksRef.current = []
+    setMicActive(false)
   }
 
   function closePractice() {
@@ -318,17 +335,21 @@ export function AiCoachingPage() {
         return
       }
 
-      // VIDEO ONLY — no audio needed. Transcription uses SpeechRecognition API.
+      // Request BOTH video + audio in a SINGLE getUserMedia call.
+      // CRITICAL: Two separate calls broke iOS (the second killed the first track).
+      // Fall back to video-only if combined call fails (e.g. mic permission denied).
       let videoStream: MediaStream | null = null
-      const constraintSets: Array<{ video: MediaStreamConstraints['video'], label: string }> = [
-        { video: { facingMode: 'user' }, label: 'video:user' },
-        { video: true, label: 'video:true' },
+      const constraintSets: Array<{ video: MediaStreamConstraints['video'], audio: boolean, label: string }> = [
+        { video: { facingMode: 'user' }, audio: true, label: 'av:user' },
+        { video: true, audio: true, label: 'av:true' },
+        { video: { facingMode: 'user' }, audio: false, label: 'v:user' },
+        { video: true, audio: false, label: 'v:true' },
       ]
 
-      for (const { video: vc, label } of constraintSets) {
+      for (const { video: vc, audio: ac, label } of constraintSets) {
         try {
           setCameraStatus(`Trying ${label}...`)
-          videoStream = await navigator.mediaDevices.getUserMedia({ video: vc })
+          videoStream = await navigator.mediaDevices.getUserMedia({ video: vc, ...(ac ? { audio: true } : {}) })
 
           const vt = videoStream.getVideoTracks()[0]
           if (!vt || vt.readyState !== 'live') {
@@ -339,16 +360,19 @@ export function AiCoachingPage() {
           }
 
           const settings = vt.getSettings?.() || {}
-          console.log(`[camera] ${label}: track=${vt.readyState} ${settings.width}x${settings.height}`)
-          setCameraStatus(`Got ${label}: ${settings.width || '?'}x${settings.height || '?'}`)
+          const at = videoStream.getAudioTracks()
+          console.log(`[camera] ${label}: track=${vt.readyState} ${settings.width}x${settings.height} audio:${at.length}`)
+          setCameraStatus(`Got ${label}: ${settings.width || '?'}x${settings.height || '?'} ${at.length > 0 ? '🎙' : ''}`)
           break // Live track — success
         } catch (err: any) {
           console.warn(`[camera] ${label} error: ${err?.name} ${err?.message}`)
           setCameraStatus(`${label}: ${err?.name}`)
-          if (err.name === 'NotAllowedError') {
+          // Only give up if this is a video-only request that was denied
+          if (err.name === 'NotAllowedError' && !ac) {
             setCameraError('denied')
             return
           }
+          // For combined av requests or other errors, try next constraint
         }
       }
 
@@ -359,6 +383,16 @@ export function AiCoachingPage() {
       }
 
       streamRef.current = videoStream
+
+      // Check for audio tracks (mic)
+      const audioTracks = videoStream.getAudioTracks()
+      if (audioTracks.length > 0) {
+        setMicActive(true)
+        console.log(`[camera] mic active: ${audioTracks[0].label}`)
+      } else {
+        setMicActive(false)
+        console.log('[camera] no audio track — mic not available')
+      }
 
       // ATTACH STREAM DIRECTLY — this is what the original working code did.
       // Do NOT defer to useEffect. Do NOT use key prop swap.
@@ -377,8 +411,9 @@ export function AiCoachingPage() {
       }
 
       const vt = videoStream.getVideoTracks()[0]
+      const at2 = videoStream.getAudioTracks()
       const settings = vt?.getSettings?.() || {}
-      setCameraStatus(`OK ${settings.width || '?'}x${settings.height || '?'} ▶`)
+      setCameraStatus(`OK ${settings.width || '?'}x${settings.height || '?'} ${at2.length > 0 ? '🎙' : ''} ▶`)
 
       // Set cameraReady AFTER stream is attached — this removes the overlay
       // to reveal the already-playing video
@@ -417,6 +452,7 @@ export function AiCoachingPage() {
     }
     setCameraReady(false)
     setCameraStatus('')
+    setMicActive(false)
   }
 
   // Frame capture
@@ -534,8 +570,38 @@ export function AiCoachingPage() {
       if (frame) setCapturedFrames(prev => [...prev, frame])
     }, 500)
 
-    // Start speech recognition
+    // Start speech recognition (live preview)
     startSpeechRecognition()
+
+    // Record audio via MediaRecorder for server-side voice analysis
+    const stream = streamRef.current
+    if (stream && stream.getAudioTracks().length > 0 && typeof MediaRecorder !== 'undefined') {
+      try {
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/mp4')
+          ? 'audio/mp4'
+          : 'audio/webm'
+        const recorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 64000 })
+        audioChunksRef.current = []
+        audioDataRef.current = null
+
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunksRef.current.push(e.data)
+        }
+        recorder.onstop = () => {
+          const blob = new Blob(audioChunksRef.current, { type: mimeType })
+          const reader = new FileReader()
+          reader.onloadend = () => { audioDataRef.current = reader.result as string }
+          reader.readAsDataURL(blob)
+        }
+        recorder.start(1000)
+        mediaRecorderRef.current = recorder
+        console.log(`[audio] MediaRecorder started: ${mimeType}`)
+      } catch (e) {
+        console.warn('[audio] MediaRecorder init failed:', e)
+      }
+    }
   }
 
   function stopRecording() {
@@ -554,6 +620,12 @@ export function AiCoachingPage() {
     // Capture final frame
     const frame = captureFrame()
     if (frame) setCapturedFrames(prev => [...prev, frame])
+
+    // Stop audio recording
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+      mediaRecorderRef.current = null
+    }
 
     stopSpeechRecognition()
     setRecordingDone(true)
@@ -585,6 +657,7 @@ export function AiCoachingPage() {
           transcription: finalTranscription,
           frames: capturedFrames,
           duration_seconds: recordingTime,
+          audio_data: audioDataRef.current || undefined,
         },
       })
 
@@ -1064,7 +1137,7 @@ export function AiCoachingPage() {
                               className="bg-white text-black hover:bg-white/90"
                             >
                               <Camera className="h-4 w-4 mr-2" />
-                              Enable Camera
+                              Enable Camera & Mic
                             </Button>
                           </div>
                         </div>
@@ -1085,10 +1158,16 @@ export function AiCoachingPage() {
                         </div>
                       )}
 
-                      {/* Frame count */}
+                      {/* Frame count + mic status */}
                       {isRecording && (
-                        <div className="absolute top-3 right-3 z-10 bg-black/60 text-white px-2 py-1 rounded text-xs">
-                          {capturedFrames.length} frames
+                        <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5 items-end">
+                          <div className="bg-black/60 text-white px-2 py-1 rounded text-xs">
+                            {capturedFrames.length} frames
+                          </div>
+                          <div className={`px-2 py-1 rounded text-xs flex items-center gap-1 ${micActive ? 'bg-black/60 text-green-400' : 'bg-red-900/60 text-red-300'}`}>
+                            {micActive ? <Mic className="h-3 w-3" /> : <MicOff className="h-3 w-3" />}
+                            {micActive ? 'Mic on' : 'No mic'}
+                          </div>
                         </div>
                       )}
 
@@ -1312,6 +1391,11 @@ export function AiCoachingPage() {
                             <span className="flex items-center gap-1 text-muted-foreground">
                               <Volume2 className="h-3.5 w-3.5" /> {transcription.split(/\s+/).filter(w => w).length} words
                             </span>
+                            {micActive && (
+                              <span className="flex items-center gap-1 text-green-600">
+                                <Mic className="h-3.5 w-3.5" /> Audio recorded
+                              </span>
+                            )}
                           </div>
                           <details className="text-xs">
                             <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
@@ -1569,6 +1653,54 @@ export function AiCoachingPage() {
                               <li key={i} className="text-xs text-blue-700">{tip}</li>
                             ))}
                           </ul>
+                        </div>
+                      )}
+
+                      {/* Voice Analysis (when audio was recorded) */}
+                      {coaching.communication.voice_analysis && (
+                        <div className="space-y-2 pt-1">
+                          <h5 className="text-xs font-semibold flex items-center gap-1.5">
+                            <Mic className="h-3.5 w-3.5 text-indigo-600" />
+                            Voice & Tone Analysis
+                          </h5>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { key: 'voice_confidence', label: 'Confidence', icon: Star },
+                              { key: 'vocal_variety', label: 'Vocal Variety', icon: Volume2 },
+                              { key: 'energy', label: 'Energy', icon: Zap },
+                              { key: 'articulation', label: 'Articulation', icon: MessageSquare },
+                            ].map(item => {
+                              const data = (coaching.communication.voice_analysis as any)?.[item.key]
+                              if (!data) return null
+                              const ItemIcon = item.icon
+                              return (
+                                <div key={item.key} className={`p-2.5 rounded-lg border ${scoreBg(data.score)}`}>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+                                      <ItemIcon className="h-3 w-3" /> {item.label}
+                                    </span>
+                                    <span className={`text-sm font-bold ${scoreColor(data.score)}`}>{data.score}/10</span>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground leading-relaxed">{data.feedback}</p>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {coaching.communication.voice_analysis.voice_summary && (
+                            <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-100">
+                              <p className="text-xs text-indigo-700">{coaching.communication.voice_analysis.voice_summary}</p>
+                            </div>
+                          )}
+                          {coaching.communication.voice_analysis.voice_tips && coaching.communication.voice_analysis.voice_tips.length > 0 && (
+                            <div className="p-3 rounded-lg bg-violet-50 border border-violet-100">
+                              <h5 className="text-xs font-semibold text-violet-800 mb-1.5">🎤 Voice Tips</h5>
+                              <ul className="space-y-1">
+                                {coaching.communication.voice_analysis.voice_tips.map((tip: string, i: number) => (
+                                  <li key={i} className="text-xs text-violet-700">{tip}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

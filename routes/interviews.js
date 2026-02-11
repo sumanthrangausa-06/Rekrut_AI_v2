@@ -612,7 +612,7 @@ router.post('/practice/submit', authMiddleware, async (req, res) => {
 // Submit video practice response and get comprehensive AI coaching
 router.post('/practice/submit-video', authMiddleware, async (req, res) => {
   try {
-    const { question_id, category, transcription, frames, duration_seconds } = req.body;
+    const { question_id, category, transcription, frames, duration_seconds, audio_data } = req.body;
     // Default question text from library if not provided
     const libQ = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
     const question = req.body.question || (libQ && libQ.question) || `Practice question ${question_id || 'unknown'}`;
@@ -629,14 +629,14 @@ router.post('/practice/submit-video', authMiddleware, async (req, res) => {
     const libraryQuestion = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
     const keyPoints = libraryQuestion ? libraryQuestion.key_points : ['Content quality', 'Structure', 'Clarity', 'Relevance'];
 
-    // Run comprehensive multi-modal analysis
+    // Run comprehensive multi-modal analysis (now with optional audio)
     const coaching = await analyzeVideoInterviewResponse(
       question,
       transcription,
       frames,
       duration_seconds || 60,
       keyPoints,
-      { subscriptionId: req.user.stripe_subscription_id }
+      { subscriptionId: req.user.stripe_subscription_id, audioData: audio_data || null }
     );
 
     // Save practice session with video data
