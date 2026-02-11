@@ -21,12 +21,25 @@ const complianceRoutes = require('./routes/compliance');
 const onboardingRoutes = require('./routes/onboarding');
 const analyticsRoutes = require('./routes/analytics');
 const countryRoutes = require('./routes/countries');
+const adminRoutes = require('./routes/admin');
+const { requireAdmin } = require('./routes/admin');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy (Render runs behind a reverse proxy)
+app.set('trust proxy', 1);
+
+// Health check — MUST be first, before all middleware
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
 
 // Explicitly allow camera and microphone access (prevents CDN/proxy stripping)
 app.use((req, res, next) => {
@@ -41,8 +54,16 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'rekrutai-secret-key-change-in-prod',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: process.env.NODE_ENV === 'production', maxAge: 7 * 24 * 60 * 60 * 1000 }
+  cookie: {
+    secure: false, // Allow cookies over HTTP (Render terminates TLS at proxy)
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    sameSite: 'lax',
+  },
 }));
+
+// API Routes - Admin
+app.use('/api/admin', adminRoutes);
 
 // API Routes - Candidate side
 app.use('/api/auth', authRoutes);
@@ -78,13 +99,8 @@ app.use('/api/analytics', analyticsRoutes);
 // API Routes - Country Configuration
 app.use('/api/countries', countryRoutes);
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// AI Provider Health Dashboard — shows which providers are active per modality
-app.get('/api/ai-health', (req, res) => {
+// AI Provider Health — protected by admin auth
+app.get('/api/ai-health', requireAdmin, (req, res) => {
   try {
     const { aiProvider } = require('./lib/polsia-ai');
     res.json(aiProvider.getHealth());
@@ -93,8 +109,8 @@ app.get('/api/ai-health', (req, res) => {
   }
 });
 
-// Reset AI provider circuit breakers (admin/debug only)
-app.post('/api/ai-health/reset', (req, res) => {
+// Reset AI provider circuit breakers — protected by admin auth
+app.post('/api/ai-health/reset', requireAdmin, (req, res) => {
   try {
     const { aiProvider } = require('./lib/polsia-ai');
     aiProvider.resetCircuitBreakers();

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -469,15 +470,25 @@ function RecentLogs({ logs }: { logs: HealthData['recent_logs'] }) {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export function AiHealthPage() {
+  const navigate = useNavigate()
   const [data, setData] = useState<HealthData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [countdown, setCountdown] = useState(30)
 
+  const handleLogout = useCallback(async () => {
+    await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' })
+    navigate('/admin/login', { replace: true })
+  }, [navigate])
+
   const fetchHealth = useCallback(async () => {
     try {
-      const res = await fetch('/api/ai-health')
+      const res = await fetch('/api/ai-health', { credentials: 'include' })
+      if (res.status === 401) {
+        navigate('/admin/login?returnTo=/admin/ai-health', { replace: true })
+        return
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json()
       setData(json)
@@ -489,7 +500,7 @@ export function AiHealthPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [navigate])
 
   useEffect(() => {
     fetchHealth()
@@ -559,6 +570,10 @@ export function AiHealthPage() {
             <Button variant="outline" size="sm" onClick={fetchHealth} className="gap-1.5">
               <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
               <span className="hidden sm:inline">Refresh</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-foreground gap-1.5">
+              <Shield className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
         </div>
