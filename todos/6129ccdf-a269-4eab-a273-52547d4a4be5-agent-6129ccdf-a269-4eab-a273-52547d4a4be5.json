@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate codebase: understand current mock interview UI vs AI coaching video infrastructure",
+    "status": "completed",
+    "activeForm": "Investigating codebase and previous attempts"
+  },
+  {
+    "content": "Fix token bug + add mock camera refs + rewrite mock interview UI as video call",
+    "status": "completed",
+    "activeForm": "Rewriting mock interview as video call UI"
+  },
+  {
+    "content": "Deploy Phase 1 and verify",
+    "status": "in_progress",
+    "activeForm": "Deploying Phase 1"
+  },
+  {
+    "content": "Wire up full voice conversation loop",
+    "status": "pending",
+    "activeForm": "Wiring up voice conversation loop"
+  },
+  {
+    "content": "Deploy final and notify owner",
+    "status": "pending",
+    "activeForm": "Deploying final version"
+  }
+]
