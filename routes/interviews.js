@@ -1589,29 +1589,15 @@ router.post('/mock/analyze-frame', authMiddleware, async (req, res) => {
       return res.json({ success: false, error: 'Frame upload failed' });
     }
 
-    // Quick analysis with GPT-4o mini vision — short prompt for speed
-    const openai = new (require('openai').default)();
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      task: 'interview-realtime-body-language',
-      max_tokens: 200,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: `Quick interview body language check. Rate each as "good", "fair", or "poor" with a 2-3 word tip. Return JSON only:
-{"eye_contact":"good|fair|poor","posture":"good|fair|poor","confidence":"good|fair|poor","expression":"good|fair|poor","tip":"brief tip"}`
-          },
-          {
-            type: 'image_url',
-            image_url: { url: frameUrl, detail: 'low' }
-          }
-        ]
-      }]
-    });
+    // Quick analysis with vision API — uses provider fallback (GPT-4o → NIM Cosmos → NIM Nemotron VL)
+    const { aiProvider } = require('../lib/polsia-ai');
+    const analysisPrompt = `Quick interview body language check. Rate each as "good", "fair", or "poor" with a 2-3 word tip. Return JSON only:
+{"eye_contact":"good|fair|poor","posture":"good|fair|poor","confidence":"good|fair|poor","expression":"good|fair|poor","tip":"brief tip"}`;
 
-    const text = response.choices?.[0]?.message?.content || '';
+    const text = await aiProvider.visionAnalysis([frameUrl], analysisPrompt, {
+      maxTokens: 200,
+      task: 'interview-realtime-body-language',
+    });
     let indicators;
     try {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
