@@ -962,8 +962,8 @@ export function AiCoachingPage() {
           conversation: [...prev.conversation, res.interviewer_message]
         } : null)
         setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-        // Play TTS if voice mode is on
-        if (voiceMode && res.interviewer_message?.text) {
+        // Always play TTS in mock interview (voice is always on)
+        if (res.interviewer_message?.text) {
           playInterviewerAudio(res.interviewer_message.text)
         }
       }
@@ -1024,7 +1024,7 @@ export function AiCoachingPage() {
 
   // Play TTS audio for interviewer text
   async function playInterviewerAudio(text: string) {
-    if (!voiceMode || !text) return
+    if (!text) return
     setAiSpeaking(true)
     setVoiceError(null)
     try {
@@ -1255,9 +1255,9 @@ export function AiCoachingPage() {
     }
   }, [voiceMode, mockSession?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Cleanup voice on unmount
+  // Cleanup voice and camera on unmount
   useEffect(() => {
-    return () => { stopVoiceMode() }
+    return () => { stopVoiceMode(); stopMockCamera() }
   }, [])
 
   // Load mock sessions when switching to mock tab
