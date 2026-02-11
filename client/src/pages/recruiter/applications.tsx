@@ -12,6 +12,7 @@ import {
   FileText, Users, Star, Calendar, MessageSquare, Eye,
   GraduationCap, Gift, Briefcase, Filter, X, Clock,
   ClipboardList, ChevronDown, ChevronUp, ArrowUpDown,
+  Brain, TrendingUp, Sparkles, Video,
 } from 'lucide-react'
 
 interface Application {
@@ -504,6 +505,9 @@ export function RecruiterApplicationsPage() {
               )}
             </div>
 
+            {/* AI Coaching History */}
+            <CandidateCoachingSection candidateId={selected.candidate_id} />
+
             {/* Notes */}
             <div>
               <h4 className="font-medium text-sm mb-1">Recruiter Notes</h4>
@@ -605,6 +609,162 @@ function ScreeningAnswersBlock({ app }: { app: Application }) {
   } catch {
     return null
   }
+}
+
+function CandidateCoachingSection({ candidateId }: { candidateId: number }) {
+  const [coaching, setCoaching] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const [expandedSession, setExpandedSession] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!candidateId) return
+    setLoading(true)
+    apiCall<any>(`/recruiter/candidates/${candidateId}/coaching`)
+      .then(res => { if (res.success) setCoaching(res) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [candidateId])
+
+  if (loading) return <div className="text-xs text-muted-foreground py-2">Loading coaching data...</div>
+  if (!coaching || coaching.stats?.total_sessions === 0) return null
+
+  const stats = coaching.stats
+  const scoreColor = (s: number) => s >= 8 ? 'text-green-600' : s >= 6 ? 'text-amber-600' : 'text-red-600'
+
+  return (
+    <div>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between py-1"
+      >
+        <h4 className="font-medium text-sm flex items-center gap-1.5">
+          <Brain className="h-4 w-4 text-primary" />
+          AI Coaching History
+          <Badge variant="secondary" className="text-xs ml-1">{stats.total_sessions} sessions</Badge>
+        </h4>
+        {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+
+      {expanded && (
+        <div className="mt-2 space-y-3">
+          {/* Summary stats */}
+          <div className="grid grid-cols-4 gap-2">
+            <div className="p-2.5 rounded-lg bg-muted/50 text-center">
+              <div className={`text-lg font-bold ${stats.average_score ? scoreColor(stats.average_score) : ''}`}>
+                {stats.average_score ? `${Math.round(stats.average_score * 10) / 10}` : '-'}
+              </div>
+              <div className="text-[10px] text-muted-foreground">Avg Score</div>
+            </div>
+            <div className="p-2.5 rounded-lg bg-muted/50 text-center">
+              <div className="text-lg font-bold">{stats.total_sessions}</div>
+              <div className="text-[10px] text-muted-foreground">Sessions</div>
+            </div>
+            <div className="p-2.5 rounded-lg bg-muted/50 text-center">
+              <div className={`text-lg font-bold ${stats.highest_score ? scoreColor(stats.highest_score) : ''}`}>
+                {stats.highest_score || '-'}
+              </div>
+              <div className="text-[10px] text-muted-foreground">Best Score</div>
+            </div>
+            <div className="p-2.5 rounded-lg bg-muted/50 text-center">
+              <div className={`text-lg font-bold ${
+                stats.improvement_percent != null
+                  ? stats.improvement_percent > 0 ? 'text-green-600' : stats.improvement_percent < 0 ? 'text-red-600' : ''
+                  : ''
+              }`}>
+                {stats.improvement_percent != null ? `${stats.improvement_percent > 0 ? '+' : ''}${stats.improvement_percent}%` : '-'}
+              </div>
+              <div className="text-[10px] text-muted-foreground">Improvement</div>
+            </div>
+          </div>
+
+          {/* Category breakdown */}
+          {coaching.by_category?.length > 0 && (
+            <div className="space-y-1.5">
+              {coaching.by_category.map((cat: any) => {
+                const avg = parseFloat(cat.avg_score) || 0
+                const pct = (avg / 10) * 100
+                return (
+                  <div key={cat.category} className="flex items-center gap-2 text-xs">
+                    <span className="w-20 font-medium capitalize">{cat.category}</span>
+                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${avg >= 8 ? 'bg-green-500' : avg >= 6 ? 'bg-amber-500' : 'bg-red-500'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className={`font-bold ${scoreColor(avg)}`}>{Math.round(avg * 10) / 10}</span>
+                    <span className="text-muted-foreground">({cat.count})</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Recent sessions */}
+          <div className="space-y-1.5">
+            <h5 className="text-xs font-medium text-muted-foreground">Recent Sessions</h5>
+            {coaching.sessions?.slice(0, 5).map((s: any) => {
+              const cd = s.coaching_data
+              const isExpanded = expandedSession === s.id
+              return (
+                <div key={s.id} className="rounded-lg border">
+                  <button
+                    onClick={() => setExpandedSession(isExpanded ? null : s.id)}
+                    className="w-full flex items-center gap-2 p-2.5 hover:bg-muted/30 transition-colors text-left"
+                  >
+                    <div className={`text-sm font-bold ${scoreColor(s.score)}`}>{s.score}/10</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium line-clamp-1">{s.question}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <Badge variant="outline" className="text-[10px]">
+                          {s.response_type === 'video' ? 'Video' : 'Text'}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground">{new Date(s.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  </button>
+                  {isExpanded && cd && (
+                    <div className="px-2.5 pb-2.5 space-y-2">
+                      {/* Show key feedback */}
+                      {(cd.content?.strengths || cd.strengths) && (
+                        <div className="p-2 rounded bg-green-50 border border-green-100">
+                          <h6 className="text-[10px] font-semibold text-green-800 mb-1">Strengths</h6>
+                          <ul className="space-y-0.5">
+                            {(cd.content?.strengths || cd.strengths || []).map((s: string, i: number) => (
+                              <li key={i} className="text-[10px] text-green-700">{s}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {(cd.content?.improvements || cd.improvements) && (
+                        <div className="p-2 rounded bg-amber-50 border border-amber-100">
+                          <h6 className="text-[10px] font-semibold text-amber-800 mb-1">Areas to Improve</h6>
+                          <ul className="space-y-0.5">
+                            {(cd.content?.improvements || cd.improvements || []).map((s: string, i: number) => (
+                              <li key={i} className="text-[10px] text-amber-700">{s}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {cd.communication && (
+                        <div className="flex gap-2 text-[10px]">
+                          <span className="text-muted-foreground">WPM: <strong>{cd.communication.words_per_minute}</strong></span>
+                          <span className="text-muted-foreground">Fillers: <strong>{cd.communication.total_fillers}</strong></span>
+                          {cd.presentation && <span className="text-muted-foreground">Presentation: <strong className={scoreColor(cd.presentation.score)}>{cd.presentation.score}/10</strong></span>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function SortButton({

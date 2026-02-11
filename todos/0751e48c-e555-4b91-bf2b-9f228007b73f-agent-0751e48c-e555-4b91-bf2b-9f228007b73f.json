@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate AI coaching codebase — understand current feedback flow",
+    "status": "completed",
+    "activeForm": "Investigating AI coaching feedback flow"
+  },
+  {
+    "content": "Add backend endpoints: session list with full feedback + single session detail + recruiter access",
+    "status": "completed",
+    "activeForm": "Building coaching history API endpoints"
+  },
+  {
+    "content": "Build candidate coaching history UI with expandable session details",
+    "status": "completed",
+    "activeForm": "Building candidate coaching history view"
+  },
+  {
+    "content": "Add coaching history to recruiter candidate detail view",
+    "status": "completed",
+    "activeForm": "Adding recruiter coaching history view"
+  },
+  {
+    "content": "Deploy and verify end-to-end",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying"
+  }
+]
