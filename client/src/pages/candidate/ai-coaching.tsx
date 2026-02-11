@@ -323,8 +323,10 @@ export function AiCoachingPage() {
 
   // Voice interview state
   const [voiceMode, setVoiceMode] = useState(false)
+  const voiceModeRef = useRef(false)  // BUG FIX: ref mirrors state for callbacks that capture stale closures
   const [aiSpeaking, setAiSpeaking] = useState(false)
   const [candidateRecording, setCandidateRecording] = useState(false)
+  const candidateRecordingRef = useRef(false)  // BUG FIX: ref for stale closures
   const [voiceProcessing, setVoiceProcessing] = useState(false)
   const [silenceTimer, setSilenceTimer] = useState<number>(0)
   const [voiceError, setVoiceError] = useState<string | null>(null)
@@ -349,6 +351,7 @@ export function AiCoachingPage() {
   const mockFramesRef = useRef<string[]>([])
   const mockFrameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [mockLiveTranscript, setMockLiveTranscript] = useState('')
+  const mockLiveTranscriptRef = useRef('')  // BUG FIX: ref mirrors state so recorder.onstop closure reads fresh value
   const mockRecognitionRef = useRef<any>(null)
   const mockAudioSourceRef = useRef<AudioBufferSourceNode | null>(null)
   const voiceRetryCountRef = useRef<number>(0)
@@ -537,7 +540,9 @@ export function AiCoachingPage() {
           interim = result[0].transcript
         }
       }
-      setMockLiveTranscript(finalTranscript + interim)
+      const combined = finalTranscript + interim
+      setMockLiveTranscript(combined)
+      mockLiveTranscriptRef.current = combined  // Keep ref in sync for onstop closure
     }
 
     recognition.onerror = (event: any) => {
@@ -1123,6 +1128,7 @@ export function AiCoachingPage() {
     try {
       // Always start in voice mode for video call experience
       setVoiceMode(true)
+      voiceModeRef.current = true
 
       // CRITICAL: Unlock AudioContext from user gesture context (fixes iOS audio)
       ensureAudioContext()
@@ -1166,6 +1172,7 @@ export function AiCoachingPage() {
       stopVoiceMode()
       setMockSession(null)
       setVoiceMode(false)
+      voiceModeRef.current = false
       setShowTranscript(false)
     } finally {
       setMockStarting(false)
@@ -1301,6 +1308,7 @@ export function AiCoachingPage() {
     setMockShowSetup(false)
     setShowTranscript(false)
     setVoiceMode(false)
+    voiceModeRef.current = false
     setBodyLanguageIndicators(null)
   }
 
@@ -1394,7 +1402,8 @@ export function AiCoachingPage() {
         console.log('[tts-client] TTS API unavailable, falling back to browser speech synthesis')
         await speakWithBrowserTTS(text)
         setAiSpeaking(false)
-        if (voiceMode && !candidateRecording) {
+        // BUG FIX: Read from refs — state is stale in this closure (captured before voiceMode was set)
+        if (voiceModeRef.current && !candidateRecordingRef.current) {
           startVoiceRecording()
         }
         return
@@ -1405,7 +1414,7 @@ export function AiCoachingPage() {
         // Fall back to browser TTS
         await speakWithBrowserTTS(text)
         setAiSpeaking(false)
-        if (voiceMode && !candidateRecording) {
+        if (voiceModeRef.current && !candidateRecordingRef.current) {
           setTimeout(() => startVoiceRecording(), 500)
         }
         return
@@ -1416,7 +1425,7 @@ export function AiCoachingPage() {
         console.error('[tts-client] Audio too small:', arrayBuffer.byteLength)
         await speakWithBrowserTTS(text)
         setAiSpeaking(false)
-        if (voiceMode && !candidateRecording) {
+        if (voiceModeRef.current && !candidateRecordingRef.current) {
           setTimeout(() => startVoiceRecording(), 500)
         }
         return
@@ -1440,7 +1449,8 @@ export function AiCoachingPage() {
           setAiSpeaking(false)
           mockAudioSourceRef.current = null
           // Auto-start recording after AI finishes speaking
-          if (voiceMode && !candidateRecording) {
+          // BUG FIX: Read from refs — state is stale in onended closure
+          if (voiceModeRef.current && !candidateRecordingRef.current) {
             startVoiceRecording()
           }
         }
@@ -1461,12 +1471,12 @@ export function AiCoachingPage() {
         audio.onended = () => {
           setAiSpeaking(false)
           URL.revokeObjectURL(audioUrl)
-          if (voiceMode && !candidateRecording) startVoiceRecording()
+          if (voiceModeRef.current && !candidateRecordingRef.current) startVoiceRecording()
         }
         audio.onerror = () => {
           setAiSpeaking(false)
           URL.revokeObjectURL(audioUrl)
-          if (voiceMode && !candidateRecording) setTimeout(() => startVoiceRecording(), 1000)
+          if (voiceModeRef.current && !candidateRecordingRef.current) setTimeout(() => startVoiceRecording(), 1000)
         }
         await audio.play()
       }
@@ -1475,7 +1485,7 @@ export function AiCoachingPage() {
       // Final fallback: browser speech synthesis
       try { await speakWithBrowserTTS(text) } catch (_) {}
       setAiSpeaking(false)
-      if (voiceMode && !candidateRecording) {
+      if (voiceModeRef.current && !candidateRecordingRef.current) {
         setTimeout(() => startVoiceRecording(), 500)
       }
     }
@@ -1485,6 +1495,7 @@ export function AiCoachingPage() {
   async function startVoiceRecording() {
     setVoiceError(null)
     setMockLiveTranscript('') // Clear previous transcript for fresh recognition
+    mockLiveTranscriptRef.current = '' // Reset ref too
     try {
       // Reuse camera stream's audio tracks if available (avoids second permission prompt)
       if (!voiceStreamRef.current) {
@@ -1543,6 +1554,7 @@ export function AiCoachingPage() {
 
       recorder.onstop = async () => {
         setCandidateRecording(false)
+        candidateRecordingRef.current = false
         if (silenceIntervalRef.current) clearInterval(silenceIntervalRef.current)
         setSilenceTimer(0)
 
@@ -1552,9 +1564,12 @@ export function AiCoachingPage() {
         // Whisper hallucinates Japanese/Chinese text when given silent audio.
         // If silence count was high (meaning mostly silent), skip sending.
         const totalSilenceChecks = silenceCountRef.current
+        // BUG FIX: Read from REF not state — state is stale in this closure (captured at startVoiceRecording time).
+        // The old code always saw empty string, causing every answer to be treated as silence.
+        const currentTranscript = mockLiveTranscriptRef.current
         // If we got here from the auto-silence stop (>=18 checks of silence),
         // AND the live transcript is empty, the user likely didn't say anything.
-        if (totalSilenceChecks >= 16 && !mockLiveTranscript.trim()) {
+        if (totalSilenceChecks >= 16 && !currentTranscript.trim()) {
           console.log('[voice] Skipping — recording was mostly silence')
           setMockLiveTranscript('')
           // BUG FIX: Do NOT auto-restart recording here — this caused infinite mic loop.
@@ -1580,8 +1595,10 @@ export function AiCoachingPage() {
           const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm'
           formData.append('audio', audioBlob, `recording.${ext}`)
           // BUG FIX: Send SpeechRecognition transcript so backend can use it if Whisper fails (429 etc)
-          if (mockLiveTranscript.trim().length >= 5) {
-            formData.append('response_text', mockLiveTranscript.trim())
+          // Read from REF not state — state is stale in this closure
+          const liveTranscript = mockLiveTranscriptRef.current.trim()
+          if (liveTranscript.length >= 5) {
+            formData.append('response_text', liveTranscript)
           }
 
           const token = getToken()
@@ -1629,7 +1646,7 @@ export function AiCoachingPage() {
                 source.onended = () => {
                   setAiSpeaking(false)
                   mockAudioSourceRef.current = null
-                  if (voiceMode && !data.is_wrapping_up) startVoiceRecording()
+                  if (voiceModeRef.current && !data.is_wrapping_up) startVoiceRecording()
                 }
                 source.start()
                 console.log('[voice-respond] Playing AI audio via Web Audio API')
@@ -1647,12 +1664,12 @@ export function AiCoachingPage() {
                 audio.onended = () => {
                   setAiSpeaking(false)
                   URL.revokeObjectURL(url)
-                  if (voiceMode && !data.is_wrapping_up) startVoiceRecording()
+                  if (voiceModeRef.current && !data.is_wrapping_up) startVoiceRecording()
                 }
                 audio.onerror = () => {
                   setAiSpeaking(false)
                   URL.revokeObjectURL(url)
-                  if (voiceMode && !data.is_wrapping_up) setTimeout(() => startVoiceRecording(), 1000)
+                  if (voiceModeRef.current && !data.is_wrapping_up) setTimeout(() => startVoiceRecording(), 1000)
                 }
                 await audio.play()
               }
@@ -1684,14 +1701,17 @@ export function AiCoachingPage() {
 
       recorder.start(250)
       setCandidateRecording(true)
+      candidateRecordingRef.current = true
 
       // Start live speech recognition for real-time transcript
       setMockLiveTranscript('')
+      mockLiveTranscriptRef.current = ''
       startMockSpeechRecognition()
     } catch (err: any) {
       console.error('Mic access error:', err)
       setVoiceError('Microphone access denied. Please allow microphone access to use voice mode.')
       setCandidateRecording(false)
+      candidateRecordingRef.current = false
     }
   }
 
@@ -1730,6 +1750,7 @@ export function AiCoachingPage() {
     voiceStreamRef.current = null
     setAiSpeaking(false)
     setCandidateRecording(false)
+    candidateRecordingRef.current = false
     setVoiceProcessing(false)
     setSilenceTimer(0)
   }
