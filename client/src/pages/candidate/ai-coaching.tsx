@@ -917,11 +917,23 @@ export function AiCoachingPage() {
   async function endMockInterview() {
     if (!mockSession) return
     setMockEnding(true)
+
+    // AI says goodbye via voice if in voice mode
+    if (voiceMode) {
+      try {
+        const goodbyeText = `That's all my questions for today. Thank you for taking the time to practice your ${mockSession.target_role} interview. I'll prepare your detailed feedback now.`
+        await playInterviewerAudio(goodbyeText)
+      } catch (_) {
+        // Non-fatal
+      }
+    }
+
     try {
       const res = await apiCall<{ success: boolean; feedback: SessionFeedback }>(`/interviews/mock/${mockSession.id}/end`, {
         method: 'POST'
       })
       if (res.success) {
+        stopVoiceMode()
         setMockFeedback(res.feedback)
         setMockSession(prev => prev ? { ...prev, status: 'completed' } : null)
         loadMockSessions()
@@ -1301,7 +1313,7 @@ export function AiCoachingPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="mock">
-            <MessageCircle className="h-4 w-4 mr-1.5" /> Mock Interview
+            <Volume2 className="h-4 w-4 mr-1.5" /> Mock Interview
           </TabsTrigger>
           <TabsTrigger value="practice">
             <BookOpen className="h-4 w-4 mr-1.5" /> Quick Practice
@@ -1361,6 +1373,28 @@ export function AiCoachingPage() {
                   </Button>
                 </div>
               </div>
+
+              {/* Progress indicator */}
+              {(() => {
+                const interviewerTurns = mockSession.conversation.filter(t => t.role === 'interviewer').length
+                const candidateTurns = mockSession.conversation.filter(t => t.role === 'candidate').length
+                const totalQuestions = mockSession.questions_asked || interviewerTurns
+                const estTotal = 8 // typical number of questions
+                const progress = Math.min(100, Math.round((candidateTurns / estTotal) * 100))
+                return (
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full transition-all duration-500"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      Q{candidateTurns} of ~{estTotal}
+                    </span>
+                  </div>
+                )
+              })()}
 
               {/* Voice status bar */}
               {voiceMode && (
@@ -1677,6 +1711,37 @@ export function AiCoachingPage() {
                   <p className="text-sm text-muted-foreground">{mockFeedback.top_tip}</p>
                 </div>
               )}
+
+              {/* Full transcript */}
+              {mockSession && mockSession.conversation && mockSession.conversation.length > 0 && (
+                <Card>
+                  <CardContent className="p-4">
+                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
+                      <FileText className="h-4 w-4 text-muted-foreground" /> Full Transcript
+                    </h4>
+                    <div className="space-y-3 max-h-[40vh] overflow-y-auto">
+                      {mockSession.conversation.map((turn, i) => (
+                        <div key={i} className={`flex gap-3 ${turn.role === 'interviewer' ? '' : 'flex-row-reverse'}`}>
+                          <div className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${
+                            turn.role === 'interviewer' ? 'bg-primary/10' : 'bg-green-100'
+                          }`}>
+                            {turn.role === 'interviewer'
+                              ? <Brain className="h-3.5 w-3.5 text-primary" />
+                              : <User className="h-3.5 w-3.5 text-green-600" />
+                            }
+                          </div>
+                          <div className={`flex-1 ${turn.role === 'interviewer' ? '' : 'text-right'}`}>
+                            <p className="text-[10px] font-medium text-muted-foreground mb-0.5">
+                              {turn.role === 'interviewer' ? 'AI Interviewer' : 'You'}
+                            </p>
+                            <p className="text-xs leading-relaxed whitespace-pre-wrap">{turn.text}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           ) : (
             /* Setup / Landing */
@@ -1686,12 +1751,23 @@ export function AiCoachingPage() {
                 <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
                   <CardContent className="p-6 text-center">
                     <div className="inline-flex p-4 rounded-2xl bg-primary/10 mb-4">
-                      <MessageCircle className="h-8 w-8 text-primary" />
+                      <Volume2 className="h-8 w-8 text-primary" />
                     </div>
-                    <h3 className="text-lg font-bold mb-2">AI Mock Interview</h3>
+                    <h3 className="text-lg font-bold mb-2">AI Voice Interview</h3>
                     <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-                      Tell us the role you're targeting — our AI generates personalized questions and conducts a live conversational interview. It asks follow-ups, challenges weak answers, and adapts in real-time.
+                      Your AI interviewer <strong>speaks out loud</strong> — just like a real video call. Answer with your voice or by typing. The AI asks follow-ups, challenges weak answers, and adapts in real-time.
                     </p>
+                    <div className="flex items-center justify-center gap-3 mb-3">
+                      <div className="flex items-center gap-1.5 text-xs text-violet-600 bg-violet-50 px-3 py-1.5 rounded-full">
+                        <Volume2 className="h-3.5 w-3.5" /> AI speaks questions
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-3 py-1.5 rounded-full">
+                        <Mic className="h-3.5 w-3.5" /> Answer by voice
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-sky-600 bg-sky-50 px-3 py-1.5 rounded-full">
+                        <Brain className="h-3.5 w-3.5" /> AI adapts in real-time
+                      </div>
+                    </div>
                     <Button onClick={() => setMockShowSetup(true)} size="lg">
                       <Briefcase className="h-4 w-4 mr-2" /> Start Mock Interview
                     </Button>
@@ -1734,6 +1810,20 @@ export function AiCoachingPage() {
                       />
                     </div>
 
+                    {/* Voice mode option */}
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-violet-50 border border-violet-100">
+                      <button
+                        onClick={() => setVoiceMode(!voiceMode)}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${voiceMode ? 'bg-violet-600' : 'bg-gray-300'}`}
+                      >
+                        <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform shadow ${voiceMode ? 'translate-x-5' : ''}`} />
+                      </button>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-violet-900">🎙️ Voice Mode {voiceMode ? '(On)' : '(Off)'}</p>
+                        <p className="text-xs text-violet-600">AI speaks questions out loud. Answer by talking — like a real interview.</p>
+                      </div>
+                    </div>
+
                     <div className="flex gap-2">
                       <Button variant="outline" onClick={() => setMockShowSetup(false)} className="flex-1">
                         Cancel
@@ -1741,7 +1831,7 @@ export function AiCoachingPage() {
                       <Button
                         onClick={startMockInterview}
                         disabled={mockStarting || mockTargetRole.trim().length < 2}
-                        className="flex-1"
+                        className={`flex-1 ${voiceMode ? 'bg-violet-600 hover:bg-violet-700' : ''}`}
                       >
                         {mockStarting ? (
                           <>
@@ -1750,7 +1840,8 @@ export function AiCoachingPage() {
                           </>
                         ) : (
                           <>
-                            <Play className="h-4 w-4 mr-2" /> Start Interview
+                            {voiceMode ? <Volume2 className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
+                            {voiceMode ? 'Start Voice Interview' : 'Start Interview'}
                           </>
                         )}
                       </Button>
