@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Phase 1: Fix TTS provider URLs + ASR fallback chain + timeouts",
+    "status": "in_progress",
+    "activeForm": "Fixing TTS provider URLs, adding ASR fallback chain, adding per-provider timeouts"
+  },
+  {
+    "content": "Phase 2: Fix mic recording / STT loop",
+    "status": "pending",
+    "activeForm": "Fixing mic recording and STT loop"
+  },
+  {
+    "content": "Phase 3: Fix end button + fake feedback",
+    "status": "pending",
+    "activeForm": "Fixing end button and fake feedback generation"
+  },
+  {
+    "content": "Phase 4: E2E verification + deploy",
+    "status": "pending",
+    "activeForm": "Running E2E verification"
+  }
+]
