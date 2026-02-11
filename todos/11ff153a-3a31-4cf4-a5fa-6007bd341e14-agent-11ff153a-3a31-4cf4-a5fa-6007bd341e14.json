@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate current TTS fallback chain and identify gaps",
+    "status": "completed",
+    "activeForm": "Investigating current TTS fallback chain"
+  },
+  {
+    "content": "Research available NIM TTS models on build.nvidia.com",
+    "status": "completed",
+    "activeForm": "Researching available NIM TTS models"
+  },
+  {
+    "content": "Add missing Magpie TTS models + wire unused models to all chains",
+    "status": "completed",
+    "activeForm": "Adding missing models and wiring all chains"
+  },
+  {
+    "content": "Update research doc with new models and chain info",
+    "status": "completed",
+    "activeForm": "Updating research documentation"
+  },
+  {
+    "content": "Test syntax, deploy, and verify",
+    "status": "in_progress",
+    "activeForm": "Testing and deploying changes"
+  }
+]
