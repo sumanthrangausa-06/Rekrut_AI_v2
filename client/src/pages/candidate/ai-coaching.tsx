@@ -351,6 +351,7 @@ export function AiCoachingPage() {
   const [mockLiveTranscript, setMockLiveTranscript] = useState('')
   const mockRecognitionRef = useRef<any>(null)
   const mockAudioSourceRef = useRef<AudioBufferSourceNode | null>(null)
+  const voiceRetryCountRef = useRef<number>(0)
 
   // Real-time body language indicators (updated periodically during interview)
   const [bodyLanguageIndicators, setBodyLanguageIndicators] = useState<{
@@ -1129,11 +1130,11 @@ export function AiCoachingPage() {
       // Start camera (await to ensure permissions are granted before proceeding)
       await startMockCamera()
 
-      // Start frame capture for body language analysis
+      // Start frame capture for body language analysis (analyzed at end, NOT real-time)
       startMockFrameCapture()
 
-      // Start real-time body language analysis (periodic frame analysis)
-      startBodyLanguageAnalysis()
+      // NOTE: Real-time body language analysis removed — saves API tokens and reduces rate limiting.
+      // Frames are still captured and analyzed at interview end in background.
 
       // Show transcript by default for live transcription
       setShowTranscript(true)
@@ -1359,6 +1360,7 @@ export function AiCoachingPage() {
   // Start recording candidate's voice
   async function startVoiceRecording() {
     setVoiceError(null)
+    setMockLiveTranscript('') // Clear previous transcript for fresh recognition
     try {
       // Reuse camera stream's audio tracks if available (avoids second permission prompt)
       if (!voiceStreamRef.current) {
@@ -1373,8 +1375,10 @@ export function AiCoachingPage() {
 
       voiceChunksRef.current = []
 
-      // Set up silence detection using Web Audio API
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      // BUG FIX: Reuse shared AudioContext instead of creating new one each recording
+      // Creating new AudioContexts each time hits browser limits after ~6 contexts,
+      // causing the interview to break after Q4
+      const audioContext = ensureAudioContext()
       const source = audioContext.createMediaStreamSource(voiceStreamRef.current)
       const analyser = audioContext.createAnalyser()
       analyser.fftSize = 512
@@ -1440,10 +1444,14 @@ export function AiCoachingPage() {
         try {
           const audioBlob = new Blob(voiceChunksRef.current, { type: mimeType })
 
-          // Send as multipart FormData (more reliable than base64 for Whisper)
+          // Send as multipart FormData with client-side transcript as Whisper fallback
           const formData = new FormData()
           const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm'
           formData.append('audio', audioBlob, `recording.${ext}`)
+          // BUG FIX: Send SpeechRecognition transcript so backend can use it if Whisper fails (429 etc)
+          if (mockLiveTranscript.trim().length >= 5) {
+            formData.append('response_text', mockLiveTranscript.trim())
+          }
 
           const token = getToken()
           const res = await fetch(`/api/interviews/mock/${mockSession?.id}/voice-respond`, {
@@ -1457,6 +1465,9 @@ export function AiCoachingPage() {
           const data = await res.json()
 
           if (data.success) {
+            // Reset retry counter on success
+            voiceRetryCountRef.current = 0
+
             // Add candidate message with transcription
             const candidateMsg: MockConversationTurn = {
               role: 'candidate',
@@ -1510,23 +1521,30 @@ export function AiCoachingPage() {
                 audio.onerror = () => {
                   setAiSpeaking(false)
                   URL.revokeObjectURL(url)
-                  // Still auto-start recording even on error
                   if (voiceMode && !data.is_wrapping_up) setTimeout(() => startVoiceRecording(), 1000)
                 }
                 await audio.play()
               }
             } else {
-              // No audio — try separate TTS call
-              playInterviewerAudio(data.interviewer_message.text)
+              // No audio — try separate TTS call, then auto-start recording
+              await playInterviewerAudio(data.interviewer_message.text)
             }
           } else {
-            // If it's a hallucination filter or "didn't catch that" error, auto-restart recording
+            // BUG FIX: Limit auto-retry to prevent infinite recording loop
+            // When Whisper returns 429, the "Could not transcribe" error caused endless retries
             const errorMsg = data.error || 'Failed to process your response'
             if (errorMsg.includes("didn't catch") || errorMsg.includes('Could not transcribe')) {
-              console.log('[voice] Whisper error, auto-restarting recording')
-              setMockLiveTranscript('')
-              if (voiceMode && !aiSpeaking) {
-                setTimeout(() => startVoiceRecording(), 500)
+              voiceRetryCountRef.current++
+              if (voiceRetryCountRef.current <= 2) {
+                console.log(`[voice] Transcription error, retry ${voiceRetryCountRef.current}/2`)
+                setMockLiveTranscript('')
+                if (voiceMode && !aiSpeaking) {
+                  setTimeout(() => startVoiceRecording(), 800)
+                }
+              } else {
+                console.warn('[voice] Max retries reached, stopping auto-retry')
+                voiceRetryCountRef.current = 0
+                setVoiceError('Having trouble hearing you. Please tap the mic button to try again.')
               }
             } else {
               setVoiceError(errorMsg)
@@ -1796,16 +1814,29 @@ export function AiCoachingPage() {
                       <p className="text-white font-semibold text-sm sm:text-base">AI Interviewer</p>
                       <p className={`text-xs mt-1 transition-colors ${
                         aiSpeaking ? 'text-violet-300' :
-                        voiceProcessing ? 'text-amber-300' :
+                        voiceProcessing ? 'text-amber-300 animate-pulse' :
                         candidateRecording ? 'text-green-300' :
                         'text-gray-500'
                       }`}>
                         {aiSpeaking ? 'Speaking...' :
-                         voiceProcessing ? 'Processing your answer...' :
+                         voiceProcessing ? 'AI is thinking...' :
                          candidateRecording ? 'Listening to you...' :
                          'Waiting for your answer'}
                       </p>
                     </div>
+
+                    {/* Thinking dots when processing */}
+                    {voiceProcessing && !aiSpeaking && (
+                      <div className="flex items-center gap-1.5 h-8">
+                        {[0, 1, 2].map(i => (
+                          <div
+                            key={i}
+                            className="w-2.5 h-2.5 bg-amber-400 rounded-full animate-bounce"
+                            style={{ animationDelay: `${i * 200}ms` }}
+                          />
+                        ))}
+                      </div>
+                    )}
 
                     {/* Waveform bars when AI is speaking */}
                     {aiSpeaking && (
@@ -1904,46 +1935,15 @@ export function AiCoachingPage() {
                   )
                 })()}
 
-                {/* Body Language Indicators overlay (top-right, below top bar) */}
-                {bodyLanguageIndicators && (
-                  <div className="absolute top-14 right-3 z-10">
-                    <div className="bg-black/60 backdrop-blur-sm rounded-lg p-2 space-y-1 min-w-[120px]">
-                      <p className="text-[9px] font-semibold text-white/50 uppercase tracking-wider mb-1">Body Language</p>
-                      {[
-                        { label: 'Eye Contact', value: bodyLanguageIndicators.eye_contact, icon: '👁' },
-                        { label: 'Posture', value: bodyLanguageIndicators.posture, icon: '🧍' },
-                        { label: 'Confidence', value: bodyLanguageIndicators.confidence, icon: '💪' },
-                        { label: 'Expression', value: bodyLanguageIndicators.expression, icon: '😊' },
-                      ].map((item) => (
-                        <div key={item.label} className="flex items-center justify-between gap-2">
-                          <span className="text-[9px] text-white/70">{item.icon} {item.label}</span>
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                            item.value === 'good' ? 'bg-green-500/30 text-green-300' :
-                            item.value === 'fair' ? 'bg-amber-500/30 text-amber-300' :
-                            'bg-red-500/30 text-red-300'
-                          }`}>
-                            {item.value || '...'}
-                          </span>
-                        </div>
-                      ))}
-                      {bodyLanguageIndicators.tip && (
-                        <p className="text-[8px] text-amber-300/80 mt-1 border-t border-white/10 pt-1">
-                          💡 {bodyLanguageIndicators.tip}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
+                {/* Body language analyzed at interview end (real-time removed to save API tokens) */}
 
-                {/* Live transcript overlay (inside video, bottom of screen) */}
+                {/* Live transcript overlay — candidate answers only */}
                 {showTranscript && mockSession.conversation.length > 0 && (
                   <div className="absolute bottom-28 left-3 right-48 sm:right-52 z-10 max-h-20 overflow-y-auto">
                     <div className="bg-black/50 backdrop-blur-sm rounded-lg px-2 py-1.5 space-y-0.5">
-                      {mockSession.conversation.slice(-3).map((turn, i) => (
+                      {mockSession.conversation.filter(t => t.role === 'candidate').slice(-3).map((turn, i) => (
                         <div key={i} className="flex gap-1.5">
-                          <span className={`text-[9px] font-bold shrink-0 ${turn.role === 'interviewer' ? 'text-violet-300' : 'text-green-300'}`}>
-                            {turn.role === 'interviewer' ? 'AI' : 'You'}:
-                          </span>
+                          <span className="text-[9px] font-bold shrink-0 text-green-300">You:</span>
                           <p className="text-[10px] text-white/80 leading-tight line-clamp-2">{turn.text}</p>
                         </div>
                       ))}
@@ -2050,26 +2050,18 @@ export function AiCoachingPage() {
                       <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setShowTranscript(false)}>Hide</Button>
                     </div>
                     <div className="max-h-48 overflow-y-auto space-y-2">
-                      {mockSession.conversation.map((turn, i) => (
+                      {/* Show only candidate answers in transcript */}
+                      {mockSession.conversation.filter(t => t.role === 'candidate').map((turn, i) => (
                         <div key={i} className="flex gap-2">
-                          <span className={`text-[10px] font-bold shrink-0 w-8 ${turn.role === 'interviewer' ? 'text-violet-600' : 'text-green-600'}`}>
-                            {turn.role === 'interviewer' ? 'AI' : 'You'}
-                          </span>
+                          <span className="text-[10px] font-bold shrink-0 text-green-600">You:</span>
                           <p className="text-xs text-muted-foreground leading-relaxed">{turn.text}</p>
                         </div>
                       ))}
                       {/* Live transcription of current speech */}
                       {candidateRecording && mockLiveTranscript && (
                         <div className="flex gap-2 opacity-70">
-                          <span className="text-[10px] font-bold shrink-0 w-8 text-green-600">You</span>
+                          <span className="text-[10px] font-bold shrink-0 text-green-600">You:</span>
                           <p className="text-xs text-green-600 leading-relaxed italic">{mockLiveTranscript}...</p>
-                        </div>
-                      )}
-                      {/* AI speaking indicator */}
-                      {aiSpeaking && (
-                        <div className="flex gap-2 opacity-70">
-                          <span className="text-[10px] font-bold shrink-0 w-8 text-violet-600">AI</span>
-                          <p className="text-xs text-violet-600 italic">Speaking...</p>
                         </div>
                       )}
                       <div ref={chatEndRef} />
@@ -2174,7 +2166,7 @@ export function AiCoachingPage() {
               </div>
 
               {/* Body Language / Presentation Analysis */}
-              {mockFeedback.presentation && (
+              {mockFeedback.presentation ? (
                 <Card>
                   <CardContent className="p-4">
                     <h4 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
@@ -2200,6 +2192,18 @@ export function AiCoachingPage() {
                         <p className="text-xs text-sky-700 bg-sky-50 p-2 rounded mt-2">{mockFeedback.presentation.summary}</p>
                       )}
                     </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-4">
+                    <h4 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+                      <Camera className="h-4 w-4 text-sky-600" /> Body Language & Presentation
+                    </h4>
+                    <p className="text-xs text-muted-foreground flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Video analysis processing in background. Refresh the page in a minute to see results.
+                    </p>
                   </CardContent>
                 </Card>
               )}
@@ -2317,19 +2321,15 @@ export function AiCoachingPage() {
                       <FileText className="h-4 w-4 text-muted-foreground" /> Full Transcript
                     </h4>
                     <div className="space-y-3 max-h-[40vh] overflow-y-auto">
-                      {mockSession.conversation.map((turn, i) => (
-                        <div key={i} className={`flex gap-3 ${turn.role === 'interviewer' ? '' : 'flex-row-reverse'}`}>
-                          <div className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${
-                            turn.role === 'interviewer' ? 'bg-primary/10' : 'bg-green-100'
-                          }`}>
-                            {turn.role === 'interviewer'
-                              ? <Brain className="h-3.5 w-3.5 text-primary" />
-                              : <User className="h-3.5 w-3.5 text-green-600" />
-                            }
+                      {/* Show only candidate's answers in the transcript */}
+                      {mockSession.conversation.filter(t => t.role === 'candidate').map((turn, i) => (
+                        <div key={i} className="flex gap-3">
+                          <div className="h-7 w-7 rounded-full flex items-center justify-center shrink-0 bg-green-100">
+                            <User className="h-3.5 w-3.5 text-green-600" />
                           </div>
-                          <div className={`flex-1 ${turn.role === 'interviewer' ? '' : 'text-right'}`}>
+                          <div className="flex-1">
                             <p className="text-[10px] font-medium text-muted-foreground mb-0.5">
-                              {turn.role === 'interviewer' ? 'AI Interviewer' : 'You'}
+                              Answer {i + 1}
                             </p>
                             <p className="text-xs leading-relaxed whitespace-pre-wrap">{turn.text}</p>
                           </div>

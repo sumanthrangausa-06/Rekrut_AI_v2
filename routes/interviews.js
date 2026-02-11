@@ -1270,75 +1270,27 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Not enough conversation to generate feedback. Answer at least one question.' });
     }
 
-    // Run analysis in parallel: text feedback + video presentation + voice quality
+    // BUG FIX: Return text feedback IMMEDIATELY. Video/voice analysis runs in background.
+    // User was waiting too long because all analysis ran synchronously before response.
     const candidateText = conversation.filter(t => t.role === 'candidate').map(t => t.text).join('\n\n');
     const durationSeconds = Math.round((Date.now() - new Date(session.started_at).getTime()) / 1000);
     const options = { subscriptionId: req.user.stripe_subscription_id };
 
-    // BUG FIX: Use cached feedback if available (pre-generated in background during interview)
-    // This dramatically reduces wait time when clicking "End"
-    let cachedFeedback = null;
+    // Step 1: Get text feedback (use cache if available — pre-generated during interview)
+    let feedback = null;
     if (session.cached_feedback) {
       try {
-        cachedFeedback = typeof session.cached_feedback === 'string'
+        feedback = typeof session.cached_feedback === 'string'
           ? JSON.parse(session.cached_feedback)
           : session.cached_feedback;
         console.log(`[mock-end] Using cached feedback (pre-generated during interview)`);
-      } catch { cachedFeedback = null; }
+      } catch { feedback = null; }
+    }
+    if (!feedback) {
+      feedback = await generateSessionFeedback(conversation, session.target_role, options);
     }
 
-    const analysisPromises = [
-      cachedFeedback
-        ? Promise.resolve(cachedFeedback)
-        : generateSessionFeedback(conversation, session.target_role, options)
-    ];
-
-    // Add video/body language analysis if frames are provided
-    if (frames && Array.isArray(frames) && frames.length > 0) {
-      console.log(`[mock-end] Running body language analysis with ${frames.length} frames`);
-      analysisPromises.push(analyzeVideoPresentation(frames, options));
-    } else {
-      analysisPromises.push(Promise.resolve(null));
-    }
-
-    // Add voice quality analysis based on candidate's transcribed text
-    if (candidateText.length > 20) {
-      console.log(`[mock-end] Running voice quality analysis (${candidateText.length} chars, ${durationSeconds}s)`);
-      analysisPromises.push(analyzeVoiceQuality(candidateText, durationSeconds, options));
-    } else {
-      analysisPromises.push(Promise.resolve(null));
-    }
-
-    const [feedback, videoAnalysis, voiceAnalysis] = await Promise.all(analysisPromises);
-
-    // Merge video/voice analysis into the feedback object
-    if (videoAnalysis) {
-      feedback.presentation = {
-        score: videoAnalysis.overall_presentation || 5,
-        eye_contact: videoAnalysis.eye_contact || { score: 5, feedback: '' },
-        facial_expressions: videoAnalysis.facial_expressions || { score: 5, feedback: '' },
-        body_language: videoAnalysis.body_language || { score: 5, feedback: '' },
-        professional_appearance: videoAnalysis.professional_appearance || { score: 5, feedback: '' },
-        summary: videoAnalysis.summary || ''
-      };
-    }
-
-    if (voiceAnalysis) {
-      feedback.voice_analysis = voiceAnalysis;
-    }
-
-    // Adjust overall score to incorporate presentation and voice
-    if (videoAnalysis || voiceAnalysis) {
-      const textScore = feedback.overall_score || 5;
-      const presScore = videoAnalysis?.overall_presentation || textScore;
-      const voiceScore = voiceAnalysis?.overall_voice_score || textScore;
-      // Weighted: 50% text/content, 25% presentation, 25% voice
-      feedback.overall_score = Math.round(
-        (textScore * 0.5 + presScore * 0.25 + voiceScore * 0.25) * 10
-      ) / 10;
-    }
-
-    // Update session as completed
+    // Step 2: Save and return text feedback immediately
     await pool.query(
       `UPDATE mock_interview_sessions
        SET status = 'completed', overall_score = $1, overall_feedback = $2, completed_at = NOW()
@@ -1346,7 +1298,7 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
       [feedback.overall_score || 5, JSON.stringify(feedback), sessionId]
     );
 
-    // Also save as a practice_session for stats continuity
+    // Save as practice_session for stats
     try {
       await pool.query(
         `INSERT INTO practice_sessions
@@ -1366,6 +1318,7 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
       console.error('Failed to save mock session to practice_sessions:', psErr.message);
     }
 
+    // Return feedback to user IMMEDIATELY (no waiting for video/voice analysis)
     res.json({
       success: true,
       feedback,
@@ -1377,6 +1330,62 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
         duration_minutes: Math.round(durationSeconds / 60)
       }
     });
+
+    // Step 3: Run video/voice analysis in BACKGROUND (fire and forget)
+    // Results get saved to DB — user can see them on next page load or refresh
+    const bgSessionId = sessionId;
+    const bgUserId = req.user.id;
+    (async () => {
+      try {
+        const bgPromises = [];
+        if (frames && Array.isArray(frames) && frames.length > 0) {
+          console.log(`[mock-end-bg] Running background body language analysis with ${frames.length} frames`);
+          bgPromises.push(analyzeVideoPresentation(frames, options).catch(e => { console.warn('[mock-end-bg] Video analysis failed:', e.message); return null; }));
+        } else {
+          bgPromises.push(Promise.resolve(null));
+        }
+        if (candidateText.length > 20) {
+          console.log(`[mock-end-bg] Running background voice quality analysis`);
+          bgPromises.push(analyzeVoiceQuality(candidateText, durationSeconds, options).catch(e => { console.warn('[mock-end-bg] Voice analysis failed:', e.message); return null; }));
+        } else {
+          bgPromises.push(Promise.resolve(null));
+        }
+
+        const [videoAnalysis, voiceAnalysis] = await Promise.all(bgPromises);
+
+        // Merge into feedback
+        if (videoAnalysis) {
+          feedback.presentation = {
+            score: videoAnalysis.overall_presentation || 5,
+            eye_contact: videoAnalysis.eye_contact || { score: 5, feedback: '' },
+            facial_expressions: videoAnalysis.facial_expressions || { score: 5, feedback: '' },
+            body_language: videoAnalysis.body_language || { score: 5, feedback: '' },
+            professional_appearance: videoAnalysis.professional_appearance || { score: 5, feedback: '' },
+            summary: videoAnalysis.summary || ''
+          };
+        }
+        if (voiceAnalysis) {
+          feedback.voice_analysis = voiceAnalysis;
+        }
+
+        // Recalculate score with presentation/voice
+        if (videoAnalysis || voiceAnalysis) {
+          const textScore = feedback.overall_score || 5;
+          const presScore = videoAnalysis?.overall_presentation || textScore;
+          const voiceScore = voiceAnalysis?.overall_voice_score || textScore;
+          feedback.overall_score = Math.round((textScore * 0.5 + presScore * 0.25 + voiceScore * 0.25) * 10) / 10;
+        }
+
+        // Update DB with enriched feedback
+        await pool.query(
+          `UPDATE mock_interview_sessions SET overall_score = $1, overall_feedback = $2 WHERE id = $3`,
+          [feedback.overall_score, JSON.stringify(feedback), bgSessionId]
+        );
+        console.log(`[mock-end-bg] Background analysis complete for session ${bgSessionId}`);
+      } catch (bgErr) {
+        console.error('[mock-end-bg] Background analysis error:', bgErr.message);
+      }
+    })();
   } catch (err) {
     console.error('End mock interview error:', err);
     res.status(500).json({ error: 'Failed to generate feedback' });
@@ -1580,14 +1589,17 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
     const conversation = session.conversation || [];
     const questionIds = session.question_ids || [];
 
-    // Step 1: Transcribe audio with Whisper
+    // Step 1: Transcribe audio with Whisper (with client-side SpeechRecognition fallback)
+    // The client sends the live SpeechRecognition transcript alongside the audio as a fallback
+    const clientTranscript = (req.body.response_text || '').trim();
     let transcribedText = '';
+    let usedFallback = false;
+
     if (req.file) {
       // Audio file uploaded as multipart — send buffer directly to Whisper
-      // Strip codec params from mimetype (e.g., "audio/webm;codecs=opus" → "audio/webm")
       const baseMime = (req.file.mimetype || 'audio/webm').split(';')[0];
       const ext = baseMime.includes('mp4') ? 'mp4' : baseMime.includes('ogg') ? 'ogg' : 'webm';
-      console.log(`[voice-respond] Received file: ${req.file.size} bytes, mime: ${req.file.mimetype}, using: ${baseMime}/${ext}`);
+      console.log(`[voice-respond] Received file: ${req.file.size} bytes, mime: ${req.file.mimetype}, client transcript: ${clientTranscript.length} chars`);
 
       const whisperFormData = new FormData();
       whisperFormData.append('file', req.file.buffer, {
@@ -1617,49 +1629,54 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
         } else {
           const errText = await whisperRes.text();
           console.error('[voice-respond] Whisper API error:', whisperRes.status, errText);
+          // BUG FIX: On 429 or other Whisper failure, use client-side SpeechRecognition transcript
+          if (clientTranscript.length >= 10) {
+            transcribedText = clientTranscript;
+            usedFallback = true;
+            console.log(`[voice-respond] Using client SpeechRecognition fallback: "${transcribedText.substring(0, 100)}..."`);
+          }
         }
       } catch (whisperErr) {
         console.error('[voice-respond] Whisper call failed:', whisperErr.message);
+        // BUG FIX: Use client transcript on Whisper failure
+        if (clientTranscript.length >= 10) {
+          transcribedText = clientTranscript;
+          usedFallback = true;
+          console.log(`[voice-respond] Using client SpeechRecognition fallback after error`);
+        }
       }
     } else if (req.body.audio_base64) {
-      // Audio sent as base64 in JSON (legacy fallback)
       const whisperResult = await transcribeAudioWithWhisper(req.body.audio_base64, {
         subscriptionId: req.user.stripe_subscription_id
       });
       if (whisperResult && whisperResult.text) {
         transcribedText = whisperResult.text.trim();
       }
-    } else if (req.body.response_text) {
-      // Fallback: text directly (for cases where transcription happens client-side)
-      transcribedText = req.body.response_text.trim();
+    } else if (clientTranscript.length >= 5) {
+      // Client-side transcript only (no audio file)
+      transcribedText = clientTranscript;
+      usedFallback = true;
     }
 
-    // BUG FIX: Whisper hallucinates known phrases when given silent/near-silent audio.
-    // Filter out common phantom phrases before proceeding.
+    // BUG FIX: Whisper hallucinates known phrases on silent/near-silent audio
     const WHISPER_HALLUCINATIONS = [
-      'ご視聴ありがとうございました', // "Thank you for watching" (Japanese)
-      '視聴ありがとうございました',
-      'ありがとうございました',
-      'ご視聴ありがとうございます',
-      '字幕', // "Subtitles" (Japanese/Chinese)
-      'サブスクライブ', // "Subscribe" (Japanese)
-      'チャンネル登録', // "Channel registration" (Japanese)
-      '谢谢观看', // "Thanks for watching" (Chinese)
-      '感谢观看',
-      'Sous-titres', // "Subtitles" (French)
-      'Sottotitoli', // "Subtitles" (Italian)
-      'Untertitel', // "Subtitles" (German)
-      'Thanks for watching',
-      'Thank you for watching',
-      'Please subscribe',
-      'Like and subscribe',
+      'ご視聴ありがとうございました', '視聴ありがとうございました', 'ありがとうございました',
+      'ご視聴ありがとうございます', '字幕', 'サブスクライブ', 'チャンネル登録',
+      '谢谢观看', '感谢观看', 'Sous-titres', 'Sottotitoli', 'Untertitel',
+      'Thanks for watching', 'Thank you for watching', 'Please subscribe', 'Like and subscribe',
     ];
-    const isHallucination = WHISPER_HALLUCINATIONS.some(phrase =>
+    const isHallucination = !usedFallback && WHISPER_HALLUCINATIONS.some(phrase =>
       transcribedText.toLowerCase().includes(phrase.toLowerCase())
     );
     if (isHallucination) {
       console.log(`[voice-respond] Filtered Whisper hallucination: "${transcribedText}"`);
-      return res.status(400).json({ error: 'I didn\'t catch that. Could you please repeat your answer?' });
+      // Try client transcript before rejecting
+      if (clientTranscript.length >= 10) {
+        transcribedText = clientTranscript;
+        usedFallback = true;
+      } else {
+        return res.status(400).json({ error: 'I didn\'t catch that. Could you please repeat your answer.' });
+      }
     }
 
     if (!transcribedText || transcribedText.length < 5) {
