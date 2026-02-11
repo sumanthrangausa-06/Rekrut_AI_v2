@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Fix stale closure for mockLiveTranscript in recorder.onstop — ROOT CAUSE",
+    "status": "completed",
+    "activeForm": "Fixing stale closure bug (ROOT CAUSE)"
+  },
+  {
+    "content": "Fix failover log entries — add from/to provider tracking",
+    "status": "completed",
+    "activeForm": "Fixing failover log entries"
+  },
+  {
+    "content": "Fix voiceMode/candidateRecording stale closures in playback callbacks",
+    "status": "completed",
+    "activeForm": "Fixing stale closures in playback callbacks"
+  },
+  {
+    "content": "Build frontend and verify syntax",
+    "status": "completed",
+    "activeForm": "Building frontend"
+  },
+  {
+    "content": "Commit and deploy",
+    "status": "in_progress",
+    "activeForm": "Deploying fixes"
+  }
+]
