@@ -11,7 +11,7 @@ import {
   Flame, BookOpen, CheckCircle, ArrowRight, Sparkles, BarChart3,
   Clock, Star, Zap, Video, VideoOff, Mic, MicOff, Camera, Eye,
   Volume2, AlertCircle, ChevronDown, ChevronUp, Play, Square,
-  Timer, User, Monitor,
+  Timer, User, Monitor, History, FileText, Calendar,
 } from 'lucide-react'
 
 // Types
@@ -109,6 +109,22 @@ interface RecentSession {
   category: string
   score: number
   improvements: string[]
+  created_at: string
+}
+
+interface HistorySession {
+  id: number
+  question_id: string
+  question: string
+  category: string
+  response_text: string
+  score: number
+  coaching_data: VideoCoaching | TextCoaching | any
+  response_type: 'video' | 'text' | null
+  transcription: string | null
+  audio_analysis: any
+  video_analysis: any
+  duration_seconds: number | null
   created_at: string
 }
 
@@ -213,6 +229,14 @@ export function AiCoachingPage() {
   const [categoryProgress, setCategoryProgress] = useState<CategoryProgress[]>([])
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([])
 
+  // History state
+  const [historySessions, setHistorySessions] = useState<HistorySession[]>([])
+  const [historyTotal, setHistoryTotal] = useState(0)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyFilter, setHistoryFilter] = useState('all')
+  const [reviewSession, setReviewSession] = useState<HistorySession | null>(null)
+  const [reviewExpanded, setReviewExpanded] = useState<string | null>('content')
+
   const loadStats = useCallback(async () => {
     try {
       const res = await apiCall<{ success: boolean; stats: PracticeStats }>('/interviews/practice/stats')
@@ -246,6 +270,24 @@ export function AiCoachingPage() {
     }
   }, [])
 
+  const loadHistory = useCallback(async (category?: string) => {
+    setHistoryLoading(true)
+    try {
+      const cat = category || historyFilter
+      const res = await apiCall<{
+        success: boolean; sessions: HistorySession[]; total: number; has_more: boolean
+      }>(`/interviews/practice/sessions?limit=50&category=${cat}`)
+      if (res.success) {
+        setHistorySessions(res.sessions)
+        setHistoryTotal(res.total)
+      }
+    } catch (err) {
+      console.error('Failed to load history:', err)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [historyFilter])
+
   useEffect(() => {
     async function init() {
       setLoading(true)
@@ -254,6 +296,11 @@ export function AiCoachingPage() {
     }
     init()
   }, [loadStats, loadQuestions, loadProgress])
+
+  // Load history when switching to history tab
+  useEffect(() => {
+    if (tab === 'history') loadHistory()
+  }, [tab, loadHistory])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -667,6 +714,7 @@ export function AiCoachingPage() {
         loadStats()
         loadQuestions()
         loadProgress()
+        loadHistory()
       }
     } catch (err: any) {
       alert(err.message || 'Failed to get AI coaching. Please try again.')
@@ -700,6 +748,7 @@ export function AiCoachingPage() {
         loadStats()
         loadQuestions()
         loadProgress()
+        loadHistory()
       }
     } catch (err: any) {
       alert(err.message || 'Failed to get AI coaching. Please try again.')
@@ -836,6 +885,9 @@ export function AiCoachingPage() {
           </TabsTrigger>
           <TabsTrigger value="progress">
             <BarChart3 className="h-4 w-4 mr-1.5" /> Progress
+          </TabsTrigger>
+          <TabsTrigger value="history">
+            <History className="h-4 w-4 mr-1.5" /> History
           </TabsTrigger>
         </TabsList>
 
@@ -997,7 +1049,366 @@ export function AiCoachingPage() {
             </Card>
           </div>
         </TabsContent>
+
+        {/* History Tab */}
+        <TabsContent value="history">
+          <div className="space-y-4">
+            {/* Filter bar */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Filter:</span>
+              {['all', 'behavioral', 'technical', 'situational'].map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => { setHistoryFilter(cat); loadHistory(cat) }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    historyFilter === cat
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted hover:bg-muted-foreground/10 text-muted-foreground'
+                  }`}
+                >
+                  {cat === 'all' ? 'All' : categoryConfig[cat]?.label || cat}
+                </button>
+              ))}
+              <span className="ml-auto text-xs text-muted-foreground">{historyTotal} session{historyTotal !== 1 ? 's' : ''}</span>
+            </div>
+
+            {historyLoading ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">Loading sessions...</div>
+            ) : historySessions.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <History className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">No coaching sessions yet.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Complete a mock interview to see your history here.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {historySessions.map(session => {
+                  const catCfg = categoryConfig[session.category] || categoryConfig.behavioral
+                  const CatIcon = catCfg.icon
+                  const isVideo = session.response_type === 'video'
+                  const cd = session.coaching_data
+                  return (
+                    <Card
+                      key={session.id}
+                      className="cursor-pointer hover:border-primary/30 hover:shadow-sm transition-all"
+                      onClick={() => { setReviewSession(session); setReviewExpanded('content') }}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          {/* Score */}
+                          <div className={`flex items-center justify-center h-12 w-12 rounded-xl border-2 shrink-0 ${scoreBg(session.score)}`}>
+                            <span className={`text-lg font-bold ${scoreColor(session.score)}`}>{session.score}</span>
+                          </div>
+
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium leading-snug line-clamp-2">{session.question}</p>
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
+                              <Badge variant="secondary" className={`${catCfg.bg} ${catCfg.color} text-xs border-0`}>
+                                <CatIcon className="h-3 w-3 mr-1" /> {catCfg.label}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {isVideo ? <><Video className="h-3 w-3 mr-1" /> Video</> : <><FileText className="h-3 w-3 mr-1" /> Text</>}
+                              </Badge>
+                              {isVideo && cd?.content && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  Content {cd.content.score}/10 · Comm {cd.communication?.score || '?'}/10 · Pres {cd.presentation?.score || '?'}/10
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Date + arrow */}
+                          <div className="text-right shrink-0">
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(session.created_at).toLocaleDateString()}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              {new Date(session.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                            <ArrowRight className="h-4 w-4 text-muted-foreground/50 mt-2 ml-auto" />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </TabsContent>
       </Tabs>
+
+      {/* ==================== Session Review Dialog ==================== */}
+      <Dialog open={!!reviewSession} onClose={() => setReviewSession(null)} className="max-w-2xl">
+        <div className="max-h-[85vh] overflow-y-auto">
+          {reviewSession && (() => {
+            const cd = reviewSession.coaching_data
+            const isVideo = reviewSession.response_type === 'video' && cd?.content && cd?.communication && cd?.presentation
+            const catCfg = categoryConfig[reviewSession.category] || categoryConfig.behavioral
+
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <History className="h-5 w-5 text-primary" />
+                    Session Review
+                  </DialogTitle>
+                </DialogHeader>
+
+                {/* Question */}
+                <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Badge variant="secondary" className={`${catCfg.bg} ${catCfg.color} text-xs border-0`}>
+                      {catCfg.label}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      {reviewSession.response_type === 'video' ? 'Video' : 'Text'}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      <Calendar className="h-3 w-3 inline mr-1" />
+                      {new Date(reviewSession.created_at).toLocaleDateString()} at {new Date(reviewSession.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className="text-sm font-medium">{reviewSession.question}</p>
+                </div>
+
+                {/* Overall Score */}
+                <div className={`mt-3 text-center p-4 rounded-xl border ${scoreBg(reviewSession.score)}`}>
+                  <div className={`text-4xl font-bold ${scoreColor(reviewSession.score)}`}>
+                    {reviewSession.score}/10
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {scoreLabel(reviewSession.score)} — Overall Score
+                  </div>
+                </div>
+
+                {/* Video coaching: show full breakdown */}
+                {isVideo && (
+                  <>
+                    <div className="mt-3 p-3 rounded-lg bg-muted/30 space-y-2.5">
+                      <ScoreBar score={cd.content.score} label="Answer Content" icon={Brain} />
+                      <ScoreBar score={cd.communication.score} label="Communication" icon={Volume2} />
+                      <ScoreBar score={cd.presentation.score} label="Presentation" icon={Eye} />
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      {/* Content section */}
+                      <div className="border rounded-lg overflow-hidden">
+                        <button onClick={() => setReviewExpanded(reviewExpanded === 'content' ? null : 'content')}
+                          className="w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors">
+                          <span className="flex items-center gap-2 font-medium text-sm">
+                            <Brain className="h-4 w-4 text-violet-600" /> Answer Content
+                            <span className={`text-xs font-bold ${scoreColor(cd.content.score)}`}>{cd.content.score}/10</span>
+                          </span>
+                          {reviewExpanded === 'content' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
+                        {reviewExpanded === 'content' && (
+                          <div className="p-3 pt-0 space-y-2.5">
+                            {cd.content.strengths?.length > 0 && (
+                              <div className="p-3 rounded-lg bg-green-50 border border-green-100">
+                                <h5 className="text-xs font-semibold text-green-800 mb-1.5">✓ Strengths</h5>
+                                <ul className="space-y-1">{cd.content.strengths.map((s: string, i: number) => <li key={i} className="text-xs text-green-700">{s}</li>)}</ul>
+                              </div>
+                            )}
+                            {cd.content.improvements?.length > 0 && (
+                              <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
+                                <h5 className="text-xs font-semibold text-amber-800 mb-1.5">↑ Improve</h5>
+                                <ul className="space-y-1">{cd.content.improvements.map((s: string, i: number) => <li key={i} className="text-xs text-amber-700">{s}</li>)}</ul>
+                              </div>
+                            )}
+                            {cd.content.specific_tips?.length > 0 && (
+                              <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
+                                <h5 className="text-xs font-semibold text-blue-800 mb-1.5">💡 Tips</h5>
+                                <ul className="space-y-1">{cd.content.specific_tips.map((s: string, i: number) => <li key={i} className="text-xs text-blue-700">{s}</li>)}</ul>
+                              </div>
+                            )}
+                            {cd.content.improved_response && (
+                              <div className="p-3 rounded-lg bg-purple-50 border border-purple-100">
+                                <h5 className="text-xs font-semibold text-purple-800 mb-1.5">⭐ Example Strong Response</h5>
+                                <p className="text-xs text-purple-700 italic leading-relaxed">"{cd.content.improved_response}"</p>
+                              </div>
+                            )}
+                            {cd.content.common_mistake && (
+                              <div className="p-3 rounded-lg bg-red-50 border border-red-100">
+                                <h5 className="text-xs font-semibold text-red-800 mb-1.5">⚠️ Common Mistake</h5>
+                                <p className="text-xs text-red-700">{cd.content.common_mistake}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Communication section */}
+                      <div className="border rounded-lg overflow-hidden">
+                        <button onClick={() => setReviewExpanded(reviewExpanded === 'communication' ? null : 'communication')}
+                          className="w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors">
+                          <span className="flex items-center gap-2 font-medium text-sm">
+                            <Volume2 className="h-4 w-4 text-sky-600" /> Communication & Speech
+                            <span className={`text-xs font-bold ${scoreColor(cd.communication.score)}`}>{cd.communication.score}/10</span>
+                          </span>
+                          {reviewExpanded === 'communication' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
+                        {reviewExpanded === 'communication' && (
+                          <div className="p-3 pt-0 space-y-2.5">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              <div className="p-2 rounded bg-muted/50 text-center">
+                                <div className="text-lg font-bold">{cd.communication.words_per_minute}</div>
+                                <div className="text-[10px] text-muted-foreground">Words/min</div>
+                              </div>
+                              <div className="p-2 rounded bg-muted/50 text-center">
+                                <div className="text-lg font-bold">{cd.communication.word_count}</div>
+                                <div className="text-[10px] text-muted-foreground">Total Words</div>
+                              </div>
+                              <div className="p-2 rounded bg-muted/50 text-center">
+                                <div className="text-lg font-bold">{cd.communication.total_fillers}</div>
+                                <div className="text-[10px] text-muted-foreground">Filler Words</div>
+                              </div>
+                              <div className="p-2 rounded bg-muted/50 text-center">
+                                <div className="text-lg font-bold">{Math.round(cd.communication.duration_seconds / 60)}:{String(cd.communication.duration_seconds % 60).padStart(2, '0')}</div>
+                                <div className="text-[10px] text-muted-foreground">Duration</div>
+                              </div>
+                            </div>
+                            {cd.communication.pace && (
+                              <div className={`p-3 rounded-lg ${
+                                cd.communication.pace.assessment === 'good' ? 'bg-green-50 border border-green-100' :
+                                cd.communication.pace.assessment?.includes('slight') ? 'bg-amber-50 border border-amber-100' :
+                                'bg-red-50 border border-red-100'
+                              }`}>
+                                <h5 className="text-xs font-semibold mb-1">🎙️ Speaking Pace</h5>
+                                <p className="text-xs">{cd.communication.pace.feedback}</p>
+                              </div>
+                            )}
+                            {cd.communication.tips?.length > 0 && (
+                              <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
+                                <h5 className="text-xs font-semibold text-blue-800 mb-1.5">💡 Speech Tips</h5>
+                                <ul className="space-y-1">{cd.communication.tips.map((t: string, i: number) => <li key={i} className="text-xs text-blue-700">{t}</li>)}</ul>
+                              </div>
+                            )}
+                            {cd.communication.voice_analysis && (
+                              <div className="space-y-2 pt-1">
+                                <h5 className="text-xs font-semibold flex items-center gap-1.5">
+                                  <Mic className="h-3.5 w-3.5 text-indigo-600" /> Voice & Tone Analysis
+                                </h5>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {[
+                                    { key: 'voice_confidence', label: 'Confidence', icon: Star },
+                                    { key: 'vocal_variety', label: 'Vocal Variety', icon: Volume2 },
+                                    { key: 'energy', label: 'Energy', icon: Zap },
+                                    { key: 'articulation', label: 'Articulation', icon: MessageSquare },
+                                  ].map(item => {
+                                    const data = cd.communication.voice_analysis?.[item.key]
+                                    if (!data) return null
+                                    const ItemIcon = item.icon
+                                    return (
+                                      <div key={item.key} className={`p-2.5 rounded-lg border ${scoreBg(data.score)}`}>
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+                                            <ItemIcon className="h-3 w-3" /> {item.label}
+                                          </span>
+                                          <span className={`text-sm font-bold ${scoreColor(data.score)}`}>{data.score}/10</span>
+                                        </div>
+                                        <p className="text-[10px] text-muted-foreground leading-relaxed">{data.feedback}</p>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                                {cd.communication.voice_analysis.voice_summary && (
+                                  <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-100">
+                                    <p className="text-xs text-indigo-700">{cd.communication.voice_analysis.voice_summary}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Presentation section */}
+                      <div className="border rounded-lg overflow-hidden">
+                        <button onClick={() => setReviewExpanded(reviewExpanded === 'presentation' ? null : 'presentation')}
+                          className="w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors">
+                          <span className="flex items-center gap-2 font-medium text-sm">
+                            <Eye className="h-4 w-4 text-emerald-600" /> Body Language & Presentation
+                            <span className={`text-xs font-bold ${scoreColor(cd.presentation.score)}`}>{cd.presentation.score}/10</span>
+                          </span>
+                          {reviewExpanded === 'presentation' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
+                        {reviewExpanded === 'presentation' && (
+                          <div className="p-3 pt-0 space-y-2.5">
+                            <div className="grid grid-cols-2 gap-2">
+                              {[
+                                { key: 'eye_contact', label: 'Eye Contact' },
+                                { key: 'facial_expressions', label: 'Expressions' },
+                                { key: 'body_language', label: 'Body Language' },
+                                { key: 'professional_appearance', label: 'Appearance' },
+                              ].map(item => {
+                                const data = cd.presentation?.[item.key]
+                                if (!data) return null
+                                return (
+                                  <div key={item.key} className={`p-2.5 rounded-lg border ${scoreBg(data.score)}`}>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="text-[10px] font-medium text-muted-foreground">{item.label}</span>
+                                      <span className={`text-sm font-bold ${scoreColor(data.score)}`}>{data.score}/10</span>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground leading-relaxed">{data.feedback}</p>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            {cd.presentation.summary && (
+                              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+                                <h5 className="text-xs font-semibold text-emerald-800 mb-1">📊 Overall Assessment</h5>
+                                <p className="text-xs text-emerald-700">{cd.presentation.summary}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Text coaching: show simplified feedback */}
+                {!isVideo && cd && (
+                  <div className="mt-3 space-y-2.5">
+                    {cd.strengths?.length > 0 && (
+                      <div className="p-3 rounded-lg bg-green-50 border border-green-100">
+                        <h5 className="text-xs font-semibold text-green-800 mb-1.5">✓ Strengths</h5>
+                        <ul className="space-y-1">{cd.strengths.map((s: string, i: number) => <li key={i} className="text-xs text-green-700">{s}</li>)}</ul>
+                      </div>
+                    )}
+                    {cd.improvements?.length > 0 && (
+                      <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
+                        <h5 className="text-xs font-semibold text-amber-800 mb-1.5">↑ Areas for Improvement</h5>
+                        <ul className="space-y-1">{cd.improvements.map((s: string, i: number) => <li key={i} className="text-xs text-amber-700">{s}</li>)}</ul>
+                      </div>
+                    )}
+                    {cd.specific_tips?.length > 0 && (
+                      <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
+                        <h5 className="text-xs font-semibold text-blue-800 mb-1.5">💡 Tips</h5>
+                        <ul className="space-y-1">{cd.specific_tips.map((s: string, i: number) => <li key={i} className="text-xs text-blue-700">{s}</li>)}</ul>
+                      </div>
+                    )}
+                    {cd.improved_response && (
+                      <div className="p-3 rounded-lg bg-purple-50 border border-purple-100">
+                        <h5 className="text-xs font-semibold text-purple-800 mb-1.5">⭐ Example Strong Response</h5>
+                        <p className="text-xs text-purple-700 italic leading-relaxed">"{cd.improved_response}"</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="mt-4 flex gap-2">
+                  <Button variant="outline" onClick={() => setReviewSession(null)} className="flex-1">Close</Button>
+                </div>
+              </>
+            )
+          })()}
+        </div>
+      </Dialog>
 
       {/* Hidden canvas for frame capture */}
       <canvas ref={canvasRef} className="hidden" />

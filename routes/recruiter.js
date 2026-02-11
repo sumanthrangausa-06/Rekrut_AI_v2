@@ -751,4 +751,105 @@ router.post('/jobs/:id/analyze-candidate', authMiddleware, requireRecruiter, asy
   }
 });
 
+// Get candidate coaching/practice history (for recruiter review)
+router.get('/candidates/:id/coaching', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const candidateId = req.params.id;
+
+    // Verify candidate has applied to one of recruiter's jobs
+    const hasRelation = await pool.query(
+      `SELECT 1 FROM job_applications ja
+       JOIN jobs j ON ja.job_id = j.id
+       WHERE ja.candidate_id = $1 AND (j.company_id = $2 OR j.user_id = $3)
+       LIMIT 1`,
+      [candidateId, req.user.company_id, req.user.id]
+    );
+
+    if (hasRelation.rows.length === 0) {
+      return res.status(403).json({ error: 'Access denied — candidate has not applied to your jobs' });
+    }
+
+    // Get candidate name
+    const candidate = await pool.query('SELECT name, email FROM users WHERE id = $1', [candidateId]);
+
+    // Get all coaching sessions
+    const sessions = await pool.query(
+      `SELECT
+        id, question, category, score, coaching_data, response_type,
+        duration_seconds, created_at
+       FROM practice_sessions
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [candidateId]
+    );
+
+    // Get aggregate stats
+    const stats = await pool.query(
+      `SELECT
+        COUNT(*) as total_sessions,
+        AVG(score) as average_score,
+        MIN(score) as lowest_score,
+        MAX(score) as highest_score,
+        MIN(created_at) as first_session,
+        MAX(created_at) as last_session
+       FROM practice_sessions
+       WHERE user_id = $1`,
+      [candidateId]
+    );
+
+    // Calculate improvement trend
+    const improvement = await pool.query(
+      `WITH ordered AS (
+        SELECT score, ROW_NUMBER() OVER (ORDER BY created_at) as rn,
+               COUNT(*) OVER () as total
+        FROM practice_sessions WHERE user_id = $1
+      )
+      SELECT
+        AVG(CASE WHEN rn <= total/2 THEN score END) as first_half_avg,
+        AVG(CASE WHEN rn > total/2 THEN score END) as second_half_avg
+      FROM ordered`,
+      [candidateId]
+    );
+
+    let improvementPercent = null;
+    if (improvement.rows[0].first_half_avg && improvement.rows[0].second_half_avg) {
+      const firstHalf = parseFloat(improvement.rows[0].first_half_avg);
+      const secondHalf = parseFloat(improvement.rows[0].second_half_avg);
+      improvementPercent = Math.round(((secondHalf - firstHalf) / firstHalf) * 100);
+    }
+
+    // Category breakdown
+    const byCategory = await pool.query(
+      `SELECT category, COUNT(*) as count, AVG(score) as avg_score
+       FROM practice_sessions WHERE user_id = $1
+       GROUP BY category ORDER BY avg_score DESC`,
+      [candidateId]
+    );
+
+    const parsed = sessions.rows.map(row => ({
+      ...row,
+      coaching_data: typeof row.coaching_data === 'string' ? JSON.parse(row.coaching_data) : row.coaching_data,
+    }));
+
+    res.json({
+      success: true,
+      candidate: candidate.rows[0] || { name: 'Unknown', email: '' },
+      stats: {
+        total_sessions: parseInt(stats.rows[0].total_sessions) || 0,
+        average_score: parseFloat(stats.rows[0].average_score) || null,
+        lowest_score: parseFloat(stats.rows[0].lowest_score) || null,
+        highest_score: parseFloat(stats.rows[0].highest_score) || null,
+        improvement_percent: improvementPercent,
+        first_session: stats.rows[0].first_session,
+        last_session: stats.rows[0].last_session,
+      },
+      by_category: byCategory.rows,
+      sessions: parsed,
+    });
+  } catch (err) {
+    console.error('Get candidate coaching history error:', err);
+    res.status(500).json({ error: 'Failed to fetch coaching history' });
+  }
+});
+
 module.exports = router;

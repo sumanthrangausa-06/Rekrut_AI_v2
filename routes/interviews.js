@@ -812,6 +812,91 @@ router.get('/practice/progress', authMiddleware, async (req, res) => {
   }
 });
 
+// =============== COACHING SESSION HISTORY ===============
+
+// Get all coaching sessions with full feedback data
+router.get('/practice/sessions', authMiddleware, async (req, res) => {
+  try {
+    const { limit = 20, offset = 0, category } = req.query;
+
+    let whereClause = 'WHERE user_id = $1';
+    const params = [req.user.id];
+
+    if (category && category !== 'all') {
+      params.push(category);
+      whereClause += ` AND category = $${params.length}`;
+    }
+
+    const sessions = await pool.query(
+      `SELECT
+        id, question_id, question, category, response_text, score,
+        coaching_data, response_type, transcription,
+        audio_analysis, video_analysis, duration_seconds, created_at
+       FROM practice_sessions
+       ${whereClause}
+       ORDER BY created_at DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, Number(limit), Number(offset)]
+    );
+
+    const total = await pool.query(
+      `SELECT COUNT(*) as count FROM practice_sessions ${whereClause}`,
+      params
+    );
+
+    // Parse JSONB fields
+    const parsed = sessions.rows.map(row => ({
+      ...row,
+      coaching_data: typeof row.coaching_data === 'string' ? JSON.parse(row.coaching_data) : row.coaching_data,
+      audio_analysis: typeof row.audio_analysis === 'string' ? JSON.parse(row.audio_analysis) : row.audio_analysis,
+      video_analysis: typeof row.video_analysis === 'string' ? JSON.parse(row.video_analysis) : row.video_analysis,
+    }));
+
+    res.json({
+      success: true,
+      sessions: parsed,
+      total: parseInt(total.rows[0].count),
+      has_more: (Number(offset) + parsed.length) < parseInt(total.rows[0].count)
+    });
+  } catch (err) {
+    console.error('Get practice sessions error:', err);
+    res.status(500).json({ error: 'Failed to fetch coaching sessions' });
+  }
+});
+
+// Get single coaching session detail
+router.get('/practice/sessions/:id', authMiddleware, async (req, res) => {
+  try {
+    const session = await pool.query(
+      `SELECT
+        id, question_id, question, category, response_text, score,
+        coaching_data, response_type, transcription,
+        audio_analysis, video_analysis, duration_seconds, created_at
+       FROM practice_sessions
+       WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id]
+    );
+
+    if (session.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const row = session.rows[0];
+    res.json({
+      success: true,
+      session: {
+        ...row,
+        coaching_data: typeof row.coaching_data === 'string' ? JSON.parse(row.coaching_data) : row.coaching_data,
+        audio_analysis: typeof row.audio_analysis === 'string' ? JSON.parse(row.audio_analysis) : row.audio_analysis,
+        video_analysis: typeof row.video_analysis === 'string' ? JSON.parse(row.video_analysis) : row.video_analysis,
+      }
+    });
+  } catch (err) {
+    console.error('Get practice session detail error:', err);
+    res.status(500).json({ error: 'Failed to fetch session details' });
+  }
+});
+
 // =============== VIDEO ANALYSIS ===============
 
 // Save video analysis data
