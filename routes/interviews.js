@@ -1,7 +1,8 @@
 const express = require('express');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
-const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching, analyzeVideoInterviewResponse } = require('../lib/polsia-ai');
+const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching, analyzeVideoInterviewResponse, generateQuestionBank, conductInterviewTurn, generateSessionFeedback } = require('../lib/polsia-ai');
+const crypto = require('crypto');
 const omniscoreService = require('../services/omniscore');
 const multer = require('multer');
 const fetch = require('node-fetch');
@@ -993,6 +994,401 @@ router.get('/:id/analysis', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Get analysis error:', err);
     res.status(500).json({ error: 'Failed to fetch analysis' });
+  }
+});
+
+// =============== MOCK INTERVIEW SESSIONS (Dynamic AI Interviewer) ===============
+
+// Helper: hash JD for dedup
+function hashJD(text) {
+  if (!text) return null;
+  return crypto.createHash('sha256').update(text.trim().toLowerCase()).digest('hex').substring(0, 16);
+}
+
+// Start a mock interview session — generates or pulls questions for the role
+router.post('/mock/start', authMiddleware, async (req, res) => {
+  try {
+    const { target_role, job_description } = req.body;
+
+    if (!target_role || target_role.trim().length < 2) {
+      return res.status(400).json({ error: 'Please enter a target role (e.g., "Software Engineer", "Product Manager")' });
+    }
+
+    const role = target_role.trim();
+    const jdHash = hashJD(job_description);
+
+    // Check if we already have questions in the bank for this role/JD combo
+    let bankQuestions;
+    const existing = await pool.query(
+      `SELECT * FROM question_bank WHERE LOWER(role) = LOWER($1) ${jdHash ? 'AND jd_hash = $2' : 'AND jd_hash IS NULL'}
+       ORDER BY RANDOM()`,
+      jdHash ? [role, jdHash] : [role]
+    );
+
+    if (existing.rows.length >= 8) {
+      // Use existing bank — pick random 8-10
+      bankQuestions = existing.rows.slice(0, Math.min(10, existing.rows.length));
+      console.log(`[mock] Found ${existing.rows.length} existing questions for "${role}", using ${bankQuestions.length}`);
+    } else {
+      // Generate new question bank
+      console.log(`[mock] Generating new question bank for "${role}"...`);
+      const generated = await generateQuestionBank(role, job_description, {
+        subscriptionId: req.user.stripe_subscription_id
+      });
+
+      if (!generated || !Array.isArray(generated) || generated.length === 0) {
+        return res.status(500).json({ error: 'Failed to generate questions. Please try again.' });
+      }
+
+      // Store in question_bank
+      const insertedIds = [];
+      for (const q of generated) {
+        try {
+          const result = await pool.query(
+            `INSERT INTO question_bank (role, jd_hash, skills, question_text, question_type, difficulty, key_points)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             RETURNING id`,
+            [
+              role,
+              jdHash,
+              q.skills_tested || [],
+              q.question_text,
+              q.question_type || 'behavioral',
+              q.difficulty || 'medium',
+              q.key_points || []
+            ]
+          );
+          insertedIds.push(result.rows[0].id);
+        } catch (insertErr) {
+          console.error('[mock] Failed to insert question:', insertErr.message);
+        }
+      }
+
+      console.log(`[mock] Stored ${insertedIds.length} questions in bank`);
+
+      // Pull 8-10 random from what we just inserted
+      const freshQuestions = await pool.query(
+        `SELECT * FROM question_bank WHERE id = ANY($1) ORDER BY RANDOM() LIMIT 10`,
+        [insertedIds]
+      );
+      bankQuestions = freshQuestions.rows;
+    }
+
+    if (!bankQuestions || bankQuestions.length === 0) {
+      return res.status(500).json({ error: 'No questions available. Please try again.' });
+    }
+
+    // Create mock interview session
+    const questionIds = bankQuestions.map(q => q.id);
+
+    // Build opening message from the AI interviewer
+    const openingMessage = {
+      role: 'interviewer',
+      text: `Hi! Thanks for joining this mock interview for the ${role} position. I'll be asking you a series of questions to assess your fit. Take your time with each answer — I may ask follow-ups based on what you share. Let's get started.\n\n${bankQuestions[0].question_text}`,
+      action: 'transition',
+      timestamp: new Date().toISOString()
+    };
+
+    const session = await pool.query(
+      `INSERT INTO mock_interview_sessions
+       (user_id, target_role, job_description, jd_hash, question_ids, conversation, current_question_index, questions_asked)
+       VALUES ($1, $2, $3, $4, $5, $6, 1, 1)
+       RETURNING *`,
+      [
+        req.user.id,
+        role,
+        job_description || null,
+        jdHash,
+        questionIds,
+        JSON.stringify([openingMessage])
+      ]
+    );
+
+    // Increment times_used for first question
+    await pool.query('UPDATE question_bank SET times_used = times_used + 1 WHERE id = $1', [bankQuestions[0].id]);
+
+    res.json({
+      success: true,
+      session: session.rows[0],
+      questions_count: bankQuestions.length,
+      first_message: openingMessage
+    });
+  } catch (err) {
+    console.error('Start mock interview error:', err);
+    res.status(500).json({ error: 'Failed to start mock interview' });
+  }
+});
+
+// Submit a response in a mock interview — AI responds conversationally
+router.post('/mock/:sessionId/respond', authMiddleware, async (req, res) => {
+  try {
+    const { response_text } = req.body;
+    const sessionId = req.params.sessionId;
+
+    if (!response_text || response_text.trim().length < 10) {
+      return res.status(400).json({ error: 'Response too short. Please elaborate on your answer.' });
+    }
+
+    // Get session
+    const sessionResult = await pool.query(
+      'SELECT * FROM mock_interview_sessions WHERE id = $1 AND user_id = $2 AND status = $3',
+      [sessionId, req.user.id, 'in_progress']
+    );
+
+    if (sessionResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found or already completed' });
+    }
+
+    const session = sessionResult.rows[0];
+    const conversation = session.conversation || [];
+    const questionIds = session.question_ids || [];
+
+    // Get base questions from bank
+    const questionsResult = await pool.query(
+      'SELECT * FROM question_bank WHERE id = ANY($1)',
+      [questionIds]
+    );
+    // Maintain order from questionIds
+    const questionMap = {};
+    questionsResult.rows.forEach(q => { questionMap[q.id] = q; });
+    const baseQuestions = questionIds.map(id => questionMap[id]).filter(Boolean);
+
+    // Add candidate response to conversation
+    const candidateMessage = {
+      role: 'candidate',
+      text: response_text.trim(),
+      timestamp: new Date().toISOString()
+    };
+    conversation.push(candidateMessage);
+
+    // AI generates next interviewer turn
+    const aiTurn = await conductInterviewTurn(
+      conversation,
+      baseQuestions,
+      session.current_question_index,
+      session.target_role,
+      { subscriptionId: req.user.stripe_subscription_id }
+    );
+
+    // Build interviewer message
+    let interviewerText = aiTurn.reaction || '';
+    if (aiTurn.question) {
+      interviewerText += (interviewerText ? '\n\n' : '') + aiTurn.question;
+    }
+
+    const interviewerMessage = {
+      role: 'interviewer',
+      text: interviewerText,
+      action: aiTurn.action || 'transition',
+      score_hint: aiTurn.score_hint || null,
+      notes: aiTurn.notes || null,
+      timestamp: new Date().toISOString()
+    };
+    conversation.push(interviewerMessage);
+
+    // Update session
+    const isWrappingUp = aiTurn.action === 'wrap_up';
+    const isTransition = aiTurn.action === 'transition';
+    const newQuestionIndex = isTransition
+      ? Math.min(session.current_question_index + 1, baseQuestions.length)
+      : session.current_question_index;
+    const newFollowUps = (aiTurn.action === 'follow_up' || aiTurn.action === 'challenge')
+      ? (session.follow_ups_asked || 0) + 1
+      : session.follow_ups_asked || 0;
+
+    // Increment times_used for the new question if transitioning
+    if (isTransition && newQuestionIndex < baseQuestions.length) {
+      const nextQ = baseQuestions[newQuestionIndex];
+      if (nextQ) {
+        await pool.query('UPDATE question_bank SET times_used = times_used + 1 WHERE id = $1', [nextQ.id]);
+      }
+    }
+
+    await pool.query(
+      `UPDATE mock_interview_sessions
+       SET conversation = $1, current_question_index = $2,
+           questions_asked = $3, follow_ups_asked = $4
+       WHERE id = $5`,
+      [
+        JSON.stringify(conversation),
+        newQuestionIndex,
+        isTransition ? (session.questions_asked || 0) + 1 : session.questions_asked || 0,
+        newFollowUps,
+        sessionId
+      ]
+    );
+
+    res.json({
+      success: true,
+      interviewer_message: interviewerMessage,
+      action: aiTurn.action,
+      questions_asked: isTransition ? (session.questions_asked || 0) + 1 : session.questions_asked || 0,
+      is_wrapping_up: isWrappingUp
+    });
+  } catch (err) {
+    console.error('Mock interview respond error:', err);
+    res.status(500).json({ error: 'Failed to process response. Please try again.' });
+  }
+});
+
+// End a mock interview session and get comprehensive feedback
+router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
+  try {
+    const sessionId = req.params.sessionId;
+
+    const sessionResult = await pool.query(
+      'SELECT * FROM mock_interview_sessions WHERE id = $1 AND user_id = $2',
+      [sessionId, req.user.id]
+    );
+
+    if (sessionResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const session = sessionResult.rows[0];
+    const conversation = session.conversation || [];
+
+    if (conversation.length < 3) {
+      return res.status(400).json({ error: 'Not enough conversation to generate feedback. Answer at least one question.' });
+    }
+
+    // Generate comprehensive feedback
+    const feedback = await generateSessionFeedback(
+      conversation,
+      session.target_role,
+      { subscriptionId: req.user.stripe_subscription_id }
+    );
+
+    // Update session as completed
+    await pool.query(
+      `UPDATE mock_interview_sessions
+       SET status = 'completed', overall_score = $1, overall_feedback = $2, completed_at = NOW()
+       WHERE id = $3`,
+      [feedback.overall_score || 5, JSON.stringify(feedback), sessionId]
+    );
+
+    // Also save as a practice_session for stats continuity
+    try {
+      await pool.query(
+        `INSERT INTO practice_sessions
+         (user_id, question_id, question, category, response_text, score, coaching_data, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+        [
+          req.user.id,
+          `mock-${sessionId}`,
+          `Mock Interview: ${session.target_role}`,
+          'mock_interview',
+          conversation.filter(t => t.role === 'candidate').map(t => t.text).join('\n\n'),
+          Math.round(feedback.overall_score || 5),
+          JSON.stringify(feedback)
+        ]
+      );
+    } catch (psErr) {
+      console.error('Failed to save mock session to practice_sessions:', psErr.message);
+    }
+
+    res.json({
+      success: true,
+      feedback,
+      session: {
+        id: session.id,
+        target_role: session.target_role,
+        questions_asked: session.questions_asked,
+        follow_ups_asked: session.follow_ups_asked,
+        duration_minutes: Math.round((Date.now() - new Date(session.started_at).getTime()) / 60000)
+      }
+    });
+  } catch (err) {
+    console.error('End mock interview error:', err);
+    res.status(500).json({ error: 'Failed to generate feedback' });
+  }
+});
+
+// Get mock interview session history
+router.get('/mock/sessions', authMiddleware, async (req, res) => {
+  try {
+    const { limit = 20, offset = 0 } = req.query;
+
+    const sessions = await pool.query(
+      `SELECT id, target_role, status, overall_score, questions_asked, follow_ups_asked,
+              started_at, completed_at,
+              EXTRACT(EPOCH FROM (COALESCE(completed_at, NOW()) - started_at)) / 60 as duration_minutes
+       FROM mock_interview_sessions
+       WHERE user_id = $1
+       ORDER BY started_at DESC
+       LIMIT $2 OFFSET $3`,
+      [req.user.id, Number(limit), Number(offset)]
+    );
+
+    const total = await pool.query(
+      'SELECT COUNT(*) as count FROM mock_interview_sessions WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    res.json({
+      success: true,
+      sessions: sessions.rows,
+      total: parseInt(total.rows[0].count)
+    });
+  } catch (err) {
+    console.error('Get mock sessions error:', err);
+    res.status(500).json({ error: 'Failed to fetch sessions' });
+  }
+});
+
+// Get single mock interview session with full conversation
+router.get('/mock/sessions/:id', authMiddleware, async (req, res) => {
+  try {
+    const session = await pool.query(
+      `SELECT * FROM mock_interview_sessions WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id]
+    );
+
+    if (session.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    res.json({ success: true, session: session.rows[0] });
+  } catch (err) {
+    console.error('Get mock session error:', err);
+    res.status(500).json({ error: 'Failed to fetch session' });
+  }
+});
+
+// Get question bank stats (for admin/debugging)
+router.get('/mock/question-bank', authMiddleware, async (req, res) => {
+  try {
+    const { role } = req.query;
+
+    let whereClause = '';
+    const params = [];
+    if (role) {
+      params.push(role);
+      whereClause = 'WHERE LOWER(role) = LOWER($1)';
+    }
+
+    const stats = await pool.query(
+      `SELECT role, question_type, COUNT(*) as count, AVG(avg_score) as avg_score
+       FROM question_bank ${whereClause}
+       GROUP BY role, question_type
+       ORDER BY role, question_type`,
+      params
+    );
+
+    const totalQuestions = await pool.query(
+      `SELECT COUNT(*) as total, COUNT(DISTINCT role) as roles FROM question_bank ${whereClause}`,
+      params
+    );
+
+    res.json({
+      success: true,
+      bank_stats: stats.rows,
+      total_questions: parseInt(totalQuestions.rows[0].total),
+      total_roles: parseInt(totalQuestions.rows[0].roles)
+    });
+  } catch (err) {
+    console.error('Get question bank error:', err);
+    res.status(500).json({ error: 'Failed to fetch question bank' });
   }
 });
 
