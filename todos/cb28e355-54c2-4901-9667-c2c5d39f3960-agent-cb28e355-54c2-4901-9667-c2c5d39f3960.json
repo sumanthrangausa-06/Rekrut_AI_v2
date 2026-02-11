@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Create tts_cache migration table",
+    "status": "completed",
+    "activeForm": "Creating tts_cache migration table"
+  },
+  {
+    "content": "Add TTS caching to textToSpeech and /mock/tts endpoint",
+    "status": "completed",
+    "activeForm": "Adding TTS caching to textToSpeech and /mock/tts endpoint"
+  },
+  {
+    "content": "Deploy and verify TTS works with cache",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying TTS cache"
+  },
+  {
+    "content": "Report daily token limit issue to Polsia platform",
+    "status": "pending",
+    "activeForm": "Reporting daily token limit issue"
+  }
+]
