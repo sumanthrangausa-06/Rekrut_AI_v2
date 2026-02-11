@@ -58,6 +58,8 @@ import { RecruiterOmniScorePage } from '@/pages/recruiter/omniscore'
 import { TestCameraPage } from '@/pages/test-camera'
 
 // Admin
+import { AdminLoginPage } from '@/pages/admin/login'
+import { AdminAuthGuard } from '@/components/admin-auth-guard'
 import { AiHealthPage } from '@/pages/admin/ai-health'
 
 function RoleRedirect() {
@@ -123,8 +125,9 @@ function AppRoutes() {
         <Route index element={<PlaceholderPage />} />
       </Route>
 
-      {/* Admin routes (no auth required) */}
-      <Route path="/admin/ai-health" element={<AiHealthPage />} />
+      {/* Admin routes — login is public, everything else requires auth */}
+      <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin/ai-health" element={<AdminAuthGuard><AiHealthPage /></AdminAuthGuard>} />
 
       {/* Catch all */}
       <Route path="*" element={<Navigate to="/" replace />} />
