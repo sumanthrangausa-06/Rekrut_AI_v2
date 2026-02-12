@@ -1,0 +1,284 @@
+     1→// OmniScore Service - Candidate Credit Score Calculation
+     2→const pool = require('../lib/db');
+     3→
+     4→// Score ranges and tiers
+     5→const SCORE_RANGES = {
+     6→  MIN: 300,
+     7→  MAX: 850,
+     8→  TIERS: {
+     9→    exceptional: { min: 800, max: 850, label: 'Exceptional' },
+    10→    excellent: { min: 740, max: 799, label: 'Excellent' },
+    11→    good: { min: 670, max: 739, label: 'Good' },
+    12→    fair: { min: 580, max: 669, label: 'Fair' },
+    13→    needs_work: { min: 300, max: 579, label: 'Needs Work' }
+    14→  }
+    15→};
+    16→
+    17→// Score component weights (total = 850 max)
+    18→const COMPONENT_WEIGHTS = {
+    19→  interview: { max: 200, weight: 0.24 },    // Interview performance
+    20→  technical: { max: 200, weight: 0.24 },    // Technical assessments
+    21→  resume: { max: 200, weight: 0.24 },       // Resume quality
+    22→  behavior: { max: 250, weight: 0.29 }      // Platform behavior & consistency
+    23→};
+    24→
+    25→// Get or create OmniScore for a user
+    26→async function getOrCreateScore(userId) {
+    27→  const existing = await pool.query(
+    28→    'SELECT * FROM omni_scores WHERE user_id = $1',
+    29→    [userId]
+    30→  );
+    31→
+    32→  if (existing.rows.length > 0) {
+    33→    return existing.rows[0];
+    34→  }
+    35→
+    36→  // Create new score entry
+    37→  const result = await pool.query(
+    38→    `INSERT INTO omni_scores (user_id, total_score, score_tier)
+    39→     VALUES ($1, $2, 'new')
+    40→     RETURNING *`,
+    41→    [userId, SCORE_RANGES.MIN]
+    42→  );
+    43→
+    44→  return result.rows[0];
+    45→}
+    46→
+    47→// Calculate total OmniScore from components
+    48→async function calculateScore(userId) {
+    49→  // Get all non-expired components with time decay applied
+    50→  const components = await pool.query(`
+    51→    SELECT component_type,
+    52→           SUM(points * POWER(decay_rate, EXTRACT(DAYS FROM NOW() - created_at) / 30)) as decayed_points,
+    53→           SUM(max_points) as max_points
+    54→    FROM score_components
+    55→    WHERE user_id = $1
+    56→      AND (expires_at IS NULL OR expires_at > NOW())
+    57→    GROUP BY component_type
+    58→  `, [userId]);
+    59→
+    60→  const scores = {
+    61→    interview: 0,
+    62→    technical: 0,
+    63→    resume: 0,
+    64→    behavior: 0
+    65→  };
+    66→
+    67→  // Calculate each component score
+    68→  for (const comp of components.rows) {
+    69→    const type = comp.component_type;
+    70→    if (scores.hasOwnProperty(type)) {
+    71→      const maxForType = COMPONENT_WEIGHTS[type].max;
+    72→      const ratio = Math.min(1, comp.decayed_points / (comp.max_points || 1));
+    73→      scores[type] = Math.round(ratio * maxForType);
+    74→    }
+    75→  }
+    76→
+    77→  // Calculate total (base 300 + components up to 550 more = 850 max)
+    78→  const componentTotal = scores.interview + scores.technical + scores.resume + scores.behavior;
+    79→  const total = Math.min(SCORE_RANGES.MAX, SCORE_RANGES.MIN + componentTotal);
+    80→
+    81→  // Determine tier
+    82→  let tier = 'needs_work';
+    83→  for (const [key, range] of Object.entries(SCORE_RANGES.TIERS)) {
+    84→    if (total >= range.min && total <= range.max) {
+    85→      tier = key;
+    86→      break;
+    87→    }
+    88→  }
+    89→
+    90→  // Update the score
+    91→  await pool.query(`
+    92→    UPDATE omni_scores SET
+    93→      total_score = $1,
+    94→      interview_score = $2,
+    95→      technical_score = $3,
+    96→      resume_score = $4,
+    97→      behavior_score = $5,
+    98→      score_tier = $6,
+    99→      last_updated = NOW()
+   100→    WHERE user_id = $7
+   101→  `, [total, scores.interview, scores.technical, scores.resume, scores.behavior, tier, userId]);
+   102→
+   103→  return {
+   104→    total_score: total,
+   105→    ...scores,
+   106→    tier,
+   107→    tier_label: SCORE_RANGES.TIERS[tier]?.label || 'New'
+   108→  };
+   109→}
+   110→
+   111→// Add score component from interview completion
+   112→async function addInterviewComponent(userId, interviewId, score, maxScore = 10) {
+   113→  // Convert 1-10 score to points (max 40 points per interview, up to 5 interviews = 200 max)
+   114→  const points = Math.round((score / maxScore) * 40);
+   115→
+   116→  await pool.query(`
+   117→    INSERT INTO score_components (user_id, component_type, source_type, source_id, points, max_points)
+   118→    VALUES ($1, 'interview', 'interview', $2, $3, 40)
+   119→  `, [userId, interviewId, points]);
+   120→
+   121→  // Record history
+   122→  const oldScore = await getOrCreateScore(userId);
+   123→  const newScoreData = await calculateScore(userId);
+   124→
+   125→  await pool.query(`
+   126→    INSERT INTO score_history (user_id, previous_score, new_score, change_amount, change_reason, component_type)
+   127→    VALUES ($1, $2, $3, $4, $5, 'interview')
+   128→  `, [userId, oldScore.total_score, newScoreData.total_score, newScoreData.total_score - oldScore.total_score, 'Completed mock interview']);
+   129→
+   130→  // Update role-specific score if job_title is provided
+   131→  return newScoreData;
+   132→}
+   133→
+   134→// Add behavior component (for platform activity)
+   135→async function addBehaviorComponent(userId, reason, points, maxPoints = 10) {
+   136→  await pool.query(`
+   137→    INSERT INTO score_components (user_id, component_type, source_type, points, max_points, metadata)
+   138→    VALUES ($1, 'behavior', 'activity', $2, $3, $4)
+   139→  `, [userId, points, maxPoints, JSON.stringify({ reason })]);
+   140→
+   141→  return await calculateScore(userId);
+   142→}
+   143→
+   144→// Get score breakdown for display
+   145→async function getScoreBreakdown(userId) {
+   146→  const score = await getOrCreateScore(userId);
+   147→
+   148→  // Get recent components
+   149→  const recentComponents = await pool.query(`
+   150→    SELECT component_type, source_type, points, max_points, created_at
+   151→    FROM score_components
+   152→    WHERE user_id = $1
+   153→    ORDER BY created_at DESC
+   154→    LIMIT 20
+   155→  `, [userId]);
+   156→
+   157→  // Get score history
+   158→  const history = await pool.query(`
+   159→    SELECT previous_score, new_score, change_amount, change_reason, created_at
+   160→    FROM score_history
+   161→    WHERE user_id = $1
+   162→    ORDER BY created_at DESC
+   163→    LIMIT 10
+   164→  `, [userId]);
+   165→
+   166→  // Calculate current scores with decay
+   167→  const currentScores = await calculateScore(userId);
+   168→
+   169→  return {
+   170→    current: currentScores,
+   171→    breakdown: {
+   172→      interview: {
+   173→        score: currentScores.interview,
+   174→        max: COMPONENT_WEIGHTS.interview.max,
+   175→        label: 'Interview Performance',
+   176→        description: 'Based on your mock interview scores'
+   177→      },
+   178→      technical: {
+   179→        score: currentScores.technical,
+   180→        max: COMPONENT_WEIGHTS.technical.max,
+   181→        label: 'Technical Ability',
+   182→        description: 'Based on skill assessments'
+   183→      },
+   184→      resume: {
+   185→        score: currentScores.resume,
+   186→        max: COMPONENT_WEIGHTS.resume.max,
+   187→        label: 'Resume Quality',
+   188→        description: 'Based on resume analysis'
+   189→      },
+   190→      behavior: {
+   191→        score: currentScores.behavior,
+   192→        max: COMPONENT_WEIGHTS.behavior.max,
+   193→        label: 'Platform Activity',
+   194→        description: 'Based on consistent engagement'
+   195→      }
+   196→    },
+   197→    recent_activity: recentComponents.rows,
+   198→    history: history.rows,
+   199→    recommendations: generateRecommendations(currentScores)
+   200→  };
+   201→}
+   202→
+   203→// Generate improvement recommendations
+   204→function generateRecommendations(scores) {
+   205→  const recommendations = [];
+   206→
+   207→  if (scores.interview < COMPONENT_WEIGHTS.interview.max * 0.6) {
+   208→    recommendations.push({
+   209→      type: 'interview',
+   210→      priority: 'high',
+   211→      title: 'Complete More Mock Interviews',
+   212→      description: 'Your interview score could improve significantly. Complete 3-5 more mock interviews to boost your OmniScore.',
+   213→      potential_gain: Math.round(COMPONENT_WEIGHTS.interview.max * 0.3)
+   214→    });
+   215→  }
+   216→
+   217→  if (scores.behavior < COMPONENT_WEIGHTS.behavior.max * 0.5) {
+   218→    recommendations.push({
+   219→      type: 'behavior',
+   220→      priority: 'medium',
+   221→      title: 'Stay Active on Platform',
+   222→      description: 'Regular activity boosts your score. Log in daily and complete at least one practice session per week.',
+   223→      potential_gain: Math.round(COMPONENT_WEIGHTS.behavior.max * 0.2)
+   224→    });
+   225→  }
+   226→
+   227→  if (scores.technical < COMPONENT_WEIGHTS.technical.max * 0.5) {
+   228→    recommendations.push({
+   229→      type: 'technical',
+   230→      priority: 'medium',
+   231→      title: 'Take Skill Assessments',
+   232→      description: 'Complete role-specific skill assessments to prove your technical abilities.',
+   233→      potential_gain: Math.round(COMPONENT_WEIGHTS.technical.max * 0.4)
+   234→    });
+   235→  }
+   236→
+   237→  return recommendations;
+   238→}
+   239→
+   240→// Get role-specific scores
+   241→async function getRoleScores(userId) {
+   242→  const result = await pool.query(`
+   243→    SELECT role_name, score, interview_count, last_updated
+   244→    FROM role_scores
+   245→    WHERE user_id = $1
+   246→    ORDER BY score DESC
+   247→  `, [userId]);
+   248→
+   249→  return result.rows;
+   250→}
+   251→
+   252→// Update role-specific score
+   253→async function updateRoleScore(userId, roleName, interviewScore) {
+   254→  // Upsert role score
+   255→  const result = await pool.query(`
+   256→    INSERT INTO role_scores (user_id, role_name, score, interview_count)
+   257→    VALUES ($1, $2, $3, 1)
+   258→    ON CONFLICT (user_id, role_name) DO UPDATE SET
+   259→      score = GREATEST(role_scores.score, EXCLUDED.score),
+   260→      interview_count = role_scores.interview_count + 1,
+   261→      last_updated = NOW()
+   262→    RETURNING *
+   263→  `, [userId, roleName, SCORE_RANGES.MIN + Math.round((interviewScore / 10) * 550)]);
+   264→
+   265→  return result.rows[0];
+   266→}
+   267→
+   268→module.exports = {
+   269→  SCORE_RANGES,
+   270→  COMPONENT_WEIGHTS,
+   271→  getOrCreateScore,
+   272→  calculateScore,
+   273→  addInterviewComponent,
+   274→  addBehaviorComponent,
+   275→  getScoreBreakdown,
+   276→  generateRecommendations,
+   277→  getRoleScores,
+   278→  updateRoleScore
+   279→};
+   280→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

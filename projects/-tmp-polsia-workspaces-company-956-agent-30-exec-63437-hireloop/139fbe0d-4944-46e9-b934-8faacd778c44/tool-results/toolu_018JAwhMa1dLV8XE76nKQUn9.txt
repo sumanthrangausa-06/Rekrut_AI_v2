@@ -1,0 +1,219 @@
+     1→// MemGPT-Style AI Memory Service
+     2→// Stores and retrieves AI-extracted insights per user across all sessions
+     3→const pool = require('../lib/db');
+     4→
+     5→// Memory types for categorization
+     6→const MEMORY_TYPES = {
+     7→  OBSERVATION: 'observation',      // "User prefers remote roles"
+     8→  PREFERENCE: 'preference',        // "Likes fintech companies"
+     9→  BEHAVIOR: 'behavior',            // "Always applies within 24hrs"
+    10→  SKILL_INSIGHT: 'skill_insight',  // "Strong in React, learning Go"
+    11→  CAREER_GOAL: 'career_goal',      // "Wants to transition to management"
+    12→  INTERACTION: 'interaction',      // "Applied to 3 jobs at TechCorp"
+    13→  RECRUITER_PATTERN: 'recruiter_pattern' // "Typically hires 5+ years exp"
+    14→};
+    15→
+    16→/**
+    17→ * Add or update a memory entry for a user
+    18→ */
+    19→async function addMemory(userId, { type, key, value, source, confidence }) {
+    20→  try {
+    21→    const result = await pool.query(`
+    22→      INSERT INTO user_memory (user_id, memory_type, memory_key, memory_value, source, confidence)
+    23→      VALUES ($1, $2, $3, $4, $5, $6)
+    24→      ON CONFLICT (user_id, memory_key) WHERE memory_key IS NOT NULL
+    25→      DO UPDATE SET
+    26→        memory_value = EXCLUDED.memory_value,
+    27→        confidence = GREATEST(user_memory.confidence, EXCLUDED.confidence),
+    28→        access_count = user_memory.access_count + 1,
+    29→        updated_at = NOW()
+    30→      RETURNING *
+    31→    `, [userId, type || 'observation', key, value, source || 'system', confidence || 0.80]);
+    32→
+    33→    return result.rows[0];
+    34→  } catch (err) {
+    35→    // If unique constraint doesn't exist, just insert
+    36→    if (err.code === '42P10' || err.code === '23505') {
+    37→      const result = await pool.query(`
+    38→        INSERT INTO user_memory (user_id, memory_type, memory_key, memory_value, source, confidence)
+    39→        VALUES ($1, $2, $3, $4, $5, $6)
+    40→        RETURNING *
+    41→      `, [userId, type || 'observation', key, value, source || 'system', confidence || 0.80]);
+    42→      return result.rows[0];
+    43→    }
+    44→    console.error('Add memory error:', err.message);
+    45→    return null;
+    46→  }
+    47→}
+    48→
+    49→/**
+    50→ * Get all memories for a user, optionally filtered by type
+    51→ */
+    52→async function getMemories(userId, { type, limit = 50 } = {}) {
+    53→  try {
+    54→    let query = `
+    55→      SELECT * FROM user_memory
+    56→      WHERE user_id = $1
+    57→    `;
+    58→    const params = [userId];
+    59→
+    60→    if (type) {
+    61→      query += ` AND memory_type = $2`;
+    62→      params.push(type);
+    63→    }
+    64→
+    65→    query += ` ORDER BY confidence DESC, updated_at DESC LIMIT $${params.length + 1}`;
+    66→    params.push(limit);
+    67→
+    68→    const result = await pool.query(query, params);
+    69→
+    70→    // Update access counts
+    71→    if (result.rows.length > 0) {
+    72→      const ids = result.rows.map(r => r.id);
+    73→      await pool.query(`
+    74→        UPDATE user_memory SET access_count = access_count + 1, last_accessed = NOW()
+    75→        WHERE id = ANY($1)
+    76→      `, [ids]);
+    77→    }
+    78→
+    79→    return result.rows;
+    80→  } catch (err) {
+    81→    console.error('Get memories error:', err.message);
+    82→    return [];
+    83→  }
+    84→}
+    85→
+    86→/**
+    87→ * Build memory context string for AI prompts
+    88→ */
+    89→async function buildMemoryContext(userId) {
+    90→  const memories = await getMemories(userId, { limit: 20 });
+    91→  if (memories.length === 0) return '';
+    92→
+    93→  const grouped = {};
+    94→  for (const m of memories) {
+    95→    const type = m.memory_type || 'observation';
+    96→    if (!grouped[type]) grouped[type] = [];
+    97→    grouped[type].push(m.memory_value);
+    98→  }
+    99→
+   100→  let context = 'User context from previous interactions:\n';
+   101→  for (const [type, values] of Object.entries(grouped)) {
+   102→    context += `\n${type.replace(/_/g, ' ').toUpperCase()}:\n`;
+   103→    values.forEach(v => { context += `- ${v}\n`; });
+   104→  }
+   105→
+   106→  return context;
+   107→}
+   108→
+   109→/**
+   110→ * Extract and store memories from an application submission
+   111→ */
+   112→async function extractFromApplication(userId, applicationData) {
+   113→  const memories = [];
+   114→
+   115→  if (applicationData.job_type) {
+   116→    memories.push({
+   117→      type: MEMORY_TYPES.PREFERENCE,
+   118→      key: `preferred_job_type_${applicationData.job_type}`,
+   119→      value: `Applied to ${applicationData.job_type} position`,
+   120→      source: 'application'
+   121→    });
+   122→  }
+   123→
+   124→  if (applicationData.salary_expectation) {
+   125→    memories.push({
+   126→      type: MEMORY_TYPES.PREFERENCE,
+   127→      key: 'salary_expectation',
+   128→      value: `Salary expectation: $${applicationData.salary_expectation}`,
+   129→      source: 'application'
+   130→    });
+   131→  }
+   132→
+   133→  if (applicationData.location) {
+   134→    memories.push({
+   135→      type: MEMORY_TYPES.PREFERENCE,
+   136→      key: `location_preference_${applicationData.location.toLowerCase().replace(/\s+/g, '_')}`,
+   137→      value: `Interested in jobs in ${applicationData.location}`,
+   138→      source: 'application'
+   139→    });
+   140→  }
+   141→
+   142→  if (applicationData.remote_preference) {
+   143→    memories.push({
+   144→      type: MEMORY_TYPES.PREFERENCE,
+   145→      key: 'remote_preference',
+   146→      value: `Prefers ${applicationData.remote_preference} work arrangement`,
+   147→      source: 'application'
+   148→    });
+   149→  }
+   150→
+   151→  if (applicationData.company) {
+   152→    memories.push({
+   153→      type: MEMORY_TYPES.INTERACTION,
+   154→      key: `applied_to_${applicationData.company.toLowerCase().replace(/\s+/g, '_')}`,
+   155→      value: `Applied to ${applicationData.job_title || 'position'} at ${applicationData.company}`,
+   156→      source: 'application'
+   157→    });
+   158→  }
+   159→
+   160→  for (const mem of memories) {
+   161→    await addMemory(userId, mem);
+   162→  }
+   163→
+   164→  return memories.length;
+   165→}
+   166→
+   167→/**
+   168→ * Extract and store memories from recruiter actions
+   169→ */
+   170→async function extractFromRecruiterAction(recruiterId, action) {
+   171→  const memories = [];
+   172→
+   173→  if (action.type === 'job_posted') {
+   174→    memories.push({
+   175→      type: MEMORY_TYPES.RECRUITER_PATTERN,
+   176→      key: `posting_pattern_${action.job_type || 'general'}`,
+   177→      value: `Posted ${action.job_type || 'general'} role: ${action.job_title}`,
+   178→      source: 'job_posting'
+   179→    });
+   180→  }
+   181→
+   182→  if (action.type === 'candidate_advanced') {
+   183→    memories.push({
+   184→      type: MEMORY_TYPES.RECRUITER_PATTERN,
+   185→      key: `advancement_pattern`,
+   186→      value: `Advanced candidate with ${action.experience_years || 'N/A'} years experience for ${action.job_title}`,
+   187→      source: 'pipeline_action'
+   188→    });
+   189→  }
+   190→
+   191→  if (action.type === 'candidate_feedback') {
+   192→    memories.push({
+   193→      type: MEMORY_TYPES.RECRUITER_PATTERN,
+   194→      key: `feedback_pattern_${action.feedback_type}`,
+   195→      value: `Gave ${action.feedback_type} feedback on candidate for ${action.job_title}`,
+   196→      source: 'feedback'
+   197→    });
+   198→  }
+   199→
+   200→  for (const mem of memories) {
+   201→    await addMemory(recruiterId, mem);
+   202→  }
+   203→
+   204→  return memories.length;
+   205→}
+   206→
+   207→module.exports = {
+   208→  MEMORY_TYPES,
+   209→  addMemory,
+   210→  getMemories,
+   211→  buildMemoryContext,
+   212→  extractFromApplication,
+   213→  extractFromRecruiterAction
+   214→};
+   215→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

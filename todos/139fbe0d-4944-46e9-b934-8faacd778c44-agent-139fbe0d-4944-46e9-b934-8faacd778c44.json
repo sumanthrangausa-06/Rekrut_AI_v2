@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate existing codebase",
+    "status": "completed",
+    "activeForm": "Investigating existing codebase"
+  },
+  {
+    "content": "Phase 8: Backend — AI Candidate Agents (smart search, match explanation, app review, resume score)",
+    "status": "completed",
+    "activeForm": "Building candidate AI agent backends"
+  },
+  {
+    "content": "Phase 9: Backend — AI Recruiter Agents (candidate comparison, pipeline automation, feedback loop)",
+    "status": "in_progress",
+    "activeForm": "Building recruiter AI agent backends"
+  },
+  {
+    "content": "Phase 10-11: Frontend — Wire AI features into React candidate + recruiter pages",
+    "status": "pending",
+    "activeForm": "Wiring AI into React frontend"
+  },
+  {
+    "content": "Deploy + E2E verification",
+    "status": "pending",
+    "activeForm": "Deploying and verifying"
+  }
+]

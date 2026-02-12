@@ -1,0 +1,30 @@
+0abfe6f Agent changes
+136cbe7 Phase 3-4: Frontend — match breakdown, OmniScore trend, recruiter auto-fill + feedback
+3235906 Phase 1-2: Smart Profile backend — AI memory, auto-fill, screening answers, question bank
+380d6b8 Agent changes
+3c590dc Phase 2: Update React SPA build with full candidate + recruiter UI
+5f0647c Agent changes
+b2ec3bb Phase 1: Audit report + fix missing backend features
+afea695 Agent changes
+c39d075 Phase 5: AI Profile Tips, AI Candidate Summary, AI Question Suggestions + Question Bank
+d5e087e Agent changes
+83fb032 Phase 3: Frontend — smart dashboards, AI application features, auto-fill
+bdbd29b Agent changes
+eaa98ce Phase 2: Backend AI endpoints + smart data reuse layer
+13c2098 Agent changes
+b3493c1 Fix: Add AI features to CORRECT React files (not legacy HTML)
+bba4d43 Agent changes
+09d00ba Phase 3: Frontend AI assist buttons for Job Posting
+19220bd Agent changes
+31dbcf3 Phase 1-2: AI audit + add missing Job Posting AI endpoints
+c16bba2 Agent changes
+673e28a Phase 6/7: Frontend candidate — match scores on job board + pipeline progress
+1368a74 Agent changes
+5c2b1e6 Phase 5/7: Frontend recruiter — kanban pipeline board + skills breakdown
+d0a97bd Agent changes
+ea0c718 Phase 4/7: AI matching — skills breakdown, gap analysis, enhanced scoring
+fef26d2 Agent changes
+794c4f6 Phase 3/7: Backend — fix pipeline stages, add validation, activity feed
+4c4cb9a Agent changes
+18e5221 Phase 2/7: ATS best practices research — LinkedIn, Greenhouse, Lever, Ashby, SmartRecruiters
+2222b1b Agent changes
