@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Review existing audit docs + understand current AI infrastructure",
+    "status": "completed",
+    "activeForm": "Reviewing existing audit docs + AI infrastructure"
+  },
+  {
+    "content": "Phase 1: Deep codebase audit — AI gap analysis across ALL modules",
+    "status": "completed",
+    "activeForm": "Auditing all modules for AI integration gaps"
+  },
+  {
+    "content": "Phase 2: Add missing backend AI endpoints (generate JD, suggest skills, suggest title)",
+    "status": "in_progress",
+    "activeForm": "Building missing AI backend endpoints"
+  },
+  {
+    "content": "Phase 3: Enhance frontend with new AI features + Generate button",
+    "status": "pending",
+    "activeForm": "Adding AI Generate/Suggest buttons to frontend"
+  },
+  {
+    "content": "Phase 4: Commit + deploy + verify",
+    "status": "pending",
+    "activeForm": "Deploying and verifying AI features"
+  }
+]
