@@ -852,4 +852,178 @@ router.get('/candidates/:id/coaching', authMiddleware, requireRecruiter, async (
   }
 });
 
+// ============= PIPELINE STAGES =============
+
+// Valid pipeline stages in order
+const PIPELINE_STAGES = ['applied', 'screening', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn'];
+
+// Batch update application status (for bulk actions)
+router.put('/applications/batch-status', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const { application_ids, status } = req.body;
+
+    if (!application_ids || !Array.isArray(application_ids) || application_ids.length === 0) {
+      return res.status(400).json({ error: 'application_ids array required' });
+    }
+
+    if (!status || !PIPELINE_STAGES.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${PIPELINE_STAGES.join(', ')}` });
+    }
+
+    if (application_ids.length > 50) {
+      return res.status(400).json({ error: 'Max 50 applications per batch' });
+    }
+
+    // Verify all applications belong to the company
+    const placeholders = application_ids.map((_, i) => `$${i + 2}`).join(',');
+    const verification = await pool.query(
+      `SELECT id FROM job_applications WHERE company_id = $1 AND id IN (${placeholders})`,
+      [req.user.company_id, ...application_ids]
+    );
+
+    const validIds = verification.rows.map(r => r.id);
+    if (validIds.length === 0) {
+      return res.status(404).json({ error: 'No valid applications found' });
+    }
+
+    // Update all valid applications
+    const updatePlaceholders = validIds.map((_, i) => `$${i + 2}`).join(',');
+    const result = await pool.query(
+      `UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id IN (${updatePlaceholders}) RETURNING *`,
+      [status, ...validIds]
+    );
+
+    // Audit log batch action
+    await AuditLogger.log({
+      actionType: 'batch_status_change',
+      userId: req.user.id,
+      targetType: 'job_applications',
+      targetId: null,
+      metadata: {
+        application_ids: validIds,
+        new_status: status,
+        count: validIds.length
+      },
+      req
+    });
+
+    res.json({
+      success: true,
+      updated: result.rows.length,
+      applications: result.rows
+    });
+  } catch (err) {
+    console.error('Batch status update error:', err);
+    res.status(500).json({ error: 'Failed to update applications' });
+  }
+});
+
+// Get applications grouped by pipeline stage (for kanban view)
+router.get('/pipeline/:jobId', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const jobId = req.params.jobId;
+
+    // Verify job belongs to company
+    const job = await pool.query(
+      'SELECT id, title, status FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+      [jobId, req.user.company_id, req.user.id]
+    );
+
+    if (job.rows.length === 0) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // Get all applications for this job with candidate details
+    const applications = await pool.query(`
+      SELECT ja.*,
+             u.name as candidate_name, u.email as candidate_email,
+             os.total_score as current_omniscore, os.score_tier,
+             (SELECT COUNT(*) FROM skill_assessments sa2 JOIN candidate_skills cs2 ON sa2.skill_id = cs2.id WHERE cs2.user_id = ja.candidate_id AND sa2.passed = true) as verified_skills_count,
+             (SELECT MAX(i2.overall_score) FROM interviews i2 WHERE i2.user_id = ja.candidate_id AND i2.status = 'completed') as best_interview_score
+      FROM job_applications ja
+      JOIN users u ON ja.candidate_id = u.id
+      LEFT JOIN omni_scores os ON u.id = os.user_id
+      WHERE ja.job_id = $1
+      ORDER BY ja.match_score DESC NULLS LAST, ja.applied_at ASC
+    `, [jobId]);
+
+    // Group by pipeline stage
+    const pipeline = {};
+    for (const stage of PIPELINE_STAGES) {
+      pipeline[stage] = [];
+    }
+
+    for (const app of applications.rows) {
+      const stage = PIPELINE_STAGES.includes(app.status) ? app.status : 'applied';
+      pipeline[stage].push(app);
+    }
+
+    // Get stage counts
+    const stageCounts = {};
+    for (const stage of PIPELINE_STAGES) {
+      stageCounts[stage] = pipeline[stage].length;
+    }
+
+    res.json({
+      success: true,
+      job: job.rows[0],
+      pipeline,
+      stage_counts: stageCounts,
+      total: applications.rows.length,
+      stages: PIPELINE_STAGES
+    });
+  } catch (err) {
+    console.error('Get pipeline error:', err);
+    res.status(500).json({ error: 'Failed to get pipeline' });
+  }
+});
+
+// Get ranked candidates for a job (by match score)
+router.get('/jobs/:id/ranked-candidates', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const jobId = req.params.id;
+    const { min_score = 0 } = req.query;
+
+    // Verify job belongs to company
+    const job = await pool.query(
+      'SELECT id, title FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+      [jobId, req.user.company_id, req.user.id]
+    );
+
+    if (job.rows.length === 0) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // Get applications ranked by match score
+    const ranked = await pool.query(`
+      SELECT ja.*,
+             u.name as candidate_name, u.email as candidate_email,
+             os.total_score as current_omniscore, os.score_tier,
+             cp.headline, cp.location as candidate_location, cp.years_experience,
+             (SELECT json_agg(json_build_object('name', cs.skill_name, 'level', cs.level, 'verified', cs.is_verified))
+              FROM candidate_skills cs WHERE cs.user_id = ja.candidate_id) as skills,
+             mr.matching_skills, mr.missing_skills, mr.similarity_score, mr.match_explanation
+      FROM job_applications ja
+      JOIN users u ON ja.candidate_id = u.id
+      LEFT JOIN omni_scores os ON u.id = os.user_id
+      LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+      LEFT JOIN match_results mr ON mr.candidate_id = ja.candidate_id AND mr.job_id = ja.job_id
+      WHERE ja.job_id = $1
+        AND ja.status NOT IN ('withdrawn', 'rejected')
+        AND COALESCE(ja.match_score, 0) >= $2
+      ORDER BY ja.match_score DESC NULLS LAST, os.total_score DESC NULLS LAST
+    `, [jobId, min_score]);
+
+    res.json({
+      success: true,
+      job: job.rows[0],
+      candidates: ranked.rows,
+      total: ranked.rows.length
+    });
+  } catch (err) {
+    console.error('Get ranked candidates error:', err);
+    res.status(500).json({ error: 'Failed to get ranked candidates' });
+  }
+});
+
 module.exports = router;
