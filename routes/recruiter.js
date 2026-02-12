@@ -1533,4 +1533,314 @@ router.put('/offers/:id/withdraw', authMiddleware, requireRecruiter, async (req,
   }
 });
 
+// ============= AI AGENT ENDPOINTS (Phase 4) =============
+
+// AI Candidate Comparison — side-by-side analysis of 2+ candidates
+router.post('/ai/compare-candidates', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const { candidate_ids, job_id } = req.body;
+    if (!candidate_ids || !Array.isArray(candidate_ids) || candidate_ids.length < 2) {
+      return res.status(400).json({ error: 'At least 2 candidate_ids required' });
+    }
+    if (!job_id) return res.status(400).json({ error: 'job_id required' });
+    const { chat } = require('../lib/polsia-ai');
+
+    // Get candidate data for all
+    const candidates = [];
+    for (const cid of candidate_ids.slice(0, 5)) { // Max 5 candidates
+      const data = await pool.query(`
+        SELECT u.name, u.email, cp.headline, cp.location, cp.years_experience, cp.salary_min, cp.salary_max,
+               os.total_score as omniscore, os.score_tier,
+               ja.match_score, ja.status as app_status, ja.cover_letter,
+               (SELECT json_agg(json_build_object('name', cs.skill_name, 'level', cs.level, 'verified', cs.is_verified))
+                FROM candidate_skills cs WHERE cs.user_id = u.id) as skills,
+               (SELECT json_agg(json_build_object('title', we.title, 'company', we.company_name, 'years', EXTRACT(YEAR FROM AGE(COALESCE(we.end_date, NOW()), we.start_date))))
+                FROM work_experience we WHERE we.user_id = u.id ORDER BY we.start_date DESC LIMIT 3) as experience
+        FROM users u
+        LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+        LEFT JOIN omni_scores os ON os.user_id = u.id
+        LEFT JOIN job_applications ja ON ja.candidate_id = u.id AND ja.job_id = $2
+        WHERE u.id = $1
+      `, [cid, job_id]);
+      if (data.rows[0]) candidates.push({ id: cid, ...data.rows[0] });
+    }
+
+    if (candidates.length < 2) return res.status(400).json({ error: 'Need at least 2 valid candidates' });
+
+    // Get job info
+    const job = await pool.query('SELECT title, requirements FROM jobs WHERE id = $1', [job_id]);
+
+    const prompt = `Compare these ${candidates.length} candidates for the ${job.rows[0]?.title || 'position'} role.
+
+${candidates.map((c, i) => `CANDIDATE ${i + 1}: ${c.name}
+- OmniScore: ${c.omniscore || 'N/A'} (${c.score_tier || 'new'})
+- Match Score: ${c.match_score || 'N/A'}
+- Experience: ${c.years_experience || '?'} years
+- Skills: ${(c.skills || []).map(s => `${s.name}${s.verified ? '✓' : ''}`).join(', ') || 'N/A'}
+- Recent Roles: ${(c.experience || []).map(e => `${e.title} at ${e.company}`).join('; ') || 'N/A'}
+- Salary: ${c.salary_min ? `$${c.salary_min}-$${c.salary_max}` : 'N/A'}
+- Location: ${c.location || 'N/A'}
+`).join('\n')}
+
+JOB Requirements: ${job.rows[0]?.requirements?.substring(0, 400) || 'N/A'}
+
+Return JSON:
+{
+  "recommendation": "candidate_id of recommended hire",
+  "ranking": [{ "candidate_id": id, "rank": 1, "overall_score": 0-100 }],
+  "comparison_matrix": {
+    "skills_match": [{ "candidate_id": id, "score": 0-100 }],
+    "experience": [{ "candidate_id": id, "score": 0-100 }],
+    "culture_fit": [{ "candidate_id": id, "score": 0-100 }],
+    "salary_fit": [{ "candidate_id": id, "score": 0-100 }]
+  },
+  "summary": "2-3 sentence comparison summary",
+  "key_differentiators": ["What sets the top candidate apart"],
+  "risks": [{ "candidate_id": id, "risk": "concern" }]
+}
+Only return JSON.`;
+
+    const result = await chat(prompt, {
+      system: 'You are a senior talent acquisition specialist comparing candidates. Be objective and data-driven. Always return valid JSON.'
+    });
+
+    let parsed;
+    try { parsed = JSON.parse(result); } catch { const m = result.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : { error: 'Parse failed' }; }
+    res.json({ success: true, comparison: parsed, candidates: candidates.map(c => ({ id: c.id, name: c.name })) });
+  } catch (err) {
+    console.error('AI compare candidates error:', err);
+    res.status(500).json({ error: 'Failed to compare candidates' });
+  }
+});
+
+// AI Bulk Rank — rank all candidates for a job by OmniScore (uses existing scores, no recalculation)
+router.get('/ai/rank-all/:jobId', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const jobId = req.params.jobId;
+
+    // Verify job belongs to company
+    const job = await pool.query('SELECT id, title FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+      [jobId, req.user.company_id, req.user.id]);
+    if (job.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
+
+    // Get all applicants ranked by composite score (OmniScore + match_score)
+    const ranked = await pool.query(`
+      SELECT ja.id as application_id, ja.candidate_id, ja.match_score, ja.status, ja.applied_at,
+             u.name as candidate_name, u.email,
+             os.total_score as omniscore, os.score_tier,
+             os.interview_score, os.technical_score, os.resume_score, os.behavior_score,
+             cp.headline, cp.years_experience,
+             mr.matching_skills, mr.missing_skills,
+             -- Composite rank: 50% OmniScore + 50% match_score
+             (COALESCE(os.total_score, 300) * 0.5 + COALESCE(ja.match_score, 50) * 0.5 * 8.5) as composite_score
+      FROM job_applications ja
+      JOIN users u ON ja.candidate_id = u.id
+      LEFT JOIN omni_scores os ON os.user_id = u.id
+      LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+      LEFT JOIN match_results mr ON mr.candidate_id = ja.candidate_id AND mr.job_id = ja.job_id
+      WHERE ja.job_id = $1 AND ja.status NOT IN ('withdrawn', 'rejected')
+      ORDER BY composite_score DESC
+    `, [jobId]);
+
+    res.json({
+      success: true,
+      job: job.rows[0],
+      ranked_candidates: ranked.rows.map((r, i) => ({
+        ...r,
+        rank: i + 1,
+        composite_score: Math.round(r.composite_score * 100) / 100,
+        matching_skills: r.matching_skills ? (typeof r.matching_skills === 'string' ? JSON.parse(r.matching_skills) : r.matching_skills) : [],
+        missing_skills: r.missing_skills ? (typeof r.missing_skills === 'string' ? JSON.parse(r.missing_skills) : r.missing_skills) : []
+      })),
+      total: ranked.rows.length
+    });
+  } catch (err) {
+    console.error('AI rank all error:', err);
+    res.status(500).json({ error: 'Failed to rank candidates' });
+  }
+});
+
+// Pipeline Automation Settings — get/set auto-advance rules per job
+router.get('/pipeline/automation/:jobId', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const jobId = req.params.jobId;
+
+    // Verify job belongs to company
+    const job = await pool.query('SELECT id FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+      [jobId, req.user.company_id, req.user.id]);
+    if (job.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
+
+    // Get existing automation rules
+    const rules = await pool.query(`
+      SELECT * FROM pipeline_automation_rules
+      WHERE job_id = $1 AND recruiter_id = $2
+      ORDER BY from_stage
+    `, [jobId, req.user.id]);
+
+    // Default rules if none exist
+    if (rules.rows.length === 0) {
+      res.json({
+        success: true,
+        rules: PIPELINE_STAGES.filter(s => !['rejected', 'withdrawn', 'hired'].includes(s)).map(stage => ({
+          from_stage: stage,
+          to_stage: PIPELINE_STAGES[PIPELINE_STAGES.indexOf(stage) + 1] || stage,
+          auto_advance: false,
+          omniscore_threshold: 600,
+          match_score_threshold: 70,
+          auto_reject: false,
+          auto_reject_threshold: 400,
+        })),
+        enabled: false
+      });
+      return;
+    }
+
+    res.json({ success: true, rules: rules.rows, enabled: rules.rows.some(r => r.auto_advance || r.auto_reject) });
+  } catch (err) {
+    console.error('Get pipeline automation error:', err);
+    res.status(500).json({ error: 'Failed to get automation settings' });
+  }
+});
+
+// Save pipeline automation rules
+router.put('/pipeline/automation/:jobId', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const jobId = req.params.jobId;
+    const { rules } = req.body;
+    if (!rules || !Array.isArray(rules)) return res.status(400).json({ error: 'rules array required' });
+
+    // Verify job
+    const job = await pool.query('SELECT id FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+      [jobId, req.user.company_id, req.user.id]);
+    if (job.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
+
+    // Upsert rules
+    const saved = [];
+    for (const rule of rules) {
+      const result = await pool.query(`
+        INSERT INTO pipeline_automation_rules (job_id, recruiter_id, from_stage, to_stage, auto_advance, omniscore_threshold, match_score_threshold, auto_reject, auto_reject_threshold)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (job_id, recruiter_id, from_stage) DO UPDATE SET
+          to_stage = $4, auto_advance = $5, omniscore_threshold = $6,
+          match_score_threshold = $7, auto_reject = $8, auto_reject_threshold = $9,
+          updated_at = NOW()
+        RETURNING *
+      `, [jobId, req.user.id, rule.from_stage, rule.to_stage,
+          rule.auto_advance || false, rule.omniscore_threshold || 600,
+          rule.match_score_threshold || 70, rule.auto_reject || false,
+          rule.auto_reject_threshold || 400]);
+      saved.push(result.rows[0]);
+    }
+
+    res.json({ success: true, rules: saved });
+  } catch (err) {
+    console.error('Save pipeline automation error:', err);
+    res.status(500).json({ error: 'Failed to save automation settings' });
+  }
+});
+
+// Recruiter Feedback on candidate — feeds into OmniScore calibration
+router.post('/ai/feedback', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const { candidate_id, job_id, feedback_type, notes } = req.body;
+    if (!candidate_id || !feedback_type) return res.status(400).json({ error: 'candidate_id and feedback_type (good_fit/not_fit) required' });
+
+    const omniscoreService = require('../services/omniscore');
+    const memoryService = require('../services/memory-service');
+
+    // Save feedback
+    const result = await pool.query(`
+      INSERT INTO recruiter_feedback (recruiter_id, candidate_id, job_id, feedback_type, notes)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (recruiter_id, candidate_id, job_id) DO UPDATE SET
+        feedback_type = $4, notes = $5, updated_at = NOW()
+      RETURNING *
+    `, [req.user.id, candidate_id, job_id || null, feedback_type, notes || null]);
+
+    // Feed into OmniScore: good_fit = +5 behavior points, not_fit = -3
+    try {
+      const points = feedback_type === 'good_fit' ? 5 : -2;
+      const reason = feedback_type === 'good_fit' ? 'Positive recruiter feedback' : 'Negative recruiter feedback';
+      await omniscoreService.addBehaviorComponent(candidate_id, reason, Math.max(0, points), 10);
+    } catch (e) {
+      console.error('OmniScore feedback update (non-fatal):', e.message);
+    }
+
+    // Store in memory for MemGPT-style recall
+    try {
+      await memoryService.extractFromRecruiterAction(req.user.id, {
+        type: 'candidate_feedback',
+        feedback_type,
+        candidate_id,
+        job_title: 'position'
+      });
+    } catch (e) { /* non-critical */ }
+
+    res.json({ success: true, feedback: result.rows[0] });
+  } catch (err) {
+    console.error('Recruiter feedback error:', err);
+    res.status(500).json({ error: 'Failed to save feedback' });
+  }
+});
+
+// Trigger pipeline auto-advance check for a job (event-driven: call after application status change)
+router.post('/pipeline/auto-check/:jobId', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const jobId = req.params.jobId;
+
+    // Get automation rules
+    const rules = await pool.query(`
+      SELECT * FROM pipeline_automation_rules
+      WHERE job_id = $1 AND recruiter_id = $2 AND (auto_advance = true OR auto_reject = true)
+    `, [jobId, req.user.id]);
+
+    if (rules.rows.length === 0) {
+      return res.json({ success: true, actions: [], message: 'No automation rules configured' });
+    }
+
+    const actions = [];
+
+    // Get all active applications for this job
+    const apps = await pool.query(`
+      SELECT ja.id, ja.candidate_id, ja.status, ja.match_score,
+             os.total_score as omniscore
+      FROM job_applications ja
+      LEFT JOIN omni_scores os ON os.user_id = ja.candidate_id
+      WHERE ja.job_id = $1 AND ja.status NOT IN ('withdrawn', 'rejected', 'hired')
+    `, [jobId]);
+
+    for (const app of apps.rows) {
+      for (const rule of rules.rows) {
+        if (app.status !== rule.from_stage) continue;
+
+        const omniscore = app.omniscore || 300;
+        const matchScore = app.match_score || 0;
+
+        // Auto-advance check
+        if (rule.auto_advance && omniscore >= rule.omniscore_threshold && matchScore >= rule.match_score_threshold) {
+          await pool.query(
+            `UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2`,
+            [rule.to_stage, app.id]
+          );
+          actions.push({ type: 'advanced', application_id: app.id, candidate_id: app.candidate_id, from: rule.from_stage, to: rule.to_stage, reason: `OmniScore ${omniscore} >= ${rule.omniscore_threshold} and match ${matchScore} >= ${rule.match_score_threshold}` });
+        }
+
+        // Auto-reject check
+        if (rule.auto_reject && omniscore < rule.auto_reject_threshold) {
+          await pool.query(
+            `UPDATE job_applications SET status = 'rejected', updated_at = NOW() WHERE id = $1`,
+            [app.id]
+          );
+          actions.push({ type: 'rejected', application_id: app.id, candidate_id: app.candidate_id, from: rule.from_stage, reason: `OmniScore ${omniscore} < ${rule.auto_reject_threshold}` });
+        }
+      }
+    }
+
+    res.json({ success: true, actions, total_checked: apps.rows.length, rules_applied: rules.rows.length });
+  } catch (err) {
+    console.error('Pipeline auto-check error:', err);
+    res.status(500).json({ error: 'Failed to run pipeline automation' });
+  }
+});
+
 module.exports = router;
