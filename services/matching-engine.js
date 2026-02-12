@@ -249,6 +249,51 @@ function cosineSimilarity(vecA, vecB) {
 }
 
 /**
+ * Extract skills keywords from job requirements text
+ */
+function extractSkillsFromText(text) {
+  if (!text) return [];
+  // Normalize and extract comma/semicolon/bullet separated items
+  const normalized = text.toLowerCase()
+    .replace(/[•\-\*\n\r]+/g, ',')
+    .replace(/\band\b/g, ',')
+    .replace(/[()]/g, '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s.length > 1 && s.length < 60);
+  // Deduplicate
+  return [...new Set(normalized)];
+}
+
+/**
+ * Compare candidate skills against job requirements
+ * Returns { matching, missing, extra } skill arrays
+ */
+function compareSkills(candidateSkills, jobRequirementsText) {
+  const candidateSkillNames = (candidateSkills || []).map(s =>
+    (typeof s === 'string' ? s : s.skill_name || s.name || '').toLowerCase().trim()
+  ).filter(Boolean);
+
+  const jobSkillHints = extractSkillsFromText(jobRequirementsText);
+
+  const matching = [];
+  const missing = [];
+
+  for (const reqSkill of jobSkillHints) {
+    const found = candidateSkillNames.some(cs =>
+      cs.includes(reqSkill) || reqSkill.includes(cs)
+    );
+    if (found) {
+      matching.push(reqSkill);
+    } else {
+      missing.push(reqSkill);
+    }
+  }
+
+  return { matching, missing };
+}
+
+/**
  * Find top matching candidates for a job
  */
 async function findMatchingCandidates(jobId, options = {}) {
@@ -280,7 +325,7 @@ async function findMatchingCandidates(jobId, options = {}) {
     const job = jobResult.rows[0];
     const trustscore = job.trustscore || 500;
 
-    // Find similar candidates using vector similarity
+    // Find similar candidates using vector similarity + fetch their skills
     const matchResult = await client.query(`
       SELECT
         ce.user_id,
@@ -293,7 +338,9 @@ async function findMatchingCandidates(jobId, options = {}) {
         cp.years_experience,
         u.name,
         u.avatar_url,
-        1 - (ce.embedding <=> je.embedding) as similarity_score
+        1 - (ce.embedding <=> je.embedding) as similarity_score,
+        (SELECT json_agg(json_build_object('name', cs.skill_name, 'level', cs.level, 'verified', cs.is_verified))
+         FROM candidate_skills cs WHERE cs.user_id = ce.user_id) as skills
       FROM candidate_embeddings ce
       INNER JOIN job_embeddings je ON je.job_id = $1
       INNER JOIN users u ON ce.user_id = u.id
@@ -310,18 +357,30 @@ async function findMatchingCandidates(jobId, options = {}) {
       const omniscore = candidate.omniscore || 300;
       const similarityScore = candidate.similarity_score;
 
+      // Skills comparison (SmartRecruiters-style breakdown)
+      const { matching: matchingSkills, missing: missingSkills } = compareSkills(
+        candidate.skills || [],
+        job.requirements
+      );
+      const skillMatchPct = matchingSkills.length + missingSkills.length > 0
+        ? Math.round((matchingSkills.length / (matchingSkills.length + missingSkills.length)) * 100)
+        : 50;
+
       // Weighted score formula:
-      // Base: similarity (60%)
-      // OmniScore boost: normalized 0-1 score * 30%
-      // TrustScore boost: normalized 0-1 score * 10%
-      const omniNormalized = Math.min(omniscore / 1000, 1); // 0-1 scale
-      const trustNormalized = Math.min(trustscore / 1000, 1); // 0-1 scale
+      // Semantic similarity: 45% (reduced from 60% to make room for skills)
+      // Skills match: 20% (new — direct skills comparison)
+      // OmniScore: 25% (platform credibility)
+      // TrustScore: 10% (company quality)
+      const omniNormalized = Math.min(omniscore / 1000, 1);
+      const trustNormalized = Math.min(trustscore / 1000, 1);
+      const skillNormalized = skillMatchPct / 100;
 
       const weightedScore = (
-        (similarityScore * 0.6) +
-        (omniNormalized * 0.3) +
-        (trustNormalized * 0.1)
-      ) * 100; // Scale to 0-100
+        (similarityScore * 0.45) +
+        (skillNormalized * 0.20) +
+        (omniNormalized * 0.25) +
+        (trustNormalized * 0.10)
+      ) * 100;
 
       // Determine match level
       let matchLevel = 'poor';
@@ -343,23 +402,27 @@ async function findMatchingCandidates(jobId, options = {}) {
         similarity_score: Math.round(similarityScore * 100) / 100,
         weighted_score: Math.round(weightedScore * 100) / 100,
         match_level: matchLevel,
+        matching_skills: matchingSkills,
+        missing_skills: missingSkills,
+        skill_match_pct: skillMatchPct,
         explanation: {
-          semantic_match: `${Math.round(similarityScore * 100)}% skill and experience alignment`,
-          omniscore_boost: `OmniScore ${omniscore} (${candidate.score_tier} tier)`,
+          semantic_match: `${Math.round(similarityScore * 100)}% profile alignment`,
+          skills_match: `${skillMatchPct}% skills match (${matchingSkills.length} matched, ${missingSkills.length} gaps)`,
+          omniscore_boost: `OmniScore ${omniscore} (${candidate.score_tier || 'new'} tier)`,
           company_trustscore: `Company TrustScore ${trustscore}`
         }
       };
     });
 
-    // Cache results
+    // Cache results with skills data
     for (const match of matches) {
       await client.query(`
         INSERT INTO match_results (
           candidate_id, job_id, similarity_score, weighted_score,
           omniscore_at_match, trustscore_at_match, match_level,
-          match_explanation, calculated_at
+          matching_skills, missing_skills, match_explanation, calculated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
         ON CONFLICT (candidate_id, job_id)
         DO UPDATE SET
           similarity_score = $3,
@@ -367,7 +430,9 @@ async function findMatchingCandidates(jobId, options = {}) {
           omniscore_at_match = $5,
           trustscore_at_match = $6,
           match_level = $7,
-          match_explanation = $8,
+          matching_skills = $8,
+          missing_skills = $9,
+          match_explanation = $10,
           calculated_at = NOW()
       `, [
         match.candidate_id,
@@ -377,6 +442,8 @@ async function findMatchingCandidates(jobId, options = {}) {
         match.omniscore,
         trustscore,
         match.match_level,
+        JSON.stringify(match.matching_skills),
+        JSON.stringify(match.missing_skills),
         JSON.stringify(match.explanation)
       ]);
     }
@@ -413,6 +480,12 @@ async function findMatchingJobs(userId, options = {}) {
 
     const omniscore = userResult.rows[0]?.omniscore || 300;
 
+    // Get candidate skills for comparison
+    const candidateSkills = await client.query(
+      'SELECT skill_name, level, is_verified FROM candidate_skills WHERE user_id = $1',
+      [userId]
+    );
+
     // Find similar jobs using vector similarity
     const matchResult = await client.query(`
       SELECT
@@ -423,6 +496,8 @@ async function findMatchingJobs(userId, options = {}) {
         j.salary_range,
         j.job_type,
         j.description,
+        j.requirements,
+        j.created_at,
         c.name as company_name,
         c.logo_url as company_logo,
         ts.total_score as trustscore,
@@ -439,22 +514,30 @@ async function findMatchingJobs(userId, options = {}) {
       LIMIT $3
     `, [userId, minScore, limit]);
 
-    // Calculate weighted scores
+    // Calculate weighted scores with skills breakdown
     const matches = matchResult.rows.map(job => {
       const trustscore = job.trustscore || 500;
       const similarityScore = job.similarity_score;
 
-      // Weighted score formula:
-      // Base: similarity (60%)
-      // TrustScore boost: normalized 0-1 score * 30%
-      // OmniScore factor: normalized 0-1 score * 10% (candidate quality affects visibility)
+      // Skills comparison
+      const { matching: matchingSkills, missing: missingSkills } = compareSkills(
+        candidateSkills.rows,
+        job.requirements
+      );
+      const skillMatchPct = matchingSkills.length + missingSkills.length > 0
+        ? Math.round((matchingSkills.length / (matchingSkills.length + missingSkills.length)) * 100)
+        : 50;
+
+      // Weighted score: similarity 45%, skills 20%, trust 25%, omni 10%
       const trustNormalized = Math.min(trustscore / 1000, 1);
       const omniNormalized = Math.min(omniscore / 1000, 1);
+      const skillNormalized = skillMatchPct / 100;
 
       const weightedScore = (
-        (similarityScore * 0.6) +
-        (trustNormalized * 0.3) +
-        (omniNormalized * 0.1)
+        (similarityScore * 0.45) +
+        (skillNormalized * 0.20) +
+        (trustNormalized * 0.25) +
+        (omniNormalized * 0.10)
       ) * 100;
 
       // Determine match level
@@ -478,14 +561,19 @@ async function findMatchingJobs(userId, options = {}) {
         salary_range: job.salary_range,
         job_type: job.job_type,
         description: job.description?.substring(0, 200),
+        created_at: job.created_at,
         trustscore: trustscore,
         trust_tier: job.trust_tier,
         similarity_score: Math.round(similarityScore * 100) / 100,
         weighted_score: Math.round(weightedScore * 100) / 100,
         match_level: matchLevel,
         success_prediction: successPrediction,
+        matching_skills: matchingSkills,
+        missing_skills: missingSkills,
+        skill_match_pct: skillMatchPct,
         explanation: {
-          why_matched: `${Math.round(similarityScore * 100)}% match based on your skills and experience`,
+          why_matched: `${Math.round(similarityScore * 100)}% profile match`,
+          skills_match: `${skillMatchPct}% skills match (${matchingSkills.length} matched, ${missingSkills.length} gaps)`,
           company_quality: `Company TrustScore ${trustscore} (${job.trust_tier || 'new'} tier)`,
           your_strength: omniscore >= 700 ? 'Your strong OmniScore makes you highly competitive' :
                          omniscore >= 500 ? 'Your OmniScore is solid for this position' :
@@ -569,5 +657,6 @@ module.exports = {
   updateJobEmbedding,
   findMatchingCandidates,
   findMatchingJobs,
-  explainMatch
+  explainMatch,
+  compareSkills
 };
