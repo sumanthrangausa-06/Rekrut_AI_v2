@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate NIM 404 errors — test endpoints directly",
+    "status": "completed",
+    "activeForm": "Investigating NIM 404 errors"
+  },
+  {
+    "content": "Add 404 to retryable status codes (critical chain-abort bug)",
+    "status": "completed",
+    "activeForm": "Adding 404 to retryable status codes"
+  },
+  {
+    "content": "Exempt TTS/ASR from OpenAI budget exhaustion",
+    "status": "completed",
+    "activeForm": "Exempting TTS/ASR from OpenAI budget exhaustion"
+  },
+  {
+    "content": "Remove dead NIM audio endpoints from chains",
+    "status": "completed",
+    "activeForm": "Removing dead NIM audio endpoints from chains"
+  },
+  {
+    "content": "Deploy and verify fix",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying fix"
+  }
+]
