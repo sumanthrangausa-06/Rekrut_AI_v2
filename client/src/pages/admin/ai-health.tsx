@@ -33,6 +33,15 @@ import {
   Server,
   Globe,
   MessageSquare,
+  FileText,
+  Briefcase,
+  Send,
+  DollarSign,
+  ClipboardCheck,
+  UserCircle,
+  GraduationCap,
+  Building2,
+  LayoutGrid,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -157,6 +166,44 @@ interface ActivityEvent {
   details: Record<string, unknown>
   ip_address: string | null
   created_at: string
+}
+
+interface ModulesData {
+  timestamp: string
+  applications: {
+    total: number; pending: number; reviewing: number; accepted: number
+    rejected: number; withdrawn: number; today: number; thisWeek: number
+    recent: Array<{ id: number; status: string; applied_at: string; candidate_email: string; job_title: string }>
+  }
+  recruiter: {
+    activeRecruiters: number; totalJobs: number; activeJobs: number
+    closedJobs: number; draftJobs: number; jobsPostedThisWeek: number; totalCompanies: number
+  }
+  offers: {
+    total: number; pending: number; accepted: number; rejected: number
+    expired: number; thisWeek: number
+  }
+  payroll: {
+    totalRuns: number; processed: number; pending: number; errors: number
+    totalGross: number; totalNet: number; totalPaychecks: number
+  }
+  interviews: {
+    total: number; completed: number; active: number; abandoned: number
+    practice: number; mock: number; today: number; thisWeek: number
+    practiceSessions: number; mockSessions: number
+  }
+  onboarding: {
+    totalSessions: number; completed: number; inProgress: number; notStarted: number
+    totalDocuments: number; completedDocuments: number; pendingDocuments: number; aiGenerated: number
+  }
+  assessments: {
+    total: number; completed: number; inProgress: number; abandoned: number
+    avgScore: number | null; thisWeek: number
+  }
+  profiles: {
+    totalCandidateProfiles: number; withHeadline: number; withResume: number
+    withLinkedIn: number; completenessRate: number
+  }
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -1101,12 +1148,190 @@ function RecentLogs({ logs }: { logs: HealthData['recent_logs'] }) {
   )
 }
 
+// ─── Module Metric Cards ─────────────────────────────────────────────────────
+
+function ModuleMetricCard({ icon: Icon, title, color, metrics }: {
+  icon: React.ElementType
+  title: string
+  color: string
+  metrics: Array<{ label: string; value: string | number; highlight?: boolean }>
+}) {
+  const colorClasses: Record<string, { bg: string; text: string; border: string }> = {
+    blue:    { bg: 'bg-blue-50',    text: 'text-blue-600',    border: 'border-blue-200' },
+    green:   { bg: 'bg-green-50',   text: 'text-green-600',   border: 'border-green-200' },
+    purple:  { bg: 'bg-purple-50',  text: 'text-purple-600',  border: 'border-purple-200' },
+    amber:   { bg: 'bg-amber-50',   text: 'text-amber-600',   border: 'border-amber-200' },
+    red:     { bg: 'bg-red-50',     text: 'text-red-600',     border: 'border-red-200' },
+    teal:    { bg: 'bg-teal-50',    text: 'text-teal-600',    border: 'border-teal-200' },
+    indigo:  { bg: 'bg-indigo-50',  text: 'text-indigo-600',  border: 'border-indigo-200' },
+    cyan:    { bg: 'bg-cyan-50',    text: 'text-cyan-600',    border: 'border-cyan-200' },
+    pink:    { bg: 'bg-pink-50',    text: 'text-pink-600',    border: 'border-pink-200' },
+    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' },
+  }
+  const c = colorClasses[color] || colorClasses.blue
+  return (
+    <Card className="overflow-hidden hover:shadow-md transition-shadow">
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <div className={cn('rounded-lg p-1.5', c.bg)}>
+            <Icon className={cn('h-4 w-4', c.text)} />
+          </div>
+          <CardTitle className="text-sm font-semibold">{title}</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+          {metrics.map((m, i) => (
+            <div key={i} className="flex justify-between items-baseline">
+              <span className="text-[11px] text-muted-foreground">{m.label}</span>
+              <span className={cn(
+                'text-sm font-bold tabular-nums',
+                m.highlight && parseInt(String(m.value)) > 0 ? c.text : '',
+              )}>
+                {typeof m.value === 'number' ? m.value.toLocaleString() : m.value}
+              </span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ModuleCards({ modules }: { modules: ModulesData }) {
+  const a = modules.applications
+  const r = modules.recruiter
+  const o = modules.offers
+  const p = modules.payroll
+  const iv = modules.interviews
+  const ob = modules.onboarding
+  const as_ = modules.assessments
+  const pr = modules.profiles
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-4">
+        <LayoutGrid className="h-5 w-5 text-muted-foreground" />
+        <h2 className="font-heading text-lg font-semibold">Platform Modules</h2>
+        <span className="text-xs text-muted-foreground">(10 modules)</span>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <ModuleMetricCard
+          icon={FileText}
+          title="Applications"
+          color="blue"
+          metrics={[
+            { label: 'Total', value: a.total },
+            { label: 'Pending', value: a.pending, highlight: true },
+            { label: 'Reviewing', value: a.reviewing },
+            { label: 'Accepted', value: a.accepted },
+            { label: 'Rejected', value: a.rejected },
+            { label: 'Today', value: a.today, highlight: true },
+          ]}
+        />
+        <ModuleMetricCard
+          icon={Briefcase}
+          title="Recruiter Dashboard"
+          color="teal"
+          metrics={[
+            { label: 'Recruiters', value: r.activeRecruiters },
+            { label: 'Active Jobs', value: r.activeJobs, highlight: true },
+            { label: 'Total Jobs', value: r.totalJobs },
+            { label: 'Draft', value: r.draftJobs },
+            { label: 'Companies', value: r.totalCompanies },
+            { label: 'Posted /wk', value: r.jobsPostedThisWeek },
+          ]}
+        />
+        <ModuleMetricCard
+          icon={Send}
+          title="Offers"
+          color="purple"
+          metrics={[
+            { label: 'Total', value: o.total },
+            { label: 'Pending', value: o.pending, highlight: true },
+            { label: 'Accepted', value: o.accepted },
+            { label: 'Rejected', value: o.rejected },
+            { label: 'Expired', value: o.expired },
+            { label: 'This Week', value: o.thisWeek },
+          ]}
+        />
+        <ModuleMetricCard
+          icon={DollarSign}
+          title="Payroll"
+          color="emerald"
+          metrics={[
+            { label: 'Runs', value: p.totalRuns },
+            { label: 'Processed', value: p.processed },
+            { label: 'Pending', value: p.pending, highlight: true },
+            { label: 'Errors', value: p.errors, highlight: true },
+            { label: 'Paychecks', value: p.totalPaychecks },
+            { label: 'Gross $', value: p.totalGross > 0 ? `$${(p.totalGross / 1000).toFixed(1)}k` : '$0' },
+          ]}
+        />
+        <ModuleMetricCard
+          icon={MessageSquare}
+          title="Interviews"
+          color="indigo"
+          metrics={[
+            { label: 'Total', value: iv.total },
+            { label: 'Completed', value: iv.completed },
+            { label: 'Active', value: iv.active, highlight: true },
+            { label: 'Abandoned', value: iv.abandoned },
+            { label: 'Practice', value: iv.practice },
+            { label: 'Mock', value: iv.mock },
+          ]}
+        />
+        <ModuleMetricCard
+          icon={ClipboardCheck}
+          title="AI Onboarding"
+          color="green"
+          metrics={[
+            { label: 'Sessions', value: ob.totalSessions },
+            { label: 'Completed', value: ob.completed },
+            { label: 'In Progress', value: ob.inProgress, highlight: true },
+            { label: 'Documents', value: ob.totalDocuments },
+            { label: 'AI Generated', value: ob.aiGenerated },
+            { label: 'Pending Docs', value: ob.pendingDocuments },
+          ]}
+        />
+        <ModuleMetricCard
+          icon={GraduationCap}
+          title="Assessments"
+          color="amber"
+          metrics={[
+            { label: 'Total', value: as_.total },
+            { label: 'Completed', value: as_.completed },
+            { label: 'In Progress', value: as_.inProgress, highlight: true },
+            { label: 'Abandoned', value: as_.abandoned },
+            { label: 'Avg Score', value: as_.avgScore !== null ? `${as_.avgScore}%` : 'N/A' },
+            { label: 'This Week', value: as_.thisWeek },
+          ]}
+        />
+        <ModuleMetricCard
+          icon={UserCircle}
+          title="Profiles"
+          color="cyan"
+          metrics={[
+            { label: 'Candidates', value: pr.totalCandidateProfiles },
+            { label: 'w/ Resume', value: pr.withResume },
+            { label: 'w/ Headline', value: pr.withHeadline },
+            { label: 'w/ LinkedIn', value: pr.withLinkedIn },
+            { label: 'Completeness', value: `${pr.completenessRate}%` },
+            { label: '', value: '' },
+          ]}
+        />
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export function AiHealthPage() {
   const navigate = useNavigate()
   const [data, setData] = useState<HealthData | null>(null)
   const [metrics, setMetrics] = useState<MetricsData | null>(null)
+  const [modules, setModules] = useState<ModulesData | null>(null)
   const [activity, setActivity] = useState<ActivityEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [metricsLoading, setMetricsLoading] = useState(false)
@@ -1157,6 +1382,18 @@ export function AiHealthPage() {
     }
   }, [])
 
+  const fetchModules = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/modules', { credentials: 'include' })
+      if (res.ok) {
+        const json = await res.json()
+        setModules(json)
+      }
+    } catch {
+      // Modules are optional — don't block the dashboard
+    }
+  }, [])
+
   const fetchActivity = useCallback(async (startDate?: string, endDate?: string) => {
     setActivityLoading(true)
     try {
@@ -1185,12 +1422,14 @@ export function AiHealthPage() {
     // Initial load
     fetchHealth()
     fetchMetrics()
+    fetchModules()
     fetchActivity()
 
-    // Auto-refresh: health + metrics every 30s, activity every 10s
+    // Auto-refresh: health + metrics + modules every 30s, activity every 10s
     const healthInterval = setInterval(() => {
       fetchHealth()
       fetchMetrics()
+      fetchModules()
     }, 30000)
     const activityInterval = setInterval(() => fetchActivity(), 10000)
 
@@ -1198,7 +1437,7 @@ export function AiHealthPage() {
       clearInterval(healthInterval)
       clearInterval(activityInterval)
     }
-  }, [fetchHealth, fetchMetrics, fetchActivity])
+  }, [fetchHealth, fetchMetrics, fetchModules, fetchActivity])
 
   // Countdown timer
   useEffect(() => {
@@ -1265,7 +1504,7 @@ export function AiHealthPage() {
             <span className="text-xs text-muted-foreground tabular-nums hidden sm:inline">
               {countdown}s
             </span>
-            <Button variant="outline" size="sm" onClick={() => { fetchHealth(); fetchMetrics(); fetchActivity() }} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => { fetchHealth(); fetchMetrics(); fetchModules(); fetchActivity() }} className="gap-1.5">
               <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
@@ -1307,6 +1546,9 @@ export function AiHealthPage() {
         {/* ─── OVERVIEW TAB ─── */}
         {activeTab === 'overview' && (
           <>
+            {/* Platform Module Cards — THE BIG VIEW */}
+            {modules && <ModuleCards modules={modules} />}
+
             {/* Token Budget */}
             {data.token_budget && (
               <TokenBudgetPanel budget={data.token_budget} />
