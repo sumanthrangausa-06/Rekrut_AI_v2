@@ -488,9 +488,14 @@ router.put('/applications/:id', authMiddleware, requireRecruiter, async (req, re
   try {
     const { status, recruiter_notes } = req.body;
 
+    // Validate status against pipeline stages
+    if (status && !PIPELINE_STAGES.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${PIPELINE_STAGES.join(', ')}` });
+    }
+
     // Verify application belongs to company
     const existing = await pool.query(
-      'SELECT id, job_id, candidate_id FROM job_applications WHERE id = $1 AND company_id = $2',
+      'SELECT id, job_id, candidate_id, status as old_status FROM job_applications WHERE id = $1 AND company_id = $2',
       [req.params.id, req.user.company_id]
     );
 
@@ -507,6 +512,24 @@ router.put('/applications/:id', authMiddleware, requireRecruiter, async (req, re
        RETURNING *`,
       [status, recruiter_notes, req.params.id]
     );
+
+    // Log to activity feed (events table) for status changes
+    if (status && status !== existing.rows[0].old_status) {
+      try {
+        await pool.query(
+          `INSERT INTO events (user_id, event_type, event_data, created_at)
+           VALUES ($1, 'application_status_changed', $2, NOW())`,
+          [req.user.id, JSON.stringify({
+            application_id: parseInt(req.params.id),
+            candidate_id: existing.rows[0].candidate_id,
+            job_id: existing.rows[0].job_id,
+            old_status: existing.rows[0].old_status,
+            new_status: status,
+            changed_by: req.user.id,
+          })]
+        );
+      } catch (e) { /* non-critical */ }
+    }
 
     // Update job analytics
     if (status) {
@@ -854,8 +877,32 @@ router.get('/candidates/:id/coaching', authMiddleware, requireRecruiter, async (
 
 // ============= PIPELINE STAGES =============
 
-// Valid pipeline stages in order
-const PIPELINE_STAGES = ['applied', 'screening', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn'];
+// Valid pipeline stages in order (canonical)
+// Based on industry research: LinkedIn, Greenhouse, Lever, Ashby, SmartRecruiters
+const PIPELINE_STAGES = ['applied', 'screening', 'shortlisted', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn'];
+
+// GET pipeline stages (so frontend stays in sync)
+router.get('/pipeline-stages', authMiddleware, requireRecruiter, (req, res) => {
+  const active = PIPELINE_STAGES.filter(s => !['rejected', 'withdrawn'].includes(s));
+  const terminal = ['rejected', 'withdrawn'];
+  res.json({
+    success: true,
+    stages: PIPELINE_STAGES,
+    active_stages: active,
+    terminal_stages: terminal,
+    stage_config: {
+      applied: { label: 'Applied', color: 'blue', order: 0 },
+      screening: { label: 'Screening', color: 'purple', order: 1 },
+      shortlisted: { label: 'Shortlisted', color: 'indigo', order: 2 },
+      reviewing: { label: 'Reviewing', color: 'amber', order: 3 },
+      interviewed: { label: 'Interviewed', color: 'cyan', order: 4 },
+      offered: { label: 'Offered', color: 'emerald', order: 5 },
+      hired: { label: 'Hired', color: 'green', order: 6 },
+      rejected: { label: 'Rejected', color: 'red', order: -1 },
+      withdrawn: { label: 'Withdrawn', color: 'gray', order: -1 },
+    }
+  });
+});
 
 // Batch update application status (for bulk actions)
 router.put('/applications/batch-status', authMiddleware, requireRecruiter, async (req, res) => {
