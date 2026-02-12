@@ -2082,25 +2082,7 @@ export function AiCoachingPage() {
 
                 {/* Body language analyzed at interview end (real-time removed to save API tokens) */}
 
-                {/* Live transcript overlay — candidate answers only */}
-                {showTranscript && mockSession.conversation.length > 0 && (
-                  <div className="absolute bottom-28 left-3 right-48 sm:right-52 z-10 max-h-20 overflow-y-auto">
-                    <div className="bg-black/50 backdrop-blur-sm rounded-lg px-2 py-1.5 space-y-0.5">
-                      {mockSession.conversation.filter(t => t.role === 'candidate').slice(-3).map((turn, i) => (
-                        <div key={i} className="flex gap-1.5">
-                          <span className="text-[9px] font-bold shrink-0 text-green-300">You:</span>
-                          <p className="text-[10px] text-white/80 leading-tight line-clamp-2">{turn.text}</p>
-                        </div>
-                      ))}
-                      {candidateRecording && mockLiveTranscript && (
-                        <div className="flex gap-1.5 opacity-70">
-                          <span className="text-[9px] font-bold shrink-0 text-green-300">You:</span>
-                          <p className="text-[10px] text-green-300 leading-tight italic">{mockLiveTranscript}...</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                {/* Live transcript removed — STT runs in backend only, no on-screen text during interview */}
               </div>
 
               {/* Controls bar */}
@@ -2144,15 +2126,7 @@ export function AiCoachingPage() {
                   {mockCameraReady ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
                 </Button>
 
-                {/* Transcript toggle */}
-                <Button
-                  onClick={() => setShowTranscript(!showTranscript)}
-                  variant="outline"
-                  className={`rounded-full h-11 w-11 p-0 ${showTranscript ? 'bg-primary/10 border-primary' : ''}`}
-                  title="Show transcript"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                </Button>
+                {/* Transcript toggle removed — no live text during interview */}
 
                 {/* End call */}
                 <Button
@@ -2183,37 +2157,7 @@ export function AiCoachingPage() {
                 )}
               </div>
 
-              {/* Live Transcript — always visible */}
-              {showTranscript && (
-                <Card className="border">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                        <FileText className="h-3.5 w-3.5" /> Live Transcript
-                        {candidateRecording && <span className="inline-flex h-2 w-2 rounded-full bg-green-500 animate-pulse" />}
-                      </h4>
-                      <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setShowTranscript(false)}>Hide</Button>
-                    </div>
-                    <div className="max-h-48 overflow-y-auto space-y-2">
-                      {/* Show only candidate answers in transcript */}
-                      {mockSession.conversation.filter(t => t.role === 'candidate').map((turn, i) => (
-                        <div key={i} className="flex gap-2">
-                          <span className="text-[10px] font-bold shrink-0 text-green-600">You:</span>
-                          <p className="text-xs text-muted-foreground leading-relaxed">{turn.text}</p>
-                        </div>
-                      ))}
-                      {/* Live transcription of current speech */}
-                      {candidateRecording && mockLiveTranscript && (
-                        <div className="flex gap-2 opacity-70">
-                          <span className="text-[10px] font-bold shrink-0 text-green-600">You:</span>
-                          <p className="text-xs text-green-600 leading-relaxed italic">{mockLiveTranscript}...</p>
-                        </div>
-                      )}
-                      <div ref={chatEndRef} />
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              {/* Live transcript card removed — transcript is available after interview ends */}
 
               {/* Hidden text fallback input */}
               {!candidateRecording && !aiSpeaking && !voiceProcessing && (
@@ -2458,23 +2402,34 @@ export function AiCoachingPage() {
                 </div>
               )}
 
-              {/* Full transcript */}
+              {/* Full transcript — both AI interviewer and candidate */}
               {mockSession && mockSession.conversation && mockSession.conversation.length > 0 && (
                 <Card>
                   <CardContent className="p-4">
                     <h4 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
                       <FileText className="h-4 w-4 text-muted-foreground" /> Full Transcript
                     </h4>
-                    <div className="space-y-3 max-h-[40vh] overflow-y-auto">
-                      {/* Show only candidate's answers in the transcript */}
-                      {mockSession.conversation.filter(t => t.role === 'candidate').map((turn, i) => (
+                    <div className="space-y-3 max-h-[50vh] overflow-y-auto">
+                      {mockSession.conversation.map((turn: any, i: number) => (
                         <div key={i} className="flex gap-3">
-                          <div className="h-7 w-7 rounded-full flex items-center justify-center shrink-0 bg-green-100">
-                            <User className="h-3.5 w-3.5 text-green-600" />
+                          <div className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${
+                            turn.role === 'interviewer' ? 'bg-violet-100' : 'bg-green-100'
+                          }`}>
+                            {turn.role === 'interviewer'
+                              ? <Brain className="h-3.5 w-3.5 text-violet-600" />
+                              : <User className="h-3.5 w-3.5 text-green-600" />
+                            }
                           </div>
                           <div className="flex-1">
-                            <p className="text-[10px] font-medium text-muted-foreground mb-0.5">
-                              Answer {i + 1}
+                            <p className={`text-[10px] font-medium mb-0.5 ${
+                              turn.role === 'interviewer' ? 'text-violet-600' : 'text-green-600'
+                            }`}>
+                              {turn.role === 'interviewer' ? 'Alex (Interviewer)' : 'You'}
+                              {turn.action && turn.action !== 'transition' && (
+                                <span className="ml-1.5 text-muted-foreground font-normal">
+                                  · {turn.action === 'follow_up' ? 'Follow-up' : turn.action === 'challenge' ? 'Probing deeper' : turn.action === 'introduction' ? 'Introduction' : turn.action === 'wrap_up' ? 'Wrapping up' : ''}
+                                </span>
+                              )}
                             </p>
                             <p className="text-xs leading-relaxed whitespace-pre-wrap">{turn.text}</p>
                           </div>
