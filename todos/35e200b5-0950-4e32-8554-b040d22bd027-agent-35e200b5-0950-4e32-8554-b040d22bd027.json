@@ -1,12 +1,12 @@
 [
   {
     "content": "Phase 1: Codebase Audit — map existing job/matching code",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Auditing existing codebase for job posting and matching features"
   },
   {
     "content": "Phase 2: Research best practices from top ATS platforms",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Researching best practices from LinkedIn, Greenhouse, Lever, etc."
   },
   {
