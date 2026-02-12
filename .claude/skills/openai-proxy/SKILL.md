@@ -1,3 +1,8 @@
+---
+name: openai-proxy
+description: "Use Polsia's OpenAI proxy for utility AI tasks like embeddings, OCR, and image generation."
+---
+
 # OpenAI Proxy - Utility AI Only
 
 The OpenAI proxy is for **utility AI tasks** only - NOT for the product's AI features.

@@ -1,3 +1,8 @@
+---
+name: agent-sdk
+description: "Build autonomous AI features using the Polsia Agent API only; never call model providers directly for product AI."
+---
+
 # Agent SDK
 
 Build AI agents that work autonomously for end users. Every Polsia company can be an AI company.

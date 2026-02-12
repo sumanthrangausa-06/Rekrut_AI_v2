@@ -1,3 +1,8 @@
+---
+name: neon-postgres
+description: "Use Neon PostgreSQL conventions for Polsia apps, including migration patterns and DATABASE_URL usage."
+---
+
 # Neon PostgreSQL
 
 Polsia apps use Neon PostgreSQL. DATABASE_URL is automatically provided.
