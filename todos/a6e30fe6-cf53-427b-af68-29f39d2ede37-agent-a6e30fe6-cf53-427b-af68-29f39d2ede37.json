@@ -6,12 +6,12 @@
   },
   {
     "content": "Phase 1: Fix transcript display + hide live transcription from UI",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Fixing transcript display + hiding live text"
   },
   {
     "content": "Phase 2: Dynamic AI follow-up questions",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Implementing dynamic AI follow-ups"
   },
   {
