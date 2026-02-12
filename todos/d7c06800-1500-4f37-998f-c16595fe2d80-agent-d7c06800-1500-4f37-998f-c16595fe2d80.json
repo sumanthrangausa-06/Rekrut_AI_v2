@@ -5,28 +5,33 @@
     "activeForm": "Auditing live app and codebase"
   },
   {
-    "content": "Phase 2: Fix dashboard stats + AI recommendations backend",
+    "content": "Phase 2: Backend AI endpoints + smart data reuse layer",
+    "status": "completed",
+    "activeForm": "Building backend AI and data reuse"
+  },
+  {
+    "content": "Phase 3: Frontend — fix dashboards + add AI buttons + auto-fill",
+    "status": "completed",
+    "activeForm": "Updating frontend with AI features and auto-fill"
+  },
+  {
+    "content": "Phase 4: Push Phase 3 + deploy",
     "status": "in_progress",
-    "activeForm": "Fixing dashboard stats and AI recommendations"
+    "activeForm": "Pushing and deploying Phase 3 changes"
   },
   {
-    "content": "Phase 3: Build smart data reuse layer (screening answer enrichment + auto-fill + question bank)",
+    "content": "Phase 5: Remaining AI UI features (resume optimizer, recruiter AI buttons, question bank UI)",
     "status": "pending",
-    "activeForm": "Building smart data reuse layer"
+    "activeForm": "Building remaining AI UI features"
   },
   {
-    "content": "Phase 4: Frontend auto-fill + question bank + missing AI buttons",
+    "content": "Phase 6: Rebuild client dist + final deploy",
     "status": "pending",
-    "activeForm": "Building frontend auto-fill and AI features"
+    "activeForm": "Rebuilding and deploying final frontend"
   },
   {
-    "content": "Phase 5: Add missing AI endpoints (resume optimizer, cover letter gen, scoring, etc.)",
+    "content": "Phase 7: E2E verification",
     "status": "pending",
-    "activeForm": "Adding missing AI endpoints"
-  },
-  {
-    "content": "Phase 6: Rebuild client dist + deploy + E2E verify",
-    "status": "pending",
-    "activeForm": "Rebuilding and deploying"
+    "activeForm": "Running end-to-end verification"
   }
 ]
