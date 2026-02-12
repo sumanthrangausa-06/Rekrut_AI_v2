@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate codebase — understand current mock interview code",
+    "status": "completed",
+    "activeForm": "Investigating mock interview codebase"
+  },
+  {
+    "content": "Phase 1: Fix transcript display + hide live transcription from UI",
+    "status": "in_progress",
+    "activeForm": "Fixing transcript display + hiding live text"
+  },
+  {
+    "content": "Phase 2: Dynamic AI follow-up questions",
+    "status": "pending",
+    "activeForm": "Implementing dynamic AI follow-ups"
+  },
+  {
+    "content": "Phase 3: Structured feedback matching practice interview",
+    "status": "pending",
+    "activeForm": "Enhancing mock interview feedback"
+  },
+  {
+    "content": "Deploy + verify",
+    "status": "pending",
+    "activeForm": "Deploying and verifying"
+  }
+]
