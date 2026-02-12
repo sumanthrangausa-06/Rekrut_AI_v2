@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Phase 1+2: OpenAI token tracking + 100K daily cap + auto-failover (BACKEND)",
+    "status": "completed",
+    "activeForm": "Building OpenAI token tracking + daily cap + auto-failover"
+  },
+  {
+    "content": "Phase 3: Event logging system + activity feed (BACKEND)",
+    "status": "completed",
+    "activeForm": "Building event logging system"
+  },
+  {
+    "content": "Phase 4: Comprehensive monitoring metrics (BACKEND)",
+    "status": "completed",
+    "activeForm": "Adding monitoring metrics collection"
+  },
+  {
+    "content": "Phase 5: Dashboard UI enhancement (FRONTEND)",
+    "status": "completed",
+    "activeForm": "Enhancing admin dashboard UI"
+  },
+  {
+    "content": "Phase 6: Deploy + verify all phases",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying all phases"
+  }
+]
