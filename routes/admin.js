@@ -3,6 +3,13 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const router = express.Router();
 
+let logAuthEvent;
+try {
+  logAuthEvent = require('../lib/activity-logger').logAuthEvent;
+} catch (e) {
+  logAuthEvent = () => {}; // Fallback no-op
+}
+
 // ─── Rate Limiting (in-memory) ──────────────────────────────────────────────
 const loginAttempts = new Map(); // ip -> { count, firstAttempt }
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
@@ -105,6 +112,7 @@ router.post('/login', async (req, res) => {
   const passwordMatch = await bcrypt.compare(password, ADMIN_PASSWORD_HASH);
 
   if (!usernameMatch || !passwordMatch) {
+    logAuthEvent('admin_login_failed', null, username, ip, { reason: 'invalid_credentials' });
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
@@ -114,6 +122,8 @@ router.post('/login', async (req, res) => {
 
   // Reset rate limiter on success
   loginAttempts.delete(ip);
+
+  logAuthEvent('admin_login_success', null, ADMIN_USERNAME, ip);
 
   return res.json({
     success: true,

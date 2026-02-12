@@ -62,6 +62,14 @@ app.use(session({
   },
 }));
 
+// Activity request logger — captures all API calls for the admin activity feed
+try {
+  const { requestLogger } = require('./lib/activity-logger');
+  app.use(requestLogger);
+} catch (err) {
+  console.warn('[server] Activity logger not available:', err.message);
+}
+
 // API Routes - Admin
 app.use('/api/admin', adminRoutes);
 
@@ -98,6 +106,36 @@ app.use('/api/analytics', analyticsRoutes);
 
 // API Routes - Country Configuration
 app.use('/api/countries', countryRoutes);
+
+// Activity Feed — protected by admin auth
+app.get('/api/admin/activity', requireAdmin, async (req, res) => {
+  try {
+    const { queryEvents, getRecentEvents } = require('./lib/activity-logger');
+    const { category, event_type, user_id, search, start_date, end_date, limit, offset, realtime } = req.query;
+
+    // Real-time mode: return from in-memory buffer (fast, no DB)
+    if (realtime === 'true') {
+      const events = getRecentEvents({ category, eventType: event_type, limit: parseInt(limit, 10) || 50 });
+      return res.json({ events, total: events.length, source: 'memory' });
+    }
+
+    // Historical mode: query from database
+    const result = await queryEvents({
+      category,
+      eventType: event_type,
+      userId: user_id ? parseInt(user_id, 10) : undefined,
+      search,
+      startDate: start_date,
+      endDate: end_date,
+      limit: parseInt(limit, 10) || 50,
+      offset: parseInt(offset, 10) || 0,
+    });
+
+    res.json({ ...result, source: 'database' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get activity log', message: err.message });
+  }
+});
 
 // OpenAI Token Budget — protected by admin auth
 app.get('/api/admin/token-usage', requireAdmin, (req, res) => {
