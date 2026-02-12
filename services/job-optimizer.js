@@ -248,10 +248,142 @@ Use realistic 2024-2025 US market data. Only return the JSON object.`;
   }
 }
 
+// Generate a complete job description from just a title + optional brief notes
+async function generateJobDescription(title, briefNotes = '', options = {}) {
+  const { location, job_type, company } = options;
+
+  const prompt = `Generate a complete, professional job description for this role:
+
+Job Title: ${title}
+Company: ${company || 'A growing company'}
+Location: ${location || 'Not specified'}
+Job Type: ${job_type || 'full-time'}
+
+${briefNotes ? `Additional context from the recruiter:\n${briefNotes}` : 'No additional notes provided.'}
+
+Create a compelling, detailed job description and return a JSON object:
+{
+  "description": "Full job description (3-4 paragraphs covering role overview, responsibilities, what the team looks like, and why join). Use professional tone. Include bullet points for key responsibilities.",
+  "requirements": "Requirements section with: Required qualifications (bulleted), Preferred qualifications (bulleted), and Required experience level.",
+  "suggested_skills": ["array of 8-12 relevant technical and soft skills"],
+  "suggested_title": "optimized job title if the original could be improved (or same title if already good)",
+  "seniority_level": "entry|mid|senior|lead|director|executive",
+  "preview_snippet": "2-sentence preview for job boards"
+}
+
+Make the description specific to the role, not generic. Use inclusive language.
+Only return the JSON object.`;
+
+  const response = await chat(prompt, {
+    system: 'You are a senior talent acquisition specialist who writes compelling job descriptions that attract top talent. Your descriptions are specific, inclusive, and highlight growth opportunities. Always return valid JSON.'
+  });
+
+  try {
+    return JSON.parse(response);
+  } catch (e) {
+    const match = response.match(/\{[\s\S]*\}/);
+    if (match) {
+      return JSON.parse(match[0]);
+    }
+    throw new Error('Failed to generate job description');
+  }
+}
+
+// Suggest relevant skills and requirements for a role
+async function suggestSkillsForRole(title, description = '', currentSkills = []) {
+  const prompt = `Suggest relevant skills and requirements for this job:
+
+Job Title: ${title}
+${description ? `Current Description:\n${description}` : ''}
+${currentSkills.length > 0 ? `Skills already listed: ${currentSkills.join(', ')}` : ''}
+
+Return a JSON object with:
+{
+  "required_skills": [
+    {"skill": "skill name", "category": "technical|soft|domain", "importance": "must-have|nice-to-have"}
+  ],
+  "suggested_requirements": [
+    "A specific requirement statement (e.g., '5+ years of experience with React and TypeScript')"
+  ],
+  "experience_level": {
+    "min_years": number,
+    "max_years": number,
+    "ideal": "description of ideal experience"
+  },
+  "education": ["relevant education suggestions"],
+  "certifications": ["relevant certifications if any"],
+  "tools_and_technologies": ["specific tools relevant to this role"]
+}
+
+Be specific to the role. Don't suggest generic skills like "communication" unless highly relevant.
+Only return the JSON object.`;
+
+  const response = await chat(prompt, {
+    system: 'You are a technical recruiter with deep knowledge of role requirements across industries. Provide specific, actionable skill requirements. Always return valid JSON.'
+  });
+
+  try {
+    return JSON.parse(response);
+  } catch (e) {
+    const match = response.match(/\{[\s\S]*\}/);
+    if (match) {
+      return JSON.parse(match[0]);
+    }
+    throw new Error('Failed to suggest skills');
+  }
+}
+
+// Suggest optimized job titles that attract more candidates
+async function suggestJobTitles(currentTitle, description = '') {
+  const prompt = `Suggest better job title alternatives for this position:
+
+Current Title: ${currentTitle}
+${description ? `Description:\n${description.substring(0, 500)}` : ''}
+
+Return a JSON object with:
+{
+  "suggestions": [
+    {
+      "title": "suggested job title",
+      "reason": "why this title is better",
+      "search_volume": "high|medium|low (estimated candidate search volume)",
+      "seniority_match": "how well it conveys the right seniority level"
+    }
+  ],
+  "current_title_assessment": "assessment of the current title",
+  "best_recommendation": "the single best title and why"
+}
+
+Focus on titles that:
+1. Candidates actually search for on job boards
+2. Clearly convey role level and function
+3. Avoid jargon that deters applicants (e.g. "ninja", "rockstar", "guru")
+4. Are ATS-friendly and inclusive
+
+Suggest 3-5 alternatives. Only return the JSON object.`;
+
+  const response = await chat(prompt, {
+    system: 'You are a job market expert who optimizes job titles for maximum candidate reach and clarity. You know what candidates search for on LinkedIn, Indeed, and Glassdoor. Always return valid JSON.'
+  });
+
+  try {
+    return JSON.parse(response);
+  } catch (e) {
+    const match = response.match(/\{[\s\S]*\}/);
+    if (match) {
+      return JSON.parse(match[0]);
+    }
+    throw new Error('Failed to suggest job titles');
+  }
+}
+
 module.exports = {
   analyzeJobPosting,
   optimizeJobDescription,
   generateInterviewQuestionsForJob,
   analyzeCandidateFit,
-  getSalaryInsights
+  getSalaryInsights,
+  generateJobDescription,
+  suggestSkillsForRole,
+  suggestJobTitles
 };

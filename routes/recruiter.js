@@ -240,6 +240,61 @@ router.get('/salary-insights', authMiddleware, requireRecruiter, async (req, res
   }
 });
 
+// Generate complete job description from title + optional notes
+router.post('/jobs/generate', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const { title, brief_notes, location, job_type } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: 'Job title is required' });
+    }
+
+    const generated = await jobOptimizer.generateJobDescription(title, brief_notes, {
+      location,
+      job_type,
+      company: req.user.company_name
+    });
+    res.json({ success: true, generated });
+  } catch (err) {
+    console.error('Generate job description error:', err);
+    res.status(500).json({ error: 'Failed to generate job description' });
+  }
+});
+
+// Suggest skills and requirements for a role
+router.post('/jobs/suggest-skills', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const { title, description, current_skills } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: 'Job title is required' });
+    }
+
+    const suggestions = await jobOptimizer.suggestSkillsForRole(title, description, current_skills || []);
+    res.json({ success: true, suggestions });
+  } catch (err) {
+    console.error('Suggest skills error:', err);
+    res.status(500).json({ error: 'Failed to suggest skills' });
+  }
+});
+
+// Suggest optimized job titles
+router.post('/jobs/suggest-title', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const { title, description } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: 'Current job title is required' });
+    }
+
+    const suggestions = await jobOptimizer.suggestJobTitles(title, description);
+    res.json({ success: true, suggestions });
+  } catch (err) {
+    console.error('Suggest title error:', err);
+    res.status(500).json({ error: 'Failed to suggest titles' });
+  }
+});
+
 // Update job
 router.put('/jobs/:id', authMiddleware, requireRecruiter, async (req, res) => {
   try {
