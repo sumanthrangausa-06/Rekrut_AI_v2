@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate existing codebase: schemas, routes, services, matching engine",
+    "status": "completed",
+    "activeForm": "Investigating existing codebase"
+  },
+  {
+    "content": "Phase 1-2: Backend — migrations + services + API routes",
+    "status": "completed",
+    "activeForm": "Creating backend"
+  },
+  {
+    "content": "Phase 3: Frontend candidate — auto-fill, AI memory, match breakdown, OmniScore trend",
+    "status": "completed",
+    "activeForm": "Building candidate frontend features"
+  },
+  {
+    "content": "Phase 4: Frontend recruiter — question bank, job posting auto-fill, match score cards, AI memory",
+    "status": "completed",
+    "activeForm": "Building recruiter frontend features"
+  },
+  {
+    "content": "Build, deploy, verify, update memory",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying"
+  }
+]

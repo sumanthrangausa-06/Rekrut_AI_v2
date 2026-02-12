@@ -1,0 +1,583 @@
+     1→// OmniScore v2 API Routes - Two-Sided Scoring System
+     2→const express = require('express');
+     3→const { authMiddleware } = require('../lib/auth');
+     4→const omniscoreService = require('../services/omniscore');
+     5→const trustscoreService = require('../services/trustscore');
+     6→const { AuditLogger } = require('../services/auditLogger');
+     7→const pool = require('../lib/db');
+     8→
+     9→const router = express.Router();
+    10→
+    11→// ============================================================
+    12→// CANDIDATE ENDPOINTS (their own score)
+    13→// ============================================================
+    14→
+    15→// Get current OmniScore
+    16→router.get('/', authMiddleware, async (req, res) => {
+    17→  try {
+    18→    await omniscoreService.getOrCreateScore(req.user.id);
+    19→    const currentScores = await omniscoreService.calculateScore(req.user.id);
+    20→
+    21→    res.json({
+    22→      success: true,
+    23→      omniscore: currentScores
+    24→    });
+    25→  } catch (err) {
+    26→    console.error('Get OmniScore error:', err);
+    27→    res.status(500).json({ error: 'Failed to get OmniScore' });
+    28→  }
+    29→});
+    30→
+    31→// Get detailed score breakdown
+    32→router.get('/breakdown', authMiddleware, async (req, res) => {
+    33→  try {
+    34→    const breakdown = await omniscoreService.getScoreBreakdown(req.user.id);
+    35→    res.json({ success: true, ...breakdown });
+    36→  } catch (err) {
+    37→    console.error('Get score breakdown error:', err);
+    38→    res.status(500).json({ error: 'Failed to get score breakdown' });
+    39→  }
+    40→});
+    41→
+    42→// Get role-specific scores
+    43→router.get('/roles', authMiddleware, async (req, res) => {
+    44→  try {
+    45→    const roleScores = await omniscoreService.getRoleScores(req.user.id);
+    46→    res.json({ success: true, role_scores: roleScores });
+    47→  } catch (err) {
+    48→    console.error('Get role scores error:', err);
+    49→    res.status(500).json({ error: 'Failed to get role scores' });
+    50→  }
+    51→});
+    52→
+    53→// Get score history
+    54→router.get('/history', authMiddleware, async (req, res) => {
+    55→  try {
+    56→    const { limit = 20 } = req.query;
+    57→    const result = await pool.query(`
+    58→      SELECT previous_score, new_score, change_amount, change_reason, component_type, created_at
+    59→      FROM score_history
+    60→      WHERE user_id = $1
+    61→      ORDER BY created_at DESC
+    62→      LIMIT $2
+    63→    `, [req.user.id, limit]);
+    64→
+    65→    res.json({ success: true, history: result.rows });
+    66→  } catch (err) {
+    67→    console.error('Get score history error:', err);
+    68→    res.status(500).json({ error: 'Failed to get score history' });
+    69→  }
+    70→});
+    71→
+    72→// Get recommendations to improve score
+    73→router.get('/recommendations', authMiddleware, async (req, res) => {
+    74→  try {
+    75→    const currentScores = await omniscoreService.calculateScore(req.user.id);
+    76→    const recommendations = omniscoreService.generateRecommendations(currentScores);
+    77→    res.json({ success: true, current_score: currentScores.total_score, recommendations });
+    78→  } catch (err) {
+    79→    console.error('Get recommendations error:', err);
+    80→    res.status(500).json({ error: 'Failed to get recommendations' });
+    81→  }
+    82→});
+    83→
+    84→// Record daily login (behavior component)
+    85→router.post('/checkin', authMiddleware, async (req, res) => {
+    86→  try {
+    87→    const today = await pool.query(`
+    88→      SELECT id FROM score_components
+    89→      WHERE user_id = $1
+    90→        AND component_type = 'behavior'
+    91→        AND source_type = 'daily_login'
+    92→        AND DATE(created_at) = CURRENT_DATE
+    93→    `, [req.user.id]);
+    94→
+    95→    if (today.rows.length > 0) {
+    96→      return res.json({ success: true, already_checked_in: true });
+    97→    }
+    98→
+    99→    const newScore = await omniscoreService.addBehaviorComponent(req.user.id, 'daily_login', 5, 10);
+   100→
+   101→    res.json({ success: true, new_score: newScore.total_score, points_earned: 5 });
+   102→  } catch (err) {
+   103→    console.error('Checkin error:', err);
+   104→    res.status(500).json({ error: 'Failed to record check-in' });
+   105→  }
+   106→});
+   107→
+   108→// ============================================================
+   109→// COMPANY SCORE ENDPOINTS (for candidates to view & rate)
+   110→// ============================================================
+   111→
+   112→// Get company score (public for candidates to see)
+   113→router.get('/company-score/:companyId', authMiddleware, async (req, res) => {
+   114→  try {
+   115→    const companyId = parseInt(req.params.companyId);
+   116→
+   117→    // Get TrustScore
+   118→    const trustScore = await trustscoreService.getOrCreateTrustScore(companyId);
+   119→    const calculated = await trustscoreService.calculateTrustScore(companyId);
+   120→
+   121→    // Get company info
+   122→    const companyResult = await pool.query(`
+   123→      SELECT c.name, c.slug, c.logo_url, c.industry, c.company_size, c.is_verified,
+   124→             c.website, c.headquarters, c.description
+   125→      FROM companies c WHERE c.id = $1
+   126→    `, [companyId]);
+   127→
+   128→    if (companyResult.rows.length === 0) {
+   129→      return res.status(404).json({ error: 'Company not found' });
+   130→    }
+   131→
+   132→    // Get aggregated candidate ratings
+   133→    const ratingsResult = await pool.query(`
+   134→      SELECT
+   135→        COUNT(*) as total_ratings,
+   136→        ROUND(AVG(overall_rating)::numeric, 1) as avg_overall,
+   137→        ROUND(AVG(interview_experience)::numeric, 1) as avg_interview,
+   138→        ROUND(AVG(communication)::numeric, 1) as avg_communication,
+   139→        ROUND(AVG(transparency)::numeric, 1) as avg_transparency,
+   140→        ROUND(AVG(work_life_balance)::numeric, 1) as avg_work_life,
+   141→        ROUND(AVG(culture)::numeric, 1) as avg_culture,
+   142→        ROUND(AVG(growth_opportunity)::numeric, 1) as avg_growth
+   143→      FROM company_ratings
+   144→      WHERE company_id = $1 AND status = 'published'
+   145→    `, [companyId]);
+   146→
+   147→    // Get recent reviews (anonymous)
+   148→    const reviewsResult = await pool.query(`
+   149→      SELECT overall_rating, interview_experience, communication, transparency,
+   150→             review_text, pros, cons, created_at
+   151→      FROM company_ratings
+   152→      WHERE company_id = $1 AND status = 'published'
+   153→      ORDER BY created_at DESC
+   154→      LIMIT 10
+   155→    `, [companyId]);
+   156→
+   157→    // Check if current user has already rated
+   158→    let userRating = null;
+   159→    if (req.user && req.user.role === 'candidate') {
+   160→      const userRatingResult = await pool.query(
+   161→        'SELECT * FROM company_ratings WHERE company_id = $1 AND candidate_id = $2',
+   162→        [companyId, req.user.id]
+   163→      );
+   164→      userRating = userRatingResult.rows[0] || null;
+   165→    }
+   166→
+   167→    const tierInfo = trustscoreService.TRUST_SCORE_RANGES.TIERS[calculated.tier];
+   168→
+   169→    res.json({
+   170→      success: true,
+   171→      company: companyResult.rows[0],
+   172→      trust_score: {
+   173→        score: calculated.total_score,
+   174→        tier: calculated.tier,
+   175→        tier_label: tierInfo?.label || 'New Employer',
+   176→        tier_color: tierInfo?.color || '#94a3b8',
+   177→        breakdown: {
+   178→          verification: { score: calculated.verification, max: 200, label: 'Company Verification' },
+   179→          job_authenticity: { score: calculated.job_authenticity, max: 250, label: 'Job Authenticity' },
+   180→          hiring_ratio: { score: calculated.hiring_ratio, max: 250, label: 'Hiring Track Record' },
+   181→          feedback: { score: calculated.feedback, max: 200, label: 'Candidate Feedback' },
+   182→          behavior: { score: calculated.behavior, max: 100, label: 'Platform Activity' }
+   183→        }
+   184→      },
+   185→      candidate_ratings: {
+   186→        summary: ratingsResult.rows[0],
+   187→        reviews: reviewsResult.rows
+   188→      },
+   189→      user_rating: userRating
+   190→    });
+   191→  } catch (err) {
+   192→    console.error('Get company score error:', err);
+   193→    res.status(500).json({ error: 'Failed to get company score' });
+   194→  }
+   195→});
+   196→
+   197→// Rate a company (candidates only)
+   198→router.post('/rate-company', authMiddleware, async (req, res) => {
+   199→  try {
+   200→    if (req.user.role !== 'candidate') {
+   201→      return res.status(403).json({ error: 'Only candidates can rate companies' });
+   202→    }
+   203→
+   204→    const {
+   205→      company_id, job_id,
+   206→      overall_rating, interview_experience, communication, transparency,
+   207→      work_life_balance, culture, growth_opportunity,
+   208→      review_text, pros, cons, is_anonymous
+   209→    } = req.body;
+   210→
+   211→    if (!company_id || !overall_rating) {
+   212→      return res.status(400).json({ error: 'company_id and overall_rating are required' });
+   213→    }
+   214→
+   215→    // Validate ratings are 1-5
+   216→    const ratings = { overall_rating, interview_experience, communication, transparency,
+   217→      work_life_balance, culture, growth_opportunity };
+   218→    for (const [key, val] of Object.entries(ratings)) {
+   219→      if (val !== undefined && val !== null && (val < 1 || val > 5)) {
+   220→        return res.status(400).json({ error: `${key} must be between 1 and 5` });
+   221→      }
+   222→    }
+   223→
+   224→    // Upsert rating
+   225→    const result = await pool.query(`
+   226→      INSERT INTO company_ratings (
+   227→        company_id, candidate_id, job_id,
+   228→        overall_rating, interview_experience, communication, transparency,
+   229→        work_life_balance, culture, growth_opportunity,
+   230→        review_text, pros, cons, is_anonymous
+   231→      )
+   232→      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+   233→      ON CONFLICT (company_id, candidate_id) DO UPDATE SET
+   234→        job_id = COALESCE(EXCLUDED.job_id, company_ratings.job_id),
+   235→        overall_rating = EXCLUDED.overall_rating,
+   236→        interview_experience = EXCLUDED.interview_experience,
+   237→        communication = EXCLUDED.communication,
+   238→        transparency = EXCLUDED.transparency,
+   239→        work_life_balance = EXCLUDED.work_life_balance,
+   240→        culture = EXCLUDED.culture,
+   241→        growth_opportunity = EXCLUDED.growth_opportunity,
+   242→        review_text = EXCLUDED.review_text,
+   243→        pros = EXCLUDED.pros,
+   244→        cons = EXCLUDED.cons,
+   245→        is_anonymous = EXCLUDED.is_anonymous,
+   246→        updated_at = NOW()
+   247→      RETURNING *
+   248→    `, [company_id, req.user.id, job_id || null,
+   249→        overall_rating, interview_experience || null, communication || null, transparency || null,
+   250→        work_life_balance || null, culture || null, growth_opportunity || null,
+   251→        review_text || null, pros || null, cons || null, is_anonymous !== false]);
+   252→
+   253→    // Also update the TrustScore feedback component
+   254→    try {
+   255→      await trustscoreService.addFeedbackComponent(company_id, result.rows[0].id, overall_rating);
+   256→    } catch (e) {
+   257→      console.warn('Failed to update TrustScore feedback:', e.message);
+   258→    }
+   259→
+   260→    await AuditLogger.log({
+   261→      actionType: 'company_rated',
+   262→      userId: req.user.id,
+   263→      targetType: 'company',
+   264→      targetId: company_id,
+   265→      metadata: { overall_rating, company_id },
+   266→      req
+   267→    });
+   268→
+   269→    res.json({ success: true, rating: result.rows[0] });
+   270→  } catch (err) {
+   271→    console.error('Rate company error:', err);
+   272→    res.status(500).json({ error: 'Failed to rate company' });
+   273→  }
+   274→});
+   275→
+   276→// Get companies the candidate can rate (applied/interviewed/offered)
+   277→router.get('/ratable-companies', authMiddleware, async (req, res) => {
+   278→  try {
+   279→    if (req.user.role !== 'candidate') {
+   280→      return res.status(403).json({ error: 'Only candidates can view ratable companies' });
+   281→    }
+   282→
+   283→    const result = await pool.query(`
+   284→      SELECT DISTINCT c.id as company_id, c.name, c.logo_url, c.industry, c.is_verified,
+   285→             ja.status as application_status, j.title as job_title, j.id as job_id,
+   286→             ts.total_score as trust_score, ts.score_tier,
+   287→             cr.overall_rating as my_rating, ja.applied_at
+   288→      FROM job_applications ja
+   289→      JOIN jobs j ON ja.job_id = j.id
+   290→      JOIN companies c ON ja.company_id = c.id
+   291→      LEFT JOIN trust_scores ts ON c.id = ts.company_id
+   292→      LEFT JOIN company_ratings cr ON c.id = cr.company_id AND cr.candidate_id = $1
+   293→      WHERE ja.candidate_id = $1
+   294→        AND ja.status IN ('applied', 'interviewed', 'offered', 'hired')
+   295→      ORDER BY ja.applied_at DESC
+   296→    `, [req.user.id]);
+   297→
+   298→    res.json({ success: true, companies: result.rows });
+   299→  } catch (err) {
+   300→    console.error('Get ratable companies error:', err);
+   301→    res.status(500).json({ error: 'Failed to get ratable companies' });
+   302→  }
+   303→});
+   304→
+   305→// ============================================================
+   306→// MUTUAL MATCHING ENDPOINTS
+   307→// ============================================================
+   308→
+   309→// Get mutual matches for a candidate
+   310→router.get('/mutual-matches', authMiddleware, async (req, res) => {
+   311→  try {
+   312→    if (req.user.role !== 'candidate') {
+   313→      return res.status(403).json({ error: 'Only candidates can view mutual matches' });
+   314→    }
+   315→
+   316→    // Get candidate's OmniScore
+   317→    await omniscoreService.getOrCreateScore(req.user.id);
+   318→    const candidateScores = await omniscoreService.calculateScore(req.user.id);
+   319→
+   320→    // Find jobs where the candidate applied or was matched AND the company has a decent score
+   321→    const result = await pool.query(`
+   322→      SELECT
+   323→        j.id as job_id, j.title, j.location, j.salary_range, j.job_type,
+   324→        c.id as company_id, c.name as company_name, c.logo_url, c.industry, c.is_verified,
+   325→        ts.total_score as company_trust_score, ts.score_tier as company_tier,
+   326→        ja.status as application_status,
+   327→        mr.weighted_score as match_score, mr.match_level,
+   328→        COALESCE(
+   329→          ROUND(AVG(cr.overall_rating)::numeric, 1),
+   330→          0
+   331→        ) as avg_company_rating,
+   332→        COUNT(cr.id) as rating_count
+   333→      FROM jobs j
+   334→      JOIN companies c ON j.company_id = c.id
+   335→      LEFT JOIN trust_scores ts ON c.id = ts.company_id
+   336→      LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.candidate_id = $1
+   337→      LEFT JOIN match_results mr ON mr.job_id = j.id AND mr.candidate_id = $1
+   338→      LEFT JOIN company_ratings cr ON cr.company_id = c.id AND cr.status = 'published'
+   339→      WHERE j.status = 'active'
+   340→        AND (ja.candidate_id = $1 OR mr.candidate_id = $1)
+   341→      GROUP BY j.id, j.title, j.location, j.salary_range, j.job_type,
+   342→               c.id, c.name, c.logo_url, c.industry, c.is_verified,
+   343→               ts.total_score, ts.score_tier, ja.status,
+   344→               mr.weighted_score, mr.match_level
+   345→      ORDER BY
+   346→        COALESCE(mr.weighted_score, 0) + COALESCE(ts.total_score, 0) / 20 DESC
+   347→      LIMIT 20
+   348→    `, [req.user.id]);
+   349→
+   350→    // Calculate mutual fit for each
+   351→    const matches = result.rows.map(row => {
+   352→      const candidateStrength = (candidateScores.total_score - 300) / 550; // 0-1 scale
+   353→      const companyStrength = (row.company_trust_score || 500) / 1000; // 0-1 scale
+   354→      const matchStrength = (row.match_score || 50) / 100; // 0-1 scale
+   355→
+   356→      // Mutual fit: geometric mean of all three signals
+   357→      const mutualFit = Math.round(
+   358→        Math.pow(candidateStrength * companyStrength * matchStrength, 1/3) * 100
+   359→      );
+   360→
+   361→      let mutualLevel = 'low';
+   362→      if (mutualFit >= 80) mutualLevel = 'excellent';
+   363→      else if (mutualFit >= 65) mutualLevel = 'good';
+   364→      else if (mutualFit >= 50) mutualLevel = 'fair';
+   365→
+   366→      return {
+   367→        ...row,
+   368→        your_omniscore: candidateScores.total_score,
+   369→        your_tier: candidateScores.tier_label,
+   370→        mutual_fit_score: mutualFit,
+   371→        mutual_level: mutualLevel,
+   372→        signals: {
+   373→          your_score: `OmniScore ${candidateScores.total_score} (${candidateScores.tier_label})`,
+   374→          company_score: `TrustScore ${row.company_trust_score || 'N/A'} (${row.company_tier || 'new'})`,
+   375→          skill_match: `${Math.round(row.match_score || 0)}% match`
+   376→        }
+   377→      };
+   378→    });
+   379→
+   380→    res.json({
+   381→      success: true,
+   382→      your_omniscore: candidateScores,
+   383→      mutual_matches: matches,
+   384→      explanation: 'Mutual fit combines your OmniScore, company TrustScore, and skill match into a single compatibility score.'
+   385→    });
+   386→  } catch (err) {
+   387→    console.error('Get mutual matches error:', err);
+   388→    res.status(500).json({ error: 'Failed to get mutual matches' });
+   389→  }
+   390→});
+   391→
+   392→// ============================================================
+   393→// RECRUITER ENDPOINTS
+   394→// ============================================================
+   395→
+   396→// Get candidate's OmniScore (recruiter viewing a candidate)
+   397→router.get('/candidate/:candidateId', authMiddleware, async (req, res) => {
+   398→  try {
+   399→    if (!['recruiter', 'hiring_manager', 'admin', 'employer'].includes(req.user.role)) {
+   400→      return res.status(403).json({ error: 'Recruiter access required' });
+   401→    }
+   402→
+   403→    const candidateId = parseInt(req.params.candidateId);
+   404→    await omniscoreService.getOrCreateScore(candidateId);
+   405→    const scores = await omniscoreService.calculateScore(candidateId);
+   406→    const roleScores = await omniscoreService.getRoleScores(candidateId);
+   407→
+   408→    // Get candidate info
+   409→    const candidateResult = await pool.query(`
+   410→      SELECT u.name, u.email, u.avatar_url, cp.headline, cp.location, cp.years_experience
+   411→      FROM users u
+   412→      LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+   413→      WHERE u.id = $1
+   414→    `, [candidateId]);
+   415→
+   416→    res.json({
+   417→      success: true,
+   418→      candidate: candidateResult.rows[0] || {},
+   419→      omniscore: scores,
+   420→      role_scores: roleScores
+   421→    });
+   422→  } catch (err) {
+   423→    console.error('Get candidate OmniScore error:', err);
+   424→    res.status(500).json({ error: 'Failed to get candidate OmniScore' });
+   425→  }
+   426→});
+   427→
+   428→// Get ranked candidates with OmniScores (recruiter dashboard)
+   429→router.get('/leaderboard', authMiddleware, async (req, res) => {
+   430→  try {
+   431→    if (!['recruiter', 'hiring_manager', 'admin', 'employer'].includes(req.user.role)) {
+   432→      return res.status(403).json({ error: 'Recruiter access required' });
+   433→    }
+   434→
+   435→    const { limit = 50, min_score = 0, tier } = req.query;
+   436→
+   437→    let query = `
+   438→      SELECT os.*, u.name, u.email, u.avatar_url,
+   439→             cp.headline, cp.location, cp.years_experience,
+   440→             (SELECT COUNT(*) FROM job_applications ja WHERE ja.candidate_id = u.id AND ja.company_id = $1) as applications_count
+   441→      FROM omni_scores os
+   442→      JOIN users u ON os.user_id = u.id
+   443→      LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+   444→      WHERE u.role = 'candidate'
+   445→        AND os.total_score >= $2
+   446→    `;
+   447→    const params = [req.user.company_id || 0, parseInt(min_score)];
+   448→
+   449→    if (tier) {
+   450→      query += ` AND os.score_tier = $${params.length + 1}`;
+   451→      params.push(tier);
+   452→    }
+   453→
+   454→    query += ` ORDER BY os.total_score DESC LIMIT $${params.length + 1}`;
+   455→    params.push(parseInt(limit));
+   456→
+   457→    const result = await pool.query(query, params);
+   458→
+   459→    // Get score tier distribution
+   460→    const distribution = await pool.query(`
+   461→      SELECT score_tier, COUNT(*) as count
+   462→      FROM omni_scores os
+   463→      JOIN users u ON os.user_id = u.id
+   464→      WHERE u.role = 'candidate'
+   465→      GROUP BY score_tier
+   466→      ORDER BY
+   467→        CASE score_tier
+   468→          WHEN 'exceptional' THEN 1
+   469→          WHEN 'excellent' THEN 2
+   470→          WHEN 'good' THEN 3
+   471→          WHEN 'fair' THEN 4
+   472→          WHEN 'needs_work' THEN 5
+   473→          ELSE 6
+   474→        END
+   475→    `);
+   476→
+   477→    res.json({
+   478→      success: true,
+   479→      candidates: result.rows,
+   480→      distribution: distribution.rows,
+   481→      score_ranges: omniscoreService.SCORE_RANGES
+   482→    });
+   483→  } catch (err) {
+   484→    console.error('Get leaderboard error:', err);
+   485→    res.status(500).json({ error: 'Failed to get leaderboard' });
+   486→  }
+   487→});
+   488→
+   489→// Get company's own TrustScore + feedback summary (recruiter)
+   490→router.get('/company-dashboard', authMiddleware, async (req, res) => {
+   491→  try {
+   492→    if (!['recruiter', 'hiring_manager', 'admin', 'employer'].includes(req.user.role)) {
+   493→      return res.status(403).json({ error: 'Recruiter access required' });
+   494→    }
+   495→
+   496→    const companyId = req.user.company_id;
+   497→    if (!companyId) {
+   498→      return res.status(400).json({ error: 'No company associated with account' });
+   499→    }
+   500→
+   501→    // Get TrustScore
+   502→    await trustscoreService.getOrCreateTrustScore(companyId);
+   503→    const trustScores = await trustscoreService.calculateTrustScore(companyId);
+   504→    const tierInfo = trustscoreService.TRUST_SCORE_RANGES.TIERS[trustScores.tier];
+   505→
+   506→    // Get candidate ratings
+   507→    const ratingsResult = await pool.query(`
+   508→      SELECT
+   509→        COUNT(*) as total_ratings,
+   510→        ROUND(AVG(overall_rating)::numeric, 1) as avg_overall,
+   511→        ROUND(AVG(interview_experience)::numeric, 1) as avg_interview,
+   512→        ROUND(AVG(communication)::numeric, 1) as avg_communication,
+   513→        ROUND(AVG(transparency)::numeric, 1) as avg_transparency,
+   514→        ROUND(AVG(work_life_balance)::numeric, 1) as avg_work_life,
+   515→        ROUND(AVG(culture)::numeric, 1) as avg_culture,
+   516→        ROUND(AVG(growth_opportunity)::numeric, 1) as avg_growth
+   517→      FROM company_ratings
+   518→      WHERE company_id = $1 AND status = 'published'
+   519→    `, [companyId]);
+   520→
+   521→    // Get recent reviews
+   522→    const reviewsResult = await pool.query(`
+   523→      SELECT cr.overall_rating, cr.interview_experience, cr.communication,
+   524→             cr.review_text, cr.pros, cr.cons, cr.created_at,
+   525→             CASE WHEN cr.is_anonymous THEN 'Anonymous' ELSE u.name END as reviewer_name
+   526→      FROM company_ratings cr
+   527→      LEFT JOIN users u ON cr.candidate_id = u.id
+   528→      WHERE cr.company_id = $1 AND cr.status = 'published'
+   529→      ORDER BY cr.created_at DESC
+   530→      LIMIT 10
+   531→    `, [companyId]);
+   532→
+   533→    // Get hiring funnel stats
+   534→    const funnelResult = await pool.query(`
+   535→      SELECT
+   536→        COUNT(*) as total_applications,
+   537→        COUNT(*) FILTER (WHERE status = 'reviewing') as reviewing,
+   538→        COUNT(*) FILTER (WHERE status = 'interviewed') as interviewed,
+   539→        COUNT(*) FILTER (WHERE status = 'offered') as offered,
+   540→        COUNT(*) FILTER (WHERE status = 'hired') as hired,
+   541→        COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
+   542→        ROUND(AVG(omniscore_at_apply)::numeric) as avg_applicant_omniscore
+   543→      FROM job_applications
+   544→      WHERE company_id = $1
+   545→    `, [companyId]);
+   546→
+   547→    // TrustScore recommendations
+   548→    const recommendations = trustscoreService.generateTrustRecommendations(trustScores);
+   549→
+   550→    res.json({
+   551→      success: true,
+   552→      trust_score: {
+   553→        score: trustScores.total_score,
+   554→        tier: trustScores.tier,
+   555→        tier_label: tierInfo?.label || 'New Employer',
+   556→        tier_color: tierInfo?.color || '#94a3b8',
+   557→        breakdown: {
+   558→          verification: { score: trustScores.verification, max: 200, label: 'Company Verification' },
+   559→          job_authenticity: { score: trustScores.job_authenticity, max: 250, label: 'Job Authenticity' },
+   560→          hiring_ratio: { score: trustScores.hiring_ratio, max: 250, label: 'Hiring Track Record' },
+   561→          feedback: { score: trustScores.feedback, max: 200, label: 'Candidate Feedback' },
+   562→          behavior: { score: trustScores.behavior, max: 100, label: 'Platform Activity' }
+   563→        }
+   564→      },
+   565→      candidate_ratings: {
+   566→        summary: ratingsResult.rows[0],
+   567→        reviews: reviewsResult.rows
+   568→      },
+   569→      hiring_funnel: funnelResult.rows[0],
+   570→      recommendations
+   571→    });
+   572→  } catch (err) {
+   573→    console.error('Get company dashboard error:', err);
+   574→    res.status(500).json({ error: 'Failed to get company dashboard' });
+   575→  }
+   576→});
+   577→
+   578→module.exports = router;
+   579→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

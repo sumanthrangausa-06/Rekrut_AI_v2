@@ -1,0 +1,65 @@
+     1→// OmniScore v2 Migration - Two-sided scoring system
+     2→module.exports = {
+     3→  name: 'omniscore_v2_two_sided',
+     4→  up: async (client) => {
+     5→    // Company ratings from candidates (richer than candidate_feedback)
+     6→    await client.query(`
+     7→      CREATE TABLE IF NOT EXISTS company_ratings (
+     8→        id SERIAL PRIMARY KEY,
+     9→        company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    10→        candidate_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    11→        job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+    12→        overall_rating INTEGER CHECK (overall_rating >= 1 AND overall_rating <= 5),
+    13→        interview_experience INTEGER CHECK (interview_experience >= 1 AND interview_experience <= 5),
+    14→        communication INTEGER CHECK (communication >= 1 AND communication <= 5),
+    15→        transparency INTEGER CHECK (transparency >= 1 AND transparency <= 5),
+    16→        work_life_balance INTEGER CHECK (work_life_balance >= 1 AND work_life_balance <= 5),
+    17→        culture INTEGER CHECK (culture >= 1 AND culture <= 5),
+    18→        growth_opportunity INTEGER CHECK (growth_opportunity >= 1 AND growth_opportunity <= 5),
+    19→        review_text TEXT,
+    20→        pros TEXT,
+    21→        cons TEXT,
+    22→        is_anonymous BOOLEAN DEFAULT true,
+    23→        is_verified BOOLEAN DEFAULT false,
+    24→        status VARCHAR(20) DEFAULT 'published',
+    25→        created_at TIMESTAMP DEFAULT NOW(),
+    26→        updated_at TIMESTAMP DEFAULT NOW(),
+    27→        UNIQUE(company_id, candidate_id)
+    28→      )
+    29→    `);
+    30→
+    31→    // Mutual match scores (precomputed)
+    32→    await client.query(`
+    33→      CREATE TABLE IF NOT EXISTS mutual_matches (
+    34→        id SERIAL PRIMARY KEY,
+    35→        candidate_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    36→        company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    37→        job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+    38→        candidate_score INTEGER DEFAULT 300,
+    39→        company_score INTEGER DEFAULT 500,
+    40→        mutual_fit_score DECIMAL(5,2) DEFAULT 0,
+    41→        match_level VARCHAR(20) DEFAULT 'none',
+    42→        candidate_interest BOOLEAN DEFAULT false,
+    43→        company_interest BOOLEAN DEFAULT false,
+    44→        calculated_at TIMESTAMP DEFAULT NOW(),
+    45→        UNIQUE(candidate_id, company_id, job_id)
+    46→      )
+    47→    `);
+    48→
+    49→    // Indexes
+    50→    await client.query(`
+    51→      CREATE INDEX IF NOT EXISTS idx_company_ratings_company ON company_ratings(company_id);
+    52→      CREATE INDEX IF NOT EXISTS idx_company_ratings_candidate ON company_ratings(candidate_id);
+    53→      CREATE INDEX IF NOT EXISTS idx_mutual_matches_candidate ON mutual_matches(candidate_id);
+    54→      CREATE INDEX IF NOT EXISTS idx_mutual_matches_company ON mutual_matches(company_id);
+    55→      CREATE INDEX IF NOT EXISTS idx_mutual_matches_fit ON mutual_matches(mutual_fit_score DESC);
+    56→    `);
+    57→
+    58→    console.log('OmniScore v2 tables created successfully');
+    59→  }
+    60→};
+    61→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

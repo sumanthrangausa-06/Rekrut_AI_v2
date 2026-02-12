@@ -1,0 +1,211 @@
+     1→const express = require('express');
+     2→const { authMiddleware, requireRole } = require('../lib/auth');
+     3→const {
+     4→  findMatchingJobs,
+     5→  findMatchingCandidates,
+     6→  explainMatch,
+     7→  updateCandidateEmbedding,
+     8→  updateJobEmbedding
+     9→} = require('../services/matching-engine');
+    10→
+    11→const router = express.Router();
+    12→
+    13→/**
+    14→ * GET /api/matching/recommendations
+    15→ * Get personalized job recommendations for the logged-in candidate
+    16→ */
+    17→router.get('/recommendations', authMiddleware, async (req, res) => {
+    18→  try {
+    19→    if (req.user.role !== 'candidate') {
+    20→      return res.status(403).json({ error: 'Only candidates can get job recommendations' });
+    21→    }
+    22→
+    23→    const { limit = 20, min_score = 50 } = req.query;
+    24→
+    25→    const matches = await findMatchingJobs(req.user.id, {
+    26→      limit: parseInt(limit),
+    27→      minScore: parseFloat(min_score) / 100
+    28→    });
+    29→
+    30→    res.json({
+    31→      success: true,
+    32→      recommendations: matches,
+    33→      explanation: {
+    34→        how_it_works: 'Jobs are ranked using semantic skill matching, company TrustScore, and your OmniScore',
+    35→        score_breakdown: 'Weighted score = 60% skill match + 30% company trust + 10% your OmniScore',
+    36→        improve_matches: 'Complete your profile and boost your OmniScore to see better matches'
+    37→      }
+    38→    });
+    39→  } catch (err) {
+    40→    console.error('Get recommendations error:', err);
+    41→    res.status(500).json({ error: 'Failed to get recommendations', details: err.message });
+    42→  }
+    43→});
+    44→
+    45→/**
+    46→ * GET /api/matching/candidates/:jobId
+    47→ * Get ranked candidates for a specific job (recruiters only)
+    48→ */
+    49→router.get('/candidates/:jobId', authMiddleware, requireRole('hiring_manager', 'admin', 'recruiter'), async (req, res) => {
+    50→  try {
+    51→    const jobId = parseInt(req.params.jobId);
+    52→    const { limit = 50, min_score = 50 } = req.query;
+    53→
+    54→    const matches = await findMatchingCandidates(jobId, {
+    55→      limit: parseInt(limit),
+    56→      minScore: parseFloat(min_score) / 100
+    57→    });
+    58→
+    59→    res.json({
+    60→      success: true,
+    61→      candidates: matches,
+    62→      job_id: jobId,
+    63→      explanation: {
+    64→        how_it_works: 'Candidates are ranked using semantic skill matching, OmniScore, and your company TrustScore',
+    65→        score_breakdown: 'Weighted score = 60% skill match + 30% candidate OmniScore + 10% your TrustScore',
+    66→        score_tiers: {
+    67→          excellent: '85-100 (Highly recommended)',
+    68→          good: '70-84 (Strong match)',
+    69→          fair: '55-69 (Potential match)',
+    70→          poor: '0-54 (Not recommended)'
+    71→        }
+    72→      }
+    73→    });
+    74→  } catch (err) {
+    75→    console.error('Get candidates error:', err);
+    76→    res.status(500).json({ error: 'Failed to get candidate matches', details: err.message });
+    77→  }
+    78→});
+    79→
+    80→/**
+    81→ * GET /api/matching/explain/:candidateId/:jobId
+    82→ * Get detailed explanation of why a candidate matched a job
+    83→ */
+    84→router.get('/explain/:candidateId/:jobId', authMiddleware, async (req, res) => {
+    85→  try {
+    86→    const candidateId = parseInt(req.params.candidateId);
+    87→    const jobId = parseInt(req.params.jobId);
+    88→
+    89→    // Authorization: candidates can only see their own explanations
+    90→    if (req.user.role === 'candidate' && req.user.id !== candidateId) {
+    91→      return res.status(403).json({ error: 'Not authorized' });
+    92→    }
+    93→
+    94→    const explanation = await explainMatch(candidateId, jobId);
+    95→
+    96→    res.json({
+    97→      success: true,
+    98→      candidate_id: candidateId,
+    99→      job_id: jobId,
+   100→      match_result: explanation,
+   101→      transparency_note: 'Our matching algorithm uses semantic analysis of skills and experience, combined with OmniScore and TrustScore for fairness and quality.'
+   102→    });
+   103→  } catch (err) {
+   104→    console.error('Explain match error:', err);
+   105→    res.status(500).json({ error: 'Failed to explain match', details: err.message });
+   106→  }
+   107→});
+   108→
+   109→/**
+   110→ * POST /api/matching/update-profile-embedding
+   111→ * Update the candidate's profile embedding (triggered after profile updates)
+   112→ */
+   113→router.post('/update-profile-embedding', authMiddleware, async (req, res) => {
+   114→  try {
+   115→    if (req.user.role !== 'candidate') {
+   116→      return res.status(403).json({ error: 'Only candidates can update profile embeddings' });
+   117→    }
+   118→
+   119→    await updateCandidateEmbedding(req.user.id);
+   120→
+   121→    res.json({
+   122→      success: true,
+   123→      message: 'Profile embedding updated successfully. Job recommendations will be refreshed.'
+   124→    });
+   125→  } catch (err) {
+   126→    console.error('Update profile embedding error:', err);
+   127→    res.status(500).json({ error: 'Failed to update profile embedding', details: err.message });
+   128→  }
+   129→});
+   130→
+   131→/**
+   132→ * POST /api/matching/update-job-embedding/:jobId
+   133→ * Update a job's embedding (triggered after job updates)
+   134→ */
+   135→router.post('/update-job-embedding/:jobId', authMiddleware, requireRole('hiring_manager', 'admin', 'recruiter'), async (req, res) => {
+   136→  try {
+   137→    const jobId = parseInt(req.params.jobId);
+   138→
+   139→    await updateJobEmbedding(jobId);
+   140→
+   141→    res.json({
+   142→      success: true,
+   143→      message: 'Job embedding updated successfully. Candidate matches will be refreshed.'
+   144→    });
+   145→  } catch (err) {
+   146→    console.error('Update job embedding error:', err);
+   147→    res.status(500).json({ error: 'Failed to update job embedding', details: err.message });
+   148→  }
+   149→});
+   150→
+   151→/**
+   152→ * GET /api/matching/stats
+   153→ * Get matching statistics for the current user
+   154→ */
+   155→router.get('/stats', authMiddleware, async (req, res) => {
+   156→  try {
+   157→    const pool = require('../lib/db');
+   158→
+   159→    if (req.user.role === 'candidate') {
+   160→      // Candidate stats
+   161→      const result = await pool.query(`
+   162→        SELECT
+   163→          COUNT(*) as total_matches,
+   164→          AVG(match_score) as avg_match_score,
+   165→          COUNT(CASE WHEN match_score >= 85 THEN 1 END) as excellent_matches,
+   166→          COUNT(CASE WHEN match_score >= 70 AND match_score < 85 THEN 1 END) as good_matches
+   167→        FROM job_recommendations
+   168→        WHERE user_id = $1
+   169→      `, [req.user.id]);
+   170→
+   171→      res.json({
+   172→        success: true,
+   173→        stats: result.rows[0],
+   174→        your_profile_strength: 'Complete your profile and take assessments to improve matches'
+   175→      });
+   176→    } else {
+   177→      // Recruiter stats
+   178→      const result = await pool.query(`
+   179→        SELECT
+   180→          j.id as job_id,
+   181→          j.title,
+   182→          COUNT(mr.id) as candidate_matches,
+   183→          AVG(mr.weighted_score) as avg_match_score,
+   184→          COUNT(CASE WHEN mr.match_level = 'excellent' THEN 1 END) as excellent_matches
+   185→        FROM jobs j
+   186→        LEFT JOIN match_results mr ON j.id = mr.job_id
+   187→        WHERE j.user_id = $1 OR j.company_id IN (
+   188→          SELECT company_id FROM users WHERE id = $1
+   189→        )
+   190→        GROUP BY j.id, j.title
+   191→        ORDER BY candidate_matches DESC
+   192→        LIMIT 10
+   193→      `, [req.user.id]);
+   194→
+   195→      res.json({
+   196→        success: true,
+   197→        job_stats: result.rows
+   198→      });
+   199→    }
+   200→  } catch (err) {
+   201→    console.error('Get stats error:', err);
+   202→    res.status(500).json({ error: 'Failed to get stats', details: err.message });
+   203→  }
+   204→});
+   205→
+   206→module.exports = router;
+   207→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

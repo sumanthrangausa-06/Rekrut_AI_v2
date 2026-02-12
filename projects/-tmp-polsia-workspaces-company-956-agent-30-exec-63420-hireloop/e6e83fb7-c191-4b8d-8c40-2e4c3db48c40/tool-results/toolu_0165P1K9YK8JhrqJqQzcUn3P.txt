@@ -1,0 +1,104 @@
+     1→// Candidate Profile API Routes
+     2→const express = require('express');
+     3→const fetch = require('node-fetch');
+     4→const FormData = require('form-data');
+     5→const multer = require('multer');
+     6→const pdfParse = require('pdf-parse');
+     7→const mammoth = require('mammoth');
+     8→const { authMiddleware } = require('../lib/auth');
+     9→const pool = require('../lib/db');
+    10→const {
+    11→  parseResume,
+    12→  generateSkillAssessment,
+    13→  evaluateSkillAssessment,
+    14→  generateJobMatchScore,
+    15→  generateInterviewCoaching
+    16→} = require('../lib/polsia-ai');
+    17→
+    18→const router = express.Router();
+    19→const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+    20→
+    21→// Helper function to extract text from various file formats
+    22→async function extractTextFromFile(buffer, mimetype) {
+    23→  try {
+    24→    // Handle PDF files
+    25→    if (mimetype === 'application/pdf' || buffer.toString('utf-8', 0, 4) === '%PDF') {
+    26→      const pdfData = await pdfParse(buffer);
+    27→      return pdfData.text;
+    28→    }
+    29→
+    30→    // Handle DOCX files (application/vnd.openxmlformats-officedocument.wordprocessingml.document)
+    31→    if (mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    32→        buffer.toString('utf-8', 0, 2) === 'PK') {
+    33→      const result = await mammoth.extractRawText({ buffer });
+    34→      return result.value;
+    35→    }
+    36→
+    37→    // Handle plain text files (fallback)
+    38→    const text = buffer.toString('utf-8');
+    39→    if (text.length > 0 && /[a-zA-Z]{3,}/.test(text.substring(0, 500))) {
+    40→      return text;
+    41→    }
+    42→
+    43→    throw new Error('Unsupported file format or unable to extract text');
+    44→  } catch (error) {
+    45→    console.error('Text extraction error:', error.message);
+    46→    throw error;
+    47→  }
+    48→}
+    49→
+    50→// ============= PROFILE MANAGEMENT =============
+    51→
+    52→// Get candidate profile
+    53→router.get('/profile', authMiddleware, async (req, res) => {
+    54→  try {
+    55→    const profile = await pool.query(`
+    56→      SELECT cp.*, u.name, u.email, u.avatar_url
+    57→      FROM users u
+    58→      LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+    59→      WHERE u.id = $1
+    60→    `, [req.user.id]);
+    61→
+    62→    const experience = await pool.query(
+    63→      'SELECT * FROM work_experience WHERE user_id = $1 ORDER BY order_index, start_date DESC',
+    64→      [req.user.id]
+    65→    );
+    66→
+    67→    const education = await pool.query(
+    68→      'SELECT * FROM education WHERE user_id = $1 ORDER BY order_index, start_date DESC',
+    69→      [req.user.id]
+    70→    );
+    71→
+    72→    const skills = await pool.query(
+    73→      'SELECT * FROM candidate_skills WHERE user_id = $1 ORDER BY level DESC, skill_name',
+    74→      [req.user.id]
+    75→    );
+    76→
+    77→    const projects = await pool.query(
+    78→      'SELECT * FROM portfolio_projects WHERE user_id = $1 ORDER BY order_index, start_date DESC',
+    79→      [req.user.id]
+    80→    );
+    81→
+    82→    res.json({
+    83→      success: true,
+    84→      profile: profile.rows[0] || {},
+    85→      experience: experience.rows,
+    86→      education: education.rows,
+    87→      skills: skills.rows,
+    88→      projects: projects.rows
+    89→    });
+    90→  } catch (err) {
+    91→    console.error('Get profile error:', err);
+    92→    res.status(500).json({ error: 'Failed to get profile' });
+    93→  }
+    94→});
+    95→
+    96→// Update basic profile info
+    97→router.put('/profile', authMiddleware, async (req, res) => {
+    98→  try {
+    99→    const {
+   100→      headline, bio, location, phone,
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

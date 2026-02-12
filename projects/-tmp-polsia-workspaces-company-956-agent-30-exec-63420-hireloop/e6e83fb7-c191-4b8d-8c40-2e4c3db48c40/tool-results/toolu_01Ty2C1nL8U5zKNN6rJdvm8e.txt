@@ -1,0 +1,204 @@
+    95→
+    96→// Update basic profile info
+    97→router.put('/profile', authMiddleware, async (req, res) => {
+    98→  try {
+    99→    const {
+   100→      headline, bio, location, phone,
+   101→      linkedin_url, github_url, portfolio_url,
+   102→      availability, salary_min, salary_max,
+   103→      preferred_job_types, preferred_locations,
+   104→      remote_preference, years_experience
+   105→    } = req.body;
+   106→
+   107→    // Check if profile exists
+   108→    const existing = await pool.query(
+   109→      'SELECT id FROM candidate_profiles WHERE user_id = $1',
+   110→      [req.user.id]
+   111→    );
+   112→
+   113→    let result;
+   114→    if (existing.rows.length > 0) {
+   115→      result = await pool.query(`
+   116→        UPDATE candidate_profiles SET
+   117→          headline = COALESCE($2, headline),
+   118→          bio = COALESCE($3, bio),
+   119→          location = COALESCE($4, location),
+   120→          phone = COALESCE($5, phone),
+   121→          linkedin_url = COALESCE($6, linkedin_url),
+   122→          github_url = COALESCE($7, github_url),
+   123→          portfolio_url = COALESCE($8, portfolio_url),
+   124→          availability = COALESCE($9, availability),
+   125→          salary_min = COALESCE($10, salary_min),
+   126→          salary_max = COALESCE($11, salary_max),
+   127→          preferred_job_types = COALESCE($12, preferred_job_types),
+   128→          preferred_locations = COALESCE($13, preferred_locations),
+   129→          remote_preference = COALESCE($14, remote_preference),
+   130→          years_experience = COALESCE($15, years_experience),
+   131→          updated_at = NOW()
+   132→        WHERE user_id = $1
+   133→        RETURNING *
+   134→      `, [req.user.id, headline, bio, location, phone,
+   135→          linkedin_url, github_url, portfolio_url,
+   136→          availability, salary_min, salary_max,
+   137→          JSON.stringify(preferred_job_types), JSON.stringify(preferred_locations),
+   138→          remote_preference, years_experience]);
+   139→    } else {
+   140→      result = await pool.query(`
+   141→        INSERT INTO candidate_profiles (
+   142→          user_id, headline, bio, location, phone,
+   143→          linkedin_url, github_url, portfolio_url,
+   144→          availability, salary_min, salary_max,
+   145→          preferred_job_types, preferred_locations,
+   146→          remote_preference, years_experience
+   147→        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+   148→        RETURNING *
+   149→      `, [req.user.id, headline, bio, location, phone,
+   150→          linkedin_url, github_url, portfolio_url,
+   151→          availability, salary_min, salary_max,
+   152→          JSON.stringify(preferred_job_types || ['full-time']),
+   153→          JSON.stringify(preferred_locations || []),
+   154→          remote_preference || 'hybrid', years_experience || 0]);
+   155→    }
+   156→
+   157→    // Also update user name if provided
+   158→    if (req.body.name) {
+   159→      await pool.query('UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2',
+   160→        [req.body.name, req.user.id]);
+   161→    }
+   162→
+   163→    res.json({ success: true, profile: result.rows[0] });
+   164→  } catch (err) {
+   165→    console.error('Update profile error:', err);
+   166→    res.status(500).json({ error: 'Failed to update profile' });
+   167→  }
+   168→});
+   169→
+   170→// Upload profile photo
+   171→router.post('/profile/photo', authMiddleware, upload.single('photo'), async (req, res) => {
+   172→  try {
+   173→    if (!req.file) {
+   174→      return res.status(400).json({ error: 'No file uploaded' });
+   175→    }
+   176→
+   177→    const formData = new FormData();
+   178→    formData.append('file', req.file.buffer, {
+   179→      filename: req.file.originalname,
+   180→      contentType: req.file.mimetype
+   181→    });
+   182→
+   183→    const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
+   184→      method: 'POST',
+   185→      headers: {
+   186→        'Authorization': `Bearer ${process.env.POLSIA_API_KEY}`,
+   187→        ...formData.getHeaders()
+   188→      },
+   189→      body: formData
+   190→    });
+   191→
+   192→    const uploadResult = await uploadRes.json();
+   193→    if (!uploadResult.success) {
+   194→      throw new Error(uploadResult.error?.message || 'Upload failed');
+   195→    }
+   196→
+   197→    // Update profile with photo URL
+   198→    await pool.query(`
+   199→      INSERT INTO candidate_profiles (user_id, photo_url)
+   200→      VALUES ($1, $2)
+   201→      ON CONFLICT (user_id) DO UPDATE SET photo_url = $2, updated_at = NOW()
+   202→    `, [req.user.id, uploadResult.file.url]);
+   203→
+   204→    // Also update user avatar
+   205→    await pool.query('UPDATE users SET avatar_url = $1 WHERE id = $2',
+   206→      [uploadResult.file.url, req.user.id]);
+   207→
+   208→    res.json({ success: true, photo_url: uploadResult.file.url });
+   209→  } catch (err) {
+   210→    console.error('Photo upload error:', err);
+   211→    res.status(500).json({ error: 'Failed to upload photo' });
+   212→  }
+   213→});
+   214→
+   215→// ============= RESUME PARSING =============
+   216→
+   217→// Upload and parse resume
+   218→router.post('/resume/upload', authMiddleware, upload.single('resume'), async (req, res) => {
+   219→  try {
+   220→    if (!req.file) {
+   221→      return res.status(400).json({ error: 'No file uploaded' });
+   222→    }
+   223→
+   224→    // Upload to R2
+   225→    const formData = new FormData();
+   226→    formData.append('file', req.file.buffer, {
+   227→      filename: req.file.originalname,
+   228→      contentType: req.file.mimetype
+   229→    });
+   230→
+   231→    const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
+   232→      method: 'POST',
+   233→      headers: {
+   234→        'Authorization': `Bearer ${process.env.POLSIA_API_KEY}`,
+   235→        ...formData.getHeaders()
+   236→      },
+   237→      body: formData
+   238→    });
+   239→
+   240→    const uploadResult = await uploadRes.json();
+   241→    if (!uploadResult.success) {
+   242→      throw new Error(uploadResult.error?.message || 'Upload failed');
+   243→    }
+   244→
+   245→    // Save parsed resume record
+   246→    const resumeRecord = await pool.query(`
+   247→      INSERT INTO parsed_resumes (user_id, original_filename, file_url, parsing_status)
+   248→      VALUES ($1, $2, $3, 'processing')
+   249→      RETURNING id
+   250→    `, [req.user.id, req.file.originalname, uploadResult.file.url]);
+   251→
+   252→    // Update profile with resume URL
+   253→    await pool.query(`
+   254→      INSERT INTO candidate_profiles (user_id, resume_url)
+   255→      VALUES ($1, $2)
+   256→      ON CONFLICT (user_id) DO UPDATE SET resume_url = $2, updated_at = NOW()
+   257→    `, [req.user.id, uploadResult.file.url]);
+   258→
+   259→    // Extract text from the resume (supports PDF, DOCX, and plain text)
+   260→    let parsedData = null;
+   261→    try {
+   262→      // Extract text from the file buffer
+   263→      const resumeText = await extractTextFromFile(req.file.buffer, req.file.mimetype);
+   264→
+   265→      if (resumeText && resumeText.trim().length > 50) {
+   266→        // Get user's subscription for tracking
+   267→        const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [req.user.id]);
+   268→        const subscriptionId = user.rows[0]?.stripe_subscription_id;
+   269→
+   270→        // Parse with AI, with a 30-second timeout
+   271→        const parsePromise = parseResume(resumeText.substring(0, 15000), { subscriptionId });
+   272→        const timeoutPromise = new Promise((_, reject) =>
+   273→          setTimeout(() => reject(new Error('AI parsing timeout')), 30000)
+   274→        );
+   275→
+   276→        parsedData = await Promise.race([parsePromise, timeoutPromise]);
+   277→
+   278→        // Update the record with parsed data
+   279→        await pool.query(`
+   280→          UPDATE parsed_resumes
+   281→          SET parsed_data = $1, parsing_status = 'completed', parsed_at = NOW()
+   282→          WHERE id = $2
+   283→        `, [JSON.stringify(parsedData), resumeRecord.rows[0].id]);
+   284→
+   285→        console.log(`Successfully parsed ${req.file.mimetype} resume for user ${req.user.id}`);
+   286→
+   287→        // ====== AUTO-APPLY parsed data to profile ======
+   288→        try {
+   289→          const applySummary = { profile: false, experience: 0, education: 0, skills: 0 };
+   290→
+   291→          // 1. Apply contact/profile info
+   292→          if (parsedData.contact) {
+   293→            await pool.query(`
+   294→              INSERT INTO candidate_profiles (user_id, headline, bio, location, phone, linkedin_url, github_url, portfolio_url, years_experience)
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

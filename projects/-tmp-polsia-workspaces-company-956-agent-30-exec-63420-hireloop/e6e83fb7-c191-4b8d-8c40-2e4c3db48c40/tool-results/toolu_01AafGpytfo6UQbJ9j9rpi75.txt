@@ -1,0 +1,104 @@
+     1→// Recruiter Dashboard & Job Management Routes
+     2→const express = require('express');
+     3→const pool = require('../lib/db');
+     4→const { authMiddleware } = require('../lib/auth');
+     5→const trustscoreService = require('../services/trustscore');
+     6→const jobOptimizer = require('../services/job-optimizer');
+     7→const { AuditLogger } = require('../services/auditLogger');
+     8→
+     9→const router = express.Router();
+    10→
+    11→// Middleware to require recruiter role
+    12→function requireRecruiter(req, res, next) {
+    13→  if (!req.user.company_id || !['recruiter', 'hiring_manager', 'employer', 'admin'].includes(req.user.role)) {
+    14→    return res.status(403).json({ error: 'Recruiter access required' });
+    15→  }
+    16→  next();
+    17→}
+    18→
+    19→// Dashboard overview
+    20→router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
+    21→  try {
+    22→    const companyId = req.user.company_id;
+    23→
+    24→    // Get TrustScore
+    25→    const trustScore = await trustscoreService.calculateTrustScore(companyId);
+    26→
+    27→    // Get job stats
+    28→    const jobStats = await pool.query(`
+    29→      SELECT
+    30→        COUNT(*) FILTER (WHERE status = 'active') as active_jobs,
+    31→        COUNT(*) FILTER (WHERE status = 'paused') as paused_jobs,
+    32→        COUNT(*) FILTER (WHERE status = 'closed') as closed_jobs
+    33→      FROM jobs WHERE company_id = $1
+    34→    `, [companyId]);
+    35→
+    36→    // Get application stats
+    37→    const appStats = await pool.query(`
+    38→      SELECT
+    39→        COUNT(*) as total_applications,
+    40→        COUNT(*) FILTER (WHERE status = 'applied') as new_applications,
+    41→        COUNT(*) FILTER (WHERE status = 'reviewing') as reviewing,
+    42→        COUNT(*) FILTER (WHERE status = 'interviewed') as interviewed,
+    43→        COUNT(*) FILTER (WHERE status = 'offered') as offered,
+    44→        COUNT(*) FILTER (WHERE status = 'hired') as hired
+    45→      FROM job_applications WHERE company_id = $1
+    46→    `, [companyId]);
+    47→
+    48→    // Get upcoming interviews
+    49→    const upcomingInterviews = await pool.query(`
+    50→      SELECT si.id, si.scheduled_at, si.interview_type, si.status,
+    51→             u.name as candidate_name, u.email as candidate_email,
+    52→             j.title as job_title
+    53→      FROM scheduled_interviews si
+    54→      JOIN users u ON si.candidate_id = u.id
+    55→      JOIN jobs j ON si.job_id = j.id
+    56→      WHERE si.company_id = $1
+    57→        AND si.scheduled_at > NOW()
+    58→        AND si.status = 'scheduled'
+    59→      ORDER BY si.scheduled_at
+    60→      LIMIT 5
+    61→    `, [companyId]);
+    62→
+    63→    // Get recent applications
+    64→    const recentApps = await pool.query(`
+    65→      SELECT ja.id, ja.status, ja.applied_at, ja.omniscore_at_apply,
+    66→             u.name as candidate_name, u.email as candidate_email,
+    67→             j.title as job_title, j.id as job_id
+    68→      FROM job_applications ja
+    69→      JOIN users u ON ja.candidate_id = u.id
+    70→      JOIN jobs j ON ja.job_id = j.id
+    71→      WHERE ja.company_id = $1
+    72→      ORDER BY ja.applied_at DESC
+    73→      LIMIT 10
+    74→    `, [companyId]);
+    75→
+    76→    res.json({
+    77→      success: true,
+    78→      trust_score: trustScore,
+    79→      job_stats: jobStats.rows[0],
+    80→      application_stats: appStats.rows[0],
+    81→      upcoming_interviews: upcomingInterviews.rows,
+    82→      recent_applications: recentApps.rows
+    83→    });
+    84→  } catch (err) {
+    85→    console.error('Dashboard error:', err);
+    86→    res.status(500).json({ error: 'Failed to load dashboard' });
+    87→  }
+    88→});
+    89→
+    90→// Get all jobs for company
+    91→router.get('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
+    92→  try {
+    93→    const { status, limit = 50, offset = 0 } = req.query;
+    94→
+    95→    let query = `
+    96→      SELECT j.*,
+    97→             COALESCE(ja.views, 0) as views,
+    98→             COALESCE((SELECT COUNT(*) FROM job_applications japp WHERE japp.job_id = j.id), 0) as application_count,
+    99→             COALESCE(ja.interviews_scheduled, 0) as interviews
+   100→      FROM jobs j
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
