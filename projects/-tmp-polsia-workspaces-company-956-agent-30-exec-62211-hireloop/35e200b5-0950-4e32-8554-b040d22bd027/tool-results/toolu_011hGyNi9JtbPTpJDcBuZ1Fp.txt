@@ -1,0 +1,424 @@
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/client/src/pages/recruiter/job-applicants.tsx-46-}
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/client/src/pages/recruiter/job-applicants.tsx-47-
+client/src/pages/recruiter/job-applicants.tsx:48:const statuses = ['applied', 'reviewing', 'shortlisted', 'interviewed', 'offered', 'hired', 'rejected']
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/client/src/pages/recruiter/job-applicants.tsx-49-
+client/src/pages/recruiter/job-applicants.tsx-50-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' }> = {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/client/src/pages/recruiter/applications.tsx-46-}
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/client/src/pages/recruiter/applications.tsx-47-
+client/src/pages/recruiter/applications.tsx:48:const statuses = ['applied', 'reviewing', 'shortlisted', 'interviewed', 'offered', 'hired', 'rejected']
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/client/src/pages/recruiter/applications.tsx-49-
+client/src/pages/recruiter/applications.tsx-50-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' }> = {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/client/src/pages/candidate/applications.tsx-115-  }
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/client/src/pages/candidate/applications.tsx-116-
+client/src/pages/candidate/applications.tsx:117:  const statuses = ['applied', 'reviewing', 'shortlisted', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn']
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/client/src/pages/candidate/applications.tsx-118-  const statusCounts = statuses.reduce((acc, s) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/client/src/pages/candidate/applications.tsx-119-    acc[s] = applications.filter(a => a.status === s).length
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54953-hireloop/02a690f1-31ee-4a14-b885-593ebe4a62ff.jsonl-38-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54953-hireloop/02a690f1-31ee-4a14-b885-593ebe4a62ff.jsonl-39-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54953-hireloop/02a690f1-31ee-4a14-b885-593ebe4a62ff.jsonl:40:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54953-hireloop/02a690f1-31ee-4a14-b885-593ebe4a62ff.jsonl-41-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54953-hireloop/02a690f1-31ee-4a14-b885-593ebe4a62ff.jsonl-42-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba/tool-results/toolu_01VYRkaE1LQuS2zr9PKcTKnv.txt-115-   115→  }
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba/tool-results/toolu_01VYRkaE1LQuS2zr9PKcTKnv.txt-116-   116→
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba/tool-results/toolu_01VYRkaE1LQuS2zr9PKcTKnv.txt:117:   117→  const statuses = ['applied', 'reviewing', 'shortlisted', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn']
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba/tool-results/toolu_01VYRkaE1LQuS2zr9PKcTKnv.txt-118-   118→  const statusCounts = statuses.reduce((acc, s) => {
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba/tool-results/toolu_01VYRkaE1LQuS2zr9PKcTKnv.txt-119-   119→    acc[s] = applications.filter(a => a.status === s).length
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba.jsonl-51-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba.jsonl-52-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba.jsonl:53:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba.jsonl-54-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba.jsonl-55-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba.jsonl-65-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba.jsonl-66-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba.jsonl:67:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba.jsonl-68-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba.jsonl-69-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba.jsonl-95-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba.jsonl-96-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba.jsonl:97:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba.jsonl-98-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-55134-hireloop/fcdaf80d-e6d6-4bb0-a319-442d9f0792ba.jsonl-99-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53348-hireloop/4f8f7845-cadd-4161-818c-bdbc0c0694cb.jsonl-25-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53348-hireloop/4f8f7845-cadd-4161-818c-bdbc0c0694cb.jsonl-26-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53348-hireloop/4f8f7845-cadd-4161-818c-bdbc0c0694cb.jsonl:27:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53348-hireloop/4f8f7845-cadd-4161-818c-bdbc0c0694cb.jsonl-28-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53348-hireloop/4f8f7845-cadd-4161-818c-bdbc0c0694cb.jsonl-29-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-856-
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-857-// Valid pipeline stages in order
+routes/recruiter.js:858:const PIPELINE_STAGES = ['applied', 'screening', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn'];
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-859-
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-860-// Batch update application status (for bulk actions)
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-867-    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-868-
+routes/recruiter.js:869:    if (!status || !PIPELINE_STAGES.includes(status)) {
+routes/recruiter.js:870:      return res.status(400).json({ error: `Invalid status. Must be one of: ${PIPELINE_STAGES.join(', ')}` });
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-871-    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-872-
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-950-    // Group by pipeline stage
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-951-    const pipeline = {};
+routes/recruiter.js:952:    for (const stage of PIPELINE_STAGES) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-953-      pipeline[stage] = [];
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-954-    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-955-
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-956-    for (const app of applications.rows) {
+routes/recruiter.js:957:      const stage = PIPELINE_STAGES.includes(app.status) ? app.status : 'applied';
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-958-      pipeline[stage].push(app);
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-959-    }
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-961-    // Get stage counts
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-962-    const stageCounts = {};
+routes/recruiter.js:963:    for (const stage of PIPELINE_STAGES) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-964-      stageCounts[stage] = pipeline[stage].length;
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-965-    }
+--
+routes/recruiter.js-971-      stage_counts: stageCounts,
+routes/recruiter.js-972-      total: applications.rows.length,
+routes/recruiter.js:973:      stages: PIPELINE_STAGES
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-974-    });
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js-975-  } catch (err) {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl-31-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl-32-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl:33:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl-34-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl:35:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl-36-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl-37-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl-66-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl-67-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl:68:[Omitted long matching line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl:69:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl-70-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl-71-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl-72-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl:73:[Omitted long matching line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl:74:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl-75-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54898-hireloop/2b13fbf1-adbb-4869-b255-6b53f908285f.jsonl-76-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-52735-hireloop/5cdc4471-8e78-4498-acec-c0540182430a.jsonl-66-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-52735-hireloop/5cdc4471-8e78-4498-acec-c0540182430a.jsonl-67-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-52735-hireloop/5cdc4471-8e78-4498-acec-c0540182430a.jsonl:68:[Omitted long matching line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-52735-hireloop/5cdc4471-8e78-4498-acec-c0540182430a.jsonl:69:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-52735-hireloop/5cdc4471-8e78-4498-acec-c0540182430a.jsonl-70-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-52735-hireloop/5cdc4471-8e78-4498-acec-c0540182430a.jsonl-71-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54924-hireloop/743391b7-d1fd-4bc0-8197-e94a013d8fcb/subagents/agent-ad41e8f.jsonl-21-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54924-hireloop/743391b7-d1fd-4bc0-8197-e94a013d8fcb/subagents/agent-ad41e8f.jsonl-22-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54924-hireloop/743391b7-d1fd-4bc0-8197-e94a013d8fcb/subagents/agent-ad41e8f.jsonl:23:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54924-hireloop/743391b7-d1fd-4bc0-8197-e94a013d8fcb/subagents/agent-ad41e8f.jsonl-24-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54924-hireloop/743391b7-d1fd-4bc0-8197-e94a013d8fcb/subagents/agent-ad41e8f.jsonl-25-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54924-hireloop/743391b7-d1fd-4bc0-8197-e94a013d8fcb/subagents/agent-a75d66b.jsonl-21-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54924-hireloop/743391b7-d1fd-4bc0-8197-e94a013d8fcb/subagents/agent-a75d66b.jsonl-22-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54924-hireloop/743391b7-d1fd-4bc0-8197-e94a013d8fcb/subagents/agent-a75d66b.jsonl:23:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54924-hireloop/743391b7-d1fd-4bc0-8197-e94a013d8fcb/subagents/agent-a75d66b.jsonl-24-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54924-hireloop/743391b7-d1fd-4bc0-8197-e94a013d8fcb/subagents/agent-a75d66b.jsonl-25-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54924-hireloop/743391b7-d1fd-4bc0-8197-e94a013d8fcb/subagents/agent-a75d66b.jsonl-28-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54924-hireloop/743391b7-d1fd-4bc0-8197-e94a013d8fcb/subagents/agent-a75d66b.jsonl-29-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54924-hireloop/743391b7-d1fd-4bc0-8197-e94a013d8fcb/subagents/agent-a75d66b.jsonl:30:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54924-hireloop/743391b7-d1fd-4bc0-8197-e94a013d8fcb/subagents/agent-a75d66b.jsonl-31-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54924-hireloop/743391b7-d1fd-4bc0-8197-e94a013d8fcb/subagents/agent-a75d66b.jsonl-32-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54698-hireloop/96864a3c-765e-43ca-b22b-8486ca7ded89.jsonl-103-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54698-hireloop/96864a3c-765e-43ca-b22b-8486ca7ded89.jsonl-104-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54698-hireloop/96864a3c-765e-43ca-b22b-8486ca7ded89.jsonl:105:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54698-hireloop/96864a3c-765e-43ca-b22b-8486ca7ded89.jsonl-106-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54698-hireloop/96864a3c-765e-43ca-b22b-8486ca7ded89.jsonl-107-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl-41-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl-42-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl:43:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl-44-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl-45-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl-53-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl-54-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl:55:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl-56-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl-57-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl-61-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl-62-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl:63:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl-64-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl-65-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl-66-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl:67:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl-68-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027.jsonl-69-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-856-   856→
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-857-   857→// Valid pipeline stages in order
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt:858:   858→const PIPELINE_STAGES = ['applied', 'screening', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn'];
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-859-   859→
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-860-   860→// Batch update application status (for bulk actions)
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-867-   867→    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-868-   868→
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt:869:   869→    if (!status || !PIPELINE_STAGES.includes(status)) {
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt:870:   870→      return res.status(400).json({ error: `Invalid status. Must be one of: ${PIPELINE_STAGES.join(', ')}` });
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-871-   871→    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-872-   872→
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-950-   950→    // Group by pipeline stage
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-951-   951→    const pipeline = {};
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt:952:   952→    for (const stage of PIPELINE_STAGES) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-953-   953→      pipeline[stage] = [];
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-954-   954→    }
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-955-   955→
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-956-   956→    for (const app of applications.rows) {
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt:957:   957→      const stage = PIPELINE_STAGES.includes(app.status) ? app.status : 'applied';
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-958-   958→      pipeline[stage].push(app);
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-959-   959→    }
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-961-   961→    // Get stage counts
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-962-   962→    const stageCounts = {};
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt:963:   963→    for (const stage of PIPELINE_STAGES) {
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-964-   964→      stageCounts[stage] = pipeline[stage].length;
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-965-   965→    }
+--
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-971-   971→      stage_counts: stageCounts,
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-972-   972→      total: applications.rows.length,
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt:973:   973→      stages: PIPELINE_STAGES
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-974-   974→    });
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt-975-   975→  } catch (err) {
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl-32-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl-33-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl:34:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl-35-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl-36-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl-131-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl-132-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl:133:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl-134-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl-135-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl:136:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl-137-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl-138-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl:139:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl-140-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53293-hireloop/8ac02b10-5848-469f-a272-7cc21026a551.jsonl-141-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53309-hireloop/88205b2b-3627-4d0e-911e-6a20a028589d/subagents/agent-abf1c53.jsonl-42-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53309-hireloop/88205b2b-3627-4d0e-911e-6a20a028589d/subagents/agent-abf1c53.jsonl-43-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53309-hireloop/88205b2b-3627-4d0e-911e-6a20a028589d/subagents/agent-abf1c53.jsonl:44:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53309-hireloop/88205b2b-3627-4d0e-911e-6a20a028589d/subagents/agent-abf1c53.jsonl-45-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53309-hireloop/88205b2b-3627-4d0e-911e-6a20a028589d/subagents/agent-abf1c53.jsonl-46-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54840-hireloop/5cb59c4f-28d6-4456-aba6-ec1afde2ab39.jsonl-36-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54840-hireloop/5cb59c4f-28d6-4456-aba6-ec1afde2ab39.jsonl-37-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54840-hireloop/5cb59c4f-28d6-4456-aba6-ec1afde2ab39.jsonl:38:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54840-hireloop/5cb59c4f-28d6-4456-aba6-ec1afde2ab39.jsonl-39-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54840-hireloop/5cb59c4f-28d6-4456-aba6-ec1afde2ab39.jsonl-40-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54840-hireloop/5cb59c4f-28d6-4456-aba6-ec1afde2ab39.jsonl-87-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54840-hireloop/5cb59c4f-28d6-4456-aba6-ec1afde2ab39.jsonl-88-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54840-hireloop/5cb59c4f-28d6-4456-aba6-ec1afde2ab39.jsonl:89:[Omitted long matching line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54840-hireloop/5cb59c4f-28d6-4456-aba6-ec1afde2ab39.jsonl:90:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54840-hireloop/5cb59c4f-28d6-4456-aba6-ec1afde2ab39.jsonl-91-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54840-hireloop/5cb59c4f-28d6-4456-aba6-ec1afde2ab39.jsonl-92-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl-34-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl-35-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl:36:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl-37-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl-38-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl-79-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl-80-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl:81:[Omitted long matching line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl:82:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl-83-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl-84-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl-85-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl:86:[Omitted long matching line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl:87:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl-88-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54569-hireloop/fa7bee5b-3a3c-4953-9bd3-8f9fec6350ef.jsonl-89-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl-184-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl-185-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl:186:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl-187-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl-188-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl-191-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl-192-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl:193:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl-194-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl-195-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl:196:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl-197-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl-198-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl-202-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl-203-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl:204:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl-205-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-59907-hireloop/0751e48c-e555-4b91-bf2b-9f228007b73f.jsonl-206-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl-97-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl-98-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl:99:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl-100-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl:101:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl-102-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl-103-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl-137-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl-138-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl:139:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl-140-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl:141:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl-142-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl:143:[Omitted long matching line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl:144:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl-145-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl-146-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl:147:[Omitted long matching line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl:148:[Omitted long matching line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl:149:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl-150-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54571-hireloop/6766b3ca-6d54-4a9a-9d62-f97dfd48ce1c.jsonl-151-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54568-hireloop/1f5f5037-86c3-4280-905d-db1a8ed4ea0d.jsonl-87-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54568-hireloop/1f5f5037-86c3-4280-905d-db1a8ed4ea0d.jsonl-88-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54568-hireloop/1f5f5037-86c3-4280-905d-db1a8ed4ea0d.jsonl:89:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54568-hireloop/1f5f5037-86c3-4280-905d-db1a8ed4ea0d.jsonl-90-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54568-hireloop/1f5f5037-86c3-4280-905d-db1a8ed4ea0d.jsonl-91-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54568-hireloop/1f5f5037-86c3-4280-905d-db1a8ed4ea0d.jsonl-110-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54568-hireloop/1f5f5037-86c3-4280-905d-db1a8ed4ea0d.jsonl-111-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54568-hireloop/1f5f5037-86c3-4280-905d-db1a8ed4ea0d.jsonl:112:[Omitted long matching line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54568-hireloop/1f5f5037-86c3-4280-905d-db1a8ed4ea0d.jsonl:113:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54568-hireloop/1f5f5037-86c3-4280-905d-db1a8ed4ea0d.jsonl-114-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54568-hireloop/1f5f5037-86c3-4280-905d-db1a8ed4ea0d.jsonl-115-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54530-hireloop/0a44647e-40ed-470a-9f6d-8932078712c5.jsonl-118-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54530-hireloop/0a44647e-40ed-470a-9f6d-8932078712c5.jsonl-119-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54530-hireloop/0a44647e-40ed-470a-9f6d-8932078712c5.jsonl:120:[Omitted long matching line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54530-hireloop/0a44647e-40ed-470a-9f6d-8932078712c5.jsonl:121:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54530-hireloop/0a44647e-40ed-470a-9f6d-8932078712c5.jsonl-122-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54530-hireloop/0a44647e-40ed-470a-9f6d-8932078712c5.jsonl-123-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-29-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-30-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl:31:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-32-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-33-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-117-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-118-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl:119:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-120-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-121-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl:122:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-123-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-124-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl:125:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-126-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-127-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl:128:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-129-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-130-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl:131:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-132-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53282-hireloop/29535740-a256-4327-bf6b-a012bad305da.jsonl-133-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-41-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-42-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl:43:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-44-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-45-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-89-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-90-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl:91:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-92-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-93-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-101-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-102-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl:103:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-104-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-105-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl:106:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-107-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-108-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl:109:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-110-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53028-hireloop/eab96474-1ab4-4517-a2c5-0ec6560a2c09.jsonl-111-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62203-hireloop/6e283e45-a6a7-49f9-b482-6162bfdea411.jsonl-102-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62203-hireloop/6e283e45-a6a7-49f9-b482-6162bfdea411.jsonl-103-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62203-hireloop/6e283e45-a6a7-49f9-b482-6162bfdea411.jsonl:104:[Omitted long matching line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62203-hireloop/6e283e45-a6a7-49f9-b482-6162bfdea411.jsonl:105:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62203-hireloop/6e283e45-a6a7-49f9-b482-6162bfdea411.jsonl-106-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62203-hireloop/6e283e45-a6a7-49f9-b482-6162bfdea411.jsonl-107-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53326-hireloop/fc6da922-a534-4389-8090-eeeab43ed344.jsonl-77-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53326-hireloop/fc6da922-a534-4389-8090-eeeab43ed344.jsonl-78-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53326-hireloop/fc6da922-a534-4389-8090-eeeab43ed344.jsonl:79:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53326-hireloop/fc6da922-a534-4389-8090-eeeab43ed344.jsonl-80-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53326-hireloop/fc6da922-a534-4389-8090-eeeab43ed344.jsonl-81-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53326-hireloop/fc6da922-a534-4389-8090-eeeab43ed344.jsonl-151-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53326-hireloop/fc6da922-a534-4389-8090-eeeab43ed344.jsonl-152-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53326-hireloop/fc6da922-a534-4389-8090-eeeab43ed344.jsonl:153:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53326-hireloop/fc6da922-a534-4389-8090-eeeab43ed344.jsonl-154-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53326-hireloop/fc6da922-a534-4389-8090-eeeab43ed344.jsonl-155-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53326-hireloop/fc6da922-a534-4389-8090-eeeab43ed344/subagents/agent-a05d00f.jsonl-121-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53326-hireloop/fc6da922-a534-4389-8090-eeeab43ed344/subagents/agent-a05d00f.jsonl-122-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53326-hireloop/fc6da922-a534-4389-8090-eeeab43ed344/subagents/agent-a05d00f.jsonl:123:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53326-hireloop/fc6da922-a534-4389-8090-eeeab43ed344/subagents/agent-a05d00f.jsonl-124-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-53326-hireloop/fc6da922-a534-4389-8090-eeeab43ed344/subagents/agent-a05d00f.jsonl-125-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-16-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-17-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl:18:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-19-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-20-[Omitted long context line]
+--
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-42-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-43-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl:44:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-45-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-46-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl:47:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-48-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-49-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl:50:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-51-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-52-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl:53:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-54-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-55-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl:56:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-57-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-58-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl:59:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-60-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-61-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl:62:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-63-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-64-[Omitted long context line]
+projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl:65:[Omitted long matching line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-66-[Omitted long context line]
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-54464-hireloop/d5a36c6a-4c09-4695-a424-f79abc59cd33.jsonl-67-[Omitted long context line]
