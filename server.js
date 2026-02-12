@@ -62,6 +62,14 @@ app.use(session({
   },
 }));
 
+// Metrics middleware — tracks request counts, latency, error rates per endpoint
+try {
+  const { metricsMiddleware } = require('./lib/metrics-collector');
+  app.use(metricsMiddleware);
+} catch (err) {
+  console.warn('[server] Metrics collector not available:', err.message);
+}
+
 // Activity request logger — captures all API calls for the admin activity feed
 try {
   const { requestLogger } = require('./lib/activity-logger');
@@ -106,6 +114,17 @@ app.use('/api/analytics', analyticsRoutes);
 
 // API Routes - Country Configuration
 app.use('/api/countries', countryRoutes);
+
+// Comprehensive Monitoring Metrics — protected by admin auth
+app.get('/api/admin/metrics', requireAdmin, async (req, res) => {
+  try {
+    const { getAllMetrics } = require('./lib/metrics-collector');
+    const metrics = await getAllMetrics();
+    res.json(metrics);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get metrics', message: err.message });
+  }
+});
 
 // Activity Feed — protected by admin auth
 app.get('/api/admin/activity', requireAdmin, async (req, res) => {
