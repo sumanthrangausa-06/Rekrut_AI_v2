@@ -13,7 +13,7 @@ import {
   User, Briefcase, GraduationCap, Wrench, FileText,
   Plus, Pencil, Trash2, Save, Upload, MapPin, Phone, Link2,
   Github, Linkedin, Globe, CheckCircle, AlertCircle, X,
-  Calendar, Building2, Award, Star,
+  Calendar, Building2, Award, Star, Sparkles, Loader2,
 } from 'lucide-react'
 
 // ============= Types =============
@@ -86,6 +86,8 @@ export function CandidateProfilePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [aiOptimizing, setAiOptimizing] = useState(false)
+  const [aiTips, setAiTips] = useState<string[] | null>(null)
 
   useEffect(() => {
     loadProfile()
@@ -123,6 +125,27 @@ export function CandidateProfilePage() {
   }
 
   // Compute profile completeness
+  async function handleAiOptimize() {
+    setAiOptimizing(true)
+    setAiTips(null)
+    try {
+      const data = await apiCall<{ success: boolean; suggestions: { summary: string; improvements: string[]; missing_sections: string[]; keyword_suggestions: string[] } }>('/candidate/ai/resume-optimizer', { method: 'POST' })
+      if (data.suggestions) {
+        const tips: string[] = []
+        if (data.suggestions.summary) tips.push(data.suggestions.summary)
+        if (data.suggestions.improvements?.length) tips.push(...data.suggestions.improvements)
+        if (data.suggestions.missing_sections?.length) tips.push(`Missing sections: ${data.suggestions.missing_sections.join(', ')}`)
+        if (data.suggestions.keyword_suggestions?.length) tips.push(`Add keywords: ${data.suggestions.keyword_suggestions.join(', ')}`)
+        setAiTips(tips.length > 0 ? tips : ['Your profile looks great! Keep it updated.'])
+        showMessage('success', 'AI analysis complete')
+      }
+    } catch {
+      showMessage('error', 'AI optimization failed — try again')
+    } finally {
+      setAiOptimizing(false)
+    }
+  }
+
   const completenessFields = [
     profile.name,
     profile.headline,
@@ -164,9 +187,44 @@ export function CandidateProfilePage() {
           <p className="text-muted-foreground">Manage your professional profile for employers</p>
         </div>
         <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAiOptimize}
+            disabled={aiOptimizing}
+            className="gap-1.5 border-primary/30 text-primary hover:bg-primary hover:text-white transition-colors"
+          >
+            {aiOptimizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {aiOptimizing ? 'Analyzing...' : 'AI Profile Tips'}
+          </Button>
           <ProfileCompleteness value={completeness} />
         </div>
       </div>
+
+      {/* AI Optimization Tips */}
+      {aiTips && aiTips.length > 0 && (
+        <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Sparkles className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 text-sm">AI Profile Optimization Tips</h4>
+                  <Button variant="ghost" size="sm" onClick={() => setAiTips(null)} className="h-6 w-6 p-0"><X className="h-3 w-3" /></Button>
+                </div>
+                <ul className="space-y-1.5">
+                  {aiTips.map((tip, i) => (
+                    <li key={i} className="text-sm text-blue-800 dark:text-blue-200 flex items-start gap-2">
+                      <CheckCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-500" />
+                      {tip}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Profile header card */}
       <Card>

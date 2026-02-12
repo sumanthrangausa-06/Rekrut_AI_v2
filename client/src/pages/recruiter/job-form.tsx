@@ -67,6 +67,10 @@ export function RecruiterJobFormPage() {
   const [screeningQuestions, setScreeningQuestions] = useState<ScreeningQuestion[]>([])
   const [showTemplates, setShowTemplates] = useState(false)
   const [titleError, setTitleError] = useState('')
+  const [aiSuggestingQuestions, setAiSuggestingQuestions] = useState(false)
+  const [questionBank, setQuestionBank] = useState<ScreeningQuestion[]>([])
+  const [showQuestionBank, setShowQuestionBank] = useState(false)
+  const [bankLoading, setBankLoading] = useState(false)
 
   // AI feature states
   const [aiGenerating, setAiGenerating] = useState(false)
@@ -258,6 +262,74 @@ export function RecruiterJobFormPage() {
       alert(err instanceof Error ? err.message : 'Failed to save job')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleAiSuggestQuestions() {
+    if (!title.trim()) {
+      setTitleError('Enter a job title first')
+      return
+    }
+    setAiSuggestingQuestions(true)
+    try {
+      const data = await apiCall<{ success: boolean; suggestions: Array<{ question: string; type: string; category: string; options?: string[] }> }>('/recruiter/ai/suggest-questions', {
+        method: 'POST',
+        body: { job_title: title, job_description: description, existing_questions: screeningQuestions.map(q => q.question) },
+      })
+      if (data.suggestions && data.suggestions.length > 0) {
+        const newQuestions = data.suggestions.map(s => ({
+          id: `sq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          question: s.question,
+          type: (s.type === 'yes_no' || s.type === 'select' ? s.type : 'text') as ScreeningQuestion['type'],
+          required: false,
+          options: s.options || [],
+          category: s.category || 'general',
+        }))
+        setScreeningQuestions(prev => [...prev, ...newQuestions])
+        flashSuccess(`${newQuestions.length} AI-suggested questions added!`)
+      }
+    } catch {
+      alert('AI question suggestion failed')
+    } finally {
+      setAiSuggestingQuestions(false)
+    }
+  }
+
+  async function loadQuestionBank() {
+    setBankLoading(true)
+    try {
+      const data = await apiCall<{ success: boolean; questions: Array<{ id: number; question_text: string; question_type: string; category: string; options: string[] }> }>('/recruiter/question-bank')
+      if (data.questions) {
+        setQuestionBank(data.questions.map(q => ({
+          id: `bank_${q.id}`,
+          question: q.question_text,
+          type: (q.question_type === 'yes_no' || q.question_type === 'select' ? q.question_type : 'text') as ScreeningQuestion['type'],
+          required: false,
+          options: q.options || [],
+          category: q.category || 'general',
+        })))
+      }
+      setShowQuestionBank(true)
+    } catch {
+      alert('Failed to load question bank')
+    } finally {
+      setBankLoading(false)
+    }
+  }
+
+  async function saveQuestionsToBank() {
+    const toSave = screeningQuestions.filter(q => q.question.trim())
+    if (toSave.length === 0) return
+    try {
+      for (const q of toSave) {
+        await apiCall('/recruiter/question-bank', {
+          method: 'POST',
+          body: { question_text: q.question, question_type: q.type, category: q.category || 'general', options: q.options || [] },
+        })
+      }
+      flashSuccess(`${toSave.length} questions saved to your bank!`)
+    } catch {
+      alert('Failed to save to question bank')
     }
   }
 
@@ -598,7 +670,21 @@ export function RecruiterJobFormPage() {
           <CardTitle className="flex items-center gap-2">
             <ListChecks className="h-5 w-5" /> Pre-screening Questions
           </CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAiSuggestQuestions}
+              disabled={aiSuggestingQuestions || !title.trim()}
+              className="gap-1 border-primary/30 text-primary hover:bg-primary hover:text-white"
+            >
+              {aiSuggestingQuestions ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+              AI Suggest
+            </Button>
+            <Button variant="outline" size="sm" onClick={loadQuestionBank} disabled={bankLoading} className="gap-1">
+              {bankLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lightbulb className="h-3 w-3" />}
+              My Bank
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setShowTemplates(!showTemplates)} className="gap-1">
               <Sparkles className="h-3 w-3" /> Templates
             </Button>
@@ -641,6 +727,49 @@ export function RecruiterJobFormPage() {
                   </button>
                 )
               })}
+            </div>
+          )}
+
+          {/* Question Bank panel */}
+          {showQuestionBank && (
+            <div className="mb-4 rounded-lg border bg-indigo-50/30 p-3 space-y-2">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium flex items-center gap-1">
+                  <Lightbulb className="h-3.5 w-3.5 text-indigo-600" /> Your Question Bank
+                </p>
+                <Button variant="ghost" size="sm" onClick={() => setShowQuestionBank(false)} className="h-6 w-6 p-0">
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+              {questionBank.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">No saved questions yet. Add screening questions and save them to your bank.</p>
+              ) : (
+                questionBank.map((q, i) => {
+                  const alreadyAdded = screeningQuestions.some(sq => sq.question.toLowerCase() === q.question.toLowerCase())
+                  return (
+                    <button
+                      key={q.id || i}
+                      onClick={() => {
+                        if (!alreadyAdded) {
+                          addQuestion({ ...q, id: `sq_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` })
+                        }
+                      }}
+                      disabled={alreadyAdded}
+                      className={`w-full text-left rounded-md border p-2.5 text-sm transition-colors ${
+                        alreadyAdded ? 'opacity-50 cursor-not-allowed bg-muted' : 'hover:bg-white hover:border-indigo-300 cursor-pointer'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>{q.question}</span>
+                        <div className="flex items-center gap-1.5">
+                          {q.category && <Badge variant="outline" className="text-[10px]">{q.category}</Badge>}
+                          {alreadyAdded && <span className="text-[10px] text-muted-foreground">Added</span>}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })
+              )}
             </div>
           )}
 
@@ -756,6 +885,15 @@ export function RecruiterJobFormPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Save questions to bank */}
+      {screeningQuestions.length > 0 && (
+        <div className="flex justify-end">
+          <Button variant="ghost" size="sm" onClick={saveQuestionsToBank} className="gap-1 text-xs text-muted-foreground">
+            <Save className="h-3 w-3" /> Save Questions to My Bank
+          </Button>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex gap-2 sticky bottom-4 bg-background/80 backdrop-blur-sm py-3 rounded-lg">

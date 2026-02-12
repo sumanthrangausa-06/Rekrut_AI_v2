@@ -11,7 +11,7 @@ import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   ArrowLeft, Users, Star, Calendar, Search, LayoutGrid, List,
   Mail, FileText, Send, CheckCircle, Clock, Gift, MessageSquare,
-  ChevronRight, Zap, Target, AlertCircle,
+  ChevronRight, Zap, Target, AlertCircle, Sparkles, Loader2, X,
 } from 'lucide-react'
 
 interface JobInfo {
@@ -92,6 +92,8 @@ export function RecruiterJobApplicantsPage() {
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('kanban')
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [batchUpdating, setBatchUpdating] = useState(false)
+  const [aiSummary, setAiSummary] = useState<string | null>(null)
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
 
   useEffect(() => {
     loadApplicants()
@@ -143,6 +145,30 @@ export function RecruiterJobApplicantsPage() {
       // silent
     } finally {
       setBatchUpdating(false)
+    }
+  }
+
+  async function generateAiSummary(applicationId: number) {
+    setAiSummaryLoading(true)
+    setAiSummary(null)
+    try {
+      const data = await apiCall<{ success: boolean; summary: { overall_assessment: string; strengths: string[]; concerns: string[]; recommendation: string; fit_score: number } }>('/recruiter/ai/candidate-summary', {
+        method: 'POST',
+        body: { application_id: applicationId },
+      })
+      if (data.summary) {
+        const parts: string[] = []
+        parts.push(`**Assessment:** ${data.summary.overall_assessment}`)
+        if (data.summary.fit_score) parts.push(`**Fit Score:** ${data.summary.fit_score}/100`)
+        if (data.summary.strengths?.length) parts.push(`**Strengths:** ${data.summary.strengths.join(', ')}`)
+        if (data.summary.concerns?.length) parts.push(`**Concerns:** ${data.summary.concerns.join(', ')}`)
+        if (data.summary.recommendation) parts.push(`**Recommendation:** ${data.summary.recommendation}`)
+        setAiSummary(parts.join('\n\n'))
+      }
+    } catch {
+      setAiSummary('AI summary could not be generated. The candidate may not have enough profile data.')
+    } finally {
+      setAiSummaryLoading(false)
     }
   }
 
@@ -321,7 +347,7 @@ export function RecruiterJobApplicantsPage() {
                       <div
                         key={app.id}
                         className="rounded-lg border bg-card p-2.5 cursor-pointer hover:shadow-md transition-shadow"
-                        onClick={() => { setSelected(app); setNotes(app.recruiter_notes || '') }}
+                        onClick={() => { setSelected(app); setNotes(app.recruiter_notes || ''); setAiSummary(null) }}
                       >
                         <div className="flex items-center gap-2 mb-1.5">
                           <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-[10px]">
@@ -411,7 +437,7 @@ export function RecruiterJobApplicantsPage() {
                   <Card
                     key={app.id}
                     className={`cursor-pointer transition-shadow hover:shadow-md ${selectedIds.has(app.id) ? 'ring-2 ring-primary' : ''}`}
-                    onClick={() => { setSelected(app); setNotes(app.recruiter_notes || '') }}
+                    onClick={() => { setSelected(app); setNotes(app.recruiter_notes || ''); setAiSummary(null) }}
                   >
                     <CardContent className="p-4">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -555,6 +581,47 @@ export function RecruiterJobApplicantsPage() {
                 )
               } catch { return null }
             })()}
+
+            {/* AI Candidate Summary */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-medium text-sm flex items-center gap-1">
+                  <Sparkles className="h-4 w-4 text-primary" /> AI Assessment
+                </h4>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => generateAiSummary(selected.id)}
+                  disabled={aiSummaryLoading}
+                  className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary hover:text-white"
+                >
+                  {aiSummaryLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                  {aiSummaryLoading ? 'Analyzing...' : aiSummary ? 'Refresh' : 'Generate Summary'}
+                </Button>
+              </div>
+              {aiSummaryLoading && (
+                <div className="flex items-center gap-2 text-sm text-primary py-4 justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  AI is analyzing this candidate's profile, skills, and application...
+                </div>
+              )}
+              {aiSummary && !aiSummaryLoading && (
+                <div className="rounded-lg bg-blue-50/50 border border-blue-100 p-3 space-y-2 text-sm">
+                  {aiSummary.split('\n\n').map((paragraph, i) => {
+                    const boldMatch = paragraph.match(/^\*\*(.+?):\*\*\s*(.+)$/)
+                    if (boldMatch) {
+                      return (
+                        <div key={i}>
+                          <span className="font-semibold text-blue-900">{boldMatch[1]}:</span>{' '}
+                          <span className="text-blue-800">{boldMatch[2]}</span>
+                        </div>
+                      )
+                    }
+                    return <p key={i} className="text-blue-800">{paragraph}</p>
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Recruiter notes */}
             <div>
