@@ -12,6 +12,7 @@ import { Select } from '@/components/ui/select'
 import {
   ArrowLeft, MapPin, DollarSign, Building2, Clock, Briefcase, Send,
   CheckCircle, AlertCircle, FileText, ListChecks, Sparkles, Loader2, Wand2, Zap,
+  BarChart3, GraduationCap, TrendingUp, Brain, Shield,
 } from 'lucide-react'
 
 interface Job {
@@ -49,10 +50,15 @@ export function CandidateJobDetailPage() {
   const [autoFillSources, setAutoFillSources] = useState<Record<string, string>>({})
   const [generatingCL, setGeneratingCL] = useState(false)
   const [generatingSuggestions, setGeneratingSuggestions] = useState(false)
+  const [matchBreakdown, setMatchBreakdown] = useState<any>(null)
+  const [loadingMatch, setLoadingMatch] = useState(false)
 
   useEffect(() => {
     loadJob()
-    if (user) checkIfApplied()
+    if (user) {
+      checkIfApplied()
+      loadMatchBreakdown()
+    }
   }, [id, user])
 
   async function loadJob() {
@@ -67,6 +73,15 @@ export function CandidateJobDetailPage() {
       const data = await apiCall<{ success: boolean; applications: { job_id: number }[] }>('/candidate/applications')
       if (data.applications?.some(a => a.job_id === Number(id))) setApplied(true)
     } catch {}
+  }
+
+  async function loadMatchBreakdown() {
+    if (!user || !id) return
+    setLoadingMatch(true)
+    try {
+      const data = await apiCall<{ success: boolean; breakdown: any }>(`/memory/match-breakdown/${user.id}/${id}`)
+      if (data.breakdown) setMatchBreakdown(data.breakdown)
+    } catch {} finally { setLoadingMatch(false) }
   }
 
   // Auto-fill from stored profile data
@@ -264,6 +279,93 @@ export function CandidateJobDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Match Breakdown — Why This Job Matches You */}
+      {user && matchBreakdown && matchBreakdown.overall_score > 0 && (
+        <Card className="border-primary/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BarChart3 className="h-5 w-5 text-primary" /> Why This Job Matches You
+              <Badge variant={matchBreakdown.match_level === 'excellent' ? 'default' : matchBreakdown.match_level === 'good' ? 'secondary' : 'outline'}
+                className="ml-auto text-sm">{Math.round(matchBreakdown.overall_score)}% Match</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Dimension bars */}
+            <div className="space-y-3">
+              {Object.entries(matchBreakdown.dimensions || {}).map(([key, dim]: [string, any]) => {
+                if (dim.available === false && !dim.score) return null
+                const score = dim.score || 0
+                const barColor = score >= 80 ? 'bg-green-500' : score >= 60 ? 'bg-amber-500' : score >= 40 ? 'bg-orange-400' : 'bg-red-400'
+                const icon = key === 'skills' ? <Briefcase className="h-3.5 w-3.5" /> :
+                  key === 'experience' ? <TrendingUp className="h-3.5 w-3.5" /> :
+                  key === 'education' ? <GraduationCap className="h-3.5 w-3.5" /> :
+                  key === 'salary_fit' ? <DollarSign className="h-3.5 w-3.5" /> :
+                  key === 'location' ? <MapPin className="h-3.5 w-3.5" /> :
+                  key === 'interview_performance' ? <Brain className="h-3.5 w-3.5" /> :
+                  <Shield className="h-3.5 w-3.5" />
+                return (
+                  <div key={key}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium flex items-center gap-1.5">{icon}{dim.label}</span>
+                      <span className="text-sm font-bold">{score}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(100, score)}%` }} />
+                    </div>
+                    {dim.detail && <p className="text-[11px] text-muted-foreground mt-0.5">{dim.detail}</p>}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Skills breakdown */}
+            {matchBreakdown.dimensions?.skills && (
+              <div className="pt-3 border-t space-y-2">
+                {matchBreakdown.dimensions.skills.matching?.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
+                    <span className="text-xs text-muted-foreground mr-1">Matching:</span>
+                    {matchBreakdown.dimensions.skills.matching.map((s: string) => (
+                      <span key={s} className="text-[10px] bg-green-50 text-green-700 rounded px-1.5 py-0.5 border border-green-100">{s}</span>
+                    ))}
+                  </div>
+                )}
+                {matchBreakdown.dimensions.skills.missing?.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    <AlertCircle className="h-3 w-3 text-amber-500 shrink-0" />
+                    <span className="text-xs text-muted-foreground mr-1">To improve:</span>
+                    {matchBreakdown.dimensions.skills.missing.slice(0, 5).map((s: string) => (
+                      <span key={s} className="text-[10px] bg-amber-50 text-amber-700 rounded px-1.5 py-0.5 border border-amber-100">{s}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Improvement tips */}
+            {matchBreakdown.improvement_tips?.length > 0 && (
+              <div className="pt-3 border-t">
+                <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1"><Sparkles className="h-3 w-3" /> Improve your match</p>
+                <div className="space-y-1">
+                  {matchBreakdown.improvement_tips.slice(0, 3).map((tip: any, i: number) => (
+                    <p key={i} className="text-xs text-muted-foreground">• {tip.tip}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {user && loadingMatch && (
+        <Card className="border-primary/20">
+          <CardContent className="py-8 text-center">
+            <div className="h-6 w-6 mx-auto animate-spin rounded-full border-2 border-primary border-t-transparent mb-2" />
+            <p className="text-xs text-muted-foreground">Analyzing match...</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Apply form with AI features */}
       {showApplyForm && !applied && (

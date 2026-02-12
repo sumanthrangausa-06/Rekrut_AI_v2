@@ -12,6 +12,7 @@ import {
   ArrowLeft, Users, Star, Calendar, Search, LayoutGrid, List,
   Mail, FileText, Send, CheckCircle, Clock, Gift, MessageSquare,
   ChevronRight, Zap, Target, AlertCircle, Sparkles, Loader2, X,
+  ThumbsUp, ThumbsDown, BarChart3, Briefcase, GraduationCap, MapPin, DollarSign,
 } from 'lucide-react'
 
 interface JobInfo {
@@ -94,10 +95,32 @@ export function RecruiterJobApplicantsPage() {
   const [batchUpdating, setBatchUpdating] = useState(false)
   const [aiSummary, setAiSummary] = useState<string | null>(null)
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
+  const [matchBreakdown, setMatchBreakdown] = useState<any>(null)
+  const [matchBreakdownLoading, setMatchBreakdownLoading] = useState(false)
+  const [feedbackSending, setFeedbackSending] = useState(false)
 
   useEffect(() => {
     loadApplicants()
   }, [id])
+
+  async function loadMatchBreakdown(candidateId: number, jobId: number) {
+    setMatchBreakdownLoading(true)
+    try {
+      const data = await apiCall<{ success: boolean; breakdown: any }>(`/memory/match-breakdown/${candidateId}/${jobId}`)
+      setMatchBreakdown(data.breakdown || null)
+    } catch { setMatchBreakdown(null) }
+    finally { setMatchBreakdownLoading(false) }
+  }
+
+  async function sendFeedback(candidateId: number, feedbackType: 'positive' | 'negative') {
+    setFeedbackSending(true)
+    try {
+      await apiCall('/memory/recruiter-feedback', {
+        method: 'POST',
+        body: { candidate_id: candidateId, job_id: Number(id), feedback_type: feedbackType }
+      })
+    } catch {} finally { setFeedbackSending(false) }
+  }
 
   async function loadApplicants() {
     try {
@@ -347,7 +370,7 @@ export function RecruiterJobApplicantsPage() {
                       <div
                         key={app.id}
                         className="rounded-lg border bg-card p-2.5 cursor-pointer hover:shadow-md transition-shadow"
-                        onClick={() => { setSelected(app); setNotes(app.recruiter_notes || ''); setAiSummary(null) }}
+                        onClick={() => { setSelected(app); setNotes(app.recruiter_notes || ''); setAiSummary(null); setMatchBreakdown(null); loadMatchBreakdown(app.candidate_id, Number(id)) }}
                       >
                         <div className="flex items-center gap-2 mb-1.5">
                           <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-[10px]">
@@ -437,7 +460,7 @@ export function RecruiterJobApplicantsPage() {
                   <Card
                     key={app.id}
                     className={`cursor-pointer transition-shadow hover:shadow-md ${selectedIds.has(app.id) ? 'ring-2 ring-primary' : ''}`}
-                    onClick={() => { setSelected(app); setNotes(app.recruiter_notes || ''); setAiSummary(null) }}
+                    onClick={() => { setSelected(app); setNotes(app.recruiter_notes || ''); setAiSummary(null); setMatchBreakdown(null); loadMatchBreakdown(app.candidate_id, Number(id)) }}
                   >
                     <CardContent className="p-4">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -545,6 +568,58 @@ export function RecruiterJobApplicantsPage() {
               matchingSkills={parseSkills(selected.matching_skills)}
               missingSkills={parseSkills(selected.missing_skills)}
             />
+
+            {/* Match Score Breakdown Card */}
+            {matchBreakdown && matchBreakdown.dimensions && (
+              <div>
+                <h4 className="font-medium text-sm mb-2 flex items-center gap-1">
+                  <BarChart3 className="h-4 w-4 text-primary" /> Match Score Breakdown
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(matchBreakdown.dimensions).map(([key, dim]: [string, any]) => {
+                    if (dim.available === false && !dim.score) return null
+                    const score = dim.score || 0
+                    const barColor = score >= 80 ? 'bg-green-500' : score >= 60 ? 'bg-amber-500' : score >= 40 ? 'bg-orange-400' : 'bg-red-400'
+                    const icon = key === 'skills' ? <Briefcase className="h-3 w-3" /> :
+                      key === 'experience' ? <Clock className="h-3 w-3" /> :
+                      key === 'education' ? <GraduationCap className="h-3 w-3" /> :
+                      key === 'salary_fit' ? <DollarSign className="h-3 w-3" /> :
+                      key === 'location' ? <MapPin className="h-3 w-3" /> :
+                      <Star className="h-3 w-3" />
+                    return (
+                      <div key={key} className="rounded-lg bg-muted/50 p-2.5">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[11px] font-medium flex items-center gap-1">{icon}{dim.label}</span>
+                          <span className="text-xs font-bold">{score}%</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(100, score)}%` }} />
+                        </div>
+                        {dim.detail && <p className="text-[10px] text-muted-foreground mt-1 truncate">{dim.detail}</p>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            {matchBreakdownLoading && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                <Loader2 className="h-3 w-3 animate-spin" /> Loading match breakdown...
+              </div>
+            )}
+
+            {/* Recruiter Quick Feedback */}
+            <div className="flex items-center gap-2 py-1">
+              <span className="text-xs text-muted-foreground">Quick feedback:</span>
+              <Button variant="outline" size="sm" onClick={() => sendFeedback(selected.candidate_id, 'positive')} disabled={feedbackSending}
+                className="gap-1 text-xs h-7 text-green-600 border-green-200 hover:bg-green-50">
+                <ThumbsUp className="h-3 w-3" /> Good Fit
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => sendFeedback(selected.candidate_id, 'negative')} disabled={feedbackSending}
+                className="gap-1 text-xs h-7 text-red-500 border-red-200 hover:bg-red-50">
+                <ThumbsDown className="h-3 w-3" /> Not a Fit
+              </Button>
+            </div>
 
             {/* Cover letter */}
             {selected.cover_letter && (

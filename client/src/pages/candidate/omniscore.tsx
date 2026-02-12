@@ -160,6 +160,9 @@ export function CandidateOmniScorePage() {
     history: HistoryItem[]
   } | null>(null)
 
+  // OmniScore trend
+  const [trendData, setTrendData] = useState<{ score: number; change_amount: number; change_reason: string; created_at: string }[]>([])
+
   // Mutual matches
   const [matches, setMatches] = useState<MutualMatch[]>([])
   const [matchesLoading, setMatchesLoading] = useState(false)
@@ -190,10 +193,14 @@ export function CandidateOmniScorePage() {
 
   async function loadMyScore() {
     try {
-      // Daily checkin + breakdown in parallel
+      // Daily checkin + breakdown + trend in parallel
       await apiCall('/omniscore/checkin', { method: 'POST' }).catch(() => {})
-      const data = await apiCall<any>('/omniscore/breakdown')
+      const [data, trend] = await Promise.all([
+        apiCall<any>('/omniscore/breakdown'),
+        apiCall<any>('/memory/omniscore-trend?days=30').catch(() => ({ history: [] }))
+      ])
       setScoreData(data)
+      setTrendData(trend.history || [])
     } catch {
       // If no score yet, still show the page
     } finally {
@@ -346,6 +353,43 @@ export function CandidateOmniScorePage() {
                     )
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* OmniScore Trend */}
+            {trendData.length > 1 && (
+              <div>
+                <h3 className="font-heading text-lg font-semibold mb-3 flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-primary" /> Score Trend (30 days)
+                </h3>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-end gap-1 h-32">
+                      {trendData.slice(-20).map((point, i) => {
+                        const minS = Math.min(...trendData.map(t => t.score))
+                        const maxS = Math.max(...trendData.map(t => t.score))
+                        const range = Math.max(maxS - minS, 20)
+                        const height = ((point.score - minS) / range) * 100
+                        const isUp = point.change_amount >= 0
+                        return (
+                          <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 group relative">
+                            <div className={`w-full rounded-t transition-all ${isUp ? 'bg-emerald-500' : 'bg-red-400'}`}
+                              style={{ height: `${Math.max(4, height)}%`, minHeight: 4 }} />
+                            <div className="absolute bottom-full mb-1 hidden group-hover:block bg-popover border rounded px-2 py-1 text-[10px] shadow-lg z-10 whitespace-nowrap">
+                              <p className="font-bold">{point.score}</p>
+                              <p className={isUp ? 'text-emerald-500' : 'text-red-500'}>{isUp ? '+' : ''}{point.change_amount}</p>
+                              <p className="text-muted-foreground">{new Date(point.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="flex justify-between mt-2 text-[10px] text-muted-foreground">
+                      <span>{new Date(trendData[Math.max(0, trendData.length - 20)].created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                      <span>Today</span>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             )}
 

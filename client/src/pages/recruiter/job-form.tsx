@@ -82,6 +82,9 @@ export function RecruiterJobFormPage() {
   const [suggestedRequirements, setSuggestedRequirements] = useState<string[]>([])
   const [showSkillPanel, setShowSkillPanel] = useState(false)
   const [aiSuccess, setAiSuccess] = useState<string | null>(null)
+  const [previousPostings, setPreviousPostings] = useState<any[]>([])
+  const [showPreviousPostings, setShowPreviousPostings] = useState(false)
+  const [loadingPostings, setLoadingPostings] = useState(false)
 
   // Multi-country fields
   const [countryCode, setCountryCode] = useState('US')
@@ -101,6 +104,29 @@ export function RecruiterJobFormPage() {
       const data = await apiCall<{ countries: any[] }>('/countries')
       setCountries(data.countries)
     } catch { /* fallback to US only */ }
+  }
+
+  async function loadPreviousPostings() {
+    setLoadingPostings(true)
+    try {
+      const data = await apiCall<{ success: boolean; autofill: { recent_postings: any[] } }>('/memory/autofill/recruiter')
+      setPreviousPostings(data.autofill?.recent_postings || [])
+      setShowPreviousPostings(true)
+    } catch {} finally { setLoadingPostings(false) }
+  }
+
+  function applyTemplate(posting: any) {
+    if (posting.title) setTitle(posting.title)
+    if (posting.company) setCompany(posting.company)
+    if (posting.description) setDescription(posting.description)
+    if (posting.requirements) setRequirements(posting.requirements)
+    if (posting.location) setLocation(posting.location)
+    if (posting.salary_range) setSalaryRange(posting.salary_range)
+    if (posting.job_type) setJobType(posting.job_type)
+    if (posting.salary_min) setSalaryMin(String(posting.salary_min))
+    if (posting.salary_max) setSalaryMax(String(posting.salary_max))
+    setShowPreviousPostings(false)
+    flashSuccess('Form populated from previous posting — edit as needed')
   }
 
   function handleCountryChange(code: string) {
@@ -407,6 +433,43 @@ export function RecruiterJobFormPage() {
           </p>
         </div>
       </div>
+
+      {/* Previous postings auto-fill */}
+      {!isEdit && (
+        <div>
+          <Button variant="outline" size="sm" onClick={loadPreviousPostings} disabled={loadingPostings} className="gap-1.5 text-sm">
+            {loadingPostings ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            Use Previous Posting as Template
+          </Button>
+          {showPreviousPostings && previousPostings.length > 0 && (
+            <div className="mt-3 rounded-lg border bg-blue-50/30 p-3 space-y-2">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-medium text-blue-700 flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" /> Your Recent Postings
+                </p>
+                <Button variant="ghost" size="sm" onClick={() => setShowPreviousPostings(false)} className="h-6 w-6 p-0">
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+              {previousPostings.slice(0, 5).map((p, i) => (
+                <button key={i} onClick={() => applyTemplate(p)}
+                  className="w-full text-left rounded-md border bg-white p-3 text-sm hover:border-primary/40 hover:bg-blue-50 transition-colors cursor-pointer">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{p.title}</span>
+                    <Badge variant="outline" className="text-[10px]">{p.job_type || 'full-time'}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {p.location || 'No location'} · {p.salary_range || 'No salary'} · Posted {new Date(p.created_at).toLocaleDateString()}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+          {showPreviousPostings && previousPostings.length === 0 && (
+            <p className="mt-2 text-xs text-muted-foreground">No previous postings found. Your first posting will be saved as a template.</p>
+          )}
+        </div>
+      )}
 
       {/* Job details */}
       <Card>
