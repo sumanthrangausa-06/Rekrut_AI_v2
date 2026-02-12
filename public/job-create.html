@@ -95,7 +95,12 @@
           <form id="job-form">
             <div class="form-group">
               <label for="title">Job Title*</label>
-              <input type="text" id="title" name="title" placeholder="e.g. Senior Software Engineer" required>
+              <div class="input-with-ai">
+                <input type="text" id="title" name="title" placeholder="e.g. Senior Software Engineer" required>
+                <button type="button" class="btn-ai-inline" onclick="suggestTitles()" title="Get AI title suggestions">
+                  ✨ Suggest
+                </button>
+              </div>
             </div>
 
             <div class="form-row">
@@ -123,13 +128,24 @@
             </div>
 
             <div class="form-group">
-              <label for="description">Job Description</label>
-              <textarea id="description" name="description" rows="8" placeholder="Describe the role, responsibilities, and what makes it exciting..."></textarea>
+              <div class="label-with-ai">
+                <label for="description">Job Description</label>
+                <button type="button" class="btn-ai-inline" onclick="generateDescription()" title="Generate a complete description with AI">
+                  ✨ Generate with AI
+                </button>
+              </div>
+              <textarea id="description" name="description" rows="8" placeholder="Describe the role, responsibilities, and what makes it exciting... Or click 'Generate with AI' and we'll write it for you!"></textarea>
+              <p class="field-hint" id="desc-hint">Enter a job title above, then click "Generate with AI" to create a full description instantly.</p>
             </div>
 
             <div class="form-group">
-              <label for="requirements">Requirements</label>
-              <textarea id="requirements" name="requirements" rows="6" placeholder="List required skills, experience, and qualifications..."></textarea>
+              <div class="label-with-ai">
+                <label for="requirements">Requirements</label>
+                <button type="button" class="btn-ai-inline" onclick="suggestSkills()" title="Get AI skill and requirement suggestions">
+                  ✨ Suggest Skills
+                </button>
+              </div>
+              <textarea id="requirements" name="requirements" rows="6" placeholder="List required skills, experience, and qualifications... Or click 'Suggest Skills' for AI recommendations!"></textarea>
             </div>
 
             <!-- Screening Questions Section -->
@@ -445,6 +461,251 @@
       } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Post Job';
+      }
+    }
+
+    // Generate complete job description from title
+    async function generateDescription() {
+      const title = document.getElementById('title').value;
+      if (!title) {
+        alert('Please enter a job title first');
+        return;
+      }
+
+      const briefNotes = document.getElementById('description').value;
+      showAILoading(true);
+
+      try {
+        const response = await apiCall('/recruiter/jobs/generate', {
+          method: 'POST',
+          body: JSON.stringify({
+            title,
+            brief_notes: briefNotes || '',
+            location: document.getElementById('location').value,
+            job_type: document.getElementById('job_type').value
+          })
+        });
+
+        const gen = response.generated;
+        window.generatedContent = gen;
+
+        let html = `
+          <div class="generation-result">
+            <h4>✨ AI-Generated Job Description</h4>
+            <p class="gen-subtitle">Review and apply the generated content:</p>
+
+            ${gen.suggested_title && gen.suggested_title !== title ? `
+              <div class="gen-section">
+                <h5>📌 Suggested Title</h5>
+                <p class="gen-title-suggestion">${gen.suggested_title}</p>
+                <button class="btn btn-ghost btn-sm" onclick="document.getElementById('title').value='${gen.suggested_title.replace(/'/g, "\\'")}'"">Use Title</button>
+              </div>
+            ` : ''}
+
+            ${gen.suggested_skills ? `
+              <div class="gen-section">
+                <h5>🎯 Suggested Skills</h5>
+                <div class="skill-tags">
+                  ${gen.suggested_skills.map(s => `<span class="skill-tag">${s}</span>`).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            ${gen.seniority_level ? `
+              <div class="gen-section gen-meta">
+                <span>Seniority: <strong>${gen.seniority_level}</strong></span>
+              </div>
+            ` : ''}
+
+            <div class="action-buttons">
+              <button class="btn btn-primary" onclick="applyGenerated()">✅ Apply to Form</button>
+              <button class="btn btn-ghost" onclick="showOriginal()">Keep Current</button>
+            </div>
+          </div>
+        `;
+
+        showAIResult(html);
+      } catch (err) {
+        showAIResult(`<div class="error-message"><h4>❌ Error</h4><p>${err.message}</p></div>`);
+      }
+    }
+
+    function applyGenerated() {
+      if (window.generatedContent) {
+        const form = document.getElementById('job-form');
+        if (window.generatedContent.description) {
+          form.description.value = window.generatedContent.description;
+        }
+        if (window.generatedContent.requirements) {
+          form.requirements.value = window.generatedContent.requirements;
+        }
+        if (window.generatedContent.suggested_title && !form.title.value) {
+          form.title.value = window.generatedContent.suggested_title;
+        }
+        showAIResult(`
+          <div class="success-message">
+            <h4>✅ Content Applied!</h4>
+            <p>AI-generated description and requirements have been added to your form. Review and edit as needed.</p>
+          </div>
+        `);
+      }
+    }
+
+    // Suggest skills for the role
+    async function suggestSkills() {
+      const title = document.getElementById('title').value;
+      if (!title) {
+        alert('Please enter a job title first');
+        return;
+      }
+
+      showAILoading(true);
+
+      try {
+        const response = await apiCall('/recruiter/jobs/suggest-skills', {
+          method: 'POST',
+          body: JSON.stringify({
+            title,
+            description: document.getElementById('description').value
+          })
+        });
+
+        const s = response.suggestions;
+        window.suggestedSkills = s;
+
+        let html = `
+          <div class="skills-result">
+            <h4>🎯 Suggested Skills & Requirements</h4>
+
+            ${s.required_skills ? `
+              <div class="gen-section">
+                <h5>Must-Have Skills</h5>
+                <div class="skill-tags">
+                  ${s.required_skills.filter(sk => sk.importance === 'must-have').map(sk =>
+                    `<span class="skill-tag skill-must">${sk.skill} <small>(${sk.category})</small></span>`
+                  ).join('')}
+                </div>
+                <h5 style="margin-top: 12px;">Nice-to-Have</h5>
+                <div class="skill-tags">
+                  ${s.required_skills.filter(sk => sk.importance === 'nice-to-have').map(sk =>
+                    `<span class="skill-tag skill-nice">${sk.skill}</span>`
+                  ).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            ${s.experience_level ? `
+              <div class="gen-section">
+                <h5>📊 Experience Level</h5>
+                <p>${s.experience_level.min_years}-${s.experience_level.max_years} years</p>
+                <p class="text-muted">${s.experience_level.ideal || ''}</p>
+              </div>
+            ` : ''}
+
+            ${s.tools_and_technologies ? `
+              <div class="gen-section">
+                <h5>🛠 Tools & Technologies</h5>
+                <div class="skill-tags">
+                  ${s.tools_and_technologies.map(t => `<span class="skill-tag skill-tool">${t}</span>`).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            ${s.suggested_requirements ? `
+              <div class="gen-section">
+                <h5>📋 Suggested Requirements</h5>
+                <ul>${s.suggested_requirements.map(r => `<li>${r}</li>`).join('')}</ul>
+              </div>
+            ` : ''}
+
+            <div class="action-buttons">
+              <button class="btn btn-primary" onclick="applySkills()">✅ Add to Requirements</button>
+              <button class="btn btn-ghost" onclick="showOriginal()">Skip</button>
+            </div>
+          </div>
+        `;
+
+        showAIResult(html);
+      } catch (err) {
+        showAIResult(`<div class="error-message"><h4>❌ Error</h4><p>${err.message}</p></div>`);
+      }
+    }
+
+    function applySkills() {
+      if (window.suggestedSkills) {
+        const s = window.suggestedSkills;
+        let reqText = '';
+
+        if (s.suggested_requirements && s.suggested_requirements.length > 0) {
+          reqText = s.suggested_requirements.map(r => `• ${r}`).join('\n');
+        }
+
+        if (s.tools_and_technologies && s.tools_and_technologies.length > 0) {
+          reqText += '\n\nTools & Technologies:\n' + s.tools_and_technologies.map(t => `• ${t}`).join('\n');
+        }
+
+        const current = document.getElementById('requirements').value;
+        document.getElementById('requirements').value = current ? current + '\n\n--- AI Suggestions ---\n' + reqText : reqText;
+
+        showAIResult(`
+          <div class="success-message">
+            <h4>✅ Skills Added!</h4>
+            <p>Suggested requirements have been added to your form. Edit as needed.</p>
+          </div>
+        `);
+      }
+    }
+
+    // Suggest better job titles
+    async function suggestTitles() {
+      const title = document.getElementById('title').value;
+      if (!title) {
+        alert('Please enter a job title first');
+        return;
+      }
+
+      showAILoading(true);
+
+      try {
+        const response = await apiCall('/recruiter/jobs/suggest-title', {
+          method: 'POST',
+          body: JSON.stringify({
+            title,
+            description: document.getElementById('description').value
+          })
+        });
+
+        const s = response.suggestions;
+
+        let html = `
+          <div class="titles-result">
+            <h4>✨ Title Suggestions</h4>
+            <p class="text-muted">${s.current_title_assessment || ''}</p>
+
+            ${s.suggestions ? `
+              <div class="title-options">
+                ${s.suggestions.map(t => `
+                  <div class="title-option" onclick="document.getElementById('title').value='${t.title.replace(/'/g, "\\'")}'; this.classList.add('selected');">
+                    <span class="title-text">${t.title}</span>
+                    <span class="title-volume badge ${t.search_volume}">${t.search_volume} search volume</span>
+                    <p class="title-reason">${t.reason}</p>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            ${s.best_recommendation ? `
+              <div class="gen-section" style="margin-top: 16px;">
+                <h5>🏆 Best Pick</h5>
+                <p>${s.best_recommendation}</p>
+              </div>
+            ` : ''}
+          </div>
+        `;
+
+        showAIResult(html);
+      } catch (err) {
+        showAIResult(`<div class="error-message"><h4>❌ Error</h4><p>${err.message}</p></div>`);
       }
     }
 
@@ -1090,6 +1351,123 @@
       padding: 4px 10px;
       font-size: 11px;
     }
+
+    /* AI inline buttons */
+    .input-with-ai {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .input-with-ai input { flex: 1; }
+
+    .label-with-ai {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .label-with-ai label { margin-bottom: 0; }
+
+    .btn-ai-inline {
+      padding: 6px 14px;
+      background: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%);
+      color: white;
+      border: none;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .btn-ai-inline:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    }
+
+    .field-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* Generated content styles */
+    .gen-subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 16px; }
+
+    .gen-section {
+      margin-bottom: 16px;
+      padding: 12px;
+      background: rgba(139, 92, 246, 0.05);
+      border-radius: var(--radius-md);
+    }
+
+    .gen-section h5 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .gen-meta { font-size: 13px; color: var(--text-secondary); }
+
+    .gen-title-suggestion {
+      font-family: var(--font-display);
+      font-size: 16px;
+      color: #8b5cf6;
+      margin-bottom: 8px;
+    }
+
+    .skill-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .skill-tag {
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 500;
+      background: rgba(139, 92, 246, 0.15);
+      color: #a78bfa;
+    }
+
+    .skill-tag.skill-must { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+    .skill-tag.skill-nice { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .skill-tag.skill-tool { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+
+    .skill-tag small { opacity: 0.7; }
+
+    .text-muted { color: var(--text-muted); font-size: 13px; }
+
+    /* Title suggestions */
+    .title-options { display: flex; flex-direction: column; gap: 8px; }
+
+    .title-option {
+      padding: 12px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .title-option:hover, .title-option.selected {
+      border-color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.05);
+    }
+
+    .title-text {
+      font-weight: 600;
+      font-size: 14px;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .title-volume { font-size: 11px; }
+    .title-reason { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
 
     @media (max-width: 1200px) {
       .job-create-container {
