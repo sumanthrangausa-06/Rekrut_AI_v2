@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Phase 1: Investigate file structure — find what Render actually serves",
+    "status": "completed",
+    "activeForm": "Investigating file structure and deployment config"
+  },
+  {
+    "content": "Phase 2: Add AI buttons to recruiter job-form.tsx (React)",
+    "status": "completed",
+    "activeForm": "Adding AI features to recruiter job form React component"
+  },
+  {
+    "content": "Phase 3: Rebuild client and deploy",
+    "status": "in_progress",
+    "activeForm": "Rebuilding client bundle and deploying"
+  },
+  {
+    "content": "Phase 4: Verify AI features on live app",
+    "status": "pending",
+    "activeForm": "Verifying AI features on live app"
+  }
+]
