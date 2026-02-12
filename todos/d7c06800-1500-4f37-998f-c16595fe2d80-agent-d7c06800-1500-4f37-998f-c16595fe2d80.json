@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Phase 1: Full audit of live app",
+    "status": "completed",
+    "activeForm": "Auditing live app and codebase"
+  },
+  {
+    "content": "Phase 2: Fix dashboard stats + AI recommendations backend",
+    "status": "in_progress",
+    "activeForm": "Fixing dashboard stats and AI recommendations"
+  },
+  {
+    "content": "Phase 3: Build smart data reuse layer (screening answer enrichment + auto-fill + question bank)",
+    "status": "pending",
+    "activeForm": "Building smart data reuse layer"
+  },
+  {
+    "content": "Phase 4: Frontend auto-fill + question bank + missing AI buttons",
+    "status": "pending",
+    "activeForm": "Building frontend auto-fill and AI features"
+  },
+  {
+    "content": "Phase 5: Add missing AI endpoints (resume optimizer, cover letter gen, scoring, etc.)",
+    "status": "pending",
+    "activeForm": "Adding missing AI endpoints"
+  },
+  {
+    "content": "Phase 6: Rebuild client dist + deploy + E2E verify",
+    "status": "pending",
+    "activeForm": "Rebuilding and deploying"
+  }
+]
