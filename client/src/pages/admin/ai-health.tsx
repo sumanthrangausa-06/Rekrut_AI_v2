@@ -22,6 +22,17 @@ import {
   ChevronDown,
   ChevronRight,
   Brain,
+  Users,
+  HardDrive,
+  Timer,
+  Gauge,
+  Search,
+  Filter,
+  TrendingUp,
+  AlertCircle,
+  Server,
+  Globe,
+  MessageSquare,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -47,6 +58,25 @@ interface ModuleChainInfo {
   providers: string[]
 }
 
+interface TokenBudgetData {
+  dailyBudget: number
+  tokensUsed: number
+  tokensRemaining: number
+  percentUsed: number
+  budgetExhausted: boolean
+  exhaustedAt: string | null
+  currentDay: string
+  resetAt: string
+  breakdown: Record<string, number>
+  history: Array<{
+    date: string
+    tokensUsed: number
+    budget: number
+    breakdown: Record<string, number>
+  }>
+  routingStatus: string
+}
+
 interface HealthData {
   status: string
   timestamp: string
@@ -57,16 +87,66 @@ interface HealthData {
     totalFailovers: number
     providerCalls: Record<string, number>
   }
+  token_budget?: TokenBudgetData
   modalities: Record<string, ModalityInfo>
   module_chains: Record<string, Record<string, ModuleChainInfo>>
   recent_logs: Array<{
-    time: string
+    timestamp?: string
+    time?: string
     event: string
     modality: string
     from: string
     to: string
-    reason: string
+    reason?: string
+    provider?: string
+    error?: string
   }>
+}
+
+interface MetricsData {
+  timestamp: string
+  server: {
+    uptime: number
+    uptimeFormatted: string
+    cpu: { usage: number; cores: number; model: string }
+    memory: {
+      heapUsedMB: number; rssMB: number
+      systemUsedPct: string
+    }
+    platform: { node: string; os: string }
+  }
+  database: {
+    sizeMB: string
+    activeConnections: number
+    poolTotal: number
+    poolIdle: number
+    poolWaiting: number
+    tables: Array<{ name: string; rows: number }>
+  }
+  api: {
+    hourly: { requests: number; errors: number; errorRate: string }
+    cumulative: { totalRequests: number; totalErrors: number; errorRate: string }
+    latency: { p50: number; p95: number; p99: number; avg: number }
+    topEndpoints: Array<{ path: string; total: number; errors: number; errorRate: string; p50: number; p95: number; p99: number }>
+  }
+  users: {
+    total: number; candidates: number; recruiters: number; activeToday: number
+  }
+  interviews: {
+    total: number; completed: number; active: number; today: number
+  }
+}
+
+interface ActivityEvent {
+  id: number
+  event_type: string
+  category: string
+  severity: string
+  user_id: number | null
+  user_email: string | null
+  details: Record<string, unknown>
+  ip_address: string | null
+  created_at: string
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -105,6 +185,19 @@ const COLOR_MAP: Record<string, { bg: string; text: string; border: string; dot:
   red:    { bg: 'bg-red-500',    text: 'text-red-700',    border: 'border-red-200',    dot: 'bg-red-400',    light: 'bg-red-50' },
 }
 
+const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  user:       { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200' },
+  ai:         { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200' },
+  auth:       { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
+  system:     { bg: 'bg-slate-50',   text: 'text-slate-700',   border: 'border-slate-200' },
+  recruiter:  { bg: 'bg-teal-50',    text: 'text-teal-700',    border: 'border-teal-200' },
+  interview:  { bg: 'bg-indigo-50',  text: 'text-indigo-700',  border: 'border-indigo-200' },
+  onboarding: { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200' },
+  error:      { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200' },
+}
+
+type TabId = 'overview' | 'ai' | 'activity'
+
 function formatProviderName(key: string): string {
   return key
     .replace(/^nim_/, 'NIM ')
@@ -136,10 +229,400 @@ function getModalityStatus(modality: ModalityInfo): 'healthy' | 'degraded' | 'do
   return 'healthy'
 }
 
-// ─── Components ──────────────────────────────────────────────────────────────
+function timeAgo(dateStr: string): string {
+  const s = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
+  if (s < 60) return `${s}s ago`
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
+  return `${Math.floor(s / 86400)}d ago`
+}
+
+// ─── Token Budget Panel ─────────────────────────────────────────────────────
+
+function TokenBudgetPanel({ budget }: { budget: TokenBudgetData }) {
+  const pct = Math.min(100, budget.percentUsed)
+  const barColor = budget.budgetExhausted
+    ? 'bg-red-500'
+    : pct > 80 ? 'bg-amber-500' : pct > 50 ? 'bg-yellow-500' : 'bg-emerald-500'
+
+  const breakdownEntries = Object.entries(budget.breakdown).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])
+
+  return (
+    <Card className={cn(
+      'relative overflow-hidden',
+      budget.budgetExhausted && 'border-red-300 ring-2 ring-red-200',
+    )}>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Gauge className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-base">OpenAI Token Budget</CardTitle>
+          </div>
+          {budget.budgetExhausted ? (
+            <Badge variant="destructive" className="animate-pulse">
+              BUDGET EXHAUSTED — NIM ACTIVE
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-emerald-700 border-emerald-300 bg-emerald-50">
+              OpenAI Primary
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Progress bar */}
+        <div>
+          <div className="flex justify-between items-baseline mb-2">
+            <span className="text-2xl font-bold tabular-nums">
+              {budget.tokensUsed.toLocaleString()}
+            </span>
+            <span className="text-sm text-muted-foreground">
+              / {budget.dailyBudget.toLocaleString()} tokens
+            </span>
+          </div>
+          <div className="h-4 rounded-full bg-muted overflow-hidden">
+            <div
+              className={cn('h-full rounded-full transition-all duration-500', barColor)}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <div className="flex justify-between mt-1">
+            <span className="text-xs text-muted-foreground">
+              {budget.tokensRemaining.toLocaleString()} remaining
+            </span>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {pct.toFixed(1)}%
+            </span>
+          </div>
+        </div>
+
+        {/* Modality breakdown */}
+        {breakdownEntries.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">By Modality</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {breakdownEntries.map(([mod, tokens]) => (
+                <div key={mod} className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-1.5">
+                  <span className="text-xs font-medium capitalize">{mod}</span>
+                  <span className="text-xs text-muted-foreground ml-auto tabular-nums">{tokens.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Reset info */}
+        <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t">
+          <span>Day: {budget.currentDay}</span>
+          <span>Resets: {new Date(budget.resetAt).toLocaleTimeString()}</span>
+          {budget.exhaustedAt && (
+            <span className="text-red-600 font-medium">
+              Exhausted at: {new Date(budget.exhaustedAt).toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+
+        {/* History sparkline */}
+        {budget.history && budget.history.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Last 7 Days</p>
+            <div className="flex items-end gap-1 h-12">
+              {budget.history.map((day, i) => {
+                const h = Math.max(4, (day.tokensUsed / day.budget) * 100)
+                return (
+                  <div
+                    key={i}
+                    className={cn(
+                      'flex-1 rounded-t-sm transition-all',
+                      day.tokensUsed >= day.budget ? 'bg-red-400' : 'bg-primary/60',
+                    )}
+                    style={{ height: `${Math.min(100, h)}%` }}
+                    title={`${day.date}: ${day.tokensUsed.toLocaleString()} tokens`}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─── Metrics Overview Panel ─────────────────────────────────────────────────
+
+function MetricsOverview({ metrics }: { metrics: MetricsData }) {
+  return (
+    <div className="space-y-4">
+      {/* Key stats cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <StatCard icon={Timer} label="Uptime" value={metrics.server.uptimeFormatted} color="emerald" />
+        <StatCard icon={Cpu} label="CPU" value={`${metrics.server.cpu.usage}%`} color={Number(metrics.server.cpu.usage) > 80 ? 'red' : 'blue'} />
+        <StatCard icon={HardDrive} label="Memory" value={`${metrics.server.memory.rssMB} MB`} color="purple" />
+        <StatCard icon={Database} label="DB Size" value={`${metrics.database.sizeMB} MB`} color="cyan" />
+        <StatCard icon={Users} label="Users" value={String(metrics.users.total)} sub={`${metrics.users.activeToday} active today`} color="blue" />
+        <StatCard icon={MessageSquare} label="Interviews" value={String(metrics.interviews.today)} sub={`${metrics.interviews.total} total`} color="green" />
+      </div>
+
+      {/* API & DB Details */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* API Metrics */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Globe className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="text-base">API Performance</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">Requests (1h)</p>
+                <p className="text-xl font-bold tabular-nums">{metrics.api.hourly.requests.toLocaleString()}</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">Error Rate</p>
+                <p className={cn(
+                  'text-xl font-bold tabular-nums',
+                  Number(metrics.api.hourly.errorRate) > 5 ? 'text-red-600' : 'text-emerald-600',
+                )}>
+                  {metrics.api.hourly.errorRate}%
+                </p>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Latency Percentiles</p>
+              <div className="flex gap-3">
+                <div className="flex-1 rounded-lg bg-muted/50 p-2 text-center">
+                  <p className="text-xs text-muted-foreground">p50</p>
+                  <p className="text-sm font-bold tabular-nums">{metrics.api.latency.p50}ms</p>
+                </div>
+                <div className="flex-1 rounded-lg bg-muted/50 p-2 text-center">
+                  <p className="text-xs text-muted-foreground">p95</p>
+                  <p className="text-sm font-bold tabular-nums">{metrics.api.latency.p95}ms</p>
+                </div>
+                <div className="flex-1 rounded-lg bg-muted/50 p-2 text-center">
+                  <p className="text-xs text-muted-foreground">p99</p>
+                  <p className="text-sm font-bold tabular-nums">{metrics.api.latency.p99}ms</p>
+                </div>
+              </div>
+            </div>
+            {metrics.api.topEndpoints.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Top Endpoints</p>
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {metrics.api.topEndpoints.slice(0, 8).map((ep, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <span className="font-mono truncate flex-1 text-muted-foreground">{ep.path}</span>
+                      <span className="font-semibold tabular-nums shrink-0">{ep.total}</span>
+                      {Number(ep.errorRate) > 0 && (
+                        <span className="text-red-500 tabular-nums shrink-0">{ep.errorRate}% err</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Database Metrics */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Database className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="text-base">Database</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">Active</p>
+                <p className="text-xl font-bold tabular-nums">{metrics.database.activeConnections}</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">Pool Idle</p>
+                <p className="text-xl font-bold tabular-nums">{metrics.database.poolIdle}</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">Waiting</p>
+                <p className="text-xl font-bold tabular-nums">{metrics.database.poolWaiting}</p>
+              </div>
+            </div>
+            {metrics.database.tables && metrics.database.tables.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Table Row Counts</p>
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {metrics.database.tables.map((t, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <span className="font-mono text-muted-foreground">{t.name}</span>
+                      <span className="font-semibold tabular-nums">{t.rows.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="text-xs text-muted-foreground pt-2 border-t flex gap-4">
+              <span>Node: {metrics.server.platform.node}</span>
+              <span>CPU: {metrics.server.cpu.cores} cores</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+function StatCard({ icon: Icon, label, value, sub, color = 'blue' }: {
+  icon: React.ElementType; label: string; value: string; sub?: string; color?: string
+}) {
+  const colorClasses: Record<string, string> = {
+    blue: 'bg-blue-50 text-blue-600',
+    purple: 'bg-purple-50 text-purple-600',
+    green: 'bg-green-50 text-green-600',
+    cyan: 'bg-cyan-50 text-cyan-600',
+    emerald: 'bg-emerald-50 text-emerald-600',
+    red: 'bg-red-50 text-red-600',
+  }
+  return (
+    <Card className="p-3">
+      <div className="flex items-center gap-2 mb-1">
+        <div className={cn('rounded-md p-1', colorClasses[color] || colorClasses.blue)}>
+          <Icon className="h-3.5 w-3.5" />
+        </div>
+        <span className="text-xs text-muted-foreground">{label}</span>
+      </div>
+      <p className="text-lg font-bold tabular-nums">{value}</p>
+      {sub && <p className="text-[10px] text-muted-foreground">{sub}</p>}
+    </Card>
+  )
+}
+
+// ─── Activity Feed Panel ────────────────────────────────────────────────────
+
+function ActivityFeed({ events, loading, onRefresh, filter, setFilter }: {
+  events: ActivityEvent[]
+  loading: boolean
+  onRefresh: () => void
+  filter: string
+  setFilter: (f: string) => void
+}) {
+  const [searchTerm, setSearchTerm] = useState('')
+
+  const categories = ['all', 'user', 'ai', 'auth', 'system', 'error', 'recruiter', 'interview', 'onboarding']
+
+  const filtered = events.filter(e => {
+    if (filter !== 'all' && e.category !== filter) return false
+    if (searchTerm && !e.event_type.includes(searchTerm) && !e.user_email?.includes(searchTerm) && !JSON.stringify(e.details).includes(searchTerm)) return false
+    return true
+  })
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Activity className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-base">Live Activity Feed</CardTitle>
+            <span className="text-xs text-muted-foreground">({filtered.length} events)</span>
+          </div>
+          <Button variant="outline" size="sm" onClick={onRefresh} className="gap-1.5">
+            <RefreshCw className={cn('h-3 w-3', loading && 'animate-spin')} />
+            Refresh
+          </Button>
+        </div>
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-2 mt-2">
+          <div className="relative flex-1">
+            <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search events..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full h-8 pl-8 pr-3 text-xs rounded-md border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          <div className="flex gap-1 flex-wrap">
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setFilter(cat)}
+                className={cn(
+                  'px-2 py-1 rounded-md text-[10px] font-medium uppercase tracking-wider transition-colors',
+                  filter === cat
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80',
+                )}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-1 max-h-[500px] overflow-y-auto">
+          {filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">No events matching filters.</p>
+          ) : (
+            filtered.map((event, i) => {
+              const catColors = CATEGORY_COLORS[event.category] || CATEGORY_COLORS.system
+              const isError = event.severity === 'error'
+              const isWarning = event.severity === 'warning'
+              return (
+                <div
+                  key={event.id || i}
+                  className={cn(
+                    'flex items-start gap-3 text-xs rounded-lg px-3 py-2 transition-colors',
+                    isError ? 'bg-red-50/50 border-l-2 border-red-400' :
+                    isWarning ? 'bg-amber-50/30 border-l-2 border-amber-400' :
+                    'hover:bg-muted/30 border-l-2 border-transparent',
+                  )}
+                >
+                  <div className="shrink-0 mt-0.5">
+                    {isError ? <AlertCircle className="h-3.5 w-3.5 text-red-500" /> :
+                     isWarning ? <AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> :
+                     <Activity className="h-3.5 w-3.5 text-muted-foreground" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge className={cn('text-[9px] px-1.5 py-0', catColors.bg, catColors.text, catColors.border)}>
+                        {event.category}
+                      </Badge>
+                      <span className="font-medium font-mono">{event.event_type}</span>
+                      {event.user_email && (
+                        <span className="text-muted-foreground truncate max-w-[150px]">{event.user_email}</span>
+                      )}
+                    </div>
+                    {event.details && Object.keys(event.details).length > 0 && (
+                      <p className="text-muted-foreground mt-0.5 truncate">
+                        {Object.entries(event.details)
+                          .filter(([k]) => !['method', 'statusCode'].includes(k))
+                          .slice(0, 4)
+                          .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+                          .join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
+                    {event.created_at ? timeAgo(event.created_at) : ''}
+                  </span>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─── Existing AI Health Components ──────────────────────────────────────────
 
 function StatusBanner({ data }: { data: HealthData }) {
   const status = getOverallStatus(data)
+  const budget = data.token_budget
   const config = {
     operational: {
       icon: CheckCircle2,
@@ -178,14 +661,21 @@ function StatusBanner({ data }: { data: HealthData }) {
           <div>
             <h1 className="text-2xl font-bold font-heading">{config.label}</h1>
             <p className="text-sm text-white/80 mt-1">
-              {data.total_models_registered} models registered &middot; NIM {data.nim_configured ? 'enabled' : 'disabled'} &middot; Updated {new Date(data.timestamp).toLocaleTimeString()}
+              {data.total_models_registered} models &middot; NIM {data.nim_configured ? 'on' : 'off'}
+              {budget && (
+                <> &middot; OpenAI: {budget.budgetExhausted ? (
+                  <span className="font-bold text-red-200">BUDGET EXHAUSTED</span>
+                ) : (
+                  <span>{budget.tokensUsed.toLocaleString()}/{budget.dailyBudget.toLocaleString()} tokens</span>
+                )}</>
+              )}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex flex-col items-end text-right">
             <span className="text-2xl font-bold tabular-nums">{data.stats.totalCalls.toLocaleString()}</span>
-            <span className="text-xs text-white/70">Total API Calls</span>
+            <span className="text-xs text-white/70">API Calls</span>
           </div>
           <div className="h-10 w-px bg-white/20" />
           <div className="flex flex-col items-end text-right">
@@ -220,7 +710,7 @@ function ModalityCard({ name, modality }: { name: string; modality: ModalityInfo
             <div>
               <CardTitle className="text-base">{meta.label}</CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {availableCount}/{modality.chain_depth} providers available
+                {availableCount}/{modality.chain_depth} providers
               </p>
             </div>
           </div>
@@ -256,9 +746,6 @@ function ModalityCard({ name, modality }: { name: string; modality: ModalityInfo
                     ACTIVE
                   </Badge>
                 )}
-                {i === 0 && !isActive && (
-                  <span className="text-[10px] text-muted-foreground ml-1">primary</span>
-                )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {provider.circuitOpen && (
@@ -288,8 +775,6 @@ function ModuleChainRow({ name, chains, allModalities }: {
   const [expanded, setExpanded] = useState(false)
   const meta = MODULE_META[name] || { label: formatModuleName(name), description: '' }
   const modalityKeys = Object.keys(chains)
-
-  // Calculate health: all chains healthy?
   const totalAvailable = Object.values(chains).reduce((sum, c) => sum + c.available_count, 0)
   const totalDepth = Object.values(chains).reduce((sum, c) => sum + c.chain_depth, 0)
   const healthPct = totalDepth > 0 ? Math.round((totalAvailable / totalDepth) * 100) : 0
@@ -303,13 +788,10 @@ function ModuleChainRow({ name, chains, allModalities }: {
       >
         <div className="flex items-center gap-3 min-w-0">
           {expanded ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-          <div className="min-w-0">
-            <span className="font-medium text-sm">{meta.label}</span>
-            <span className="text-xs text-muted-foreground ml-2 hidden sm:inline">{meta.description}</span>
-          </div>
+          <span className="font-medium text-sm">{meta.label}</span>
+          <span className="text-xs text-muted-foreground hidden sm:inline">{meta.description}</span>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          {/* Modality pills */}
           <div className="hidden sm:flex items-center gap-1.5">
             {modalityKeys.map(mod => {
               const modMeta = MODALITY_META[mod]
@@ -319,17 +801,15 @@ function ModuleChainRow({ name, chains, allModalities }: {
                 <div
                   key={mod}
                   className={cn(
-                    'flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium',
+                    'rounded-full px-2 py-0.5 text-[10px] font-medium',
                     isHealthy ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700',
                   )}
-                  title={`${modMeta?.label || mod}: ${chain.available_count}/${chain.chain_depth} (${chain.variant})`}
                 >
                   {modMeta?.label || mod}
                 </div>
               )
             })}
           </div>
-          {/* Health bar */}
           <div className="flex items-center gap-2">
             <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
               <div
@@ -392,9 +872,6 @@ function ModuleChainRow({ name, chains, allModalities }: {
                             {formatProviderName(providerKey)}
                           </span>
                           {isActive && <span className="text-[9px] text-primary font-bold shrink-0">ACTIVE</span>}
-                          {i < chain.providers.length - 1 && (
-                            <span className="text-muted-foreground/50 ml-auto shrink-0">&rarr;</span>
-                          )}
                         </div>
                       )
                     })}
@@ -446,19 +923,17 @@ function RecentLogs({ logs }: { logs: HealthData['recent_logs'] }) {
     <div className="space-y-2 max-h-64 overflow-y-auto">
       {[...logs].reverse().map((log, i) => (
         <div key={i} className="flex items-start gap-3 text-xs border-l-2 border-amber-400 pl-3 py-1">
-          <div className="shrink-0">
-            <Clock className="h-3 w-3 text-muted-foreground mt-0.5" />
-          </div>
+          <Clock className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="outline" className="text-[9px]">{log.modality || 'unknown'}</Badge>
               <span className="font-medium">
-                {formatProviderName(log.from || '?')} &rarr; {formatProviderName(log.to || '?')}
+                {formatProviderName(log.from || log.provider || '?')} &rarr; {formatProviderName(log.to || '?')}
               </span>
             </div>
-            <p className="text-muted-foreground mt-0.5 truncate">{log.reason || log.event || 'Failover'}</p>
-            {log.time && (
-              <p className="text-muted-foreground/70 mt-0.5">{new Date(log.time).toLocaleString()}</p>
+            <p className="text-muted-foreground mt-0.5 truncate">{log.error || log.reason || log.event || 'Failover'}</p>
+            {(log.timestamp || log.time) && (
+              <p className="text-muted-foreground/70 mt-0.5">{new Date(log.timestamp || log.time || '').toLocaleString()}</p>
             )}
           </div>
         </div>
@@ -472,10 +947,16 @@ function RecentLogs({ logs }: { logs: HealthData['recent_logs'] }) {
 export function AiHealthPage() {
   const navigate = useNavigate()
   const [data, setData] = useState<HealthData | null>(null)
+  const [metrics, setMetrics] = useState<MetricsData | null>(null)
+  const [activity, setActivity] = useState<ActivityEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [metricsLoading, setMetricsLoading] = useState(false)
+  const [activityLoading, setActivityLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [countdown, setCountdown] = useState(30)
+  const [activeTab, setActiveTab] = useState<TabId>('overview')
+  const [activityFilter, setActivityFilter] = useState('all')
 
   const handleLogout = useCallback(async () => {
     await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' })
@@ -502,11 +983,54 @@ export function AiHealthPage() {
     }
   }, [navigate])
 
+  const fetchMetrics = useCallback(async () => {
+    setMetricsLoading(true)
+    try {
+      const res = await fetch('/api/admin/metrics', { credentials: 'include' })
+      if (res.ok) {
+        const json = await res.json()
+        setMetrics(json)
+      }
+    } catch {
+      // Metrics are optional — don't block the dashboard
+    } finally {
+      setMetricsLoading(false)
+    }
+  }, [])
+
+  const fetchActivity = useCallback(async () => {
+    setActivityLoading(true)
+    try {
+      const res = await fetch('/api/admin/activity?realtime=true&limit=100', { credentials: 'include' })
+      if (res.ok) {
+        const json = await res.json()
+        setActivity(json.events || [])
+      }
+    } catch {
+      // Activity feed is optional
+    } finally {
+      setActivityLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
+    // Initial load
     fetchHealth()
-    const interval = setInterval(fetchHealth, 30000)
-    return () => clearInterval(interval)
-  }, [fetchHealth])
+    fetchMetrics()
+    fetchActivity()
+
+    // Auto-refresh: health + metrics every 30s, activity every 10s
+    const healthInterval = setInterval(() => {
+      fetchHealth()
+      fetchMetrics()
+    }, 30000)
+    const activityInterval = setInterval(fetchActivity, 10000)
+
+    return () => {
+      clearInterval(healthInterval)
+      clearInterval(activityInterval)
+    }
+  }, [fetchHealth, fetchMetrics, fetchActivity])
 
   // Countdown timer
   useEffect(() => {
@@ -521,7 +1045,7 @@ export function AiHealthPage() {
       <div className="min-h-screen bg-muted/30 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Loading AI Health Dashboard...</p>
+          <p className="text-sm text-muted-foreground">Loading Admin Dashboard...</p>
         </div>
       </div>
     )
@@ -546,6 +1070,12 @@ export function AiHealthPage() {
 
   if (!data) return null
 
+  const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
+    { id: 'overview', label: 'Overview', icon: Server },
+    { id: 'ai', label: 'AI Providers', icon: Brain },
+    { id: 'activity', label: 'Activity Feed', icon: Activity },
+  ]
+
   const modalityEntries = Object.entries(data.modalities)
   const moduleEntries = Object.entries(data.module_chains)
 
@@ -559,15 +1089,15 @@ export function AiHealthPage() {
               <Activity className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="font-heading text-lg font-bold">AI Health Dashboard</h1>
-              <p className="text-xs text-muted-foreground hidden sm:block">HireLoop Provider Status & Fallback Chains</p>
+              <h1 className="font-heading text-lg font-bold">Admin Dashboard</h1>
+              <p className="text-xs text-muted-foreground hidden sm:block">HireLoop Monitoring & Control</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground tabular-nums hidden sm:inline">
-              Refreshing in {countdown}s
+              {countdown}s
             </span>
-            <Button variant="outline" size="sm" onClick={fetchHealth} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => { fetchHealth(); fetchMetrics(); fetchActivity() }} className="gap-1.5">
               <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
@@ -577,70 +1107,122 @@ export function AiHealthPage() {
             </Button>
           </div>
         </div>
+        {/* Tab navigation */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex gap-1 -mb-px">
+            {tabs.map(tab => {
+              const TabIcon = tab.icon
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors',
+                    activeTab === tab.id
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/20',
+                  )}
+                >
+                  <TabIcon className="h-4 w-4" />
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Status Banner */}
+        {/* Status Banner (always visible) */}
         <StatusBanner data={data} />
 
-        {/* Modality Status Cards */}
-        <div>
-          <div className="flex items-center gap-2 mb-4">
-            <Cpu className="h-5 w-5 text-muted-foreground" />
-            <h2 className="font-heading text-lg font-semibold">Provider Status by Modality</h2>
-            <span className="text-xs text-muted-foreground">({modalityEntries.length} modalities)</span>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {modalityEntries.map(([name, modality]) => (
-              <ModalityCard key={name} name={name} modality={modality} />
-            ))}
-          </div>
-        </div>
+        {/* ─── OVERVIEW TAB ─── */}
+        {activeTab === 'overview' && (
+          <>
+            {/* Token Budget */}
+            {data.token_budget && (
+              <TokenBudgetPanel budget={data.token_budget} />
+            )}
 
-        {/* Module Chains */}
-        <div>
-          <div className="flex items-center gap-2 mb-4">
-            <Zap className="h-5 w-5 text-muted-foreground" />
-            <h2 className="font-heading text-lg font-semibold">Module Chain Health</h2>
-            <span className="text-xs text-muted-foreground">({moduleEntries.length} modules)</span>
-          </div>
-          <div className="space-y-2">
-            {moduleEntries.map(([name, chains]) => (
-              <ModuleChainRow key={name} name={name} chains={chains} allModalities={data.modalities} />
-            ))}
-          </div>
-        </div>
+            {/* System Metrics */}
+            {metrics && <MetricsOverview metrics={metrics} />}
 
-        {/* Stats & Logs */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-muted-foreground" />
-                <CardTitle>Provider Call Distribution</CardTitle>
+            {/* Stats & Logs */}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                    <CardTitle>Provider Call Distribution</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ProviderCallsTable providerCalls={data.stats.providerCalls} />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                    <CardTitle>Recent Failover Events</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <RecentLogs logs={data.recent_logs} />
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        )}
+
+        {/* ─── AI PROVIDERS TAB ─── */}
+        {activeTab === 'ai' && (
+          <>
+            {/* Modality Status Cards */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Cpu className="h-5 w-5 text-muted-foreground" />
+                <h2 className="font-heading text-lg font-semibold">Provider Status by Modality</h2>
+                <span className="text-xs text-muted-foreground">({modalityEntries.length} modalities)</span>
               </div>
-            </CardHeader>
-            <CardContent>
-              <ProviderCallsTable providerCalls={data.stats.providerCalls} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-amber-500" />
-                <CardTitle>Recent Failover Events</CardTitle>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {modalityEntries.map(([name, modality]) => (
+                  <ModalityCard key={name} name={name} modality={modality} />
+                ))}
               </div>
-            </CardHeader>
-            <CardContent>
-              <RecentLogs logs={data.recent_logs} />
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+
+            {/* Module Chains */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Zap className="h-5 w-5 text-muted-foreground" />
+                <h2 className="font-heading text-lg font-semibold">Module Chain Health</h2>
+                <span className="text-xs text-muted-foreground">({moduleEntries.length} modules)</span>
+              </div>
+              <div className="space-y-2">
+                {moduleEntries.map(([name, chains]) => (
+                  <ModuleChainRow key={name} name={name} chains={chains} allModalities={data.modalities} />
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ─── ACTIVITY FEED TAB ─── */}
+        {activeTab === 'activity' && (
+          <ActivityFeed
+            events={activity}
+            loading={activityLoading}
+            onRefresh={fetchActivity}
+            filter={activityFilter}
+            setFilter={setActivityFilter}
+          />
+        )}
 
         {/* Footer */}
         <div className="text-center text-xs text-muted-foreground pb-4">
-          HireLoop AI Health Dashboard &middot; Auto-refreshes every 30 seconds &middot; Last update: {lastRefresh.toLocaleString()}
+          HireLoop Admin Dashboard &middot; Metrics refresh every 30s &middot; Activity feed every 10s &middot; {lastRefresh.toLocaleString()}
         </div>
       </div>
     </div>
