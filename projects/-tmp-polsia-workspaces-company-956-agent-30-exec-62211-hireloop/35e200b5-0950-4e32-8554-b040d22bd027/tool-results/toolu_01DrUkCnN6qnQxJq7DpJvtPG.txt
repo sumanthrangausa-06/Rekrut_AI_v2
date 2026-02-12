@@ -1,0 +1,466 @@
+     1→import { useEffect, useState } from 'react'
+     2→import { useParams, useNavigate } from 'react-router-dom'
+     3→import { apiCall } from '@/lib/api'
+     4→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Badge } from '@/components/ui/badge'
+     7→import { Select } from '@/components/ui/select'
+     8→import { Textarea } from '@/components/ui/textarea'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    11→import {
+    12→  ArrowLeft, Users, Star, Calendar, Search,
+    13→  Mail, FileText, Send, CheckCircle, Clock, Gift, MessageSquare,
+    14→} from 'lucide-react'
+    15→
+    16→interface JobInfo {
+    17→  id: number
+    18→  title: string
+    19→  screening_questions?: string | ScreeningQuestion[]
+    20→}
+    21→
+    22→interface ScreeningQuestion {
+    23→  id?: string
+    24→  question: string
+    25→  type?: string
+    26→  required?: boolean
+    27→  category?: string
+    28→}
+    29→
+    30→interface Applicant {
+    31→  id: number
+    32→  candidate_id: number
+    33→  job_id: number
+    34→  status: string
+    35→  candidate_name: string
+    36→  candidate_email: string
+    37→  applied_at: string
+    38→  updated_at: string
+    39→  match_score?: number
+    40→  omniscore_at_apply?: number
+    41→  current_omniscore?: number
+    42→  score_tier?: string
+    43→  cover_letter?: string
+    44→  screening_answers?: string
+    45→  recruiter_notes?: string
+    46→}
+    47→
+    48→const statuses = ['applied', 'reviewing', 'shortlisted', 'interviewed', 'offered', 'hired', 'rejected']
+    49→
+    50→const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' }> = {
+    51→  applied: { label: 'New', variant: 'secondary' },
+    52→  reviewing: { label: 'Reviewing', variant: 'warning' },
+    53→  shortlisted: { label: 'Shortlisted', variant: 'default' },
+    54→  interviewed: { label: 'Interviewed', variant: 'default' },
+    55→  offered: { label: 'Offered', variant: 'success' },
+    56→  hired: { label: 'Hired', variant: 'success' },
+    57→  rejected: { label: 'Rejected', variant: 'destructive' },
+    58→}
+    59→
+    60→export function RecruiterJobApplicantsPage() {
+    61→  const { id } = useParams()
+    62→  const navigate = useNavigate()
+    63→  const [job, setJob] = useState<JobInfo | null>(null)
+    64→  const [applicants, setApplicants] = useState<Applicant[]>([])
+    65→  const [loading, setLoading] = useState(true)
+    66→  const [statusFilter, setStatusFilter] = useState('')
+    67→  const [searchQuery, setSearchQuery] = useState('')
+    68→  const [selected, setSelected] = useState<Applicant | null>(null)
+    69→  const [notes, setNotes] = useState('')
+    70→  const [updating, setUpdating] = useState(false)
+    71→
+    72→  useEffect(() => {
+    73→    loadApplicants()
+    74→  }, [id])
+    75→
+    76→  async function loadApplicants() {
+    77→    try {
+    78→      const data = await apiCall<{ job: JobInfo; applications: Applicant[] }>(
+    79→        `/recruiter/jobs/${id}/applications`
+    80→      )
+    81→      setJob(data.job)
+    82→      setApplicants(data.applications || [])
+    83→    } catch {
+    84→      navigate('/recruiter/jobs')
+    85→    } finally {
+    86→      setLoading(false)
+    87→    }
+    88→  }
+    89→
+    90→  async function updateStatus(appId: number, newStatus: string) {
+    91→    setUpdating(true)
+    92→    try {
+    93→      await apiCall(`/recruiter/applications/${appId}`, {
+    94→        method: 'PUT',
+    95→        body: { status: newStatus, recruiter_notes: notes || undefined },
+    96→      })
+    97→      loadApplicants()
+    98→      if (selected?.id === appId) {
+    99→        setSelected(prev => prev ? { ...prev, status: newStatus } : null)
+   100→      }
+   101→    } catch {
+   102→      // silent
+   103→    } finally {
+   104→      setUpdating(false)
+   105→    }
+   106→  }
+   107→
+   108→  // Parse screening questions from job to get labels
+   109→  const jobScreeningQuestions: ScreeningQuestion[] = (() => {
+   110→    if (!job?.screening_questions) return []
+   111→    try {
+   112→      const raw = typeof job.screening_questions === 'string'
+   113→        ? JSON.parse(job.screening_questions)
+   114→        : job.screening_questions
+   115→      return Array.isArray(raw) ? raw : []
+   116→    } catch {
+   117→      return []
+   118→    }
+   119→  })()
+   120→
+   121→  // Get question label by key (e.g. "sq_default_1" or "q0")
+   122→  function getQuestionLabel(key: string, index: number): string {
+   123→    // Try matching by id
+   124→    const byId = jobScreeningQuestions.find(q => q.id === key)
+   125→    if (byId) return byId.question
+   126→
+   127→    // Try matching by index (q0, q1...)
+   128→    const match = key.match(/^q(\d+)$/)
+   129→    if (match) {
+   130→      const qIndex = parseInt(match[1])
+   131→      if (jobScreeningQuestions[qIndex]) return jobScreeningQuestions[qIndex].question
+   132→    }
+   133→
+   134→    return `Question ${index + 1}`
+   135→  }
+   136→
+   137→  const filtered = applicants.filter(a => {
+   138→    const matchStatus = !statusFilter || a.status === statusFilter
+   139→    const matchSearch = !searchQuery ||
+   140→      a.candidate_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+   141→      a.candidate_email?.toLowerCase().includes(searchQuery.toLowerCase())
+   142→    return matchStatus && matchSearch
+   143→  })
+   144→
+   145→  const statusCounts = statuses.reduce((acc, s) => {
+   146→    acc[s] = applicants.filter(a => a.status === s).length
+   147→    return acc
+   148→  }, {} as Record<string, number>)
+   149→
+   150→  function timeAgo(dateStr: string) {
+   151→    const diff = Date.now() - new Date(dateStr).getTime()
+   152→    const days = Math.floor(diff / 86400000)
+   153→    if (days === 0) return 'Today'
+   154→    if (days === 1) return '1 day ago'
+   155→    if (days < 30) return `${days} days ago`
+   156→    return `${Math.floor(days / 30)} months ago`
+   157→  }
+   158→
+   159→  function renderScreeningAnswers(answersRaw?: string) {
+   160→    if (!answersRaw) return null
+   161→    try {
+   162→      const answers = typeof answersRaw === 'string' ? JSON.parse(answersRaw) : answersRaw
+   163→      if (!answers || Object.keys(answers).length === 0) return null
+   164→
+   165→      return (
+   166→        <div>
+   167→          <h4 className="font-medium text-sm mb-2 flex items-center gap-1">
+   168→            <MessageSquare className="h-4 w-4" /> Screening Answers
+   169→          </h4>
+   170→          <div className="space-y-2">
+   171→            {Object.entries(answers).map(([key, value], i) => (
+   172→              <div key={key} className="rounded-lg bg-muted/50 p-3">
+   173→                <p className="text-xs text-muted-foreground mb-1 font-medium">
+   174→                  {getQuestionLabel(key, i)}
+   175→                </p>
+   176→                <p className="text-sm">{String(value)}</p>
+   177→              </div>
+   178→            ))}
+   179→          </div>
+   180→        </div>
+   181→      )
+   182→    } catch {
+   183→      return null
+   184→    }
+   185→  }
+   186→
+   187→  if (loading) {
+   188→    return (
+   189→      <div className="flex items-center justify-center py-16">
+   190→        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+   191→      </div>
+   192→    )
+   193→  }
+   194→
+   195→  return (
+   196→    <div className="space-y-6">
+   197→      {/* Header */}
+   198→      <div className="flex items-center gap-3">
+   199→        <Button variant="ghost" size="sm" onClick={() => navigate('/recruiter/jobs')}>
+   200→          <ArrowLeft className="h-4 w-4" />
+   201→        </Button>
+   202→        <div className="flex-1">
+   203→          <h1 className="font-heading text-2xl font-bold">Applicants</h1>
+   204→          <p className="text-muted-foreground text-sm">
+   205→            {job?.title || 'Job'} &mdash; {applicants.length} applicant{applicants.length !== 1 ? 's' : ''}
+   206→          </p>
+   207→        </div>
+   208→      </div>
+   209→
+   210→      {/* Stats row */}
+   211→      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+   212→        <Card>
+   213→          <CardContent className="p-4 text-center">
+   214→            <p className="text-2xl font-bold">{applicants.length}</p>
+   215→            <p className="text-xs text-muted-foreground">Total</p>
+   216→          </CardContent>
+   217→        </Card>
+   218→        <Card>
+   219→          <CardContent className="p-4 text-center">
+   220→            <p className="text-2xl font-bold text-blue-600">{statusCounts.applied || 0}</p>
+   221→            <p className="text-xs text-muted-foreground">New</p>
+   222→          </CardContent>
+   223→        </Card>
+   224→        <Card>
+   225→          <CardContent className="p-4 text-center">
+   226→            <p className="text-2xl font-bold text-amber-600">
+   227→              {(statusCounts.reviewing || 0) + (statusCounts.shortlisted || 0)}
+   228→            </p>
+   229→            <p className="text-xs text-muted-foreground">In Review</p>
+   230→          </CardContent>
+   231→        </Card>
+   232→        <Card>
+   233→          <CardContent className="p-4 text-center">
+   234→            <p className="text-2xl font-bold text-emerald-600">
+   235→              {(statusCounts.offered || 0) + (statusCounts.hired || 0)}
+   236→            </p>
+   237→            <p className="text-xs text-muted-foreground">Offered/Hired</p>
+   238→          </CardContent>
+   239→        </Card>
+   240→      </div>
+   241→
+   242→      {/* Search and filter */}
+   243→      <div className="flex flex-col gap-3 sm:flex-row">
+   244→        <div className="relative flex-1">
+   245→          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   246→          <Input
+   247→            placeholder="Search applicants by name or email..."
+   248→            value={searchQuery}
+   249→            onChange={e => setSearchQuery(e.target.value)}
+   250→            className="pl-9"
+   251→          />
+   252→        </div>
+   253→      </div>
+   254→
+   255→      {/* Status filter pills */}
+   256→      <div className="flex flex-wrap gap-2">
+   257→        <Button
+   258→          variant={!statusFilter ? 'default' : 'outline'}
+   259→          size="sm"
+   260→          onClick={() => setStatusFilter('')}
+   261→        >
+   262→          All ({applicants.length})
+   263→        </Button>
+   264→        {statuses.map(s => (
+   265→          statusCounts[s] > 0 ? (
+   266→            <Button
+   267→              key={s}
+   268→              variant={statusFilter === s ? 'default' : 'outline'}
+   269→              size="sm"
+   270→              onClick={() => setStatusFilter(s)}
+   271→            >
+   272→              {statusConfig[s]?.label || s} ({statusCounts[s]})
+   273→            </Button>
+   274→          ) : null
+   275→        ))}
+   276→      </div>
+   277→
+   278→      {/* Applicant list */}
+   279→      {filtered.length === 0 ? (
+   280→        <Card>
+   281→          <CardContent className="py-16 text-center">
+   282→            <Users className="mx-auto mb-3 h-10 w-10 opacity-30" />
+   283→            <p className="text-muted-foreground">
+   284→              {applicants.length === 0 ? 'No applicants yet for this job' : 'No applicants match your filters'}
+   285→            </p>
+   286→          </CardContent>
+   287→        </Card>
+   288→      ) : (
+   289→        <div className="space-y-2">
+   290→          {filtered.map(app => {
+   291→            const config = statusConfig[app.status] || { label: app.status, variant: 'secondary' as const }
+   292→            return (
+   293→              <Card
+   294→                key={app.id}
+   295→                className="cursor-pointer transition-shadow hover:shadow-md"
+   296→                onClick={() => { setSelected(app); setNotes(app.recruiter_notes || '') }}
+   297→              >
+   298→                <CardContent className="p-4">
+   299→                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+   300→                    <div className="min-w-0">
+   301→                      <div className="flex items-center gap-2 mb-1">
+   302→                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm">
+   303→                          {(app.candidate_name || '?')[0].toUpperCase()}
+   304→                        </div>
+   305→                        <div className="min-w-0">
+   306→                          <h3 className="font-semibold text-sm truncate">{app.candidate_name || 'Unknown'}</h3>
+   307→                          <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
+   308→                            <Mail className="h-3 w-3 shrink-0" /> {app.candidate_email}
+   309→                          </p>
+   310→                        </div>
+   311→                        <Badge variant={config.variant} className="ml-1 shrink-0">{config.label}</Badge>
+   312→                      </div>
+   313→                      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground ml-10">
+   314→                        <span className="flex items-center gap-1">
+   315→                          <Clock className="h-3 w-3" /> Applied {timeAgo(app.applied_at)}
+   316→                        </span>
+   317→                        {app.match_score != null && (
+   318→                          <span className="flex items-center gap-1 text-primary font-medium">
+   319→                            <Star className="h-3 w-3" /> {app.match_score}% match
+   320→                          </span>
+   321→                        )}
+   322→                        {app.current_omniscore != null && (
+   323→                          <span className="flex items-center gap-1">
+   324→                            OmniScore: {app.current_omniscore}
+   325→                          </span>
+   326→                        )}
+   327→                        {app.cover_letter && (
+   328→                          <span className="flex items-center gap-1">
+   329→                            <FileText className="h-3 w-3" /> Has cover letter
+   330→                          </span>
+   331→                        )}
+   332→                      </div>
+   333→                    </div>
+   334→                    <div className="flex items-center gap-2 shrink-0">
+   335→                      <Select
+   336→                        value={app.status}
+   337→                        onChange={e => {
+   338→                          e.stopPropagation()
+   339→                          updateStatus(app.id, e.target.value)
+   340→                        }}
+   341→                        onClick={e => e.stopPropagation()}
+   342→                        className="w-32 text-xs"
+   343→                      >
+   344→                        {statuses.map(s => (
+   345→                          <option key={s} value={s}>{statusConfig[s]?.label || s}</option>
+   346→                        ))}
+   347→                      </Select>
+   348→                    </div>
+   349→                  </div>
+   350→                </CardContent>
+   351→              </Card>
+   352→            )
+   353→          })}
+   354→        </div>
+   355→      )}
+   356→
+   357→      {/* Detail dialog */}
+   358→      {selected && (
+   359→        <Dialog open={true} onClose={() => setSelected(null)} className="max-w-2xl">
+   360→          <DialogHeader>
+   361→            <DialogTitle className="flex items-center gap-2">
+   362→              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold">
+   363→                {(selected.candidate_name || '?')[0].toUpperCase()}
+   364→              </div>
+   365→              <div>
+   366→                <div>{selected.candidate_name}</div>
+   367→                <p className="text-sm text-muted-foreground font-normal">{selected.candidate_email}</p>
+   368→              </div>
+   369→            </DialogTitle>
+   370→          </DialogHeader>
+   371→          <div className="space-y-4">
+   372→            {/* Stats grid */}
+   373→            <div className="grid grid-cols-2 gap-3">
+   374→              <div className="rounded-lg bg-muted/50 p-3">
+   375→                <p className="text-xs text-muted-foreground">Applied</p>
+   376→                <p className="font-medium text-sm">{new Date(selected.applied_at).toLocaleDateString()}</p>
+   377→              </div>
+   378→              <div className="rounded-lg bg-muted/50 p-3">
+   379→                <p className="text-xs text-muted-foreground">Status</p>
+   380→                <Badge variant={statusConfig[selected.status]?.variant || 'secondary'} className="mt-0.5">
+   381→                  {statusConfig[selected.status]?.label || selected.status}
+   382→                </Badge>
+   383→              </div>
+   384→              <div className="rounded-lg bg-muted/50 p-3">
+   385→                <p className="text-xs text-muted-foreground">Match Score</p>
+   386→                <p className="font-medium text-sm">{selected.match_score != null ? `${selected.match_score}%` : 'N/A'}</p>
+   387→              </div>
+   388→              <div className="rounded-lg bg-muted/50 p-3">
+   389→                <p className="text-xs text-muted-foreground">OmniScore</p>
+   390→                <p className="font-medium text-sm">{selected.current_omniscore || selected.omniscore_at_apply || 'N/A'}</p>
+   391→              </div>
+   392→            </div>
+   393→
+   394→            {/* Cover letter */}
+   395→            {selected.cover_letter && (
+   396→              <div>
+   397→                <h4 className="font-medium text-sm mb-1 flex items-center gap-1">
+   398→                  <FileText className="h-4 w-4" /> Cover Letter
+   399→                </h4>
+   400→                <div className="rounded-lg bg-muted/50 p-3 text-sm whitespace-pre-wrap leading-relaxed">
+   401→                  {selected.cover_letter}
+   402→                </div>
+   403→              </div>
+   404→            )}
+   405→
+   406→            {/* Screening answers - now with actual question labels */}
+   407→            {renderScreeningAnswers(selected.screening_answers)}
+   408→
+   409→            {/* Recruiter notes */}
+   410→            <div>
+   411→              <h4 className="font-medium text-sm mb-1">Recruiter Notes</h4>
+   412→              <Textarea
+   413→                value={notes}
+   414→                onChange={e => setNotes(e.target.value)}
+   415→                placeholder="Add notes about this candidate..."
+   416→                rows={3}
+   417→              />
+   418→            </div>
+   419→
+   420→            {/* Status controls */}
+   421→            <div className="flex items-center gap-3 pt-2 border-t">
+   422→              <span className="text-sm font-medium">Status:</span>
+   423→              <Select
+   424→                value={selected.status}
+   425→                onChange={e => updateStatus(selected.id, e.target.value)}
+   426→                className="w-40"
+   427→                disabled={updating}
+   428→              >
+   429→                {statuses.map(s => (
+   430→                  <option key={s} value={s}>{statusConfig[s]?.label || s}</option>
+   431→                ))}
+   432→              </Select>
+   433→              <Button
+   434→                size="sm"
+   435→                onClick={() => {
+   436→                  updateStatus(selected.id, selected.status)
+   437→                  setSelected(null)
+   438→                }}
+   439→                disabled={updating}
+   440→              >
+   441→                Save & Close
+   442→              </Button>
+   443→            </div>
+   444→
+   445→            {/* Make Offer button */}
+   446→            {!['rejected', 'offered', 'hired'].includes(selected.status) && (
+   447→              <Button
+   448→                className="w-full gap-2"
+   449→                onClick={() => {
+   450→                  navigate(`/recruiter/offers?create=1&candidateId=${selected.candidate_id}&jobId=${id}`)
+   451→                }}
+   452→              >
+   453→                <Gift className="h-4 w-4" /> Make Offer to {selected.candidate_name?.split(' ')[0] || 'Candidate'}
+   454→              </Button>
+   455→            )}
+   456→          </div>
+   457→        </Dialog>
+   458→      )}
+   459→    </div>
+   460→  )
+   461→}
+   462→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

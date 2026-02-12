@@ -15,14 +15,14 @@
     "activeForm": "Fixing backend pipeline stages"
   },
   {
-    "content": "Phase 4: Backend — AI Match Scoring + skills breakdown",
-    "status": "in_progress",
-    "activeForm": "Enhancing AI match scoring with skills breakdown"
+    "content": "Phase 4: AI Match Scoring + skills breakdown",
+    "status": "completed",
+    "activeForm": "Enhancing AI match scoring"
   },
   {
     "content": "Phase 5: Frontend — Recruiter kanban + match ranking",
-    "status": "pending",
-    "activeForm": "Building recruiter pipeline kanban view"
+    "status": "in_progress",
+    "activeForm": "Building recruiter pipeline kanban view and match ranking"
   },
   {
     "content": "Phase 6: Frontend — Candidate job board + status tracking",

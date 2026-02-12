@@ -1,0 +1,262 @@
+     1→// AI-Powered Job Description Optimizer
+     2→const { chat } = require('../lib/polsia-ai');
+     3→
+     4→// Analyze job posting and provide authenticity score + suggestions
+     5→async function analyzeJobPosting(jobData) {
+     6→  const { title, description, requirements, salary_range, location, job_type, company } = jobData;
+     7→
+     8→  const prompt = `Analyze this job posting for authenticity, clarity, and completeness:
+     9→
+    10→Job Title: ${title}
+    11→Company: ${company || 'Not specified'}
+    12→Location: ${location || 'Not specified'}
+    13→Job Type: ${job_type || 'Not specified'}
+    14→Salary Range: ${salary_range || 'Not specified'}
+    15→
+    16→Description:
+    17→${description || 'No description provided'}
+    18→
+    19→Requirements:
+    20→${requirements || 'No requirements listed'}
+    21→
+    22→Analyze and return a JSON object with:
+    23→{
+    24→  "authenticity_score": 0-100 (how legitimate/realistic this posting appears),
+    25→  "completeness_score": 0-100 (how complete the information is),
+    26→  "clarity_score": 0-100 (how clear and understandable),
+    27→  "overall_score": 0-100 (weighted average),
+    28→  "issues": [
+    29→    {"severity": "high|medium|low", "issue": "description of the issue", "suggestion": "how to fix it"}
+    30→  ],
+    31→  "strengths": ["list of strengths in the posting"],
+    32→  "missing_elements": ["important elements that are missing"],
+    33→  "improvement_suggestions": [
+    34→    {"area": "area name", "current": "current state", "suggested": "improved version"}
+    35→  ],
+    36→  "salary_assessment": "appropriate|low|high|missing" based on title/location,
+    37→  "red_flags": ["any potential concerns that might deter candidates"]
+    38→}
+    39→
+    40→Only return the JSON object, no other text.`;
+    41→
+    42→  const response = await chat(prompt, {
+    43→    system: 'You are an expert HR consultant and job market analyst. Analyze job postings for quality, authenticity, and candidate appeal. Be specific and actionable. Always return valid JSON.'
+    44→  });
+    45→
+    46→  try {
+    47→    return JSON.parse(response);
+    48→  } catch (e) {
+    49→    const match = response.match(/\{[\s\S]*\}/);
+    50→    if (match) {
+    51→      return JSON.parse(match[0]);
+    52→    }
+    53→    return {
+    54→      authenticity_score: 50,
+    55→      completeness_score: 50,
+    56→      clarity_score: 50,
+    57→      overall_score: 50,
+    58→      issues: [{ severity: 'medium', issue: 'Could not fully analyze', suggestion: 'Please provide more details' }],
+    59→      strengths: [],
+    60→      missing_elements: ['detailed description', 'clear requirements', 'salary information'],
+    61→      improvement_suggestions: []
+    62→    };
+    63→  }
+    64→}
+    65→
+    66→// Generate an optimized job description
+    67→async function optimizeJobDescription(jobData, targetAudience = 'general') {
+    68→  const { title, description, requirements, salary_range, location, job_type, company } = jobData;
+    69→
+    70→  const prompt = `Optimize this job posting to attract top talent:
+    71→
+    72→Current Job Title: ${title}
+    73→Company: ${company || 'Company Name'}
+    74→Location: ${location || 'Location TBD'}
+    75→Job Type: ${job_type || 'full-time'}
+    76→Salary Range: ${salary_range || 'Competitive'}
+    77→
+    78→Current Description:
+    79→${description || 'No description yet'}
+    80→
+    81→Current Requirements:
+    82→${requirements || 'No requirements listed'}
+    83→
+    84→Target Audience: ${targetAudience}
+    85→
+    86→Create an optimized version and return a JSON object with:
+    87→{
+    88→  "optimized_title": "improved job title if needed",
+    89→  "optimized_description": "compelling, detailed job description (3-4 paragraphs)",
+    90→  "optimized_requirements": "clear, organized requirements (bulleted list format)",
+    91→  "suggested_salary_range": "market-competitive range for this role/location",
+    92→  "key_selling_points": ["3-5 reasons why candidates should apply"],
+    93→  "keywords": ["relevant keywords for search optimization"],
+    94→  "tone_assessment": "description of the current tone",
+    95→  "improvements_made": ["list of specific improvements"],
+    96→  "preview_snippet": "short 2-sentence preview for job boards"
+    97→}
+    98→
+    99→Only return the JSON object.`;
+   100→
+   101→  const response = await chat(prompt, {
+   102→    system: 'You are a professional copywriter specializing in job postings. Create compelling, honest job descriptions that attract quality candidates. Use inclusive language and focus on growth opportunities. Always return valid JSON.'
+   103→  });
+   104→
+   105→  try {
+   106→    return JSON.parse(response);
+   107→  } catch (e) {
+   108→    const match = response.match(/\{[\s\S]*\}/);
+   109→    if (match) {
+   110→      return JSON.parse(match[0]);
+   111→    }
+   112→    throw new Error('Failed to generate optimized job description');
+   113→  }
+   114→}
+   115→
+   116→// Generate interview questions for a job
+   117→async function generateInterviewQuestionsForJob(jobData, count = 8) {
+   118→  const { title, description, requirements } = jobData;
+   119→
+   120→  const prompt = `Generate ${count} tailored interview questions for this position:
+   121→
+   122→Job Title: ${title}
+   123→
+   124→Job Description:
+   125→${description || 'General ' + title + ' role'}
+   126→
+   127→Requirements:
+   128→${requirements || 'Standard requirements'}
+   129→
+   130→Create a mix of behavioral, technical, and situational questions. Return a JSON array:
+   131→[
+   132→  {
+   133→    "question": "the interview question",
+   134→    "category": "behavioral|technical|situational|culture-fit",
+   135→    "difficulty": "easy|medium|hard",
+   136→    "purpose": "what this question assesses",
+   137→    "what_to_look_for": ["key points in a good answer"],
+   138→    "red_flags": ["warning signs in poor answers"],
+   139→    "follow_up": "optional follow-up question"
+   140→  }
+   141→]
+   142→
+   143→Include at least 2 behavioral, 2 technical, and 2 situational questions.
+   144→Only return the JSON array.`;
+   145→
+   146→  const response = await chat(prompt, {
+   147→    system: 'You are an expert interviewer who designs effective interview processes. Create questions that reveal candidate capabilities and cultural fit. Always return valid JSON.'
+   148→  });
+   149→
+   150→  try {
+   151→    return JSON.parse(response);
+   152→  } catch (e) {
+   153→    const match = response.match(/\[[\s\S]*\]/);
+   154→    if (match) {
+   155→      return JSON.parse(match[0]);
+   156→    }
+   157→    throw new Error('Failed to generate interview questions');
+   158→  }
+   159→}
+   160→
+   161→// Analyze a candidate's fit for a job
+   162→async function analyzeCandidateFit(candidateProfile, jobData) {
+   163→  const prompt = `Analyze how well this candidate fits the job:
+   164→
+   165→CANDIDATE PROFILE:
+   166→Name: ${candidateProfile.name || 'Candidate'}
+   167→OmniScore: ${candidateProfile.omniscore || 'Not available'}
+   168→Skills: ${candidateProfile.skills?.join(', ') || 'Not specified'}
+   169→Experience Summary: ${candidateProfile.experience || 'Not provided'}
+   170→Recent Interview Performance: ${candidateProfile.interview_score || 'No data'}/10
+   171→
+   172→JOB REQUIREMENTS:
+   173→Title: ${jobData.title}
+   174→Description: ${jobData.description || 'Not provided'}
+   175→Requirements: ${jobData.requirements || 'Not specified'}
+   176→
+   177→Return a JSON object:
+   178→{
+   179→  "fit_score": 0-100,
+   180→  "fit_level": "excellent|good|moderate|low",
+   181→  "matching_qualifications": ["list of matching skills/experience"],
+   182→  "gaps": ["areas where candidate may need development"],
+   183→  "strengths": ["candidate's standout qualities for this role"],
+   184→  "interview_focus_areas": ["topics to explore in interview"],
+   185→  "recommendation": "brief hiring recommendation",
+   186→  "comparison_notes": "how this candidate compares to typical applicants"
+   187→}
+   188→
+   189→Only return the JSON object.`;
+   190→
+   191→  const response = await chat(prompt, {
+   192→    system: 'You are an experienced recruiter evaluating candidate-job fit. Be objective and data-driven. Always return valid JSON.'
+   193→  });
+   194→
+   195→  try {
+   196→    return JSON.parse(response);
+   197→  } catch (e) {
+   198→    const match = response.match(/\{[\s\S]*\}/);
+   199→    if (match) {
+   200→      return JSON.parse(match[0]);
+   201→    }
+   202→    return { fit_score: 50, fit_level: 'moderate', recommendation: 'Unable to fully analyze fit' };
+   203→  }
+   204→}
+   205→
+   206→// Generate salary insights
+   207→async function getSalaryInsights(title, location, experience_level = 'mid') {
+   208→  const prompt = `Provide salary market data for this role:
+   209→
+   210→Job Title: ${title}
+   211→Location: ${location || 'United States (average)'}
+   212→Experience Level: ${experience_level}
+   213→
+   214→Return a JSON object with:
+   215→{
+   216→  "salary_range": {
+   217→    "low": number,
+   218→    "median": number,
+   219→    "high": number,
+   220→    "currency": "USD"
+   221→  },
+   222→  "market_demand": "high|medium|low",
+   223→  "salary_trend": "increasing|stable|decreasing",
+   224→  "factors_affecting_salary": ["list of factors"],
+   225→  "comparable_titles": ["similar job titles"],
+   226→  "benefits_typically_included": ["common benefits for this role"],
+   227→  "negotiation_tips": "advice for salary discussions"
+   228→}
+   229→
+   230→Use realistic 2024-2025 US market data. Only return the JSON object.`;
+   231→
+   232→  const response = await chat(prompt, {
+   233→    system: 'You are a compensation analyst with access to current salary data. Provide accurate, realistic salary ranges based on current market conditions. Always return valid JSON.'
+   234→  });
+   235→
+   236→  try {
+   237→    return JSON.parse(response);
+   238→  } catch (e) {
+   239→    const match = response.match(/\{[\s\S]*\}/);
+   240→    if (match) {
+   241→      return JSON.parse(match[0]);
+   242→    }
+   243→    return {
+   244→      salary_range: { low: 50000, median: 75000, high: 100000, currency: 'USD' },
+   245→      market_demand: 'medium',
+   246→      salary_trend: 'stable'
+   247→    };
+   248→  }
+   249→}
+   250→
+   251→module.exports = {
+   252→  analyzeJobPosting,
+   253→  optimizeJobDescription,
+   254→  generateInterviewQuestionsForJob,
+   255→  analyzeCandidateFit,
+   256→  getSalaryInsights
+   257→};
+   258→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
