@@ -16,17 +16,17 @@
   },
   {
     "content": "Phase 4: Push Phase 3 + deploy",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Pushing and deploying Phase 3 changes"
   },
   {
     "content": "Phase 5: Remaining AI UI features (resume optimizer, recruiter AI buttons, question bank UI)",
-    "status": "pending",
+    "status": "completed",
     "activeForm": "Building remaining AI UI features"
   },
   {
     "content": "Phase 6: Rebuild client dist + final deploy",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Rebuilding and deploying final frontend"
   },
   {
