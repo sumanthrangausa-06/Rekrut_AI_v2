@@ -1132,6 +1132,59 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
       RETURNING *
     `, [req.user.id, req.params.jobId, job.rows[0].company_id, cover_letter, matchScore, omniscore, JSON.stringify(screening_answers || {})]);
 
+    // ── Smart Data Enrichment: Extract profile data from screening answers ──
+    if (screening_answers && Object.keys(screening_answers).length > 0) {
+      try {
+        const screeningQs = job.rows[0].screening_questions || [];
+        const updates = {};
+
+        for (const q of screeningQs) {
+          const answer = screening_answers[q.id];
+          if (!answer) continue;
+
+          if (q.category === 'salary' && answer) {
+            const nums = String(answer).match(/\d[\d,]*/g);
+            if (nums && nums.length > 0) {
+              updates.salary_min = parseInt(nums[0].replace(/,/g, ''));
+              if (nums.length > 1) updates.salary_max = parseInt(nums[1].replace(/,/g, ''));
+            }
+          } else if (q.category === 'availability') {
+            updates.availability = String(answer);
+          } else if (q.category === 'experience') {
+            // Map experience bracket to years
+            const bracket = String(answer);
+            if (bracket.includes('0-1')) updates.years_experience = 1;
+            else if (bracket.includes('1-3')) updates.years_experience = 2;
+            else if (bracket.includes('3-5')) updates.years_experience = 4;
+            else if (bracket.includes('5-10')) updates.years_experience = 7;
+            else if (bracket.includes('10+')) updates.years_experience = 12;
+          } else if (q.category === 'work_authorization') {
+            // Store as a profile note
+          }
+        }
+
+        // Update profile with extracted data (only non-null fields)
+        if (Object.keys(updates).length > 0) {
+          const setClauses = [];
+          const values = [req.user.id];
+          let idx = 2;
+          for (const [key, val] of Object.entries(updates)) {
+            setClauses.push(`${key} = COALESCE($${idx}, ${key})`);
+            values.push(val);
+            idx++;
+          }
+          if (setClauses.length > 0) {
+            await pool.query(
+              `UPDATE candidate_profiles SET ${setClauses.join(', ')}, updated_at = NOW() WHERE user_id = $1`,
+              values
+            );
+          }
+        }
+      } catch (enrichErr) {
+        console.error('Profile enrichment from screening (non-blocking):', enrichErr.message);
+      }
+    }
+
     res.json({ success: true, application: result.rows[0] });
   } catch (err) {
     console.error('Apply to job error:', err);
@@ -1410,6 +1463,265 @@ router.put('/interviews/:id/reschedule', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Reschedule interview error:', err);
     res.status(500).json({ error: 'Failed to request reschedule' });
+  }
+});
+
+// ============= AI FEATURES =============
+
+// AI Resume Optimizer — tailored suggestions for a specific job
+router.post('/ai/resume-optimizer', authMiddleware, async (req, res) => {
+  try {
+    const { job_id } = req.body;
+    const { chat } = require('../lib/polsia-ai');
+
+    // Get candidate profile
+    const profile = await pool.query(`
+      SELECT cp.*, u.name, u.email FROM candidate_profiles cp
+      RIGHT JOIN users u ON u.id = cp.user_id WHERE u.id = $1
+    `, [req.user.id]);
+    const skills = await pool.query('SELECT skill_name, category, years_experience FROM candidate_skills WHERE user_id = $1', [req.user.id]);
+    const experience = await pool.query('SELECT company_name, title, description, achievements, skills_used FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC', [req.user.id]);
+    const education = await pool.query('SELECT institution, degree, field_of_study FROM education WHERE user_id = $1', [req.user.id]);
+
+    let jobContext = '';
+    if (job_id) {
+      const job = await pool.query('SELECT title, description, requirements FROM jobs WHERE id = $1', [job_id]);
+      if (job.rows[0]) {
+        jobContext = `\nTARGET JOB:\nTitle: ${job.rows[0].title}\nDescription: ${job.rows[0].description?.substring(0, 500)}\nRequirements: ${job.rows[0].requirements?.substring(0, 500)}`;
+      }
+    }
+
+    const prompt = `Analyze this candidate's profile and provide specific resume optimization suggestions${job_id ? ' tailored to the target job' : ''}.
+
+CANDIDATE:
+Name: ${profile.rows[0]?.name}
+Skills: ${skills.rows.map(s => `${s.skill_name} (${s.years_experience || '?'}y)`).join(', ') || 'None listed'}
+Experience: ${experience.rows.map(e => `${e.title} at ${e.company_name}`).join('; ') || 'None listed'}
+Education: ${education.rows.map(e => `${e.degree} from ${e.institution}`).join('; ') || 'None listed'}
+Headline: ${profile.rows[0]?.headline || 'Not set'}
+Bio: ${profile.rows[0]?.bio || 'Not set'}
+${jobContext}
+
+Return JSON:
+{
+  "overall_score": 0-100,
+  "headline_suggestion": "Improved headline",
+  "bio_suggestion": "Improved 2-3 sentence professional summary",
+  "skill_gaps": ["Skills to add based on job requirements"],
+  "keyword_suggestions": ["Important keywords missing from profile"],
+  "experience_tips": ["Specific tip for improving experience descriptions"],
+  "strengths": ["What's working well"],
+  "priority_actions": ["Top 3 things to do immediately"]
+}
+Only return JSON.`;
+
+    const result = await chat(prompt, {
+      system: 'You are an expert resume coach and ATS optimization specialist. Be specific and actionable. Always return valid JSON.'
+    });
+
+    let parsed;
+    try { parsed = JSON.parse(result); } catch { const m = result.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : { error: 'Parse failed' }; }
+    res.json({ success: true, optimization: parsed });
+  } catch (err) {
+    console.error('AI resume optimizer error:', err);
+    res.status(500).json({ error: 'Failed to optimize resume' });
+  }
+});
+
+// AI Cover Letter Generator — creates a tailored cover letter
+router.post('/ai/cover-letter', authMiddleware, async (req, res) => {
+  try {
+    const { job_id } = req.body;
+    if (!job_id) return res.status(400).json({ error: 'job_id required' });
+    const { chat } = require('../lib/polsia-ai');
+
+    const profile = await pool.query(`
+      SELECT cp.*, u.name, u.email FROM candidate_profiles cp
+      RIGHT JOIN users u ON u.id = cp.user_id WHERE u.id = $1
+    `, [req.user.id]);
+    const skills = await pool.query('SELECT skill_name, years_experience FROM candidate_skills WHERE user_id = $1', [req.user.id]);
+    const experience = await pool.query('SELECT company_name, title, description FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC LIMIT 3', [req.user.id]);
+    const job = await pool.query('SELECT title, company, description, requirements FROM jobs WHERE id = $1', [job_id]);
+
+    if (!job.rows[0]) return res.status(404).json({ error: 'Job not found' });
+
+    const prompt = `Write a compelling, professional cover letter for this candidate applying to this job.
+
+CANDIDATE:
+Name: ${profile.rows[0]?.name}
+Skills: ${skills.rows.map(s => `${s.skill_name} (${s.years_experience || '?'}y)`).join(', ')}
+Recent Experience: ${experience.rows.map(e => `${e.title} at ${e.company_name}: ${e.description?.substring(0, 200)}`).join('\n')}
+
+JOB:
+Title: ${job.rows[0].title} at ${job.rows[0].company}
+Description: ${job.rows[0].description?.substring(0, 800)}
+Requirements: ${job.rows[0].requirements?.substring(0, 500)}
+
+Return JSON:
+{
+  "cover_letter": "The full cover letter text (3-4 paragraphs, professional tone)",
+  "key_highlights": ["3 key strengths emphasized"],
+  "match_score": 0-100
+}
+Only return JSON.`;
+
+    const result = await chat(prompt, {
+      system: 'You are an expert career coach writing compelling cover letters. Be authentic, specific, and persuasive. Never use generic filler. Always return valid JSON.'
+    });
+
+    let parsed;
+    try { parsed = JSON.parse(result); } catch { const m = result.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : { error: 'Parse failed' }; }
+    res.json({ success: true, ...parsed });
+  } catch (err) {
+    console.error('AI cover letter error:', err);
+    res.status(500).json({ error: 'Failed to generate cover letter' });
+  }
+});
+
+// AI Screening Answer Suggestions — based on stored profile and past answers
+router.post('/ai/screening-suggestions', authMiddleware, async (req, res) => {
+  try {
+    const { job_id, questions } = req.body;
+    if (!questions || !Array.isArray(questions)) return res.status(400).json({ error: 'questions array required' });
+    const { chat } = require('../lib/polsia-ai');
+
+    // Get profile data
+    const profile = await pool.query(`SELECT cp.*, u.name FROM candidate_profiles cp RIGHT JOIN users u ON u.id = cp.user_id WHERE u.id = $1`, [req.user.id]);
+    const skills = await pool.query('SELECT skill_name, years_experience FROM candidate_skills WHERE user_id = $1', [req.user.id]);
+    const experience = await pool.query('SELECT title, company_name FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC LIMIT 3', [req.user.id]);
+
+    // Get past screening answers
+    const pastAnswers = await pool.query(`
+      SELECT ja.screening_answers FROM job_applications ja WHERE ja.candidate_id = $1 AND ja.screening_answers IS NOT NULL
+      ORDER BY ja.applied_at DESC LIMIT 5
+    `, [req.user.id]);
+
+    const pastData = pastAnswers.rows.map(r => r.screening_answers).filter(Boolean);
+
+    const prompt = `Suggest answers to these screening questions based on the candidate's profile and past answers.
+
+CANDIDATE:
+Name: ${profile.rows[0]?.name}
+Skills: ${skills.rows.map(s => `${s.skill_name} (${s.years_experience || '?'}y)`).join(', ')}
+Experience: ${experience.rows.map(e => `${e.title} at ${e.company_name}`).join('; ')}
+Location: ${profile.rows[0]?.location || 'Not specified'}
+Salary preference: ${profile.rows[0]?.salary_min ? `$${profile.rows[0].salary_min}-$${profile.rows[0].salary_max}` : 'Not specified'}
+Availability: ${profile.rows[0]?.availability || 'Not specified'}
+
+PAST ANSWERS (for reuse):
+${JSON.stringify(pastData).substring(0, 1000)}
+
+QUESTIONS TO ANSWER:
+${questions.map((q, i) => `${i + 1}. [${q.type}] ${q.question} ${q.options ? '(Options: ' + q.options.join(', ') + ')' : ''}`).join('\n')}
+
+Return JSON array:
+[
+  {
+    "question_id": "original question id",
+    "suggested_answer": "The suggested answer",
+    "source": "profile|past_answer|inferred",
+    "confidence": "high|medium|low"
+  }
+]
+Only return JSON array.`;
+
+    const result = await chat(prompt, {
+      system: 'You are a career assistant helping candidates fill out screening questions. Use their actual profile data. Be truthful - never fabricate information. Always return valid JSON.'
+    });
+
+    let parsed;
+    try { parsed = JSON.parse(result); } catch { const m = result.match(/\[[\s\S]*\]/); parsed = m ? JSON.parse(m[0]) : []; }
+    res.json({ success: true, suggestions: parsed });
+  } catch (err) {
+    console.error('AI screening suggestions error:', err);
+    res.status(500).json({ error: 'Failed to generate suggestions' });
+  }
+});
+
+// ============= SMART DATA REUSE =============
+
+// Auto-fill endpoint — returns stored data for pre-populating application forms
+router.get('/auto-fill/:jobId', authMiddleware, async (req, res) => {
+  try {
+    const jobId = req.params.jobId;
+
+    // Get profile data
+    const profile = await pool.query(`
+      SELECT cp.*, u.name, u.email FROM candidate_profiles cp
+      RIGHT JOIN users u ON u.id = cp.user_id WHERE u.id = $1
+    `, [req.user.id]);
+
+    // Get resume URL
+    const resumeData = await pool.query('SELECT resume_url FROM candidate_profiles WHERE user_id = $1', [req.user.id]);
+
+    // Get screening questions for this job
+    const job = await pool.query('SELECT screening_questions FROM jobs WHERE id = $1', [jobId]);
+    const screeningQuestions = job.rows[0]?.screening_questions || [];
+
+    // Find past answers for similar questions
+    const pastApps = await pool.query(`
+      SELECT screening_answers, cover_letter FROM job_applications
+      WHERE candidate_id = $1 AND screening_answers IS NOT NULL
+      ORDER BY applied_at DESC LIMIT 10
+    `, [req.user.id]);
+
+    // Build auto-fill map for screening questions
+    const answerMap = {};
+    for (const q of screeningQuestions) {
+      // Search past answers by category or similar question text
+      for (const app of pastApps.rows) {
+        const answers = app.screening_answers || {};
+        // Direct ID match
+        if (answers[q.id]) {
+          answerMap[q.id] = { value: answers[q.id], source: 'previous_application' };
+          break;
+        }
+        // Category match
+        for (const [key, val] of Object.entries(answers)) {
+          if (q.category && key.includes(q.category)) {
+            answerMap[q.id] = { value: val, source: 'similar_question' };
+            break;
+          }
+        }
+      }
+
+      // Fallback: match from profile data
+      if (!answerMap[q.id] && q.category) {
+        const p = profile.rows[0] || {};
+        if (q.category === 'salary' && p.salary_min) {
+          answerMap[q.id] = { value: `$${p.salary_min.toLocaleString()} - $${(p.salary_max || p.salary_min).toLocaleString()}`, source: 'profile' };
+        } else if (q.category === 'availability' && p.availability) {
+          answerMap[q.id] = { value: p.availability, source: 'profile' };
+        } else if (q.category === 'relocation') {
+          answerMap[q.id] = { value: p.remote_preference === 'remote' ? 'No' : 'Yes', source: 'profile' };
+        } else if (q.category === 'experience') {
+          const yrs = p.years_experience || 0;
+          const bracket = yrs < 1 ? '0-1 years' : yrs < 3 ? '1-3 years' : yrs < 5 ? '3-5 years' : yrs < 10 ? '5-10 years' : '10+ years';
+          answerMap[q.id] = { value: bracket, source: 'profile' };
+        }
+      }
+    }
+
+    // Find the most recent cover letter
+    const lastCoverLetter = pastApps.rows.find(a => a.cover_letter)?.cover_letter || '';
+
+    res.json({
+      success: true,
+      auto_fill: {
+        resume_url: resumeData.rows[0]?.resume_url || null,
+        cover_letter: lastCoverLetter,
+        screening_answers: answerMap,
+        profile: {
+          name: profile.rows[0]?.name,
+          email: profile.rows[0]?.email,
+          phone: profile.rows[0]?.phone,
+          location: profile.rows[0]?.location,
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Auto-fill error:', err);
+    res.status(500).json({ error: 'Failed to get auto-fill data' });
   }
 });
 

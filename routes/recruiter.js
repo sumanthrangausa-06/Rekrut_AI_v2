@@ -1128,4 +1128,167 @@ router.get('/jobs/:id/ranked-candidates', authMiddleware, requireRecruiter, asyn
   }
 });
 
+// ============= AI FEATURES =============
+
+// AI Candidate Summary — one-click strengths/concerns/fit assessment
+router.post('/ai/candidate-summary', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const { application_id } = req.body;
+    if (!application_id) return res.status(400).json({ error: 'application_id required' });
+    const { chat } = require('../lib/polsia-ai');
+
+    // Get application with all candidate data
+    const app = await pool.query(`
+      SELECT ja.*, j.title as job_title, j.description as job_desc, j.requirements as job_reqs,
+             j.screening_questions,
+             u.name as candidate_name, u.email as candidate_email,
+             cp.headline, cp.bio, cp.location as candidate_location, cp.years_experience,
+             cp.salary_min, cp.salary_max
+      FROM job_applications ja
+      JOIN jobs j ON ja.job_id = j.id
+      JOIN users u ON ja.candidate_id = u.id
+      LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+      WHERE ja.id = $1 AND (j.company_id = $2 OR j.user_id = $3)
+    `, [application_id, req.user.company_id, req.user.id]);
+
+    if (app.rows.length === 0) return res.status(404).json({ error: 'Application not found' });
+    const a = app.rows[0];
+
+    // Get skills
+    const skills = await pool.query('SELECT skill_name, category, years_experience, is_verified FROM candidate_skills WHERE user_id = $1', [a.candidate_id]);
+    // Get experience
+    const experience = await pool.query('SELECT company_name, title, description FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC LIMIT 5', [a.candidate_id]);
+
+    const prompt = `Provide a comprehensive assessment of this candidate for the ${a.job_title} position.
+
+CANDIDATE: ${a.candidate_name}
+Headline: ${a.headline || 'Not set'}
+Bio: ${a.bio || 'Not set'}
+Location: ${a.candidate_location || 'Not specified'}
+Years Experience: ${a.years_experience || 'Unknown'}
+Skills: ${skills.rows.map(s => `${s.skill_name}${s.is_verified ? ' ✓' : ''} (${s.years_experience || '?'}y)`).join(', ') || 'None'}
+Recent Roles: ${experience.rows.map(e => `${e.title} at ${e.company_name}`).join('; ') || 'None listed'}
+Cover Letter: ${a.cover_letter?.substring(0, 500) || 'Not provided'}
+Screening Answers: ${JSON.stringify(a.screening_answers || {}).substring(0, 500)}
+Match Score: ${a.match_score || 'N/A'}
+
+JOB: ${a.job_title}
+Requirements: ${a.job_reqs?.substring(0, 500) || 'Not specified'}
+
+Return JSON:
+{
+  "fit_score": 0-100,
+  "fit_level": "strong_fit|good_fit|moderate_fit|weak_fit",
+  "summary": "2-3 sentence executive summary",
+  "strengths": ["Top 3 strengths for this role"],
+  "concerns": ["Top 2-3 concerns or gaps"],
+  "interview_focus_areas": ["2-3 topics to probe in interview"],
+  "salary_alignment": "aligned|above_range|below_range|unknown",
+  "recommendation": "advance|consider|pass",
+  "recommendation_reason": "1 sentence explanation"
+}
+Only return JSON.`;
+
+    const result = await chat(prompt, {
+      system: 'You are a senior recruiter providing candidate assessments. Be objective, data-driven, and concise. Always return valid JSON.'
+    });
+
+    let parsed;
+    try { parsed = JSON.parse(result); } catch { const m = result.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : { error: 'Parse failed' }; }
+    res.json({ success: true, summary: parsed });
+  } catch (err) {
+    console.error('AI candidate summary error:', err);
+    res.status(500).json({ error: 'Failed to generate summary' });
+  }
+});
+
+// AI Screening Questions Suggestions — based on job + recruiter's past bank
+router.post('/ai/suggest-questions', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const { job_title, job_description, existing_questions = [] } = req.body;
+    if (!job_title) return res.status(400).json({ error: 'job_title required' });
+    const { chat } = require('../lib/polsia-ai');
+
+    // Get recruiter's past screening questions from question_bank
+    const pastQuestions = await pool.query(`
+      SELECT DISTINCT question_text, category FROM question_bank
+      WHERE recruiter_id = $1
+      ORDER BY usage_count DESC LIMIT 20
+    `, [req.user.id]);
+
+    const prompt = `Suggest screening questions for a ${job_title} position.
+
+Job Description: ${job_description?.substring(0, 500) || 'Not provided'}
+
+Recruiter's Past Questions (for reuse):
+${pastQuestions.rows.map(q => `- [${q.category}] ${q.question_text}`).join('\n') || 'None'}
+
+Already Added:
+${existing_questions.map(q => `- ${q.question || q.text}`).join('\n') || 'None'}
+
+Suggest 5 screening questions. Mix reusable ones from the bank with new job-specific ones.
+
+Return JSON array:
+[
+  {
+    "question": "The question text",
+    "type": "text|yes_no|select",
+    "category": "work_authorization|salary|availability|experience|technical|culture",
+    "options": ["only if type is select"],
+    "required": true/false,
+    "from_bank": true/false
+  }
+]
+Only return JSON array.`;
+
+    const result = await chat(prompt, {
+      system: 'You are an expert recruiter designing screening questions. Make them practical and relevant. Always return valid JSON.'
+    });
+
+    let parsed;
+    try { parsed = JSON.parse(result); } catch { const m = result.match(/\[[\s\S]*\]/); parsed = m ? JSON.parse(m[0]) : []; }
+    res.json({ success: true, suggestions: parsed });
+  } catch (err) {
+    console.error('AI suggest questions error:', err);
+    res.status(500).json({ error: 'Failed to suggest questions' });
+  }
+});
+
+// Save questions to recruiter's question bank
+router.post('/question-bank', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const { questions } = req.body;
+    if (!questions || !Array.isArray(questions)) return res.status(400).json({ error: 'questions array required' });
+
+    const saved = [];
+    for (const q of questions) {
+      const result = await pool.query(`
+        INSERT INTO question_bank (recruiter_id, question_text, category, question_type, options)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (recruiter_id, question_text) DO UPDATE SET usage_count = question_bank.usage_count + 1
+        RETURNING *
+      `, [req.user.id, q.question || q.question_text, q.category || 'general', q.type || 'text', JSON.stringify(q.options || [])]);
+      saved.push(result.rows[0]);
+    }
+
+    res.json({ success: true, questions: saved });
+  } catch (err) {
+    console.error('Save question bank error:', err);
+    res.status(500).json({ error: 'Failed to save questions' });
+  }
+});
+
+// Get recruiter's question bank
+router.get('/question-bank', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const questions = await pool.query(`
+      SELECT * FROM question_bank WHERE recruiter_id = $1 ORDER BY usage_count DESC, created_at DESC
+    `, [req.user.id]);
+    res.json({ success: true, questions: questions.rows });
+  } catch (err) {
+    console.error('Get question bank error:', err);
+    res.status(500).json({ error: 'Failed to get question bank' });
+  }
+});
+
 module.exports = router;
