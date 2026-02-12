@@ -1855,4 +1855,322 @@ router.put('/offers/:id/decline', authMiddleware, async (req, res) => {
   }
 });
 
+// ============= AI AGENT ENDPOINTS (Phase 4) =============
+
+// AI Match Explanation — natural language explanation of why a job matches
+router.post('/ai/match-explanation', authMiddleware, async (req, res) => {
+  try {
+    const { job_id } = req.body;
+    if (!job_id) return res.status(400).json({ error: 'job_id required' });
+    const { chat } = require('../lib/polsia-ai');
+
+    // Get match data from match_results (already calculated by matching engine)
+    const matchData = await pool.query(`
+      SELECT mr.*, j.title, j.company, j.requirements, j.description, j.location, j.salary_range
+      FROM match_results mr
+      JOIN jobs j ON j.id = mr.job_id
+      WHERE mr.candidate_id = $1 AND mr.job_id = $2
+    `, [req.user.id, job_id]);
+
+    // Get candidate profile for context
+    const profile = await pool.query(`SELECT cp.*, u.name FROM candidate_profiles cp RIGHT JOIN users u ON u.id = cp.user_id WHERE u.id = $1`, [req.user.id]);
+    const skills = await pool.query('SELECT skill_name, level FROM candidate_skills WHERE user_id = $1', [req.user.id]);
+
+    const match = matchData.rows[0];
+    const p = profile.rows[0] || {};
+
+    const prompt = `Generate a clear, encouraging explanation of why this job is a match for this candidate. Use the dimensional scores to explain each aspect.
+
+CANDIDATE: ${p.name || 'Candidate'}
+Skills: ${skills.rows.map(s => s.skill_name).join(', ') || 'Not listed'}
+Experience: ${p.years_experience || '?'} years
+Location: ${p.location || 'Not specified'}
+Salary preference: ${p.salary_min ? `$${p.salary_min}-$${p.salary_max}` : 'Not specified'}
+
+JOB: ${match?.title || 'Unknown'} at ${match?.company || 'Unknown'}
+Location: ${match?.location || 'N/A'}
+Salary: ${match?.salary_range || 'N/A'}
+Requirements: ${match?.requirements?.substring(0, 400) || 'N/A'}
+
+MATCH DATA:
+Weighted Score: ${match?.weighted_score || 'N/A'}
+Similarity Score: ${match?.similarity_score || 'N/A'}
+Matching Skills: ${JSON.stringify(match?.matching_skills || [])}
+Missing Skills: ${JSON.stringify(match?.missing_skills || [])}
+Match Explanation: ${JSON.stringify(match?.match_explanation || {})}
+
+Return JSON:
+{
+  "explanation": "2-3 sentences in natural language explaining why this is a match",
+  "match_level": "excellent|good|fair|poor",
+  "dimensions": {
+    "skills": { "score": 0-100, "detail": "brief explanation" },
+    "experience": { "score": 0-100, "detail": "brief explanation" },
+    "location": { "score": 0-100, "detail": "brief explanation" },
+    "salary": { "score": 0-100, "detail": "brief explanation" },
+    "culture": { "score": 0-100, "detail": "brief explanation" }
+  },
+  "skill_gaps": ["skills to develop for this role"],
+  "action_items": ["1-2 things candidate can do to strengthen their application"]
+}
+Only return JSON.`;
+
+    const result = await chat(prompt, {
+      system: 'You are a career advisor providing personalized, actionable job match explanations. Be encouraging but honest. Always return valid JSON.'
+    });
+
+    let parsed;
+    try { parsed = JSON.parse(result); } catch { const m = result.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : { explanation: 'Match analysis unavailable', match_level: 'fair', dimensions: {} }; }
+    res.json({ success: true, ...parsed });
+  } catch (err) {
+    console.error('AI match explanation error:', err);
+    res.status(500).json({ error: 'Failed to generate match explanation' });
+  }
+});
+
+// AI Smart Search — intent-based natural language job search
+router.post('/ai/smart-search', authMiddleware, async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query || query.trim().length < 3) return res.status(400).json({ error: 'Search query required (min 3 chars)' });
+    const { chat } = require('../lib/polsia-ai');
+
+    // Step 1: Parse the natural language query into structured filters
+    const parsePrompt = `Parse this job search query into structured filters.
+
+Query: "${query}"
+
+Return JSON:
+{
+  "keywords": ["keyword1", "keyword2"],
+  "job_type": "full-time|part-time|contract|remote|null",
+  "location": "city or remote or null",
+  "min_salary": null or number,
+  "skills": ["skill1", "skill2"],
+  "experience_level": "entry|mid|senior|lead|null",
+  "industry": "tech|finance|healthcare|null"
+}
+Only return JSON.`;
+
+    const parseResult = await chat(parsePrompt, {
+      system: 'You are a search query parser. Extract structured filters from natural language job search queries. Always return valid JSON.'
+    });
+
+    let filters;
+    try { filters = JSON.parse(parseResult); } catch { const m = parseResult.match(/\{[\s\S]*\}/); filters = m ? JSON.parse(m[0]) : { keywords: query.split(' ') }; }
+
+    // Step 2: Build SQL query based on parsed filters
+    let sqlParts = [`j.status = 'active'`];
+    let params = [];
+    let paramIdx = 1;
+
+    // Keyword search across title, description, requirements
+    if (filters.keywords && filters.keywords.length > 0) {
+      const keywordClauses = filters.keywords.map(kw => {
+        params.push(`%${kw}%`);
+        const idx = paramIdx++;
+        return `(j.title ILIKE $${idx} OR j.description ILIKE $${idx} OR j.requirements ILIKE $${idx})`;
+      });
+      sqlParts.push(`(${keywordClauses.join(' OR ')})`);
+    }
+
+    // Job type filter
+    if (filters.job_type && filters.job_type !== 'null') {
+      if (filters.job_type === 'remote') {
+        params.push('%remote%');
+        sqlParts.push(`(j.location ILIKE $${paramIdx++} OR j.job_type = 'remote')`);
+      } else {
+        params.push(filters.job_type);
+        sqlParts.push(`j.job_type = $${paramIdx++}`);
+      }
+    }
+
+    // Location filter
+    if (filters.location && filters.location !== 'null' && filters.location !== 'remote') {
+      params.push(`%${filters.location}%`);
+      sqlParts.push(`j.location ILIKE $${paramIdx++}`);
+    }
+
+    const sqlQuery = `
+      SELECT j.*, u.company_name as posted_by_company,
+             (SELECT COUNT(*) FROM job_applications WHERE job_id = j.id) as applicant_count
+      FROM jobs j
+      LEFT JOIN users u ON j.user_id = u.id
+      WHERE ${sqlParts.join(' AND ')}
+      ORDER BY j.created_at DESC
+      LIMIT 20
+    `;
+
+    const jobs = await pool.query(sqlQuery, params);
+
+    // Step 3: Score results for the current user if authenticated
+    let scoredJobs = jobs.rows;
+    if (req.user && req.user.id) {
+      const userSkills = await pool.query('SELECT skill_name FROM candidate_skills WHERE user_id = $1', [req.user.id]);
+      const candidateSkillNames = userSkills.rows.map(s => s.skill_name.toLowerCase());
+
+      scoredJobs = jobs.rows.map(job => {
+        const reqText = (job.requirements || '').toLowerCase();
+        const matchCount = candidateSkillNames.filter(s => reqText.includes(s)).length;
+        const relevance = candidateSkillNames.length > 0 ? Math.round((matchCount / candidateSkillNames.length) * 100) : 50;
+        return { ...job, relevance_score: relevance };
+      });
+
+      scoredJobs.sort((a, b) => b.relevance_score - a.relevance_score);
+    }
+
+    res.json({
+      success: true,
+      query: query,
+      parsed_filters: filters,
+      jobs: scoredJobs,
+      total: scoredJobs.length
+    });
+  } catch (err) {
+    console.error('AI smart search error:', err);
+    res.status(500).json({ error: 'Failed to perform smart search' });
+  }
+});
+
+// AI Application Review — checks completeness before submit
+router.post('/ai/application-review', authMiddleware, async (req, res) => {
+  try {
+    const { job_id, cover_letter, screening_answers } = req.body;
+    if (!job_id) return res.status(400).json({ error: 'job_id required' });
+    const { chat } = require('../lib/polsia-ai');
+
+    // Get job details
+    const job = await pool.query('SELECT title, description, requirements, screening_questions FROM jobs WHERE id = $1', [job_id]);
+    if (!job.rows[0]) return res.status(404).json({ error: 'Job not found' });
+
+    // Get candidate profile
+    const profile = await pool.query(`SELECT cp.*, u.name FROM candidate_profiles cp RIGHT JOIN users u ON u.id = cp.user_id WHERE u.id = $1`, [req.user.id]);
+    const skills = await pool.query('SELECT skill_name FROM candidate_skills WHERE user_id = $1', [req.user.id]);
+    const experience = await pool.query('SELECT title, company_name FROM work_experience WHERE user_id = $1 LIMIT 5', [req.user.id]);
+
+    const p = profile.rows[0] || {};
+    const screeningQs = job.rows[0].screening_questions || [];
+    const answeredCount = screening_answers ? Object.keys(screening_answers).filter(k => screening_answers[k]).length : 0;
+    const requiredCount = screeningQs.filter(q => q.required).length;
+
+    const prompt = `Review this job application for completeness and quality. Identify issues BEFORE the candidate submits.
+
+CANDIDATE PROFILE:
+Name: ${p.name || 'Not set'}
+Headline: ${p.headline || 'Not set'}
+Skills: ${skills.rows.map(s => s.skill_name).join(', ') || 'None listed'}
+Experience: ${experience.rows.map(e => `${e.title} at ${e.company_name}`).join('; ') || 'None listed'}
+Resume: ${p.resume_url ? 'Uploaded' : 'NOT uploaded'}
+
+APPLICATION:
+Job: ${job.rows[0].title}
+Cover Letter: ${cover_letter ? `${cover_letter.length} chars - "${cover_letter.substring(0, 200)}"` : 'NOT provided'}
+Screening Questions: ${answeredCount}/${screeningQs.length} answered (${requiredCount} required)
+Unanswered Required: ${screeningQs.filter(q => q.required && (!screening_answers || !screening_answers[q.id])).map(q => q.question).join('; ') || 'None'}
+
+Return JSON:
+{
+  "ready_to_submit": true/false,
+  "completeness_score": 0-100,
+  "issues": [
+    { "severity": "critical|warning|tip", "message": "What's wrong", "fix": "How to fix it" }
+  ],
+  "strengths": ["What looks good about this application"],
+  "suggestions": ["Quick improvements before submitting"]
+}
+Only return JSON.`;
+
+    const result = await chat(prompt, {
+      system: 'You are an application review assistant. Be thorough but encouraging. Flag real issues, not nitpicks. Always return valid JSON.'
+    });
+
+    let parsed;
+    try { parsed = JSON.parse(result); } catch { const m = result.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : { ready_to_submit: true, completeness_score: 50, issues: [], strengths: [], suggestions: [] }; }
+    res.json({ success: true, review: parsed });
+  } catch (err) {
+    console.error('AI application review error:', err);
+    res.status(500).json({ error: 'Failed to review application' });
+  }
+});
+
+// AI Resume Score — rate resume quality and feed into OmniScore
+router.post('/ai/resume-score', authMiddleware, async (req, res) => {
+  try {
+    const { chat } = require('../lib/polsia-ai');
+    const omniscoreService = require('../services/omniscore');
+
+    // Get candidate profile + resume
+    const profile = await pool.query(`SELECT cp.*, u.name FROM candidate_profiles cp RIGHT JOIN users u ON u.id = cp.user_id WHERE u.id = $1`, [req.user.id]);
+    const skills = await pool.query('SELECT skill_name, level, is_verified FROM candidate_skills WHERE user_id = $1', [req.user.id]);
+    const experience = await pool.query('SELECT company_name, title, description, achievements FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC', [req.user.id]);
+    const education = await pool.query('SELECT institution, degree, field_of_study FROM education WHERE user_id = $1', [req.user.id]);
+
+    const p = profile.rows[0] || {};
+
+    const prompt = `Score this candidate's resume/profile quality on a 0-100 scale. Evaluate completeness, clarity, and professional impact.
+
+PROFILE:
+Name: ${p.name || 'Not set'}
+Headline: ${p.headline || 'NOT set'}
+Bio: ${p.bio || 'NOT set'}
+Location: ${p.location || 'NOT set'}
+Years Experience: ${p.years_experience || 'NOT set'}
+Resume File: ${p.resume_url ? 'Uploaded' : 'NOT uploaded'}
+LinkedIn: ${p.linkedin_url ? 'Linked' : 'NOT linked'}
+GitHub: ${p.github_url ? 'Linked' : 'NOT linked'}
+
+SKILLS (${skills.rows.length}):
+${skills.rows.map(s => `${s.skill_name} (L${s.level}${s.is_verified ? ' ✓' : ''})`).join(', ') || 'None'}
+
+EXPERIENCE (${experience.rows.length}):
+${experience.rows.map(e => `${e.title} at ${e.company_name}${e.description ? ` - ${e.description.substring(0, 100)}` : ''}`).join('\n') || 'None'}
+
+EDUCATION (${education.rows.length}):
+${education.rows.map(e => `${e.degree || ''} ${e.field_of_study || ''} from ${e.institution}`).join('\n') || 'None'}
+
+Return JSON:
+{
+  "overall_score": 0-100,
+  "sections": {
+    "completeness": { "score": 0-100, "feedback": "..." },
+    "clarity": { "score": 0-100, "feedback": "..." },
+    "impact": { "score": 0-100, "feedback": "..." },
+    "keywords": { "score": 0-100, "feedback": "..." }
+  },
+  "top_improvements": ["Top 3 things to improve"],
+  "ats_friendly": true/false,
+  "estimated_rank": "top_10|top_25|top_50|bottom_50"
+}
+Only return JSON.`;
+
+    const result = await chat(prompt, {
+      system: 'You are a resume quality scoring engine. Be objective and data-driven. Score based on real criteria used by ATS systems and hiring managers. Always return valid JSON.'
+    });
+
+    let parsed;
+    try { parsed = JSON.parse(result); } catch { const m = result.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : { overall_score: 50, sections: {}, top_improvements: [], ats_friendly: false }; }
+
+    // Feed resume score into OmniScore
+    try {
+      const resumePoints = Math.round((parsed.overall_score / 100) * 40); // Max 40 points for resume quality
+      await pool.query(`
+        INSERT INTO score_components (user_id, component_type, source_type, points, max_points, metadata)
+        VALUES ($1, 'resume', 'ai_score', $2, 40, $3)
+        ON CONFLICT (user_id, component_type, source_type) WHERE source_type = 'ai_score'
+        DO UPDATE SET points = $2, metadata = $3, created_at = NOW()
+      `, [req.user.id, resumePoints, JSON.stringify({ ai_score: parsed.overall_score })]);
+
+      // Recalculate OmniScore
+      await omniscoreService.calculateScore(req.user.id);
+    } catch (scoreErr) {
+      console.error('OmniScore update from resume score (non-fatal):', scoreErr.message);
+    }
+
+    res.json({ success: true, score: parsed });
+  } catch (err) {
+    console.error('AI resume score error:', err);
+    res.status(500).json({ error: 'Failed to score resume' });
+  }
+});
+
 module.exports = router;
