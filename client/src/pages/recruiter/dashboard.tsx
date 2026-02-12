@@ -13,76 +13,90 @@ import {
   TrendingUp,
   ArrowRight,
   Plus,
-  CreditCard,
   UserCheck,
   BarChart3,
+  Shield,
+  Clock,
+  Sparkles,
 } from 'lucide-react'
 
-interface DashboardStats {
-  activeJobs: number
-  totalApplications: number
-  pendingInterviews: number
-  hiredThisMonth: number
-}
-
-export function RecruiterDashboard() {
-  const { user } = useAuth()
-  const [stats, setStats] = useState<DashboardStats>({
-    activeJobs: 0,
-    totalApplications: 0,
-    pendingInterviews: 0,
-    hiredThisMonth: 0,
-  })
-  const [recentApps, setRecentApps] = useState<Array<{
+interface RecruiterDashboardData {
+  trust_score: {
+    total_score: number
+    tier: string
+    tier_label: string
+    tier_color: string
+  }
+  job_stats: {
+    active_jobs: string
+    paused_jobs: string
+    closed_jobs: string
+  }
+  application_stats: {
+    total_applications: string
+    new_applications: string
+    reviewing: string
+    interviewed: string
+    offered: string
+    hired: string
+  }
+  upcoming_interviews: Array<{
+    id: number
+    candidate_name: string
+    job_title: string
+    scheduled_at: string
+  }>
+  recent_applications: Array<{
     id: number
     candidate_name: string
     job_title: string
     status: string
-    created_at: string
-  }>>([])
+    applied_at: string
+  }>
+}
+
+export function RecruiterDashboard() {
+  const { user } = useAuth()
+  const [data, setData] = useState<RecruiterDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function loadDashboard() {
       try {
-        const [jobsRes, appsRes] = await Promise.allSettled([
-          apiCall<{ jobs: Array<unknown> }>('/recruiter/jobs'),
-          apiCall<{ applications: Array<{ id: number; candidate_name: string; job_title: string; status: string; created_at: string }> }>('/recruiter/applications?limit=5'),
-        ])
-
-        if (jobsRes.status === 'fulfilled') {
-          setStats(prev => ({ ...prev, activeJobs: jobsRes.value.jobs?.length || 0 }))
-        }
-        if (appsRes.status === 'fulfilled') {
-          const apps = appsRes.value.applications || []
-          setRecentApps(apps.slice(0, 5))
-          setStats(prev => ({ ...prev, totalApplications: apps.length }))
-        }
+        const res = await apiCall<RecruiterDashboardData>('/recruiter/dashboard')
+        setData(res)
       } catch {
         // Best-effort
       } finally {
         setLoading(false)
       }
     }
-
     loadDashboard()
   }, [])
 
+  const stats = data ? {
+    activeJobs: parseInt(data.job_stats?.active_jobs || '0'),
+    totalApplications: parseInt(data.application_stats?.total_applications || '0'),
+    newApplications: parseInt(data.application_stats?.new_applications || '0'),
+    hired: parseInt(data.application_stats?.hired || '0'),
+  } : { activeJobs: 0, totalApplications: 0, newApplications: 0, hired: 0 }
+
   const quickActions = [
-    { label: 'Post a Job', href: '/recruiter/jobs/new', icon: Plus, color: 'text-blue-600 bg-blue-100' },
-    { label: 'Review Applications', href: '/recruiter/applications', icon: FileText, color: 'text-green-600 bg-green-100' },
-    { label: 'Schedule Interview', href: '/recruiter/interviews', icon: Calendar, color: 'text-purple-600 bg-purple-100' },
-    { label: 'View Analytics', href: '/recruiter/analytics', icon: BarChart3, color: 'text-orange-600 bg-orange-100' },
+    { label: 'Post a Job', href: '/recruiter/jobs/new', icon: Plus, color: 'text-blue-600 bg-blue-100', desc: 'AI-assisted creation' },
+    { label: 'Review Applications', href: '/recruiter/applications', icon: FileText, color: 'text-green-600 bg-green-100', desc: `${stats.newApplications} new` },
+    { label: 'Schedule Interview', href: '/recruiter/interviews', icon: Calendar, color: 'text-purple-600 bg-purple-100', desc: 'Manage pipeline' },
+    { label: 'View Analytics', href: '/recruiter/analytics', icon: BarChart3, color: 'text-orange-600 bg-orange-100', desc: 'Hiring metrics' },
   ]
 
-  const statusColor: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
-    pending: 'warning',
-    reviewing: 'secondary',
+  const statusColor: Record<string, 'default' | 'secondary' | 'outline'> = {
+    applied: 'secondary',
+    screening: 'outline',
     shortlisted: 'default',
-    interview: 'default',
-    offered: 'success',
-    hired: 'success',
-    rejected: 'destructive',
+    reviewing: 'secondary',
+    interviewed: 'default',
+    offered: 'default',
+    hired: 'default',
+    rejected: 'outline',
   }
 
   return (
@@ -91,7 +105,7 @@ export function RecruiterDashboard() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-heading text-2xl font-bold">
-            Welcome back, {user?.name?.split(' ')[0] || 'there'}
+            Welcome back, {user?.name?.split(' ')[0] || 'there'} 👋
           </h1>
           <p className="text-muted-foreground">Manage your recruitment pipeline</p>
         </div>
@@ -102,6 +116,19 @@ export function RecruiterDashboard() {
           </Button>
         </Link>
       </div>
+
+      {/* Trust score banner */}
+      {data?.trust_score && (
+        <Card className="border-slate-200">
+          <CardContent className="flex items-center gap-4 p-4">
+            <Shield className="h-8 w-8 shrink-0" style={{ color: data.trust_score.tier_color }} />
+            <div className="flex-1">
+              <p className="font-medium">Employer Trust Score: <span style={{ color: data.trust_score.tier_color }}>{data.trust_score.total_score}/100</span></p>
+              <p className="text-xs text-muted-foreground">{data.trust_score.tier_label} — Higher scores attract more qualified candidates</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -123,18 +150,18 @@ export function RecruiterDashboard() {
             </div>
             <div>
               <p className="text-2xl font-bold">{stats.totalApplications}</p>
-              <p className="text-xs text-muted-foreground">Applications</p>
+              <p className="text-xs text-muted-foreground">Total Applications</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex items-center gap-4 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
-              <Calendar className="h-5 w-5 text-purple-600" />
+              <Users className="h-5 w-5 text-purple-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{stats.pendingInterviews}</p>
-              <p className="text-xs text-muted-foreground">Pending Interviews</p>
+              <p className="text-2xl font-bold">{stats.newApplications}</p>
+              <p className="text-xs text-muted-foreground">New Applications</p>
             </div>
           </CardContent>
         </Card>
@@ -144,8 +171,8 @@ export function RecruiterDashboard() {
               <UserCheck className="h-5 w-5 text-emerald-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{stats.hiredThisMonth}</p>
-              <p className="text-xs text-muted-foreground">Hired This Month</p>
+              <p className="text-2xl font-bold">{stats.hired}</p>
+              <p className="text-xs text-muted-foreground">Hired</p>
             </div>
           </CardContent>
         </Card>
@@ -155,13 +182,16 @@ export function RecruiterDashboard() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {quickActions.map((action) => (
           <Link key={action.href} to={action.href}>
-            <Card className="transition-shadow hover:shadow-md cursor-pointer">
+            <Card className="transition-shadow hover:shadow-md cursor-pointer h-full">
               <CardContent className="flex items-center gap-3 p-4">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${action.color}`}>
+                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${action.color} shrink-0`}>
                   <action.icon className="h-4 w-4" />
                 </div>
-                <span className="text-sm font-medium">{action.label}</span>
-                <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <span className="text-sm font-medium">{action.label}</span>
+                  <p className="text-xs text-muted-foreground truncate">{action.desc}</p>
+                </div>
+                <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground shrink-0" />
               </CardContent>
             </Card>
           </Link>
@@ -184,14 +214,14 @@ export function RecruiterDashboard() {
             <div className="flex items-center justify-center py-8">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
-          ) : recentApps.length === 0 ? (
+          ) : !data?.recent_applications?.length ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
               <FileText className="mx-auto mb-2 h-8 w-8 opacity-50" />
               No applications yet. Post a job to start receiving applications!
             </div>
           ) : (
             <div className="space-y-3">
-              {recentApps.map((app) => (
+              {data.recent_applications.map((app) => (
                 <div
                   key={app.id}
                   className="flex items-center justify-between rounded-lg border p-3"
@@ -204,11 +234,6 @@ export function RecruiterDashboard() {
                     <Badge variant={statusColor[app.status] || 'secondary'}>
                       {app.status}
                     </Badge>
-                    <Link to={`/recruiter/applications/${app.id}`}>
-                      <Button variant="ghost" size="sm">
-                        Review
-                      </Button>
-                    </Link>
                   </div>
                 </div>
               ))}
