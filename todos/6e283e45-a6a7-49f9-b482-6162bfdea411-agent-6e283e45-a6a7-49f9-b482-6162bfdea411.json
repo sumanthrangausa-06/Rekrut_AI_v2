@@ -6,12 +6,12 @@
   },
   {
     "content": "Phase 2: Backend — batch status update + activity logging + fix metrics bug",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Building backend pipeline improvements"
   },
   {
     "content": "Phase 3: Frontend — recruiter kanban pipeline + match ranking",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Building recruiter kanban pipeline view"
   },
   {

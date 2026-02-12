@@ -1,0 +1,9 @@
+/tmp/polsia-workspaces/company-956/agent-30/exec-62203/hireloop/public/js/main.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-62203/hireloop/public/js/core.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-62203/hireloop/public/js/ui.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-62203/hireloop/public/js/interview-practice.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-62203/hireloop/public/js/analytics.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-62203/hireloop/public/js/interview.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-62203/hireloop/public/js/documents.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-62203/hireloop/public/js/auth.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-62203/hireloop/public/js/video-analyzer.js

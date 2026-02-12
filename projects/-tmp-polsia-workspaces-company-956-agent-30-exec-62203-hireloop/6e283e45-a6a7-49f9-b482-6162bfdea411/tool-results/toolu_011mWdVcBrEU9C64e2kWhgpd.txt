@@ -1,0 +1,165 @@
+     1→const express = require('express');
+     2→const pool = require('../lib/db');
+     3→const { authMiddleware, optionalAuth, requireRole } = require('../lib/auth');
+     4→
+     5→const router = express.Router();
+     6→
+     7→// List jobs (public)
+     8→router.get('/', optionalAuth, async (req, res) => {
+     9→  try {
+    10→    const { status = 'active', limit = 20, offset = 0 } = req.query;
+    11→    
+    12→    const result = await pool.query(
+    13→      `SELECT j.*, u.company_name as poster_company
+    14→       FROM jobs j
+    15→       LEFT JOIN users u ON j.user_id = u.id
+    16→       WHERE j.status = $1
+    17→       ORDER BY j.created_at DESC
+    18→       LIMIT $2 OFFSET $3`,
+    19→      [status, limit, offset]
+    20→    );
+    21→
+    22→    res.json({ jobs: result.rows });
+    23→  } catch (err) {
+    24→    console.error('List jobs error:', err);
+    25→    res.status(500).json({ error: 'Failed to fetch jobs' });
+    26→  }
+    27→});
+    28→
+    29→// Get single job
+    30→router.get('/:id', optionalAuth, async (req, res) => {
+    31→  try {
+    32→    const result = await pool.query(
+    33→      `SELECT j.*, u.company_name as poster_company, u.name as poster_name
+    34→       FROM jobs j
+    35→       LEFT JOIN users u ON j.user_id = u.id
+    36→       WHERE j.id = $1`,
+    37→      [req.params.id]
+    38→    );
+    39→
+    40→    if (result.rows.length === 0) {
+    41→      return res.status(404).json({ error: 'Job not found' });
+    42→    }
+    43→
+    44→    res.json({ job: result.rows[0] });
+    45→  } catch (err) {
+    46→    console.error('Get job error:', err);
+    47→    res.status(500).json({ error: 'Failed to fetch job' });
+    48→  }
+    49→});
+    50→
+    51→// Create job (hiring managers and recruiters)
+    52→router.post('/', authMiddleware, requireRole('hiring_manager', 'admin', 'recruiter', 'employer'), async (req, res) => {
+    53→  try {
+    54→    const { title, company, description, requirements, location, salary_range, job_type, screening_questions,
+    55→            country_code, currency_code, salary_min, salary_max } = req.body;
+    56→
+    57→    if (!title) {
+    58→      return res.status(400).json({ error: 'Job title is required' });
+    59→    }
+    60→
+    61→    // Default country from company if not specified
+    62→    let jobCountry = country_code || 'US';
+    63→    let jobCurrency = currency_code || 'USD';
+    64→    if (!country_code && req.user.company_id) {
+    65→      try {
+    66→        const companyCountry = await pool.query(
+    67→          'SELECT primary_country FROM companies WHERE id = $1',
+    68→          [req.user.company_id]
+    69→        );
+    70→        if (companyCountry.rows.length > 0 && companyCountry.rows[0].primary_country) {
+    71→          jobCountry = companyCountry.rows[0].primary_country;
+    72→          // Get currency from country config
+    73→          const countryConfig = require('../services/country-config');
+    74→          const cc = await countryConfig.getCountry(jobCountry);
+    75→          if (cc) jobCurrency = cc.currency_code;
+    76→        }
+    77→      } catch (e) { /* use defaults */ }
+    78→    }
+    79→
+    80→    const result = await pool.query(
+    81→      `INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions, country_code, currency_code, salary_min, salary_max)
+    82→       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    83→       RETURNING *`,
+    84→      [req.user.id, req.user.company_id || null, title, company || req.user.company_name, description, requirements, location, salary_range, job_type, JSON.stringify(screening_questions || []),
+    85→       jobCountry, jobCurrency, salary_min || null, salary_max || null]
+    86→    );
+    87→
+    88→    // Track job post creation
+    89→    try {
+    90→      await pool.query(
+    91→        'INSERT INTO events (event_type, user_id, metadata) VALUES ($1, $2, $3)',
+    92→        ['job_post_created', req.user.id, JSON.stringify({ title, company, job_type })]
+    93→      );
+    94→    } catch (e) {
+    95→      console.error('Failed to log job post event:', e);
+    96→    }
+    97→
+    98→    res.json({ success: true, job: result.rows[0] });
+    99→  } catch (err) {
+   100→    console.error('Create job error:', err);
+   101→    res.status(500).json({ error: 'Failed to create job' });
+   102→  }
+   103→});
+   104→
+   105→// Update job
+   106→router.put('/:id', authMiddleware, async (req, res) => {
+   107→  try {
+   108→    const { title, description, requirements, location, salary_range, job_type, status, screening_questions } = req.body;
+   109→
+   110→    // Check ownership
+   111→    const existing = await pool.query('SELECT user_id FROM jobs WHERE id = $1', [req.params.id]);
+   112→    if (existing.rows.length === 0) {
+   113→      return res.status(404).json({ error: 'Job not found' });
+   114→    }
+   115→    if (existing.rows[0].user_id !== req.user.id && req.user.role !== 'admin') {
+   116→      return res.status(403).json({ error: 'Not authorized' });
+   117→    }
+   118→
+   119→    const result = await pool.query(
+   120→      `UPDATE jobs SET
+   121→        title = COALESCE($1, title),
+   122→        description = COALESCE($2, description),
+   123→        requirements = COALESCE($3, requirements),
+   124→        location = COALESCE($4, location),
+   125→        salary_range = COALESCE($5, salary_range),
+   126→        job_type = COALESCE($6, job_type),
+   127→        status = COALESCE($7, status),
+   128→        screening_questions = COALESCE($8, screening_questions),
+   129→        updated_at = NOW()
+   130→       WHERE id = $9
+   131→       RETURNING *`,
+   132→      [title, description, requirements, location, salary_range, job_type, status, screening_questions ? JSON.stringify(screening_questions) : null, req.params.id]
+   133→    );
+   134→
+   135→    res.json({ success: true, job: result.rows[0] });
+   136→  } catch (err) {
+   137→    console.error('Update job error:', err);
+   138→    res.status(500).json({ error: 'Failed to update job' });
+   139→  }
+   140→});
+   141→
+   142→// Delete job
+   143→router.delete('/:id', authMiddleware, async (req, res) => {
+   144→  try {
+   145→    const existing = await pool.query('SELECT user_id FROM jobs WHERE id = $1', [req.params.id]);
+   146→    if (existing.rows.length === 0) {
+   147→      return res.status(404).json({ error: 'Job not found' });
+   148→    }
+   149→    if (existing.rows[0].user_id !== req.user.id && req.user.role !== 'admin') {
+   150→      return res.status(403).json({ error: 'Not authorized' });
+   151→    }
+   152→
+   153→    await pool.query('DELETE FROM jobs WHERE id = $1', [req.params.id]);
+   154→    res.json({ success: true });
+   155→  } catch (err) {
+   156→    console.error('Delete job error:', err);
+   157→    res.status(500).json({ error: 'Failed to delete job' });
+   158→  }
+   159→});
+   160→
+   161→module.exports = router;
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

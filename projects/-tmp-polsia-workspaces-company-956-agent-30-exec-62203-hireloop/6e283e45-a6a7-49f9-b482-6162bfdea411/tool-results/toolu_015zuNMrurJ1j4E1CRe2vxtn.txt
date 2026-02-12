@@ -1,0 +1,1421 @@
+     1→// Candidate Profile API Routes
+     2→const express = require('express');
+     3→const fetch = require('node-fetch');
+     4→const FormData = require('form-data');
+     5→const multer = require('multer');
+     6→const pdfParse = require('pdf-parse');
+     7→const mammoth = require('mammoth');
+     8→const { authMiddleware } = require('../lib/auth');
+     9→const pool = require('../lib/db');
+    10→const {
+    11→  parseResume,
+    12→  generateSkillAssessment,
+    13→  evaluateSkillAssessment,
+    14→  generateJobMatchScore,
+    15→  generateInterviewCoaching
+    16→} = require('../lib/polsia-ai');
+    17→
+    18→const router = express.Router();
+    19→const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+    20→
+    21→// Helper function to extract text from various file formats
+    22→async function extractTextFromFile(buffer, mimetype) {
+    23→  try {
+    24→    // Handle PDF files
+    25→    if (mimetype === 'application/pdf' || buffer.toString('utf-8', 0, 4) === '%PDF') {
+    26→      const pdfData = await pdfParse(buffer);
+    27→      return pdfData.text;
+    28→    }
+    29→
+    30→    // Handle DOCX files (application/vnd.openxmlformats-officedocument.wordprocessingml.document)
+    31→    if (mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    32→        buffer.toString('utf-8', 0, 2) === 'PK') {
+    33→      const result = await mammoth.extractRawText({ buffer });
+    34→      return result.value;
+    35→    }
+    36→
+    37→    // Handle plain text files (fallback)
+    38→    const text = buffer.toString('utf-8');
+    39→    if (text.length > 0 && /[a-zA-Z]{3,}/.test(text.substring(0, 500))) {
+    40→      return text;
+    41→    }
+    42→
+    43→    throw new Error('Unsupported file format or unable to extract text');
+    44→  } catch (error) {
+    45→    console.error('Text extraction error:', error.message);
+    46→    throw error;
+    47→  }
+    48→}
+    49→
+    50→// ============= PROFILE MANAGEMENT =============
+    51→
+    52→// Get candidate profile
+    53→router.get('/profile', authMiddleware, async (req, res) => {
+    54→  try {
+    55→    const profile = await pool.query(`
+    56→      SELECT cp.*, u.name, u.email, u.avatar_url
+    57→      FROM users u
+    58→      LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+    59→      WHERE u.id = $1
+    60→    `, [req.user.id]);
+    61→
+    62→    const experience = await pool.query(
+    63→      'SELECT * FROM work_experience WHERE user_id = $1 ORDER BY order_index, start_date DESC',
+    64→      [req.user.id]
+    65→    );
+    66→
+    67→    const education = await pool.query(
+    68→      'SELECT * FROM education WHERE user_id = $1 ORDER BY order_index, start_date DESC',
+    69→      [req.user.id]
+    70→    );
+    71→
+    72→    const skills = await pool.query(
+    73→      'SELECT * FROM candidate_skills WHERE user_id = $1 ORDER BY level DESC, skill_name',
+    74→      [req.user.id]
+    75→    );
+    76→
+    77→    const projects = await pool.query(
+    78→      'SELECT * FROM portfolio_projects WHERE user_id = $1 ORDER BY order_index, start_date DESC',
+    79→      [req.user.id]
+    80→    );
+    81→
+    82→    res.json({
+    83→      success: true,
+    84→      profile: profile.rows[0] || {},
+    85→      experience: experience.rows,
+    86→      education: education.rows,
+    87→      skills: skills.rows,
+    88→      projects: projects.rows
+    89→    });
+    90→  } catch (err) {
+    91→    console.error('Get profile error:', err);
+    92→    res.status(500).json({ error: 'Failed to get profile' });
+    93→  }
+    94→});
+    95→
+    96→// Update basic profile info
+    97→router.put('/profile', authMiddleware, async (req, res) => {
+    98→  try {
+    99→    const {
+   100→      headline, bio, location, phone,
+   101→      linkedin_url, github_url, portfolio_url,
+   102→      availability, salary_min, salary_max,
+   103→      preferred_job_types, preferred_locations,
+   104→      remote_preference, years_experience
+   105→    } = req.body;
+   106→
+   107→    // Check if profile exists
+   108→    const existing = await pool.query(
+   109→      'SELECT id FROM candidate_profiles WHERE user_id = $1',
+   110→      [req.user.id]
+   111→    );
+   112→
+   113→    let result;
+   114→    if (existing.rows.length > 0) {
+   115→      result = await pool.query(`
+   116→        UPDATE candidate_profiles SET
+   117→          headline = COALESCE($2, headline),
+   118→          bio = COALESCE($3, bio),
+   119→          location = COALESCE($4, location),
+   120→          phone = COALESCE($5, phone),
+   121→          linkedin_url = COALESCE($6, linkedin_url),
+   122→          github_url = COALESCE($7, github_url),
+   123→          portfolio_url = COALESCE($8, portfolio_url),
+   124→          availability = COALESCE($9, availability),
+   125→          salary_min = COALESCE($10, salary_min),
+   126→          salary_max = COALESCE($11, salary_max),
+   127→          preferred_job_types = COALESCE($12, preferred_job_types),
+   128→          preferred_locations = COALESCE($13, preferred_locations),
+   129→          remote_preference = COALESCE($14, remote_preference),
+   130→          years_experience = COALESCE($15, years_experience),
+   131→          updated_at = NOW()
+   132→        WHERE user_id = $1
+   133→        RETURNING *
+   134→      `, [req.user.id, headline, bio, location, phone,
+   135→          linkedin_url, github_url, portfolio_url,
+   136→          availability, salary_min, salary_max,
+   137→          JSON.stringify(preferred_job_types), JSON.stringify(preferred_locations),
+   138→          remote_preference, years_experience]);
+   139→    } else {
+   140→      result = await pool.query(`
+   141→        INSERT INTO candidate_profiles (
+   142→          user_id, headline, bio, location, phone,
+   143→          linkedin_url, github_url, portfolio_url,
+   144→          availability, salary_min, salary_max,
+   145→          preferred_job_types, preferred_locations,
+   146→          remote_preference, years_experience
+   147→        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+   148→        RETURNING *
+   149→      `, [req.user.id, headline, bio, location, phone,
+   150→          linkedin_url, github_url, portfolio_url,
+   151→          availability, salary_min, salary_max,
+   152→          JSON.stringify(preferred_job_types || ['full-time']),
+   153→          JSON.stringify(preferred_locations || []),
+   154→          remote_preference || 'hybrid', years_experience || 0]);
+   155→    }
+   156→
+   157→    // Also update user name if provided
+   158→    if (req.body.name) {
+   159→      await pool.query('UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2',
+   160→        [req.body.name, req.user.id]);
+   161→    }
+   162→
+   163→    res.json({ success: true, profile: result.rows[0] });
+   164→  } catch (err) {
+   165→    console.error('Update profile error:', err);
+   166→    res.status(500).json({ error: 'Failed to update profile' });
+   167→  }
+   168→});
+   169→
+   170→// Upload profile photo
+   171→router.post('/profile/photo', authMiddleware, upload.single('photo'), async (req, res) => {
+   172→  try {
+   173→    if (!req.file) {
+   174→      return res.status(400).json({ error: 'No file uploaded' });
+   175→    }
+   176→
+   177→    const formData = new FormData();
+   178→    formData.append('file', req.file.buffer, {
+   179→      filename: req.file.originalname,
+   180→      contentType: req.file.mimetype
+   181→    });
+   182→
+   183→    const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
+   184→      method: 'POST',
+   185→      headers: {
+   186→        'Authorization': `Bearer ${process.env.POLSIA_API_KEY}`,
+   187→        ...formData.getHeaders()
+   188→      },
+   189→      body: formData
+   190→    });
+   191→
+   192→    const uploadResult = await uploadRes.json();
+   193→    if (!uploadResult.success) {
+   194→      throw new Error(uploadResult.error?.message || 'Upload failed');
+   195→    }
+   196→
+   197→    // Update profile with photo URL
+   198→    await pool.query(`
+   199→      INSERT INTO candidate_profiles (user_id, photo_url)
+   200→      VALUES ($1, $2)
+   201→      ON CONFLICT (user_id) DO UPDATE SET photo_url = $2, updated_at = NOW()
+   202→    `, [req.user.id, uploadResult.file.url]);
+   203→
+   204→    // Also update user avatar
+   205→    await pool.query('UPDATE users SET avatar_url = $1 WHERE id = $2',
+   206→      [uploadResult.file.url, req.user.id]);
+   207→
+   208→    res.json({ success: true, photo_url: uploadResult.file.url });
+   209→  } catch (err) {
+   210→    console.error('Photo upload error:', err);
+   211→    res.status(500).json({ error: 'Failed to upload photo' });
+   212→  }
+   213→});
+   214→
+   215→// ============= RESUME PARSING =============
+   216→
+   217→// Upload and parse resume
+   218→router.post('/resume/upload', authMiddleware, upload.single('resume'), async (req, res) => {
+   219→  try {
+   220→    if (!req.file) {
+   221→      return res.status(400).json({ error: 'No file uploaded' });
+   222→    }
+   223→
+   224→    // Upload to R2
+   225→    const formData = new FormData();
+   226→    formData.append('file', req.file.buffer, {
+   227→      filename: req.file.originalname,
+   228→      contentType: req.file.mimetype
+   229→    });
+   230→
+   231→    const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
+   232→      method: 'POST',
+   233→      headers: {
+   234→        'Authorization': `Bearer ${process.env.POLSIA_API_KEY}`,
+   235→        ...formData.getHeaders()
+   236→      },
+   237→      body: formData
+   238→    });
+   239→
+   240→    const uploadResult = await uploadRes.json();
+   241→    if (!uploadResult.success) {
+   242→      throw new Error(uploadResult.error?.message || 'Upload failed');
+   243→    }
+   244→
+   245→    // Save parsed resume record
+   246→    const resumeRecord = await pool.query(`
+   247→      INSERT INTO parsed_resumes (user_id, original_filename, file_url, parsing_status)
+   248→      VALUES ($1, $2, $3, 'processing')
+   249→      RETURNING id
+   250→    `, [req.user.id, req.file.originalname, uploadResult.file.url]);
+   251→
+   252→    // Update profile with resume URL
+   253→    await pool.query(`
+   254→      INSERT INTO candidate_profiles (user_id, resume_url)
+   255→      VALUES ($1, $2)
+   256→      ON CONFLICT (user_id) DO UPDATE SET resume_url = $2, updated_at = NOW()
+   257→    `, [req.user.id, uploadResult.file.url]);
+   258→
+   259→    // Extract text from the resume (supports PDF, DOCX, and plain text)
+   260→    let parsedData = null;
+   261→    try {
+   262→      // Extract text from the file buffer
+   263→      const resumeText = await extractTextFromFile(req.file.buffer, req.file.mimetype);
+   264→
+   265→      if (resumeText && resumeText.trim().length > 50) {
+   266→        // Get user's subscription for tracking
+   267→        const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [req.user.id]);
+   268→        const subscriptionId = user.rows[0]?.stripe_subscription_id;
+   269→
+   270→        // Parse with AI, with a 30-second timeout
+   271→        const parsePromise = parseResume(resumeText.substring(0, 15000), { subscriptionId });
+   272→        const timeoutPromise = new Promise((_, reject) =>
+   273→          setTimeout(() => reject(new Error('AI parsing timeout')), 30000)
+   274→        );
+   275→
+   276→        parsedData = await Promise.race([parsePromise, timeoutPromise]);
+   277→
+   278→        // Update the record with parsed data
+   279→        await pool.query(`
+   280→          UPDATE parsed_resumes
+   281→          SET parsed_data = $1, parsing_status = 'completed', parsed_at = NOW()
+   282→          WHERE id = $2
+   283→        `, [JSON.stringify(parsedData), resumeRecord.rows[0].id]);
+   284→
+   285→        console.log(`Successfully parsed ${req.file.mimetype} resume for user ${req.user.id}`);
+   286→
+   287→        // ====== AUTO-APPLY parsed data to profile ======
+   288→        try {
+   289→          const applySummary = { profile: false, experience: 0, education: 0, skills: 0 };
+   290→
+   291→          // 1. Apply contact/profile info
+   292→          if (parsedData.contact) {
+   293→            await pool.query(`
+   294→              INSERT INTO candidate_profiles (user_id, headline, bio, location, phone, linkedin_url, github_url, portfolio_url, years_experience)
+   295→              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+   296→              ON CONFLICT (user_id) DO UPDATE SET
+   297→                headline = COALESCE(NULLIF($2, ''), candidate_profiles.headline),
+   298→                bio = COALESCE(NULLIF($3, ''), candidate_profiles.bio),
+   299→                location = COALESCE(NULLIF($4, ''), candidate_profiles.location),
+   300→                phone = COALESCE(NULLIF($5, ''), candidate_profiles.phone),
+   301→                linkedin_url = COALESCE(NULLIF($6, ''), candidate_profiles.linkedin_url),
+   302→                github_url = COALESCE(NULLIF($7, ''), candidate_profiles.github_url),
+   303→                portfolio_url = COALESCE(NULLIF($8, ''), candidate_profiles.portfolio_url),
+   304→                years_experience = COALESCE($9, candidate_profiles.years_experience),
+   305→                updated_at = NOW()
+   306→            `, [
+   307→              req.user.id,
+   308→              parsedData.headline || null,
+   309→              parsedData.bio || null,
+   310→              parsedData.contact.location || null,
+   311→              parsedData.contact.phone || null,
+   312→              parsedData.contact.linkedin || null,
+   313→              parsedData.contact.github || null,
+   314→              parsedData.contact.portfolio || null,
+   315→              parsedData.years_experience || null
+   316→            ]);
+   317→            applySummary.profile = true;
+   318→
+   319→            // Update user name/email if empty
+   320→            if (parsedData.contact.name) {
+   321→              await pool.query(
+   322→                `UPDATE users SET name = $1 WHERE id = $2 AND (name IS NULL OR name = '')`,
+   323→                [parsedData.contact.name, req.user.id]
+   324→              );
+   325→            }
+   326→          }
+   327→
+   328→          // 2. Apply work experience (with dedup: skip if same company+title exists)
+   329→          if (parsedData.experience && Array.isArray(parsedData.experience)) {
+   330→            for (let i = 0; i < parsedData.experience.length; i++) {
+   331→              const exp = parsedData.experience[i];
+   332→              if (!exp.company || !exp.title) continue;
+   333→
+   334→              // Check for duplicate
+   335→              const existing = await pool.query(
+   336→                `SELECT id FROM work_experience WHERE user_id = $1 AND LOWER(company_name) = LOWER($2) AND LOWER(title) = LOWER($3)`,
+   337→                [req.user.id, exp.company, exp.title]
+   338→              );
+   339→              if (existing.rows.length > 0) continue;
+   340→
+   341→              await pool.query(`
+   342→                INSERT INTO work_experience (user_id, company_name, title, location, start_date, end_date, is_current, description, achievements, skills_used, order_index)
+   343→                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+   344→              `, [
+   345→                req.user.id,
+   346→                exp.company,
+   347→                exp.title,
+   348→                exp.location || null,
+   349→                exp.start_date ? new Date(exp.start_date.length === 4 ? exp.start_date + '-01-01' : exp.start_date + '-01') : null,
+   350→                exp.end_date && exp.end_date !== 'Present' ? new Date(exp.end_date.length === 4 ? exp.end_date + '-01-01' : exp.end_date + '-01') : null,
+   351→                exp.is_current || exp.end_date === 'Present',
+   352→                exp.description || null,
+   353→                JSON.stringify(exp.achievements || []),
+   354→                JSON.stringify(exp.skills_used || []),
+   355→                i
+   356→              ]);
+   357→              applySummary.experience++;
+   358→            }
+   359→          }
+   360→
+   361→          // 3. Apply education (with dedup: skip if same institution+degree exists)
+   362→          if (parsedData.education && Array.isArray(parsedData.education)) {
+   363→            for (let i = 0; i < parsedData.education.length; i++) {
+   364→              const edu = parsedData.education[i];
+   365→              if (!edu.institution) continue;
+   366→
+   367→              // Check for duplicate
+   368→              const existing = await pool.query(
+   369→                `SELECT id FROM education WHERE user_id = $1 AND LOWER(institution) = LOWER($2) AND LOWER(COALESCE(degree, '')) = LOWER(COALESCE($3, ''))`,
+   370→                [req.user.id, edu.institution, edu.degree || '']
+   371→              );
+   372→              if (existing.rows.length > 0) continue;
+   373→
+   374→              await pool.query(`
+   375→                INSERT INTO education (user_id, institution, degree, field_of_study, start_date, end_date, gpa, achievements, order_index)
+   376→                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+   377→              `, [
+   378→                req.user.id,
+   379→                edu.institution,
+   380→                edu.degree || null,
+   381→                edu.field || null,
+   382→                edu.start_date ? new Date(edu.start_date + '-01-01') : null,
+   383→                edu.end_date && edu.end_date !== 'Present' ? new Date(edu.end_date + '-01-01') : null,
+   384→                edu.gpa || null,
+   385→                JSON.stringify(edu.achievements || []),
+   386→                i
+   387→              ]);
+   388→              applySummary.education++;
+   389→            }
+   390→          }
+   391→
+   392→          // 4. Apply skills (upsert — won't duplicate due to UNIQUE constraint)
+   393→          if (parsedData.skills && Array.isArray(parsedData.skills)) {
+   394→            for (const skill of parsedData.skills) {
+   395→              if (!skill.name) continue;
+   396→              try {
+   397→                // Coerce string level names to integers
+   398→                let skillLevel = skill.level || 3;
+   399→                if (typeof skillLevel === 'string') {
+   400→                  const lvlMap = { 'beginner': 1, 'basic': 2, 'intermediate': 3, 'advanced': 4, 'expert': 5 };
+   401→                  skillLevel = lvlMap[skillLevel.toLowerCase()] || parseInt(skillLevel, 10) || 3;
+   402→                }
+   403→                skillLevel = Math.max(1, Math.min(5, parseInt(skillLevel, 10) || 3));
+   404→                await pool.query(`
+   405→                  INSERT INTO candidate_skills (user_id, skill_name, category, level)
+   406→                  VALUES ($1, $2, $3, $4)
+   407→                  ON CONFLICT (user_id, skill_name) DO UPDATE SET
+   408→                    category = COALESCE(NULLIF($3, ''), candidate_skills.category),
+   409→                    level = GREATEST(candidate_skills.level, $4)
+   410→                `, [req.user.id, skill.name, skill.category || 'technical', skillLevel]);
+   411→                applySummary.skills++;
+   412→              } catch (skillErr) {
+   413→                console.error('Skip skill insert:', skillErr.message);
+   414→              }
+   415→            }
+   416→          }
+   417→
+   418→          parsedData._applySummary = applySummary;
+   419→          console.log(`Auto-applied resume data for user ${req.user.id}:`, applySummary);
+   420→        } catch (applyErr) {
+   421→          console.error('Auto-apply resume data failed (non-fatal):', applyErr.message);
+   422→        }
+   423→      } else {
+   424→        console.log('Extracted text too short - marking as uploaded');
+   425→        await pool.query(`
+   426→          UPDATE parsed_resumes
+   427→          SET parsing_status = 'uploaded', parsed_at = NOW()
+   428→          WHERE id = $1
+   429→        `, [resumeRecord.rows[0].id]);
+   430→      }
+   431→    } catch (parseErr) {
+   432→      console.error('Resume parsing failed (non-fatal):', parseErr.message);
+   433→      await pool.query(`
+   434→        UPDATE parsed_resumes
+   435→        SET parsing_status = 'failed', parsed_at = NOW()
+   436→        WHERE id = $1
+   437→      `, [resumeRecord.rows[0].id]);
+   438→    }
+   439→
+   440→    res.json({
+   441→      success: true,
+   442→      resume_url: uploadResult.file.url,
+   443→      parsed_data: parsedData,
+   444→      resume_id: resumeRecord.rows[0].id
+   445→    });
+   446→  } catch (err) {
+   447→    console.error('Resume upload error:', err);
+   448→    res.status(500).json({ error: 'Failed to upload resume' });
+   449→  }
+   450→});
+   451→
+   452→// Apply parsed resume data to profile
+   453→router.post('/resume/apply', authMiddleware, async (req, res) => {
+   454→  try {
+   455→    const { parsed_data, apply_sections } = req.body;
+   456→
+   457→    if (!parsed_data) {
+   458→      return res.status(400).json({ error: 'No parsed data provided' });
+   459→    }
+   460→
+   461→    const sections = apply_sections || ['profile', 'experience', 'education', 'skills'];
+   462→
+   463→    // Apply profile info
+   464→    if (sections.includes('profile') && parsed_data.contact) {
+   465→      await pool.query(`
+   466→        INSERT INTO candidate_profiles (user_id, headline, bio, location, linkedin_url, github_url, portfolio_url, years_experience)
+   467→        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+   468→        ON CONFLICT (user_id) DO UPDATE SET
+   469→          headline = COALESCE($2, candidate_profiles.headline),
+   470→          bio = COALESCE($3, candidate_profiles.bio),
+   471→          location = COALESCE($4, candidate_profiles.location),
+   472→          linkedin_url = COALESCE($5, candidate_profiles.linkedin_url),
+   473→          github_url = COALESCE($6, candidate_profiles.github_url),
+   474→          portfolio_url = COALESCE($7, candidate_profiles.portfolio_url),
+   475→          years_experience = COALESCE($8, candidate_profiles.years_experience),
+   476→          updated_at = NOW()
+   477→      `, [
+   478→        req.user.id,
+   479→        parsed_data.headline,
+   480→        parsed_data.bio,
+   481→        parsed_data.contact.location,
+   482→        parsed_data.contact.linkedin,
+   483→        parsed_data.contact.github,
+   484→        parsed_data.contact.portfolio,
+   485→        parsed_data.years_experience
+   486→      ]);
+   487→
+   488→      // Update user name if found
+   489→      if (parsed_data.contact.name) {
+   490→        await pool.query('UPDATE users SET name = $1 WHERE id = $2 AND (name IS NULL OR name = \'\')',
+   491→          [parsed_data.contact.name, req.user.id]);
+   492→      }
+   493→    }
+   494→
+   495→    // Apply work experience
+   496→    if (sections.includes('experience') && parsed_data.experience) {
+   497→      for (let i = 0; i < parsed_data.experience.length; i++) {
+   498→        const exp = parsed_data.experience[i];
+   499→        await pool.query(`
+   500→          INSERT INTO work_experience (user_id, company_name, title, location, start_date, end_date, is_current, description, achievements, skills_used, order_index)
+   501→          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+   502→        `, [
+   503→          req.user.id,
+   504→          exp.company,
+   505→          exp.title,
+   506→          exp.location,
+   507→          exp.start_date ? new Date(exp.start_date + '-01') : null,
+   508→          exp.end_date && exp.end_date !== 'Present' ? new Date(exp.end_date + '-01') : null,
+   509→          exp.is_current || exp.end_date === 'Present',
+   510→          exp.description,
+   511→          JSON.stringify(exp.achievements || []),
+   512→          JSON.stringify(exp.skills_used || []),
+   513→          i
+   514→        ]);
+   515→      }
+   516→    }
+   517→
+   518→    // Apply education
+   519→    if (sections.includes('education') && parsed_data.education) {
+   520→      for (let i = 0; i < parsed_data.education.length; i++) {
+   521→        const edu = parsed_data.education[i];
+   522→        await pool.query(`
+   523→          INSERT INTO education (user_id, institution, degree, field_of_study, start_date, end_date, gpa, achievements, order_index)
+   524→          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+   525→        `, [
+   526→          req.user.id,
+   527→          edu.institution,
+   528→          edu.degree,
+   529→          edu.field,
+   530→          edu.start_date ? new Date(edu.start_date + '-01-01') : null,
+   531→          edu.end_date && edu.end_date !== 'Present' ? new Date(edu.end_date + '-01-01') : null,
+   532→          edu.gpa,
+   533→          JSON.stringify(edu.achievements || []),
+   534→          i
+   535→        ]);
+   536→      }
+   537→    }
+   538→
+   539→    // Apply skills
+   540→    if (sections.includes('skills') && parsed_data.skills) {
+   541→      for (const skill of parsed_data.skills) {
+   542→        // Coerce string level names to integers
+   543→        let skillLevel = skill.level || 3;
+   544→        if (typeof skillLevel === 'string') {
+   545→          const lvlMap = { 'beginner': 1, 'basic': 2, 'intermediate': 3, 'advanced': 4, 'expert': 5 };
+   546→          skillLevel = lvlMap[skillLevel.toLowerCase()] || parseInt(skillLevel, 10) || 3;
+   547→        }
+   548→        skillLevel = Math.max(1, Math.min(5, parseInt(skillLevel, 10) || 3));
+   549→        await pool.query(`
+   550→          INSERT INTO candidate_skills (user_id, skill_name, category, level)
+   551→          VALUES ($1, $2, $3, $4)
+   552→          ON CONFLICT (user_id, skill_name) DO UPDATE SET
+   553→            category = COALESCE($3, candidate_skills.category),
+   554→            level = GREATEST(candidate_skills.level, $4)
+   555→        `, [req.user.id, skill.name, skill.category || 'technical', skillLevel]);
+   556→      }
+   557→    }
+   558→
+   559→    res.json({ success: true, message: 'Resume data applied to profile' });
+   560→  } catch (err) {
+   561→    console.error('Apply resume error:', err);
+   562→    res.status(500).json({ error: 'Failed to apply resume data' });
+   563→  }
+   564→});
+   565→
+   566→// ============= WORK EXPERIENCE =============
+   567→
+   568→router.post('/experience', authMiddleware, async (req, res) => {
+   569→  try {
+   570→    const { company_name, title, location, start_date, end_date, is_current, description, achievements, skills_used } = req.body;
+   571→
+   572→    if (!company_name || !String(company_name).trim()) {
+   573→      return res.status(400).json({ error: 'Company name is required' });
+   574→    }
+   575→    if (!title || !String(title).trim()) {
+   576→      return res.status(400).json({ error: 'Job title is required' });
+   577→    }
+   578→
+   579→    const result = await pool.query(`
+   580→      INSERT INTO work_experience (user_id, company_name, title, location, start_date, end_date, is_current, description, achievements, skills_used)
+   581→      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+   582→      RETURNING *
+   583→    `, [req.user.id, String(company_name).trim(), String(title).trim(), location, start_date, end_date, is_current, description,
+   584→        JSON.stringify(achievements || []), JSON.stringify(skills_used || [])]);
+   585→
+   586→    res.json({ success: true, experience: result.rows[0] });
+   587→  } catch (err) {
+   588→    console.error('Add experience error:', err);
+   589→    res.status(500).json({ error: 'Failed to add experience' });
+   590→  }
+   591→});
+   592→
+   593→router.put('/experience/:id', authMiddleware, async (req, res) => {
+   594→  try {
+   595→    const { company_name, title, location, start_date, end_date, is_current, description, achievements, skills_used } = req.body;
+   596→
+   597→    const result = await pool.query(`
+   598→      UPDATE work_experience SET
+   599→        company_name = COALESCE($3, company_name),
+   600→        title = COALESCE($4, title),
+   601→        location = COALESCE($5, location),
+   602→        start_date = COALESCE($6, start_date),
+   603→        end_date = $7,
+   604→        is_current = COALESCE($8, is_current),
+   605→        description = COALESCE($9, description),
+   606→        achievements = COALESCE($10, achievements),
+   607→        skills_used = COALESCE($11, skills_used)
+   608→      WHERE id = $1 AND user_id = $2
+   609→      RETURNING *
+   610→    `, [req.params.id, req.user.id, company_name, title, location, start_date, end_date, is_current, description,
+   611→        achievements ? JSON.stringify(achievements) : null, skills_used ? JSON.stringify(skills_used) : null]);
+   612→
+   613→    if (result.rows.length === 0) {
+   614→      return res.status(404).json({ error: 'Experience not found' });
+   615→    }
+   616→
+   617→    res.json({ success: true, experience: result.rows[0] });
+   618→  } catch (err) {
+   619→    console.error('Update experience error:', err);
+   620→    res.status(500).json({ error: 'Failed to update experience' });
+   621→  }
+   622→});
+   623→
+   624→router.delete('/experience/:id', authMiddleware, async (req, res) => {
+   625→  try {
+   626→    await pool.query('DELETE FROM work_experience WHERE id = $1 AND user_id = $2',
+   627→      [req.params.id, req.user.id]);
+   628→    res.json({ success: true });
+   629→  } catch (err) {
+   630→    console.error('Delete experience error:', err);
+   631→    res.status(500).json({ error: 'Failed to delete experience' });
+   632→  }
+   633→});
+   634→
+   635→// ============= EDUCATION =============
+   636→
+   637→router.post('/education', authMiddleware, async (req, res) => {
+   638→  try {
+   639→    const { institution, degree, field_of_study, start_date, end_date, is_current, gpa, achievements } = req.body;
+   640→
+   641→    const result = await pool.query(`
+   642→      INSERT INTO education (user_id, institution, degree, field_of_study, start_date, end_date, is_current, gpa, achievements)
+   643→      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+   644→      RETURNING *
+   645→    `, [req.user.id, institution, degree, field_of_study, start_date, end_date, is_current, gpa,
+   646→        JSON.stringify(achievements || [])]);
+   647→
+   648→    res.json({ success: true, education: result.rows[0] });
+   649→  } catch (err) {
+   650→    console.error('Add education error:', err);
+   651→    res.status(500).json({ error: 'Failed to add education' });
+   652→  }
+   653→});
+   654→
+   655→router.put('/education/:id', authMiddleware, async (req, res) => {
+   656→  try {
+   657→    const { institution, degree, field_of_study, start_date, end_date, is_current, gpa, achievements } = req.body;
+   658→
+   659→    const result = await pool.query(`
+   660→      UPDATE education SET
+   661→        institution = COALESCE($3, institution),
+   662→        degree = COALESCE($4, degree),
+   663→        field_of_study = COALESCE($5, field_of_study),
+   664→        start_date = COALESCE($6, start_date),
+   665→        end_date = $7,
+   666→        is_current = COALESCE($8, is_current),
+   667→        gpa = COALESCE($9, gpa),
+   668→        achievements = COALESCE($10, achievements)
+   669→      WHERE id = $1 AND user_id = $2
+   670→      RETURNING *
+   671→    `, [req.params.id, req.user.id, institution, degree, field_of_study, start_date, end_date, is_current, gpa,
+   672→        achievements ? JSON.stringify(achievements) : null]);
+   673→
+   674→    if (result.rows.length === 0) {
+   675→      return res.status(404).json({ error: 'Education not found' });
+   676→    }
+   677→
+   678→    res.json({ success: true, education: result.rows[0] });
+   679→  } catch (err) {
+   680→    console.error('Update education error:', err);
+   681→    res.status(500).json({ error: 'Failed to update education' });
+   682→  }
+   683→});
+   684→
+   685→router.delete('/education/:id', authMiddleware, async (req, res) => {
+   686→  try {
+   687→    await pool.query('DELETE FROM education WHERE id = $1 AND user_id = $2',
+   688→      [req.params.id, req.user.id]);
+   689→    res.json({ success: true });
+   690→  } catch (err) {
+   691→    console.error('Delete education error:', err);
+   692→    res.status(500).json({ error: 'Failed to delete education' });
+   693→  }
+   694→});
+   695→
+   696→// ============= SKILLS =============
+   697→
+   698→router.get('/skills', authMiddleware, async (req, res) => {
+   699→  try {
+   700→    const skills = await pool.query(
+   701→      'SELECT * FROM candidate_skills WHERE user_id = $1 ORDER BY category, level DESC',
+   702→      [req.user.id]
+   703→    );
+   704→    res.json({ success: true, skills: skills.rows });
+   705→  } catch (err) {
+   706→    console.error('Get skills error:', err);
+   707→    res.status(500).json({ error: 'Failed to get skills' });
+   708→  }
+   709→});
+   710→
+   711→router.post('/skills', authMiddleware, async (req, res) => {
+   712→  try {
+   713→    const { skill_name, category, years_experience } = req.body;
+   714→    let { level } = req.body;
+   715→
+   716→    if (!skill_name || !String(skill_name).trim()) {
+   717→      return res.status(400).json({ error: 'Skill name is required' });
+   718→    }
+   719→
+   720→    // Coerce string level names to integers (DB expects integer 1-5)
+   721→    if (typeof level === 'string') {
+   722→      const levelMap = { 'beginner': 1, 'basic': 2, 'intermediate': 3, 'advanced': 4, 'expert': 5 };
+   723→      level = levelMap[level.toLowerCase()] || parseInt(level, 10) || 3;
+   724→    }
+   725→    level = Math.max(1, Math.min(5, parseInt(level, 10) || 3));
+   726→
+   727→    const result = await pool.query(`
+   728→      INSERT INTO candidate_skills (user_id, skill_name, category, level, years_experience)
+   729→      VALUES ($1, $2, $3, $4, $5)
+   730→      ON CONFLICT (user_id, skill_name) DO UPDATE SET
+   731→        category = COALESCE($3, candidate_skills.category),
+   732→        level = COALESCE($4, candidate_skills.level),
+   733→        years_experience = COALESCE($5, candidate_skills.years_experience)
+   734→      RETURNING *
+   735→    `, [req.user.id, String(skill_name).trim(), category || 'technical', level, years_experience || 0]);
+   736→
+   737→    res.json({ success: true, skill: result.rows[0] });
+   738→  } catch (err) {
+   739→    console.error('Add skill error:', err);
+   740→    res.status(500).json({ error: 'Failed to add skill' });
+   741→  }
+   742→});
+   743→
+   744→router.put('/skills/:id', authMiddleware, async (req, res) => {
+   745→  try {
+   746→    const { level, category, years_experience } = req.body;
+   747→
+   748→    const result = await pool.query(`
+   749→      UPDATE candidate_skills SET
+   750→        level = COALESCE($3, level),
+   751→        category = COALESCE($4, category),
+   752→        years_experience = COALESCE($5, years_experience)
+   753→      WHERE id = $1 AND user_id = $2
+   754→      RETURNING *
+   755→    `, [req.params.id, req.user.id, level, category, years_experience]);
+   756→
+   757→    if (result.rows.length === 0) {
+   758→      return res.status(404).json({ error: 'Skill not found' });
+   759→    }
+   760→
+   761→    res.json({ success: true, skill: result.rows[0] });
+   762→  } catch (err) {
+   763→    console.error('Update skill error:', err);
+   764→    res.status(500).json({ error: 'Failed to update skill' });
+   765→  }
+   766→});
+   767→
+   768→router.delete('/skills/:id', authMiddleware, async (req, res) => {
+   769→  try {
+   770→    await pool.query('DELETE FROM candidate_skills WHERE id = $1 AND user_id = $2',
+   771→      [req.params.id, req.user.id]);
+   772→    res.json({ success: true });
+   773→  } catch (err) {
+   774→    console.error('Delete skill error:', err);
+   775→    res.status(500).json({ error: 'Failed to delete skill' });
+   776→  }
+   777→});
+   778→
+   779→// ============= SKILL ASSESSMENTS =============
+   780→
+   781→router.get('/assessments', authMiddleware, async (req, res) => {
+   782→  try {
+   783→    const assessments = await pool.query(`
+   784→      SELECT sa.*, cs.skill_name
+   785→      FROM skill_assessments sa
+   786→      LEFT JOIN candidate_skills cs ON sa.skill_id = cs.id
+   787→      WHERE sa.user_id = $1
+   788→      ORDER BY sa.created_at DESC
+   789→    `, [req.user.id]);
+   790→
+   791→    res.json({ success: true, assessments: assessments.rows });
+   792→  } catch (err) {
+   793→    console.error('Get assessments error:', err);
+   794→    res.status(500).json({ error: 'Failed to get assessments' });
+   795→  }
+   796→});
+   797→
+   798→// Start a new skill assessment
+   799→router.post('/assessments/start', authMiddleware, async (req, res) => {
+   800→  try {
+   801→    const { skill_id, skill_name, skill_level, category } = req.body;
+   802→
+   803→    // Get user's subscription
+   804→    const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [req.user.id]);
+   805→    const subscriptionId = user.rows[0]?.stripe_subscription_id;
+   806→
+   807→    // Generate assessment questions
+   808→    const questions = await generateSkillAssessment(
+   809→      skill_name,
+   810→      skill_level || 3,
+   811→      category || 'technical',
+   812→      { subscriptionId }
+   813→    );
+   814→
+   815→    // Create assessment record
+   816→    const result = await pool.query(`
+   817→      INSERT INTO skill_assessments (user_id, skill_id, assessment_type, title, questions, started_at)
+   818→      VALUES ($1, $2, $3, $4, $5, NOW())
+   819→      RETURNING *
+   820→    `, [req.user.id, skill_id, 'skill_verification', `${skill_name} Assessment`, JSON.stringify(questions)]);
+   821→
+   822→    res.json({
+   823→      success: true,
+   824→      assessment: result.rows[0],
+   825→      questions: questions.map(q => ({
+   826→        question: q.question,
+   827→        options: q.options,
+   828→        difficulty: q.difficulty
+   829→      }))
+   830→    });
+   831→  } catch (err) {
+   832→    console.error('Start assessment error:', err);
+   833→    res.status(500).json({ error: 'Failed to start assessment' });
+   834→  }
+   835→});
+   836→
+   837→// Submit assessment answers
+   838→router.post('/assessments/:id/submit', authMiddleware, async (req, res) => {
+   839→  try {
+   840→    const { responses } = req.body;
+   841→    const assessmentId = req.params.id;
+   842→
+   843→    // Get the assessment
+   844→    const assessment = await pool.query(
+   845→      'SELECT * FROM skill_assessments WHERE id = $1 AND user_id = $2',
+   846→      [assessmentId, req.user.id]
+   847→    );
+   848→
+   849→    if (assessment.rows.length === 0) {
+   850→      return res.status(404).json({ error: 'Assessment not found' });
+   851→    }
+   852→
+   853→    const questions = assessment.rows[0].questions;
+   854→
+   855→    // Get skill name for evaluation
+   856→    let skillName = assessment.rows[0].title.replace(' Assessment', '');
+   857→    if (assessment.rows[0].skill_id) {
+   858→      const skill = await pool.query('SELECT skill_name FROM candidate_skills WHERE id = $1', [assessment.rows[0].skill_id]);
+   859→      if (skill.rows.length > 0) skillName = skill.rows[0].skill_name;
+   860→    }
+   861→
+   862→    // Get user's subscription
+   863→    const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [req.user.id]);
+   864→    const subscriptionId = user.rows[0]?.stripe_subscription_id;
+   865→
+   866→    // Evaluate with AI
+   867→    const evaluation = await evaluateSkillAssessment(questions, responses, skillName, { subscriptionId });
+   868→
+   869→    // Update assessment record
+   870→    await pool.query(`
+   871→      UPDATE skill_assessments SET
+   872→        responses = $2,
+   873→        score = $3,
+   874→        passed = $4,
+   875→        ai_feedback = $5,
+   876→        completed_at = NOW()
+   877→      WHERE id = $1
+   878→    `, [assessmentId, JSON.stringify(responses), evaluation.score, evaluation.passed, JSON.stringify(evaluation)]);
+   879→
+   880→    // If passed, verify the skill
+   881→    if (evaluation.passed && assessment.rows[0].skill_id) {
+   882→      await pool.query(`
+   883→        UPDATE candidate_skills SET
+   884→          is_verified = true,
+   885→          verified_at = NOW(),
+   886→          verified_score = $2,
+   887→          level = GREATEST(level, $3)
+   888→        WHERE id = $1
+   889→      `, [assessment.rows[0].skill_id, evaluation.score, evaluation.recommended_level || 3]);
+   890→    }
+   891→
+   892→    res.json({
+   893→      success: true,
+   894→      evaluation,
+   895→      passed: evaluation.passed
+   896→    });
+   897→  } catch (err) {
+   898→    console.error('Submit assessment error:', err);
+   899→    res.status(500).json({ error: 'Failed to submit assessment' });
+   900→  }
+   901→});
+   902→
+   903→// ============= PORTFOLIO PROJECTS =============
+   904→
+   905→router.post('/projects', authMiddleware, async (req, res) => {
+   906→  try {
+   907→    const { title, description, project_url, github_url, image_url, technologies, role, start_date, end_date, highlights } = req.body;
+   908→
+   909→    if (!title || !String(title).trim()) {
+   910→      return res.status(400).json({ error: 'Project title is required' });
+   911→    }
+   912→
+   913→    const result = await pool.query(`
+   914→      INSERT INTO portfolio_projects (user_id, title, description, project_url, github_url, image_url, technologies, role, start_date, end_date, highlights)
+   915→      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+   916→      RETURNING *
+   917→    `, [req.user.id, String(title).trim(), description, project_url, github_url, image_url,
+   918→        JSON.stringify(technologies || []), role, start_date, end_date, JSON.stringify(highlights || [])]);
+   919→
+   920→    res.json({ success: true, project: result.rows[0] });
+   921→  } catch (err) {
+   922→    console.error('Add project error:', err);
+   923→    res.status(500).json({ error: 'Failed to add project' });
+   924→  }
+   925→});
+   926→
+   927→router.put('/projects/:id', authMiddleware, async (req, res) => {
+   928→  try {
+   929→    const { title, description, project_url, github_url, image_url, technologies, role, start_date, end_date, highlights } = req.body;
+   930→
+   931→    const result = await pool.query(`
+   932→      UPDATE portfolio_projects SET
+   933→        title = COALESCE($3, title),
+   934→        description = COALESCE($4, description),
+   935→        project_url = COALESCE($5, project_url),
+   936→        github_url = COALESCE($6, github_url),
+   937→        image_url = COALESCE($7, image_url),
+   938→        technologies = COALESCE($8, technologies),
+   939→        role = COALESCE($9, role),
+   940→        start_date = COALESCE($10, start_date),
+   941→        end_date = $11,
+   942→        highlights = COALESCE($12, highlights)
+   943→      WHERE id = $1 AND user_id = $2
+   944→      RETURNING *
+   945→    `, [req.params.id, req.user.id, title, description, project_url, github_url, image_url,
+   946→        technologies ? JSON.stringify(technologies) : null, role, start_date, end_date,
+   947→        highlights ? JSON.stringify(highlights) : null]);
+   948→
+   949→    if (result.rows.length === 0) {
+   950→      return res.status(404).json({ error: 'Project not found' });
+   951→    }
+   952→
+   953→    res.json({ success: true, project: result.rows[0] });
+   954→  } catch (err) {
+   955→    console.error('Update project error:', err);
+   956→    res.status(500).json({ error: 'Failed to update project' });
+   957→  }
+   958→});
+   959→
+   960→router.delete('/projects/:id', authMiddleware, async (req, res) => {
+   961→  try {
+   962→    await pool.query('DELETE FROM portfolio_projects WHERE id = $1 AND user_id = $2',
+   963→      [req.params.id, req.user.id]);
+   964→    res.json({ success: true });
+   965→  } catch (err) {
+   966→    console.error('Delete project error:', err);
+   967→    res.status(500).json({ error: 'Failed to delete project' });
+   968→  }
+   969→});
+   970→
+   971→// ============= JOB MATCHING =============
+   972→
+   973→// Get jobs with match scores
+   974→router.get('/jobs/recommended', authMiddleware, async (req, res) => {
+   975→  try {
+   976→    const { limit = 20 } = req.query;
+   977→
+   978→    // Get candidate profile
+   979→    const profile = await pool.query(`
+   980→      SELECT cp.*, u.name, os.total_score as omniscore
+   981→      FROM users u
+   982→      LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+   983→      LEFT JOIN omni_scores os ON os.user_id = u.id
+   984→      WHERE u.id = $1
+   985→    `, [req.user.id]);
+   986→
+   987→    const skills = await pool.query(
+   988→      'SELECT skill_name FROM candidate_skills WHERE user_id = $1',
+   989→      [req.user.id]
+   990→    );
+   991→
+   992→    const experience = await pool.query(
+   993→      'SELECT title FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC LIMIT 3',
+   994→      [req.user.id]
+   995→    );
+   996→
+   997→    // Get active jobs
+   998→    const jobs = await pool.query(`
+   999→      SELECT j.*, u.company_name as posted_by_company
+  1000→      FROM jobs j
+  1001→      LEFT JOIN users u ON j.user_id = u.id
+  1002→      WHERE j.status = 'active'
+  1003→      ORDER BY j.created_at DESC
+  1004→      LIMIT $1
+  1005→    `, [limit]);
+  1006→
+  1007→    const candidateProfile = {
+  1008→      ...profile.rows[0],
+  1009→      skills: skills.rows,
+  1010→      titles: experience.rows.map(e => e.title)
+  1011→    };
+  1012→
+  1013→    // Calculate match scores for each job
+  1014→    const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [req.user.id]);
+  1015→    const subscriptionId = user.rows[0]?.stripe_subscription_id;
+  1016→
+  1017→    const jobsWithScores = await Promise.all(jobs.rows.map(async (job) => {
+  1018→      try {
+  1019→        const match = await generateJobMatchScore(candidateProfile, job, { subscriptionId });
+  1020→        return { ...job, match };
+  1021→      } catch (e) {
+  1022→        return { ...job, match: { match_score: 50, match_level: 'fair' } };
+  1023→      }
+  1024→    }));
+  1025→
+  1026→    // Sort by match score
+  1027→    jobsWithScores.sort((a, b) => (b.match?.match_score || 0) - (a.match?.match_score || 0));
+  1028→
+  1029→    res.json({ success: true, jobs: jobsWithScores });
+  1030→  } catch (err) {
+  1031→    console.error('Get recommended jobs error:', err);
+  1032→    res.status(500).json({ error: 'Failed to get recommended jobs' });
+  1033→  }
+  1034→});
+  1035→
+  1036→// Save a job
+  1037→router.post('/jobs/:jobId/save', authMiddleware, async (req, res) => {
+  1038→  try {
+  1039→    const { notes } = req.body;
+  1040→
+  1041→    await pool.query(`
+  1042→      INSERT INTO saved_jobs (user_id, job_id, notes)
+  1043→      VALUES ($1, $2, $3)
+  1044→      ON CONFLICT (user_id, job_id) DO UPDATE SET notes = $3
+  1045→    `, [req.user.id, req.params.jobId, notes]);
+  1046→
+  1047→    res.json({ success: true });
+  1048→  } catch (err) {
+  1049→    console.error('Save job error:', err);
+  1050→    res.status(500).json({ error: 'Failed to save job' });
+  1051→  }
+  1052→});
+  1053→
+  1054→router.delete('/jobs/:jobId/save', authMiddleware, async (req, res) => {
+  1055→  try {
+  1056→    await pool.query('DELETE FROM saved_jobs WHERE user_id = $1 AND job_id = $2',
+  1057→      [req.user.id, req.params.jobId]);
+  1058→    res.json({ success: true });
+  1059→  } catch (err) {
+  1060→    console.error('Unsave job error:', err);
+  1061→    res.status(500).json({ error: 'Failed to unsave job' });
+  1062→  }
+  1063→});
+  1064→
+  1065→// Get saved jobs
+  1066→router.get('/jobs/saved', authMiddleware, async (req, res) => {
+  1067→  try {
+  1068→    const jobs = await pool.query(`
+  1069→      SELECT j.*, sj.saved_at, sj.notes, u.company_name as posted_by_company
+  1070→      FROM saved_jobs sj
+  1071→      JOIN jobs j ON sj.job_id = j.id
+  1072→      LEFT JOIN users u ON j.user_id = u.id
+  1073→      WHERE sj.user_id = $1
+  1074→      ORDER BY sj.saved_at DESC
+  1075→    `, [req.user.id]);
+  1076→
+  1077→    res.json({ success: true, jobs: jobs.rows });
+  1078→  } catch (err) {
+  1079→    console.error('Get saved jobs error:', err);
+  1080→    res.status(500).json({ error: 'Failed to get saved jobs' });
+  1081→  }
+  1082→});
+  1083→
+  1084→// Apply to a job
+  1085→router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
+  1086→  try {
+  1087→    const { cover_letter, screening_answers } = req.body;
+  1088→
+  1089→    // Get match score
+  1090→    const profile = await pool.query(`
+  1091→      SELECT cp.*, u.name, os.total_score as omniscore
+  1092→      FROM users u
+  1093→      LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+  1094→      LEFT JOIN omni_scores os ON os.user_id = u.id
+  1095→      WHERE u.id = $1
+  1096→    `, [req.user.id]);
+  1097→
+  1098→    const skills = await pool.query(
+  1099→      'SELECT skill_name FROM candidate_skills WHERE user_id = $1',
+  1100→      [req.user.id]
+  1101→    );
+  1102→
+  1103→    const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [req.params.jobId]);
+  1104→    if (job.rows.length === 0) {
+  1105→      return res.status(404).json({ error: 'Job not found' });
+  1106→    }
+  1107→
+  1108→    const candidateProfile = {
+  1109→      ...profile.rows[0],
+  1110→      skills: skills.rows
+  1111→    };
+  1112→
+  1113→    const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [req.user.id]);
+  1114→    const subscriptionId = user.rows[0]?.stripe_subscription_id;
+  1115→
+  1116→    let matchScore = 50;
+  1117→    try {
+  1118→      const match = await generateJobMatchScore(candidateProfile, job.rows[0], { subscriptionId });
+  1119→      matchScore = match.match_score;
+  1120→    } catch (e) {}
+  1121→
+  1122→    // Get omniscore for application
+  1123→    const omniscore = profile.rows[0]?.omniscore || null;
+  1124→
+  1125→    const result = await pool.query(`
+  1126→      INSERT INTO job_applications (candidate_id, job_id, company_id, cover_letter, match_score, omniscore_at_apply, screening_answers)
+  1127→      VALUES ($1, $2, $3, $4, $5, $6, $7)
+  1128→      ON CONFLICT (job_id, candidate_id) DO UPDATE SET
+  1129→        cover_letter = $4,
+  1130→        screening_answers = $7,
+  1131→        updated_at = NOW()
+  1132→      RETURNING *
+  1133→    `, [req.user.id, req.params.jobId, job.rows[0].company_id, cover_letter, matchScore, omniscore, JSON.stringify(screening_answers || {})]);
+  1134→
+  1135→    res.json({ success: true, application: result.rows[0] });
+  1136→  } catch (err) {
+  1137→    console.error('Apply to job error:', err);
+  1138→    res.status(500).json({ error: 'Failed to apply to job' });
+  1139→  }
+  1140→});
+  1141→
+  1142→// Get my applications
+  1143→router.get('/applications', authMiddleware, async (req, res) => {
+  1144→  try {
+  1145→    const applications = await pool.query(`
+  1146→      SELECT ja.*, j.title, j.company, j.location, j.salary_range, j.job_type,
+  1147→             j.screening_questions, u.company_name as posted_by_company
+  1148→      FROM job_applications ja
+  1149→      JOIN jobs j ON ja.job_id = j.id
+  1150→      LEFT JOIN users u ON j.user_id = u.id
+  1151→      WHERE ja.candidate_id = $1
+  1152→      ORDER BY ja.applied_at DESC
+  1153→    `, [req.user.id]);
+  1154→
+  1155→    res.json({ success: true, applications: applications.rows });
+  1156→  } catch (err) {
+  1157→    console.error('Get applications error:', err);
+  1158→    res.status(500).json({ error: 'Failed to get applications' });
+  1159→  }
+  1160→});
+  1161→
+  1162→// Withdraw an application
+  1163→router.put('/applications/:id/withdraw', authMiddleware, async (req, res) => {
+  1164→  try {
+  1165→    const { reason } = req.body;
+  1166→
+  1167→    // Verify application belongs to candidate and is withdrawable
+  1168→    const existing = await pool.query(
+  1169→      `SELECT id, status FROM job_applications WHERE id = $1 AND candidate_id = $2`,
+  1170→      [req.params.id, req.user.id]
+  1171→    );
+  1172→
+  1173→    if (existing.rows.length === 0) {
+  1174→      return res.status(404).json({ error: 'Application not found' });
+  1175→    }
+  1176→
+  1177→    const app = existing.rows[0];
+  1178→    if (['withdrawn', 'hired', 'rejected'].includes(app.status)) {
+  1179→      return res.status(400).json({ error: `Cannot withdraw an application with status: ${app.status}` });
+  1180→    }
+  1181→
+  1182→    const result = await pool.query(
+  1183→      `UPDATE job_applications SET status = 'withdrawn', updated_at = NOW() WHERE id = $1 RETURNING *`,
+  1184→      [req.params.id]
+  1185→    );
+  1186→
+  1187→    res.json({ success: true, application: result.rows[0] });
+  1188→  } catch (err) {
+  1189→    console.error('Withdraw application error:', err);
+  1190→    res.status(500).json({ error: 'Failed to withdraw application' });
+  1191→  }
+  1192→});
+  1193→
+  1194→// ============= INTERVIEW COACHING =============
+  1195→
+  1196→router.post('/coaching', authMiddleware, async (req, res) => {
+  1197→  try {
+  1198→    const { question, response, feedback } = req.body;
+  1199→
+  1200→    const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [req.user.id]);
+  1201→    const subscriptionId = user.rows[0]?.stripe_subscription_id;
+  1202→
+  1203→    const coaching = await generateInterviewCoaching(question, response, feedback, { subscriptionId });
+  1204→
+  1205→    res.json({ success: true, coaching });
+  1206→  } catch (err) {
+  1207→    console.error('Get coaching error:', err);
+  1208→    res.status(500).json({ error: 'Failed to get coaching' });
+  1209→  }
+  1210→});
+  1211→
+  1212→// ============= DASHBOARD STATS =============
+  1213→
+  1214→router.get('/dashboard/stats', authMiddleware, async (req, res) => {
+  1215→  try {
+  1216→    // Get OmniScore
+  1217→    const omniscore = await pool.query(
+  1218→      'SELECT total_score, score_tier FROM omni_scores WHERE user_id = $1',
+  1219→      [req.user.id]
+  1220→    );
+  1221→
+  1222→    // Get profile completeness
+  1223→    const profile = await pool.query(
+  1224→      'SELECT * FROM candidate_profiles WHERE user_id = $1',
+  1225→      [req.user.id]
+  1226→    );
+  1227→
+  1228→    const skillCount = await pool.query(
+  1229→      'SELECT COUNT(*) as count, COUNT(*) FILTER (WHERE is_verified) as verified FROM candidate_skills WHERE user_id = $1',
+  1230→      [req.user.id]
+  1231→    );
+  1232→
+  1233→    const experienceCount = await pool.query(
+  1234→      'SELECT COUNT(*) as count FROM work_experience WHERE user_id = $1',
+  1235→      [req.user.id]
+  1236→    );
+  1237→
+  1238→    const educationCount = await pool.query(
+  1239→      'SELECT COUNT(*) as count FROM education WHERE user_id = $1',
+  1240→      [req.user.id]
+  1241→    );
+  1242→
+  1243→    const interviewCount = await pool.query(
+  1244→      'SELECT COUNT(*) as total, AVG(overall_score) as avg_score FROM interviews WHERE user_id = $1 AND status = \'completed\'',
+  1245→      [req.user.id]
+  1246→    );
+  1247→
+  1248→    const applicationCount = await pool.query(
+  1249→      'SELECT COUNT(*) as count FROM job_applications WHERE candidate_id = $1',
+  1250→      [req.user.id]
+  1251→    );
+  1252→
+  1253→    const savedJobCount = await pool.query(
+  1254→      'SELECT COUNT(*) as count FROM saved_jobs WHERE user_id = $1',
+  1255→      [req.user.id]
+  1256→    );
+  1257→
+  1258→    const assessmentCount = await pool.query(
+  1259→      'SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE passed) as passed FROM skill_assessments WHERE user_id = $1 AND completed_at IS NOT NULL',
+  1260→      [req.user.id]
+  1261→    );
+  1262→
+  1263→    // Calculate profile completeness
+  1264→    const p = profile.rows[0] || {};
+  1265→    const completenessFields = [
+  1266→      p.headline, p.bio, p.location, p.linkedin_url || p.github_url,
+  1267→      parseInt(skillCount.rows[0]?.count) > 0,
+  1268→      parseInt(experienceCount.rows[0]?.count) > 0
+  1269→    ];
+  1270→    const completeness = Math.round((completenessFields.filter(Boolean).length / completenessFields.length) * 100);
+  1271→
+  1272→    res.json({
+  1273→      success: true,
+  1274→      stats: {
+  1275→        omniscore: omniscore.rows[0] || { total_score: 300, score_tier: 'new' },
+  1276→        profile_completeness: completeness,
+  1277→        skills: {
+  1278→          total: parseInt(skillCount.rows[0]?.count) || 0,
+  1279→          verified: parseInt(skillCount.rows[0]?.verified) || 0
+  1280→        },
+  1281→        experience_count: parseInt(experienceCount.rows[0]?.count) || 0,
+  1282→        education_count: parseInt(educationCount.rows[0]?.count) || 0,
+  1283→        interviews: {
+  1284→          total: parseInt(interviewCount.rows[0]?.total) || 0,
+  1285→          avg_score: Math.round(interviewCount.rows[0]?.avg_score) || 0
+  1286→        },
+  1287→        applications: parseInt(applicationCount.rows[0]?.count) || 0,
+  1288→        saved_jobs: parseInt(savedJobCount.rows[0]?.count) || 0,
+  1289→        assessments: {
+  1290→          total: parseInt(assessmentCount.rows[0]?.total) || 0,
+  1291→          passed: parseInt(assessmentCount.rows[0]?.passed) || 0
+  1292→        }
+  1293→      }
+  1294→    });
+  1295→  } catch (err) {
+  1296→    console.error('Get dashboard stats error:', err);
+  1297→    res.status(500).json({ error: 'Failed to get dashboard stats' });
+  1298→  }
+  1299→});
+  1300→
+  1301→// ============= SCHEDULED INTERVIEWS (from recruiters) =============
+  1302→
+  1303→// Get all interviews for candidate (upcoming + past)
+  1304→router.get('/interviews/scheduled', authMiddleware, async (req, res) => {
+  1305→  try {
+  1306→    const { status, upcoming_only } = req.query;
+  1307→
+  1308→    let query = `
+  1309→      SELECT
+  1310→        si.id, si.scheduled_at, si.duration_minutes, si.interview_type,
+  1311→        si.meeting_link, si.notes, si.status, si.outcome, si.feedback,
+  1312→        si.created_at, si.updated_at,
+  1313→        j.title as job_title, j.company as company_name, j.id as job_id,
+  1314→        u.name as recruiter_name, u.email as recruiter_email,
+  1315→        c.name as company_full_name
+  1316→      FROM scheduled_interviews si
+  1317→      JOIN jobs j ON si.job_id = j.id
+  1318→      LEFT JOIN users u ON si.recruiter_id = u.id
+  1319→      LEFT JOIN companies c ON si.company_id = c.id
+  1320→      WHERE si.candidate_id = $1
+  1321→    `;
+  1322→    const params = [req.user.id];
+  1323→
+  1324→    if (status) {
+  1325→      query += ` AND si.status = $${params.length + 1}`;
+  1326→      params.push(status);
+  1327→    }
+  1328→
+  1329→    if (upcoming_only === 'true') {
+  1330→      query += ` AND si.scheduled_at > NOW() - INTERVAL '1 hour' AND si.status = 'scheduled'`;
+  1331→    }
+  1332→
+  1333→    query += ` ORDER BY si.scheduled_at DESC`;
+  1334→
+  1335→    const interviews = await pool.query(query, params);
+  1336→
+  1337→    res.json({ success: true, interviews: interviews.rows });
+  1338→  } catch (err) {
+  1339→    console.error('Get scheduled interviews error:', err);
+  1340→    res.status(500).json({ error: 'Failed to get scheduled interviews' });
+  1341→  }
+  1342→});
+  1343→
+  1344→// Accept an interview
+  1345→router.put('/interviews/:id/accept', authMiddleware, async (req, res) => {
+  1346→  try {
+  1347→    const result = await pool.query(
+  1348→      `UPDATE scheduled_interviews
+  1349→       SET status = 'confirmed', updated_at = NOW()
+  1350→       WHERE id = $1 AND candidate_id = $2 AND status = 'scheduled'
+  1351→       RETURNING *`,
+  1352→      [req.params.id, req.user.id]
+  1353→    );
+  1354→
+  1355→    if (result.rows.length === 0) {
+  1356→      return res.status(404).json({ error: 'Interview not found or already responded' });
+  1357→    }
+  1358→
+  1359→    res.json({ success: true, interview: result.rows[0] });
+  1360→  } catch (err) {
+  1361→    console.error('Accept interview error:', err);
+  1362→    res.status(500).json({ error: 'Failed to accept interview' });
+  1363→  }
+  1364→});
+  1365→
+  1366→// Decline an interview
+  1367→router.put('/interviews/:id/decline', authMiddleware, async (req, res) => {
+  1368→  try {
+  1369→    const { reason } = req.body;
+  1370→
+  1371→    const result = await pool.query(
+  1372→      `UPDATE scheduled_interviews
+  1373→       SET status = 'declined', outcome = $3, updated_at = NOW()
+  1374→       WHERE id = $1 AND candidate_id = $2 AND status IN ('scheduled', 'confirmed')
+  1375→       RETURNING *`,
+  1376→      [req.params.id, req.user.id, reason || 'Candidate declined']
+  1377→    );
+  1378→
+  1379→    if (result.rows.length === 0) {
+  1380→      return res.status(404).json({ error: 'Interview not found or cannot be declined' });
+  1381→    }
+  1382→
+  1383→    res.json({ success: true, interview: result.rows[0] });
+  1384→  } catch (err) {
+  1385→    console.error('Decline interview error:', err);
+  1386→    res.status(500).json({ error: 'Failed to decline interview' });
+  1387→  }
+  1388→});
+  1389→
+  1390→// Request reschedule
+  1391→router.put('/interviews/:id/reschedule', authMiddleware, async (req, res) => {
+  1392→  try {
+  1393→    const { preferred_time, reason } = req.body;
+  1394→
+  1395→    const result = await pool.query(
+  1396→      `UPDATE scheduled_interviews
+  1397→       SET status = 'reschedule_requested',
+  1398→           notes = COALESCE(notes, '') || E'\n[Reschedule request] ' || COALESCE($3, 'Candidate requested reschedule') || COALESCE(' - Preferred: ' || $4, ''),
+  1399→           updated_at = NOW()
+  1400→       WHERE id = $1 AND candidate_id = $2 AND status IN ('scheduled', 'confirmed')
+  1401→       RETURNING *`,
+  1402→      [req.params.id, req.user.id, reason, preferred_time]
+  1403→    );
+  1404→
+  1405→    if (result.rows.length === 0) {
+  1406→      return res.status(404).json({ error: 'Interview not found or cannot be rescheduled' });
+  1407→    }
+  1408→
+  1409→    res.json({ success: true, interview: result.rows[0] });
+  1410→  } catch (err) {
+  1411→    console.error('Reschedule interview error:', err);
+  1412→    res.status(500).json({ error: 'Failed to request reschedule' });
+  1413→  }
+  1414→});
+  1415→
+  1416→module.exports = router;
+  1417→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
