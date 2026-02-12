@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate previous attempt and current codebase state",
+    "status": "completed",
+    "activeForm": "Investigating previous attempt and codebase"
+  },
+  {
+    "content": "Fix migration bug blocking ALL deploys (null name in _migrations)",
+    "status": "completed",
+    "activeForm": "Fixing migration bug blocking deploys"
+  },
+  {
+    "content": "Add event logging to platform routes + activity API",
+    "status": "completed",
+    "activeForm": "Adding event logging to platform routes"
+  },
+  {
+    "content": "Rebuild frontend and deploy",
+    "status": "in_progress",
+    "activeForm": "Building frontend and deploying"
+  },
+  {
+    "content": "Verify module cards + activity feed work",
+    "status": "pending",
+    "activeForm": "Verifying module cards and activity feed"
+  }
+]
