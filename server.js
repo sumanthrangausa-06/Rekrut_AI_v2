@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const path = require('path');
@@ -51,6 +52,11 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(session({
+  store: new pgSession({
+    pool: pool,
+    tableName: 'user_sessions',
+    createTableIfMissing: true, // Auto-creates table on first run
+  }),
   secret: process.env.SESSION_SECRET || 'rekrutai-secret-key-change-in-prod',
   resave: false,
   saveUninitialized: false,
