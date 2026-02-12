@@ -11,12 +11,12 @@
   },
   {
     "content": "Phase 2: Dynamic AI follow-up questions",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Implementing dynamic AI follow-ups"
   },
   {
     "content": "Phase 3: Structured feedback matching practice interview",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Enhancing mock interview feedback"
   },
   {
