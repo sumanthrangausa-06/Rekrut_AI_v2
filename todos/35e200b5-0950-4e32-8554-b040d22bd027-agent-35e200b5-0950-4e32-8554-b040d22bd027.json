@@ -1,33 +1,18 @@
 [
   {
-    "content": "Phase 1: Codebase Audit",
+    "content": "Phase 1-4: Backend complete",
     "status": "completed",
-    "activeForm": "Auditing existing codebase"
+    "activeForm": "Backend complete"
   },
   {
-    "content": "Phase 2: Research best practices",
+    "content": "Phase 5: Recruiter kanban + match ranking",
     "status": "completed",
-    "activeForm": "Researching best practices"
-  },
-  {
-    "content": "Phase 3: Backend pipeline fixes",
-    "status": "completed",
-    "activeForm": "Fixing backend pipeline stages"
-  },
-  {
-    "content": "Phase 4: AI Match Scoring + skills breakdown",
-    "status": "completed",
-    "activeForm": "Enhancing AI match scoring"
-  },
-  {
-    "content": "Phase 5: Frontend — Recruiter kanban + match ranking",
-    "status": "in_progress",
-    "activeForm": "Building recruiter pipeline kanban view and match ranking"
+    "activeForm": "Built recruiter pipeline kanban view"
   },
   {
     "content": "Phase 6: Frontend — Candidate job board + status tracking",
-    "status": "pending",
-    "activeForm": "Building candidate job search and status tracking UX"
+    "status": "in_progress",
+    "activeForm": "Building candidate job search with match scores and status tracking"
   },
   {
     "content": "Phase 7: E2E verification + deploy",
