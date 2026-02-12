@@ -95,25 +95,31 @@ async function migrate() {
       const files = fs.readdirSync(migrationsDir)
         .filter(f => f.endsWith('.js'))
         .sort();
-      
+
       for (const file of files) {
         const migration = require(path.join(migrationsDir, file));
+        // Derive name from module export or fallback to filename
+        const migrationName = migration.name || file.replace('.js', '');
+        if (!migrationName) {
+          console.warn(`Skipping migration file with no name: ${file}`);
+          continue;
+        }
         const existing = await client.query(
           'SELECT id FROM _migrations WHERE name = $1',
-          [migration.name]
+          [migrationName]
         );
-        
+
         if (existing.rows.length === 0) {
-          console.log(`Running migration: ${migration.name}`);
+          console.log(`Running migration: ${migrationName}`);
           await client.query('BEGIN');
           try {
             await migration.up(client);
             await client.query(
               'INSERT INTO _migrations (name) VALUES ($1)',
-              [migration.name]
+              [migrationName]
             );
             await client.query('COMMIT');
-            console.log(`Migration ${migration.name} completed`);
+            console.log(`Migration ${migrationName} completed`);
           } catch (err) {
             await client.query('ROLLBACK');
             throw err;
