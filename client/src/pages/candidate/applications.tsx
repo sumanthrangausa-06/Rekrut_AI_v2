@@ -39,8 +39,9 @@ interface Application {
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive'; icon: typeof Clock }> = {
   applied: { label: 'Applied', variant: 'secondary', icon: FileText },
-  reviewing: { label: 'Under Review', variant: 'warning', icon: Eye },
+  screening: { label: 'Screening', variant: 'default', icon: Eye },
   shortlisted: { label: 'Shortlisted', variant: 'default', icon: CheckCircle },
+  reviewing: { label: 'Under Review', variant: 'warning', icon: Eye },
   interviewed: { label: 'Interviewed', variant: 'default', icon: Briefcase },
   offered: { label: 'Offer Received', variant: 'success', icon: DollarSign },
   hired: { label: 'Hired', variant: 'success', icon: CheckCircle },
@@ -114,7 +115,7 @@ export function CandidateApplicationsPage() {
     }
   }
 
-  const statuses = ['applied', 'reviewing', 'shortlisted', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn']
+  const statuses = ['applied', 'screening', 'shortlisted', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn']
   const statusCounts = statuses.reduce((acc, s) => {
     acc[s] = applications.filter(a => a.status === s).length
     return acc
@@ -420,13 +421,13 @@ function ScreeningAnswersSection({
 function ApplicationTimeline({ status, appliedAt, updatedAt }: { status: string; appliedAt: string; updatedAt: string }) {
   const steps = [
     { key: 'applied', label: 'Applied', icon: FileText },
-    { key: 'reviewing', label: 'Review', icon: Eye },
+    { key: 'screening', label: 'Screening', icon: Eye },
     { key: 'interviewed', label: 'Interview', icon: Briefcase },
     { key: 'offered', label: 'Offer', icon: CheckCircle },
   ]
 
   const stepIndex = {
-    applied: 0, reviewing: 1, shortlisted: 1, interviewed: 2,
+    applied: 0, screening: 1, shortlisted: 1, reviewing: 1, interviewed: 2,
     offered: 3, hired: 4, rejected: -1, withdrawn: -1,
   }[status] ?? 0
 
@@ -519,10 +520,10 @@ function ApplicationCard({
 }) {
   const config = statusConfig[app.status] || { label: app.status, variant: 'secondary' as const, icon: Clock }
 
-  // Progress steps
-  const steps = ['Applied', 'Reviewing', 'Interview', 'Offer']
+  // Progress steps (aligned with pipeline stages)
+  const steps = ['Applied', 'Screening', 'Interview', 'Offer']
   const currentStep = {
-    applied: 0, reviewing: 1, shortlisted: 1, interviewed: 2,
+    applied: 0, screening: 1, shortlisted: 1, reviewing: 1, interviewed: 2,
     offered: 3, hired: 4, rejected: -1, withdrawn: -1,
   }[app.status] ?? 0
 
