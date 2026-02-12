@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Phase 1: Codebase audit + research (NO CODE)",
+    "status": "completed",
+    "activeForm": "Auditing existing codebase and researching best practices"
+  },
+  {
+    "content": "Phase 2: Backend — batch status update + activity logging + fix metrics bug",
+    "status": "in_progress",
+    "activeForm": "Building backend pipeline improvements"
+  },
+  {
+    "content": "Phase 3: Frontend — recruiter kanban pipeline + match ranking",
+    "status": "pending",
+    "activeForm": "Building recruiter kanban pipeline view"
+  },
+  {
+    "content": "Phase 4: Frontend — candidate pipeline progress visualization",
+    "status": "pending",
+    "activeForm": "Building candidate pipeline progress UI"
+  },
+  {
+    "content": "Phase 5: E2E verification + deploy",
+    "status": "pending",
+    "activeForm": "Running E2E verification tests"
+  }
+]
