@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Phase 1: Fix DB pool size + connection timeouts",
+    "status": "completed",
+    "activeForm": "Fixing DB pool configuration"
+  },
+  {
+    "content": "Phase 2: Add 2 missing module cards to dashboard",
+    "status": "completed",
+    "activeForm": "Adding missing module cards"
+  },
+  {
+    "content": "Phase 3: Build, commit, deploy, verify",
+    "status": "in_progress",
+    "activeForm": "Building and deploying"
+  }
+]
