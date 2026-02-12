@@ -68,11 +68,13 @@ interface TokenBudgetData {
   currentDay: string
   resetAt: string
   breakdown: Record<string, number>
+  providerBreakdown: Record<string, number>
   history: Array<{
     date: string
     tokensUsed: number
     budget: number
     breakdown: Record<string, number>
+    providerBreakdown?: Record<string, number>
   }>
   routingStatus: string
 }
@@ -108,6 +110,7 @@ interface MetricsData {
   server: {
     uptime: number
     uptimeFormatted: string
+    activeConnections: number
     cpu: { usage: number; cores: number; model: string }
     memory: {
       heapUsedMB: number; rssMB: number
@@ -121,12 +124,17 @@ interface MetricsData {
     poolTotal: number
     poolIdle: number
     poolWaiting: number
+    poolUtilization: string
+    totalQueries: number
+    slowQueries: number
+    queriesPerMinute: number
     tables: Array<{ name: string; rows: number }>
   }
   api: {
     hourly: { requests: number; errors: number; errorRate: string }
     cumulative: { totalRequests: number; totalErrors: number; errorRate: string }
     latency: { p50: number; p95: number; p99: number; avg: number }
+    requestsPerMinute: number
     topEndpoints: Array<{ path: string; total: number; errors: number; errorRate: string; p50: number; p95: number; p99: number }>
   }
   users: {
@@ -134,7 +142,9 @@ interface MetricsData {
   }
   interviews: {
     total: number; completed: number; active: number; today: number
+    abandoned: number; practice: number; mock: number
   }
+  activeSessions: number
 }
 
 interface ActivityEvent {
@@ -296,6 +306,28 @@ function TokenBudgetPanel({ budget }: { budget: TokenBudgetData }) {
           </div>
         </div>
 
+        {/* Provider breakdown */}
+        {budget.providerBreakdown && Object.values(budget.providerBreakdown).some(v => v > 0) && (
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">By Provider</p>
+            <div className="flex gap-2">
+              {Object.entries(budget.providerBreakdown).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([prov, tokens]) => (
+                <div key={prov} className={cn(
+                  'flex-1 rounded-lg px-3 py-2 text-center',
+                  prov === 'openai' ? 'bg-emerald-50 border border-emerald-200' :
+                  prov === 'nim' ? 'bg-purple-50 border border-purple-200' : 'bg-muted/50',
+                )}>
+                  <p className={cn(
+                    'text-xs font-semibold uppercase',
+                    prov === 'openai' ? 'text-emerald-700' : prov === 'nim' ? 'text-purple-700' : 'text-muted-foreground',
+                  )}>{prov}</p>
+                  <p className="text-lg font-bold tabular-nums">{tokens.toLocaleString()}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Modality breakdown */}
         {breakdownEntries.length > 0 && (
           <div>
@@ -352,17 +384,74 @@ function TokenBudgetPanel({ budget }: { budget: TokenBudgetData }) {
 // ─── Metrics Overview Panel ─────────────────────────────────────────────────
 
 function MetricsOverview({ metrics }: { metrics: MetricsData }) {
+  const poolUtil = Number(metrics.database.poolUtilization || 0)
   return (
     <div className="space-y-4">
-      {/* Key stats cards */}
+      {/* Key stats cards — top row */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <StatCard icon={Timer} label="Uptime" value={metrics.server.uptimeFormatted} color="emerald" />
         <StatCard icon={Cpu} label="CPU" value={`${metrics.server.cpu.usage}%`} color={Number(metrics.server.cpu.usage) > 80 ? 'red' : 'blue'} />
-        <StatCard icon={HardDrive} label="Memory" value={`${metrics.server.memory.rssMB} MB`} color="purple" />
-        <StatCard icon={Database} label="DB Size" value={`${metrics.database.sizeMB} MB`} color="cyan" />
-        <StatCard icon={Users} label="Users" value={String(metrics.users.total)} sub={`${metrics.users.activeToday} active today`} color="blue" />
-        <StatCard icon={MessageSquare} label="Interviews" value={String(metrics.interviews.today)} sub={`${metrics.interviews.total} total`} color="green" />
+        <StatCard icon={HardDrive} label="Memory" value={`${metrics.server.memory.rssMB} MB`} sub={`${metrics.server.memory.systemUsedPct}% system`} color="purple" />
+        <StatCard icon={Database} label="DB Size" value={`${metrics.database.sizeMB} MB`} sub={`${metrics.database.totalQueries.toLocaleString()} queries`} color="cyan" />
+        <StatCard icon={Users} label="Users" value={String(metrics.users.total)} sub={`${metrics.users.candidates} cand · ${metrics.users.recruiters} rec`} color="blue" />
+        <StatCard icon={Zap} label="Active Sessions" value={String(metrics.activeSessions || 0)} sub={`${metrics.users.activeToday} active today`} color="green" />
       </div>
+
+      {/* Second row — real-time request + connection stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCard icon={Globe} label="Req/min" value={String(metrics.api.requestsPerMinute || 0)} sub={`${metrics.api.hourly.requests.toLocaleString()} /hr`} color="blue" />
+        <StatCard icon={Activity} label="HTTP Conns" value={String(metrics.server.activeConnections || 0)} color="emerald" />
+        <StatCard
+          icon={AlertCircle}
+          label="Error Rate"
+          value={`${metrics.api.hourly.errorRate}%`}
+          sub={`${metrics.api.cumulative.totalErrors} total errors`}
+          color={Number(metrics.api.hourly.errorRate) > 5 ? 'red' : 'emerald'}
+        />
+        <StatCard icon={MessageSquare} label="Interviews Today" value={String(metrics.interviews.today)} sub={`${metrics.interviews.practice} practice · ${metrics.interviews.mock} mock`} color="green" />
+      </div>
+
+      {/* Interview breakdown card */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-base">Interview Metrics</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+            <div className="rounded-lg bg-muted/50 p-3 text-center">
+              <p className="text-xs text-muted-foreground">Total</p>
+              <p className="text-xl font-bold tabular-nums">{metrics.interviews.total}</p>
+            </div>
+            <div className="rounded-lg bg-emerald-50 p-3 text-center">
+              <p className="text-xs text-emerald-600">Completed</p>
+              <p className="text-xl font-bold tabular-nums text-emerald-700">{metrics.interviews.completed}</p>
+            </div>
+            <div className="rounded-lg bg-blue-50 p-3 text-center">
+              <p className="text-xs text-blue-600">Active</p>
+              <p className="text-xl font-bold tabular-nums text-blue-700">{metrics.interviews.active}</p>
+            </div>
+            <div className="rounded-lg bg-red-50 p-3 text-center">
+              <p className="text-xs text-red-600">Abandoned</p>
+              <p className="text-xl font-bold tabular-nums text-red-700">{metrics.interviews.abandoned || 0}</p>
+            </div>
+            <div className="rounded-lg bg-indigo-50 p-3 text-center">
+              <p className="text-xs text-indigo-600">Practice</p>
+              <p className="text-xl font-bold tabular-nums text-indigo-700">{metrics.interviews.practice || 0}</p>
+            </div>
+            <div className="rounded-lg bg-purple-50 p-3 text-center">
+              <p className="text-xs text-purple-600">Mock</p>
+              <p className="text-xl font-bold tabular-nums text-purple-700">{metrics.interviews.mock || 0}</p>
+            </div>
+            <div className="rounded-lg bg-amber-50 p-3 text-center">
+              <p className="text-xs text-amber-600">Today</p>
+              <p className="text-xl font-bold tabular-nums text-amber-700">{metrics.interviews.today}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* API & DB Details */}
       <div className="grid gap-4 lg:grid-cols-2">
@@ -375,10 +464,14 @@ function MetricsOverview({ metrics }: { metrics: MetricsData }) {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="rounded-lg bg-muted/50 p-3">
                 <p className="text-xs text-muted-foreground">Requests (1h)</p>
                 <p className="text-xl font-bold tabular-nums">{metrics.api.hourly.requests.toLocaleString()}</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">Req/min</p>
+                <p className="text-xl font-bold tabular-nums">{metrics.api.requestsPerMinute || 0}</p>
               </div>
               <div className="rounded-lg bg-muted/50 p-3">
                 <p className="text-xs text-muted-foreground">Error Rate</p>
@@ -405,16 +498,21 @@ function MetricsOverview({ metrics }: { metrics: MetricsData }) {
                   <p className="text-xs text-muted-foreground">p99</p>
                   <p className="text-sm font-bold tabular-nums">{metrics.api.latency.p99}ms</p>
                 </div>
+                <div className="flex-1 rounded-lg bg-muted/50 p-2 text-center">
+                  <p className="text-xs text-muted-foreground">avg</p>
+                  <p className="text-sm font-bold tabular-nums">{metrics.api.latency.avg}ms</p>
+                </div>
               </div>
             </div>
             {metrics.api.topEndpoints.length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Top Endpoints</p>
                 <div className="space-y-1 max-h-40 overflow-y-auto">
-                  {metrics.api.topEndpoints.slice(0, 8).map((ep, i) => (
+                  {metrics.api.topEndpoints.slice(0, 10).map((ep, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs">
                       <span className="font-mono truncate flex-1 text-muted-foreground">{ep.path}</span>
                       <span className="font-semibold tabular-nums shrink-0">{ep.total}</span>
+                      <span className="text-muted-foreground tabular-nums shrink-0">{ep.p50}ms</span>
                       {Number(ep.errorRate) > 0 && (
                         <span className="text-red-500 tabular-nums shrink-0">{ep.errorRate}% err</span>
                       )}
@@ -437,16 +535,42 @@ function MetricsOverview({ metrics }: { metrics: MetricsData }) {
           <CardContent className="space-y-3">
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-xs text-muted-foreground">Active</p>
+                <p className="text-xs text-muted-foreground">DB Connections</p>
                 <p className="text-xl font-bold tabular-nums">{metrics.database.activeConnections}</p>
               </div>
               <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-xs text-muted-foreground">Pool Idle</p>
-                <p className="text-xl font-bold tabular-nums">{metrics.database.poolIdle}</p>
+                <p className="text-xs text-muted-foreground">Pool Util</p>
+                <p className={cn(
+                  'text-xl font-bold tabular-nums',
+                  poolUtil > 80 ? 'text-red-600' : poolUtil > 50 ? 'text-amber-600' : 'text-emerald-600',
+                )}>
+                  {metrics.database.poolUtilization || '0.0'}%
+                </p>
               </div>
               <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-xs text-muted-foreground">Waiting</p>
-                <p className="text-xl font-bold tabular-nums">{metrics.database.poolWaiting}</p>
+                <p className="text-xs text-muted-foreground">Queries/min</p>
+                <p className="text-xl font-bold tabular-nums">{metrics.database.queriesPerMinute || 0}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">Total Queries</p>
+                <p className="text-lg font-bold tabular-nums">{(metrics.database.totalQueries || 0).toLocaleString()}</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">Slow (&gt;200ms)</p>
+                <p className={cn(
+                  'text-lg font-bold tabular-nums',
+                  (metrics.database.slowQueries || 0) > 10 ? 'text-red-600' : 'text-emerald-600',
+                )}>
+                  {metrics.database.slowQueries || 0}
+                </p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">Pool (total/idle/wait)</p>
+                <p className="text-sm font-bold tabular-nums">
+                  {metrics.database.poolTotal}/{metrics.database.poolIdle}/{metrics.database.poolWaiting}
+                </p>
               </div>
             </div>
             {metrics.database.tables && metrics.database.tables.length > 0 && (
@@ -462,9 +586,10 @@ function MetricsOverview({ metrics }: { metrics: MetricsData }) {
                 </div>
               </div>
             )}
-            <div className="text-xs text-muted-foreground pt-2 border-t flex gap-4">
+            <div className="text-xs text-muted-foreground pt-2 border-t flex gap-4 flex-wrap">
               <span>Node: {metrics.server.platform.node}</span>
-              <span>CPU: {metrics.server.cpu.cores} cores</span>
+              <span>CPU: {metrics.server.cpu.cores} cores · {metrics.server.cpu.model?.split(' ')[0]}</span>
+              <span>Mem: {metrics.server.memory.systemUsedPct}% system</span>
             </div>
           </CardContent>
         </Card>
@@ -500,14 +625,16 @@ function StatCard({ icon: Icon, label, value, sub, color = 'blue' }: {
 
 // ─── Activity Feed Panel ────────────────────────────────────────────────────
 
-function ActivityFeed({ events, loading, onRefresh, filter, setFilter }: {
+function ActivityFeed({ events, loading, onRefresh, filter, setFilter, onDateRangeChange }: {
   events: ActivityEvent[]
   loading: boolean
   onRefresh: () => void
   filter: string
   setFilter: (f: string) => void
+  onDateRangeChange?: (startDate: string, endDate: string) => void
 }) {
   const [searchTerm, setSearchTerm] = useState('')
+  const [dateRange, setDateRange] = useState<'live' | '1h' | '24h' | '7d'>('live')
 
   const categories = ['all', 'user', 'ai', 'auth', 'system', 'error', 'recruiter', 'interview', 'onboarding']
 
@@ -516,6 +643,20 @@ function ActivityFeed({ events, loading, onRefresh, filter, setFilter }: {
     if (searchTerm && !e.event_type.includes(searchTerm) && !e.user_email?.includes(searchTerm) && !JSON.stringify(e.details).includes(searchTerm)) return false
     return true
   })
+
+  const handleDateRange = (range: typeof dateRange) => {
+    setDateRange(range)
+    if (range === 'live') {
+      onRefresh()
+      return
+    }
+    const now = new Date()
+    let startDate = new Date()
+    if (range === '1h') startDate = new Date(now.getTime() - 60 * 60 * 1000)
+    else if (range === '24h') startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    else if (range === '7d') startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    onDateRangeChange?.(startDate.toISOString(), now.toISOString())
+  }
 
   return (
     <Card>
@@ -526,10 +667,28 @@ function ActivityFeed({ events, loading, onRefresh, filter, setFilter }: {
             <CardTitle className="text-base">Live Activity Feed</CardTitle>
             <span className="text-xs text-muted-foreground">({filtered.length} events)</span>
           </div>
-          <Button variant="outline" size="sm" onClick={onRefresh} className="gap-1.5">
-            <RefreshCw className={cn('h-3 w-3', loading && 'animate-spin')} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="flex gap-0.5 bg-muted rounded-md p-0.5">
+              {(['live', '1h', '24h', '7d'] as const).map(range => (
+                <button
+                  key={range}
+                  onClick={() => handleDateRange(range)}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-medium transition-colors',
+                    dateRange === range
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {range === 'live' ? '⚡ Live' : range}
+                </button>
+              ))}
+            </div>
+            <Button variant="outline" size="sm" onClick={onRefresh} className="gap-1.5">
+              <RefreshCw className={cn('h-3 w-3', loading && 'animate-spin')} />
+              Refresh
+            </Button>
+          </div>
         </div>
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-2 mt-2">
@@ -998,10 +1157,19 @@ export function AiHealthPage() {
     }
   }, [])
 
-  const fetchActivity = useCallback(async () => {
+  const fetchActivity = useCallback(async (startDate?: string, endDate?: string) => {
     setActivityLoading(true)
     try {
-      const res = await fetch('/api/admin/activity?realtime=true&limit=100', { credentials: 'include' })
+      const params = new URLSearchParams()
+      if (startDate && endDate) {
+        params.set('start_date', startDate)
+        params.set('end_date', endDate)
+        params.set('limit', '200')
+      } else {
+        params.set('realtime', 'true')
+        params.set('limit', '100')
+      }
+      const res = await fetch(`/api/admin/activity?${params}`, { credentials: 'include' })
       if (res.ok) {
         const json = await res.json()
         setActivity(json.events || [])
@@ -1024,7 +1192,7 @@ export function AiHealthPage() {
       fetchHealth()
       fetchMetrics()
     }, 30000)
-    const activityInterval = setInterval(fetchActivity, 10000)
+    const activityInterval = setInterval(() => fetchActivity(), 10000)
 
     return () => {
       clearInterval(healthInterval)
@@ -1214,9 +1382,10 @@ export function AiHealthPage() {
           <ActivityFeed
             events={activity}
             loading={activityLoading}
-            onRefresh={fetchActivity}
+            onRefresh={() => fetchActivity()}
             filter={activityFilter}
             setFilter={setActivityFilter}
+            onDateRangeChange={(start, end) => fetchActivity(start, end)}
           />
         )}
 

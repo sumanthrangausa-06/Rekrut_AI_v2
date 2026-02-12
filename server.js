@@ -219,6 +219,14 @@ if (useReactApp) {
   });
 }
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Rekrut AI running on port ${PORT}`);
 });
+
+// Wire up active HTTP connection tracking for the metrics dashboard
+try {
+  const { setHttpServer } = require('./lib/metrics-collector');
+  setHttpServer(server);
+} catch (err) {
+  console.warn('[server] Could not wire HTTP connection tracking:', err.message);
+}
