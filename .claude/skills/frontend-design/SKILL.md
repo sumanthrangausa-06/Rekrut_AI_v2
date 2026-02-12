@@ -1,3 +1,8 @@
+---
+name: frontend-design
+description: "Design distinctive user-facing interfaces and avoid generic AI-generated visual patterns."
+---
+
 # Frontend Design Skill
 
 Use this when building any user-facing UI — landing pages, dashboards, apps.

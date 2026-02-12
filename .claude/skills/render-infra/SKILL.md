@@ -1,3 +1,8 @@
+---
+name: render-infra
+description: "Apply Render-specific deployment requirements for Polsia apps, including /health checks and migration strategy."
+---
+
 # Render Infrastructure
 
 Polsia apps deploy to Render. This skill covers platform-specific requirements.

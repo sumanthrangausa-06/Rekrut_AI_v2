@@ -1,3 +1,8 @@
+---
+name: email-proxy
+description: "Send and receive emails through Polsia's authenticated email proxy endpoints."
+---
+
 # Email Proxy
 
 Send and receive emails using Polsia's email proxy. Every company gets `{slug}@polsia.app`.

@@ -1,3 +1,8 @@
+---
+name: r2-proxy
+description: "Upload and manage files through Polsia's Cloudflare R2 proxy with authenticated API requests."
+---
+
 # R2 Proxy - File Storage
 
 Upload and manage files using Polsia's R2 storage proxy. Files are stored in Cloudflare R2 with automatic CDN delivery.

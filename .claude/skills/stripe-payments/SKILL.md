@@ -1,3 +1,8 @@
+---
+name: stripe-payments
+description: "Use Polsia's Stripe integration to create payment links and verify checkout payments without custom webhook setup."
+---
+
 # Stripe Payments
 
 Accept payments using Polsia's Stripe integration. No SDK installation or webhook setup needed.
