@@ -45,16 +45,19 @@ interface Job {
   application_count?: number
 }
 
-const statuses = ['applied', 'reviewing', 'shortlisted', 'interviewed', 'offered', 'hired', 'rejected']
+// Aligned with backend PIPELINE_STAGES
+const statuses = ['applied', 'screening', 'shortlisted', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn']
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' }> = {
   applied: { label: 'New', variant: 'secondary' },
-  reviewing: { label: 'Reviewing', variant: 'warning' },
+  screening: { label: 'Screening', variant: 'default' },
   shortlisted: { label: 'Shortlisted', variant: 'default' },
+  reviewing: { label: 'Reviewing', variant: 'warning' },
   interviewed: { label: 'Interviewed', variant: 'default' },
   offered: { label: 'Offered', variant: 'success' },
   hired: { label: 'Hired', variant: 'success' },
   rejected: { label: 'Rejected', variant: 'destructive' },
+  withdrawn: { label: 'Withdrawn', variant: 'secondary' },
 }
 
 type SortField = 'applied_at' | 'candidate_name' | 'match_score'
