@@ -1,0 +1,184 @@
+     1→import { useEffect, useState } from 'react'
+     2→import { Link } from 'react-router-dom'
+     3→import { apiCall } from '@/lib/api'
+     4→import { Card, CardContent } from '@/components/ui/card'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Select } from '@/components/ui/select'
+     9→import {
+    10→  Briefcase, MapPin, DollarSign, Clock, Search, Building2, ArrowRight,
+    11→} from 'lucide-react'
+    12→
+    13→interface Job {
+    14→  id: number
+    15→  title: string
+    16→  company: string
+    17→  poster_company?: string
+    18→  description: string
+    19→  requirements: string
+    20→  location: string
+    21→  salary_range: string
+    22→  job_type: string
+    23→  status: string
+    24→  created_at: string
+    25→  screening_questions?: string
+    26→}
+    27→
+    28→export function CandidateJobsPage() {
+    29→  const [jobs, setJobs] = useState<Job[]>([])
+    30→  const [loading, setLoading] = useState(true)
+    31→  const [search, setSearch] = useState('')
+    32→  const [typeFilter, setTypeFilter] = useState('')
+    33→  const [locationFilter, setLocationFilter] = useState('')
+    34→
+    35→  useEffect(() => {
+    36→    loadJobs()
+    37→  }, [])
+    38→
+    39→  async function loadJobs() {
+    40→    try {
+    41→      const data = await apiCall<{ jobs: Job[] }>('/jobs?status=active&limit=100')
+    42→      setJobs(data.jobs || [])
+    43→    } catch {
+    44→      // silent
+    45→    } finally {
+    46→      setLoading(false)
+    47→    }
+    48→  }
+    49→
+    50→  const filtered = jobs.filter(j => {
+    51→    const matchSearch = !search ||
+    52→      j.title?.toLowerCase().includes(search.toLowerCase()) ||
+    53→      j.company?.toLowerCase().includes(search.toLowerCase()) ||
+    54→      j.description?.toLowerCase().includes(search.toLowerCase())
+    55→    const matchType = !typeFilter || j.job_type === typeFilter
+    56→    const matchLocation = !locationFilter || j.location?.toLowerCase().includes(locationFilter.toLowerCase())
+    57→    return matchSearch && matchType && matchLocation
+    58→  })
+    59→
+    60→  const jobTypes = [...new Set(jobs.map(j => j.job_type).filter(Boolean))]
+    61→
+    62→  function timeAgo(dateStr: string) {
+    63→    const diff = Date.now() - new Date(dateStr).getTime()
+    64→    const days = Math.floor(diff / 86400000)
+    65→    if (days === 0) return 'Today'
+    66→    if (days === 1) return '1 day ago'
+    67→    if (days < 30) return `${days} days ago`
+    68→    return `${Math.floor(days / 30)} months ago`
+    69→  }
+    70→
+    71→  return (
+    72→    <div className="space-y-6">
+    73→      <div>
+    74→        <h1 className="font-heading text-2xl font-bold">Job Board</h1>
+    75→        <p className="text-muted-foreground">Find your next opportunity</p>
+    76→      </div>
+    77→
+    78→      {/* Filters */}
+    79→      <Card>
+    80→        <CardContent className="p-4">
+    81→          <div className="flex flex-col gap-3 sm:flex-row">
+    82→            <div className="relative flex-1">
+    83→              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    84→              <Input
+    85→                placeholder="Search jobs by title, company, or keywords..."
+    86→                value={search}
+    87→                onChange={e => setSearch(e.target.value)}
+    88→                className="pl-9"
+    89→              />
+    90→            </div>
+    91→            <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="sm:w-40">
+    92→              <option value="">All Types</option>
+    93→              {jobTypes.map(t => <option key={t} value={t}>{t}</option>)}
+    94→            </Select>
+    95→            <Input
+    96→              placeholder="Location..."
+    97→              value={locationFilter}
+    98→              onChange={e => setLocationFilter(e.target.value)}
+    99→              className="sm:w-40"
+   100→            />
+   101→          </div>
+   102→        </CardContent>
+   103→      </Card>
+   104→
+   105→      {/* Results count */}
+   106→      <p className="text-sm text-muted-foreground">{filtered.length} jobs found</p>
+   107→
+   108→      {/* Job list */}
+   109→      {loading ? (
+   110→        <div className="flex items-center justify-center py-16">
+   111→          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+   112→        </div>
+   113→      ) : filtered.length === 0 ? (
+   114→        <Card>
+   115→          <CardContent className="py-16 text-center">
+   116→            <Briefcase className="mx-auto mb-3 h-10 w-10 opacity-30" />
+   117→            <p className="text-muted-foreground">No jobs found matching your criteria</p>
+   118→          </CardContent>
+   119→        </Card>
+   120→      ) : (
+   121→        <div className="space-y-3">
+   122→          {filtered.map(job => (
+   123→            <Link key={job.id} to={`/candidate/jobs/${job.id}`}>
+   124→              <Card className="transition-shadow hover:shadow-md cursor-pointer">
+   125→                <CardContent className="p-5">
+   126→                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+   127→                    <div className="min-w-0 flex-1">
+   128→                      <div className="flex items-center gap-2 mb-1">
+   129→                        <h3 className="font-semibold text-base truncate">{job.title}</h3>
+   130→                        {(() => {
+   131→                          try {
+   132→                            return job.screening_questions && JSON.parse(job.screening_questions).length > 0
+   133→                          } catch { return false }
+   134→                        })() && (
+   135→                          <Badge variant="outline" className="text-[10px] shrink-0">Screening</Badge>
+   136→                        )}
+   137→                      </div>
+   138→                      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-2">
+   139→                        <span className="flex items-center gap-1">
+   140→                          <Building2 className="h-3.5 w-3.5" />
+   141→                          {job.company || job.poster_company || 'Company'}
+   142→                        </span>
+   143→                        {job.location && (
+   144→                          <span className="flex items-center gap-1">
+   145→                            <MapPin className="h-3.5 w-3.5" />
+   146→                            {job.location}
+   147→                          </span>
+   148→                        )}
+   149→                        {job.salary_range && (
+   150→                          <span className="flex items-center gap-1">
+   151→                            <DollarSign className="h-3.5 w-3.5" />
+   152→                            {job.salary_range}
+   153→                          </span>
+   154→                        )}
+   155→                      </div>
+   156→                      <p className="text-sm text-muted-foreground line-clamp-2">
+   157→                        {job.description?.substring(0, 200)}
+   158→                      </p>
+   159→                    </div>
+   160→                    <div className="flex items-center gap-2 shrink-0">
+   161→                      <div className="flex flex-col items-end gap-1">
+   162→                        {job.job_type && <Badge variant="secondary">{job.job_type}</Badge>}
+   163→                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+   164→                          <Clock className="h-3 w-3" />
+   165→                          {timeAgo(job.created_at)}
+   166→                        </span>
+   167→                      </div>
+   168→                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
+   169→                    </div>
+   170→                  </div>
+   171→                </CardContent>
+   172→              </Card>
+   173→            </Link>
+   174→          ))}
+   175→        </div>
+   176→      )}
+   177→    </div>
+   178→  )
+   179→}
+   180→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

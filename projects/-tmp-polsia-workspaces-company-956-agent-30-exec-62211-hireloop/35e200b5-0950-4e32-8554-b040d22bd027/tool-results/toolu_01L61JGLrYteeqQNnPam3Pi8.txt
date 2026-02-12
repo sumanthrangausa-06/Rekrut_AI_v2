@@ -1,0 +1,390 @@
+     1→import { useEffect, useState } from 'react'
+     2→import { useParams, useNavigate } from 'react-router-dom'
+     3→import { apiCall } from '@/lib/api'
+     4→import { useAuth } from '@/contexts/auth-context'
+     5→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+     6→import { Button } from '@/components/ui/button'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Textarea } from '@/components/ui/textarea'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Label } from '@/components/ui/label'
+    11→import { Select } from '@/components/ui/select'
+    12→import {
+    13→  ArrowLeft, MapPin, DollarSign, Building2, Clock, Briefcase, Send,
+    14→  CheckCircle, AlertCircle, FileText, ListChecks,
+    15→} from 'lucide-react'
+    16→
+    17→interface Job {
+    18→  id: number
+    19→  title: string
+    20→  company: string
+    21→  poster_company?: string
+    22→  poster_name?: string
+    23→  description: string
+    24→  requirements: string
+    25→  location: string
+    26→  salary_range: string
+    27→  job_type: string
+    28→  screening_questions?: string | ScreeningQuestion[]
+    29→  created_at: string
+    30→}
+    31→
+    32→interface ScreeningQuestion {
+    33→  id?: string
+    34→  question: string
+    35→  type?: 'text' | 'yes_no' | 'select'
+    36→  required?: boolean
+    37→  options?: string[]
+    38→  placeholder?: string
+    39→  category?: string
+    40→}
+    41→
+    42→export function CandidateJobDetailPage() {
+    43→  const { id } = useParams()
+    44→  const navigate = useNavigate()
+    45→  const { user } = useAuth()
+    46→  const [job, setJob] = useState<Job | null>(null)
+    47→  const [loading, setLoading] = useState(true)
+    48→  const [applying, setApplying] = useState(false)
+    49→  const [applied, setApplied] = useState(false)
+    50→  const [showApplyForm, setShowApplyForm] = useState(false)
+    51→  const [coverLetter, setCoverLetter] = useState('')
+    52→  const [screeningAnswers, setScreeningAnswers] = useState<Record<string, string>>({})
+    53→  const [errors, setErrors] = useState<Record<string, string>>({})
+    54→
+    55→  useEffect(() => {
+    56→    loadJob()
+    57→    if (user) checkIfApplied()
+    58→  }, [id, user])
+    59→
+    60→  async function loadJob() {
+    61→    try {
+    62→      const data = await apiCall<{ job: Job }>(`/jobs/${id}`)
+    63→      setJob(data.job)
+    64→    } catch {
+    65→      // silent
+    66→    } finally {
+    67→      setLoading(false)
+    68→    }
+    69→  }
+    70→
+    71→  async function checkIfApplied() {
+    72→    try {
+    73→      const data = await apiCall<{ success: boolean; applications: { job_id: number }[] }>('/candidate/applications')
+    74→      if (data.applications?.some(a => a.job_id === Number(id))) {
+    75→        setApplied(true)
+    76→      }
+    77→    } catch {
+    78→      // not critical
+    79→    }
+    80→  }
+    81→
+    82→  const screeningQuestions: ScreeningQuestion[] = (() => {
+    83→    if (!job?.screening_questions) return []
+    84→    try {
+    85→      const raw = typeof job.screening_questions === 'string'
+    86→        ? JSON.parse(job.screening_questions)
+    87→        : job.screening_questions
+    88→      return Array.isArray(raw) ? raw : []
+    89→    } catch {
+    90→      return []
+    91→    }
+    92→  })()
+    93→
+    94→  function validateForm(): boolean {
+    95→    const newErrors: Record<string, string> = {}
+    96→    screeningQuestions.forEach((q, i) => {
+    97→      const key = q.id || `q${i}`
+    98→      if (q.required && !screeningAnswers[key]?.trim()) {
+    99→        newErrors[key] = 'This question is required'
+   100→      }
+   101→    })
+   102→    setErrors(newErrors)
+   103→    return Object.keys(newErrors).length === 0
+   104→  }
+   105→
+   106→  async function handleApply() {
+   107→    if (!job) return
+   108→    if (!validateForm()) return
+   109→
+   110→    setApplying(true)
+   111→    try {
+   112→      await apiCall(`/candidate/jobs/${job.id}/apply`, {
+   113→        method: 'POST',
+   114→        body: {
+   115→          cover_letter: coverLetter,
+   116→          screening_answers: screeningAnswers,
+   117→        },
+   118→      })
+   119→      setApplied(true)
+   120→      setShowApplyForm(false)
+   121→    } catch (err: unknown) {
+   122→      alert(err instanceof Error ? err.message : 'Failed to apply')
+   123→    } finally {
+   124→      setApplying(false)
+   125→    }
+   126→  }
+   127→
+   128→  function updateAnswer(key: string, value: string) {
+   129→    setScreeningAnswers(prev => ({ ...prev, [key]: value }))
+   130→    if (errors[key]) {
+   131→      setErrors(prev => {
+   132→        const next = { ...prev }
+   133→        delete next[key]
+   134→        return next
+   135→      })
+   136→    }
+   137→  }
+   138→
+   139→  function renderScreeningInput(q: ScreeningQuestion, index: number) {
+   140→    const key = q.id || `q${index}`
+   141→    const value = screeningAnswers[key] || ''
+   142→    const error = errors[key]
+   143→    const type = q.type || 'text'
+   144→
+   145→    if (type === 'yes_no') {
+   146→      return (
+   147→        <div className="space-y-1">
+   148→          <div className="flex gap-2 mt-1">
+   149→            <Button
+   150→              type="button"
+   151→              variant={value === 'Yes' ? 'default' : 'outline'}
+   152→              size="sm"
+   153→              onClick={() => updateAnswer(key, 'Yes')}
+   154→              className="flex-1"
+   155→            >
+   156→              Yes
+   157→            </Button>
+   158→            <Button
+   159→              type="button"
+   160→              variant={value === 'No' ? 'default' : 'outline'}
+   161→              size="sm"
+   162→              onClick={() => updateAnswer(key, 'No')}
+   163→              className="flex-1"
+   164→            >
+   165→              No
+   166→            </Button>
+   167→          </div>
+   168→          {error && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{error}</p>}
+   169→        </div>
+   170→      )
+   171→    }
+   172→
+   173→    if (type === 'select' && q.options?.length) {
+   174→      return (
+   175→        <div className="space-y-1">
+   176→          <Select
+   177→            value={value}
+   178→            onChange={e => updateAnswer(key, e.target.value)}
+   179→            className="mt-1"
+   180→          >
+   181→            <option value="">Select an option...</option>
+   182→            {q.options.map(opt => (
+   183→              <option key={opt} value={opt}>{opt}</option>
+   184→            ))}
+   185→          </Select>
+   186→          {error && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{error}</p>}
+   187→        </div>
+   188→      )
+   189→    }
+   190→
+   191→    // Default: text input
+   192→    return (
+   193→      <div className="space-y-1">
+   194→        <Input
+   195→          value={value}
+   196→          onChange={e => updateAnswer(key, e.target.value)}
+   197→          className="mt-1"
+   198→          placeholder={q.placeholder || 'Your answer...'}
+   199→        />
+   200→        {error && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{error}</p>}
+   201→      </div>
+   202→    )
+   203→  }
+   204→
+   205→  function timeAgo(dateStr: string) {
+   206→    const diff = Date.now() - new Date(dateStr).getTime()
+   207→    const days = Math.floor(diff / 86400000)
+   208→    if (days === 0) return 'Today'
+   209→    if (days === 1) return '1 day ago'
+   210→    if (days < 30) return `${days} days ago`
+   211→    return `${Math.floor(days / 30)} months ago`
+   212→  }
+   213→
+   214→  if (loading) {
+   215→    return (
+   216→      <div className="flex items-center justify-center py-16">
+   217→        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+   218→      </div>
+   219→    )
+   220→  }
+   221→
+   222→  if (!job) {
+   223→    return (
+   224→      <div className="py-16 text-center">
+   225→        <Briefcase className="mx-auto mb-3 h-10 w-10 opacity-30" />
+   226→        <p className="text-muted-foreground">Job not found</p>
+   227→        <Button variant="ghost" className="mt-4" onClick={() => navigate('/candidate/jobs')}>
+   228→          Back to jobs
+   229→        </Button>
+   230→      </div>
+   231→    )
+   232→  }
+   233→
+   234→  return (
+   235→    <div className="space-y-6 max-w-3xl">
+   236→      <Button variant="ghost" size="sm" onClick={() => navigate('/candidate/jobs')} className="gap-1">
+   237→        <ArrowLeft className="h-4 w-4" /> Back to jobs
+   238→      </Button>
+   239→
+   240→      {/* Job header */}
+   241→      <Card>
+   242→        <CardContent className="p-6">
+   243→          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+   244→            <div>
+   245→              <h1 className="font-heading text-2xl font-bold mb-2">{job.title}</h1>
+   246→              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+   247→                <span className="flex items-center gap-1">
+   248→                  <Building2 className="h-4 w-4" />
+   249→                  {job.company || job.poster_company || 'Company'}
+   250→                </span>
+   251→                {job.location && (
+   252→                  <span className="flex items-center gap-1">
+   253→                    <MapPin className="h-4 w-4" />
+   254→                    {job.location}
+   255→                  </span>
+   256→                )}
+   257→                {job.salary_range && (
+   258→                  <span className="flex items-center gap-1">
+   259→                    <DollarSign className="h-4 w-4" />
+   260→                    {job.salary_range}
+   261→                  </span>
+   262→                )}
+   263→                {job.job_type && (
+   264→                  <Badge variant="secondary">{job.job_type}</Badge>
+   265→                )}
+   266→                <span className="flex items-center gap-1 text-xs">
+   267→                  <Clock className="h-3 w-3" />
+   268→                  Posted {timeAgo(job.created_at)}
+   269→                </span>
+   270→              </div>
+   271→            </div>
+   272→            {applied ? (
+   273→              <Badge variant="success" className="gap-1 text-sm py-1.5 px-3 shrink-0">
+   274→                <CheckCircle className="h-3.5 w-3.5" /> Applied
+   275→              </Badge>
+   276→            ) : user ? (
+   277→              <Button onClick={() => setShowApplyForm(!showApplyForm)} className="gap-2 shrink-0">
+   278→                <Send className="h-4 w-4" /> Apply Now
+   279→              </Button>
+   280→            ) : (
+   281→              <Button onClick={() => navigate('/login')} className="gap-2 shrink-0">
+   282→                Sign in to Apply
+   283→              </Button>
+   284→            )}
+   285→          </div>
+   286→        </CardContent>
+   287→      </Card>
+   288→
+   289→      {/* Apply form */}
+   290→      {showApplyForm && !applied && (
+   291→        <Card className="border-primary/30 shadow-lg">
+   292→          <CardHeader>
+   293→            <CardTitle className="flex items-center gap-2">
+   294→              <Send className="h-5 w-5" />
+   295→              Apply for {job.title}
+   296→            </CardTitle>
+   297→          </CardHeader>
+   298→          <CardContent className="space-y-5">
+   299→            <div>
+   300→              <Label>Cover Letter <span className="text-muted-foreground text-xs">(optional)</span></Label>
+   301→              <Textarea
+   302→                placeholder="Tell the employer why you're a great fit for this role..."
+   303→                value={coverLetter}
+   304→                onChange={e => setCoverLetter(e.target.value)}
+   305→                rows={4}
+   306→                className="mt-1"
+   307→              />
+   308→            </div>
+   309→
+   310→            {screeningQuestions.length > 0 && (
+   311→              <div className="space-y-4">
+   312→                <div className="flex items-center gap-2">
+   313→                  <ListChecks className="h-4 w-4 text-primary" />
+   314→                  <h4 className="font-medium text-sm">Pre-screening Questions</h4>
+   315→                </div>
+   316→                {screeningQuestions.map((q, i) => (
+   317→                  <div key={q.id || i} className="rounded-lg border p-4 space-y-1">
+   318→                    <Label className="text-sm font-medium">
+   319→                      {q.question || (typeof q === 'string' ? String(q) : '')}
+   320→                      {q.required && <span className="text-destructive ml-1">*</span>}
+   321→                    </Label>
+   322→                    {q.category && (
+   323→                      <p className="text-xs text-muted-foreground capitalize">{q.category.replace(/_/g, ' ')}</p>
+   324→                    )}
+   325→                    {renderScreeningInput(q, i)}
+   326→                  </div>
+   327→                ))}
+   328→              </div>
+   329→            )}
+   330→
+   331→            <div className="flex gap-2 pt-2 border-t">
+   332→              <Button onClick={handleApply} disabled={applying} className="gap-2">
+   333→                {applying ? (
+   334→                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+   335→                ) : (
+   336→                  <Send className="h-4 w-4" />
+   337→                )}
+   338→                Submit Application
+   339→              </Button>
+   340→              <Button variant="outline" onClick={() => setShowApplyForm(false)}>Cancel</Button>
+   341→            </div>
+   342→          </CardContent>
+   343→        </Card>
+   344→      )}
+   345→
+   346→      {/* Description */}
+   347→      <Card>
+   348→        <CardHeader>
+   349→          <CardTitle className="flex items-center gap-2">
+   350→            <Briefcase className="h-5 w-5" /> Job Description
+   351→          </CardTitle>
+   352→        </CardHeader>
+   353→        <CardContent>
+   354→          <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed">
+   355→            {job.description || 'No description provided.'}
+   356→          </div>
+   357→        </CardContent>
+   358→      </Card>
+   359→
+   360→      {/* Requirements */}
+   361→      {job.requirements && (
+   362→        <Card>
+   363→          <CardHeader>
+   364→            <CardTitle className="flex items-center gap-2">
+   365→              <FileText className="h-5 w-5" /> Requirements
+   366→            </CardTitle>
+   367→          </CardHeader>
+   368→          <CardContent>
+   369→            <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed">
+   370→              {job.requirements}
+   371→            </div>
+   372→          </CardContent>
+   373→        </Card>
+   374→      )}
+   375→
+   376→      {/* Screening info */}
+   377→      {screeningQuestions.length > 0 && !showApplyForm && !applied && (
+   378→        <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground flex items-center gap-2">
+   379→          <ListChecks className="h-4 w-4 shrink-0" />
+   380→          This job has {screeningQuestions.length} pre-screening question{screeningQuestions.length > 1 ? 's' : ''} you'll need to answer when applying.
+   381→        </div>
+   382→      )}
+   383→    </div>
+   384→  )
+   385→}
+   386→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

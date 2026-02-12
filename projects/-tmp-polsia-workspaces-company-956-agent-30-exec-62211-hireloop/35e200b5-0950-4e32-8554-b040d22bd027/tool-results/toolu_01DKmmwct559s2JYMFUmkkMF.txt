@@ -1,0 +1,104 @@
+     1→// Matching & Ranking Engine Migration
+     2→// Adds vector embeddings and matching infrastructure for intelligent job-candidate matching
+     3→
+     4→module.exports = {
+     5→  name: '008_matching_engine',
+     6→  up: async (client) => {
+     7→    // Enable pgvector extension for vector similarity search
+     8→    await client.query(`CREATE EXTENSION IF NOT EXISTS vector`);
+     9→
+    10→    // Candidate embeddings - semantic representation of candidate profiles
+    11→    await client.query(`
+    12→      CREATE TABLE IF NOT EXISTS candidate_embeddings (
+    13→        id SERIAL PRIMARY KEY,
+    14→        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+    15→        embedding vector(1536),
+    16→        profile_text TEXT,
+    17→        skills_summary TEXT,
+    18→        experience_summary TEXT,
+    19→        last_updated TIMESTAMP DEFAULT NOW(),
+    20→        created_at TIMESTAMP DEFAULT NOW()
+    21→      )
+    22→    `);
+    23→
+    24→    // Job embeddings - semantic representation of job postings
+    25→    await client.query(`
+    26→      CREATE TABLE IF NOT EXISTS job_embeddings (
+    27→        id SERIAL PRIMARY KEY,
+    28→        job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE UNIQUE,
+    29→        embedding vector(1536),
+    30→        job_text TEXT,
+    31→        requirements_summary TEXT,
+    32→        last_updated TIMESTAMP DEFAULT NOW(),
+    33→        created_at TIMESTAMP DEFAULT NOW()
+    34→      )
+    35→    `);
+    36→
+    37→    // Match results - cached matching scores with explanations
+    38→    await client.query(`
+    39→      CREATE TABLE IF NOT EXISTS match_results (
+    40→        id SERIAL PRIMARY KEY,
+    41→        candidate_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    42→        job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
+    43→        similarity_score DECIMAL(5,4),
+    44→        weighted_score DECIMAL(5,2),
+    45→        omniscore_at_match INTEGER,
+    46→        trustscore_at_match INTEGER,
+    47→        matching_skills JSONB DEFAULT '[]',
+    48→        missing_skills JSONB DEFAULT '[]',
+    49→        match_explanation JSONB,
+    50→        match_level VARCHAR(50),
+    51→        calculated_at TIMESTAMP DEFAULT NOW(),
+    52→        UNIQUE(candidate_id, job_id)
+    53→      )
+    54→    `);
+    55→
+    56→    // Job recommendations - personalized job feed for candidates
+    57→    await client.query(`
+    58→      CREATE TABLE IF NOT EXISTS job_recommendations (
+    59→        id SERIAL PRIMARY KEY,
+    60→        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    61→        job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
+    62→        match_score DECIMAL(5,2),
+    63→        recommendation_reason TEXT,
+    64→        shown_at TIMESTAMP,
+    65→        clicked_at TIMESTAMP,
+    66→        applied_at TIMESTAMP,
+    67→        dismissed_at TIMESTAMP,
+    68→        created_at TIMESTAMP DEFAULT NOW(),
+    69→        UNIQUE(user_id, job_id)
+    70→      )
+    71→    `);
+    72→
+    73→    // Create indexes for performance
+    74→    await client.query(`
+    75→      CREATE INDEX IF NOT EXISTS idx_candidate_embeddings_user ON candidate_embeddings(user_id);
+    76→      CREATE INDEX IF NOT EXISTS idx_job_embeddings_job ON job_embeddings(job_id);
+    77→      CREATE INDEX IF NOT EXISTS idx_match_results_candidate ON match_results(candidate_id);
+    78→      CREATE INDEX IF NOT EXISTS idx_match_results_job ON match_results(job_id);
+    79→      CREATE INDEX IF NOT EXISTS idx_match_results_score ON match_results(weighted_score DESC);
+    80→      CREATE INDEX IF NOT EXISTS idx_job_recommendations_user ON job_recommendations(user_id);
+    81→      CREATE INDEX IF NOT EXISTS idx_job_recommendations_score ON job_recommendations(match_score DESC);
+    82→    `);
+    83→
+    84→    // Create vector similarity index (IVFFlat for faster similarity search)
+    85→    await client.query(`
+    86→      CREATE INDEX IF NOT EXISTS idx_candidate_embeddings_vector
+    87→      ON candidate_embeddings USING ivfflat (embedding vector_cosine_ops)
+    88→      WITH (lists = 100)
+    89→    `);
+    90→
+    91→    await client.query(`
+    92→      CREATE INDEX IF NOT EXISTS idx_job_embeddings_vector
+    93→      ON job_embeddings USING ivfflat (embedding vector_cosine_ops)
+    94→      WITH (lists = 100)
+    95→    `);
+    96→
+    97→    console.log('Matching engine tables created successfully');
+    98→  }
+    99→};
+   100→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

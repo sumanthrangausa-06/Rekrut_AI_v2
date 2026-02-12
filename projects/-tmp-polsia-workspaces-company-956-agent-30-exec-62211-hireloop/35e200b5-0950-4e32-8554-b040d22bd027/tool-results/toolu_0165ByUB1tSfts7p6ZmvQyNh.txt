@@ -1,0 +1,804 @@
+     1→import { useEffect, useState } from 'react'
+     2→import { useSearchParams, useNavigate } from 'react-router-dom'
+     3→import { apiCall } from '@/lib/api'
+     4→import { Card, CardContent } from '@/components/ui/card'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Badge } from '@/components/ui/badge'
+     7→import { Select } from '@/components/ui/select'
+     8→import { Input } from '@/components/ui/input'
+     9→import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    10→import { Textarea } from '@/components/ui/textarea'
+    11→import {
+    12→  FileText, Users, Star, Calendar, MessageSquare, Eye,
+    13→  GraduationCap, Gift, Briefcase, Filter, X, Clock,
+    14→  ClipboardList, ChevronDown, ChevronUp, ArrowUpDown,
+    15→  Brain, TrendingUp, Sparkles, Video,
+    16→} from 'lucide-react'
+    17→
+    18→interface Application {
+    19→  id: number
+    20→  candidate_id: number
+    21→  job_id: number
+    22→  status: string
+    23→  candidate_name: string
+    24→  candidate_email: string
+    25→  job_title: string
+    26→  applied_at: string
+    27→  updated_at: string
+    28→  match_score?: number
+    29→  omniscore_at_apply?: number
+    30→  current_omniscore?: number
+    31→  score_tier?: string
+    32→  cover_letter?: string
+    33→  screening_answers?: string
+    34→  screening_questions?: string
+    35→  recruiter_notes?: string
+    36→  verified_skills_count?: number
+    37→  best_interview_score?: number
+    38→  completed_interviews?: number
+    39→}
+    40→
+    41→interface Job {
+    42→  id: number
+    43→  title: string
+    44→  status: string
+    45→  application_count?: number
+    46→}
+    47→
+    48→const statuses = ['applied', 'reviewing', 'shortlisted', 'interviewed', 'offered', 'hired', 'rejected']
+    49→
+    50→const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' }> = {
+    51→  applied: { label: 'New', variant: 'secondary' },
+    52→  reviewing: { label: 'Reviewing', variant: 'warning' },
+    53→  shortlisted: { label: 'Shortlisted', variant: 'default' },
+    54→  interviewed: { label: 'Interviewed', variant: 'default' },
+    55→  offered: { label: 'Offered', variant: 'success' },
+    56→  hired: { label: 'Hired', variant: 'success' },
+    57→  rejected: { label: 'Rejected', variant: 'destructive' },
+    58→}
+    59→
+    60→type SortField = 'applied_at' | 'candidate_name' | 'match_score'
+    61→type SortDir = 'asc' | 'desc'
+    62→
+    63→export function RecruiterApplicationsPage() {
+    64→  const [searchParams, setSearchParams] = useSearchParams()
+    65→  const navigate = useNavigate()
+    66→  const [applications, setApplications] = useState<Application[]>([])
+    67→  const [jobs, setJobs] = useState<Job[]>([])
+    68→  const [loading, setLoading] = useState(true)
+    69→  const [statusFilter, setStatusFilter] = useState('')
+    70→  const [dateFrom, setDateFrom] = useState('')
+    71→  const [dateTo, setDateTo] = useState('')
+    72→  const [selected, setSelected] = useState<Application | null>(null)
+    73→  const [updating, setUpdating] = useState(false)
+    74→  const [notes, setNotes] = useState('')
+    75→  const [sortField, setSortField] = useState<SortField>('applied_at')
+    76→  const [sortDir, setSortDir] = useState<SortDir>('desc')
+    77→  const [searchQuery, setSearchQuery] = useState('')
+    78→
+    79→  const jobFilter = searchParams.get('job') || ''
+    80→
+    81→  useEffect(() => {
+    82→    loadData()
+    83→  }, [jobFilter])
+    84→
+    85→  async function loadData() {
+    86→    try {
+    87→      const [appsPromise, jobsPromise] = await Promise.allSettled([
+    88→        (async () => {
+    89→          let url = '/recruiter/applications?limit=200'
+    90→          if (jobFilter) url += `&job_id=${jobFilter}`
+    91→          return apiCall<{ applications: Application[] }>(url)
+    92→        })(),
+    93→        apiCall<{ jobs: Job[] }>('/recruiter/jobs'),
+    94→      ])
+    95→
+    96→      if (appsPromise.status === 'fulfilled') {
+    97→        setApplications(appsPromise.value.applications || [])
+    98→      }
+    99→      if (jobsPromise.status === 'fulfilled') {
+   100→        setJobs(jobsPromise.value.jobs || [])
+   101→      }
+   102→    } catch {
+   103→      // silent
+   104→    } finally {
+   105→      setLoading(false)
+   106→    }
+   107→  }
+   108→
+   109→  async function updateStatus(appId: number, newStatus: string) {
+   110→    setUpdating(true)
+   111→    try {
+   112→      await apiCall(`/recruiter/applications/${appId}`, {
+   113→        method: 'PUT',
+   114→        body: { status: newStatus, recruiter_notes: notes || undefined },
+   115→      })
+   116→      setApplications(prev =>
+   117→        prev.map(a => a.id === appId ? { ...a, status: newStatus } : a)
+   118→      )
+   119→      if (selected?.id === appId) {
+   120→        setSelected(prev => prev ? { ...prev, status: newStatus } : null)
+   121→      }
+   122→    } catch {
+   123→      // silent
+   124→    } finally {
+   125→      setUpdating(false)
+   126→    }
+   127→  }
+   128→
+   129→  async function saveNotes() {
+   130→    if (!selected) return
+   131→    setUpdating(true)
+   132→    try {
+   133→      await apiCall(`/recruiter/applications/${selected.id}`, {
+   134→        method: 'PUT',
+   135→        body: { recruiter_notes: notes },
+   136→      })
+   137→      setApplications(prev =>
+   138→        prev.map(a => a.id === selected.id ? { ...a, recruiter_notes: notes } : a)
+   139→      )
+   140→    } catch {
+   141→      // silent
+   142→    } finally {
+   143→      setUpdating(false)
+   144→    }
+   145→  }
+   146→
+   147→  function setJobFilter(jId: string) {
+   148→    if (jId) {
+   149→      setSearchParams({ job: jId }, { replace: true })
+   150→    } else {
+   151→      setSearchParams({}, { replace: true })
+   152→    }
+   153→  }
+   154→
+   155→  function toggleSort(field: SortField) {
+   156→    if (sortField === field) {
+   157→      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+   158→    } else {
+   159→      setSortField(field)
+   160→      setSortDir('desc')
+   161→    }
+   162→  }
+   163→
+   164→  // Apply all filters
+   165→  const filtered = applications
+   166→    .filter(a => !statusFilter || a.status === statusFilter)
+   167→    .filter(a => {
+   168→      if (!dateFrom && !dateTo) return true
+   169→      const d = new Date(a.applied_at).getTime()
+   170→      if (dateFrom && d < new Date(dateFrom).getTime()) return false
+   171→      if (dateTo && d > new Date(dateTo + 'T23:59:59').getTime()) return false
+   172→      return true
+   173→    })
+   174→    .filter(a => {
+   175→      if (!searchQuery) return true
+   176→      const q = searchQuery.toLowerCase()
+   177→      return (
+   178→        (a.candidate_name || '').toLowerCase().includes(q) ||
+   179→        (a.candidate_email || '').toLowerCase().includes(q) ||
+   180→        (a.job_title || '').toLowerCase().includes(q)
+   181→      )
+   182→    })
+   183→    .sort((a, b) => {
+   184→      let cmp = 0
+   185→      if (sortField === 'applied_at') {
+   186→        cmp = new Date(a.applied_at).getTime() - new Date(b.applied_at).getTime()
+   187→      } else if (sortField === 'candidate_name') {
+   188→        cmp = (a.candidate_name || '').localeCompare(b.candidate_name || '')
+   189→      } else if (sortField === 'match_score') {
+   190→        cmp = (a.match_score || 0) - (b.match_score || 0)
+   191→      }
+   192→      return sortDir === 'asc' ? cmp : -cmp
+   193→    })
+   194→
+   195→  // Group counts
+   196→  const statusCounts = statuses.reduce((acc, s) => {
+   197→    acc[s] = applications.filter(a => a.status === s).length
+   198→    return acc
+   199→  }, {} as Record<string, number>)
+   200→
+   201→  const selectedJob = jobs.find(j => j.id === Number(jobFilter))
+   202→  const hasActiveFilters = statusFilter || dateFrom || dateTo || searchQuery
+   203→
+   204→  function openDetail(app: Application) {
+   205→    setSelected(app)
+   206→    setNotes(app.recruiter_notes || '')
+   207→  }
+   208→
+   209→  function clearAllFilters() {
+   210→    setStatusFilter('')
+   211→    setDateFrom('')
+   212→    setDateTo('')
+   213→    setSearchQuery('')
+   214→    setJobFilter('')
+   215→  }
+   216→
+   217→  return (
+   218→    <div className="space-y-6">
+   219→      <div className="flex items-start justify-between gap-4">
+   220→        <div>
+   221→          <h1 className="font-heading text-2xl font-bold">Applications</h1>
+   222→          <p className="text-muted-foreground">
+   223→            Review and manage candidate applications
+   224→          </p>
+   225→        </div>
+   226→        {/* Job filter dropdown */}
+   227→        <div className="shrink-0 w-56">
+   228→          <Select
+   229→            value={jobFilter}
+   230→            onChange={e => setJobFilter(e.target.value)}
+   231→            className="text-sm"
+   232→          >
+   233→            <option value="">All Jobs</option>
+   234→            {jobs.map(j => (
+   235→              <option key={j.id} value={j.id}>{j.title}</option>
+   236→            ))}
+   237→          </Select>
+   238→        </div>
+   239→      </div>
+   240→
+   241→      {/* Active job filter banner */}
+   242→      {jobFilter && selectedJob && (
+   243→        <div className="flex items-center gap-2 rounded-lg bg-primary/5 border border-primary/20 px-4 py-2">
+   244→          <Briefcase className="h-4 w-4 text-primary" />
+   245→          <span className="text-sm">
+   246→            Showing applications for: <strong>{selectedJob.title}</strong>
+   247→          </span>
+   248→          <Button
+   249→            variant="ghost"
+   250→            size="sm"
+   251→            onClick={() => setJobFilter('')}
+   252→            className="ml-auto gap-1 h-7"
+   253→          >
+   254→            <X className="h-3 w-3" /> Clear
+   255→          </Button>
+   256→        </div>
+   257→      )}
+   258→
+   259→      {/* Stats */}
+   260→      <div className="grid gap-3 sm:grid-cols-4">
+   261→        <Card>
+   262→          <CardContent className="p-4 text-center">
+   263→            <p className="text-2xl font-bold">{applications.length}</p>
+   264→            <p className="text-xs text-muted-foreground">Total</p>
+   265→          </CardContent>
+   266→        </Card>
+   267→        <Card>
+   268→          <CardContent className="p-4 text-center">
+   269→            <p className="text-2xl font-bold text-blue-600">
+   270→              {applications.filter(a => a.status === 'applied').length}
+   271→            </p>
+   272→            <p className="text-xs text-muted-foreground">New</p>
+   273→          </CardContent>
+   274→        </Card>
+   275→        <Card>
+   276→          <CardContent className="p-4 text-center">
+   277→            <p className="text-2xl font-bold text-amber-600">
+   278→              {applications.filter(a => ['reviewing', 'shortlisted', 'interviewed'].includes(a.status)).length}
+   279→            </p>
+   280→            <p className="text-xs text-muted-foreground">In Pipeline</p>
+   281→          </CardContent>
+   282→        </Card>
+   283→        <Card>
+   284→          <CardContent className="p-4 text-center">
+   285→            <p className="text-2xl font-bold text-emerald-600">
+   286→              {applications.filter(a => ['offered', 'hired'].includes(a.status)).length}
+   287→            </p>
+   288→            <p className="text-xs text-muted-foreground">Offered / Hired</p>
+   289→          </CardContent>
+   290→        </Card>
+   291→      </div>
+   292→
+   293→      {/* Filters section */}
+   294→      <div className="space-y-3">
+   295→        {/* Search + Date filters row */}
+   296→        <div className="flex flex-wrap gap-3 items-end">
+   297→          <div className="flex-1 min-w-[200px]">
+   298→            <label className="text-xs font-medium text-muted-foreground mb-1 block">Search</label>
+   299→            <Input
+   300→              placeholder="Search by name, email, or job..."
+   301→              value={searchQuery}
+   302→              onChange={e => setSearchQuery(e.target.value)}
+   303→              className="text-sm"
+   304→            />
+   305→          </div>
+   306→          <div className="w-40">
+   307→            <label className="text-xs font-medium text-muted-foreground mb-1 block">From Date</label>
+   308→            <Input
+   309→              type="date"
+   310→              value={dateFrom}
+   311→              onChange={e => setDateFrom(e.target.value)}
+   312→              className="text-sm"
+   313→            />
+   314→          </div>
+   315→          <div className="w-40">
+   316→            <label className="text-xs font-medium text-muted-foreground mb-1 block">To Date</label>
+   317→            <Input
+   318→              type="date"
+   319→              value={dateTo}
+   320→              onChange={e => setDateTo(e.target.value)}
+   321→              className="text-sm"
+   322→            />
+   323→          </div>
+   324→          {hasActiveFilters && (
+   325→            <Button variant="ghost" size="sm" onClick={clearAllFilters} className="gap-1 text-muted-foreground">
+   326→              <X className="h-3 w-3" /> Clear Filters
+   327→            </Button>
+   328→          )}
+   329→        </div>
+   330→
+   331→        {/* Status filter pills */}
+   332→        <div className="flex flex-wrap gap-2">
+   333→          <Button
+   334→            variant={!statusFilter ? 'default' : 'outline'}
+   335→            size="sm"
+   336→            onClick={() => setStatusFilter('')}
+   337→          >
+   338→            All ({applications.length})
+   339→          </Button>
+   340→          {statuses.map(s => (
+   341→            statusCounts[s] > 0 && (
+   342→              <Button
+   343→                key={s}
+   344→                variant={statusFilter === s ? 'default' : 'outline'}
+   345→                size="sm"
+   346→                onClick={() => setStatusFilter(s)}
+   347→              >
+   348→                {statusConfig[s]?.label || s} ({statusCounts[s]})
+   349→              </Button>
+   350→            )
+   351→          ))}
+   352→        </div>
+   353→      </div>
+   354→
+   355→      {/* Sort controls */}
+   356→      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+   357→        <span className="font-medium">Sort:</span>
+   358→        <SortButton field="applied_at" label="Date" current={sortField} dir={sortDir} onToggle={toggleSort} />
+   359→        <SortButton field="candidate_name" label="Name" current={sortField} dir={sortDir} onToggle={toggleSort} />
+   360→        <SortButton field="match_score" label="Match" current={sortField} dir={sortDir} onToggle={toggleSort} />
+   361→        <span className="ml-auto">{filtered.length} application{filtered.length !== 1 ? 's' : ''}</span>
+   362→      </div>
+   363→
+   364→      {loading ? (
+   365→        <div className="flex items-center justify-center py-16">
+   366→          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+   367→        </div>
+   368→      ) : filtered.length === 0 ? (
+   369→        <Card>
+   370→          <CardContent className="py-16 text-center">
+   371→            <FileText className="mx-auto mb-3 h-10 w-10 opacity-30" />
+   372→            <p className="text-muted-foreground">
+   373→              {applications.length === 0 ? 'No applications yet' : 'No applications match your filters'}
+   374→            </p>
+   375→            {hasActiveFilters && (
+   376→              <Button variant="outline" size="sm" onClick={clearAllFilters} className="mt-3 gap-1">
+   377→                <X className="h-3 w-3" /> Clear Filters
+   378→              </Button>
+   379→            )}
+   380→          </CardContent>
+   381→        </Card>
+   382→      ) : (
+   383→        <div className="space-y-2">
+   384→          {filtered.map(app => {
+   385→            const config = statusConfig[app.status] || { label: app.status, variant: 'secondary' as const }
+   386→            return (
+   387→              <Card
+   388→                key={app.id}
+   389→                className="cursor-pointer transition-shadow hover:shadow-md"
+   390→                onClick={() => openDetail(app)}
+   391→              >
+   392→                <CardContent className="p-4">
+   393→                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+   394→                    <div className="min-w-0">
+   395→                      <div className="flex items-center gap-2 mb-1">
+   396→                        <h3 className="font-semibold truncate">{app.candidate_name || 'Unknown'}</h3>
+   397→                        <Badge variant={config.variant}>{config.label}</Badge>
+   398→                        {hasScreeningAnswers(app) && (
+   399→                          <Badge variant="outline" className="gap-1 text-[10px]">
+   400→                            <ClipboardList className="h-3 w-3" /> Screening
+   401→                          </Badge>
+   402→                        )}
+   403→                      </div>
+   404→                      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+   405→                        <span className="flex items-center gap-1">
+   406→                          <Briefcase className="h-3 w-3" />
+   407→                          {app.job_title}
+   408→                        </span>
+   409→                        <span>{app.candidate_email}</span>
+   410→                        <span className="flex items-center gap-1">
+   411→                          <Calendar className="h-3 w-3" />
+   412→                          {new Date(app.applied_at).toLocaleDateString()}
+   413→                        </span>
+   414→                      </div>
+   415→                    </div>
+   416→                    <div className="flex items-center gap-3 shrink-0">
+   417→                      {app.match_score && (
+   418→                        <div className="text-center">
+   419→                          <div className="text-lg font-bold text-primary">{app.match_score}%</div>
+   420→                          <div className="text-[10px] text-muted-foreground">Match</div>
+   421→                        </div>
+   422→                      )}
+   423→                      {app.verified_skills_count !== undefined && app.verified_skills_count > 0 && (
+   424→                        <Badge variant="outline" className="gap-1 text-[10px]">
+   425→                          <GraduationCap className="h-3 w-3" /> {app.verified_skills_count} verified
+   426→                        </Badge>
+   427→                      )}
+   428→                      <Select
+   429→                        value={app.status}
+   430→                        onChange={e => {
+   431→                          e.stopPropagation()
+   432→                          updateStatus(app.id, e.target.value)
+   433→                        }}
+   434→                        onClick={e => e.stopPropagation()}
+   435→                        className="w-32 text-xs"
+   436→                      >
+   437→                        {statuses.map(s => (
+   438→                          <option key={s} value={s}>{statusConfig[s]?.label || s}</option>
+   439→                        ))}
+   440→                      </Select>
+   441→                    </div>
+   442→                  </div>
+   443→                </CardContent>
+   444→              </Card>
+   445→            )
+   446→          })}
+   447→        </div>
+   448→      )}
+   449→
+   450→      {/* Application detail dialog */}
+   451→      {selected && (
+   452→        <Dialog open={true} onClose={() => setSelected(null)} className="max-w-2xl">
+   453→          <DialogHeader>
+   454→            <DialogTitle>Application: {selected.candidate_name}</DialogTitle>
+   455→          </DialogHeader>
+   456→          <div className="space-y-4">
+   457→            <div className="grid grid-cols-2 gap-3">
+   458→              <div className="rounded-lg bg-muted/50 p-3">
+   459→                <p className="text-xs text-muted-foreground">Position</p>
+   460→                <p className="font-medium">{selected.job_title}</p>
+   461→              </div>
+   462→              <div className="rounded-lg bg-muted/50 p-3">
+   463→                <p className="text-xs text-muted-foreground">Email</p>
+   464→                <p className="font-medium text-sm">{selected.candidate_email}</p>
+   465→              </div>
+   466→              <div className="rounded-lg bg-muted/50 p-3">
+   467→                <p className="text-xs text-muted-foreground">Applied</p>
+   468→                <p className="font-medium">{new Date(selected.applied_at).toLocaleDateString()}</p>
+   469→              </div>
+   470→              <div className="rounded-lg bg-muted/50 p-3">
+   471→                <p className="text-xs text-muted-foreground">Match Score</p>
+   472→                <p className="font-medium">{selected.match_score ? `${selected.match_score}%` : 'N/A'}</p>
+   473→              </div>
+   474→            </div>
+   475→
+   476→            {/* Cover letter */}
+   477→            {selected.cover_letter && (
+   478→              <div>
+   479→                <h4 className="font-medium text-sm mb-1">Cover Letter</h4>
+   480→                <div className="rounded-lg bg-muted/50 p-3 text-sm whitespace-pre-wrap max-h-40 overflow-y-auto">
+   481→                  {selected.cover_letter}
+   482→                </div>
+   483→              </div>
+   484→            )}
+   485→
+   486→            {/* Screening answers */}
+   487→            <ScreeningAnswersBlock app={selected} />
+   488→
+   489→            {/* Candidate stats */}
+   490→            <div className="flex flex-wrap gap-2">
+   491→              {selected.verified_skills_count !== undefined && selected.verified_skills_count > 0 && (
+   492→                <Badge variant="outline" className="gap-1">
+   493→                  <GraduationCap className="h-3 w-3" /> {selected.verified_skills_count} verified skills
+   494→                </Badge>
+   495→              )}
+   496→              {selected.completed_interviews !== undefined && selected.completed_interviews > 0 && (
+   497→                <Badge variant="outline" className="gap-1">
+   498→                  <MessageSquare className="h-3 w-3" /> {selected.completed_interviews} interviews done
+   499→                </Badge>
+   500→              )}
+   501→              {selected.current_omniscore && (
+   502→                <Badge variant="outline" className="gap-1">
+   503→                  <Star className="h-3 w-3" /> OmniScore: {selected.current_omniscore}
+   504→                </Badge>
+   505→              )}
+   506→            </div>
+   507→
+   508→            {/* AI Coaching History */}
+   509→            <CandidateCoachingSection candidateId={selected.candidate_id} />
+   510→
+   511→            {/* Notes */}
+   512→            <div>
+   513→              <h4 className="font-medium text-sm mb-1">Recruiter Notes</h4>
+   514→              <Textarea
+   515→                value={notes}
+   516→                onChange={e => setNotes(e.target.value)}
+   517→                placeholder="Add notes about this candidate..."
+   518→                rows={3}
+   519→              />
+   520→            </div>
+   521→
+   522→            {/* Status change + actions */}
+   523→            <div className="flex items-center gap-3 pt-2">
+   524→              <span className="text-sm font-medium">Status:</span>
+   525→              <Select
+   526→                value={selected.status}
+   527→                onChange={e => updateStatus(selected.id, e.target.value)}
+   528→                className="w-40"
+   529→                disabled={updating}
+   530→              >
+   531→                {statuses.map(s => (
+   532→                  <option key={s} value={s}>{statusConfig[s]?.label || s}</option>
+   533→                ))}
+   534→              </Select>
+   535→              <Button
+   536→                size="sm"
+   537→                variant="outline"
+   538→                onClick={() => {
+   539→                  saveNotes()
+   540→                  setSelected(null)
+   541→                }}
+   542→                disabled={updating}
+   543→              >
+   544→                Save & Close
+   545→              </Button>
+   546→            </div>
+   547→
+   548→            {/* Make Offer button */}
+   549→            {!['rejected', 'offered', 'hired'].includes(selected.status) && (
+   550→              <Button
+   551→                className="w-full gap-2"
+   552→                onClick={() => {
+   553→                  navigate(`/recruiter/offers?create=1&candidateId=${selected.candidate_id}&jobId=${selected.job_id}`)
+   554→                }}
+   555→              >
+   556→                <Gift className="h-4 w-4" /> Make Offer to {selected.candidate_name?.split(' ')[0] || 'Candidate'}
+   557→              </Button>
+   558→            )}
+   559→          </div>
+   560→        </Dialog>
+   561→      )}
+   562→    </div>
+   563→  )
+   564→}
+   565→
+   566→function hasScreeningAnswers(app: Application): boolean {
+   567→  try {
+   568→    const answers = typeof app.screening_answers === 'string'
+   569→      ? JSON.parse(app.screening_answers)
+   570→      : app.screening_answers
+   571→    return answers && Object.keys(answers).length > 0
+   572→  } catch {
+   573→    return false
+   574→  }
+   575→}
+   576→
+   577→function ScreeningAnswersBlock({ app }: { app: Application }) {
+   578→  try {
+   579→    const answers = typeof app.screening_answers === 'string'
+   580→      ? JSON.parse(app.screening_answers)
+   581→      : app.screening_answers
+   582→    const questions = app.screening_questions
+   583→      ? (typeof app.screening_questions === 'string'
+   584→        ? JSON.parse(app.screening_questions)
+   585→        : app.screening_questions)
+   586→      : []
+   587→    if (!answers || Object.keys(answers).length === 0) return null
+   588→    return (
+   589→      <div>
+   590→        <h4 className="font-medium text-sm mb-2 flex items-center gap-1.5">
+   591→          <ClipboardList className="h-4 w-4 text-primary" />
+   592→          Screening Answers
+   593→        </h4>
+   594→        <div className="space-y-2">
+   595→          {Object.entries(answers).map(([key, value], i) => {
+   596→            const q = questions[i]
+   597→            return (
+   598→              <div key={key} className="rounded-lg bg-muted/50 p-3">
+   599→                <p className="text-xs text-muted-foreground mb-1 font-medium">
+   600→                  {q?.question || q || `Question ${i + 1}`}
+   601→                </p>
+   602→                <p className="text-sm">{String(value)}</p>
+   603→              </div>
+   604→            )
+   605→          })}
+   606→        </div>
+   607→      </div>
+   608→    )
+   609→  } catch {
+   610→    return null
+   611→  }
+   612→}
+   613→
+   614→function CandidateCoachingSection({ candidateId }: { candidateId: number }) {
+   615→  const [coaching, setCoaching] = useState<any>(null)
+   616→  const [loading, setLoading] = useState(false)
+   617→  const [expanded, setExpanded] = useState(false)
+   618→  const [expandedSession, setExpandedSession] = useState<number | null>(null)
+   619→
+   620→  useEffect(() => {
+   621→    if (!candidateId) return
+   622→    setLoading(true)
+   623→    apiCall<any>(`/recruiter/candidates/${candidateId}/coaching`)
+   624→      .then(res => { if (res.success) setCoaching(res) })
+   625→      .catch(() => {})
+   626→      .finally(() => setLoading(false))
+   627→  }, [candidateId])
+   628→
+   629→  if (loading) return <div className="text-xs text-muted-foreground py-2">Loading coaching data...</div>
+   630→  if (!coaching || coaching.stats?.total_sessions === 0) return null
+   631→
+   632→  const stats = coaching.stats
+   633→  const scoreColor = (s: number) => s >= 8 ? 'text-green-600' : s >= 6 ? 'text-amber-600' : 'text-red-600'
+   634→
+   635→  return (
+   636→    <div>
+   637→      <button
+   638→        onClick={() => setExpanded(!expanded)}
+   639→        className="w-full flex items-center justify-between py-1"
+   640→      >
+   641→        <h4 className="font-medium text-sm flex items-center gap-1.5">
+   642→          <Brain className="h-4 w-4 text-primary" />
+   643→          AI Coaching History
+   644→          <Badge variant="secondary" className="text-xs ml-1">{stats.total_sessions} sessions</Badge>
+   645→        </h4>
+   646→        {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+   647→      </button>
+   648→
+   649→      {expanded && (
+   650→        <div className="mt-2 space-y-3">
+   651→          {/* Summary stats */}
+   652→          <div className="grid grid-cols-4 gap-2">
+   653→            <div className="p-2.5 rounded-lg bg-muted/50 text-center">
+   654→              <div className={`text-lg font-bold ${stats.average_score ? scoreColor(stats.average_score) : ''}`}>
+   655→                {stats.average_score ? `${Math.round(stats.average_score * 10) / 10}` : '-'}
+   656→              </div>
+   657→              <div className="text-[10px] text-muted-foreground">Avg Score</div>
+   658→            </div>
+   659→            <div className="p-2.5 rounded-lg bg-muted/50 text-center">
+   660→              <div className="text-lg font-bold">{stats.total_sessions}</div>
+   661→              <div className="text-[10px] text-muted-foreground">Sessions</div>
+   662→            </div>
+   663→            <div className="p-2.5 rounded-lg bg-muted/50 text-center">
+   664→              <div className={`text-lg font-bold ${stats.highest_score ? scoreColor(stats.highest_score) : ''}`}>
+   665→                {stats.highest_score || '-'}
+   666→              </div>
+   667→              <div className="text-[10px] text-muted-foreground">Best Score</div>
+   668→            </div>
+   669→            <div className="p-2.5 rounded-lg bg-muted/50 text-center">
+   670→              <div className={`text-lg font-bold ${
+   671→                stats.improvement_percent != null
+   672→                  ? stats.improvement_percent > 0 ? 'text-green-600' : stats.improvement_percent < 0 ? 'text-red-600' : ''
+   673→                  : ''
+   674→              }`}>
+   675→                {stats.improvement_percent != null ? `${stats.improvement_percent > 0 ? '+' : ''}${stats.improvement_percent}%` : '-'}
+   676→              </div>
+   677→              <div className="text-[10px] text-muted-foreground">Improvement</div>
+   678→            </div>
+   679→          </div>
+   680→
+   681→          {/* Category breakdown */}
+   682→          {coaching.by_category?.length > 0 && (
+   683→            <div className="space-y-1.5">
+   684→              {coaching.by_category.map((cat: any) => {
+   685→                const avg = parseFloat(cat.avg_score) || 0
+   686→                const pct = (avg / 10) * 100
+   687→                return (
+   688→                  <div key={cat.category} className="flex items-center gap-2 text-xs">
+   689→                    <span className="w-20 font-medium capitalize">{cat.category}</span>
+   690→                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+   691→                      <div
+   692→                        className={`h-full rounded-full ${avg >= 8 ? 'bg-green-500' : avg >= 6 ? 'bg-amber-500' : 'bg-red-500'}`}
+   693→                        style={{ width: `${pct}%` }}
+   694→                      />
+   695→                    </div>
+   696→                    <span className={`font-bold ${scoreColor(avg)}`}>{Math.round(avg * 10) / 10}</span>
+   697→                    <span className="text-muted-foreground">({cat.count})</span>
+   698→                  </div>
+   699→                )
+   700→              })}
+   701→            </div>
+   702→          )}
+   703→
+   704→          {/* Recent sessions */}
+   705→          <div className="space-y-1.5">
+   706→            <h5 className="text-xs font-medium text-muted-foreground">Recent Sessions</h5>
+   707→            {coaching.sessions?.slice(0, 5).map((s: any) => {
+   708→              const cd = s.coaching_data
+   709→              const isExpanded = expandedSession === s.id
+   710→              return (
+   711→                <div key={s.id} className="rounded-lg border">
+   712→                  <button
+   713→                    onClick={() => setExpandedSession(isExpanded ? null : s.id)}
+   714→                    className="w-full flex items-center gap-2 p-2.5 hover:bg-muted/30 transition-colors text-left"
+   715→                  >
+   716→                    <div className={`text-sm font-bold ${scoreColor(s.score)}`}>{s.score}/10</div>
+   717→                    <div className="flex-1 min-w-0">
+   718→                      <p className="text-xs font-medium line-clamp-1">{s.question}</p>
+   719→                      <div className="flex items-center gap-1.5 mt-0.5">
+   720→                        <Badge variant="outline" className="text-[10px]">
+   721→                          {s.response_type === 'video' ? 'Video' : 'Text'}
+   722→                        </Badge>
+   723→                        <span className="text-[10px] text-muted-foreground">{new Date(s.created_at).toLocaleDateString()}</span>
+   724→                      </div>
+   725→                    </div>
+   726→                    {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+   727→                  </button>
+   728→                  {isExpanded && cd && (
+   729→                    <div className="px-2.5 pb-2.5 space-y-2">
+   730→                      {/* Show key feedback */}
+   731→                      {(cd.content?.strengths || cd.strengths) && (
+   732→                        <div className="p-2 rounded bg-green-50 border border-green-100">
+   733→                          <h6 className="text-[10px] font-semibold text-green-800 mb-1">Strengths</h6>
+   734→                          <ul className="space-y-0.5">
+   735→                            {(cd.content?.strengths || cd.strengths || []).map((s: string, i: number) => (
+   736→                              <li key={i} className="text-[10px] text-green-700">{s}</li>
+   737→                            ))}
+   738→                          </ul>
+   739→                        </div>
+   740→                      )}
+   741→                      {(cd.content?.improvements || cd.improvements) && (
+   742→                        <div className="p-2 rounded bg-amber-50 border border-amber-100">
+   743→                          <h6 className="text-[10px] font-semibold text-amber-800 mb-1">Areas to Improve</h6>
+   744→                          <ul className="space-y-0.5">
+   745→                            {(cd.content?.improvements || cd.improvements || []).map((s: string, i: number) => (
+   746→                              <li key={i} className="text-[10px] text-amber-700">{s}</li>
+   747→                            ))}
+   748→                          </ul>
+   749→                        </div>
+   750→                      )}
+   751→                      {cd.communication && (
+   752→                        <div className="flex gap-2 text-[10px]">
+   753→                          <span className="text-muted-foreground">WPM: <strong>{cd.communication.words_per_minute}</strong></span>
+   754→                          <span className="text-muted-foreground">Fillers: <strong>{cd.communication.total_fillers}</strong></span>
+   755→                          {cd.presentation && <span className="text-muted-foreground">Presentation: <strong className={scoreColor(cd.presentation.score)}>{cd.presentation.score}/10</strong></span>}
+   756→                        </div>
+   757→                      )}
+   758→                    </div>
+   759→                  )}
+   760→                </div>
+   761→              )
+   762→            })}
+   763→          </div>
+   764→        </div>
+   765→      )}
+   766→    </div>
+   767→  )
+   768→}
+   769→
+   770→function SortButton({
+   771→  field,
+   772→  label,
+   773→  current,
+   774→  dir,
+   775→  onToggle,
+   776→}: {
+   777→  field: SortField
+   778→  label: string
+   779→  current: SortField
+   780→  dir: SortDir
+   781→  onToggle: (f: SortField) => void
+   782→}) {
+   783→  const isActive = current === field
+   784→  return (
+   785→    <button
+   786→      onClick={() => onToggle(field)}
+   787→      className={`flex items-center gap-1 px-2 py-1 rounded hover:bg-muted transition-colors ${
+   788→        isActive ? 'text-foreground font-medium' : ''
+   789→      }`}
+   790→    >
+   791→      {label}
+   792→      {isActive ? (
+   793→        dir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+   794→      ) : (
+   795→        <ArrowUpDown className="h-3 w-3 opacity-40" />
+   796→      )}
+   797→    </button>
+   798→  )
+   799→}
+   800→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
