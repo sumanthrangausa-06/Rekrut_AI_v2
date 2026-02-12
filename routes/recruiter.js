@@ -1291,4 +1291,246 @@ router.get('/question-bank', authMiddleware, requireRecruiter, async (req, res) 
   }
 });
 
+// ============= OFFER MANAGEMENT =============
+
+// Create an offer
+router.post('/offers', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const {
+      candidate_id, job_id, title, salary, start_date,
+      benefits, location, employment_type, reporting_to
+    } = req.body;
+
+    if (!candidate_id || !job_id) {
+      return res.status(400).json({ error: 'candidate_id and job_id are required' });
+    }
+
+    // Verify job belongs to company
+    const job = await pool.query(
+      'SELECT id, title, company FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+      [job_id, req.user.company_id, req.user.id]
+    );
+    if (job.rows.length === 0) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // Verify candidate has applied
+    const application = await pool.query(
+      'SELECT id FROM job_applications WHERE job_id = $1 AND candidate_id = $2',
+      [job_id, candidate_id]
+    );
+    if (application.rows.length === 0) {
+      return res.status(400).json({ error: 'Candidate has not applied to this job' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO offers (
+        candidate_id, job_id, recruiter_id, company_id,
+        title, company_name, salary, start_date,
+        benefits, location, employment_type, reporting_to,
+        status, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'draft', NOW(), NOW())
+      RETURNING *`,
+      [
+        candidate_id, job_id, req.user.id, req.user.company_id,
+        title || job.rows[0].title, req.user.company_name || job.rows[0].company,
+        salary || null, start_date || null,
+        benefits || null, location || null,
+        employment_type || 'full-time', reporting_to || null
+      ]
+    );
+
+    res.json({ success: true, offer: result.rows[0] });
+  } catch (err) {
+    console.error('Create offer error:', err);
+    res.status(500).json({ error: 'Failed to create offer' });
+  }
+});
+
+// List offers for company
+router.get('/offers', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const { status, job_id, limit = 50, offset = 0 } = req.query;
+
+    let query = `
+      SELECT o.*,
+             u.name as candidate_name, u.email as candidate_email,
+             j.title as job_title
+      FROM offers o
+      JOIN users u ON o.candidate_id = u.id
+      LEFT JOIN jobs j ON o.job_id = j.id
+      WHERE o.company_id = $1
+    `;
+    const params = [req.user.company_id];
+
+    if (status) {
+      query += ` AND o.status = $${params.length + 1}`;
+      params.push(status);
+    }
+    if (job_id) {
+      query += ` AND o.job_id = $${params.length + 1}`;
+      params.push(job_id);
+    }
+
+    query += ` ORDER BY o.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(parseInt(limit), parseInt(offset));
+
+    const result = await pool.query(query, params);
+    res.json({ success: true, offers: result.rows });
+  } catch (err) {
+    console.error('List offers error:', err);
+    res.status(500).json({ error: 'Failed to fetch offers' });
+  }
+});
+
+// Get single offer
+router.get('/offers/:id', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT o.*,
+             u.name as candidate_name, u.email as candidate_email,
+             j.title as job_title, j.description as job_description
+      FROM offers o
+      JOIN users u ON o.candidate_id = u.id
+      LEFT JOIN jobs j ON o.job_id = j.id
+      WHERE o.id = $1 AND o.company_id = $2
+    `, [req.params.id, req.user.company_id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Offer not found' });
+    }
+
+    res.json({ success: true, offer: result.rows[0] });
+  } catch (err) {
+    console.error('Get offer error:', err);
+    res.status(500).json({ error: 'Failed to fetch offer' });
+  }
+});
+
+// Update offer (edit draft or add details)
+router.put('/offers/:id', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const {
+      title, salary, start_date, benefits, location,
+      employment_type, reporting_to, offer_letter_html
+    } = req.body;
+
+    // Verify offer belongs to company
+    const existing = await pool.query(
+      'SELECT id, status FROM offers WHERE id = $1 AND company_id = $2',
+      [req.params.id, req.user.company_id]
+    );
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Offer not found' });
+    }
+
+    const result = await pool.query(
+      `UPDATE offers SET
+        title = COALESCE($1, title),
+        salary = COALESCE($2, salary),
+        start_date = COALESCE($3, start_date),
+        benefits = COALESCE($4, benefits),
+        location = COALESCE($5, location),
+        employment_type = COALESCE($6, employment_type),
+        reporting_to = COALESCE($7, reporting_to),
+        offer_letter_html = COALESCE($8, offer_letter_html),
+        offer_letter_generated_at = CASE WHEN $8 IS NOT NULL THEN NOW() ELSE offer_letter_generated_at END,
+        updated_at = NOW()
+      WHERE id = $9
+      RETURNING *`,
+      [title, salary, start_date, benefits, location,
+       employment_type, reporting_to, offer_letter_html, req.params.id]
+    );
+
+    res.json({ success: true, offer: result.rows[0] });
+  } catch (err) {
+    console.error('Update offer error:', err);
+    res.status(500).json({ error: 'Failed to update offer' });
+  }
+});
+
+// Send offer to candidate (changes status from draft to sent)
+router.put('/offers/:id/send', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const existing = await pool.query(
+      'SELECT id, status, candidate_id, job_id FROM offers WHERE id = $1 AND company_id = $2',
+      [req.params.id, req.user.company_id]
+    );
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Offer not found' });
+    }
+    if (existing.rows[0].status !== 'draft') {
+      return res.status(400).json({ error: `Cannot send offer with status: ${existing.rows[0].status}` });
+    }
+
+    const result = await pool.query(
+      `UPDATE offers SET status = 'sent', sent_at = NOW(), updated_at = NOW()
+       WHERE id = $1 RETURNING *`,
+      [req.params.id]
+    );
+
+    // Update application status to 'offered'
+    await pool.query(
+      `UPDATE job_applications SET status = 'offered', updated_at = NOW()
+       WHERE job_id = $1 AND candidate_id = $2`,
+      [existing.rows[0].job_id, existing.rows[0].candidate_id]
+    );
+
+    // Update job analytics
+    try {
+      await pool.query(
+        'UPDATE job_analytics SET offers_made = COALESCE(offers_made, 0) + 1 WHERE job_id = $1',
+        [existing.rows[0].job_id]
+      );
+    } catch (e) { /* non-critical */ }
+
+    // Audit log
+    await AuditLogger.log({
+      actionType: 'offer_sent',
+      userId: req.user.id,
+      targetType: 'offer',
+      targetId: parseInt(req.params.id),
+      metadata: {
+        candidate_id: existing.rows[0].candidate_id,
+        job_id: existing.rows[0].job_id
+      },
+      req
+    });
+
+    res.json({ success: true, offer: result.rows[0] });
+  } catch (err) {
+    console.error('Send offer error:', err);
+    res.status(500).json({ error: 'Failed to send offer' });
+  }
+});
+
+// Withdraw/cancel offer (recruiter action)
+router.put('/offers/:id/withdraw', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const { reason } = req.body;
+
+    const existing = await pool.query(
+      'SELECT id, status FROM offers WHERE id = $1 AND company_id = $2',
+      [req.params.id, req.user.company_id]
+    );
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Offer not found' });
+    }
+    if (['accepted', 'declined'].includes(existing.rows[0].status)) {
+      return res.status(400).json({ error: `Cannot withdraw an ${existing.rows[0].status} offer` });
+    }
+
+    const result = await pool.query(
+      `UPDATE offers SET status = 'withdrawn', decline_reason = $2, updated_at = NOW()
+       WHERE id = $1 RETURNING *`,
+      [req.params.id, reason || 'Withdrawn by recruiter']
+    );
+
+    res.json({ success: true, offer: result.rows[0] });
+  } catch (err) {
+    console.error('Withdraw offer error:', err);
+    res.status(500).json({ error: 'Failed to withdraw offer' });
+  }
+});
+
 module.exports = router;

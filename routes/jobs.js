@@ -4,22 +4,89 @@ const { authMiddleware, optionalAuth, requireRole } = require('../lib/auth');
 
 const router = express.Router();
 
-// List jobs (public)
+// List jobs (public) with search/filter
 router.get('/', optionalAuth, async (req, res) => {
   try {
-    const { status = 'active', limit = 20, offset = 0 } = req.query;
-    
-    const result = await pool.query(
-      `SELECT j.*, u.company_name as poster_company
-       FROM jobs j
-       LEFT JOIN users u ON j.user_id = u.id
-       WHERE j.status = $1
-       ORDER BY j.created_at DESC
-       LIMIT $2 OFFSET $3`,
-      [status, limit, offset]
-    );
+    const { status = 'active', limit = 20, offset = 0, search, location, job_type, salary_min, salary_max } = req.query;
 
-    res.json({ jobs: result.rows });
+    let query = `
+      SELECT j.*, u.company_name as poster_company
+      FROM jobs j
+      LEFT JOIN users u ON j.user_id = u.id
+      WHERE j.status = $1
+    `;
+    const params = [status];
+    let idx = 2;
+
+    // Text search across title, company, description, requirements
+    if (search && search.trim()) {
+      query += ` AND (
+        j.title ILIKE $${idx} OR j.company ILIKE $${idx}
+        OR j.description ILIKE $${idx} OR j.requirements ILIKE $${idx}
+      )`;
+      params.push(`%${search.trim()}%`);
+      idx++;
+    }
+
+    // Location filter (partial match)
+    if (location && location.trim()) {
+      query += ` AND j.location ILIKE $${idx}`;
+      params.push(`%${location.trim()}%`);
+      idx++;
+    }
+
+    // Job type filter (exact match)
+    if (job_type && job_type.trim()) {
+      query += ` AND j.job_type = $${idx}`;
+      params.push(job_type.trim());
+      idx++;
+    }
+
+    // Salary range filters
+    if (salary_min) {
+      query += ` AND (j.salary_min >= $${idx} OR j.salary_min IS NULL)`;
+      params.push(parseInt(salary_min));
+      idx++;
+    }
+    if (salary_max) {
+      query += ` AND (j.salary_max <= $${idx} OR j.salary_max IS NULL)`;
+      params.push(parseInt(salary_max));
+      idx++;
+    }
+
+    query += ` ORDER BY j.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
+    params.push(parseInt(limit), parseInt(offset));
+
+    const result = await pool.query(query, params);
+
+    // Get total count for pagination
+    let countQuery = `SELECT COUNT(*) as total FROM jobs j WHERE j.status = $1`;
+    const countParams = [status];
+    let cIdx = 2;
+    if (search && search.trim()) {
+      countQuery += ` AND (j.title ILIKE $${cIdx} OR j.company ILIKE $${cIdx} OR j.description ILIKE $${cIdx} OR j.requirements ILIKE $${cIdx})`;
+      countParams.push(`%${search.trim()}%`);
+      cIdx++;
+    }
+    if (location && location.trim()) {
+      countQuery += ` AND j.location ILIKE $${cIdx}`;
+      countParams.push(`%${location.trim()}%`);
+      cIdx++;
+    }
+    if (job_type && job_type.trim()) {
+      countQuery += ` AND j.job_type = $${cIdx}`;
+      countParams.push(job_type.trim());
+      cIdx++;
+    }
+
+    const countResult = await pool.query(countQuery, countParams);
+
+    res.json({
+      jobs: result.rows,
+      total: parseInt(countResult.rows[0].total),
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
   } catch (err) {
     console.error('List jobs error:', err);
     res.status(500).json({ error: 'Failed to fetch jobs' });
