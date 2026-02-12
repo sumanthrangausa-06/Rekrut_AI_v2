@@ -1,0 +1,34 @@
+     1→// Smart data reuse: extend question_bank for recruiter ownership + add screening_answer_profiles
+     2→module.exports = {
+     3→  name: '036_smart_data_reuse',
+     4→  up: async (pool) => {
+     5→    // Add recruiter_id, category, options to question_bank
+     6→    await pool.query(`
+     7→      ALTER TABLE question_bank ADD COLUMN IF NOT EXISTS recruiter_id INTEGER REFERENCES users(id);
+     8→      ALTER TABLE question_bank ADD COLUMN IF NOT EXISTS category VARCHAR(100) DEFAULT 'general';
+     9→      ALTER TABLE question_bank ADD COLUMN IF NOT EXISTS options JSONB DEFAULT '[]';
+    10→      ALTER TABLE question_bank ADD COLUMN IF NOT EXISTS usage_count INTEGER DEFAULT 0;
+    11→    `);
+    12→
+    13→    // Create unique constraint for recruiter question dedup
+    14→    await pool.query(`
+    15→      CREATE UNIQUE INDEX IF NOT EXISTS idx_question_bank_recruiter_text
+    16→      ON question_bank (recruiter_id, question_text) WHERE recruiter_id IS NOT NULL;
+    17→    `);
+    18→
+    19→    // Extend candidate_profiles with availability field if missing
+    20→    await pool.query(`
+    21→      ALTER TABLE candidate_profiles ADD COLUMN IF NOT EXISTS availability VARCHAR(100);
+    22→      ALTER TABLE candidate_profiles ADD COLUMN IF NOT EXISTS work_authorization VARCHAR(50);
+    23→      ALTER TABLE candidate_profiles ADD COLUMN IF NOT EXISTS certifications JSONB DEFAULT '[]';
+    24→      ALTER TABLE candidate_profiles ADD COLUMN IF NOT EXISTS preferred_industries JSONB DEFAULT '[]';
+    25→    `);
+    26→
+    27→    console.log('[migration] 036_smart_data_reuse complete');
+    28→  }
+    29→};
+    30→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
