@@ -10,7 +10,21 @@ import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import {
   ArrowLeft, Save, Plus, X, Briefcase, ListChecks, GripVertical, AlertCircle, Sparkles,
+  Wand2, Lightbulb, Loader2, CheckCircle2, ChevronDown, ChevronUp,
 } from 'lucide-react'
+
+interface TitleSuggestion {
+  title: string
+  reason: string
+  search_volume?: string
+  seniority_match?: string
+}
+
+interface SkillSuggestion {
+  skill: string
+  category: string
+  importance: string
+}
 
 interface ScreeningQuestion {
   id?: string
@@ -53,6 +67,17 @@ export function RecruiterJobFormPage() {
   const [screeningQuestions, setScreeningQuestions] = useState<ScreeningQuestion[]>([])
   const [showTemplates, setShowTemplates] = useState(false)
   const [titleError, setTitleError] = useState('')
+
+  // AI feature states
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiSuggestingSkills, setAiSuggestingSkills] = useState(false)
+  const [aiSuggestingTitles, setAiSuggestingTitles] = useState(false)
+  const [titleSuggestions, setTitleSuggestions] = useState<TitleSuggestion[]>([])
+  const [showTitleSuggestions, setShowTitleSuggestions] = useState(false)
+  const [skillSuggestions, setSkillSuggestions] = useState<SkillSuggestion[]>([])
+  const [suggestedRequirements, setSuggestedRequirements] = useState<string[]>([])
+  const [showSkillPanel, setShowSkillPanel] = useState(false)
+  const [aiSuccess, setAiSuccess] = useState<string | null>(null)
 
   // Multi-country fields
   const [countryCode, setCountryCode] = useState('US')
@@ -111,6 +136,88 @@ export function RecruiterJobFormPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  function flashSuccess(msg: string) {
+    setAiSuccess(msg)
+    setTimeout(() => setAiSuccess(null), 3000)
+  }
+
+  async function handleAiGenerate() {
+    if (!title.trim()) {
+      setTitleError('Enter a job title first so AI can generate a description')
+      return
+    }
+    setAiGenerating(true)
+    try {
+      const data = await apiCall<{ generated: { description: string; requirements: string; suggested_skills: string[]; suggested_title: string } }>('/recruiter/jobs/generate', {
+        method: 'POST',
+        body: { title, brief_notes: description, location, job_type: jobType },
+      })
+      if (data.generated) {
+        setDescription(data.generated.description || '')
+        setRequirements(data.generated.requirements || '')
+        flashSuccess('Description & requirements generated!')
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'AI generation failed')
+    } finally {
+      setAiGenerating(false)
+    }
+  }
+
+  async function handleSuggestSkills() {
+    if (!title.trim()) {
+      setTitleError('Enter a job title first')
+      return
+    }
+    setAiSuggestingSkills(true)
+    try {
+      const data = await apiCall<{ suggestions: { required_skills: SkillSuggestion[]; suggested_requirements: string[] } }>('/recruiter/jobs/suggest-skills', {
+        method: 'POST',
+        body: { title, description, current_skills: [] },
+      })
+      if (data.suggestions) {
+        setSkillSuggestions(data.suggestions.required_skills || [])
+        setSuggestedRequirements(data.suggestions.suggested_requirements || [])
+        setShowSkillPanel(true)
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Skill suggestion failed')
+    } finally {
+      setAiSuggestingSkills(false)
+    }
+  }
+
+  async function handleSuggestTitles() {
+    if (!title.trim()) {
+      setTitleError('Enter a job title first')
+      return
+    }
+    setAiSuggestingTitles(true)
+    try {
+      const data = await apiCall<{ suggestions: { suggestions: TitleSuggestion[] } }>('/recruiter/jobs/suggest-title', {
+        method: 'POST',
+        body: { title, description },
+      })
+      if (data.suggestions?.suggestions) {
+        setTitleSuggestions(data.suggestions.suggestions)
+        setShowTitleSuggestions(true)
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Title suggestion failed')
+    } finally {
+      setAiSuggestingTitles(false)
+    }
+  }
+
+  function applySkillsToRequirements() {
+    const newReqs = suggestedRequirements.join('\n• ')
+    const skillsList = skillSuggestions.map(s => s.skill).join(', ')
+    const combined = `${requirements ? requirements + '\n\n' : ''}Skills: ${skillsList}\n\n• ${newReqs}`
+    setRequirements(combined)
+    setShowSkillPanel(false)
+    flashSuccess('Skills added to requirements!')
   }
 
   async function handleSave() {
@@ -207,6 +314,14 @@ export function RecruiterJobFormPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
+      {/* AI Success Toast */}
+      {aiSuccess && (
+        <div className="fixed top-4 right-4 z-50 animate-in fade-in slide-in-from-top-2 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 text-sm">
+          <CheckCircle2 className="h-4 w-4" />
+          {aiSuccess}
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate('/recruiter/jobs')}>
           <ArrowLeft className="h-4 w-4" />
@@ -230,7 +345,19 @@ export function RecruiterJobFormPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label>Job Title *</Label>
+            <div className="flex items-center justify-between">
+              <Label>Job Title *</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSuggestTitles}
+                disabled={aiSuggestingTitles || !title.trim()}
+                className="h-7 text-xs gap-1 text-primary hover:text-primary"
+              >
+                {aiSuggestingTitles ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lightbulb className="h-3 w-3" />}
+                Suggest Titles
+              </Button>
+            </div>
             <Input
               value={title}
               onChange={e => { setTitle(e.target.value); setTitleError('') }}
@@ -241,6 +368,34 @@ export function RecruiterJobFormPage() {
               <p className="text-xs text-destructive mt-1 flex items-center gap-1">
                 <AlertCircle className="h-3 w-3" />{titleError}
               </p>
+            )}
+            {/* AI Title Suggestions */}
+            {showTitleSuggestions && titleSuggestions.length > 0 && (
+              <div className="mt-2 rounded-lg border bg-blue-50/50 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-blue-700 flex items-center gap-1">
+                    <Sparkles className="h-3 w-3" /> AI Title Suggestions
+                  </p>
+                  <Button variant="ghost" size="sm" onClick={() => setShowTitleSuggestions(false)} className="h-6 w-6 p-0">
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+                {titleSuggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setTitle(s.title); setShowTitleSuggestions(false); flashSuccess('Title updated!') }}
+                    className="w-full text-left rounded-md border bg-white p-2.5 text-sm hover:border-primary/40 hover:bg-blue-50 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{s.title}</span>
+                      {s.search_volume && (
+                        <Badge variant="outline" className="text-[9px]">{s.search_volume} search</Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{s.reason}</p>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
 
@@ -337,18 +492,48 @@ export function RecruiterJobFormPage() {
           )}
 
           <div>
-            <Label>Job Description</Label>
+            <div className="flex items-center justify-between">
+              <Label>Job Description</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAiGenerate}
+                disabled={aiGenerating || !title.trim()}
+                className="h-7 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary hover:text-white transition-colors"
+              >
+                {aiGenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                {aiGenerating ? 'Generating...' : '✨ Generate with AI'}
+              </Button>
+            </div>
             <Textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="Describe the role, responsibilities, and what a typical day looks like..."
+              placeholder="Describe the role, responsibilities, and what a typical day looks like... or click 'Generate with AI' to auto-fill"
               rows={6}
               className="mt-1"
             />
+            {aiGenerating && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-primary">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                AI is writing a tailored description based on your job title...
+              </div>
+            )}
           </div>
 
           <div>
-            <Label>Requirements</Label>
+            <div className="flex items-center justify-between">
+              <Label>Requirements</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSuggestSkills}
+                disabled={aiSuggestingSkills || !title.trim()}
+                className="h-7 text-xs gap-1 text-primary hover:text-primary"
+              >
+                {aiSuggestingSkills ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lightbulb className="h-3 w-3" />}
+                Suggest Skills
+              </Button>
+            </div>
             <Textarea
               value={requirements}
               onChange={e => setRequirements(e.target.value)}
@@ -356,6 +541,53 @@ export function RecruiterJobFormPage() {
               rows={4}
               className="mt-1"
             />
+            {/* AI Skills Panel */}
+            {showSkillPanel && (skillSuggestions.length > 0 || suggestedRequirements.length > 0) && (
+              <div className="mt-2 rounded-lg border bg-violet-50/50 p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-violet-700 flex items-center gap-1">
+                    <Sparkles className="h-3 w-3" /> AI Suggested Skills & Requirements
+                  </p>
+                  <Button variant="ghost" size="sm" onClick={() => setShowSkillPanel(false)} className="h-6 w-6 p-0">
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+                {skillSuggestions.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {skillSuggestions.map((s, i) => (
+                      <span
+                        key={i}
+                        className={`text-[11px] rounded-full px-2.5 py-1 border ${
+                          s.importance === 'must-have'
+                            ? 'bg-violet-100 text-violet-700 border-violet-200 font-medium'
+                            : 'bg-white text-muted-foreground border-gray-200'
+                        }`}
+                      >
+                        {s.skill}
+                        {s.importance === 'must-have' && <span className="ml-1 text-[9px]">★</span>}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {suggestedRequirements.length > 0 && (
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    {suggestedRequirements.slice(0, 5).map((r, i) => (
+                      <p key={i} className="flex items-start gap-1.5">
+                        <CheckCircle2 className="h-3 w-3 text-violet-400 mt-0.5 shrink-0" />
+                        {r}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                <Button
+                  size="sm"
+                  onClick={applySkillsToRequirements}
+                  className="w-full text-xs gap-1 bg-violet-600 hover:bg-violet-700"
+                >
+                  <Plus className="h-3 w-3" /> Apply to Requirements
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
