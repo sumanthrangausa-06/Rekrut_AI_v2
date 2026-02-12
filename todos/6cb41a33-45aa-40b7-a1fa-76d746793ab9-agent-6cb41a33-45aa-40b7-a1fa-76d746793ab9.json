@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Install connect-pg-simple and update session middleware",
+    "status": "completed",
+    "activeForm": "Installing connect-pg-simple and wiring PG session store"
+  },
+  {
+    "content": "Create sessions table migration",
+    "status": "completed",
+    "activeForm": "Creating sessions table migration"
+  },
+  {
+    "content": "Commit, push, and deploy",
+    "status": "in_progress",
+    "activeForm": "Committing and deploying"
+  }
+]
