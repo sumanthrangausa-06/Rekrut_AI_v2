@@ -1601,3 +1601,267 @@ Context7 Documentation MCP Server v2.1.1 running on stdio
 2026-02-12T08:33:14.687Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
 2026-02-12T08:33:14.687Z [DEBUG] [API:auth] OAuth token check starting
 2026-02-12T08:33:14.687Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:33:16.442Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:33:17.108Z [DEBUG] executePreToolHooks called for tool: mcp__polsia_infra__push_to_remote
+2026-02-12T08:33:17.109Z [DEBUG] Getting matching hook commands for PreToolUse with query: mcp__polsia_infra__push_to_remote
+2026-02-12T08:33:17.109Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:33:17.109Z [DEBUG] Matched 4 unique hooks for query "mcp__polsia_infra__push_to_remote" (4 before deduplication)
+2026-02-12T08:33:17.110Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:33:17.110Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:33:17.110Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:33:17.110Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:33:17.110Z [DEBUG] Hook approved tool use for mcp__polsia_infra__push_to_remote, bypassing permission check
+2026-02-12T08:33:17.110Z [DEBUG] MCP server "polsia_infra": Calling MCP tool: push_to_remote
+2026-02-12T08:33:17.111Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 367s uptime
+2026-02-12T08:33:17.111Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected token 'I', "[Infra MCP]"... is not valid JSON
+2026-02-12T08:33:17.111Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 367s uptime
+2026-02-12T08:33:17.111Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected token 'I', "[Infra MCP]"... is not valid JSON
+2026-02-12T08:33:17.111Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 367s uptime
+2026-02-12T08:33:17.111Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected token 'I', "[Infra MCP]"... is not valid JSON
+2026-02-12T08:33:17.111Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 367s uptime
+2026-02-12T08:33:17.111Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected token 'I', "[Infra MCP]"... is not valid JSON
+2026-02-12T08:33:17.123Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 367s uptime
+2026-02-12T08:33:17.123Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected non-whitespace character after JSON at position 4 (line 1 column 5)
+2026-02-12T08:33:17.336Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 368s uptime
+2026-02-12T08:33:17.336Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected non-whitespace character after JSON at position 4 (line 1 column 5)
+2026-02-12T08:33:17.355Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 368s uptime
+2026-02-12T08:33:17.355Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected non-whitespace character after JSON at position 4 (line 1 column 5)
+2026-02-12T08:33:17.411Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 368s uptime
+2026-02-12T08:33:17.411Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected non-whitespace character after JSON at position 4 (line 1 column 5)
+2026-02-12T08:33:17.411Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 368s uptime
+2026-02-12T08:33:17.411Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected non-whitespace character after JSON at position 4 (line 1 column 5)
+2026-02-12T08:33:17.415Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 368s uptime
+2026-02-12T08:33:17.415Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected non-whitespace character after JSON at position 4 (line 1 column 5)
+2026-02-12T08:33:17.945Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 368s uptime
+2026-02-12T08:33:17.945Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected non-whitespace character after JSON at position 4 (line 1 column 5)
+2026-02-12T08:33:18.793Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 369s uptime
+2026-02-12T08:33:18.793Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected non-whitespace character after JSON at position 4 (line 1 column 5)
+2026-02-12T08:33:18.793Z [DEBUG] MCP server "polsia_infra": Tool 'push_to_remote' completed successfully in 1s
+2026-02-12T08:33:18.794Z [DEBUG] Getting matching hook commands for PostToolUse with query: mcp__polsia_infra__push_to_remote
+2026-02-12T08:33:18.794Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:33:18.794Z [DEBUG] Matched 0 unique hooks for query "mcp__polsia_infra__push_to_remote" (0 before deduplication)
+2026-02-12T08:33:18.795Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:33:18.795Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:33:18.795Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:33:18.795Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:33:18.796Z [DEBUG] autocompact: tokens=132342 threshold=167000 effectiveWindow=180000
+2026-02-12T08:33:18.796Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:33:18.808Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:33:18.808Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:33:18.808Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:33:20.748Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:33:25.074Z [DEBUG] executePreToolHooks called for tool: TodoWrite
+2026-02-12T08:33:25.074Z [DEBUG] Getting matching hook commands for PreToolUse with query: TodoWrite
+2026-02-12T08:33:25.074Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:33:25.074Z [DEBUG] Matched 4 unique hooks for query "TodoWrite" (4 before deduplication)
+2026-02-12T08:33:25.075Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:33:25.075Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:33:25.076Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:33:25.076Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:33:25.076Z [DEBUG] Hook approved tool use for TodoWrite, bypassing permission check
+2026-02-12T08:33:25.076Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/todos/35e200b5-0950-4e32-8554-b040d22bd027-agent-35e200b5-0950-4e32-8554-b040d22bd027.json.tmp.47199.1770885205076
+2026-02-12T08:33:25.076Z [DEBUG] Preserving file permissions: 100644
+2026-02-12T08:33:25.076Z [DEBUG] Temp file written successfully, size: 1064 bytes
+2026-02-12T08:33:25.076Z [DEBUG] Applied original permissions to temp file
+2026-02-12T08:33:25.076Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/todos/35e200b5-0950-4e32-8554-b040d22bd027-agent-35e200b5-0950-4e32-8554-b040d22bd027.json.tmp.47199.1770885205076 to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/todos/35e200b5-0950-4e32-8554-b040d22bd027-agent-35e200b5-0950-4e32-8554-b040d22bd027.json
+2026-02-12T08:33:25.076Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/todos/35e200b5-0950-4e32-8554-b040d22bd027-agent-35e200b5-0950-4e32-8554-b040d22bd027.json written atomically
+2026-02-12T08:33:25.076Z [DEBUG] Getting matching hook commands for PostToolUse with query: TodoWrite
+2026-02-12T08:33:25.076Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:33:25.077Z [DEBUG] Matched 0 unique hooks for query "TodoWrite" (0 before deduplication)
+2026-02-12T08:33:25.089Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:33:25.089Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:33:25.089Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:33:25.089Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:33:25.089Z [DEBUG] autocompact: tokens=132781 threshold=167000 effectiveWindow=180000
+2026-02-12T08:33:25.090Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:33:25.099Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:33:25.099Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:33:25.099Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:33:26.980Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:34:03.177Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-02-12T08:34:03.177Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-02-12T08:34:03.177Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:34:03.177Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-02-12T08:34:03.179Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:03.179Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:03.179Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:03.179Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:03.179Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-02-12T08:34:03.184Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/services/matching-engine.js.tmp.47199.1770885243184
+2026-02-12T08:34:03.184Z [DEBUG] Preserving file permissions: 100644
+2026-02-12T08:34:03.184Z [DEBUG] Temp file written successfully, size: 20300 bytes
+2026-02-12T08:34:03.184Z [DEBUG] Applied original permissions to temp file
+2026-02-12T08:34:03.184Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/services/matching-engine.js.tmp.47199.1770885243184 to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/services/matching-engine.js
+2026-02-12T08:34:03.184Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/services/matching-engine.js written atomically
+2026-02-12T08:34:03.186Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-02-12T08:34:03.186Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:34:03.186Z [DEBUG] Matched 1 unique hooks for query "Edit" (1 before deduplication)
+2026-02-12T08:34:03.195Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:34:03.195Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:34:03.195Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:34:03.195Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:34:03.196Z [DEBUG] autocompact: tokens=136575 threshold=167000 effectiveWindow=180000
+2026-02-12T08:34:03.196Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:34:03.212Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:34:03.212Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:34:03.213Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:34:05.352Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:34:26.313Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-02-12T08:34:26.313Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-02-12T08:34:26.313Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:34:26.313Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-02-12T08:34:26.314Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:26.314Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:26.314Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:26.314Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:26.314Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-02-12T08:34:26.316Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/services/matching-engine.js.tmp.47199.1770885266316
+2026-02-12T08:34:26.316Z [DEBUG] Preserving file permissions: 100644
+2026-02-12T08:34:26.317Z [DEBUG] Temp file written successfully, size: 21137 bytes
+2026-02-12T08:34:26.317Z [DEBUG] Applied original permissions to temp file
+2026-02-12T08:34:26.317Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/services/matching-engine.js.tmp.47199.1770885266316 to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/services/matching-engine.js
+2026-02-12T08:34:26.317Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/services/matching-engine.js written atomically
+2026-02-12T08:34:26.318Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-02-12T08:34:26.318Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:34:26.318Z [DEBUG] Matched 1 unique hooks for query "Edit" (1 before deduplication)
+2026-02-12T08:34:26.328Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:34:26.328Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:34:26.328Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:34:26.328Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:34:26.328Z [DEBUG] autocompact: tokens=138971 threshold=167000 effectiveWindow=180000
+2026-02-12T08:34:26.328Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:34:26.337Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:34:26.337Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:34:26.338Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:34:28.805Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:34:29.738Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-02-12T08:34:29.738Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-02-12T08:34:29.738Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:34:29.738Z [DEBUG] Matched 4 unique hooks for query "Bash" (4 before deduplication)
+2026-02-12T08:34:29.739Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:29.740Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:29.740Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:29.740Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:29.740Z [DEBUG] Hook approved tool use for Bash, bypassing permission check
+2026-02-12T08:34:29.853Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-02-12T08:34:29.853Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:34:29.853Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:34:29.853Z [DEBUG] Getting matching hook commands for PostToolUse with query: Bash
+2026-02-12T08:34:29.853Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:34:29.853Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-02-12T08:34:29.853Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:34:29.855Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:34:29.855Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:34:29.855Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:34:29.855Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:34:29.856Z [DEBUG] autocompact: tokens=139081 threshold=167000 effectiveWindow=180000
+2026-02-12T08:34:29.856Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:34:29.865Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:34:29.865Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:34:29.866Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:34:30.498Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:34:31.949Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:34:34.443Z [DEBUG] executePreToolHooks called for tool: Edit
+2026-02-12T08:34:34.443Z [DEBUG] Getting matching hook commands for PreToolUse with query: Edit
+2026-02-12T08:34:34.443Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:34:34.443Z [DEBUG] Matched 4 unique hooks for query "Edit" (4 before deduplication)
+2026-02-12T08:34:34.444Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:34.445Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:34.445Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:34.445Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:34.445Z [DEBUG] Hook approved tool use for Edit, bypassing permission check
+2026-02-12T08:34:34.446Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/services/matching-engine.js.tmp.47199.1770885274446
+2026-02-12T08:34:34.446Z [DEBUG] Preserving file permissions: 100644
+2026-02-12T08:34:34.446Z [DEBUG] Temp file written successfully, size: 21154 bytes
+2026-02-12T08:34:34.446Z [DEBUG] Applied original permissions to temp file
+2026-02-12T08:34:34.446Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/services/matching-engine.js.tmp.47199.1770885274446 to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/services/matching-engine.js
+2026-02-12T08:34:34.446Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/services/matching-engine.js written atomically
+2026-02-12T08:34:34.447Z [DEBUG] Getting matching hook commands for PostToolUse with query: Edit
+2026-02-12T08:34:34.447Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:34:34.447Z [DEBUG] Matched 1 unique hooks for query "Edit" (1 before deduplication)
+2026-02-12T08:34:34.456Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:34:34.456Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:34:34.457Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:34:34.457Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:34:34.457Z [DEBUG] autocompact: tokens=139407 threshold=167000 effectiveWindow=180000
+2026-02-12T08:34:34.457Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:34:34.466Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:34:34.466Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:34:34.467Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:34:36.848Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:34:37.412Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-02-12T08:34:37.412Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-02-12T08:34:37.412Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:34:37.412Z [DEBUG] Matched 4 unique hooks for query "Bash" (4 before deduplication)
+2026-02-12T08:34:37.415Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:37.415Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:37.415Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:37.415Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:37.416Z [DEBUG] Hook approved tool use for Bash, bypassing permission check
+2026-02-12T08:34:37.526Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-02-12T08:34:37.526Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:34:37.526Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:34:37.527Z [DEBUG] Getting matching hook commands for PostToolUse with query: Bash
+2026-02-12T08:34:37.527Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:34:37.527Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-02-12T08:34:37.527Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:34:37.529Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:34:37.529Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:34:37.529Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:34:37.529Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:34:37.530Z [DEBUG] autocompact: tokens=139512 threshold=167000 effectiveWindow=180000
+2026-02-12T08:34:37.530Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:34:37.540Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:34:37.540Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:34:37.540Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:34:37.942Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:34:39.912Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:34:44.404Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-02-12T08:34:44.404Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-02-12T08:34:44.404Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:34:44.404Z [DEBUG] Matched 4 unique hooks for query "Bash" (4 before deduplication)
+2026-02-12T08:34:44.406Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:44.406Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:44.406Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:44.406Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:44.406Z [DEBUG] Hook approved tool use for Bash, bypassing permission check
+2026-02-12T08:34:44.510Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-02-12T08:34:44.510Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:34:44.510Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:34:44.511Z [DEBUG] Getting matching hook commands for PostToolUse with query: Bash
+2026-02-12T08:34:44.511Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:34:44.511Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-02-12T08:34:44.511Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:34:44.513Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:34:44.513Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:34:44.513Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:34:44.513Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:34:44.514Z [DEBUG] autocompact: tokens=139816 threshold=167000 effectiveWindow=180000
+2026-02-12T08:34:44.514Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:34:44.525Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:34:44.525Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:34:44.525Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:34:44.971Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:34:47.241Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:34:47.864Z [DEBUG] executePreToolHooks called for tool: mcp__polsia_infra__push_to_remote
+2026-02-12T08:34:47.865Z [DEBUG] Getting matching hook commands for PreToolUse with query: mcp__polsia_infra__push_to_remote
+2026-02-12T08:34:47.865Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:34:47.865Z [DEBUG] Matched 4 unique hooks for query "mcp__polsia_infra__push_to_remote" (4 before deduplication)
+2026-02-12T08:34:47.866Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:47.866Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:47.866Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:47.866Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:34:47.866Z [DEBUG] Hook approved tool use for mcp__polsia_infra__push_to_remote, bypassing permission check
+2026-02-12T08:34:47.866Z [DEBUG] MCP server "polsia_infra": Calling MCP tool: push_to_remote
+2026-02-12T08:34:47.867Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 458s uptime
+2026-02-12T08:34:47.867Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected token 'I', "[Infra MCP]"... is not valid JSON
+2026-02-12T08:34:47.867Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 458s uptime
+2026-02-12T08:34:47.867Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected token 'I', "[Infra MCP]"... is not valid JSON
+2026-02-12T08:34:47.867Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 458s uptime
+2026-02-12T08:34:47.867Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected token 'I', "[Infra MCP]"... is not valid JSON
+2026-02-12T08:34:47.867Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 458s uptime
+2026-02-12T08:34:47.867Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected token 'I', "[Infra MCP]"... is not valid JSON
+2026-02-12T08:34:47.879Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 458s uptime
+2026-02-12T08:34:47.879Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected non-whitespace character after JSON at position 4 (line 1 column 5)
+2026-02-12T08:34:48.223Z [DEBUG] MCP server "polsia_infra": STDIO connection dropped after 458s uptime
+2026-02-12T08:34:48.223Z [DEBUG] MCP server "polsia_infra": Connection error: Unexpected non-whitespace character after JSON at position 4 (line 1 column 5)

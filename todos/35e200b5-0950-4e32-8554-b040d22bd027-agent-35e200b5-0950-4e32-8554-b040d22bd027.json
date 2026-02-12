@@ -5,19 +5,19 @@
     "activeForm": "Auditing existing codebase"
   },
   {
-    "content": "Phase 2: Research best practices from top ATS platforms",
+    "content": "Phase 2: Research best practices",
     "status": "completed",
     "activeForm": "Researching best practices"
   },
   {
-    "content": "Phase 3: Backend — Fix pipeline stages + match scoring endpoints",
-    "status": "in_progress",
-    "activeForm": "Fixing backend pipeline stages and match scoring"
+    "content": "Phase 3: Backend pipeline fixes",
+    "status": "completed",
+    "activeForm": "Fixing backend pipeline stages"
   },
   {
-    "content": "Phase 4: Backend — AI Job Matching + Scoring improvements",
-    "status": "pending",
-    "activeForm": "Enhancing AI match scoring and candidate ranking"
+    "content": "Phase 4: Backend — AI Match Scoring + skills breakdown",
+    "status": "in_progress",
+    "activeForm": "Enhancing AI match scoring with skills breakdown"
   },
   {
     "content": "Phase 5: Frontend — Recruiter kanban + match ranking",
