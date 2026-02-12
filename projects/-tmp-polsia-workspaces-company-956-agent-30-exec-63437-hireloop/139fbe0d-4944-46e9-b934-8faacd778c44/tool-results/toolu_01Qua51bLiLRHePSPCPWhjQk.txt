@@ -1,0 +1,1349 @@
+     1→/**
+     2→ * AI Provider Fallback Service — Comprehensive Multi-Provider System
+     3→ *
+     4→ * Provides automatic failover between AI providers per modality.
+     5→ * When a provider fails (401, 402, 429, timeout), automatically
+     6→ * switches to the next provider in the chain. No manual intervention.
+     7→ *
+     8→ * Modalities: LLM, TTS, ASR, Vision, Embedding, Reranking, Safety
+     9→ * Providers: Polsia/Anthropic, Polsia/OpenAI, NVIDIA NIM (20+ models)
+    10→ *
+    11→ * Per-module routing: Different HireLoop modules can request specialized
+    12→ * chains optimized for their use case (e.g., reasoning models for assessments,
+    13→ * cheap models for bulk onboarding, multimodal for resume parsing).
+    14→ */
+    15→
+    16→const OpenAI = require('openai');
+    17→const Anthropic = require('@anthropic-ai/sdk');
+    18→const fetch = require('node-fetch');
+    19→const FormData = require('form-data');
+    20→const tokenBudget = require('./token-budget');
+    21→
+    22→let activityLogger;
+    23→try {
+    24→  activityLogger = require('./activity-logger');
+    25→} catch (e) {
+    26→  activityLogger = { logAICall: () => {}, logFailover: () => {}, logBudgetExhausted: () => {} };
+    27→}
+    28→
+    29→// Circuit breaker: skip providers that failed recently
+    30→const CIRCUIT_BREAK_MS = 5 * 60 * 1000; // 5 minutes
+    31→
+    32→// HTTP status codes that indicate provider-level issues (retryable)
+    33→const RETRYABLE_STATUS = new Set([401, 402, 429, 500, 502, 503, 504]);
+    34→
+    35→// ─── NIM Model Registry ──────────────────────────────────────────
+    36→// Complete catalog of NIM models organized by capability tier
+    37→const NIM_MODELS = {
+    38→  // LLM Models — ordered by quality/cost ratio
+    39→  llm_super: process.env.NIM_LLM_MODEL || 'nvidia/llama-3.3-nemotron-super-49b-v1',
+    40→  llm_deepseek_v3: process.env.NIM_LLM_DEEPSEEK_V3 || 'deepseek-ai/deepseek-v3p2',
+    41→  llm_kimi: process.env.NIM_LLM_KIMI || 'moonshot-ai/kimi-k2.5',
+    42→  llm_step_flash: process.env.NIM_LLM_STEP_FLASH || 'stepfun-ai/step-3.5-flash',
+    43→  llm_gpt_oss: process.env.NIM_LLM_GPT_OSS || 'openai/gpt-oss-120b',
+    44→  llm_nano: process.env.NIM_LLM_NANO || 'nvidia/nemotron-nano-8b-v2',
+    45→  llm_deepseek_v3_1: process.env.NIM_LLM_DEEPSEEK_V3_1 || 'deepseek-ai/deepseek-v3p1',
+    46→  llm_mistral_small: process.env.NIM_LLM_MISTRAL_SMALL || 'mistralai/mistral-small-24b-instruct-2501',
+    47→  llm_qwen_72b: process.env.NIM_LLM_QWEN || 'qwen/qwen2.5-72b-instruct',
+    48→
+    49→  // Reasoning Models — for assessments, complex evaluation
+    50→  reasoning_deepseek_r1: process.env.NIM_REASONING_R1 || 'deepseek-ai/deepseek-r1',
+    51→  reasoning_qwq: process.env.NIM_REASONING_QWQ || 'qwen/qwq-32b',
+    52→
+    53→  // Vision Models — for body language, resume OCR, video analysis
+    54→  vision_cosmos: process.env.NIM_VISION_MODEL || 'nvidia/cosmos-reason2-8b',
+    55→  vision_nemotron_vl: process.env.NIM_VISION_FALLBACK_MODEL || 'nvidia/nemotron-nano-12b-v2-vl',
+    56→  vision_kimi: process.env.NIM_VISION_KIMI || 'moonshot-ai/kimi-k2.5',
+    57→  vision_gemma: process.env.NIM_VISION_GEMMA || 'google/gemma-3-27b-it',
+    58→
+    59→  // TTS Models — for speech synthesis (all use /v1/audio/synthesize REST API)
+    60→  tts_magpie_multilingual: 'nvidia/magpie-tts-multilingual',  // Multi-language: en, es, fr, de, zh, vi, it
+    61→  tts_magpie_flow: 'nvidia/magpie-tts-flow',                  // English voice cloning (requires audio prompt + transcript)
+    62→  tts_magpie_zeroshot: 'nvidia/magpie-tts-zeroshot',          // English voice cloning (requires audio prompt, restricted access)
+    63→  tts_fastpitch: 'nvidia/fastpitch-hifigan-tts',              // Basic English TTS (lightweight)
+    64→
+    65→  // ASR Models — for speech recognition
+    66→  asr_parakeet_v2: process.env.NIM_ASR_MODEL || 'nvidia/parakeet-tdt-0.6b-v2',
+    67→  asr_parakeet_v3: process.env.NIM_ASR_V3 || 'nvidia/parakeet-tdt-0.6b-v3',
+    68→
+    69→  // Embedding Models — for job matching, profile similarity
+    70→  embed_qa: process.env.NIM_EMBED_MODEL || 'nvidia/llama-3.2-nv-embedqa-1b-v2',
+    71→  embed_vl: process.env.NIM_EMBED_VL || 'nvidia/llama-nemotron-embed-vl-1b-v2',
+    72→
+    73→  // Reranking Models — for search quality improvement
+    74→  rerank_qa: process.env.NIM_RERANK_MODEL || 'nvidia/llama-3.2-nv-rerankqa-1b-v2',
+    75→  rerank_vl: process.env.NIM_RERANK_VL || 'nvidia/llama-nemotron-rerank-vl-1b-v2',
+    76→
+    77→  // Safety Models — for content moderation
+    78→  safety_guard: process.env.NIM_SAFETY_MODEL || 'nvidia/llama-3.1-nemotron-safety-guard-8b-v3',
+    79→  safety_reasoning: process.env.NIM_SAFETY_REASONING || 'nvidia/nemotron-content-safety-reasoning-4b',
+    80→
+    81→  // Document/OCR Models — for resume parsing
+    82→  document_parse: process.env.NIM_DOCUMENT_MODEL || 'nvidia/nemotron-parse',
+    83→};
+    84→
+    85→// ─── NIM TTS Model Configurations ──────────────────────────────────
+    86→// Each TTS model has specific API requirements and voice configurations.
+    87→// All use the /v1/audio/synthesize REST endpoint with form-data, but
+    88→// some require audio prompts (voice cloning) and have different voices.
+    89→const NIM_TTS_CONFIGS = {
+    90→  nim_magpie_multilingual: {
+    91→    name: 'Magpie TTS Multilingual',
+    92→    baseUrl: process.env.NIM_MAGPIE_MULTI_BASE_URL || null,  // null = use default NIM base
+    93→    defaultVoice: 'Magpie-Multilingual.EN-US.Aria',
+    94→    requiresAudioPrompt: false,
+    95→    languages: ['en-US', 'es-US', 'fr-FR', 'de-DE', 'zh-CN', 'vi-VN', 'it-IT'],
+    96→    outputFormat: 'wav',      // 22.05kHz mono PCM 16-bit
+    97→    maxTextLength: 4000,
+    98→  },
+    99→  nim_magpie_flow: {
+   100→    name: 'Magpie TTS Flow',
+   101→    baseUrl: process.env.NIM_MAGPIE_FLOW_BASE_URL || null,
+   102→    defaultVoice: null,
+   103→    requiresAudioPrompt: true,  // Requires audio_prompt + audio_prompt_transcript
+   104→    requiresTranscript: true,
+   105→    languages: ['en-US'],
+   106→    outputFormat: 'wav',
+   107→    maxTextLength: 4000,
+   108→  },
+   109→  nim_magpie_zeroshot: {
+   110→    name: 'Magpie TTS Zeroshot',
+   111→    baseUrl: process.env.NIM_MAGPIE_ZERO_BASE_URL || null,
+   112→    defaultVoice: null,
+   113→    requiresAudioPrompt: true,  // Requires audio_prompt for voice cloning
+   114→    requiresTranscript: false,
+   115→    languages: ['en-US'],
+   116→    outputFormat: 'wav',
+   117→    maxTextLength: 4000,
+   118→  },
+   119→  nim_fastpitch: {
+   120→    name: 'FastPitch HifiGAN',
+   121→    baseUrl: process.env.NIM_FASTPITCH_BASE_URL || null,
+   122→    defaultVoice: null,           // FastPitch has a single default voice
+   123→    requiresAudioPrompt: false,
+   124→    languages: ['en-US'],
+   125→    outputFormat: 'wav',
+   126→    maxTextLength: 4000,
+   127→  },
+   128→};
+   129→
+   130→// ─── Module-Specific Chain Preferences ───────────────────────────
+   131→// Maps HireLoop modules to their optimal provider chain preferences
+   132→const MODULE_CHAINS = {
+   133→  // Mock Interview — needs quality LLM + TTS + ASR + Vision
+   134→  'mock-interview': {
+   135→    llm: 'quality',       // Best quality for evaluation
+   136→    tts: 'default',
+   137→    asr: 'default',
+   138→    vision: 'default',
+   139→  },
+   140→  // AI Coaching — needs quality LLM
+   141→  'coaching': {
+   142→    llm: 'quality',
+   143→  },
+   144→  // Resume Parsing — needs vision/OCR + LLM extraction
+   145→  'resume-parsing': {
+   146→    llm: 'default',
+   147→    vision: 'document',   // OCR-optimized chain
+   148→  },
+   149→  // Job Matching — needs embeddings + reranking
+   150→  'job-matching': {
+   151→    embedding: 'default',
+   152→    reranking: 'default',
+   153→    llm: 'efficient',     // Cheap LLM for explanation generation
+   154→  },
+   155→  // Onboarding — needs efficient LLM (simple Q&A)
+   156→  'onboarding': {
+   157→    llm: 'efficient',     // Cheap models for simple tasks
+   158→  },
+   159→  // Assessments — needs reasoning models for quality questions
+   160→  'assessments': {
+   161→    llm: 'reasoning',     // Reasoning models for complex evaluation
+   162→  },
+   163→  // Offer Management — needs efficient LLM for template generation
+   164→  'offer-management': {
+   165→    llm: 'efficient',
+   166→  },
+   167→  // Payroll — needs efficient LLM for calculations/Q&A
+   168→  'payroll': {
+   169→    llm: 'efficient',
+   170→  },
+   171→  // Interview Scheduling — needs efficient LLM
+   172→  'scheduling': {
+   173→    llm: 'efficient',
+   174→  },
+   175→  // Profile Management — needs embeddings
+   176→  'profile': {
+   177→    embedding: 'default',
+   178→    llm: 'efficient',
+   179→  },
+   180→  // Platform Safety — needs safety models
+   181→  'safety': {
+   182→    safety: 'default',
+   183→    llm: 'default',
+   184→  },
+   185→};
+   186→
+   187→
+   188→class AIProviderService {
+   189→  constructor() {
+   190→    this.failures = {};          // { 'provider:modality': { count, lastFailure, error, status } }
+   191→    this.activeProviders = {};   // { modality: providerKey }
+   192→    this.logs = [];              // Recent failover events (last 100)
+   193→    this.stats = {               // Cumulative stats
+   194→      totalCalls: 0,
+   195→      totalFailovers: 0,
+   196→      providerCalls: {},         // { providerKey: count }
+   197→    };
+   198→
+   199→    // Initialize clients
+   200→    this.clients = {};
+   201→    this.nimAvailable = false;
+   202→    this._initClients();
+   203→
+   204→    console.log('[ai-provider] Initialized. NIM available:', this.nimAvailable);
+   205→    console.log('[ai-provider] Providers:', Object.keys(this.clients).join(', '));
+   206→    console.log('[ai-provider] Modalities: llm, vision, tts, asr, embedding, reranking, safety');
+   207→  }
+   208→
+   209→  _initClients() {
+   210→    // Anthropic client (Polsia proxy) — primary for LLM text
+   211→    if (process.env.POLSIA_API_URL && process.env.POLSIA_API_KEY) {
+   212→      this.clients.anthropic = new Anthropic({
+   213→        baseURL: process.env.POLSIA_API_URL,
+   214→        apiKey: process.env.POLSIA_API_KEY,
+   215→      });
+   216→    }
+   217→
+   218→    // OpenAI client (Polsia proxy) — primary for vision, TTS, ASR
+   219→    if (process.env.OPENAI_BASE_URL && process.env.OPENAI_API_KEY) {
+   220→      this.clients.openai = new OpenAI({
+   221→        baseURL: process.env.OPENAI_BASE_URL,
+   222→        apiKey: process.env.OPENAI_API_KEY,
+   223→      });
+   224→      this.openaiBaseUrl = process.env.OPENAI_BASE_URL;
+   225→      this.openaiApiKey = process.env.OPENAI_API_KEY;
+   226→    }
+   227→
+   228→    // NVIDIA NIM client — fallback for all modalities
+   229→    const nimKey = process.env.NVIDIA_NIM_API_KEY;
+   230→    const nimBase = process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1';
+   231→    if (nimKey) {
+   232→      this.clients.nim = new OpenAI({
+   233→        baseURL: nimBase,
+   234→        apiKey: nimKey,
+   235→      });
+   236→      this.nimBaseUrl = nimBase;
+   237→      this.nimApiKey = nimKey;
+   238→      this.nimAvailable = true;
+   239→    }
+   240→  }
+   241→
+   242→  // ─── Fallback Chain Definitions ───────────────────────────────
+   243→
+   244→  /**
+   245→   * Get the fallback chain for a modality, optionally specialized per module.
+   246→   * @param {string} modality - 'llm', 'vision', 'tts', 'asr', 'embedding', 'reranking', 'safety'
+   247→   * @param {string} variant - Chain variant: 'default', 'quality', 'efficient', 'reasoning', 'document'
+   248→   * @returns {string[]} Array of provider keys to try in order
+   249→   */
+   250→  getChain(modality, variant = 'default') {
+   251→    const chains = {
+   252→      // ─── LLM Chains (7-10 providers deep) ────────────────
+   253→      llm: {
+   254→        // Default: balanced quality and cost
+   255→        default: [
+   256→          'anthropic',           // Polsia/Claude — current primary
+   257→          'openai',              // Polsia/OpenAI GPT-4o-mini
+   258→          'nim_nemotron_super',  // NIM Nemotron Super 49B — best value
+   259→          'nim_kimi',            // NIM Kimi K2.5 — 1T MoE multimodal
+   260→          'nim_deepseek_v3',     // NIM DeepSeek V3.2 — GPT-5 level
+   261→          'nim_deepseek_v3_1',   // NIM DeepSeek V3.1 — hybrid thinking + tool use
+   262→          'nim_step_flash',      // NIM Step 3.5 Flash — ultra efficient
+   263→          'nim_qwen_72b',        // NIM Qwen 2.5 72B — 95%+ GPT-4 parity
+   264→          'nim_gpt_oss',         // NIM GPT-OSS-120B — OpenAI open model
+   265→        ],
+   266→        // Quality: best models first for critical tasks (interviews, coaching)
+   267→        quality: [
+   268→          'anthropic',
+   269→          'openai',
+   270→          'nim_deepseek_v3',     // DeepSeek V3.2 — strongest open model
+   271→          'nim_kimi',            // Kimi K2.5 — multimodal reasoning
+   272→          'nim_deepseek_v3_1',   // DeepSeek V3.1 — hybrid thinking
+   273→          'nim_nemotron_super',  // Nemotron Super 49B
+   274→          'nim_qwen_72b',        // Qwen 2.5 72B — strong math
+   275→          'nim_step_flash',
+   276→          'nim_gpt_oss',
+   277→        ],
+   278→        // Efficient: cheapest models first for bulk/simple tasks
+   279→        efficient: [
+   280→          'anthropic',
+   281→          'openai',
+   282→          'nim_nano',            // Nemotron Nano 9B — $0.04/$0.16
+   283→          'nim_mistral_small',   // Mistral Small 24B — $0.20/$0.60
+   284→          'nim_nemotron_super',  // Nemotron Super 49B — $0.10/$0.40
+   285→          'nim_qwen_72b',        // Qwen 2.5 72B — ~$0.30/$0.30
+   286→          'nim_gpt_oss',
+   287→        ],
+   288→        // Reasoning: models with strong reasoning for assessments
+   289→        reasoning: [
+   290→          'anthropic',
+   291→          'openai',
+   292→          'nim_deepseek_r1',     // DeepSeek R1 — best open reasoning model
+   293→          'nim_qwq',             // QwQ-32B — dedicated reasoning model
+   294→          'nim_step_flash',      // Step 3.5 Flash — 97.3% AIME champion
+   295→          'nim_deepseek_v3',     // DeepSeek V3.2 — strong reasoning
+   296→          'nim_kimi',            // Kimi K2.5 — thinking mode
+   297→          'nim_nemotron_super',
+   298→        ],
+   299→      },
+   300→
+   301→      // ─── Vision Chains (4-5 providers deep) ──────────────
+   302→      vision: {
+   303→        default: [
+   304→          'openai_vision',       // Polsia/OpenAI GPT-4o
+   305→          'nim_cosmos',          // NIM Cosmos Reason2 8B
+   306→          'nim_nemotron_vl',     // NIM Nemotron Nano 12B VL
+   307→          'nim_kimi_vision',     // NIM Kimi K2.5 (multimodal)
+   308→          'nim_gemma_vision',    // NIM Gemma 3 27B (140+ languages, multimodal)
+   309→        ],
+   310→        // Document/OCR chain for resume parsing
+   311→        document: [
+   312→          'openai_vision',       // Polsia/OpenAI GPT-4o
+   313→          'nim_nemotron_vl',     // NIM Nemotron Nano 12B VL — good at documents
+   314→          'nim_kimi_vision',     // NIM Kimi K2.5 — PDF native
+   315→          'nim_gemma_vision',    // NIM Gemma 3 27B — multilingual
+   316→          'nim_cosmos',          // NIM Cosmos Reason2 8B
+   317→        ],
+   318→      },
+   319→
+   320→      // ─── TTS Chains (6 providers + browser fallback) ─────
+   321→      tts: {
+   322→        default: [
+   323→          'openai_tts',              // Polsia/OpenAI TTS-1 — primary
+   324→          'nim_riva_tts',            // NIM Riva TTS — NVIDIA speech synthesis
+   325→          'nim_magpie_multilingual', // NIM Magpie TTS Multilingual — 7 languages, 70+ voices
+   326→          'nim_magpie_flow',         // NIM Magpie TTS Flow — voice cloning (requires audio prompt)
+   327→          'nim_magpie_zeroshot',     // NIM Magpie TTS Zeroshot — voice cloning (restricted access)
+   328→          'nim_fastpitch',           // NIM FastPitch HifiGAN — basic English TTS
+   329→          // Browser Web Speech API handled at frontend level as final fallback
+   330→        ],
+   331→      },
+   332→
+   333→      // ─── ASR Chains (3 providers deep) ────────────────────
+   334→      asr: {
+   335→        default: [
+   336→          'openai_whisper',      // Polsia/OpenAI Whisper — primary
+   337→          'nim_parakeet_v2',     // NIM Parakeet TDT 0.6B v2 — English #1
+   338→          'nim_parakeet_v3',     // NIM Parakeet TDT 0.6B v3 — 25 languages
+   339→        ],
+   340→      },
+   341→
+   342→      // ─── Embedding Chains (3 providers deep) ─────────────
+   343→      embedding: {
+   344→        default: [
+   345→          'openai_embed',        // Polsia/OpenAI text-embedding-3-small
+   346→          'nim_embed_qa',        // NIM NV-EmbedQA 1B v2 — 26 languages
+   347→          'nim_embed_vl',        // NIM Nemotron-Embed-VL 1B — multimodal
+   348→        ],
+   349→      },
+   350→
+   351→      // ─── Reranking Chains (2 providers) ──────────────────
+   352→      reranking: {
+   353→        default: [
+   354→          'nim_rerank_qa',       // NIM NV-RerankQA 1B v2 — text reranking
+   355→          'nim_rerank_vl',       // NIM Nemotron-Rerank-VL 1B — multimodal
+   356→        ],
+   357→      },
+   358→
+   359→      // ─── Safety/Guardrails Chains (2 providers) ──────────
+   360→      safety: {
+   361→        default: [
+   362→          'nim_safety_guard',    // NIM NemoGuard Safety 8B — 23 categories
+   363→          'nim_safety_reasoning',// NIM Nemotron Content Safety 4B
+   364→        ],
+   365→      },
+   366→    };
+   367→
+   368→    const modalityChains = chains[modality];
+   369→    if (!modalityChains) return [];
+   370→    return modalityChains[variant] || modalityChains.default || [];
+   371→  }
+   372→
+   373→  /**
+   374→   * Get the optimal chain for a specific HireLoop module + modality.
+   375→   * Falls back to default chain if no module-specific config exists.
+   376→   */
+   377→  getModuleChain(module, modality) {
+   378→    const moduleConfig = MODULE_CHAINS[module];
+   379→    const variant = (moduleConfig && moduleConfig[modality]) || 'default';
+   380→    return this.getChain(modality, variant);
+   381→  }
+   382→
+   383→  // Check if a provider is available (has required client/keys)
+   384→  isProviderAvailable(providerKey) {
+   385→    switch (providerKey) {
+   386→      case 'anthropic':
+   387→        return !!this.clients.anthropic;
+   388→      case 'openai':
+   389→      case 'openai_vision':
+   390→      case 'openai_tts':
+   391→      case 'openai_whisper':
+   392→      case 'openai_embed':
+   393→        return !!this.clients.openai;
+   394→      // All NIM providers require NIM API key
+   395→      case 'nim_nemotron_super':
+   396→      case 'nim_kimi':
+   397→      case 'nim_deepseek_v3':
+   398→      case 'nim_deepseek_v3_1':
+   399→      case 'nim_step_flash':
+   400→      case 'nim_gpt_oss':
+   401→      case 'nim_nano':
+   402→      case 'nim_mistral_small':
+   403→      case 'nim_qwen_72b':
+   404→      case 'nim_deepseek_r1':
+   405→      case 'nim_qwq':
+   406→      case 'nim_cosmos':
+   407→      case 'nim_nemotron_vl':
+   408→      case 'nim_kimi_vision':
+   409→      case 'nim_gemma_vision':
+   410→      case 'nim_riva_tts':
+   411→      case 'nim_magpie_multilingual':
+   412→      case 'nim_magpie_flow':
+   413→      case 'nim_magpie_zeroshot':
+   414→      case 'nim_fastpitch':
+   415→      case 'nim_parakeet_v2':
+   416→      case 'nim_parakeet_v3':
+   417→      case 'nim_embed_qa':
+   418→      case 'nim_embed_vl':
+   419→      case 'nim_rerank_qa':
+   420→      case 'nim_rerank_vl':
+   421→      case 'nim_safety_guard':
+   422→      case 'nim_safety_reasoning':
+   423→        return this.nimAvailable;
+   424→      default:
+   425→        return false;
+   426→    }
+   427→  }
+   428→
+   429→  // ─── Circuit Breaker ──────────────────────────────────────────
+   430→
+   431→  isCircuitOpen(providerKey, modality) {
+   432→    const key = `${providerKey}:${modality}`;
+   433→    const failure = this.failures[key];
+   434→    if (!failure) return false;
+   435→
+   436→    const elapsed = Date.now() - failure.lastFailure;
+   437→    if (elapsed > CIRCUIT_BREAK_MS) {
+   438→      // Circuit closed — enough time passed, allow retry
+   439→      delete this.failures[key];
+   440→      return false;
+   441→    }
+   442→    return true;
+   443→  }
+   444→
+   445→  recordFailure(providerKey, modality, error) {
+   446→    const key = `${providerKey}:${modality}`;
+   447→    const existing = this.failures[key] || { count: 0 };
+   448→    const status = error.status || error.statusCode || null;
+   449→
+   450→    this.failures[key] = {
+   451→      count: existing.count + 1,
+   452→      lastFailure: Date.now(),
+   453→      error: error.message || String(error),
+   454→      status,
+   455→    };
+   456→
+   457→    this.stats.totalFailovers++;
+   458→
+   459→    const logEntry = {
+   460→      timestamp: new Date().toISOString(),
+   461→      event: 'provider_failure',
+   462→      provider: providerKey,
+   463→      modality,
+   464→      error: error.message || String(error),
+   465→      status,
+   466→    };
+   467→    this.logs.push(logEntry);
+   468→    if (this.logs.length > 100) this.logs.shift();
+   469→
+   470→    console.log(`[ai-provider] ❌ ${providerKey} failed for ${modality}: [${status || 'ERR'}] ${error.message || error}`);
+   471→  }
+   472→
+   473→  _logFailover(fromProvider, toProvider, modality) {
+   474→    const logEntry = {
+   475→      timestamp: new Date().toISOString(),
+   476→      event: 'failover',
+   477→      from: fromProvider,
+   478→      to: toProvider,
+   479→      modality,
+   480→    };
+   481→    this.logs.push(logEntry);
+   482→    if (this.logs.length > 100) this.logs.shift();
+   483→    console.log(`[ai-provider] 🔄 ${modality} failover: ${fromProvider} → ${toProvider}`);
+   484→    activityLogger.logFailover(modality, fromProvider, toProvider);
+   485→  }
+   486→
+   487→  recordSuccess(providerKey, modality, tokenCount = 0) {
+   488→    this.activeProviders[modality] = providerKey;
+   489→    const key = `${providerKey}:${modality}`;
+   490→    delete this.failures[key];
+   491→
+   492→    this.stats.totalCalls++;
+   493→    this.stats.providerCalls[providerKey] = (this.stats.providerCalls[providerKey] || 0) + 1;
+   494→
+   495→    // Track OpenAI token usage for budget enforcement
+   496→    if (this._isOpenAIProvider(providerKey) && tokenCount > 0) {
+   497→      tokenBudget.recordUsage(modality, tokenCount);
+   498→    }
+   499→  }
+   500→
+   501→  isRetryable(err) {
+   502→    // Network/timeout errors
+   503→    if (err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET' || err.code === 'ENOTFOUND') return true;
+   504→    if (err.message && (err.message.includes('timeout') || err.message.includes('ETIMEDOUT'))) return true;
+   505→
+   506→    // HTTP status codes
+   507→    const status = err.status || err.statusCode || (err.response && err.response.status);
+   508→    if (status && RETRYABLE_STATUS.has(status)) return true;
+   509→
+   510→    // OpenAI SDK-specific error types
+   511→    if (err.type === 'insufficient_quota' || err.code === 'insufficient_quota') return true;
+   512→    if (err.type === 'rate_limit_exceeded' || err.code === 'rate_limit_exceeded') return true;
+   513→
+   514→    // Anthropic-specific
+   515→    if (err.error && err.error.type === 'overloaded_error') return true;
+   516→
+   517→    return false;
+   518→  }
+   519→
+   520→  // Check if a provider key is an OpenAI provider (not Anthropic, not NIM)
+   521→  _isOpenAIProvider(providerKey) {
+   522→    return providerKey === 'openai' || providerKey.startsWith('openai_');
+   523→  }
+   524→
+   525→  // Get available providers for a modality (skipping unavailable + circuit-broken + budget-exhausted OpenAI)
+   526→  getAvailableChain(modality, variant = 'default') {
+   527→    const budgetExhausted = tokenBudget.isOpenAIBudgetExhausted();
+   528→    return this.getChain(modality, variant).filter(key => {
+   529→      if (!this.isProviderAvailable(key)) return false;
+   530→      if (this.isCircuitOpen(key, modality)) return false;
+   531→      // Skip OpenAI providers when daily token budget is exhausted
+   532→      if (budgetExhausted && this._isOpenAIProvider(key)) return false;
+   533→      return true;
+   534→    });
+   535→  }
+   536→
+   537→  // ─── Core Execution with Fallback ────────────────────────────
+   538→
+   539→  /**
+   540→   * Execute an AI call with automatic fallback.
+   541→   * @param {string} modality - 'llm', 'vision', 'tts', 'asr', 'embedding', 'reranking', 'safety'
+   542→   * @param {Function} executeFn - async (providerKey) => result
+   543→   * @param {string} variant - Chain variant (default, quality, efficient, reasoning)
+   544→   * @returns {*} Result from the first successful provider
+   545→   */
+   546→  async execute(modality, executeFn, variant = 'default') {
+   547→    const chain = this.getAvailableChain(modality, variant);
+   548→
+   549→    if (chain.length === 0) {
+   550→      const allChain = this.getChain(modality, variant);
+   551→      const reasons = allChain.map(k => {
+   552→        if (!this.isProviderAvailable(k)) return `${k}: not configured`;
+   553→        if (this.isCircuitOpen(k, modality)) return `${k}: circuit open`;
+   554→        return `${k}: unknown`;
+   555→      });
+   556→      throw new Error(`No available providers for ${modality}. ${reasons.join(', ')}`);
+   557→    }
+   558→
+   559→    // Per-provider timeout: 8s for TTS/ASR (audio processing), 15s for LLM, 10s default
+   560→    const timeoutMs = modality === 'tts' || modality === 'asr' ? 8000
+   561→      : modality === 'llm' ? 15000
+   562→      : 10000;
+   563→
+   564→    let lastError;
+   565→    let failedProvider = null;  // Track from→to for failover logging
+   566→    for (const providerKey of chain) {
+   567→      try {
+   568→        // Wrap each provider call with a timeout to prevent hanging
+   569→        const result = await Promise.race([
+   570→          executeFn(providerKey),
+   571→          new Promise((_, reject) => setTimeout(() => {
+   572→            const err = new Error(`${providerKey} timed out after ${timeoutMs}ms for ${modality}`);
+   573→            err.code = 'ETIMEDOUT';
+   574→            reject(err);
+   575→          }, timeoutMs))
+   576→        ]);
+   577→        // Log successful failover transition if we had a prior failure
+   578→        if (failedProvider) {
+   579→          this._logFailover(failedProvider, providerKey, modality);
+   580→        }
+   581→        // Extract token count if result is wrapped with _tokenCount
+   582→        let tokenCount = 0;
+   583→        let actualResult = result;
+   584→        if (result && typeof result === 'object' && result._tokenCount !== undefined) {
+   585→          tokenCount = result._tokenCount;
+   586→          actualResult = result._result;
+   587→        }
+   588→        this.recordSuccess(providerKey, modality, tokenCount);
+   589→        return actualResult;
+   590→      } catch (err) {
+   591→        lastError = err;
+   592→        // Provider not applicable for this request (e.g., voice cloning TTS without audio prompt)
+   593→        // Skip silently without circuit-breaking — provider is fine, just wrong for this request
+   594→        if (err.notApplicable) {
+   595→          continue;
+   596→        }
+   597→        if (this.isRetryable(err)) {
+   598→          failedProvider = providerKey;
+   599→          this.recordFailure(providerKey, modality, err);
+   600→          continue; // try next provider
+   601→        }
+   602→        // Non-retryable error (e.g., bad request, invalid input) — don't try others
+   603→        throw err;
+   604→      }
+   605→    }
+   606→
+   607→    // All providers exhausted
+   608→    console.error(`[ai-provider] All ${modality} providers exhausted.`);
+   609→    throw lastError || new Error(`All ${modality} providers failed`);
+   610→  }
+   611→
+   612→  // ─── LLM Chat Completion ─────────────────────────────────────
+   613→
+   614→  /**
+   615→   * Chat completion with automatic provider fallback.
+   616→   * @param {Array} messages - Array of { role, content } messages
+   617→   * @param {Object} options - { system, maxTokens, max_tokens, temperature, subscriptionId, response_format, module }
+   618→   * @returns {string} The AI response text
+   619→   */
+   620→  async chatCompletion(messages, options = {}) {
+   621→    // Determine chain variant based on module
+   622→    const moduleConfig = MODULE_CHAINS[options.module];
+   623→    const variant = (moduleConfig && moduleConfig.llm) || 'default';
+   624→
+   625→    return this.execute('llm', async (providerKey) => {
+   626→      switch (providerKey) {
+   627→        case 'anthropic':
+   628→          return this._anthropicChat(messages, options);
+   629→        case 'openai':
+   630→          return this._openaiChat('gpt-4o-mini', messages, options, true);
+   631→        case 'nim_nemotron_super':
+   632→          return this._nimChat(NIM_MODELS.llm_super, messages, options);
+   633→        case 'nim_kimi':
+   634→          return this._nimChat(NIM_MODELS.llm_kimi, messages, options);
+   635→        case 'nim_deepseek_v3':
+   636→          return this._nimChat(NIM_MODELS.llm_deepseek_v3, messages, options);
+   637→        case 'nim_deepseek_v3_1':
+   638→          return this._nimChat(NIM_MODELS.llm_deepseek_v3_1, messages, options);
+   639→        case 'nim_step_flash':
+   640→          return this._nimChat(NIM_MODELS.llm_step_flash, messages, options);
+   641→        case 'nim_gpt_oss':
+   642→          return this._nimChat(NIM_MODELS.llm_gpt_oss, messages, options);
+   643→        case 'nim_nano':
+   644→          return this._nimChat(NIM_MODELS.llm_nano, messages, options);
+   645→        case 'nim_mistral_small':
+   646→          return this._nimChat(NIM_MODELS.llm_mistral_small, messages, options);
+   647→        case 'nim_qwen_72b':
+   648→          return this._nimChat(NIM_MODELS.llm_qwen_72b, messages, options);
+   649→        case 'nim_deepseek_r1':
+   650→          return this._nimChat(NIM_MODELS.reasoning_deepseek_r1, messages, options);
+   651→        case 'nim_qwq':
+   652→          return this._nimChat(NIM_MODELS.reasoning_qwq, messages, options);
+   653→        default:
+   654→          throw new Error(`Unknown LLM provider: ${providerKey}`);
+   655→      }
+   656→    }, variant);
+   657→  }
+   658→
+   659→  async _anthropicChat(messages, options) {
+   660→    const systemMsgs = messages.filter(m => m.role === 'system');
+   661→    const nonSystemMsgs = messages.filter(m => m.role !== 'system');
+   662→
+   663→    const systemPrompt = options.system || (systemMsgs.length > 0 ? systemMsgs[0].content : undefined);
+   664→    const msgs = nonSystemMsgs.map(m => ({
+   665→      role: m.role,
+   666→      content: typeof m.content === 'string' ? m.content : String(m.content),
+   667→    }));
+   668→    if (msgs.length === 0) msgs.push({ role: 'user', content: 'Hello' });
+   669→
+   670→    const response = await this.clients.anthropic.messages.create({
+   671→      max_tokens: options.maxTokens || options.max_tokens || 8192,
+   672→      messages: msgs,
+   673→      system: systemPrompt,
+   674→    }, {
+   675→      headers: options.subscriptionId ? { 'X-Subscription-ID': options.subscriptionId } : {},
+   676→    });
+   677→
+   678→    return response.content[0].text;
+   679→  }
+   680→
+   681→  async _openaiChat(model, messages, options, isPolsia = false) {
+   682→    const client = this.clients.openai;
+   683→    const msgs = [];
+   684→
+   685→    if (options.system) {
+   686→      msgs.push({ role: 'system', content: options.system });
+   687→    }
+   688→    for (const m of messages) {
+   689→      if (m.role === 'system' && options.system) continue; // already added
+   690→      msgs.push({ role: m.role, content: typeof m.content === 'string' ? m.content : String(m.content) });
+   691→    }
+   692→    if (msgs.length === 0) msgs.push({ role: 'user', content: 'Hello' });
+   693→
+   694→    const params = {
+   695→      model,
+   696→      messages: msgs,
+   697→      max_tokens: options.maxTokens || options.max_tokens || 8192,
+   698→      temperature: options.temperature || 0.7,
+   699→    };
+   700→
+   701→    // Polsia proxy requires task field
+   702→    if (isPolsia) params.task = 'chat-fallback';
+   703→    if (options.response_format) params.response_format = options.response_format;
+   704→
+   705→    const response = await client.chat.completions.create(params);
+   706→    const text = response.choices[0].message.content;
+   707→    // Track token usage from response or estimate
+   708→    const tokenCount = (response.usage && response.usage.total_tokens)
+   709→      ? response.usage.total_tokens
+   710→      : tokenBudget.estimateTokensFromText(text) + tokenBudget.estimateTokensFromText(msgs.map(m => m.content).join(' '));
+   711→    return { _result: text, _tokenCount: tokenCount };
+   712→  }
+   713→
+   714→  async _nimChat(model, messages, options) {
+   715→    const client = this.clients.nim;
+   716→    const msgs = [];
+   717→
+   718→    if (options.system) {
+   719→      msgs.push({ role: 'system', content: options.system });
+   720→    }
+   721→    for (const m of messages) {
+   722→      if (m.role === 'system' && options.system) continue;
+   723→      msgs.push({ role: m.role, content: typeof m.content === 'string' ? m.content : String(m.content) });
+   724→    }
+   725→    if (msgs.length === 0) msgs.push({ role: 'user', content: 'Hello' });
+   726→
+   727→    const params = {
+   728→      model,
+   729→      messages: msgs,
+   730→      max_tokens: options.maxTokens || options.max_tokens || 8192,
+   731→      temperature: options.temperature || 0.7,
+   732→    };
+   733→
+   734→    if (options.response_format) params.response_format = options.response_format;
+   735→
+   736→    const response = await client.chat.completions.create(params);
+   737→    return response.choices[0].message.content;
+   738→  }
+   739→
+   740→  // ─── Vision Analysis ─────────────────────────────────────────
+   741→
+   742→  /**
+   743→   * Vision analysis with automatic provider fallback.
+   744→   * @param {Array} imageUrls - Array of HTTP image URLs
+   745→   * @param {string} prompt - Analysis prompt
+   746→   * @param {Object} options - { maxTokens, subscriptionId, response_format, module }
+   747→   * @returns {string} The AI response text
+   748→   */
+   749→  async visionAnalysis(imageUrls, prompt, options = {}) {
+   750→    const moduleConfig = MODULE_CHAINS[options.module];
+   751→    const variant = (moduleConfig && moduleConfig.vision) || 'default';
+   752→
+   753→    return this.execute('vision', async (providerKey) => {
+   754→      let client, model;
+   755→
+   756→      switch (providerKey) {
+   757→        case 'openai_vision':
+   758→          client = this.clients.openai;
+   759→          model = 'gpt-4o';
+   760→          break;
+   761→        case 'nim_cosmos':
+   762→          client = this.clients.nim;
+   763→          model = NIM_MODELS.vision_cosmos;
+   764→          break;
+   765→        case 'nim_nemotron_vl':
+   766→          client = this.clients.nim;
+   767→          model = NIM_MODELS.vision_nemotron_vl;
+   768→          break;
+   769→        case 'nim_kimi_vision':
+   770→          client = this.clients.nim;
+   771→          model = NIM_MODELS.vision_kimi;
+   772→          break;
+   773→        case 'nim_gemma_vision':
+   774→          client = this.clients.nim;
+   775→          model = NIM_MODELS.vision_gemma;
+   776→          break;
+   777→        default:
+   778→          throw new Error(`Unknown vision provider: ${providerKey}`);
+   779→      }
+   780→
+   781→      // Build content array with text + images
+   782→      const content = [{ type: 'text', text: prompt }];
+   783→      for (const url of imageUrls) {
+   784→        content.push({
+   785→          type: 'image_url',
+   786→          image_url: { url, detail: 'low' },
+   787→        });
+   788→      }
+   789→
+   790→      const params = {
+   791→        model,
+   792→        max_tokens: options.maxTokens || 2048,
+   793→        messages: [
+   794→          ...(options.system ? [{ role: 'system', content: options.system }] : []),
+   795→          { role: 'user', content },
+   796→        ],
+   797→      };
+   798→
+   799→      // Polsia proxy needs task field
+   800→      if (providerKey === 'openai_vision') params.task = options.task || 'vision-analysis';
+   801→      if (options.response_format) params.response_format = options.response_format;
+   802→
+   803→      const response = await client.chat.completions.create(params);
+   804→      const text = response.choices[0].message.content;
+   805→      // Track OpenAI vision token usage
+   806→      if (providerKey === 'openai_vision') {
+   807→        const visionTokens = (response.usage && response.usage.total_tokens)
+   808→          ? response.usage.total_tokens
+   809→          : tokenBudget.estimateVisionTokens(imageUrls.length, prompt.length);
+   810→        return { _result: text, _tokenCount: visionTokens };
+   811→      }
+   812→      return text;
+   813→    }, variant);
+   814→  }
+   815→
+   816→  // ─── Text-to-Speech ──────────────────────────────────────────
+   817→
+   818→  /**
+   819→   * Text-to-speech with automatic provider fallback.
+   820→   * Chain: OpenAI TTS → NIM Riva TTS → NIM Magpie Multilingual → NIM Magpie Flow →
+   821→   *        NIM Magpie Zeroshot → NIM FastPitch → null (browser Web Speech API)
+   822→   * @param {string} text - Text to convert to speech
+   823→   * @param {Object} options - { voice, speed, subscriptionId, audioPrompt, audioPromptTranscript, language }
+   824→   * @returns {Buffer|null} Audio buffer (MP3/WAV) or null if all providers fail
+   825→   */
+   826→  async textToSpeech(text, options = {}) {
+   827→    try {
+   828→      return await this.execute('tts', async (providerKey) => {
+   829→        switch (providerKey) {
+   830→          case 'openai_tts':
+   831→            return this._openaiTTS(text, options);
+   832→          case 'nim_riva_tts':
+   833→            return this._nimRivaTTS(text, options);
+   834→          case 'nim_magpie_multilingual':
+   835→            return this._nimMagpieTTS('nim_magpie_multilingual', text, options);
+   836→          case 'nim_magpie_flow':
+   837→            return this._nimMagpieTTS('nim_magpie_flow', text, options);
+   838→          case 'nim_magpie_zeroshot':
+   839→            return this._nimMagpieTTS('nim_magpie_zeroshot', text, options);
+   840→          case 'nim_fastpitch':
+   841→            return this._nimMagpieTTS('nim_fastpitch', text, options);
+   842→          default:
+   843→            throw new Error(`Unknown TTS provider: ${providerKey}`);
+   844→        }
+   845→      });
+   846→    } catch (err) {
+   847→      // TTS has browser fallback — return null to signal frontend to use Web Speech API
+   848→      console.error('[ai-provider] All TTS providers failed, frontend will use browser fallback:', err.message);
+   849→      return null;
+   850→    }
+   851→  }
+   852→
+   853→  async _openaiTTS(text, options) {
+   854→    const voice = options.voice || 'nova';
+   855→    const speed = options.speed || 1.0;
+   856→    const truncatedText = text.length > 4000 ? text.substring(0, 4000) : text;
+   857→
+   858→    const baseUrl = this.openaiBaseUrl || 'https://api.openai.com/v1';
+   859→    const apiKey = this.openaiApiKey;
+   860→
+   861→    const headers = {
+   862→      'Authorization': `Bearer ${apiKey}`,
+   863→      'Content-Type': 'application/json',
+   864→    };
+   865→    if (options.subscriptionId) headers['X-Subscription-ID'] = options.subscriptionId;
+   866→
+   867→    const res = await fetch(`${baseUrl}/audio/speech`, {
+   868→      method: 'POST',
+   869→      headers,
+   870→      body: JSON.stringify({
+   871→        model: 'tts-1',
+   872→        input: truncatedText,
+   873→        voice,
+   874→        response_format: 'mp3',
+   875→        speed,
+   876→        task: 'tts-interview',
+   877→      }),
+   878→    });
+   879→
+   880→    if (!res.ok) {
+   881→      const errText = await res.text();
+   882→      const err = new Error(`TTS API error: ${res.status} ${errText.substring(0, 200)}`);
+   883→      err.status = res.status;
+   884→      throw err;
+   885→    }
+   886→
+   887→    const arrayBuffer = await res.arrayBuffer();
+   888→    const buffer = Buffer.from(arrayBuffer);
+   889→    // Track TTS token usage
+   890→    const ttsTokens = tokenBudget.estimateTTSTokens(truncatedText);
+   891→    return { _result: buffer, _tokenCount: ttsTokens };
+   892→  }
+   893→
+   894→  /**
+   895→   * NIM Riva TTS — NVIDIA's speech synthesis via OpenAI-compatible REST API.
+   896→   * Uses /v1/audio/speech endpoint (same as OpenAI) with NIM model parameter.
+   897→   * Returns audio buffer.
+   898→   */
+   899→  async _nimRivaTTS(text, options) {
+   900→    const truncatedText = text.length > 4000 ? text.substring(0, 4000) : text;
+   901→
+   902→    // NIM TTS uses OpenAI-compatible /v1/audio/speech endpoint
+   903→    const nimTtsBase = process.env.NIM_TTS_BASE_URL || this.nimBaseUrl;
+   904→    const res = await fetch(`${nimTtsBase}/audio/speech`, {
+   905→      method: 'POST',
+   906→      headers: {
+   907→        'Authorization': `Bearer ${this.nimApiKey}`,
+   908→        'Content-Type': 'application/json',
+   909→        'Accept': 'audio/wav',
+   910→      },
+   911→      body: JSON.stringify({
+   912→        model: 'nvidia/riva-tts',
+   913→        input: truncatedText,
+   914→        voice: options.nimVoice || 'default',
+   915→        response_format: 'wav',
+   916→      }),
+   917→    });
+   918→
+   919→    if (!res.ok) {
+   920→      const errText = await res.text();
+   921→      const err = new Error(`NIM Riva TTS error: ${res.status} ${errText.substring(0, 200)}`);
+   922→      err.status = res.status;
+   923→      throw err;
+   924→    }
+   925→
+   926→    const arrayBuffer = await res.arrayBuffer();
+   927→    const buffer = Buffer.from(arrayBuffer);
+   928→
+   929→    if (buffer.length < 100) {
+   930→      throw new Error('NIM Riva TTS returned empty/invalid audio');
+   931→    }
+   932→
+   933→    return buffer;
+   934→  }
+   935→
+   936→  /**
+   937→   * NIM Magpie/FastPitch TTS — Generic adapter for all NIM TTS models.
+   938→   * Uses OpenAI-compatible /v1/audio/speech endpoint with model parameter.
+   939→   * Voice-cloning models (Flow, Zeroshot) require an audio prompt — if not provided,
+   940→   * they throw a notApplicable error and the fallback system skips them silently.
+   941→   * @param {string} configKey - Key into NIM_TTS_CONFIGS
+   942→   * @param {string} text - Text to synthesize
+   943→   * @param {Object} options - { language, nimVoice, audioPrompt, audioPromptTranscript }
+   944→   * @returns {Buffer} Audio buffer (WAV format)
+   945→   */
+   946→  async _nimMagpieTTS(configKey, text, options) {
+   947→    const config = NIM_TTS_CONFIGS[configKey];
+   948→    if (!config) throw new Error(`Unknown NIM TTS config: ${configKey}`);
+   949→
+   950→    // Voice-cloning models require audio prompts — skip gracefully if not provided
+   951→    if (config.requiresAudioPrompt && !options.audioPrompt) {
+   952→      const err = new Error(`${config.name} requires an audio prompt for voice cloning — skipping`);
+   953→      err.notApplicable = true;
+   954→      throw err;
+   955→    }
+   956→
+   957→    const truncatedText = text.length > (config.maxTextLength || 4000)
+   958→      ? text.substring(0, config.maxTextLength || 4000)
+   959→      : text;
+   960→
+   961→    // Map config keys to NIM model IDs
+   962→    const modelMap = {
+   963→      nim_magpie_multilingual: NIM_MODELS.tts_magpie_multilingual,
+   964→      nim_magpie_flow: NIM_MODELS.tts_magpie_flow,
+   965→      nim_magpie_zeroshot: NIM_MODELS.tts_magpie_zeroshot,
+   966→      nim_fastpitch: NIM_MODELS.tts_fastpitch,
+   967→    };
+   968→    const model = modelMap[configKey];
+   969→    if (!model) throw new Error(`No NIM model ID for TTS config: ${configKey}`);
+   970→
+   971→    // Use model-specific base URL if configured, otherwise default NIM base
+   972→    const baseUrl = config.baseUrl || process.env.NIM_TTS_BASE_URL || this.nimBaseUrl;
+   973→
+   974→    // Use OpenAI-compatible /v1/audio/speech endpoint (JSON body)
+   975→    const voice = config.defaultVoice || options.nimVoice || 'default';
+   976→
+   977→    const res = await fetch(`${baseUrl}/audio/speech`, {
+   978→      method: 'POST',
+   979→      headers: {
+   980→        'Authorization': `Bearer ${this.nimApiKey}`,
+   981→        'Content-Type': 'application/json',
+   982→        'Accept': 'audio/wav',
+   983→      },
+   984→      body: JSON.stringify({
+   985→        model,
+   986→        input: truncatedText,
+   987→        voice,
+   988→        response_format: 'wav',
+   989→      }),
+   990→    });
+   991→
+   992→    if (!res.ok) {
+   993→      const errText = await res.text();
+   994→      const err = new Error(`NIM ${config.name} error: ${res.status} ${errText.substring(0, 200)}`);
+   995→      err.status = res.status;
+   996→      throw err;
+   997→    }
+   998→
+   999→    const arrayBuffer = await res.arrayBuffer();
+  1000→    const buffer = Buffer.from(arrayBuffer);
+  1001→
+  1002→    if (buffer.length < 100) {
+  1003→      throw new Error(`NIM ${config.name} returned empty/invalid audio`);
+  1004→    }
+  1005→
+  1006→    return buffer;
+  1007→  }
+  1008→
+  1009→  // ─── Speech-to-Text (ASR) ────────────────────────────────────
+  1010→
+  1011→  /**
+  1012→   * Transcribe audio with automatic provider fallback.
+  1013→   * Chain: OpenAI Whisper → NIM Parakeet v2 → NIM Parakeet v3
+  1014→   * @param {Buffer} audioBuffer - Audio data buffer
+  1015→   * @param {string} filename - Filename with extension
+  1016→   * @param {string} contentType - MIME type
+  1017→   * @param {Object} options - { subscriptionId }
+  1018→   * @returns {Object|null} Transcription result or null
+  1019→   */
+  1020→  async transcribeAudio(audioBuffer, filename, contentType, options = {}) {
+  1021→    try {
+  1022→      return await this.execute('asr', async (providerKey) => {
+  1023→        switch (providerKey) {
+  1024→          case 'openai_whisper':
+  1025→            return this._openaiWhisper(audioBuffer, filename, contentType, options);
+  1026→          case 'nim_parakeet_v2':
+  1027→            return this._nimASR(NIM_MODELS.asr_parakeet_v2, audioBuffer, filename, contentType, options);
+  1028→          case 'nim_parakeet_v3':
+  1029→            return this._nimASR(NIM_MODELS.asr_parakeet_v3, audioBuffer, filename, contentType, options);
+  1030→          default:
+  1031→            throw new Error(`Unknown ASR provider: ${providerKey}`);
+  1032→        }
+  1033→      });
+  1034→    } catch (err) {
+  1035→      console.error('[ai-provider] All ASR providers failed:', err.message);
+  1036→      return null;
+  1037→    }
+  1038→  }
+  1039→
+  1040→  async _openaiWhisper(audioBuffer, filename, contentType, options) {
+  1041→    const formData = new FormData();
+  1042→    formData.append('file', audioBuffer, { filename, contentType });
+  1043→    formData.append('model', 'whisper-1');
+  1044→    formData.append('response_format', 'verbose_json');
+  1045→
+  1046→    const baseUrl = this.openaiBaseUrl || 'https://api.openai.com/v1';
+  1047→    const apiKey = this.openaiApiKey;
+  1048→
+  1049→    const headers = {
+  1050→      'Authorization': `Bearer ${apiKey}`,
+  1051→      ...formData.getHeaders(),
+  1052→    };
+  1053→    if (options.subscriptionId) headers['X-Subscription-ID'] = options.subscriptionId;
+  1054→
+  1055→    const res = await fetch(`${baseUrl}/audio/transcriptions`, {
+  1056→      method: 'POST',
+  1057→      headers,
+  1058→      body: formData,
+  1059→    });
+  1060→
+  1061→    if (!res.ok) {
+  1062→      const errText = await res.text();
+  1063→      const err = new Error(`Whisper API error: ${res.status} ${errText.substring(0, 200)}`);
+  1064→      err.status = res.status;
+  1065→      throw err;
+  1066→    }
+  1067→
+  1068→    const result = await res.json();
+  1069→    // Track ASR token usage based on audio buffer size
+  1070→    const asrTokens = tokenBudget.estimateASRTokens(audioBuffer.length);
+  1071→    return { _result: result, _tokenCount: asrTokens };
+  1072→  }
+  1073→
+  1074→  async _nimASR(model, audioBuffer, filename, contentType, options) {
+  1075→    // NIM Parakeet uses OpenAI-compatible transcription endpoint
+  1076→    const formData = new FormData();
+  1077→    formData.append('file', audioBuffer, { filename, contentType });
+  1078→    formData.append('model', model);
+  1079→    formData.append('response_format', 'verbose_json');
+  1080→
+  1081→    const headers = {
+  1082→      'Authorization': `Bearer ${this.nimApiKey}`,
+  1083→      ...formData.getHeaders(),
+  1084→    };
+  1085→
+  1086→    const res = await fetch(`${this.nimBaseUrl}/audio/transcriptions`, {
+  1087→      method: 'POST',
+  1088→      headers,
+  1089→      body: formData,
+  1090→    });
+  1091→
+  1092→    if (!res.ok) {
+  1093→      const errText = await res.text();
+  1094→      const err = new Error(`NIM ASR (${model}) error: ${res.status} ${errText.substring(0, 200)}`);
+  1095→      err.status = res.status;
+  1096→      throw err;
+  1097→    }
+  1098→
+  1099→    return await res.json();
+  1100→  }
+  1101→
+  1102→  // ─── Embeddings ──────────────────────────────────────────────
+  1103→
+  1104→  /**
+  1105→   * Generate text embeddings with automatic provider fallback.
+  1106→   * Chain: OpenAI text-embedding-3-small → NIM NV-EmbedQA → NIM Nemotron-Embed-VL
+  1107→   * @param {string} text - Text to embed
+  1108→   * @param {Object} options - { subscriptionId }
+  1109→   * @returns {number[]} Embedding vector
+  1110→   */
+  1111→  async generateEmbedding(text, options = {}) {
+  1112→    if (!text || text.trim().length === 0) {
+  1113→      throw new Error('Cannot generate embedding for empty text');
+  1114→    }
+  1115→
+  1116→    return this.execute('embedding', async (providerKey) => {
+  1117→      switch (providerKey) {
+  1118→        case 'openai_embed':
+  1119→          return this._openaiEmbedding(text, options);
+  1120→        case 'nim_embed_qa':
+  1121→          return this._nimEmbedding(NIM_MODELS.embed_qa, text, options);
+  1122→        case 'nim_embed_vl':
+  1123→          return this._nimEmbedding(NIM_MODELS.embed_vl, text, options);
+  1124→        default:
+  1125→          throw new Error(`Unknown embedding provider: ${providerKey}`);
+  1126→      }
+  1127→    });
+  1128→  }
+  1129→
+  1130→  async _openaiEmbedding(text, options) {
+  1131→    const client = this.clients.openai;
+  1132→    const truncated = text.substring(0, 8000);
+  1133→
+  1134→    const params = {
+  1135→      model: 'text-embedding-3-small',
+  1136→      input: truncated,
+  1137→    };
+  1138→    if (options.subscriptionId) params.task = 'embedding';
+  1139→
+  1140→    const response = await client.embeddings.create(params);
+  1141→    const embedding = response.data[0].embedding;
+  1142→    // Track embedding token usage
+  1143→    const embedTokens = (response.usage && response.usage.total_tokens)
+  1144→      ? response.usage.total_tokens
+  1145→      : tokenBudget.estimateTokensFromText(truncated);
+  1146→    return { _result: embedding, _tokenCount: embedTokens };
+  1147→  }
+  1148→
+  1149→  async _nimEmbedding(model, text, options) {
+  1150→    const client = this.clients.nim;
+  1151→    const truncated = text.substring(0, 8000);
+  1152→
+  1153→    const response = await client.embeddings.create({
+  1154→      model,
+  1155→      input: truncated,
+  1156→    });
+  1157→    return response.data[0].embedding;
+  1158→  }
+  1159→
+  1160→  // ─── Reranking ───────────────────────────────────────────────
+  1161→
+  1162→  /**
+  1163→   * Rerank search results for quality improvement.
+  1164→   * Uses NIM NV-RerankQA model to reorder candidate/job matches.
+  1165→   * @param {string} query - The search query
+  1166→   * @param {string[]} documents - Array of document texts to rerank
+  1167→   * @param {Object} options - { topN }
+  1168→   * @returns {Array} Reranked results with scores
+  1169→   */
+  1170→  async rerank(query, documents, options = {}) {
+  1171→    if (!this.nimAvailable) {
+  1172→      // No NIM = return original order with default scores
+  1173→      console.log('[ai-provider] Reranking skipped (NIM not available), returning original order');
+  1174→      return documents.map((doc, i) => ({ index: i, score: 1 - (i * 0.01), text: doc }));
+  1175→    }
+  1176→
+  1177→    try {
+  1178→      return await this.execute('reranking', async (providerKey) => {
+  1179→        let model;
+  1180→        switch (providerKey) {
+  1181→          case 'nim_rerank_qa':
+  1182→            model = NIM_MODELS.rerank_qa;
+  1183→            break;
+  1184→          case 'nim_rerank_vl':
+  1185→            model = NIM_MODELS.rerank_vl;
+  1186→            break;
+  1187→          default:
+  1188→            throw new Error(`Unknown reranking provider: ${providerKey}`);
+  1189→        }
+  1190→
+  1191→        const topN = options.topN || documents.length;
+  1192→
+  1193→        // NIM reranking endpoint
+  1194→        const res = await fetch(`${this.nimBaseUrl}/ranking`, {
+  1195→          method: 'POST',
+  1196→          headers: {
+  1197→            'Authorization': `Bearer ${this.nimApiKey}`,
+  1198→            'Content-Type': 'application/json',
+  1199→          },
+  1200→          body: JSON.stringify({
+  1201→            model,
+  1202→            query: { text: query },
+  1203→            passages: documents.map(doc => ({ text: doc })),
+  1204→            top_n: topN,
+  1205→          }),
+  1206→        });
+  1207→
+  1208→        if (!res.ok) {
+  1209→          const errText = await res.text();
+  1210→          const err = new Error(`NIM Reranking error: ${res.status} ${errText.substring(0, 200)}`);
+  1211→          err.status = res.status;
+  1212→          throw err;
+  1213→        }
+  1214→
+  1215→        const result = await res.json();
+  1216→        return (result.rankings || []).map(r => ({
+  1217→          index: r.index,
+  1218→          score: r.logit || r.score || 0,
+  1219→          text: documents[r.index],
+  1220→        }));
+  1221→      });
+  1222→    } catch (err) {
+  1223→      console.error('[ai-provider] Reranking failed, returning original order:', err.message);
+  1224→      return documents.map((doc, i) => ({ index: i, score: 1 - (i * 0.01), text: doc }));
+  1225→    }
+  1226→  }
+  1227→
+  1228→  // ─── Safety / Content Moderation ─────────────────────────────
+  1229→
+  1230→  /**
+  1231→   * Check content for safety violations using NIM NemoGuard.
+  1232→   * @param {string} content - Text to check
+  1233→   * @param {Object} options - { categories }
+  1234→   * @returns {Object} { safe: boolean, categories: {...}, reason: string }
+  1235→   */
+  1236→  async moderateContent(content, options = {}) {
+  1237→    if (!this.nimAvailable) {
+  1238→      // No NIM = allow all (no moderation available)
+  1239→      return { safe: true, categories: {}, reason: 'Moderation not available (NIM not configured)' };
+  1240→    }
+  1241→
+  1242→    try {
+  1243→      return await this.execute('safety', async (providerKey) => {
+  1244→        let model;
+  1245→        switch (providerKey) {
+  1246→          case 'nim_safety_guard':
+  1247→            model = NIM_MODELS.safety_guard;
+  1248→            break;
+  1249→          case 'nim_safety_reasoning':
+  1250→            model = NIM_MODELS.safety_reasoning;
+  1251→            break;
+  1252→          default:
+  1253→            throw new Error(`Unknown safety provider: ${providerKey}`);
+  1254→        }
+  1255→
+  1256→        // NemoGuard uses chat completions format with safety-specific system prompt
+  1257→        const response = await this.clients.nim.chat.completions.create({
+  1258→          model,
+  1259→          messages: [
+  1260→            {
+  1261→              role: 'system',
+  1262→              content: 'You are a content safety classifier. Analyze the following text for safety violations including: harassment, hate speech, violence, sexual content, self-harm, dangerous content, and professional misconduct. Return a JSON object: {"safe": true/false, "categories": {"harassment": false, "hate_speech": false, "violence": false, "sexual_content": false, "self_harm": false, "dangerous": false, "unprofessional": false}, "reason": "explanation if unsafe"}'
+  1263→            },
+  1264→            { role: 'user', content: content.substring(0, 4000) }
+  1265→          ],
+  1266→          max_tokens: 512,
+  1267→          temperature: 0.1,
+  1268→        });
+  1269→
+  1270→        const text = response.choices[0].message.content;
+  1271→        try {
+  1272→          const jsonMatch = text.match(/\{[\s\S]*\}/);
+  1273→          if (jsonMatch) return JSON.parse(jsonMatch[0]);
+  1274→        } catch (e) { /* fall through */ }
+  1275→
+  1276→        // Default safe if parsing fails
+  1277→        return { safe: true, categories: {}, reason: 'Safety check completed (parse fallback)' };
+  1278→      });
+  1279→    } catch (err) {
+  1280→      console.error('[ai-provider] Safety moderation failed:', err.message);
+  1281→      return { safe: true, categories: {}, reason: 'Safety check failed (allowing by default)' };
+  1282→    }
+  1283→  }
+  1284→
+  1285→  // ─── Health Status ────────────────────────────────────────────
+  1286→
+  1287→  getHealth() {
+  1288→    const allModalities = ['llm', 'vision', 'tts', 'asr', 'embedding', 'reranking', 'safety'];
+  1289→    const modalities = {};
+  1290→
+  1291→    for (const modality of allModalities) {
+  1292→      const chain = this.getChain(modality);
+  1293→      modalities[modality] = {
+  1294→        active: this.activeProviders[modality] || 'none',
+  1295→        chain_depth: chain.length,
+  1296→        providers: chain.map(key => ({
+  1297→          key,
+  1298→          available: this.isProviderAvailable(key),
+  1299→          circuitOpen: this.isCircuitOpen(key, modality),
+  1300→          failures: this.failures[`${key}:${modality}`] || null,
+  1301→        })),
+  1302→      };
+  1303→    }
+  1304→
+  1305→    // Module-specific chain info
+  1306→    const moduleInfo = {};
+  1307→    for (const [module, config] of Object.entries(MODULE_CHAINS)) {
+  1308→      moduleInfo[module] = {};
+  1309→      for (const [modality, variant] of Object.entries(config)) {
+  1310→        const chain = this.getChain(modality, variant);
+  1311→        const available = chain.filter(k => this.isProviderAvailable(k) && !this.isCircuitOpen(k, modality));
+  1312→        moduleInfo[module][modality] = {
+  1313→          variant,
+  1314→          chain_depth: chain.length,
+  1315→          available_count: available.length,
+  1316→          providers: chain.map(k => k),
+  1317→        };
+  1318→      }
+  1319→    }
+  1320→
+  1321→    return {
+  1322→      status: 'ok',
+  1323→      timestamp: new Date().toISOString(),
+  1324→      nim_configured: this.nimAvailable,
+  1325→      total_models_registered: Object.keys(NIM_MODELS).length,
+  1326→      stats: this.stats,
+  1327→      token_budget: tokenBudget.getStatus(),
+  1328→      modalities,
+  1329→      module_chains: moduleInfo,
+  1330→      recent_logs: this.logs.slice(-20),
+  1331→    };
+  1332→  }
+  1333→
+  1334→  // ─── Reset (for testing) ──────────────────────────────────────
+  1335→
+  1336→  resetCircuitBreakers() {
+  1337→    this.failures = {};
+  1338→    console.log('[ai-provider] All circuit breakers reset');
+  1339→  }
+  1340→}
+  1341→
+  1342→// Singleton
+  1343→const aiProvider = new AIProviderService();
+  1344→module.exports = aiProvider;
+  1345→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
