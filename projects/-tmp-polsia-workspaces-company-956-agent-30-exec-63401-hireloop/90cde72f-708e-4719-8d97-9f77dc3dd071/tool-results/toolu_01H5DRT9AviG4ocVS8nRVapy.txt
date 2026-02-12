@@ -1,0 +1,323 @@
+     1→import { useEffect, useState } from 'react'
+     2→import { Link } from 'react-router-dom'
+     3→import { apiCall } from '@/lib/api'
+     4→import { Card, CardContent } from '@/components/ui/card'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Select } from '@/components/ui/select'
+     9→import {
+    10→  Briefcase, MapPin, DollarSign, Clock, Search, Building2, ArrowRight,
+    11→  Sparkles, Target, Zap, Star,
+    12→} from 'lucide-react'
+    13→
+    14→interface Job {
+    15→  id: number
+    16→  title: string
+    17→  company: string
+    18→  poster_company?: string
+    19→  description: string
+    20→  requirements: string
+    21→  location: string
+    22→  salary_range: string
+    23→  job_type: string
+    24→  status: string
+    25→  created_at: string
+    26→  screening_questions?: string
+    27→  // Match fields (from recommended endpoint)
+    28→  weighted_score?: number
+    29→  match_level?: string
+    30→  skill_match_pct?: number
+    31→  matching_skills?: string[]
+    32→  missing_skills?: string[]
+    33→  success_prediction?: string
+    34→  similarity_score?: number
+    35→}
+    36→
+    37→function matchColor(score: number): string {
+    38→  if (score >= 80) return 'text-green-600'
+    39→  if (score >= 60) return 'text-amber-600'
+    40→  return 'text-red-500'
+    41→}
+    42→
+    43→function matchBg(score: number): string {
+    44→  if (score >= 80) return 'bg-green-100 text-green-700 border-green-200'
+    45→  if (score >= 60) return 'bg-amber-100 text-amber-700 border-amber-200'
+    46→  return 'bg-red-100 text-red-600 border-red-200'
+    47→}
+    48→
+    49→function matchLevelLabel(level: string): string {
+    50→  if (level === 'excellent') return 'Excellent Match'
+    51→  if (level === 'good') return 'Good Match'
+    52→  if (level === 'fair') return 'Fair Match'
+    53→  return ''
+    54→}
+    55→
+    56→export function CandidateJobsPage() {
+    57→  const [jobs, setJobs] = useState<Job[]>([])
+    58→  const [recommendedJobs, setRecommendedJobs] = useState<Job[]>([])
+    59→  const [loading, setLoading] = useState(true)
+    60→  const [search, setSearch] = useState('')
+    61→  const [typeFilter, setTypeFilter] = useState('')
+    62→  const [locationFilter, setLocationFilter] = useState('')
+    63→  const [showRecommended, setShowRecommended] = useState(true)
+    64→
+    65→  useEffect(() => {
+    66→    loadJobs()
+    67→  }, [])
+    68→
+    69→  async function loadJobs() {
+    70→    try {
+    71→      // Load both: all jobs + recommended (with match scores)
+    72→      const [allData, recData] = await Promise.allSettled([
+    73→        apiCall<{ jobs: Job[] }>('/jobs?status=active&limit=100'),
+    74→        apiCall<{ recommended_jobs: Job[] }>('/candidate/jobs/recommended'),
+    75→      ])
+    76→
+    77→      const allJobs = allData.status === 'fulfilled' ? allData.value.jobs || [] : []
+    78→      const recJobs = recData.status === 'fulfilled' ? recData.value.recommended_jobs || [] : []
+    79→
+    80→      // Merge match scores into all jobs
+    81→      const recMap = new Map<number, Job>()
+    82→      for (const rj of recJobs) {
+    83→        recMap.set(rj.job_id ?? rj.id, rj)
+    84→      }
+    85→
+    86→      const enriched = allJobs.map(j => {
+    87→        const rec = recMap.get(j.id)
+    88→        if (rec) {
+    89→          return {
+    90→            ...j,
+    91→            weighted_score: rec.weighted_score,
+    92→            match_level: rec.match_level,
+    93→            skill_match_pct: rec.skill_match_pct,
+    94→            matching_skills: rec.matching_skills,
+    95→            missing_skills: rec.missing_skills,
+    96→            success_prediction: rec.success_prediction,
+    97→            similarity_score: rec.similarity_score,
+    98→          }
+    99→        }
+   100→        return j
+   101→      })
+   102→
+   103→      setJobs(enriched)
+   104→      setRecommendedJobs(recJobs.slice(0, 5))
+   105→    } catch {
+   106→      // silent
+   107→    } finally {
+   108→      setLoading(false)
+   109→    }
+   110→  }
+   111→
+   112→  const filtered = jobs.filter(j => {
+   113→    const matchSearch = !search ||
+   114→      j.title?.toLowerCase().includes(search.toLowerCase()) ||
+   115→      j.company?.toLowerCase().includes(search.toLowerCase()) ||
+   116→      j.description?.toLowerCase().includes(search.toLowerCase())
+   117→    const matchType = !typeFilter || j.job_type === typeFilter
+   118→    const matchLocation = !locationFilter || j.location?.toLowerCase().includes(locationFilter.toLowerCase())
+   119→    return matchSearch && matchType && matchLocation
+   120→  })
+   121→
+   122→  const jobTypes = [...new Set(jobs.map(j => j.job_type).filter(Boolean))]
+   123→
+   124→  function timeAgo(dateStr: string) {
+   125→    const diff = Date.now() - new Date(dateStr).getTime()
+   126→    const days = Math.floor(diff / 86400000)
+   127→    if (days === 0) return 'Today'
+   128→    if (days === 1) return '1 day ago'
+   129→    if (days < 30) return `${days} days ago`
+   130→    return `${Math.floor(days / 30)} months ago`
+   131→  }
+   132→
+   133→  return (
+   134→    <div className="space-y-6">
+   135→      <div>
+   136→        <h1 className="font-heading text-2xl font-bold">Job Board</h1>
+   137→        <p className="text-muted-foreground">Find your next opportunity</p>
+   138→      </div>
+   139→
+   140→      {/* Recommended jobs section */}
+   141→      {showRecommended && recommendedJobs.length > 0 && (
+   142→        <div>
+   143→          <div className="flex items-center gap-2 mb-3">
+   144→            <Sparkles className="h-4 w-4 text-primary" />
+   145→            <h2 className="font-semibold text-sm">Recommended for You</h2>
+   146→            <Badge variant="secondary" className="text-[10px]">{recommendedJobs.length} matches</Badge>
+   147→            <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={() => setShowRecommended(false)}>
+   148→              Hide
+   149→            </Button>
+   150→          </div>
+   151→          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+   152→            {recommendedJobs.map(rj => {
+   153→              const jobId = (rj as any).job_id ?? rj.id
+   154→              const score = Math.round(rj.weighted_score || 0)
+   155→              return (
+   156→                <Link key={jobId} to={`/candidate/jobs/${jobId}`}>
+   157→                  <Card className="h-full transition-shadow hover:shadow-md cursor-pointer border-primary/20">
+   158→                    <CardContent className="p-4">
+   159→                      <div className="flex items-start justify-between gap-2 mb-2">
+   160→                        <div className="min-w-0">
+   161→                          <h3 className="font-semibold text-sm truncate">{rj.title}</h3>
+   162→                          <p className="text-xs text-muted-foreground">{rj.company}</p>
+   163→                        </div>
+   164→                        <div className={`text-center rounded-lg border px-2 py-0.5 shrink-0 ${matchBg(score)}`}>
+   165→                          <div className="text-sm font-bold">{score}%</div>
+   166→                        </div>
+   167→                      </div>
+   168→                      <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground mb-2">
+   169→                        {rj.location && <span className="flex items-center gap-0.5"><MapPin className="h-2.5 w-2.5" />{rj.location}</span>}
+   170→                        {rj.job_type && <Badge variant="secondary" className="text-[9px] h-4">{rj.job_type}</Badge>}
+   171→                      </div>
+   172→                      {rj.match_level && (
+   173→                        <div className="flex items-center gap-1">
+   174→                          {rj.match_level === 'excellent' && <Zap className="h-3 w-3 text-green-500" />}
+   175→                          <span className={`text-[10px] font-medium ${matchColor(score)}`}>
+   176→                            {matchLevelLabel(rj.match_level)}
+   177→                          </span>
+   178→                          {rj.skill_match_pct != null && (
+   179→                            <span className="text-[10px] text-muted-foreground">
+   180→                              · {rj.skill_match_pct}% skills
+   181→                            </span>
+   182→                          )}
+   183→                        </div>
+   184→                      )}
+   185→                    </CardContent>
+   186→                  </Card>
+   187→                </Link>
+   188→              )
+   189→            })}
+   190→          </div>
+   191→        </div>
+   192→      )}
+   193→
+   194→      {/* Filters */}
+   195→      <Card>
+   196→        <CardContent className="p-4">
+   197→          <div className="flex flex-col gap-3 sm:flex-row">
+   198→            <div className="relative flex-1">
+   199→              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   200→              <Input
+   201→                placeholder="Search jobs by title, company, or keywords..."
+   202→                value={search}
+   203→                onChange={e => setSearch(e.target.value)}
+   204→                className="pl-9"
+   205→              />
+   206→            </div>
+   207→            <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="sm:w-40">
+   208→              <option value="">All Types</option>
+   209→              {jobTypes.map(t => <option key={t} value={t}>{t}</option>)}
+   210→            </Select>
+   211→            <Input
+   212→              placeholder="Location..."
+   213→              value={locationFilter}
+   214→              onChange={e => setLocationFilter(e.target.value)}
+   215→              className="sm:w-40"
+   216→            />
+   217→          </div>
+   218→        </CardContent>
+   219→      </Card>
+   220→
+   221→      {/* Results count */}
+   222→      <p className="text-sm text-muted-foreground">{filtered.length} jobs found</p>
+   223→
+   224→      {/* Job list */}
+   225→      {loading ? (
+   226→        <div className="flex items-center justify-center py-16">
+   227→          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+   228→        </div>
+   229→      ) : filtered.length === 0 ? (
+   230→        <Card>
+   231→          <CardContent className="py-16 text-center">
+   232→            <Briefcase className="mx-auto mb-3 h-10 w-10 opacity-30" />
+   233→            <p className="text-muted-foreground">No jobs found matching your criteria</p>
+   234→          </CardContent>
+   235→        </Card>
+   236→      ) : (
+   237→        <div className="space-y-3">
+   238→          {filtered.map(job => {
+   239→            const score = job.weighted_score ? Math.round(job.weighted_score) : null
+   240→            return (
+   241→              <Link key={job.id} to={`/candidate/jobs/${job.id}`}>
+   242→                <Card className="transition-shadow hover:shadow-md cursor-pointer">
+   243→                  <CardContent className="p-5">
+   244→                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+   245→                      <div className="min-w-0 flex-1">
+   246→                        <div className="flex items-center gap-2 mb-1">
+   247→                          <h3 className="font-semibold text-base truncate">{job.title}</h3>
+   248→                          {job.match_level === 'excellent' && (
+   249→                            <Badge variant="outline" className="text-[10px] gap-0.5 text-green-600 border-green-200 bg-green-50 shrink-0">
+   250→                              <Zap className="h-2.5 w-2.5" /> Top Match
+   251→                            </Badge>
+   252→                          )}
+   253→                          {(() => {
+   254→                            try {
+   255→                              return job.screening_questions && JSON.parse(job.screening_questions).length > 0
+   256→                            } catch { return false }
+   257→                          })() && (
+   258→                            <Badge variant="outline" className="text-[10px] shrink-0">Screening</Badge>
+   259→                          )}
+   260→                        </div>
+   261→                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-2">
+   262→                          <span className="flex items-center gap-1">
+   263→                            <Building2 className="h-3.5 w-3.5" />
+   264→                            {job.company || job.poster_company || 'Company'}
+   265→                          </span>
+   266→                          {job.location && (
+   267→                            <span className="flex items-center gap-1">
+   268→                              <MapPin className="h-3.5 w-3.5" /> {job.location}
+   269→                            </span>
+   270→                          )}
+   271→                          {job.salary_range && (
+   272→                            <span className="flex items-center gap-1">
+   273→                              <DollarSign className="h-3.5 w-3.5" /> {job.salary_range}
+   274→                            </span>
+   275→                          )}
+   276→                        </div>
+   277→                        <p className="text-sm text-muted-foreground line-clamp-2">
+   278→                          {job.description?.substring(0, 200)}
+   279→                        </p>
+   280→                        {/* Skills match inline */}
+   281→                        {job.matching_skills && job.matching_skills.length > 0 && (
+   282→                          <div className="flex flex-wrap items-center gap-1 mt-2">
+   283→                            <Target className="h-3 w-3 text-green-500 shrink-0" />
+   284→                            {job.matching_skills.slice(0, 4).map(s => (
+   285→                              <span key={s} className="text-[10px] bg-green-50 text-green-700 rounded px-1.5 py-0.5 border border-green-100">{s}</span>
+   286→                            ))}
+   287→                            {job.matching_skills.length > 4 && (
+   288→                              <span className="text-[10px] text-green-600">+{job.matching_skills.length - 4} more</span>
+   289→                            )}
+   290→                          </div>
+   291→                        )}
+   292→                      </div>
+   293→                      <div className="flex items-center gap-3 shrink-0">
+   294→                        <div className="flex flex-col items-end gap-1">
+   295→                          {score != null && (
+   296→                            <div className={`text-center rounded-lg border px-2.5 py-1 ${matchBg(score)}`}>
+   297→                              <div className="text-lg font-bold leading-tight">{score}%</div>
+   298→                              <div className="text-[9px] uppercase font-medium">Match</div>
+   299→                            </div>
+   300→                          )}
+   301→                          {job.job_type && <Badge variant="secondary" className="text-[10px]">{job.job_type}</Badge>}
+   302→                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+   303→                            <Clock className="h-3 w-3" /> {timeAgo(job.created_at)}
+   304→                          </span>
+   305→                        </div>
+   306→                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+   307→                      </div>
+   308→                    </div>
+   309→                  </CardContent>
+   310→                </Card>
+   311→              </Link>
+   312→            )
+   313→          })}
+   314→        </div>
+   315→      )}
+   316→    </div>
+   317→  )
+   318→}
+   319→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

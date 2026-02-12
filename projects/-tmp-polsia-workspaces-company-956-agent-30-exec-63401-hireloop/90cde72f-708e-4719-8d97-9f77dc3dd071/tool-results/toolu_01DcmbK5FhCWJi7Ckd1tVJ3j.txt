@@ -1,0 +1,1233 @@
+     1→import { useEffect, useState, useRef } from 'react'
+     2→import { apiCall } from '@/lib/api'
+     3→import { useAuth } from '@/contexts/auth-context'
+     4→import { Card, CardContent } from '@/components/ui/card'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Label } from '@/components/ui/label'
+     8→import { Textarea } from '@/components/ui/textarea'
+     9→import { Badge } from '@/components/ui/badge'
+    10→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+    11→import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    12→import {
+    13→  User, Briefcase, GraduationCap, Wrench, FileText,
+    14→  Plus, Pencil, Trash2, Save, Upload, MapPin, Phone, Link2,
+    15→  Github, Linkedin, Globe, CheckCircle, AlertCircle, X,
+    16→  Calendar, Building2, Award, Star, Sparkles, Loader2,
+    17→} from 'lucide-react'
+    18→
+    19→// ============= Types =============
+    20→
+    21→interface Profile {
+    22→  user_id?: number
+    23→  name?: string
+    24→  email?: string
+    25→  avatar_url?: string
+    26→  headline?: string
+    27→  bio?: string
+    28→  location?: string
+    29→  phone?: string
+    30→  linkedin_url?: string
+    31→  github_url?: string
+    32→  portfolio_url?: string
+    33→  resume_url?: string
+    34→  availability?: string
+    35→  salary_min?: number
+    36→  salary_max?: number
+    37→  preferred_job_types?: string[]
+    38→  preferred_locations?: string[]
+    39→  remote_preference?: string
+    40→  years_experience?: number
+    41→}
+    42→
+    43→interface Experience {
+    44→  id: number
+    45→  company_name: string
+    46→  title: string
+    47→  location?: string
+    48→  start_date?: string
+    49→  end_date?: string
+    50→  is_current?: boolean
+    51→  description?: string
+    52→  achievements?: string[]
+    53→  skills_used?: string[]
+    54→}
+    55→
+    56→interface Education {
+    57→  id: number
+    58→  institution: string
+    59→  degree: string
+    60→  field_of_study?: string
+    61→  start_date?: string
+    62→  end_date?: string
+    63→  is_current?: boolean
+    64→  gpa?: string
+    65→  achievements?: string[]
+    66→}
+    67→
+    68→interface Skill {
+    69→  id: number
+    70→  skill_name: string
+    71→  category: string
+    72→  level: number
+    73→  years_experience?: number
+    74→  is_verified?: boolean
+    75→}
+    76→
+    77→// ============= Main Component =============
+    78→
+    79→export function CandidateProfilePage() {
+    80→  const { user } = useAuth()
+    81→  const [tab, setTab] = useState('personal')
+    82→  const [profile, setProfile] = useState<Profile>({})
+    83→  const [experience, setExperience] = useState<Experience[]>([])
+    84→  const [education, setEducation] = useState<Education[]>([])
+    85→  const [skills, setSkills] = useState<Skill[]>([])
+    86→  const [loading, setLoading] = useState(true)
+    87→  const [saving, setSaving] = useState(false)
+    88→  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+    89→  const [aiOptimizing, setAiOptimizing] = useState(false)
+    90→  const [aiTips, setAiTips] = useState<string[] | null>(null)
+    91→
+    92→  useEffect(() => {
+    93→    loadProfile()
+    94→  }, [])
+    95→
+    96→  useEffect(() => {
+    97→    if (message) {
+    98→      const t = setTimeout(() => setMessage(null), 3000)
+    99→      return () => clearTimeout(t)
+   100→    }
+   101→  }, [message])
+   102→
+   103→  async function loadProfile() {
+   104→    try {
+   105→      const data = await apiCall<{
+   106→        success: boolean
+   107→        profile: Profile
+   108→        experience: Experience[]
+   109→        education: Education[]
+   110→        skills: Skill[]
+   111→      }>('/candidate/profile')
+   112→      setProfile({ ...data.profile, name: data.profile.name || user?.name, email: data.profile.email || user?.email })
+   113→      setExperience(data.experience || [])
+   114→      setEducation(data.education || [])
+   115→      setSkills(data.skills || [])
+   116→    } catch {
+   117→      // silent
+   118→    } finally {
+   119→      setLoading(false)
+   120→    }
+   121→  }
+   122→
+   123→  function showMessage(type: 'success' | 'error', text: string) {
+   124→    setMessage({ type, text })
+   125→  }
+   126→
+   127→  // Compute profile completeness
+   128→  async function handleAiOptimize() {
+   129→    setAiOptimizing(true)
+   130→    setAiTips(null)
+   131→    try {
+   132→      const data = await apiCall<{ success: boolean; suggestions: { summary: string; improvements: string[]; missing_sections: string[]; keyword_suggestions: string[] } }>('/candidate/ai/resume-optimizer', { method: 'POST' })
+   133→      if (data.suggestions) {
+   134→        const tips: string[] = []
+   135→        if (data.suggestions.summary) tips.push(data.suggestions.summary)
+   136→        if (data.suggestions.improvements?.length) tips.push(...data.suggestions.improvements)
+   137→        if (data.suggestions.missing_sections?.length) tips.push(`Missing sections: ${data.suggestions.missing_sections.join(', ')}`)
+   138→        if (data.suggestions.keyword_suggestions?.length) tips.push(`Add keywords: ${data.suggestions.keyword_suggestions.join(', ')}`)
+   139→        setAiTips(tips.length > 0 ? tips : ['Your profile looks great! Keep it updated.'])
+   140→        showMessage('success', 'AI analysis complete')
+   141→      }
+   142→    } catch {
+   143→      showMessage('error', 'AI optimization failed — try again')
+   144→    } finally {
+   145→      setAiOptimizing(false)
+   146→    }
+   147→  }
+   148→
+   149→  const completenessFields = [
+   150→    profile.name,
+   151→    profile.headline,
+   152→    profile.bio,
+   153→    profile.location,
+   154→    profile.linkedin_url || profile.github_url,
+   155→    profile.resume_url,
+   156→    skills.length > 0,
+   157→    experience.length > 0,
+   158→    education.length > 0,
+   159→    profile.phone,
+   160→  ]
+   161→  const completeness = Math.round((completenessFields.filter(Boolean).length / completenessFields.length) * 100)
+   162→
+   163→  if (loading) {
+   164→    return (
+   165→      <div className="flex items-center justify-center py-16">
+   166→        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+   167→      </div>
+   168→    )
+   169→  }
+   170→
+   171→  return (
+   172→    <div className="space-y-6">
+   173→      {/* Toast message */}
+   174→      {message && (
+   175→        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg transition-all ${
+   176→          message.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-destructive text-white'
+   177→        }`}>
+   178→          {message.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+   179→          {message.text}
+   180→        </div>
+   181→      )}
+   182→
+   183→      {/* Header */}
+   184→      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+   185→        <div>
+   186→          <h1 className="font-heading text-2xl font-bold">My Profile</h1>
+   187→          <p className="text-muted-foreground">Manage your professional profile for employers</p>
+   188→        </div>
+   189→        <div className="flex items-center gap-3">
+   190→          <Button
+   191→            variant="outline"
+   192→            size="sm"
+   193→            onClick={handleAiOptimize}
+   194→            disabled={aiOptimizing}
+   195→            className="gap-1.5 border-primary/30 text-primary hover:bg-primary hover:text-white transition-colors"
+   196→          >
+   197→            {aiOptimizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+   198→            {aiOptimizing ? 'Analyzing...' : 'AI Profile Tips'}
+   199→          </Button>
+   200→          <ProfileCompleteness value={completeness} />
+   201→        </div>
+   202→      </div>
+   203→
+   204→      {/* AI Optimization Tips */}
+   205→      {aiTips && aiTips.length > 0 && (
+   206→        <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20">
+   207→          <CardContent className="p-4">
+   208→            <div className="flex items-start gap-3">
+   209→              <Sparkles className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+   210→              <div className="flex-1 space-y-2">
+   211→                <div className="flex items-center justify-between">
+   212→                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 text-sm">AI Profile Optimization Tips</h4>
+   213→                  <Button variant="ghost" size="sm" onClick={() => setAiTips(null)} className="h-6 w-6 p-0"><X className="h-3 w-3" /></Button>
+   214→                </div>
+   215→                <ul className="space-y-1.5">
+   216→                  {aiTips.map((tip, i) => (
+   217→                    <li key={i} className="text-sm text-blue-800 dark:text-blue-200 flex items-start gap-2">
+   218→                      <CheckCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-500" />
+   219→                      {tip}
+   220→                    </li>
+   221→                  ))}
+   222→                </ul>
+   223→              </div>
+   224→            </div>
+   225→          </CardContent>
+   226→        </Card>
+   227→      )}
+   228→
+   229→      {/* Profile header card */}
+   230→      <Card>
+   231→        <CardContent className="p-6">
+   232→          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+   233→            <AvatarUpload profile={profile} onUploaded={(url) => setProfile(p => ({ ...p, avatar_url: url }))} showMessage={showMessage} />
+   234→            <div className="flex-1 min-w-0">
+   235→              <h2 className="text-xl font-bold truncate">{profile.name || 'Your Name'}</h2>
+   236→              <p className="text-muted-foreground">{profile.headline || 'Add a professional headline'}</p>
+   237→              <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-muted-foreground">
+   238→                {profile.location && (
+   239→                  <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {profile.location}</span>
+   240→                )}
+   241→                {profile.email && (
+   242→                  <span className="flex items-center gap-1">✉ {profile.email}</span>
+   243→                )}
+   244→                {profile.phone && (
+   245→                  <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {profile.phone}</span>
+   246→                )}
+   247→              </div>
+   248→              <div className="flex flex-wrap items-center gap-2 mt-2">
+   249→                {profile.linkedin_url && (
+   250→                  <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer">
+   251→                    <Badge variant="outline" className="gap-1 cursor-pointer hover:bg-muted">
+   252→                      <Linkedin className="h-3 w-3" /> LinkedIn
+   253→                    </Badge>
+   254→                  </a>
+   255→                )}
+   256→                {profile.github_url && (
+   257→                  <a href={profile.github_url} target="_blank" rel="noopener noreferrer">
+   258→                    <Badge variant="outline" className="gap-1 cursor-pointer hover:bg-muted">
+   259→                      <Github className="h-3 w-3" /> GitHub
+   260→                    </Badge>
+   261→                  </a>
+   262→                )}
+   263→                {profile.portfolio_url && (
+   264→                  <a href={profile.portfolio_url} target="_blank" rel="noopener noreferrer">
+   265→                    <Badge variant="outline" className="gap-1 cursor-pointer hover:bg-muted">
+   266→                      <Globe className="h-3 w-3" /> Portfolio
+   267→                    </Badge>
+   268→                  </a>
+   269→                )}
+   270→                {profile.resume_url && (
+   271→                  <a href={profile.resume_url} target="_blank" rel="noopener noreferrer">
+   272→                    <Badge variant="secondary" className="gap-1 cursor-pointer hover:bg-muted">
+   273→                      <FileText className="h-3 w-3" /> Resume
+   274→                    </Badge>
+   275→                  </a>
+   276→                )}
+   277→              </div>
+   278→            </div>
+   279→          </div>
+   280→        </CardContent>
+   281→      </Card>
+   282→
+   283→      {/* Tabs */}
+   284→      <Tabs value={tab} onValueChange={setTab}>
+   285→        <TabsList className="w-full flex flex-wrap gap-1">
+   286→          <TabsTrigger value="personal" className="gap-1.5"><User className="h-3.5 w-3.5" /> Personal</TabsTrigger>
+   287→          <TabsTrigger value="experience" className="gap-1.5"><Briefcase className="h-3.5 w-3.5" /> Experience</TabsTrigger>
+   288→          <TabsTrigger value="education" className="gap-1.5"><GraduationCap className="h-3.5 w-3.5" /> Education</TabsTrigger>
+   289→          <TabsTrigger value="skills" className="gap-1.5"><Wrench className="h-3.5 w-3.5" /> Skills</TabsTrigger>
+   290→          <TabsTrigger value="resume" className="gap-1.5"><FileText className="h-3.5 w-3.5" /> Resume</TabsTrigger>
+   291→        </TabsList>
+   292→
+   293→        <TabsContent value="personal">
+   294→          <PersonalInfoTab
+   295→            profile={profile}
+   296→            setProfile={setProfile}
+   297→            saving={saving}
+   298→            setSaving={setSaving}
+   299→            showMessage={showMessage}
+   300→          />
+   301→        </TabsContent>
+   302→
+   303→        <TabsContent value="experience">
+   304→          <ExperienceTab
+   305→            experience={experience}
+   306→            setExperience={setExperience}
+   307→            showMessage={showMessage}
+   308→          />
+   309→        </TabsContent>
+   310→
+   311→        <TabsContent value="education">
+   312→          <EducationTab
+   313→            education={education}
+   314→            setEducation={setEducation}
+   315→            showMessage={showMessage}
+   316→          />
+   317→        </TabsContent>
+   318→
+   319→        <TabsContent value="skills">
+   320→          <SkillsTab
+   321→            skills={skills}
+   322→            setSkills={setSkills}
+   323→            showMessage={showMessage}
+   324→          />
+   325→        </TabsContent>
+   326→
+   327→        <TabsContent value="resume">
+   328→          <ResumeTab
+   329→            profile={profile}
+   330→            setProfile={setProfile}
+   331→            showMessage={showMessage}
+   332→            onResumeApplied={loadProfile}
+   333→          />
+   334→        </TabsContent>
+   335→      </Tabs>
+   336→    </div>
+   337→  )
+   338→}
+   339→
+   340→// ============= Profile Completeness =============
+   341→
+   342→function ProfileCompleteness({ value }: { value: number }) {
+   343→  const color = value >= 80 ? 'text-emerald-600' : value >= 50 ? 'text-amber-500' : 'text-red-500'
+   344→  const bg = value >= 80 ? 'bg-emerald-600' : value >= 50 ? 'bg-amber-500' : 'bg-red-500'
+   345→
+   346→  return (
+   347→    <div className="flex items-center gap-3">
+   348→      <div className="text-right">
+   349→        <p className={`text-sm font-bold ${color}`}>{value}%</p>
+   350→        <p className="text-[10px] text-muted-foreground">Complete</p>
+   351→      </div>
+   352→      <div className="w-24 h-2 rounded-full bg-muted overflow-hidden">
+   353→        <div className={`h-full rounded-full transition-all ${bg}`} style={{ width: `${value}%` }} />
+   354→      </div>
+   355→    </div>
+   356→  )
+   357→}
+   358→
+   359→// ============= Avatar Upload =============
+   360→
+   361→function AvatarUpload({ profile, onUploaded, showMessage }: {
+   362→  profile: Profile
+   363→  onUploaded: (url: string) => void
+   364→  showMessage: (type: 'success' | 'error', text: string) => void
+   365→}) {
+   366→  const fileRef = useRef<HTMLInputElement>(null)
+   367→  const [uploading, setUploading] = useState(false)
+   368→
+   369→  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+   370→    const file = e.target.files?.[0]
+   371→    if (!file) return
+   372→    setUploading(true)
+   373→    try {
+   374→      const formData = new FormData()
+   375→      formData.append('photo', file)
+   376→      const data = await apiCall<{ success: boolean; photo_url: string }>('/candidate/profile/photo', {
+   377→        method: 'POST',
+   378→        body: formData,
+   379→        isFormData: true,
+   380→      })
+   381→      onUploaded(data.photo_url)
+   382→      showMessage('success', 'Photo updated')
+   383→    } catch {
+   384→      showMessage('error', 'Failed to upload photo')
+   385→    } finally {
+   386→      setUploading(false)
+   387→    }
+   388→  }
+   389→
+   390→  return (
+   391→    <div className="relative group">
+   392→      <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center overflow-hidden border-2 border-border">
+   393→        {profile.avatar_url ? (
+   394→          <img src={profile.avatar_url} alt="Avatar" className="h-full w-full object-cover" />
+   395→        ) : (
+   396→          <User className="h-8 w-8 text-muted-foreground" />
+   397→        )}
+   398→      </div>
+   399→      <button
+   400→        onClick={() => fileRef.current?.click()}
+   401→        disabled={uploading}
+   402→        className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+   403→      >
+   404→        {uploading ? (
+   405→          <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+   406→        ) : (
+   407→          <Upload className="h-5 w-5 text-white" />
+   408→        )}
+   409→      </button>
+   410→      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+   411→    </div>
+   412→  )
+   413→}
+   414→
+   415→// ============= Personal Info Tab =============
+   416→
+   417→function PersonalInfoTab({ profile, setProfile, saving, setSaving, showMessage }: {
+   418→  profile: Profile
+   419→  setProfile: React.Dispatch<React.SetStateAction<Profile>>
+   420→  saving: boolean
+   421→  setSaving: React.Dispatch<React.SetStateAction<boolean>>
+   422→  showMessage: (type: 'success' | 'error', text: string) => void
+   423→}) {
+   424→  // Update profile state directly so header card syncs in real-time
+   425→  function updateField(key: string, value: string | number) {
+   426→    setProfile(p => ({ ...p, [key]: value }))
+   427→  }
+   428→
+   429→  async function handleSave() {
+   430→    setSaving(true)
+   431→    try {
+   432→      await apiCall('/candidate/profile', {
+   433→        method: 'PUT',
+   434→        body: profile,
+   435→      })
+   436→      showMessage('success', 'Profile saved')
+   437→    } catch {
+   438→      showMessage('error', 'Failed to save profile')
+   439→    } finally {
+   440→      setSaving(false)
+   441→    }
+   442→  }
+   443→
+   444→  return (
+   445→    <Card>
+   446→      <CardContent className="p-6 space-y-6">
+   447→        <h3 className="font-semibold flex items-center gap-2"><User className="h-4 w-4" /> Personal Information</h3>
+   448→
+   449→        <div className="grid gap-4 sm:grid-cols-2">
+   450→          <div>
+   451→            <Label>Full Name</Label>
+   452→            <Input value={profile.name || ''} onChange={e => updateField('name', e.target.value)} placeholder="John Doe" />
+   453→          </div>
+   454→          <div>
+   455→            <Label>Headline</Label>
+   456→            <Input value={profile.headline || ''} onChange={e => updateField('headline', e.target.value)} placeholder="Senior Software Engineer" />
+   457→          </div>
+   458→          <div>
+   459→            <Label>Phone</Label>
+   460→            <Input value={profile.phone || ''} onChange={e => updateField('phone', e.target.value)} placeholder="+1 (555) 000-0000" />
+   461→          </div>
+   462→          <div>
+   463→            <Label>Location</Label>
+   464→            <Input value={profile.location || ''} onChange={e => updateField('location', e.target.value)} placeholder="San Francisco, CA" />
+   465→          </div>
+   466→        </div>
+   467→
+   468→        <div>
+   469→          <Label>Bio / Summary</Label>
+   470→          <Textarea
+   471→            value={profile.bio || ''}
+   472→            onChange={e => updateField('bio', e.target.value)}
+   473→            placeholder="Brief professional summary..."
+   474→            rows={4}
+   475→          />
+   476→        </div>
+   477→
+   478→        <h3 className="font-semibold flex items-center gap-2 pt-2"><Link2 className="h-4 w-4" /> Social Links</h3>
+   479→
+   480→        <div className="grid gap-4 sm:grid-cols-2">
+   481→          <div>
+   482→            <Label className="flex items-center gap-1"><Linkedin className="h-3 w-3" /> LinkedIn URL</Label>
+   483→            <Input value={profile.linkedin_url || ''} onChange={e => updateField('linkedin_url', e.target.value)} placeholder="https://linkedin.com/in/..." />
+   484→          </div>
+   485→          <div>
+   486→            <Label className="flex items-center gap-1"><Github className="h-3 w-3" /> GitHub URL</Label>
+   487→            <Input value={profile.github_url || ''} onChange={e => updateField('github_url', e.target.value)} placeholder="https://github.com/..." />
+   488→          </div>
+   489→          <div>
+   490→            <Label className="flex items-center gap-1"><Globe className="h-3 w-3" /> Portfolio URL</Label>
+   491→            <Input value={profile.portfolio_url || ''} onChange={e => updateField('portfolio_url', e.target.value)} placeholder="https://yoursite.com" />
+   492→          </div>
+   493→        </div>
+   494→
+   495→        <h3 className="font-semibold flex items-center gap-2 pt-2"><Briefcase className="h-4 w-4" /> Preferences</h3>
+   496→
+   497→        <div className="grid gap-4 sm:grid-cols-2">
+   498→          <div>
+   499→            <Label>Years of Experience</Label>
+   500→            <Input
+   501→              type="number"
+   502→              value={profile.years_experience ?? ''}
+   503→              onChange={e => updateField('years_experience', parseInt(e.target.value) || 0)}
+   504→              placeholder="5"
+   505→            />
+   506→          </div>
+   507→          <div>
+   508→            <Label>Remote Preference</Label>
+   509→            <select
+   510→              value={profile.remote_preference || 'hybrid'}
+   511→              onChange={e => updateField('remote_preference', e.target.value)}
+   512→              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+   513→            >
+   514→              <option value="remote">Remote Only</option>
+   515→              <option value="hybrid">Hybrid</option>
+   516→              <option value="onsite">On-site</option>
+   517→              <option value="flexible">Flexible</option>
+   518→            </select>
+   519→          </div>
+   520→          <div>
+   521→            <Label>Availability</Label>
+   522→            <select
+   523→              value={profile.availability || 'open'}
+   524→              onChange={e => updateField('availability', e.target.value)}
+   525→              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+   526→            >
+   527→              <option value="open">Open to Opportunities</option>
+   528→              <option value="actively_looking">Actively Looking</option>
+   529→              <option value="not_looking">Not Looking</option>
+   530→              <option value="available_soon">Available Soon</option>
+   531→            </select>
+   532→          </div>
+   533→          <div>
+   534→            <Label>Minimum Salary ($)</Label>
+   535→            <Input
+   536→              type="number"
+   537→              value={profile.salary_min ?? ''}
+   538→              onChange={e => updateField('salary_min', parseInt(e.target.value) || 0)}
+   539→              placeholder="80000"
+   540→            />
+   541→          </div>
+   542→        </div>
+   543→
+   544→        <div className="flex justify-end pt-4">
+   545→          <Button onClick={handleSave} disabled={saving} className="gap-2">
+   546→            {saving ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Save className="h-4 w-4" />}
+   547→            Save Changes
+   548→          </Button>
+   549→        </div>
+   550→      </CardContent>
+   551→    </Card>
+   552→  )
+   553→}
+   554→
+   555→// ============= Experience Tab =============
+   556→
+   557→function ExperienceTab({ experience, setExperience, showMessage }: {
+   558→  experience: Experience[]
+   559→  setExperience: React.Dispatch<React.SetStateAction<Experience[]>>
+   560→  showMessage: (type: 'success' | 'error', text: string) => void
+   561→}) {
+   562→  const [editing, setEditing] = useState<Experience | null>(null)
+   563→  const [isNew, setIsNew] = useState(false)
+   564→
+   565→  function openNew() {
+   566→    setEditing({ id: 0, company_name: '', title: '', is_current: false })
+   567→    setIsNew(true)
+   568→  }
+   569→
+   570→  function openEdit(exp: Experience) {
+   571→    setEditing({ ...exp })
+   572→    setIsNew(false)
+   573→  }
+   574→
+   575→  async function handleSave() {
+   576→    if (!editing) return
+   577→    try {
+   578→      if (isNew) {
+   579→        const data = await apiCall<{ success: boolean; experience: Experience }>('/candidate/experience', {
+   580→          method: 'POST',
+   581→          body: editing,
+   582→        })
+   583→        setExperience(prev => [data.experience, ...prev])
+   584→      } else {
+   585→        const data = await apiCall<{ success: boolean; experience: Experience }>(`/candidate/experience/${editing.id}`, {
+   586→          method: 'PUT',
+   587→          body: editing,
+   588→        })
+   589→        setExperience(prev => prev.map(e => e.id === editing.id ? data.experience : e))
+   590→      }
+   591→      setEditing(null)
+   592→      showMessage('success', isNew ? 'Experience added' : 'Experience updated')
+   593→    } catch {
+   594→      showMessage('error', 'Failed to save experience')
+   595→    }
+   596→  }
+   597→
+   598→  async function handleDelete(id: number) {
+   599→    try {
+   600→      await apiCall(`/candidate/experience/${id}`, { method: 'DELETE' })
+   601→      setExperience(prev => prev.filter(e => e.id !== id))
+   602→      showMessage('success', 'Experience removed')
+   603→    } catch {
+   604→      showMessage('error', 'Failed to delete experience')
+   605→    }
+   606→  }
+   607→
+   608→  return (
+   609→    <div className="space-y-4">
+   610→      <div className="flex items-center justify-between">
+   611→        <h3 className="font-semibold flex items-center gap-2"><Briefcase className="h-4 w-4" /> Work Experience</h3>
+   612→        <Button size="sm" onClick={openNew} className="gap-1"><Plus className="h-4 w-4" /> Add</Button>
+   613→      </div>
+   614→
+   615→      {experience.length === 0 ? (
+   616→        <Card>
+   617→          <CardContent className="py-12 text-center">
+   618→            <Briefcase className="mx-auto mb-3 h-10 w-10 opacity-30" />
+   619→            <p className="text-muted-foreground mb-4">No work experience added yet</p>
+   620→            <Button onClick={openNew} className="gap-1"><Plus className="h-4 w-4" /> Add Experience</Button>
+   621→          </CardContent>
+   622→        </Card>
+   623→      ) : (
+   624→        <div className="space-y-3">
+   625→          {experience.map(exp => (
+   626→            <Card key={exp.id}>
+   627→              <CardContent className="p-4">
+   628→                <div className="flex items-start justify-between">
+   629→                  <div className="min-w-0 flex-1">
+   630→                    <h4 className="font-semibold">{exp.title}</h4>
+   631→                    <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+   632→                      <Building2 className="h-3.5 w-3.5" /> {exp.company_name}
+   633→                      {exp.location && <> · <MapPin className="h-3.5 w-3.5" /> {exp.location}</>}
+   634→                    </p>
+   635→                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+   636→                      <Calendar className="h-3 w-3" />
+   637→                      {exp.start_date ? new Date(exp.start_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Start'} —{' '}
+   638→                      {exp.is_current ? 'Present' : exp.end_date ? new Date(exp.end_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'End'}
+   639→                    </p>
+   640→                    {exp.description && <p className="text-sm mt-2 text-muted-foreground line-clamp-2">{exp.description}</p>}
+   641→                    {exp.skills_used && Array.isArray(exp.skills_used) && exp.skills_used.length > 0 && (
+   642→                      <div className="flex flex-wrap gap-1 mt-2">
+   643→                        {(typeof exp.skills_used === 'string' ? JSON.parse(exp.skills_used) : exp.skills_used).map((s: string) => (
+   644→                          <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>
+   645→                        ))}
+   646→                      </div>
+   647→                    )}
+   648→                  </div>
+   649→                  <div className="flex items-center gap-1 shrink-0 ml-2">
+   650→                    <Button variant="ghost" size="sm" onClick={() => openEdit(exp)}><Pencil className="h-3.5 w-3.5" /></Button>
+   651→                    <Button variant="ghost" size="sm" onClick={() => handleDelete(exp.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
+   652→                  </div>
+   653→                </div>
+   654→              </CardContent>
+   655→            </Card>
+   656→          ))}
+   657→        </div>
+   658→      )}
+   659→
+   660→      {/* Edit/Add dialog */}
+   661→      {editing && (
+   662→        <Dialog open={true} onClose={() => setEditing(null)} className="max-w-lg">
+   663→          <DialogHeader>
+   664→            <DialogTitle>{isNew ? 'Add Experience' : 'Edit Experience'}</DialogTitle>
+   665→          </DialogHeader>
+   666→          <div className="space-y-4">
+   667→            <div className="grid gap-3 sm:grid-cols-2">
+   668→              <div>
+   669→                <Label>Job Title *</Label>
+   670→                <Input value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} placeholder="Software Engineer" />
+   671→              </div>
+   672→              <div>
+   673→                <Label>Company *</Label>
+   674→                <Input value={editing.company_name} onChange={e => setEditing({ ...editing, company_name: e.target.value })} placeholder="Acme Corp" />
+   675→              </div>
+   676→              <div>
+   677→                <Label>Location</Label>
+   678→                <Input value={editing.location || ''} onChange={e => setEditing({ ...editing, location: e.target.value })} placeholder="San Francisco, CA" />
+   679→              </div>
+   680→              <div className="flex items-end">
+   681→                <label className="flex items-center gap-2 cursor-pointer">
+   682→                  <input
+   683→                    type="checkbox"
+   684→                    checked={editing.is_current || false}
+   685→                    onChange={e => setEditing({ ...editing, is_current: e.target.checked, end_date: e.target.checked ? undefined : editing.end_date })}
+   686→                    className="rounded border-input"
+   687→                  />
+   688→                  <span className="text-sm">Current Position</span>
+   689→                </label>
+   690→              </div>
+   691→              <div>
+   692→                <Label>Start Date</Label>
+   693→                <Input type="date" value={editing.start_date?.split('T')[0] || ''} onChange={e => setEditing({ ...editing, start_date: e.target.value })} />
+   694→              </div>
+   695→              {!editing.is_current && (
+   696→                <div>
+   697→                  <Label>End Date</Label>
+   698→                  <Input type="date" value={editing.end_date?.split('T')[0] || ''} onChange={e => setEditing({ ...editing, end_date: e.target.value })} />
+   699→                </div>
+   700→              )}
+   701→            </div>
+   702→            <div>
+   703→              <Label>Description</Label>
+   704→              <Textarea
+   705→                value={editing.description || ''}
+   706→                onChange={e => setEditing({ ...editing, description: e.target.value })}
+   707→                placeholder="Describe your responsibilities and achievements..."
+   708→                rows={4}
+   709→              />
+   710→            </div>
+   711→            <div className="flex justify-end gap-2 pt-2">
+   712→              <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+   713→              <Button onClick={handleSave} disabled={!editing.title || !editing.company_name} className="gap-1">
+   714→                <Save className="h-4 w-4" /> {isNew ? 'Add' : 'Save'}
+   715→              </Button>
+   716→            </div>
+   717→          </div>
+   718→        </Dialog>
+   719→      )}
+   720→    </div>
+   721→  )
+   722→}
+   723→
+   724→// ============= Education Tab =============
+   725→
+   726→function EducationTab({ education, setEducation, showMessage }: {
+   727→  education: Education[]
+   728→  setEducation: React.Dispatch<React.SetStateAction<Education[]>>
+   729→  showMessage: (type: 'success' | 'error', text: string) => void
+   730→}) {
+   731→  const [editing, setEditing] = useState<Education | null>(null)
+   732→  const [isNew, setIsNew] = useState(false)
+   733→
+   734→  function openNew() {
+   735→    setEditing({ id: 0, institution: '', degree: '' })
+   736→    setIsNew(true)
+   737→  }
+   738→
+   739→  function openEdit(edu: Education) {
+   740→    setEditing({ ...edu })
+   741→    setIsNew(false)
+   742→  }
+   743→
+   744→  async function handleSave() {
+   745→    if (!editing) return
+   746→    try {
+   747→      if (isNew) {
+   748→        const data = await apiCall<{ success: boolean; education: Education }>('/candidate/education', {
+   749→          method: 'POST',
+   750→          body: editing,
+   751→        })
+   752→        setEducation(prev => [data.education, ...prev])
+   753→      } else {
+   754→        const data = await apiCall<{ success: boolean; education: Education }>(`/candidate/education/${editing.id}`, {
+   755→          method: 'PUT',
+   756→          body: editing,
+   757→        })
+   758→        setEducation(prev => prev.map(e => e.id === editing.id ? data.education : e))
+   759→      }
+   760→      setEditing(null)
+   761→      showMessage('success', isNew ? 'Education added' : 'Education updated')
+   762→    } catch {
+   763→      showMessage('error', 'Failed to save education')
+   764→    }
+   765→  }
+   766→
+   767→  async function handleDelete(id: number) {
+   768→    try {
+   769→      await apiCall(`/candidate/education/${id}`, { method: 'DELETE' })
+   770→      setEducation(prev => prev.filter(e => e.id !== id))
+   771→      showMessage('success', 'Education removed')
+   772→    } catch {
+   773→      showMessage('error', 'Failed to delete education')
+   774→    }
+   775→  }
+   776→
+   777→  return (
+   778→    <div className="space-y-4">
+   779→      <div className="flex items-center justify-between">
+   780→        <h3 className="font-semibold flex items-center gap-2"><GraduationCap className="h-4 w-4" /> Education</h3>
+   781→        <Button size="sm" onClick={openNew} className="gap-1"><Plus className="h-4 w-4" /> Add</Button>
+   782→      </div>
+   783→
+   784→      {education.length === 0 ? (
+   785→        <Card>
+   786→          <CardContent className="py-12 text-center">
+   787→            <GraduationCap className="mx-auto mb-3 h-10 w-10 opacity-30" />
+   788→            <p className="text-muted-foreground mb-4">No education added yet</p>
+   789→            <Button onClick={openNew} className="gap-1"><Plus className="h-4 w-4" /> Add Education</Button>
+   790→          </CardContent>
+   791→        </Card>
+   792→      ) : (
+   793→        <div className="space-y-3">
+   794→          {education.map(edu => (
+   795→            <Card key={edu.id}>
+   796→              <CardContent className="p-4">
+   797→                <div className="flex items-start justify-between">
+   798→                  <div className="min-w-0 flex-1">
+   799→                    <h4 className="font-semibold">{edu.degree}{edu.field_of_study ? ` in ${edu.field_of_study}` : ''}</h4>
+   800→                    <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+   801→                      <Building2 className="h-3.5 w-3.5" /> {edu.institution}
+   802→                    </p>
+   803→                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+   804→                      <Calendar className="h-3 w-3" />
+   805→                      {edu.start_date ? new Date(edu.start_date).getFullYear() : 'Start'} —{' '}
+   806→                      {edu.is_current ? 'Present' : edu.end_date ? new Date(edu.end_date).getFullYear() : 'End'}
+   807→                      {edu.gpa && <> · GPA: {edu.gpa}</>}
+   808→                    </p>
+   809→                  </div>
+   810→                  <div className="flex items-center gap-1 shrink-0 ml-2">
+   811→                    <Button variant="ghost" size="sm" onClick={() => openEdit(edu)}><Pencil className="h-3.5 w-3.5" /></Button>
+   812→                    <Button variant="ghost" size="sm" onClick={() => handleDelete(edu.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
+   813→                  </div>
+   814→                </div>
+   815→              </CardContent>
+   816→            </Card>
+   817→          ))}
+   818→        </div>
+   819→      )}
+   820→
+   821→      {/* Edit/Add dialog */}
+   822→      {editing && (
+   823→        <Dialog open={true} onClose={() => setEditing(null)} className="max-w-lg">
+   824→          <DialogHeader>
+   825→            <DialogTitle>{isNew ? 'Add Education' : 'Edit Education'}</DialogTitle>
+   826→          </DialogHeader>
+   827→          <div className="space-y-4">
+   828→            <div className="grid gap-3 sm:grid-cols-2">
+   829→              <div>
+   830→                <Label>Institution *</Label>
+   831→                <Input value={editing.institution} onChange={e => setEditing({ ...editing, institution: e.target.value })} placeholder="MIT" />
+   832→              </div>
+   833→              <div>
+   834→                <Label>Degree *</Label>
+   835→                <Input value={editing.degree} onChange={e => setEditing({ ...editing, degree: e.target.value })} placeholder="Bachelor of Science" />
+   836→              </div>
+   837→              <div>
+   838→                <Label>Field of Study</Label>
+   839→                <Input value={editing.field_of_study || ''} onChange={e => setEditing({ ...editing, field_of_study: e.target.value })} placeholder="Computer Science" />
+   840→              </div>
+   841→              <div>
+   842→                <Label>GPA</Label>
+   843→                <Input value={editing.gpa || ''} onChange={e => setEditing({ ...editing, gpa: e.target.value })} placeholder="3.8" />
+   844→              </div>
+   845→              <div>
+   846→                <Label>Start Date</Label>
+   847→                <Input type="date" value={editing.start_date?.split('T')[0] || ''} onChange={e => setEditing({ ...editing, start_date: e.target.value })} />
+   848→              </div>
+   849→              <div>
+   850→                <Label>End Date</Label>
+   851→                <Input type="date" value={editing.end_date?.split('T')[0] || ''} onChange={e => setEditing({ ...editing, end_date: e.target.value })} />
+   852→              </div>
+   853→            </div>
+   854→            <div className="flex justify-end gap-2 pt-2">
+   855→              <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+   856→              <Button onClick={handleSave} disabled={!editing.institution || !editing.degree} className="gap-1">
+   857→                <Save className="h-4 w-4" /> {isNew ? 'Add' : 'Save'}
+   858→              </Button>
+   859→            </div>
+   860→          </div>
+   861→        </Dialog>
+   862→      )}
+   863→    </div>
+   864→  )
+   865→}
+   866→
+   867→// ============= Skills Tab =============
+   868→
+   869→function SkillsTab({ skills, setSkills, showMessage }: {
+   870→  skills: Skill[]
+   871→  setSkills: React.Dispatch<React.SetStateAction<Skill[]>>
+   872→  showMessage: (type: 'success' | 'error', text: string) => void
+   873→}) {
+   874→  const [newSkill, setNewSkill] = useState('')
+   875→  const [newCategory, setNewCategory] = useState('technical')
+   876→  const [newLevel, setNewLevel] = useState(3)
+   877→  const [adding, setAdding] = useState(false)
+   878→
+   879→  async function addSkill() {
+   880→    if (!newSkill.trim()) return
+   881→    setAdding(true)
+   882→    try {
+   883→      const data = await apiCall<{ success: boolean; skill: Skill }>('/candidate/skills', {
+   884→        method: 'POST',
+   885→        body: { skill_name: newSkill.trim(), category: newCategory, level: newLevel },
+   886→      })
+   887→      setSkills(prev => [...prev, data.skill])
+   888→      setNewSkill('')
+   889→      setNewLevel(3)
+   890→      showMessage('success', 'Skill added')
+   891→    } catch {
+   892→      showMessage('error', 'Failed to add skill')
+   893→    } finally {
+   894→      setAdding(false)
+   895→    }
+   896→  }
+   897→
+   898→  async function updateLevel(skill: Skill, level: number) {
+   899→    try {
+   900→      await apiCall(`/candidate/skills/${skill.id}`, {
+   901→        method: 'PUT',
+   902→        body: { level },
+   903→      })
+   904→      setSkills(prev => prev.map(s => s.id === skill.id ? { ...s, level } : s))
+   905→    } catch {
+   906→      showMessage('error', 'Failed to update skill')
+   907→    }
+   908→  }
+   909→
+   910→  async function removeSkill(id: number) {
+   911→    try {
+   912→      await apiCall(`/candidate/skills/${id}`, { method: 'DELETE' })
+   913→      setSkills(prev => prev.filter(s => s.id !== id))
+   914→      showMessage('success', 'Skill removed')
+   915→    } catch {
+   916→      showMessage('error', 'Failed to delete skill')
+   917→    }
+   918→  }
+   919→
+   920→  const levelLabels: Record<number, string> = { 1: 'Beginner', 2: 'Elementary', 3: 'Intermediate', 4: 'Advanced', 5: 'Expert' }
+   921→
+   922→  // Group skills by category
+   923→  const grouped = skills.reduce((acc, s) => {
+   924→    const cat = s.category || 'other'
+   925→    if (!acc[cat]) acc[cat] = []
+   926→    acc[cat].push(s)
+   927→    return acc
+   928→  }, {} as Record<string, Skill[]>)
+   929→
+   930→  return (
+   931→    <div className="space-y-4">
+   932→      <div className="flex items-center justify-between">
+   933→        <h3 className="font-semibold flex items-center gap-2"><Wrench className="h-4 w-4" /> Skills ({skills.length})</h3>
+   934→      </div>
+   935→
+   936→      {/* Add skill form */}
+   937→      <Card>
+   938→        <CardContent className="p-4">
+   939→          <p className="text-sm font-medium mb-3">Add a Skill</p>
+   940→          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+   941→            <div className="flex-1">
+   942→              <Label>Skill Name</Label>
+   943→              <Input
+   944→                value={newSkill}
+   945→                onChange={e => setNewSkill(e.target.value)}
+   946→                placeholder="e.g. React, Python, Project Management"
+   947→                onKeyDown={e => e.key === 'Enter' && addSkill()}
+   948→              />
+   949→            </div>
+   950→            <div className="w-36">
+   951→              <Label>Category</Label>
+   952→              <select
+   953→                value={newCategory}
+   954→                onChange={e => setNewCategory(e.target.value)}
+   955→                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+   956→              >
+   957→                <option value="technical">Technical</option>
+   958→                <option value="soft">Soft Skills</option>
+   959→                <option value="language">Language</option>
+   960→                <option value="tool">Tools</option>
+   961→                <option value="other">Other</option>
+   962→              </select>
+   963→            </div>
+   964→            <div className="w-36">
+   965→              <Label>Level ({levelLabels[newLevel]})</Label>
+   966→              <Input type="range" min={1} max={5} value={newLevel} onChange={e => setNewLevel(parseInt(e.target.value))} />
+   967→            </div>
+   968→            <Button onClick={addSkill} disabled={!newSkill.trim() || adding} className="gap-1">
+   969→              <Plus className="h-4 w-4" /> Add
+   970→            </Button>
+   971→          </div>
+   972→        </CardContent>
+   973→      </Card>
+   974→
+   975→      {skills.length === 0 ? (
+   976→        <Card>
+   977→          <CardContent className="py-12 text-center">
+   978→            <Wrench className="mx-auto mb-3 h-10 w-10 opacity-30" />
+   979→            <p className="text-muted-foreground">No skills added yet. Add your skills above.</p>
+   980→          </CardContent>
+   981→        </Card>
+   982→      ) : (
+   983→        Object.entries(grouped).map(([category, categorySkills]) => (
+   984→          <div key={category}>
+   985→            <h4 className="text-sm font-medium text-muted-foreground mb-2 capitalize">{category} Skills</h4>
+   986→            <div className="grid gap-2 sm:grid-cols-2">
+   987→              {categorySkills.map(skill => (
+   988→                <Card key={skill.id}>
+   989→                  <CardContent className="p-3 flex items-center gap-3">
+   990→                    <div className="flex-1 min-w-0">
+   991→                      <div className="flex items-center gap-2">
+   992→                        <span className="font-medium text-sm truncate">{skill.skill_name}</span>
+   993→                        {skill.is_verified && (
+   994→                          <Badge variant="success" className="gap-0.5 text-[10px]">
+   995→                            <Award className="h-2.5 w-2.5" /> Verified
+   996→                          </Badge>
+   997→                        )}
+   998→                      </div>
+   999→                      <div className="flex items-center gap-1 mt-1">
+  1000→                        {[1, 2, 3, 4, 5].map(level => (
+  1001→                          <button
+  1002→                            key={level}
+  1003→                            onClick={() => updateLevel(skill, level)}
+  1004→                            className="focus:outline-none"
+  1005→                          >
+  1006→                            <Star
+  1007→                              className={`h-3.5 w-3.5 transition-colors ${
+  1008→                                level <= skill.level ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'
+  1009→                              }`}
+  1010→                            />
+  1011→                          </button>
+  1012→                        ))}
+  1013→                        <span className="text-[10px] text-muted-foreground ml-1">{levelLabels[skill.level]}</span>
+  1014→                      </div>
+  1015→                    </div>
+  1016→                    <Button variant="ghost" size="sm" onClick={() => removeSkill(skill.id)} className="shrink-0 text-muted-foreground hover:text-destructive">
+  1017→                      <X className="h-3.5 w-3.5" />
+  1018→                    </Button>
+  1019→                  </CardContent>
+  1020→                </Card>
+  1021→              ))}
+  1022→            </div>
+  1023→          </div>
+  1024→        ))
+  1025→      )}
+  1026→    </div>
+  1027→  )
+  1028→}
+  1029→
+  1030→// ============= Resume Tab =============
+  1031→
+  1032→interface ApplySummary {
+  1033→  profile?: boolean
+  1034→  experience?: number
+  1035→  education?: number
+  1036→  skills?: number
+  1037→}
+  1038→
+  1039→interface ParsedData {
+  1040→  contact?: { name?: string; email?: string; phone?: string; location?: string; linkedin?: string; github?: string; portfolio?: string }
+  1041→  headline?: string
+  1042→  bio?: string
+  1043→  experience?: Array<{ company: string; title: string; location?: string; start_date?: string; end_date?: string; description?: string }>
+  1044→  education?: Array<{ institution: string; degree?: string; field?: string; start_date?: string; end_date?: string }>
+  1045→  skills?: Array<{ name: string; category?: string; level?: number }>
+  1046→  years_experience?: number
+  1047→  _applySummary?: ApplySummary
+  1048→}
+  1049→
+  1050→function ResumeTab({ profile, setProfile, showMessage, onResumeApplied }: {
+  1051→  profile: Profile
+  1052→  setProfile: React.Dispatch<React.SetStateAction<Profile>>
+  1053→  showMessage: (type: 'success' | 'error', text: string) => void
+  1054→  onResumeApplied: () => Promise<void>
+  1055→}) {
+  1056→  const fileRef = useRef<HTMLInputElement>(null)
+  1057→  const [uploading, setUploading] = useState(false)
+  1058→  const [lastParsed, setLastParsed] = useState<ParsedData | null>(null)
+  1059→  const [parseStep, setParseStep] = useState<string>('')
+  1060→
+  1061→  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  1062→    const file = e.target.files?.[0]
+  1063→    if (!file) return
+  1064→    setUploading(true)
+  1065→    setLastParsed(null)
+  1066→    setParseStep('Uploading resume...')
+  1067→    try {
+  1068→      setParseStep('Analyzing with AI...')
+  1069→      const formData = new FormData()
+  1070→      formData.append('resume', file)
+  1071→      const data = await apiCall<{ success: boolean; resume_url: string; parsed_data?: ParsedData }>('/candidate/resume/upload', {
+  1072→        method: 'POST',
+  1073→        body: formData,
+  1074→        isFormData: true,
+  1075→      })
+  1076→      setProfile(p => ({ ...p, resume_url: data.resume_url }))
+  1077→
+  1078→      if (data.parsed_data) {
+  1079→        setLastParsed(data.parsed_data)
+  1080→        setParseStep('Refreshing profile...')
+  1081→        // Reload the full profile to reflect auto-applied data
+  1082→        await onResumeApplied()
+  1083→
+  1084→        const summary = data.parsed_data._applySummary
+  1085→        if (summary) {
+  1086→          const parts: string[] = []
+  1087→          if (summary.profile) parts.push('profile info')
+  1088→          if (summary.experience && summary.experience > 0) parts.push(`${summary.experience} job${summary.experience > 1 ? 's' : ''}`)
+  1089→          if (summary.education && summary.education > 0) parts.push(`${summary.education} education`)
+  1090→          if (summary.skills && summary.skills > 0) parts.push(`${summary.skills} skill${summary.skills > 1 ? 's' : ''}`)
+  1091→
+  1092→          if (parts.length > 0) {
+  1093→            showMessage('success', `AI imported: ${parts.join(', ')}`)
+  1094→          } else {
+  1095→            showMessage('success', 'Resume parsed — profile already up to date')
+  1096→          }
+  1097→        } else {
+  1098→          showMessage('success', 'Resume uploaded & parsed!')
+  1099→        }
+  1100→      } else {
+  1101→        showMessage('success', 'Resume uploaded')
+  1102→      }
+  1103→      setParseStep('')
+  1104→    } catch {
+  1105→      showMessage('error', 'Failed to upload resume')
+  1106→      setParseStep('')
+  1107→    } finally {
+  1108→      setUploading(false)
+  1109→      // Reset file input so same file can be re-uploaded
+  1110→      if (fileRef.current) fileRef.current.value = ''
+  1111→    }
+  1112→  }
+  1113→
+  1114→  return (
+  1115→    <div className="space-y-4">
+  1116→      <h3 className="font-semibold flex items-center gap-2"><FileText className="h-4 w-4" /> Resume</h3>
+  1117→
+  1118→      <Card>
+  1119→        <CardContent className="p-6">
+  1120→          {profile.resume_url ? (
+  1121→            <div className="space-y-4">
+  1122→              <div className="flex items-center gap-3 rounded-lg border p-4 bg-muted/50">
+  1123→                <FileText className="h-8 w-8 text-primary shrink-0" />
+  1124→                <div className="flex-1 min-w-0">
+  1125→                  <p className="font-medium">Current Resume</p>
+  1126→                  <p className="text-sm text-muted-foreground truncate">{profile.resume_url}</p>
+  1127→                </div>
+  1128→                <a href={profile.resume_url} target="_blank" rel="noopener noreferrer">
+  1129→                  <Button variant="outline" size="sm">View</Button>
+  1130→                </a>
+  1131→              </div>
+  1132→              <div className="flex gap-2">
+  1133→                <Button onClick={() => fileRef.current?.click()} variant="outline" className="gap-1" disabled={uploading}>
+  1134→                  {uploading ? (
+  1135→                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+  1136→                  ) : (
+  1137→                    <Upload className="h-4 w-4" />
+  1138→                  )}
+  1139→                  {uploading ? 'Processing...' : 'Replace Resume'}
+  1140→                </Button>
+  1141→              </div>
+  1142→              {uploading && parseStep && (
+  1143→                <div className="flex items-center gap-2 text-sm text-primary animate-pulse">
+  1144→                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+  1145→                  {parseStep}
+  1146→                </div>
+  1147→              )}
+  1148→            </div>
+  1149→          ) : (
+  1150→            <div className="text-center py-8">
+  1151→              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+  1152→                <Upload className="h-8 w-8 text-muted-foreground" />
+  1153→              </div>
+  1154→              <h4 className="font-semibold mb-1">Upload Your Resume</h4>
+  1155→              <p className="text-sm text-muted-foreground mb-4">
+  1156→                Upload a PDF or DOCX (max 10MB). AI will automatically parse your resume and fill in your profile.
+  1157→              </p>
+  1158→              <Button onClick={() => fileRef.current?.click()} disabled={uploading} className="gap-2">
+  1159→                {uploading ? (
+  1160→                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+  1161→                ) : (
+  1162→                  <Upload className="h-4 w-4" />
+  1163→                )}
+  1164→                {uploading ? 'Analyzing...' : 'Choose File'}
+  1165→              </Button>
+  1166→              {uploading && parseStep && (
+  1167→                <p className="text-sm text-primary mt-3 animate-pulse">{parseStep}</p>
+  1168→              )}
+  1169→            </div>
+  1170→          )}
+  1171→        </CardContent>
+  1172→      </Card>
+  1173→
+  1174→      {/* Show parsed data summary after successful import */}
+  1175→      {lastParsed && !uploading && (
+  1176→        <Card className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20">
+  1177→          <CardContent className="p-5">
+  1178→            <div className="flex items-start gap-3">
+  1179→              <CheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+  1180→              <div className="flex-1 space-y-3">
+  1181→                <div>
+  1182→                  <h4 className="font-semibold text-emerald-900 dark:text-emerald-100">AI Resume Import Complete</h4>
+  1183→                  <p className="text-sm text-emerald-700 dark:text-emerald-300">
+  1184→                    Your profile has been auto-filled from your resume. Review each tab to confirm the data is correct.
+  1185→                  </p>
+  1186→                </div>
+  1187→
+  1188→                {/* Summary grid */}
+  1189→                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+  1190→                  {lastParsed.contact && (
+  1191→                    <div className="rounded-md bg-white/60 dark:bg-white/5 px-3 py-2 text-center">
+  1192→                      <User className="h-4 w-4 mx-auto mb-1 text-emerald-600" />
+  1193→                      <p className="text-xs font-medium">Profile Info</p>
+  1194→                      <p className="text-[10px] text-muted-foreground">{lastParsed.contact.name || 'Updated'}</p>
+  1195→                    </div>
+  1196→                  )}
+  1197→                  {lastParsed.experience && lastParsed.experience.length > 0 && (
+  1198→                    <div className="rounded-md bg-white/60 dark:bg-white/5 px-3 py-2 text-center">
+  1199→                      <Briefcase className="h-4 w-4 mx-auto mb-1 text-emerald-600" />
+  1200→                      <p className="text-xs font-medium">{lastParsed.experience.length} Job{lastParsed.experience.length > 1 ? 's' : ''}</p>
+  1201→                      <p className="text-[10px] text-muted-foreground truncate">{lastParsed.experience[0]?.company}</p>
+  1202→                    </div>
+  1203→                  )}
+  1204→                  {lastParsed.education && lastParsed.education.length > 0 && (
+  1205→                    <div className="rounded-md bg-white/60 dark:bg-white/5 px-3 py-2 text-center">
+  1206→                      <GraduationCap className="h-4 w-4 mx-auto mb-1 text-emerald-600" />
+  1207→                      <p className="text-xs font-medium">{lastParsed.education.length} Education</p>
+  1208→                      <p className="text-[10px] text-muted-foreground truncate">{lastParsed.education[0]?.institution}</p>
+  1209→                    </div>
+  1210→                  )}
+  1211→                  {lastParsed.skills && lastParsed.skills.length > 0 && (
+  1212→                    <div className="rounded-md bg-white/60 dark:bg-white/5 px-3 py-2 text-center">
+  1213→                      <Wrench className="h-4 w-4 mx-auto mb-1 text-emerald-600" />
+  1214→                      <p className="text-xs font-medium">{lastParsed.skills.length} Skills</p>
+  1215→                      <p className="text-[10px] text-muted-foreground truncate">{lastParsed.skills.slice(0, 3).map(s => s.name).join(', ')}</p>
+  1216→                    </div>
+  1217→                  )}
+  1218→                </div>
+  1219→              </div>
+  1220→            </div>
+  1221→          </CardContent>
+  1222→        </Card>
+  1223→      )}
+  1224→
+  1225→      <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={handleUpload} />
+  1226→    </div>
+  1227→  )
+  1228→}
+  1229→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

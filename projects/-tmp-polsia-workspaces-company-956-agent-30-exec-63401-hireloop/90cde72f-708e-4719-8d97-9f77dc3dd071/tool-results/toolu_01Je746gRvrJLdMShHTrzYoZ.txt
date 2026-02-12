@@ -1,0 +1,26 @@
+     1→import { defineConfig } from 'vite'
+     2→import react from '@vitejs/plugin-react'
+     3→import path from 'path'
+     4→
+     5→export default defineConfig({
+     6→  plugins: [react()],
+     7→  resolve: {
+     8→    alias: {
+     9→      '@': path.resolve(__dirname, './src'),
+    10→    },
+    11→  },
+    12→  build: {
+    13→    outDir: 'dist',
+    14→    emptyOutDir: true,
+    15→  },
+    16→  server: {
+    17→    proxy: {
+    18→      '/api': 'http://localhost:3000',
+    19→    },
+    20→  },
+    21→})
+    22→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

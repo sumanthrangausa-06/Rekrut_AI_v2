@@ -1,0 +1,127 @@
+     1→import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+     2→import {
+     3→  apiCall,
+     4→  setTokens,
+     5→  clearTokens,
+     6→  getToken,
+     7→  getDashboardPath,
+     8→  isRecruiterRole,
+     9→  type User,
+    10→  type UserRole,
+    11→} from '@/lib/api'
+    12→
+    13→interface AuthContextType {
+    14→  user: User | null
+    15→  loading: boolean
+    16→  isAuthenticated: boolean
+    17→  isRecruiter: boolean
+    18→  login: (email: string, password: string) => Promise<void>
+    19→  register: (data: RegisterData) => Promise<void>
+    20→  logout: () => void
+    21→}
+    22→
+    23→interface RegisterData {
+    24→  email: string
+    25→  password: string
+    26→  name: string
+    27→  role: UserRole
+    28→  company_name?: string
+    29→}
+    30→
+    31→const AuthContext = createContext<AuthContextType | undefined>(undefined)
+    32→
+    33→export function AuthProvider({ children }: { children: ReactNode }) {
+    34→  const [user, setUser] = useState<User | null>(null)
+    35→  const [loading, setLoading] = useState(true)
+    36→
+    37→  const checkAuth = useCallback(async () => {
+    38→    const token = getToken()
+    39→    if (!token) {
+    40→      setLoading(false)
+    41→      return
+    42→    }
+    43→
+    44→    try {
+    45→      const data = await apiCall<{ user: User }>('/auth/me')
+    46→      setUser(data.user)
+    47→    } catch {
+    48→      clearTokens()
+    49→      setUser(null)
+    50→    } finally {
+    51→      setLoading(false)
+    52→    }
+    53→  }, [])
+    54→
+    55→  useEffect(() => {
+    56→    checkAuth()
+    57→  }, [checkAuth])
+    58→
+    59→  const login = async (email: string, password: string) => {
+    60→    const data = await apiCall<{
+    61→      success: boolean
+    62→      user: User
+    63→      accessToken: string
+    64→      refreshToken: string
+    65→      token: string
+    66→    }>('/auth/login', {
+    67→      method: 'POST',
+    68→      body: { email, password },
+    69→    })
+    70→
+    71→    setTokens(data.accessToken || data.token, data.refreshToken)
+    72→    setUser(data.user)
+    73→  }
+    74→
+    75→  const register = async (registerData: RegisterData) => {
+    76→    const data = await apiCall<{
+    77→      success: boolean
+    78→      user: User
+    79→      accessToken: string
+    80→      refreshToken: string
+    81→      token: string
+    82→    }>('/auth/register', {
+    83→      method: 'POST',
+    84→      body: registerData,
+    85→    })
+    86→
+    87→    setTokens(data.accessToken || data.token, data.refreshToken)
+    88→    setUser(data.user)
+    89→  }
+    90→
+    91→  const logout = () => {
+    92→    clearTokens()
+    93→    setUser(null)
+    94→    window.location.href = '/login'
+    95→  }
+    96→
+    97→  return (
+    98→    <AuthContext.Provider
+    99→      value={{
+   100→        user,
+   101→        loading,
+   102→        isAuthenticated: !!user,
+   103→        isRecruiter: user ? isRecruiterRole(user.role) : false,
+   104→        login,
+   105→        register,
+   106→        logout,
+   107→      }}
+   108→    >
+   109→      {children}
+   110→    </AuthContext.Provider>
+   111→  )
+   112→}
+   113→
+   114→export function useAuth() {
+   115→  const context = useContext(AuthContext)
+   116→  if (!context) {
+   117→    throw new Error('useAuth must be used within AuthProvider')
+   118→  }
+   119→  return context
+   120→}
+   121→
+   122→export { getDashboardPath }
+   123→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

@@ -1,0 +1,25 @@
+total 44
+drwxr-sr-x 6 render render 4096 Feb 12 21:52 .
+drwxr-sr-x 5 render render 4096 Feb 12 21:52 ..
+-rw-r--r-- 1 render render 6291 Feb 12 21:52 App.tsx
+drwxr-sr-x 4 render render 4096 Feb 12 21:52 components
+drwxr-sr-x 2 render render 4096 Feb 12 21:52 contexts
+-rw-r--r-- 1 render render 1134 Feb 12 21:52 index.css
+drwxr-sr-x 2 render render 4096 Feb 12 21:52 lib
+-rw-r--r-- 1 render render  225 Feb 12 21:52 main.tsx
+drwxr-sr-x 5 render render 4096 Feb 12 21:52 pages
+-rw-r--r-- 1 render render   38 Feb 12 21:52 vite-env.d.ts
+total 144
+drwxr-sr-x  5 render render  4096 Feb 12 21:52 .
+drwxr-sr-x 19 render render  4096 Feb 12 21:53 ..
+drwxr-sr-x  3 render render  4096 Feb 12 21:52 dist
+-rw-r--r--  1 render render   801 Feb 12 21:52 index.html
+-rw-r--r--  1 render render 95118 Feb 12 21:52 package-lock.json
+-rw-r--r--  1 render render   674 Feb 12 21:52 package.json
+-rw-r--r--  1 render render    80 Feb 12 21:52 postcss.config.js
+drwxr-sr-x  2 render render  4096 Feb 12 21:52 public
+drwxr-sr-x  6 render render  4096 Feb 12 21:52 src
+-rw-r--r--  1 render render  1625 Feb 12 21:52 tailwind.config.ts
+-rw-r--r--  1 render render   624 Feb 12 21:52 tsconfig.json
+-rw-r--r--  1 render render  1208 Feb 12 21:52 tsconfig.tsbuildinfo
+-rw-r--r--  1 render render   375 Feb 12 21:52 vite.config.ts

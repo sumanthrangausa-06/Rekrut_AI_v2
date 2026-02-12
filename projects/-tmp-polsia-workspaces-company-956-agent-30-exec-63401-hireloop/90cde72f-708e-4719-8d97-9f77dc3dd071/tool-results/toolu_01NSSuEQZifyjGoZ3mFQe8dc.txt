@@ -1,0 +1,134 @@
+     1→const TOKEN_KEY = 'rekrutai_token'
+     2→const REFRESH_KEY = 'rekrutai_refresh'
+     3→
+     4→export function getToken(): string | null {
+     5→  return localStorage.getItem(TOKEN_KEY)
+     6→}
+     7→
+     8→export function getRefreshToken(): string | null {
+     9→  return localStorage.getItem(REFRESH_KEY)
+    10→}
+    11→
+    12→export function setTokens(accessToken: string, refreshToken: string) {
+    13→  localStorage.setItem(TOKEN_KEY, accessToken)
+    14→  localStorage.setItem(REFRESH_KEY, refreshToken)
+    15→}
+    16→
+    17→export function clearTokens() {
+    18→  localStorage.removeItem(TOKEN_KEY)
+    19→  localStorage.removeItem(REFRESH_KEY)
+    20→}
+    21→
+    22→let isRefreshing = false
+    23→let refreshPromise: Promise<string | null> | null = null
+    24→
+    25→async function refreshAccessToken(): Promise<string | null> {
+    26→  if (isRefreshing && refreshPromise) return refreshPromise
+    27→
+    28→  isRefreshing = true
+    29→  refreshPromise = (async () => {
+    30→    try {
+    31→      const refreshToken = getRefreshToken()
+    32→      if (!refreshToken) return null
+    33→
+    34→      const res = await fetch('/api/auth/refresh', {
+    35→        method: 'POST',
+    36→        headers: { 'Content-Type': 'application/json' },
+    37→        body: JSON.stringify({ refreshToken }),
+    38→      })
+    39→
+    40→      if (!res.ok) return null
+    41→
+    42→      const data = await res.json()
+    43→      if (data.accessToken && data.refreshToken) {
+    44→        setTokens(data.accessToken, data.refreshToken)
+    45→        return data.accessToken
+    46→      }
+    47→      return null
+    48→    } catch {
+    49→      return null
+    50→    } finally {
+    51→      isRefreshing = false
+    52→      refreshPromise = null
+    53→    }
+    54→  })()
+    55→
+    56→  return refreshPromise
+    57→}
+    58→
+    59→interface ApiCallOptions extends Omit<RequestInit, 'body'> {
+    60→  body?: unknown
+    61→  isFormData?: boolean
+    62→}
+    63→
+    64→export async function apiCall<T = unknown>(
+    65→  url: string,
+    66→  options: ApiCallOptions = {}
+    67→): Promise<T> {
+    68→  const { body, isFormData, headers: customHeaders, ...rest } = options
+    69→  const token = getToken()
+    70→
+    71→  const headers: Record<string, string> = {
+    72→    ...(customHeaders as Record<string, string>),
+    73→  }
+    74→
+    75→  if (token) {
+    76→    headers['Authorization'] = `Bearer ${token}`
+    77→  }
+    78→
+    79→  if (!isFormData && body) {
+    80→    headers['Content-Type'] = 'application/json'
+    81→  }
+    82→
+    83→  const fetchOptions: RequestInit = {
+    84→    ...rest,
+    85→    headers,
+    86→    body: isFormData ? (body as BodyInit) : body ? JSON.stringify(body) : undefined,
+    87→  }
+    88→
+    89→  let res = await fetch(`/api${url}`, fetchOptions)
+    90→
+    91→  // If 401, try to refresh token
+    92→  if (res.status === 401) {
+    93→    const newToken = await refreshAccessToken()
+    94→    if (newToken) {
+    95→      headers['Authorization'] = `Bearer ${newToken}`
+    96→      res = await fetch(`/api${url}`, { ...fetchOptions, headers })
+    97→    } else {
+    98→      clearTokens()
+    99→      window.location.href = '/login'
+   100→      throw new Error('Session expired')
+   101→    }
+   102→  }
+   103→
+   104→  if (!res.ok) {
+   105→    const errorData = await res.json().catch(() => ({ error: 'Request failed' }))
+   106→    throw new Error(errorData.error || `Request failed: ${res.status}`)
+   107→  }
+   108→
+   109→  return res.json()
+   110→}
+   111→
+   112→export type UserRole = 'candidate' | 'recruiter' | 'hiring_manager' | 'employer' | 'admin'
+   113→
+   114→export interface User {
+   115→  id: number
+   116→  email: string
+   117→  name: string
+   118→  role: UserRole
+   119→  company_name?: string
+   120→  avatar_url?: string
+   121→}
+   122→
+   123→export function isRecruiterRole(role: UserRole): boolean {
+   124→  return ['employer', 'recruiter', 'hiring_manager', 'admin'].includes(role)
+   125→}
+   126→
+   127→export function getDashboardPath(role: UserRole): string {
+   128→  return isRecruiterRole(role) ? '/recruiter' : '/candidate'
+   129→}
+   130→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

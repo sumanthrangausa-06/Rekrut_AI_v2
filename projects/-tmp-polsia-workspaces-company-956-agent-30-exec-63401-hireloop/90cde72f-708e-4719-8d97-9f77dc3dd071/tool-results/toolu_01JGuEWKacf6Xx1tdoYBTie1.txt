@@ -1,0 +1,77 @@
+     1→# HireLoop Audit Report — Feb 12, 2026
+     2→
+     3→## Summary
+     4→Backend is ~90% functional. Core candidate and recruiter workflows work end-to-end. Two gaps: **job search/filter** and **offer management API**.
+     5→
+     6→---
+     7→
+     8→## Candidate Workflows
+     9→
+    10→| Feature | Status | Notes |
+    11→|---------|--------|-------|
+    12→| Register | ✅ WORKS | Email/password + role selection |
+    13→| Login | ✅ WORKS | JWT tokens + refresh tokens |
+    14→| Profile CRUD | ✅ WORKS | Headline, bio, location, phone, salary, etc |
+    15→| Skills CRUD | ✅ WORKS | Name, category, level, years_experience |
+    16→| Experience CRUD | ✅ WORKS | Company, title, dates, description |
+    17→| Education CRUD | ✅ WORKS | Institution, degree, field, dates |
+    18→| Resume upload + AI parse | ✅ WORKS | PDF/DOCX extraction, auto-fills profile |
+    19→| Job board | ✅ WORKS | Lists active jobs |
+    20→| Job detail | ✅ WORKS | Full job info + screening questions |
+    21→| Job search/filter | ❌ MISSING | No text search, location, type, or salary filter |
+    22→| Apply to job | ✅ WORKS | Cover letter + screening answers stored |
+    23→| Track applications | ✅ WORKS | Status visible to candidate |
+    24→| Withdraw application | ✅ WORKS | Status validation |
+    25→| Dashboard stats | ✅ WORKS | Profile completeness, counts, omniscore |
+    26→| Saved jobs | ✅ WORKS | Save/unsave with notes |
+    27→| Recommended jobs | ✅ WORKS | AI match scoring |
+    28→| AI resume optimizer | ✅ WORKS | Job-tailored suggestions |
+    29→| AI cover letter | ✅ WORKS | Generated from profile + job |
+    30→| AI screening suggestions | ✅ WORKS | Auto-fill from profile + past answers |
+    31→| Auto-fill for applications | ✅ WORKS | Reuses past data |
+    32→
+    33→## Recruiter Workflows
+    34→
+    35→| Feature | Status | Notes |
+    36→|---------|--------|-------|
+    37→| Register | ✅ WORKS | Auto-creates company |
+    38→| Login | ✅ WORKS | JWT + company_id in token |
+    39→| Create job posting | ✅ WORKS | Full fields + screening questions |
+    40→| AI job generation | ✅ WORKS | One-click from title |
+    41→| AI skill suggestions | ✅ WORKS | Must-have/nice-to-have |
+    42→| AI title suggestions | ✅ WORKS | SEO-optimized alternatives |
+    43→| View posted jobs | ✅ WORKS | With analytics (views, applications) |
+    44→| View applications | ✅ WORKS | Per job or all, with candidate details |
+    45→| Pipeline management | ✅ WORKS | 9 stages, kanban view, batch actions |
+    46→| Schedule interviews | ✅ WORKS | Auto Jitsi link for video |
+    47→| Ranked candidates | ✅ WORKS | By match score |
+    48→| AI candidate summary | ✅ WORKS | Strengths/concerns/fit |
+    49→| AI question suggestions | ✅ WORKS | From question bank + job |
+    50→| Question bank | ✅ WORKS | Save/reuse screening questions |
+    51→| Dashboard metrics | ✅ WORKS | Job stats, app stats, upcoming interviews |
+    52→| Send offers | 🚫 MISSING | `offers` table exists (30 cols) but NO API routes |
+    53→
+    54→## Data Persistence
+    55→
+    56→| Table | Status | Notes |
+    57→|-------|--------|-------|
+    58→| users | ✅ | 18 columns, auth + subscription |
+    59→| candidate_profiles | ✅ | Full profile with salary, preferences |
+    60→| candidate_skills | ✅ | With verification support |
+    61→| work_experience | ✅ | With achievements, skills_used |
+    62→| education | ✅ | With GPA, achievements |
+    63→| jobs | ✅ | With screening_questions JSONB |
+    64→| job_applications | ✅ | 13 cols: cover_letter, screening_answers, match_score |
+    65→| offers | ⚠️ | Table exists (30 cols) but no API routes |
+    66→| scheduled_interviews | ✅ | Full scheduling with meeting links |
+    67→| 75 tables total | ✅ | Comprehensive schema |
+    68→
+    69→## What Needs Fixing
+    70→
+    71→1. **Job search/filter API** — `GET /api/jobs` only filters by status. Need: text search, location, job_type, salary range
+    72→2. **Offer management API** — Need CRUD endpoints: create offer, list offers, update status, candidate accept/decline
+    73→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

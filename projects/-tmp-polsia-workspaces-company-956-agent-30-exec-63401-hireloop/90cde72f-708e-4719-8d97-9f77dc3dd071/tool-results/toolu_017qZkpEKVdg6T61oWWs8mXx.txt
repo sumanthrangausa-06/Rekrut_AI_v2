@@ -1,0 +1,153 @@
+     1→import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+     2→import { AuthProvider, useAuth, getDashboardPath } from '@/contexts/auth-context'
+     3→import { ErrorBoundary } from '@/components/error-boundary'
+     4→import { DashboardLayout } from '@/components/layout/dashboard-layout'
+     5→import { LandingPage } from '@/pages/landing'
+     6→import { LoginPage } from '@/pages/login'
+     7→import { RegisterPage } from '@/pages/register'
+     8→import { CandidateDashboard } from '@/pages/candidate/dashboard'
+     9→import { RecruiterDashboard } from '@/pages/recruiter/dashboard'
+    10→import { PlaceholderPage } from '@/pages/placeholder'
+    11→
+    12→// Jobs
+    13→import { CandidateJobsPage } from '@/pages/candidate/jobs'
+    14→import { CandidateJobDetailPage } from '@/pages/candidate/job-detail'
+    15→import { RecruiterJobsPage } from '@/pages/recruiter/jobs'
+    16→import { RecruiterJobFormPage } from '@/pages/recruiter/job-form'
+    17→import { RecruiterJobApplicantsPage } from '@/pages/recruiter/job-applicants'
+    18→
+    19→// Applications
+    20→import { CandidateApplicationsPage } from '@/pages/candidate/applications'
+    21→import { RecruiterApplicationsPage } from '@/pages/recruiter/applications'
+    22→
+    23→// Assessments
+    24→import { CandidateAssessmentsPage } from '@/pages/candidate/assessments'
+    25→import { AssessmentTakePage } from '@/pages/candidate/assessment-take'
+    26→
+    27→// Offers
+    28→import { CandidateOffersPage } from '@/pages/candidate/offers'
+    29→import { RecruiterOffersPage } from '@/pages/recruiter/offers'
+    30→
+    31→// Recruiter Assessments
+    32→import { RecruiterAssessmentsPage } from '@/pages/recruiter/assessments'
+    33→
+    34→// Profiles
+    35→import { CandidateProfilePage } from '@/pages/candidate/profile'
+    36→import { RecruiterCompanyPage } from '@/pages/recruiter/company'
+    37→
+    38→// Interviews
+    39→import { CandidateInterviewsPage } from '@/pages/candidate/interviews'
+    40→import { RecruiterInterviewsPage } from '@/pages/recruiter/interviews'
+    41→
+    42→// Onboarding
+    43→import { CandidateOnboardingPage } from '@/pages/candidate/onboarding'
+    44→import { RecruiterOnboardingPage } from '@/pages/recruiter/onboarding'
+    45→
+    46→// Payroll
+    47→import { CandidatePayrollPage } from '@/pages/candidate/payroll'
+    48→import { RecruiterPayrollPage } from '@/pages/recruiter/payroll'
+    49→
+    50→// AI Coaching
+    51→import { AiCoachingPage } from '@/pages/candidate/ai-coaching'
+    52→
+    53→// OmniScore (Two-Sided Scoring)
+    54→import { CandidateOmniScorePage } from '@/pages/candidate/omniscore'
+    55→import { RecruiterOmniScorePage } from '@/pages/recruiter/omniscore'
+    56→
+    57→// Camera Test (isolation debugging)
+    58→import { TestCameraPage } from '@/pages/test-camera'
+    59→
+    60→// Admin
+    61→import { AdminLoginPage } from '@/pages/admin/login'
+    62→import { AdminAuthGuard } from '@/components/admin-auth-guard'
+    63→import { AiHealthPage } from '@/pages/admin/ai-health'
+    64→
+    65→function RoleRedirect() {
+    66→  const { user, loading } = useAuth()
+    67→
+    68→  if (loading) return null
+    69→  if (!user) return <Navigate to="/login" replace />
+    70→  return <Navigate to={getDashboardPath(user.role)} replace />
+    71→}
+    72→
+    73→function AppRoutes() {
+    74→  return (
+    75→    <Routes>
+    76→      {/* Public routes */}
+    77→      <Route path="/" element={<LandingPage />} />
+    78→      <Route path="/login" element={<LoginPage />} />
+    79→      <Route path="/register" element={<RegisterPage />} />
+    80→      <Route path="/test-camera" element={<TestCameraPage />} />
+    81→
+    82→      {/* Auto-redirect based on role */}
+    83→      <Route path="/dashboard" element={<RoleRedirect />} />
+    84→
+    85→      {/* Candidate routes */}
+    86→      <Route path="/candidate" element={<DashboardLayout />}>
+    87→        <Route index element={<CandidateDashboard />} />
+    88→        <Route path="jobs" element={<CandidateJobsPage />} />
+    89→        <Route path="jobs/:id" element={<CandidateJobDetailPage />} />
+    90→        <Route path="applications" element={<CandidateApplicationsPage />} />
+    91→        <Route path="profile" element={<CandidateProfilePage />} />
+    92→        <Route path="assessments" element={<CandidateAssessmentsPage />} />
+    93→        <Route path="assessments/:id/take" element={<AssessmentTakePage />} />
+    94→        <Route path="interviews" element={<CandidateInterviewsPage />} />
+    95→        <Route path="ai-coaching" element={<AiCoachingPage />} />
+    96→        <Route path="omniscore" element={<CandidateOmniScorePage />} />
+    97→        <Route path="documents" element={<PlaceholderPage />} />
+    98→        <Route path="offers" element={<CandidateOffersPage />} />
+    99→        <Route path="onboarding" element={<CandidateOnboardingPage />} />
+   100→        <Route path="payroll" element={<CandidatePayrollPage />} />
+   101→      </Route>
+   102→
+   103→      {/* Recruiter routes */}
+   104→      <Route path="/recruiter" element={<DashboardLayout />}>
+   105→        <Route index element={<RecruiterDashboard />} />
+   106→        <Route path="jobs" element={<RecruiterJobsPage />} />
+   107→        <Route path="jobs/new" element={<RecruiterJobFormPage />} />
+   108→        <Route path="jobs/:id/applicants" element={<RecruiterJobApplicantsPage />} />
+   109→        <Route path="jobs/:id/edit" element={<RecruiterJobFormPage />} />
+   110→        <Route path="jobs/:id" element={<RecruiterJobApplicantsPage />} />
+   111→        <Route path="applications" element={<RecruiterApplicationsPage />} />
+   112→        <Route path="assessments" element={<RecruiterAssessmentsPage />} />
+   113→        <Route path="candidates" element={<PlaceholderPage />} />
+   114→        <Route path="interviews" element={<RecruiterInterviewsPage />} />
+   115→        <Route path="offers" element={<RecruiterOffersPage />} />
+   116→        <Route path="onboarding" element={<RecruiterOnboardingPage />} />
+   117→        <Route path="analytics" element={<PlaceholderPage />} />
+   118→        <Route path="company" element={<RecruiterCompanyPage />} />
+   119→        <Route path="payroll" element={<RecruiterPayrollPage />} />
+   120→        <Route path="omniscore" element={<RecruiterOmniScorePage />} />
+   121→      </Route>
+   122→
+   123→      {/* Settings */}
+   124→      <Route path="/settings" element={<DashboardLayout />}>
+   125→        <Route index element={<PlaceholderPage />} />
+   126→      </Route>
+   127→
+   128→      {/* Admin routes — login is public, everything else requires auth */}
+   129→      <Route path="/admin/login" element={<AdminLoginPage />} />
+   130→      <Route path="/admin/ai-health" element={<AdminAuthGuard><AiHealthPage /></AdminAuthGuard>} />
+   131→
+   132→      {/* Catch all */}
+   133→      <Route path="*" element={<Navigate to="/" replace />} />
+   134→    </Routes>
+   135→  )
+   136→}
+   137→
+   138→export default function App() {
+   139→  return (
+   140→    <ErrorBoundary>
+   141→      <BrowserRouter>
+   142→        <AuthProvider>
+   143→          <AppRoutes />
+   144→        </AuthProvider>
+   145→      </BrowserRouter>
+   146→    </ErrorBoundary>
+   147→  )
+   148→}
+   149→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

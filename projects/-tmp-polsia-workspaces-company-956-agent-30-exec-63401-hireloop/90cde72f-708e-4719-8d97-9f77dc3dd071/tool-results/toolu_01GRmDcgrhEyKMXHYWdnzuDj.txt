@@ -1,0 +1,4 @@
+> build
+> vite build
+
+sh: 1: vite: not found

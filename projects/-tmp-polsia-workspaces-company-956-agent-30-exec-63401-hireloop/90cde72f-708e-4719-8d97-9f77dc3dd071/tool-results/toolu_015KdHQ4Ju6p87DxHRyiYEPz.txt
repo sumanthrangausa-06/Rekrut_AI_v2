@@ -1,0 +1,20 @@
+total 860
+drwxr-sr-x  4 render render  4096 Feb 12 21:52 .
+drwxr-sr-x 19 render render  4096 Feb 12 21:53 ..
+-rw-r--r--  1 render render 15442 Feb 12 21:52 admin-analytics.html
+-rw-r--r--  1 render render 14063 Feb 12 21:52 assessment-results.html
+-rw-r--r--  1 render render 18965 Feb 12 21:52 assessment-take.html
+-rw-r--r--  1 render render 10013 Feb 12 21:52 candidate-dashboard.html
+-rw-r--r--  1 render render 67202 Feb 12 21:52 candidate-profile.html
+-rw-r--r--  1 render render 21838 Feb 12 21:52 company-profile.html
+-rw-r--r--  1 render render 24740 Feb 12 21:52 compliance-dashboard.html
+drwxr-sr-x  2 render render  4096 Feb 12 21:52 css
+-rw-r--r--  1 render render 10672 Feb 12 21:52 dashboard.html
+-rw-r--r--  1 render render 10394 Feb 12 21:52 documents.html
+-rw-r--r--  1 render render 16956 Feb 12 21:52 employee-payroll.html
+-rw-r--r--  1 render render  6807 Feb 12 21:52 history.html
+-rw-r--r--  1 render render 18202 Feb 12 21:52 index.html
+-rw-r--r--  1 render render 15728 Feb 12 21:52 interview-analysis.html
+-rw-r--r--  1 render render 35884 Feb 12 21:52 interview-practice.html
+-rw-r--r--  1 render render  7058 Feb 12 21:52 interview.html
+-rw-r--r--  1 render render 39128 Feb 12 21:52 job-board.html

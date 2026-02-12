@@ -1,0 +1,629 @@
+     1→import { useEffect, useState } from 'react'
+     2→import { Link } from 'react-router-dom'
+     3→import { apiCall } from '@/lib/api'
+     4→import { Card, CardContent } from '@/components/ui/card'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Badge } from '@/components/ui/badge'
+     7→import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+     8→import {
+     9→  FileText, Building2, MapPin, Calendar, ExternalLink, XCircle, AlertTriangle,
+    10→  Clock, CheckCircle, Briefcase, DollarSign, Filter, ClipboardList,
+    11→  ArrowRight, Eye,
+    12→} from 'lucide-react'
+    13→
+    14→interface ScreeningQuestion {
+    15→  question: string
+    16→  type: 'text' | 'yes_no' | 'select'
+    17→  required?: boolean
+    18→  options?: string[]
+    19→  category?: string
+    20→}
+    21→
+    22→interface Application {
+    23→  id: number
+    24→  job_id: number
+    25→  status: string
+    26→  title: string
+    27→  company: string
+    28→  location: string
+    29→  salary_range: string
+    30→  job_type: string
+    31→  posted_by_company?: string
+    32→  applied_at: string
+    33→  updated_at: string
+    34→  match_score?: number
+    35→  cover_letter?: string
+    36→  screening_answers?: string | Record<string, string>
+    37→  screening_questions?: string | ScreeningQuestion[]
+    38→}
+    39→
+    40→const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive'; icon: typeof Clock }> = {
+    41→  applied: { label: 'Applied', variant: 'secondary', icon: FileText },
+    42→  screening: { label: 'Screening', variant: 'default', icon: Eye },
+    43→  shortlisted: { label: 'Shortlisted', variant: 'default', icon: CheckCircle },
+    44→  reviewing: { label: 'Under Review', variant: 'warning', icon: Eye },
+    45→  interviewed: { label: 'Interviewed', variant: 'default', icon: Briefcase },
+    46→  offered: { label: 'Offer Received', variant: 'success', icon: DollarSign },
+    47→  hired: { label: 'Hired', variant: 'success', icon: CheckCircle },
+    48→  rejected: { label: 'Not Selected', variant: 'destructive', icon: XCircle },
+    49→  withdrawn: { label: 'Withdrawn', variant: 'secondary', icon: XCircle },
+    50→}
+    51→
+    52→export function CandidateApplicationsPage() {
+    53→  const [applications, setApplications] = useState<Application[]>([])
+    54→  const [loading, setLoading] = useState(true)
+    55→  const [statusFilter, setStatusFilter] = useState('')
+    56→  const [withdrawTarget, setWithdrawTarget] = useState<Application | null>(null)
+    57→  const [withdrawing, setWithdrawing] = useState(false)
+    58→  const [selectedApp, setSelectedApp] = useState<Application | null>(null)
+    59→
+    60→  useEffect(() => {
+    61→    loadApplications()
+    62→  }, [])
+    63→
+    64→  async function loadApplications() {
+    65→    try {
+    66→      const data = await apiCall<{ success: boolean; applications: Application[] }>('/candidate/applications')
+    67→      setApplications(data.applications || [])
+    68→    } catch {
+    69→      // silent
+    70→    } finally {
+    71→      setLoading(false)
+    72→    }
+    73→  }
+    74→
+    75→  async function withdrawApplication() {
+    76→    if (!withdrawTarget) return
+    77→    setWithdrawing(true)
+    78→    try {
+    79→      await apiCall(`/candidate/applications/${withdrawTarget.id}/withdraw`, {
+    80→        method: 'PUT',
+    81→      })
+    82→      setApplications(prev =>
+    83→        prev.map(a => a.id === withdrawTarget.id ? { ...a, status: 'withdrawn' } : a)
+    84→      )
+    85→      setWithdrawTarget(null)
+    86→      setSelectedApp(null)
+    87→    } catch (err: unknown) {
+    88→      alert(err instanceof Error ? err.message : 'Failed to withdraw application')
+    89→    } finally {
+    90→      setWithdrawing(false)
+    91→    }
+    92→  }
+    93→
+    94→  function timeAgo(dateStr: string) {
+    95→    const diff = Date.now() - new Date(dateStr).getTime()
+    96→    const days = Math.floor(diff / 86400000)
+    97→    if (days === 0) return 'Today'
+    98→    if (days === 1) return 'Yesterday'
+    99→    if (days < 7) return `${days} days ago`
+   100→    if (days < 30) return `${Math.floor(days / 7)} weeks ago`
+   101→    return `${Math.floor(days / 30)} months ago`
+   102→  }
+   103→
+   104→  function parseScreeningData(app: Application) {
+   105→    try {
+   106→      const answers = typeof app.screening_answers === 'string'
+   107→        ? JSON.parse(app.screening_answers)
+   108→        : app.screening_answers
+   109→      const questions: ScreeningQuestion[] = typeof app.screening_questions === 'string'
+   110→        ? JSON.parse(app.screening_questions)
+   111→        : (app.screening_questions || [])
+   112→      return { answers, questions }
+   113→    } catch {
+   114→      return { answers: null, questions: [] }
+   115→    }
+   116→  }
+   117→
+   118→  const statuses = ['applied', 'screening', 'shortlisted', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn']
+   119→  const statusCounts = statuses.reduce((acc, s) => {
+   120→    acc[s] = applications.filter(a => a.status === s).length
+   121→    return acc
+   122→  }, {} as Record<string, number>)
+   123→
+   124→  const filtered = applications.filter(a => !statusFilter || a.status === statusFilter)
+   125→
+   126→  const active = filtered.filter(a => !['rejected', 'withdrawn', 'hired'].includes(a.status))
+   127→  const completed = filtered.filter(a => ['rejected', 'withdrawn', 'hired'].includes(a.status))
+   128→
+   129→  return (
+   130→    <div className="space-y-6">
+   131→      <div>
+   132→        <h1 className="font-heading text-2xl font-bold">My Applications</h1>
+   133→        <p className="text-muted-foreground">Track your job application status and manage active applications</p>
+   134→      </div>
+   135→
+   136→      {/* Stats */}
+   137→      <div className="grid gap-3 sm:grid-cols-4">
+   138→        <Card>
+   139→          <CardContent className="p-4 text-center">
+   140→            <p className="text-2xl font-bold">{applications.length}</p>
+   141→            <p className="text-xs text-muted-foreground">Total Applied</p>
+   142→          </CardContent>
+   143→        </Card>
+   144→        <Card>
+   145→          <CardContent className="p-4 text-center">
+   146→            <p className="text-2xl font-bold text-blue-600">
+   147→              {applications.filter(a => !['rejected', 'withdrawn', 'hired'].includes(a.status)).length}
+   148→            </p>
+   149→            <p className="text-xs text-muted-foreground">Active</p>
+   150→          </CardContent>
+   151→        </Card>
+   152→        <Card>
+   153→          <CardContent className="p-4 text-center">
+   154→            <p className="text-2xl font-bold text-amber-600">
+   155→              {applications.filter(a => ['reviewing', 'interviewed'].includes(a.status)).length}
+   156→            </p>
+   157→            <p className="text-xs text-muted-foreground">In Progress</p>
+   158→          </CardContent>
+   159→        </Card>
+   160→        <Card>
+   161→          <CardContent className="p-4 text-center">
+   162→            <p className="text-2xl font-bold text-emerald-600">
+   163→              {applications.filter(a => ['offered', 'hired'].includes(a.status)).length}
+   164→            </p>
+   165→            <p className="text-xs text-muted-foreground">Offers / Hired</p>
+   166→          </CardContent>
+   167→        </Card>
+   168→      </div>
+   169→
+   170→      {/* Status filter pills */}
+   171→      <div className="flex flex-wrap gap-2">
+   172→        <Button
+   173→          variant={!statusFilter ? 'default' : 'outline'}
+   174→          size="sm"
+   175→          onClick={() => setStatusFilter('')}
+   176→        >
+   177→          All ({applications.length})
+   178→        </Button>
+   179→        {statuses.map(s => (
+   180→          statusCounts[s] > 0 ? (
+   181→            <Button
+   182→              key={s}
+   183→              variant={statusFilter === s ? 'default' : 'outline'}
+   184→              size="sm"
+   185→              onClick={() => setStatusFilter(s)}
+   186→            >
+   187→              {statusConfig[s]?.label || s} ({statusCounts[s]})
+   188→            </Button>
+   189→          ) : null
+   190→        ))}
+   191→      </div>
+   192→
+   193→      {loading ? (
+   194→        <div className="flex items-center justify-center py-16">
+   195→          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+   196→        </div>
+   197→      ) : applications.length === 0 ? (
+   198→        <Card>
+   199→          <CardContent className="py-16 text-center">
+   200→            <FileText className="mx-auto mb-3 h-10 w-10 opacity-30" />
+   201→            <p className="text-muted-foreground mb-4">You haven't applied to any jobs yet</p>
+   202→            <Link to="/candidate/jobs">
+   203→              <Button>Browse Jobs</Button>
+   204→            </Link>
+   205→          </CardContent>
+   206→        </Card>
+   207→      ) : filtered.length === 0 ? (
+   208→        <Card>
+   209→          <CardContent className="py-16 text-center">
+   210→            <Filter className="mx-auto mb-3 h-10 w-10 opacity-30" />
+   211→            <p className="text-muted-foreground">No applications match this filter</p>
+   212→          </CardContent>
+   213→        </Card>
+   214→      ) : (
+   215→        <div className="space-y-6">
+   216→          {active.length > 0 && (
+   217→            <div>
+   218→              <h2 className="font-medium text-sm text-muted-foreground mb-3">Active Applications ({active.length})</h2>
+   219→              <div className="space-y-3">
+   220→                {active.map(app => (
+   221→                  <ApplicationCard
+   222→                    key={app.id}
+   223→                    app={app}
+   224→                    timeAgo={timeAgo}
+   225→                    onWithdraw={() => setWithdrawTarget(app)}
+   226→                    onClick={() => setSelectedApp(app)}
+   227→                  />
+   228→                ))}
+   229→              </div>
+   230→            </div>
+   231→          )}
+   232→
+   233→          {completed.length > 0 && (
+   234→            <div>
+   235→              <h2 className="font-medium text-sm text-muted-foreground mb-3">Completed ({completed.length})</h2>
+   236→              <div className="space-y-3">
+   237→                {completed.map(app => (
+   238→                  <ApplicationCard
+   239→                    key={app.id}
+   240→                    app={app}
+   241→                    timeAgo={timeAgo}
+   242→                    onClick={() => setSelectedApp(app)}
+   243→                  />
+   244→                ))}
+   245→              </div>
+   246→            </div>
+   247→          )}
+   248→        </div>
+   249→      )}
+   250→
+   251→      {/* Application detail dialog */}
+   252→      {selectedApp && (
+   253→        <Dialog open={true} onClose={() => setSelectedApp(null)} className="max-w-lg">
+   254→          <DialogHeader>
+   255→            <DialogTitle>{selectedApp.title}</DialogTitle>
+   256→            <DialogDescription>
+   257→              {selectedApp.company || selectedApp.posted_by_company || 'Company'}
+   258→              {selectedApp.location ? ` • ${selectedApp.location}` : ''}
+   259→            </DialogDescription>
+   260→          </DialogHeader>
+   261→          <div className="space-y-4">
+   262→            {/* Status badge */}
+   263→            {(() => {
+   264→              const config = statusConfig[selectedApp.status] || { label: selectedApp.status, variant: 'secondary' as const, icon: Clock }
+   265→              return <Badge variant={config.variant} className="w-fit">{config.label}</Badge>
+   266→            })()}
+   267→
+   268→            {/* Details grid */}
+   269→            <div className="grid grid-cols-2 gap-3">
+   270→              <div className="rounded-lg bg-muted/50 p-3">
+   271→                <p className="text-xs text-muted-foreground flex items-center gap-1">
+   272→                  <Calendar className="h-3 w-3" /> Applied
+   273→                </p>
+   274→                <p className="font-medium">{new Date(selectedApp.applied_at).toLocaleDateString()}</p>
+   275→              </div>
+   276→              <div className="rounded-lg bg-muted/50 p-3">
+   277→                <p className="text-xs text-muted-foreground flex items-center gap-1">
+   278→                  <Clock className="h-3 w-3" /> Last Update
+   279→                </p>
+   280→                <p className="font-medium">{timeAgo(selectedApp.updated_at)}</p>
+   281→              </div>
+   282→              {selectedApp.salary_range && (
+   283→                <div className="rounded-lg bg-muted/50 p-3">
+   284→                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+   285→                    <DollarSign className="h-3 w-3" /> Salary
+   286→                  </p>
+   287→                  <p className="font-medium">{selectedApp.salary_range}</p>
+   288→                </div>
+   289→              )}
+   290→              {selectedApp.match_score && (
+   291→                <div className="rounded-lg bg-muted/50 p-3">
+   292→                  <p className="text-xs text-muted-foreground">Match Score</p>
+   293→                  <p className="font-medium text-primary">{selectedApp.match_score}%</p>
+   294→                </div>
+   295→              )}
+   296→            </div>
+   297→
+   298→            {/* Progress timeline */}
+   299→            <ApplicationTimeline status={selectedApp.status} appliedAt={selectedApp.applied_at} updatedAt={selectedApp.updated_at} />
+   300→
+   301→            {/* Cover letter */}
+   302→            {selectedApp.cover_letter && (
+   303→              <div>
+   304→                <h4 className="font-medium text-sm mb-1">Your Cover Letter</h4>
+   305→                <div className="rounded-lg bg-muted/50 p-3 text-sm whitespace-pre-wrap max-h-40 overflow-y-auto">
+   306→                  {selectedApp.cover_letter}
+   307→                </div>
+   308→              </div>
+   309→            )}
+   310→
+   311→            {/* Screening answers */}
+   312→            <ScreeningAnswersSection app={selectedApp} parseScreeningData={parseScreeningData} />
+   313→
+   314→            {/* Actions */}
+   315→            <div className="flex gap-2 pt-2">
+   316→              <Link to={`/candidate/jobs/${selectedApp.job_id}`} className="flex-1">
+   317→                <Button variant="outline" className="gap-2 w-full">
+   318→                  <ExternalLink className="h-4 w-4" /> View Job
+   319→                </Button>
+   320→              </Link>
+   321→              {!['rejected', 'withdrawn', 'hired'].includes(selectedApp.status) && (
+   322→                <Button
+   323→                  variant="outline"
+   324→                  onClick={() => {
+   325→                    setSelectedApp(null)
+   326→                    setWithdrawTarget(selectedApp)
+   327→                  }}
+   328→                  className="gap-2 text-destructive hover:text-destructive"
+   329→                >
+   330→                  <XCircle className="h-4 w-4" /> Withdraw
+   331→                </Button>
+   332→              )}
+   333→            </div>
+   334→          </div>
+   335→        </Dialog>
+   336→      )}
+   337→
+   338→      {/* Withdraw confirmation dialog */}
+   339→      {withdrawTarget && (
+   340→        <Dialog open={true} onClose={() => !withdrawing && setWithdrawTarget(null)} className="max-w-md">
+   341→          <DialogHeader>
+   342→            <DialogTitle className="flex items-center gap-2">
+   343→              <AlertTriangle className="h-5 w-5 text-amber-500" />
+   344→              Withdraw Application?
+   345→            </DialogTitle>
+   346→          </DialogHeader>
+   347→          <div className="space-y-4">
+   348→            <p className="text-sm text-muted-foreground">
+   349→              Are you sure you want to withdraw your application for{' '}
+   350→              <strong>{withdrawTarget.title}</strong> at{' '}
+   351→              <strong>{withdrawTarget.company || withdrawTarget.posted_by_company || 'this company'}</strong>?
+   352→            </p>
+   353→            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+   354→              This action cannot be undone. You may need to reapply if you change your mind.
+   355→            </div>
+   356→            <div className="flex gap-2 pt-2">
+   357→              <Button
+   358→                variant="outline"
+   359→                onClick={() => setWithdrawTarget(null)}
+   360→                disabled={withdrawing}
+   361→                className="flex-1"
+   362→              >
+   363→                Keep Application
+   364→              </Button>
+   365→              <Button
+   366→                variant="destructive"
+   367→                onClick={withdrawApplication}
+   368→                disabled={withdrawing}
+   369→                className="gap-2 flex-1"
+   370→              >
+   371→                {withdrawing ? (
+   372→                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+   373→                ) : (
+   374→                  <XCircle className="h-4 w-4" />
+   375→                )}
+   376→                Withdraw
+   377→              </Button>
+   378→            </div>
+   379→          </div>
+   380→        </Dialog>
+   381→      )}
+   382→    </div>
+   383→  )
+   384→}
+   385→
+   386→function ScreeningAnswersSection({
+   387→  app,
+   388→  parseScreeningData,
+   389→}: {
+   390→  app: Application
+   391→  parseScreeningData: (app: Application) => { answers: Record<string, string> | null; questions: ScreeningQuestion[] }
+   392→}) {
+   393→  const { answers, questions } = parseScreeningData(app)
+   394→
+   395→  if (!answers || Object.keys(answers).length === 0) return null
+   396→
+   397→  return (
+   398→    <div>
+   399→      <h4 className="font-medium text-sm mb-2 flex items-center gap-1.5">
+   400→        <ClipboardList className="h-4 w-4 text-primary" />
+   401→        Your Screening Answers
+   402→      </h4>
+   403→      <div className="space-y-2">
+   404→        {Object.entries(answers).map(([key, value], i) => {
+   405→          const q = questions[i]
+   406→          const questionText = q?.question || q || `Question ${i + 1}`
+   407→          return (
+   408→            <div key={key} className="rounded-lg bg-muted/50 p-3">
+   409→              <p className="text-xs text-muted-foreground mb-1 font-medium">
+   410→                {String(questionText)}
+   411→              </p>
+   412→              <p className="text-sm">{String(value)}</p>
+   413→            </div>
+   414→          )
+   415→        })}
+   416→      </div>
+   417→    </div>
+   418→  )
+   419→}
+   420→
+   421→function ApplicationTimeline({ status, appliedAt, updatedAt }: { status: string; appliedAt: string; updatedAt: string }) {
+   422→  const steps = [
+   423→    { key: 'applied', label: 'Applied', icon: FileText },
+   424→    { key: 'screening', label: 'Screening', icon: Eye },
+   425→    { key: 'interviewed', label: 'Interview', icon: Briefcase },
+   426→    { key: 'offered', label: 'Offer', icon: CheckCircle },
+   427→  ]
+   428→
+   429→  const stepIndex = {
+   430→    applied: 0, screening: 1, shortlisted: 1, reviewing: 1, interviewed: 2,
+   431→    offered: 3, hired: 4, rejected: -1, withdrawn: -1,
+   432→  }[status] ?? 0
+   433→
+   434→  // Special terminal states
+   435→  if (status === 'rejected' || status === 'withdrawn') {
+   436→    const config = statusConfig[status]
+   437→    return (
+   438→      <div>
+   439→        <h4 className="font-medium text-sm mb-3">Status Timeline</h4>
+   440→        <div className="space-y-3">
+   441→          <div className="flex items-center gap-3">
+   442→            <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary bg-primary/10">
+   443→              <FileText className="h-4 w-4 text-primary" />
+   444→            </div>
+   445→            <div>
+   446→              <p className="text-sm font-medium">Applied</p>
+   447→              <p className="text-xs text-muted-foreground">{new Date(appliedAt).toLocaleDateString()}</p>
+   448→            </div>
+   449→          </div>
+   450→          <div className="ml-4 h-4 w-px bg-muted" />
+   451→          <div className="flex items-center gap-3">
+   452→            <div className={`flex h-8 w-8 items-center justify-center rounded-full border-2 ${
+   453→              status === 'rejected' ? 'border-destructive bg-destructive/10' : 'border-muted bg-muted/50'
+   454→            }`}>
+   455→              <XCircle className={`h-4 w-4 ${status === 'rejected' ? 'text-destructive' : 'text-muted-foreground'}`} />
+   456→            </div>
+   457→            <div>
+   458→              <p className="text-sm font-medium">{config.label}</p>
+   459→              <p className="text-xs text-muted-foreground">{new Date(updatedAt).toLocaleDateString()}</p>
+   460→            </div>
+   461→          </div>
+   462→        </div>
+   463→      </div>
+   464→    )
+   465→  }
+   466→
+   467→  if (stepIndex < 0) return null
+   468→
+   469→  return (
+   470→    <div>
+   471→      <h4 className="font-medium text-sm mb-3">Progress</h4>
+   472→      <div className="flex items-center gap-1">
+   473→        {steps.map((step, i) => {
+   474→          const isComplete = i <= stepIndex
+   475→          const isCurrent = i === stepIndex
+   476→          const Icon = step.icon
+   477→          return (
+   478→            <div key={step.key} className="flex items-center gap-1 flex-1">
+   479→              <div className={`flex items-center gap-1.5 ${isComplete ? 'text-primary' : 'text-muted-foreground/50'}`}>
+   480→                <div className={`flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all ${
+   481→                  isCurrent ? 'border-primary bg-primary text-white' :
+   482→                  isComplete ? 'border-primary bg-primary/10' : 'border-muted'
+   483→                }`}>
+   484→                  <Icon className="h-3.5 w-3.5" />
+   485→                </div>
+   486→                <span className="text-[11px] font-medium hidden sm:inline">{step.label}</span>
+   487→              </div>
+   488→              {i < steps.length - 1 && (
+   489→                <div className={`h-0.5 flex-1 mx-1 ${i < stepIndex ? 'bg-primary' : 'bg-muted'}`} />
+   490→              )}
+   491→            </div>
+   492→          )
+   493→        })}
+   494→      </div>
+   495→      {/* Date labels */}
+   496→      <div className="flex justify-between mt-2 px-1">
+   497→        <span className="text-[10px] text-muted-foreground">
+   498→          {new Date(appliedAt).toLocaleDateString()}
+   499→        </span>
+   500→        {stepIndex > 0 && (
+   501→          <span className="text-[10px] text-muted-foreground">
+   502→            Updated {new Date(updatedAt).toLocaleDateString()}
+   503→          </span>
+   504→        )}
+   505→      </div>
+   506→    </div>
+   507→  )
+   508→}
+   509→
+   510→function ApplicationCard({
+   511→  app,
+   512→  timeAgo,
+   513→  onWithdraw,
+   514→  onClick,
+   515→}: {
+   516→  app: Application
+   517→  timeAgo: (d: string) => string
+   518→  onWithdraw?: () => void
+   519→  onClick?: () => void
+   520→}) {
+   521→  const config = statusConfig[app.status] || { label: app.status, variant: 'secondary' as const, icon: Clock }
+   522→
+   523→  // Progress steps (aligned with pipeline stages)
+   524→  const steps = ['Applied', 'Screening', 'Interview', 'Offer']
+   525→  const currentStep = {
+   526→    applied: 0, screening: 1, shortlisted: 1, reviewing: 1, interviewed: 2,
+   527→    offered: 3, hired: 4, rejected: -1, withdrawn: -1,
+   528→  }[app.status] ?? 0
+   529→
+   530→  // Check if has screening answers
+   531→  let hasScreening = false
+   532→  try {
+   533→    const answers = typeof app.screening_answers === 'string' ? JSON.parse(app.screening_answers) : app.screening_answers
+   534→    hasScreening = answers && Object.keys(answers).length > 0
+   535→  } catch { /* ignore */ }
+   536→
+   537→  return (
+   538→    <Card
+   539→      className="cursor-pointer transition-shadow hover:shadow-md"
+   540→      onClick={onClick}
+   541→    >
+   542→      <CardContent className="p-4">
+   543→        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+   544→          <div className="min-w-0 flex-1">
+   545→            <div className="flex items-center gap-2 mb-1">
+   546→              <h3 className="font-semibold truncate">{app.title}</h3>
+   547→              <Badge variant={config.variant}>{config.label}</Badge>
+   548→              {hasScreening && (
+   549→                <Badge variant="outline" className="gap-1 text-[10px]">
+   550→                  <ClipboardList className="h-3 w-3" /> Screening
+   551→                </Badge>
+   552→              )}
+   553→            </div>
+   554→            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+   555→              <span className="flex items-center gap-1">
+   556→                <Building2 className="h-3.5 w-3.5" />
+   557→                {app.company || app.posted_by_company || 'Company'}
+   558→              </span>
+   559→              {app.location && (
+   560→                <span className="flex items-center gap-1">
+   561→                  <MapPin className="h-3.5 w-3.5" />
+   562→                  {app.location}
+   563→                </span>
+   564→              )}
+   565→              <span className="flex items-center gap-1">
+   566→                <Calendar className="h-3.5 w-3.5" />
+   567→                Applied {timeAgo(app.applied_at)}
+   568→              </span>
+   569→              {app.salary_range && (
+   570→                <span className="flex items-center gap-1">
+   571→                  <DollarSign className="h-3.5 w-3.5" />
+   572→                  {app.salary_range}
+   573→                </span>
+   574→              )}
+   575→            </div>
+   576→
+   577→            {/* Progress timeline */}
+   578→            {currentStep >= 0 && (
+   579→              <div className="mt-3 flex items-center gap-1">
+   580→                {steps.map((step, i) => (
+   581→                  <div key={step} className="flex items-center gap-1">
+   582→                    <div className={`h-2 w-2 rounded-full ${
+   583→                      i === currentStep ? 'bg-primary ring-2 ring-primary/30' :
+   584→                      i < currentStep ? 'bg-primary' : 'bg-muted'
+   585→                    }`} />
+   586→                    <span className={`text-[10px] ${i <= currentStep ? 'text-foreground' : 'text-muted-foreground'}`}>
+   587→                      {step}
+   588→                    </span>
+   589→                    {i < steps.length - 1 && (
+   590→                      <div className={`h-px w-4 ${i < currentStep ? 'bg-primary' : 'bg-muted'}`} />
+   591→                    )}
+   592→                  </div>
+   593→                ))}
+   594→              </div>
+   595→            )}
+   596→          </div>
+   597→          <div className="flex items-center gap-2 shrink-0">
+   598→            {onWithdraw && !['rejected', 'withdrawn', 'hired'].includes(app.status) && (
+   599→              <Button
+   600→                variant="ghost"
+   601→                size="sm"
+   602→                onClick={e => {
+   603→                  e.stopPropagation()
+   604→                  onWithdraw()
+   605→                }}
+   606→                className="gap-1 text-muted-foreground hover:text-destructive"
+   607→              >
+   608→                <XCircle className="h-3.5 w-3.5" /> Withdraw
+   609→              </Button>
+   610→            )}
+   611→            <Link
+   612→              to={`/candidate/jobs/${app.job_id}`}
+   613→              onClick={e => e.stopPropagation()}
+   614→            >
+   615→              <Button variant="ghost" size="sm" className="gap-1 shrink-0">
+   616→                View Job <ExternalLink className="h-3 w-3" />
+   617→              </Button>
+   618→            </Link>
+   619→          </div>
+   620→        </div>
+   621→      </CardContent>
+   622→    </Card>
+   623→  )
+   624→}
+   625→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

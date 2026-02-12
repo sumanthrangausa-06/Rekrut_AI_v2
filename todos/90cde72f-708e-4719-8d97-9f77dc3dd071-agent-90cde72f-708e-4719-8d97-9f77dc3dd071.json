@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Phase 1: Fix build + Candidate core pages (job-detail, applications, dashboard)",
+    "status": "completed",
+    "activeForm": "Fixing build and candidate core pages"
+  },
+  {
+    "content": "Phase 2: Recruiter core pages (job-form, job-applicants, offers, dashboard)",
+    "status": "completed",
+    "activeForm": "Building recruiter core pages"
+  },
+  {
+    "content": "Phase 3: Build + Deploy + Verify E2E on live URL",
+    "status": "in_progress",
+    "activeForm": "Building, deploying and verifying E2E"
+  }
+]

@@ -1,0 +1,371 @@
+     1→import { useEffect, useState } from 'react'
+     2→import { useParams, useNavigate } from 'react-router-dom'
+     3→import { apiCall } from '@/lib/api'
+     4→import { useAuth } from '@/contexts/auth-context'
+     5→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+     6→import { Button } from '@/components/ui/button'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Textarea } from '@/components/ui/textarea'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Label } from '@/components/ui/label'
+    11→import { Select } from '@/components/ui/select'
+    12→import {
+    13→  ArrowLeft, MapPin, DollarSign, Building2, Clock, Briefcase, Send,
+    14→  CheckCircle, AlertCircle, FileText, ListChecks, Sparkles, Loader2, Wand2, Zap,
+    15→} from 'lucide-react'
+    16→
+    17→interface Job {
+    18→  id: number; title: string; company: string; poster_company?: string
+    19→  description: string; requirements: string; location: string
+    20→  salary_range: string; job_type: string
+    21→  screening_questions?: string | ScreeningQuestion[]
+    22→  created_at: string
+    23→}
+    24→
+    25→interface ScreeningQuestion {
+    26→  id?: string; question: string; type?: 'text' | 'yes_no' | 'select'
+    27→  required?: boolean; options?: string[]; placeholder?: string; category?: string
+    28→}
+    29→
+    30→interface AutoFillData {
+    31→  resume_url: string | null; cover_letter: string
+    32→  screening_answers: Record<string, { value: string; source: string }>
+    33→  profile: { name: string; email: string; phone: string; location: string }
+    34→}
+    35→
+    36→export function CandidateJobDetailPage() {
+    37→  const { id } = useParams()
+    38→  const navigate = useNavigate()
+    39→  const { user } = useAuth()
+    40→  const [job, setJob] = useState<Job | null>(null)
+    41→  const [loading, setLoading] = useState(true)
+    42→  const [applying, setApplying] = useState(false)
+    43→  const [applied, setApplied] = useState(false)
+    44→  const [showApplyForm, setShowApplyForm] = useState(false)
+    45→  const [coverLetter, setCoverLetter] = useState('')
+    46→  const [screeningAnswers, setScreeningAnswers] = useState<Record<string, string>>({})
+    47→  const [errors, setErrors] = useState<Record<string, string>>({})
+    48→  const [autoFill, setAutoFill] = useState<AutoFillData | null>(null)
+    49→  const [autoFillSources, setAutoFillSources] = useState<Record<string, string>>({})
+    50→  const [generatingCL, setGeneratingCL] = useState(false)
+    51→  const [generatingSuggestions, setGeneratingSuggestions] = useState(false)
+    52→
+    53→  useEffect(() => {
+    54→    loadJob()
+    55→    if (user) checkIfApplied()
+    56→  }, [id, user])
+    57→
+    58→  async function loadJob() {
+    59→    try {
+    60→      const data = await apiCall<{ job: Job }>(`/jobs/${id}`)
+    61→      setJob(data.job)
+    62→    } catch {} finally { setLoading(false) }
+    63→  }
+    64→
+    65→  async function checkIfApplied() {
+    66→    try {
+    67→      const data = await apiCall<{ success: boolean; applications: { job_id: number }[] }>('/candidate/applications')
+    68→      if (data.applications?.some(a => a.job_id === Number(id))) setApplied(true)
+    69→    } catch {}
+    70→  }
+    71→
+    72→  // Auto-fill from stored profile data
+    73→  async function loadAutoFill() {
+    74→    if (!user || !id) return
+    75→    try {
+    76→      const data = await apiCall<{ success: boolean; auto_fill: AutoFillData }>(`/candidate/auto-fill/${id}`)
+    77→      if (data.auto_fill) {
+    78→        setAutoFill(data.auto_fill)
+    79→        // Pre-fill cover letter if available
+    80→        if (data.auto_fill.cover_letter && !coverLetter) {
+    81→          setCoverLetter(data.auto_fill.cover_letter)
+    82→        }
+    83→        // Pre-fill screening answers
+    84→        const newAnswers: Record<string, string> = { ...screeningAnswers }
+    85→        const sources: Record<string, string> = {}
+    86→        for (const [qId, info] of Object.entries(data.auto_fill.screening_answers || {})) {
+    87→          if (!newAnswers[qId] && info.value) {
+    88→            newAnswers[qId] = info.value
+    89→            sources[qId] = info.source
+    90→          }
+    91→        }
+    92→        setScreeningAnswers(newAnswers)
+    93→        setAutoFillSources(sources)
+    94→      }
+    95→    } catch {}
+    96→  }
+    97→
+    98→  useEffect(() => {
+    99→    if (showApplyForm && user) loadAutoFill()
+   100→  }, [showApplyForm])
+   101→
+   102→  const screeningQuestions: ScreeningQuestion[] = (() => {
+   103→    if (!job?.screening_questions) return []
+   104→    try {
+   105→      const raw = typeof job.screening_questions === 'string'
+   106→        ? JSON.parse(job.screening_questions) : job.screening_questions
+   107→      return Array.isArray(raw) ? raw : []
+   108→    } catch { return [] }
+   109→  })()
+   110→
+   111→  function validateForm(): boolean {
+   112→    const newErrors: Record<string, string> = {}
+   113→    screeningQuestions.forEach((q, i) => {
+   114→      const key = q.id || `q${i}`
+   115→      if (q.required && !screeningAnswers[key]?.trim()) newErrors[key] = 'This question is required'
+   116→    })
+   117→    setErrors(newErrors)
+   118→    return Object.keys(newErrors).length === 0
+   119→  }
+   120→
+   121→  async function handleApply() {
+   122→    if (!job) return
+   123→    if (!validateForm()) return
+   124→    setApplying(true)
+   125→    try {
+   126→      await apiCall(`/candidate/jobs/${job.id}/apply`, {
+   127→        method: 'POST',
+   128→        body: { cover_letter: coverLetter, screening_answers: screeningAnswers },
+   129→      })
+   130→      setApplied(true)
+   131→      setShowApplyForm(false)
+   132→    } catch (err: unknown) {
+   133→      alert(err instanceof Error ? err.message : 'Failed to apply')
+   134→    } finally { setApplying(false) }
+   135→  }
+   136→
+   137→  // AI: Generate cover letter
+   138→  async function generateCoverLetter() {
+   139→    if (!job) return
+   140→    setGeneratingCL(true)
+   141→    try {
+   142→      const data = await apiCall<{ success: boolean; cover_letter: string }>('/candidate/ai/cover-letter', {
+   143→        method: 'POST', body: { job_id: job.id },
+   144→      })
+   145→      if (data.cover_letter) setCoverLetter(data.cover_letter)
+   146→    } catch (err: unknown) {
+   147→      alert('AI generation failed. Try again.')
+   148→    } finally { setGeneratingCL(false) }
+   149→  }
+   150→
+   151→  // AI: Get screening answer suggestions
+   152→  async function getSuggestions() {
+   153→    if (!job || screeningQuestions.length === 0) return
+   154→    setGeneratingSuggestions(true)
+   155→    try {
+   156→      const data = await apiCall<{ success: boolean; suggestions: Array<{ question_id: string; suggested_answer: string; source: string; confidence: string }> }>(
+   157→        '/candidate/ai/screening-suggestions',
+   158→        { method: 'POST', body: { job_id: job.id, questions: screeningQuestions } }
+   159→      )
+   160→      if (data.suggestions?.length) {
+   161→        const newAnswers = { ...screeningAnswers }
+   162→        const sources = { ...autoFillSources }
+   163→        for (const s of data.suggestions) {
+   164→          const key = s.question_id || screeningQuestions.find(q => q.id === s.question_id)?.id
+   165→          if (key && !newAnswers[key]) {
+   166→            newAnswers[key] = s.suggested_answer
+   167→            sources[key] = `ai_${s.confidence}`
+   168→          }
+   169→        }
+   170→        setScreeningAnswers(newAnswers)
+   171→        setAutoFillSources(sources)
+   172→      }
+   173→    } catch {} finally { setGeneratingSuggestions(false) }
+   174→  }
+   175→
+   176→  function updateAnswer(key: string, value: string) {
+   177→    setScreeningAnswers(prev => ({ ...prev, [key]: value }))
+   178→    // Clear source badge when user manually edits
+   179→    setAutoFillSources(prev => { const n = { ...prev }; delete n[key]; return n })
+   180→    if (errors[key]) setErrors(prev => { const n = { ...prev }; delete n[key]; return n })
+   181→  }
+   182→
+   183→  function sourceLabel(source: string) {
+   184→    if (source === 'previous_application') return 'From previous application'
+   185→    if (source === 'similar_question') return 'From similar question'
+   186→    if (source === 'profile') return 'From your profile'
+   187→    if (source.startsWith('ai_')) return '✨ AI suggestion'
+   188→    return null
+   189→  }
+   190→
+   191→  function renderScreeningInput(q: ScreeningQuestion, index: number) {
+   192→    const key = q.id || `q${index}`
+   193→    const value = screeningAnswers[key] || ''
+   194→    const error = errors[key]
+   195→    const source = autoFillSources[key]
+   196→    const type = q.type || 'text'
+   197→
+   198→    return (
+   199→      <div className="space-y-1">
+   200→        {source && (
+   201→          <Badge variant="outline" className="text-xs mb-1 gap-1">
+   202→            {source.startsWith('ai_') ? <Sparkles className="h-3 w-3" /> : <Zap className="h-3 w-3" />}
+   203→            {sourceLabel(source)}
+   204→          </Badge>
+   205→        )}
+   206→        {type === 'yes_no' ? (
+   207→          <div className="flex gap-2 mt-1">
+   208→            <Button type="button" variant={value === 'Yes' ? 'default' : 'outline'} size="sm"
+   209→              onClick={() => updateAnswer(key, 'Yes')} className="flex-1">Yes</Button>
+   210→            <Button type="button" variant={value === 'No' ? 'default' : 'outline'} size="sm"
+   211→              onClick={() => updateAnswer(key, 'No')} className="flex-1">No</Button>
+   212→          </div>
+   213→        ) : type === 'select' && q.options?.length ? (
+   214→          <Select value={value} onChange={e => updateAnswer(key, e.target.value)} className="mt-1">
+   215→            <option value="">Select an option...</option>
+   216→            {q.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+   217→          </Select>
+   218→        ) : (
+   219→          <Input value={value} onChange={e => updateAnswer(key, e.target.value)}
+   220→            className="mt-1" placeholder={q.placeholder || 'Your answer...'} />
+   221→        )}
+   222→        {error && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{error}</p>}
+   223→      </div>
+   224→    )
+   225→  }
+   226→
+   227→  function timeAgo(dateStr: string) {
+   228→    const diff = Date.now() - new Date(dateStr).getTime()
+   229→    const days = Math.floor(diff / 86400000)
+   230→    if (days === 0) return 'Today'; if (days === 1) return '1 day ago'
+   231→    if (days < 30) return `${days} days ago`; return `${Math.floor(days / 30)} months ago`
+   232→  }
+   233→
+   234→  if (loading) return <div className="flex items-center justify-center py-16"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>
+   235→  if (!job) return <div className="py-16 text-center"><Briefcase className="mx-auto mb-3 h-10 w-10 opacity-30" /><p className="text-muted-foreground">Job not found</p><Button variant="ghost" className="mt-4" onClick={() => navigate('/candidate/jobs')}>Back to jobs</Button></div>
+   236→
+   237→  return (
+   238→    <div className="space-y-6 max-w-3xl">
+   239→      <Button variant="ghost" size="sm" onClick={() => navigate('/candidate/jobs')} className="gap-1">
+   240→        <ArrowLeft className="h-4 w-4" /> Back to jobs
+   241→      </Button>
+   242→
+   243→      {/* Job header */}
+   244→      <Card>
+   245→        <CardContent className="p-6">
+   246→          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+   247→            <div>
+   248→              <h1 className="font-heading text-2xl font-bold mb-2">{job.title}</h1>
+   249→              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+   250→                <span className="flex items-center gap-1"><Building2 className="h-4 w-4" />{job.company || job.poster_company || 'Company'}</span>
+   251→                {job.location && <span className="flex items-center gap-1"><MapPin className="h-4 w-4" />{job.location}</span>}
+   252→                {job.salary_range && <span className="flex items-center gap-1"><DollarSign className="h-4 w-4" />{job.salary_range}</span>}
+   253→                {job.job_type && <Badge variant="secondary">{job.job_type}</Badge>}
+   254→                <span className="flex items-center gap-1 text-xs"><Clock className="h-3 w-3" />Posted {timeAgo(job.created_at)}</span>
+   255→              </div>
+   256→            </div>
+   257→            {applied ? (
+   258→              <Badge variant="success" className="gap-1 text-sm py-1.5 px-3 shrink-0"><CheckCircle className="h-3.5 w-3.5" /> Applied</Badge>
+   259→            ) : user ? (
+   260→              <Button onClick={() => setShowApplyForm(!showApplyForm)} className="gap-2 shrink-0"><Send className="h-4 w-4" /> Apply Now</Button>
+   261→            ) : (
+   262→              <Button onClick={() => navigate('/login')} className="gap-2 shrink-0">Sign in to Apply</Button>
+   263→            )}
+   264→          </div>
+   265→        </CardContent>
+   266→      </Card>
+   267→
+   268→      {/* Apply form with AI features */}
+   269→      {showApplyForm && !applied && (
+   270→        <Card className="border-primary/30 shadow-lg">
+   271→          <CardHeader>
+   272→            <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5" />Apply for {job.title}</CardTitle>
+   273→          </CardHeader>
+   274→          <CardContent className="space-y-5">
+   275→            {/* Auto-fill banner */}
+   276→            {autoFill && Object.keys(autoFillSources).length > 0 && (
+   277→              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800 flex items-center gap-2">
+   278→                <Zap className="h-4 w-4 shrink-0" />
+   279→                Some fields were auto-filled from your profile and past applications. Review and update as needed.
+   280→              </div>
+   281→            )}
+   282→
+   283→            {/* Cover letter */}
+   284→            <div>
+   285→              <div className="flex items-center justify-between mb-1">
+   286→                <Label>Cover Letter <span className="text-muted-foreground text-xs">(optional)</span></Label>
+   287→                <Button variant="outline" size="sm" onClick={generateCoverLetter} disabled={generatingCL} className="gap-1 text-xs">
+   288→                  {generatingCL ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+   289→                  {generatingCL ? 'Generating...' : '✨ Generate with AI'}
+   290→                </Button>
+   291→              </div>
+   292→              <Textarea
+   293→                placeholder="Tell the employer why you're a great fit for this role..."
+   294→                value={coverLetter} onChange={e => setCoverLetter(e.target.value)}
+   295→                rows={6} className="mt-1"
+   296→              />
+   297→              {coverLetter && autoFill?.cover_letter && coverLetter === autoFill.cover_letter && (
+   298→                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+   299→                  <Zap className="h-3 w-3" /> From your last application — personalize it for this role
+   300→                </p>
+   301→              )}
+   302→            </div>
+   303→
+   304→            {/* Screening questions */}
+   305→            {screeningQuestions.length > 0 && (
+   306→              <div className="space-y-4">
+   307→                <div className="flex items-center justify-between">
+   308→                  <div className="flex items-center gap-2">
+   309→                    <ListChecks className="h-4 w-4 text-primary" />
+   310→                    <h4 className="font-medium text-sm">Pre-screening Questions</h4>
+   311→                  </div>
+   312→                  <Button variant="outline" size="sm" onClick={getSuggestions} disabled={generatingSuggestions} className="gap-1 text-xs">
+   313→                    {generatingSuggestions ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+   314→                    {generatingSuggestions ? 'Suggesting...' : '✨ AI Suggest Answers'}
+   315→                  </Button>
+   316→                </div>
+   317→                {screeningQuestions.map((q, i) => (
+   318→                  <div key={q.id || i} className="rounded-lg border p-4 space-y-1">
+   319→                    <Label className="text-sm font-medium">
+   320→                      {q.question || ''}{q.required && <span className="text-destructive ml-1">*</span>}
+   321→                    </Label>
+   322→                    {q.category && <p className="text-xs text-muted-foreground capitalize">{q.category.replace(/_/g, ' ')}</p>}
+   323→                    {renderScreeningInput(q, i)}
+   324→                  </div>
+   325→                ))}
+   326→              </div>
+   327→            )}
+   328→
+   329→            <div className="flex gap-2 pt-2 border-t">
+   330→              <Button onClick={handleApply} disabled={applying} className="gap-2">
+   331→                {applying ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Send className="h-4 w-4" />}
+   332→                Submit Application
+   333→              </Button>
+   334→              <Button variant="outline" onClick={() => setShowApplyForm(false)}>Cancel</Button>
+   335→            </div>
+   336→          </CardContent>
+   337→        </Card>
+   338→      )}
+   339→
+   340→      {/* Description */}
+   341→      <Card>
+   342→        <CardHeader><CardTitle className="flex items-center gap-2"><Briefcase className="h-5 w-5" /> Job Description</CardTitle></CardHeader>
+   343→        <CardContent>
+   344→          <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed">{job.description || 'No description provided.'}</div>
+   345→        </CardContent>
+   346→      </Card>
+   347→
+   348→      {/* Requirements */}
+   349→      {job.requirements && (
+   350→        <Card>
+   351→          <CardHeader><CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Requirements</CardTitle></CardHeader>
+   352→          <CardContent>
+   353→            <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed">{job.requirements}</div>
+   354→          </CardContent>
+   355→        </Card>
+   356→      )}
+   357→
+   358→      {screeningQuestions.length > 0 && !showApplyForm && !applied && (
+   359→        <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground flex items-center gap-2">
+   360→          <ListChecks className="h-4 w-4 shrink-0" />
+   361→          This job has {screeningQuestions.length} pre-screening question{screeningQuestions.length > 1 ? 's' : ''} you'll need to answer when applying.
+   362→        </div>
+   363→      )}
+   364→    </div>
+   365→  )
+   366→}
+   367→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
