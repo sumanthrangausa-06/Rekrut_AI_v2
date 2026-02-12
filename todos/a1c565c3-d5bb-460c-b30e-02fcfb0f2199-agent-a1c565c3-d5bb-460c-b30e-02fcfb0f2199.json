@@ -11,17 +11,17 @@
   },
   {
     "content": "Phase 2: Add missing backend AI endpoints (generate JD, suggest skills, suggest title)",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Building missing AI backend endpoints"
   },
   {
     "content": "Phase 3: Enhance frontend with new AI features + Generate button",
-    "status": "pending",
+    "status": "completed",
     "activeForm": "Adding AI Generate/Suggest buttons to frontend"
   },
   {
     "content": "Phase 4: Commit + deploy + verify",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Deploying and verifying AI features"
   }
 ]
