@@ -215,6 +215,8 @@ app.get('/api/admin/modules', requireAdmin, async (req, res) => {
       assessments,
       profiles, recruiterCount,
       companies,
+      consentRecords, dataRequests, fairnessAudits, auditLogs,
+      docVerifications, verificationDocs, verifiedCreds,
     ] = await Promise.all([
       // ─── Applications ───
       safeQuery(`
@@ -332,6 +334,56 @@ app.get('/api/admin/modules', requireAdmin, async (req, res) => {
 
       // ─── Companies ───
       safeQuery(`SELECT COUNT(*) as total FROM companies`),
+
+      // ─── Compliance ───
+      safeQuery(`
+        SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE consented = true) as consented,
+          COUNT(*) FILTER (WHERE consented = false) as declined
+        FROM consent_records
+      `),
+      safeQuery(`
+        SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE status = 'pending') as pending,
+          COUNT(*) FILTER (WHERE status = 'processed' OR status = 'completed') as processed
+        FROM data_requests
+      `),
+      safeQuery(`
+        SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE status = 'completed') as completed,
+          COALESCE(ROUND(AVG(overall_fairness_score), 1), 0) as avg_score,
+          COALESCE(SUM(issues_found), 0) as total_issues
+        FROM fairness_audits
+      `),
+      safeQuery(`SELECT COUNT(*) as total FROM audit_logs`),
+
+      // ─── Document Verification ───
+      safeQuery(`
+        SELECT
+          COUNT(*) as total,
+          COALESCE(ROUND(AVG(authenticity_score), 0), 0) as avg_score,
+          COUNT(*) FILTER (WHERE fraud_risk = 'high') as high_risk,
+          COUNT(*) FILTER (WHERE fraud_risk = 'low' OR fraud_risk = 'none') as low_risk,
+          COUNT(*) FILTER (WHERE is_duplicate = true) as duplicates
+        FROM document_verifications
+      `),
+      safeQuery(`
+        SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE status = 'verified' OR status = 'processed') as verified,
+          COUNT(*) FILTER (WHERE status = 'pending' OR status = 'uploaded') as pending
+        FROM verification_documents
+      `),
+      safeQuery(`
+        SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE verification_status = 'verified') as verified,
+          COUNT(*) FILTER (WHERE verification_status = 'pending') as pending
+        FROM verified_credentials
+      `),
     ]);
 
     res.json({
@@ -411,6 +463,32 @@ app.get('/api/admin/modules', requireAdmin, async (req, res) => {
         completenessRate: parseInt(profiles.total || 0) > 0
           ? Math.round(((parseInt(profiles.with_headline || 0) + parseInt(profiles.with_resume || 0)) / (parseInt(profiles.total || 0) * 2)) * 100)
           : 0,
+      },
+      compliance: {
+        totalConsents: parseInt(consentRecords.total || 0),
+        consented: parseInt(consentRecords.consented || 0),
+        declined: parseInt(consentRecords.declined || 0),
+        dataRequests: parseInt(dataRequests.total || 0),
+        dataRequestsPending: parseInt(dataRequests.pending || 0),
+        dataRequestsProcessed: parseInt(dataRequests.processed || 0),
+        fairnessAudits: parseInt(fairnessAudits.total || 0),
+        auditsCompleted: parseInt(fairnessAudits.completed || 0),
+        fairnessScore: parseFloat(fairnessAudits.avg_score || 0),
+        issuesFound: parseInt(fairnessAudits.total_issues || 0),
+        auditLogEntries: parseInt(auditLogs.total || 0),
+      },
+      docVerification: {
+        totalVerifications: parseInt(docVerifications.total || 0),
+        avgAuthScore: parseInt(docVerifications.avg_score || 0),
+        highRisk: parseInt(docVerifications.high_risk || 0),
+        lowRisk: parseInt(docVerifications.low_risk || 0),
+        duplicates: parseInt(docVerifications.duplicates || 0),
+        totalDocuments: parseInt(verificationDocs.total || 0),
+        docsVerified: parseInt(verificationDocs.verified || 0),
+        docsPending: parseInt(verificationDocs.pending || 0),
+        credentials: parseInt(verifiedCreds.total || 0),
+        credentialsVerified: parseInt(verifiedCreds.verified || 0),
+        credentialsPending: parseInt(verifiedCreds.pending || 0),
       },
     });
   } catch (err) {

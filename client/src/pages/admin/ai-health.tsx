@@ -42,6 +42,8 @@ import {
   GraduationCap,
   Building2,
   LayoutGrid,
+  ShieldCheck,
+  FileSearch,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -203,6 +205,18 @@ interface ModulesData {
   profiles: {
     totalCandidateProfiles: number; withHeadline: number; withResume: number
     withLinkedIn: number; completenessRate: number
+  }
+  compliance: {
+    totalConsents: number; consented: number; declined: number
+    dataRequests: number; dataRequestsPending: number; dataRequestsProcessed: number
+    fairnessAudits: number; auditsCompleted: number; fairnessScore: number
+    issuesFound: number; auditLogEntries: number
+  }
+  docVerification: {
+    totalVerifications: number; avgAuthScore: number; highRisk: number
+    lowRisk: number; duplicates: number; totalDocuments: number
+    docsVerified: number; docsPending: number; credentials: number
+    credentialsVerified: number; credentialsPending: number
   }
 }
 
@@ -1167,6 +1181,8 @@ function ModuleMetricCard({ icon: Icon, title, color, metrics }: {
     cyan:    { bg: 'bg-cyan-50',    text: 'text-cyan-600',    border: 'border-cyan-200' },
     pink:    { bg: 'bg-pink-50',    text: 'text-pink-600',    border: 'border-pink-200' },
     emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' },
+    rose:    { bg: 'bg-rose-50',    text: 'text-rose-600',    border: 'border-rose-200' },
+    orange:  { bg: 'bg-orange-50',  text: 'text-orange-600',  border: 'border-orange-200' },
   }
   const c = colorClasses[color] || colorClasses.blue
   return (
@@ -1207,6 +1223,8 @@ function ModuleCards({ modules }: { modules: ModulesData }) {
   const ob = modules.onboarding
   const as_ = modules.assessments
   const pr = modules.profiles
+  const co = modules.compliance
+  const dv = modules.docVerification
 
   return (
     <div>
@@ -1318,6 +1336,32 @@ function ModuleCards({ modules }: { modules: ModulesData }) {
             { label: 'w/ LinkedIn', value: pr.withLinkedIn },
             { label: 'Completeness', value: `${pr.completenessRate}%` },
             { label: '', value: '' },
+          ]}
+        />
+        <ModuleMetricCard
+          icon={ShieldCheck}
+          title="Compliance"
+          color="rose"
+          metrics={[
+            { label: 'Consents', value: co.totalConsents },
+            { label: 'Data Requests', value: co.dataRequests },
+            { label: 'Pending', value: co.dataRequestsPending, highlight: true },
+            { label: 'Audits', value: co.fairnessAudits },
+            { label: 'Issues', value: co.issuesFound, highlight: true },
+            { label: 'Audit Log', value: co.auditLogEntries },
+          ]}
+        />
+        <ModuleMetricCard
+          icon={FileSearch}
+          title="Doc Verification"
+          color="orange"
+          metrics={[
+            { label: 'Verifications', value: dv.totalVerifications },
+            { label: 'Avg Score', value: dv.avgAuthScore ? `${dv.avgAuthScore}%` : 'N/A' },
+            { label: 'High Risk', value: dv.highRisk, highlight: true },
+            { label: 'Documents', value: dv.totalDocuments },
+            { label: 'Credentials', value: dv.credentials },
+            { label: 'Pending', value: dv.docsPending, highlight: true },
           ]}
         />
       </div>
