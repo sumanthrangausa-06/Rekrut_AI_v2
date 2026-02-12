@@ -99,6 +99,16 @@ app.use('/api/analytics', analyticsRoutes);
 // API Routes - Country Configuration
 app.use('/api/countries', countryRoutes);
 
+// OpenAI Token Budget — protected by admin auth
+app.get('/api/admin/token-usage', requireAdmin, (req, res) => {
+  try {
+    const tokenBudget = require('./lib/token-budget');
+    res.json(tokenBudget.getStatus());
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get token usage', message: err.message });
+  }
+});
+
 // AI Provider Health — protected by admin auth
 app.get('/api/ai-health', requireAdmin, (req, res) => {
   try {
