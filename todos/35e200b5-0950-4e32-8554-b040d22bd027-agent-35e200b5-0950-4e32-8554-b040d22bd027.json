@@ -1,0 +1,37 @@
+[
+  {
+    "content": "Phase 1: Codebase Audit — map existing job/matching code",
+    "status": "in_progress",
+    "activeForm": "Auditing existing codebase for job posting and matching features"
+  },
+  {
+    "content": "Phase 2: Research best practices from top ATS platforms",
+    "status": "pending",
+    "activeForm": "Researching best practices from LinkedIn, Greenhouse, Lever, etc."
+  },
+  {
+    "content": "Phase 3: Backend — Fix/complete endpoints based on audit + research",
+    "status": "pending",
+    "activeForm": "Fixing and completing backend endpoints"
+  },
+  {
+    "content": "Phase 4: Backend — AI Job Matching + Scoring improvements",
+    "status": "pending",
+    "activeForm": "Enhancing AI match scoring and candidate ranking"
+  },
+  {
+    "content": "Phase 5: Frontend — Recruiter side improvements",
+    "status": "pending",
+    "activeForm": "Building recruiter pipeline/kanban view"
+  },
+  {
+    "content": "Phase 6: Frontend — Candidate side improvements",
+    "status": "pending",
+    "activeForm": "Building candidate job search and status tracking UX"
+  },
+  {
+    "content": "Phase 7: E2E verification + deploy",
+    "status": "pending",
+    "activeForm": "Verifying full end-to-end flow"
+  }
+]

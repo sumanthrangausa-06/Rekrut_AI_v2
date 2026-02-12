@@ -1,0 +1,988 @@
+2026-02-12T08:27:07.855Z [DEBUG] [init] configureGlobalMTLS starting
+2026-02-12T08:27:07.855Z [DEBUG] [init] configureGlobalMTLS complete
+2026-02-12T08:27:07.855Z [DEBUG] [init] configureGlobalAgents starting
+2026-02-12T08:27:07.855Z [DEBUG] [init] configureGlobalAgents complete
+2026-02-12T08:27:07.873Z [DEBUG] [STARTUP] Loading MCP configs...
+2026-02-12T08:27:07.883Z [DEBUG] [ToolSearch:optimistic] mode=standard, ENABLE_TOOL_SEARCH=undefined, result=false
+2026-02-12T08:27:07.884Z [DEBUG] [STARTUP] Running setup()...
+2026-02-12T08:27:07.884Z [DEBUG] Found 0 plugins (0 enabled, 0 disabled)
+2026-02-12T08:27:07.895Z [DEBUG] [claudeai-mcp] Checking gate (cached)...
+2026-02-12T08:27:07.895Z [DEBUG] [claudeai-mcp] Gate returned: true
+2026-02-12T08:27:07.895Z [DEBUG] [claudeai-mcp] No access token
+2026-02-12T08:27:07.897Z [DEBUG] Loading skills from: managed=/etc/claude-code/.claude/skills, user=/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/skills, project=[/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/.claude/skills]
+2026-02-12T08:27:07.899Z [ERROR] Error: Error: ENOENT: no such file or directory, open '/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/remote-settings.json'
+    at Module.openSync (node:fs:555:18)
+    at file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:9:816
+    at gJ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:8:48829)
+    at Object.readSync (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:9:750)
+    at dJ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:6185:105)
+    at n_ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:6187:224)
+    at $e6 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:218:8217)
+    at RA6 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:218:8379)
+    at oK5 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:219:1200)
+    at UA1 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:219:2071)
+2026-02-12T08:27:07.899Z [ERROR] Error: Error: ENOENT: no such file or directory, open '/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/remote-settings.json'
+    at Module.openSync (node:fs:555:18)
+    at file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:9:816
+    at gJ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:8:48829)
+    at Object.readSync (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:9:750)
+    at dJ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:6185:105)
+    at n_ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:6187:224)
+    at $e6 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:218:8217)
+    at RA6 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:218:8379)
+    at oK5 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:219:1200)
+    at UA1 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:219:2071)
+2026-02-12T08:27:07.899Z [ERROR] Error: Error: ENOENT: no such file or directory, open '/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/remote-settings.json'
+    at Module.openSync (node:fs:555:18)
+    at file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:9:816
+    at gJ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:8:48829)
+    at Object.readSync (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:9:750)
+    at dJ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:6185:105)
+    at n_ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:6187:224)
+    at $e6 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:218:8217)
+    at kWA (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:1872:24021)
+    at RH4 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:1872:24904)
+    at Object.callback (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:7542:507)
+2026-02-12T08:27:07.899Z [ERROR] Error: Error: ENOENT: no such file or directory, open '/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/remote-settings.json'
+    at Module.openSync (node:fs:555:18)
+    at file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:9:816
+    at gJ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:8:48829)
+    at Object.readSync (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:9:750)
+    at dJ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:6185:105)
+    at n_ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:6187:224)
+    at $e6 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:218:8217)
+    at RA6 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:218:8379)
+    at k7 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:218:10110)
+    at FL1 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:359:1158)
+2026-02-12T08:27:07.899Z [ERROR] Error: Error: ENOENT: no such file or directory, open '/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/remote-settings.json'
+    at Module.openSync (node:fs:555:18)
+    at file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:9:816
+    at gJ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:8:48829)
+    at Object.readSync (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:9:750)
+    at dJ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:6185:105)
+    at n_ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:6187:224)
+    at $e6 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:218:8217)
+    at RA6 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:218:8379)
+    at k7 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:218:10110)
+    at mL1 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:359:1763)
+2026-02-12T08:27:07.899Z [ERROR] Error: Error: ENOENT: no such file or directory, open '/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/remote-settings.json'
+    at Module.openSync (node:fs:555:18)
+    at file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:9:816
+    at gJ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:8:48829)
+    at Object.readSync (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:9:750)
+    at dJ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:6185:105)
+    at n_ (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:6187:224)
+    at $e6 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:218:8217)
+    at RA6 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:218:8379)
+    at k7 (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:218:10110)
+    at DSA (file:///opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/cli.js:3638:11046)
+2026-02-12T08:27:07.899Z [DEBUG] Error log sink initialized
+2026-02-12T08:27:07.901Z [DEBUG] getPluginSkills: Processing 0 enabled plugins
+2026-02-12T08:27:07.901Z [DEBUG] Total plugin skills loaded: 0
+2026-02-12T08:27:07.901Z [DEBUG] Total plugin commands loaded: 0
+2026-02-12T08:27:07.915Z [DEBUG] [STARTUP] setup() completed in 31ms
+2026-02-12T08:27:07.915Z [DEBUG] [STARTUP] Loading commands and agents...
+2026-02-12T08:27:07.917Z [DEBUG] Registered 0 hooks from 0 plugins
+2026-02-12T08:27:07.918Z [DEBUG] Total plugin agents loaded: 0
+2026-02-12T08:27:07.919Z [DEBUG] Loaded 8 unique skills (managed: 0, user: 0, project: 8, additional: 0, legacy commands: 0)
+2026-02-12T08:27:07.919Z [DEBUG] getSkills returning: 8 skill dir commands, 0 plugin skills, 2 bundled skills
+2026-02-12T08:27:07.920Z [DEBUG] [STARTUP] Commands and agents loaded in 5ms
+2026-02-12T08:27:07.920Z [DEBUG] [LSP MANAGER] initializeLspServerManager() called
+2026-02-12T08:27:07.920Z [DEBUG] [LSP MANAGER] Created manager instance, state=pending
+2026-02-12T08:27:07.920Z [DEBUG] [LSP MANAGER] Starting async initialization (generation 1)
+2026-02-12T08:27:07.922Z [DEBUG] Total LSP servers loaded: 0
+2026-02-12T08:27:07.928Z [DEBUG] [STARTUP] MCP configs loaded in 55ms
+2026-02-12T08:27:07.936Z [DEBUG] MCP server "tasks": Starting connection with timeout of 30000ms
+2026-02-12T08:27:07.944Z [DEBUG] MCP server "reports": Starting connection with timeout of 30000ms
+2026-02-12T08:27:07.950Z [DEBUG] MCP server "polsia_infra": Starting connection with timeout of 30000ms
+2026-02-12T08:27:07.955Z [DEBUG] [LSP SERVER MANAGER] getAllLspServers returned 0 server(s)
+2026-02-12T08:27:07.955Z [DEBUG] LSP manager initialized with 0 servers
+2026-02-12T08:27:07.956Z [DEBUG] LSP server manager initialized successfully
+2026-02-12T08:27:07.956Z [DEBUG] LSP notification handlers registered successfully for all 0 server(s)
+2026-02-12T08:27:08.449Z [DEBUG] Remote settings: No settings found (404)
+2026-02-12T08:27:08.449Z [DEBUG] Programmatic settings change notification for policySettings
+2026-02-12T08:27:08.449Z [DEBUG] Plugin hooks: reloading due to policySettings change
+2026-02-12T08:27:08.451Z [DEBUG] Found 0 plugins (0 enabled, 0 disabled)
+2026-02-12T08:27:08.451Z [DEBUG] Registered 0 hooks from 0 plugins
+2026-02-12T08:27:08.451Z [DEBUG] Policy limits: Fetched successfully
+2026-02-12T08:27:09.074Z [ERROR] MCP server "tasks" Server stderr: [Tasks MCP] Resilience handlers installed (with Sentry)
+[Tasks MCP] Initialized for company 956, agent 30, user 976
+[Tasks MCP] Server running on stdio
+2026-02-12T08:27:09.074Z [DEBUG] MCP server "tasks": Successfully connected to undefined server in 1143ms
+2026-02-12T08:27:09.074Z [DEBUG] MCP server "tasks": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"task-management","version":"1.0.0"}}
+2026-02-12T08:27:09.170Z [ERROR] MCP server "reports" Server stderr: [Reports MCP] Resilience handlers installed (with Sentry)
+[Reports MCP] Initialized for company 956
+[Reports MCP] Server running on stdio
+2026-02-12T08:27:09.171Z [DEBUG] MCP server "reports": Successfully connected to undefined server in 1228ms
+2026-02-12T08:27:09.171Z [DEBUG] MCP server "reports": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"reports","version":"1.0.0"}}
+2026-02-12T08:27:09.271Z [ERROR] MCP server "polsia_infra" Server stderr: [Polsia Infra MCP] Resilience handlers installed (with Sentry)
+[Polsia Infra MCP] Initialized for company 956
+[Polsia Infra MCP] Server running on stdio
+2026-02-12T08:27:09.271Z [DEBUG] MCP server "polsia_infra": Successfully connected to undefined server in 1322ms
+2026-02-12T08:27:09.271Z [DEBUG] MCP server "polsia_infra": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"polsia-infra","version":"1.0.0"}}
+2026-02-12T08:27:09.274Z [DEBUG] MCP server "polsia_support": Starting connection with timeout of 30000ms
+2026-02-12T08:27:09.282Z [DEBUG] MCP server "stripe": Starting connection with timeout of 30000ms
+2026-02-12T08:27:09.288Z [DEBUG] MCP server "context7": Starting connection with timeout of 30000ms
+2026-02-12T08:27:10.247Z [ERROR] MCP server "polsia_support" Server stderr: [Polsia Support MCP] Resilience handlers installed (with Sentry)
+[POLSIA Support MCP] Initialized for company 956, agent: Engineering
+[POLSIA Support MCP] Server running on stdio
+2026-02-12T08:27:10.247Z [DEBUG] MCP server "polsia_support": Successfully connected to undefined server in 974ms
+2026-02-12T08:27:10.247Z [DEBUG] MCP server "polsia_support": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"polsia_support","version":"1.0.0"}}
+2026-02-12T08:27:10.256Z [ERROR] MCP server "stripe" Server stderr: [Stripe MCP] Resilience handlers installed (with Sentry)
+[Stripe MCP] Initialized for company 956
+[Stripe MCP] Server running on stdio
+2026-02-12T08:27:10.256Z [DEBUG] MCP server "stripe": Successfully connected to undefined server in 975ms
+2026-02-12T08:27:10.256Z [DEBUG] MCP server "stripe": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"stripe","version":"1.0.0"}}
+2026-02-12T08:27:10.559Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-02-12T08:27:10.564Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:10.564Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:10.566Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:10.776Z [ERROR] MCP server "context7" Server stderr: WARNING: Using default CLIENT_IP_ENCRYPTION_KEY.
+Context7 Documentation MCP Server v2.1.1 running on stdio
+2026-02-12T08:27:10.776Z [DEBUG] MCP server "context7": Successfully connected to undefined server in 1489ms
+2026-02-12T08:27:10.776Z [DEBUG] MCP server "context7": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"Context7","version":"2.1.1"}}
+2026-02-12T08:27:10.781Z [DEBUG] MCP server "memory": Starting connection with timeout of 30000ms
+2026-02-12T08:27:10.789Z [DEBUG] MCP server "skills": Starting connection with timeout of 30000ms
+2026-02-12T08:27:10.795Z [DEBUG] MCP server "dashboard": Starting connection with timeout of 30000ms
+2026-02-12T08:27:10.872Z [ERROR] MCP server "skills" Server stderr: [Skills MCP] Initialized for agent type: engineering, model: claude-opus-4-6
+[Skills MCP] Server running on stdio
+2026-02-12T08:27:10.872Z [DEBUG] MCP server "skills": Successfully connected to undefined server in 84ms
+2026-02-12T08:27:10.872Z [DEBUG] MCP server "skills": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"skills","version":"1.0.0"}}
+2026-02-12T08:27:10.885Z [ERROR] MCP server "dashboard" Server stderr: [Dashboard Actions MCP] Args received: --company-id=956 --agent-name=Engineering --allow-inbox-message
+[Dashboard Actions MCP] Initialized for company 956, agent: Engineering
+[Dashboard Actions MCP] Server running on stdio
+2026-02-12T08:27:10.885Z [DEBUG] MCP server "dashboard": Successfully connected to undefined server in 91ms
+2026-02-12T08:27:10.885Z [DEBUG] MCP server "dashboard": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"dashboard-actions","version":"1.0.0"}}
+2026-02-12T08:27:10.993Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:27:11.208Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/.claude.json.tmp.47199.1770884831208
+2026-02-12T08:27:11.208Z [DEBUG] Preserving file permissions: 100644
+2026-02-12T08:27:11.208Z [DEBUG] Temp file written successfully, size: 85159 bytes
+2026-02-12T08:27:11.208Z [DEBUG] Applied original permissions to temp file
+2026-02-12T08:27:11.208Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/.claude.json.tmp.47199.1770884831208 to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/.claude.json
+2026-02-12T08:27:11.208Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/.claude.json written atomically
+2026-02-12T08:27:11.415Z [ERROR] MCP server "memory" Server stderr: [Memory MCP] Initialized for company 956, agent type: engineering
+[Memory MCP] Server running on stdio
+2026-02-12T08:27:11.416Z [DEBUG] MCP server "memory": Successfully connected to undefined server in 635ms
+2026-02-12T08:27:11.416Z [DEBUG] MCP server "memory": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"memory","version":"2.0.0"}}
+2026-02-12T08:27:11.418Z [DEBUG] MCP server "postmark": Starting connection with timeout of 30000ms
+2026-02-12T08:27:11.425Z [DEBUG] MCP server "capabilities": Starting connection with timeout of 30000ms
+2026-02-12T08:27:11.605Z [ERROR] MCP server "postmark" Server stderr: [Postmark MCP] Initialized for company 956 (PROD mode)
+[Postmark MCP] Server running on stdio
+2026-02-12T08:27:11.605Z [DEBUG] MCP server "postmark": Successfully connected to undefined server in 187ms
+2026-02-12T08:27:11.605Z [DEBUG] MCP server "postmark": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"postmark","version":"1.0.0"}}
+2026-02-12T08:27:11.812Z [ERROR] MCP server "capabilities" Server stderr: [Capabilities MCP] Resilience handlers installed (with Sentry)
+[Capabilities MCP] Initialized for company 956
+[Capabilities MCP] Server running on stdio
+2026-02-12T08:27:11.812Z [DEBUG] MCP server "capabilities": Successfully connected to undefined server in 388ms
+2026-02-12T08:27:11.812Z [DEBUG] MCP server "capabilities": Connection established with capabilities: {"hasTools":true,"hasPrompts":false,"hasResources":false,"serverVersion":{"name":"capabilities","version":"1.0.0"}}
+2026-02-12T08:27:11.854Z [DEBUG] installed_plugins.json doesn't exist, returning empty V2 object
+2026-02-12T08:27:11.854Z [DEBUG] Initialized versioned plugins system with 0 plugins
+2026-02-12T08:27:11.865Z [DEBUG] Watching for changes in setting files /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/.claude/settings.json, /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/.claude/settings.local.json...
+2026-02-12T08:27:12.029Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/todos/35e200b5-0950-4e32-8554-b040d22bd027-agent-35e200b5-0950-4e32-8554-b040d22bd027.json.tmp.47199.1770884832029
+2026-02-12T08:27:12.029Z [DEBUG] Temp file written successfully, size: 2 bytes
+2026-02-12T08:27:12.029Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/todos/35e200b5-0950-4e32-8554-b040d22bd027-agent-35e200b5-0950-4e32-8554-b040d22bd027.json.tmp.47199.1770884832029 to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/todos/35e200b5-0950-4e32-8554-b040d22bd027-agent-35e200b5-0950-4e32-8554-b040d22bd027.json
+2026-02-12T08:27:12.029Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/todos/35e200b5-0950-4e32-8554-b040d22bd027-agent-35e200b5-0950-4e32-8554-b040d22bd027.json written atomically
+2026-02-12T08:27:12.059Z [DEBUG] Getting matching hook commands for SessionStart with query: startup
+2026-02-12T08:27:12.059Z [DEBUG] Found 0 hook matchers in settings
+2026-02-12T08:27:12.059Z [DEBUG] Matched 0 unique hooks for query "startup" (0 before deduplication)
+2026-02-12T08:27:12.060Z [DEBUG] [Perfetto] initializePerfettoTracing called, env value: undefined
+2026-02-12T08:27:12.070Z [DEBUG] Total plugin output styles loaded: 0
+2026-02-12T08:27:12.073Z [DEBUG] [SystemPrompt] path=simple proactive=false
+2026-02-12T08:27:12.080Z [DEBUG] Ripgrep first use test: PASSED (mode=builtin, path=/opt/render/project/src/node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/x64-linux/rg)
+2026-02-12T08:27:12.090Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:27:12.090Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:27:12.090Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:27:12.090Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:27:12.091Z [DEBUG] Sending 1 skills via attachment (initial, 1 total sent)
+2026-02-12T08:27:12.092Z [DEBUG] Getting matching hook commands for UserPromptSubmit with query: undefined
+2026-02-12T08:27:12.092Z [DEBUG] Found 0 hook matchers in settings
+2026-02-12T08:27:12.092Z [DEBUG] Matched 0 unique hooks for query "no match query" (0 before deduplication)
+2026-02-12T08:27:12.095Z [DEBUG] autocompact: tokens=5635 threshold=167000 effectiveWindow=180000
+2026-02-12T08:27:12.096Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:27:12.109Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.109Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.110Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.118Z [DEBUG] Watching for changes in skill/command directories: /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/.claude/skills...
+2026-02-12T08:27:12.120Z [DEBUG] Stats cache is up to date
+2026-02-12T08:27:12.467Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.467Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.467Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.467Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.467Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.467Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.467Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.467Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.467Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.467Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.467Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.467Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.467Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.467Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.467Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.467Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.467Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.467Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.467Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.467Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.467Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.467Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.467Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.467Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.467Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.467Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.467Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.467Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.468Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.468Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:12.469Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.470Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.471Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.472Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.473Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.473Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.473Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.473Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.473Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.473Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.473Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.473Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.473Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.473Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:12.473Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:13.304Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:27:13.308Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:13.308Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:13.308Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:14.441Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:27:16.960Z [DEBUG] executePreToolHooks called for tool: mcp__memory__search_memory
+2026-02-12T08:27:16.960Z [DEBUG] Getting matching hook commands for PreToolUse with query: mcp__memory__search_memory
+2026-02-12T08:27:16.960Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:16.960Z [DEBUG] Matched 4 unique hooks for query "mcp__memory__search_memory" (4 before deduplication)
+2026-02-12T08:27:16.964Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:16.964Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:16.964Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:16.964Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:16.965Z [DEBUG] Hook approved tool use for mcp__memory__search_memory, bypassing permission check
+2026-02-12T08:27:16.965Z [DEBUG] MCP server "memory": Calling MCP tool: search_memory
+2026-02-12T08:27:17.026Z [DEBUG] MCP server "memory": Tool 'search_memory' completed successfully in 61ms
+2026-02-12T08:27:17.029Z [DEBUG] Getting matching hook commands for PostToolUse with query: mcp__memory__search_memory
+2026-02-12T08:27:17.029Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:17.029Z [DEBUG] Matched 0 unique hooks for query "mcp__memory__search_memory" (0 before deduplication)
+2026-02-12T08:27:17.343Z [DEBUG] executePreToolHooks called for tool: mcp__skills__search_skills
+2026-02-12T08:27:17.343Z [DEBUG] Getting matching hook commands for PreToolUse with query: mcp__skills__search_skills
+2026-02-12T08:27:17.343Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:17.343Z [DEBUG] Matched 4 unique hooks for query "mcp__skills__search_skills" (4 before deduplication)
+2026-02-12T08:27:17.345Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:17.345Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:17.345Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:17.345Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:17.345Z [DEBUG] Hook approved tool use for mcp__skills__search_skills, bypassing permission check
+2026-02-12T08:27:17.346Z [DEBUG] MCP server "skills": Calling MCP tool: search_skills
+2026-02-12T08:27:17.366Z [DEBUG] MCP server "skills": Tool 'search_skills' completed successfully in 20ms
+2026-02-12T08:27:17.367Z [DEBUG] Getting matching hook commands for PostToolUse with query: mcp__skills__search_skills
+2026-02-12T08:27:17.367Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:17.367Z [DEBUG] Matched 0 unique hooks for query "mcp__skills__search_skills" (0 before deduplication)
+2026-02-12T08:27:18.113Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-02-12T08:27:18.113Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-02-12T08:27:18.113Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:18.113Z [DEBUG] Matched 4 unique hooks for query "Bash" (4 before deduplication)
+2026-02-12T08:27:18.115Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:18.115Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:18.115Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:18.115Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:18.116Z [DEBUG] Hook approved tool use for Bash, bypassing permission check
+2026-02-12T08:27:18.131Z [DEBUG] Creating shell snapshot for bash (/bin/bash)
+2026-02-12T08:27:18.131Z [DEBUG] Looking for shell config file: /opt/render/.bashrc
+2026-02-12T08:27:18.131Z [DEBUG] Shell config file not found: /opt/render/.bashrc, creating snapshot with Claude Code defaults only
+2026-02-12T08:27:18.131Z [DEBUG] Snapshots directory: /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/shell-snapshots
+2026-02-12T08:27:18.132Z [DEBUG] Creating snapshot at: /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/shell-snapshots/snapshot-bash-1770884838131-0336e5.sh
+2026-02-12T08:27:18.132Z [DEBUG] Shell binary exists: true
+2026-02-12T08:27:18.132Z [DEBUG] Execution timeout: 10000ms
+2026-02-12T08:27:18.212Z [DEBUG] Shell snapshot created successfully (869 bytes)
+2026-02-12T08:27:18.213Z [DEBUG] No session environment scripts found
+2026-02-12T08:27:18.301Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-02-12T08:27:18.302Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:18.302Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:18.303Z [DEBUG] Getting matching hook commands for PostToolUse with query: Bash
+2026-02-12T08:27:18.303Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:18.303Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-02-12T08:27:18.303Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:18.306Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:27:18.306Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:27:18.306Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:27:18.306Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:27:18.307Z [DEBUG] autocompact: tokens=43334 threshold=167000 effectiveWindow=180000
+2026-02-12T08:27:18.307Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:27:18.320Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:18.320Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:18.321Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:19.099Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:27:19.878Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:27:21.207Z [DEBUG] executePreToolHooks called for tool: mcp__skills__load_skill
+2026-02-12T08:27:21.208Z [DEBUG] Getting matching hook commands for PreToolUse with query: mcp__skills__load_skill
+2026-02-12T08:27:21.208Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:21.208Z [DEBUG] Matched 4 unique hooks for query "mcp__skills__load_skill" (4 before deduplication)
+2026-02-12T08:27:21.209Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:21.209Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:21.209Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:21.209Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:21.210Z [DEBUG] Hook approved tool use for mcp__skills__load_skill, bypassing permission check
+2026-02-12T08:27:21.210Z [DEBUG] MCP server "skills": Calling MCP tool: load_skill
+2026-02-12T08:27:21.219Z [DEBUG] MCP server "skills": Tool 'load_skill' completed successfully in 9ms
+2026-02-12T08:27:21.220Z [DEBUG] Getting matching hook commands for PostToolUse with query: mcp__skills__load_skill
+2026-02-12T08:27:21.220Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:21.220Z [DEBUG] Matched 0 unique hooks for query "mcp__skills__load_skill" (0 before deduplication)
+2026-02-12T08:27:21.861Z [DEBUG] executePreToolHooks called for tool: mcp__tasks__start_task
+2026-02-12T08:27:21.861Z [DEBUG] Getting matching hook commands for PreToolUse with query: mcp__tasks__start_task
+2026-02-12T08:27:21.861Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:21.861Z [DEBUG] Matched 4 unique hooks for query "mcp__tasks__start_task" (4 before deduplication)
+2026-02-12T08:27:21.864Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:21.864Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:21.864Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:21.864Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:21.864Z [DEBUG] Hook approved tool use for mcp__tasks__start_task, bypassing permission check
+2026-02-12T08:27:21.864Z [DEBUG] MCP server "tasks": Calling MCP tool: start_task
+2026-02-12T08:27:21.896Z [DEBUG] MCP server "tasks": Tool 'start_task' completed successfully in 32ms
+2026-02-12T08:27:21.897Z [DEBUG] Getting matching hook commands for PostToolUse with query: mcp__tasks__start_task
+2026-02-12T08:27:21.897Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:21.897Z [DEBUG] Matched 0 unique hooks for query "mcp__tasks__start_task" (0 before deduplication)
+2026-02-12T08:27:21.903Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:27:21.903Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:27:21.903Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:27:21.903Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:27:21.904Z [DEBUG] autocompact: tokens=44818 threshold=167000 effectiveWindow=180000
+2026-02-12T08:27:21.904Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:27:21.914Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:21.914Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:21.915Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:23.813Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:27:31.581Z [DEBUG] executePreToolHooks called for tool: TodoWrite
+2026-02-12T08:27:31.581Z [DEBUG] Getting matching hook commands for PreToolUse with query: TodoWrite
+2026-02-12T08:27:31.581Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:31.581Z [DEBUG] Matched 4 unique hooks for query "TodoWrite" (4 before deduplication)
+2026-02-12T08:27:31.585Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:31.585Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:31.585Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:31.585Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:31.585Z [DEBUG] Hook approved tool use for TodoWrite, bypassing permission check
+2026-02-12T08:27:31.585Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/todos/35e200b5-0950-4e32-8554-b040d22bd027-agent-35e200b5-0950-4e32-8554-b040d22bd027.json.tmp.47199.1770884851585
+2026-02-12T08:27:31.585Z [DEBUG] Preserving file permissions: 100644
+2026-02-12T08:27:31.586Z [DEBUG] Temp file written successfully, size: 1224 bytes
+2026-02-12T08:27:31.586Z [DEBUG] Applied original permissions to temp file
+2026-02-12T08:27:31.586Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/todos/35e200b5-0950-4e32-8554-b040d22bd027-agent-35e200b5-0950-4e32-8554-b040d22bd027.json.tmp.47199.1770884851585 to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/todos/35e200b5-0950-4e32-8554-b040d22bd027-agent-35e200b5-0950-4e32-8554-b040d22bd027.json
+2026-02-12T08:27:31.586Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/todos/35e200b5-0950-4e32-8554-b040d22bd027-agent-35e200b5-0950-4e32-8554-b040d22bd027.json written atomically
+2026-02-12T08:27:31.586Z [DEBUG] Getting matching hook commands for PostToolUse with query: TodoWrite
+2026-02-12T08:27:31.586Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:31.586Z [DEBUG] Matched 0 unique hooks for query "TodoWrite" (0 before deduplication)
+2026-02-12T08:27:31.587Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:27:31.587Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:27:31.587Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:27:31.587Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:27:31.587Z [DEBUG] autocompact: tokens=45517 threshold=167000 effectiveWindow=180000
+2026-02-12T08:27:31.588Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:27:31.595Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:31.595Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:31.596Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:33.517Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:27:35.062Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-02-12T08:27:35.062Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-02-12T08:27:35.062Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:35.062Z [DEBUG] Matched 4 unique hooks for query "Bash" (4 before deduplication)
+2026-02-12T08:27:35.064Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:35.064Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:35.064Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:35.064Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:35.064Z [DEBUG] Hook approved tool use for Bash, bypassing permission check
+2026-02-12T08:27:35.151Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-02-12T08:27:35.153Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:35.153Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:35.153Z [DEBUG] Getting matching hook commands for PostToolUse with query: Bash
+2026-02-12T08:27:35.153Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:35.153Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-02-12T08:27:35.153Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:35.624Z [DEBUG] executePreToolHooks called for tool: Glob
+2026-02-12T08:27:35.624Z [DEBUG] Getting matching hook commands for PreToolUse with query: Glob
+2026-02-12T08:27:35.624Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:35.625Z [DEBUG] Matched 4 unique hooks for query "Glob" (4 before deduplication)
+2026-02-12T08:27:35.626Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:35.626Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:35.626Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:35.626Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:35.626Z [DEBUG] Hook approved tool use for Glob, bypassing permission check
+2026-02-12T08:27:35.635Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:27:35.669Z [DEBUG] Getting matching hook commands for PostToolUse with query: Glob
+2026-02-12T08:27:35.669Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:35.669Z [DEBUG] Matched 1 unique hooks for query "Glob" (1 before deduplication)
+2026-02-12T08:27:35.834Z [DEBUG] executePreToolHooks called for tool: Glob
+2026-02-12T08:27:35.835Z [DEBUG] Getting matching hook commands for PreToolUse with query: Glob
+2026-02-12T08:27:35.835Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:35.835Z [DEBUG] Matched 4 unique hooks for query "Glob" (4 before deduplication)
+2026-02-12T08:27:35.837Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:35.837Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:35.837Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:35.837Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:35.837Z [DEBUG] Hook approved tool use for Glob, bypassing permission check
+2026-02-12T08:27:35.870Z [DEBUG] Getting matching hook commands for PostToolUse with query: Glob
+2026-02-12T08:27:35.870Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:35.870Z [DEBUG] Matched 1 unique hooks for query "Glob" (1 before deduplication)
+2026-02-12T08:27:36.113Z [DEBUG] executePreToolHooks called for tool: Glob
+2026-02-12T08:27:36.113Z [DEBUG] Getting matching hook commands for PreToolUse with query: Glob
+2026-02-12T08:27:36.113Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:36.113Z [DEBUG] Matched 4 unique hooks for query "Glob" (4 before deduplication)
+2026-02-12T08:27:36.114Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.114Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.114Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.115Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.115Z [DEBUG] Hook approved tool use for Glob, bypassing permission check
+2026-02-12T08:27:36.149Z [DEBUG] Getting matching hook commands for PostToolUse with query: Glob
+2026-02-12T08:27:36.149Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:36.149Z [DEBUG] Matched 1 unique hooks for query "Glob" (1 before deduplication)
+2026-02-12T08:27:36.447Z [DEBUG] executePreToolHooks called for tool: Glob
+2026-02-12T08:27:36.447Z [DEBUG] Getting matching hook commands for PreToolUse with query: Glob
+2026-02-12T08:27:36.447Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:36.447Z [DEBUG] Matched 4 unique hooks for query "Glob" (4 before deduplication)
+2026-02-12T08:27:36.449Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.449Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.449Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.449Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.449Z [DEBUG] Hook approved tool use for Glob, bypassing permission check
+2026-02-12T08:27:36.482Z [DEBUG] Getting matching hook commands for PostToolUse with query: Glob
+2026-02-12T08:27:36.482Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:36.482Z [DEBUG] Matched 1 unique hooks for query "Glob" (1 before deduplication)
+2026-02-12T08:27:36.728Z [DEBUG] executePreToolHooks called for tool: Glob
+2026-02-12T08:27:36.728Z [DEBUG] Getting matching hook commands for PreToolUse with query: Glob
+2026-02-12T08:27:36.728Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:36.728Z [DEBUG] Matched 4 unique hooks for query "Glob" (4 before deduplication)
+2026-02-12T08:27:36.730Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.730Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.730Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.730Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.730Z [DEBUG] Hook approved tool use for Glob, bypassing permission check
+2026-02-12T08:27:36.765Z [DEBUG] Getting matching hook commands for PostToolUse with query: Glob
+2026-02-12T08:27:36.765Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:36.765Z [DEBUG] Matched 1 unique hooks for query "Glob" (1 before deduplication)
+2026-02-12T08:27:36.997Z [DEBUG] executePreToolHooks called for tool: Glob
+2026-02-12T08:27:36.998Z [DEBUG] Getting matching hook commands for PreToolUse with query: Glob
+2026-02-12T08:27:36.998Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:36.998Z [DEBUG] Matched 4 unique hooks for query "Glob" (4 before deduplication)
+2026-02-12T08:27:36.999Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.999Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.999Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.999Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:36.999Z [DEBUG] Hook approved tool use for Glob, bypassing permission check
+2026-02-12T08:27:37.034Z [DEBUG] Getting matching hook commands for PostToolUse with query: Glob
+2026-02-12T08:27:37.034Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:37.034Z [DEBUG] Matched 1 unique hooks for query "Glob" (1 before deduplication)
+2026-02-12T08:27:37.047Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:27:37.047Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:27:37.047Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:27:37.047Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:27:37.048Z [DEBUG] autocompact: tokens=47759 threshold=167000 effectiveWindow=180000
+2026-02-12T08:27:37.048Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:27:37.059Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:37.059Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:37.060Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:39.027Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:27:42.091Z [DEBUG] executePreToolHooks called for tool: Glob
+2026-02-12T08:27:42.091Z [DEBUG] Getting matching hook commands for PreToolUse with query: Glob
+2026-02-12T08:27:42.091Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:42.091Z [DEBUG] Matched 4 unique hooks for query "Glob" (4 before deduplication)
+2026-02-12T08:27:42.092Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:42.092Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:42.092Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:42.092Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:42.093Z [DEBUG] Hook approved tool use for Glob, bypassing permission check
+2026-02-12T08:27:42.127Z [DEBUG] Getting matching hook commands for PostToolUse with query: Glob
+2026-02-12T08:27:42.127Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:42.127Z [DEBUG] Matched 1 unique hooks for query "Glob" (1 before deduplication)
+2026-02-12T08:27:42.652Z [DEBUG] executePreToolHooks called for tool: Read
+2026-02-12T08:27:42.652Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-02-12T08:27:42.652Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:42.652Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-02-12T08:27:42.654Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:42.654Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:42.654Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:42.654Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:42.654Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-02-12T08:27:42.656Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-02-12T08:27:42.656Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:42.656Z [DEBUG] Matched 1 unique hooks for query "Read" (1 before deduplication)
+2026-02-12T08:27:43.070Z [DEBUG] executePreToolHooks called for tool: Read
+2026-02-12T08:27:43.070Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-02-12T08:27:43.070Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:43.070Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-02-12T08:27:43.072Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:43.072Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:43.072Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:43.072Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:43.072Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-02-12T08:27:43.073Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-02-12T08:27:43.073Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:43.073Z [DEBUG] Matched 1 unique hooks for query "Read" (1 before deduplication)
+2026-02-12T08:27:43.529Z [DEBUG] executePreToolHooks called for tool: Read
+2026-02-12T08:27:43.529Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-02-12T08:27:43.529Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:43.529Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-02-12T08:27:43.530Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:43.530Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:43.530Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:43.530Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:43.530Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-02-12T08:27:43.531Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:43.531Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:43.531Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:43.874Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-02-12T08:27:43.874Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:43.874Z [DEBUG] Matched 1 unique hooks for query "Read" (1 before deduplication)
+2026-02-12T08:27:44.061Z [DEBUG] executePreToolHooks called for tool: Read
+2026-02-12T08:27:44.061Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-02-12T08:27:44.061Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:44.061Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-02-12T08:27:44.062Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:44.062Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:44.062Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:44.062Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:44.062Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-02-12T08:27:44.063Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:44.063Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:44.063Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:44.239Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-02-12T08:27:44.239Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:44.239Z [DEBUG] Matched 1 unique hooks for query "Read" (1 before deduplication)
+2026-02-12T08:27:44.545Z [DEBUG] executePreToolHooks called for tool: Read
+2026-02-12T08:27:44.546Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-02-12T08:27:44.546Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:44.546Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-02-12T08:27:44.548Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:44.548Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:44.548Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:44.548Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:44.548Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-02-12T08:27:44.550Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-02-12T08:27:44.550Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:44.550Z [DEBUG] Matched 1 unique hooks for query "Read" (1 before deduplication)
+2026-02-12T08:27:45.067Z [DEBUG] executePreToolHooks called for tool: Read
+2026-02-12T08:27:45.067Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-02-12T08:27:45.067Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:45.067Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-02-12T08:27:45.069Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:45.069Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:45.069Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:45.069Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:45.069Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-02-12T08:27:45.070Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-02-12T08:27:45.070Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:45.070Z [DEBUG] Matched 1 unique hooks for query "Read" (1 before deduplication)
+2026-02-12T08:27:45.078Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:27:45.078Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:27:45.078Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:27:45.078Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:27:45.079Z [DEBUG] autocompact: tokens=89435 threshold=167000 effectiveWindow=180000
+2026-02-12T08:27:45.079Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:27:45.088Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:45.088Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:45.088Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:47.739Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:27:50.291Z [DEBUG] executePreToolHooks called for tool: Read
+2026-02-12T08:27:50.291Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-02-12T08:27:50.291Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:50.291Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-02-12T08:27:50.293Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:50.293Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:50.293Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:50.293Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:50.293Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-02-12T08:27:50.295Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-02-12T08:27:50.295Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:50.295Z [DEBUG] Matched 1 unique hooks for query "Read" (1 before deduplication)
+2026-02-12T08:27:51.216Z [DEBUG] executePreToolHooks called for tool: Read
+2026-02-12T08:27:51.216Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-02-12T08:27:51.216Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:51.216Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-02-12T08:27:51.218Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:51.218Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:51.218Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:51.218Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:51.218Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-02-12T08:27:51.220Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-02-12T08:27:51.220Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:51.220Z [DEBUG] Matched 1 unique hooks for query "Read" (1 before deduplication)
+2026-02-12T08:27:51.796Z [DEBUG] executePreToolHooks called for tool: Read
+2026-02-12T08:27:51.796Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-02-12T08:27:51.796Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:51.796Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-02-12T08:27:51.798Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:51.798Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:51.798Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:51.798Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:51.798Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-02-12T08:27:51.799Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-02-12T08:27:51.799Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:51.799Z [DEBUG] Matched 1 unique hooks for query "Read" (1 before deduplication)
+2026-02-12T08:27:52.404Z [DEBUG] executePreToolHooks called for tool: Read
+2026-02-12T08:27:52.404Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-02-12T08:27:52.404Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:52.405Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-02-12T08:27:52.406Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:52.406Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:52.406Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:52.406Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:52.406Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-02-12T08:27:52.407Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-02-12T08:27:52.407Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:52.407Z [DEBUG] Matched 1 unique hooks for query "Read" (1 before deduplication)
+2026-02-12T08:27:52.420Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:27:52.420Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:27:52.420Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:27:52.420Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:27:52.420Z [DEBUG] autocompact: tokens=115583 threshold=167000 effectiveWindow=180000
+2026-02-12T08:27:52.421Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:27:52.429Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:52.429Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:52.429Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:54.515Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:27:57.076Z [DEBUG] executePreToolHooks called for tool: Read
+2026-02-12T08:27:57.076Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-02-12T08:27:57.076Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:57.076Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-02-12T08:27:57.078Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:57.078Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:57.078Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:57.078Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:57.078Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-02-12T08:27:57.079Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-02-12T08:27:57.079Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:57.079Z [DEBUG] Matched 1 unique hooks for query "Read" (1 before deduplication)
+2026-02-12T08:27:57.636Z [DEBUG] executePreToolHooks called for tool: Read
+2026-02-12T08:27:57.636Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-02-12T08:27:57.637Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:57.637Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-02-12T08:27:57.638Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:57.638Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:57.638Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:57.638Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:57.638Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-02-12T08:27:57.639Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-02-12T08:27:57.639Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:57.639Z [DEBUG] Matched 1 unique hooks for query "Read" (1 before deduplication)
+2026-02-12T08:27:58.350Z [DEBUG] executePreToolHooks called for tool: Read
+2026-02-12T08:27:58.350Z [DEBUG] Getting matching hook commands for PreToolUse with query: Read
+2026-02-12T08:27:58.350Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:58.350Z [DEBUG] Matched 4 unique hooks for query "Read" (4 before deduplication)
+2026-02-12T08:27:58.352Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:58.352Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:58.352Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:58.352Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:58.352Z [DEBUG] Hook approved tool use for Read, bypassing permission check
+2026-02-12T08:27:58.353Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:58.353Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:58.353Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:58.552Z [DEBUG] Getting matching hook commands for PostToolUse with query: Read
+2026-02-12T08:27:58.552Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:58.552Z [DEBUG] Matched 1 unique hooks for query "Read" (1 before deduplication)
+2026-02-12T08:27:59.297Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-02-12T08:27:59.297Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-02-12T08:27:59.297Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:27:59.297Z [DEBUG] Matched 4 unique hooks for query "Bash" (4 before deduplication)
+2026-02-12T08:27:59.298Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:59.298Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:59.298Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:59.298Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:27:59.298Z [DEBUG] Hook approved tool use for Bash, bypassing permission check
+2026-02-12T08:27:59.391Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-02-12T08:27:59.391Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:59.391Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:59.392Z [DEBUG] Getting matching hook commands for PostToolUse with query: Bash
+2026-02-12T08:27:59.392Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:27:59.392Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-02-12T08:27:59.392Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:59.394Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:27:59.394Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:27:59.394Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:27:59.394Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:27:59.395Z [DEBUG] autocompact: tokens=138902 threshold=167000 effectiveWindow=180000
+2026-02-12T08:27:59.395Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:27:59.404Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:27:59.404Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:27:59.404Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:27:59.865Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:28:01.632Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:29:00.847Z [DEBUG] executePreToolHooks called for tool: Write
+2026-02-12T08:29:00.847Z [DEBUG] Getting matching hook commands for PreToolUse with query: Write
+2026-02-12T08:29:00.847Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:29:00.847Z [DEBUG] Matched 4 unique hooks for query "Write" (4 before deduplication)
+2026-02-12T08:29:00.850Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:29:00.850Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:29:00.850Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:29:00.850Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:29:00.851Z [DEBUG] Hook approved tool use for Write, bypassing permission check
+2026-02-12T08:29:00.899Z [DEBUG] Writing to temp file: /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/docs/audit-job-matching-e2e.md.tmp.47199.1770884940899
+2026-02-12T08:29:00.899Z [DEBUG] Temp file written successfully, size: 4287 bytes
+2026-02-12T08:29:00.899Z [DEBUG] Renaming /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/docs/audit-job-matching-e2e.md.tmp.47199.1770884940899 to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/docs/audit-job-matching-e2e.md
+2026-02-12T08:29:00.899Z [DEBUG] File /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/docs/audit-job-matching-e2e.md written atomically
+2026-02-12T08:29:00.901Z [DEBUG] Getting matching hook commands for PostToolUse with query: Write
+2026-02-12T08:29:00.901Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:29:00.901Z [DEBUG] Matched 1 unique hooks for query "Write" (1 before deduplication)
+2026-02-12T08:29:00.902Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:29:00.902Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:29:00.902Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:29:00.902Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:29:00.902Z [DEBUG] autocompact: tokens=147017 threshold=167000 effectiveWindow=180000
+2026-02-12T08:29:00.902Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:29:00.911Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:29:00.911Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:29:00.912Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:29:03.260Z [DEBUG] Stream started - received first chunk
+2026-02-12T08:29:06.515Z [DEBUG] executePreToolHooks called for tool: Bash
+2026-02-12T08:29:06.515Z [DEBUG] Getting matching hook commands for PreToolUse with query: Bash
+2026-02-12T08:29:06.515Z [DEBUG] Found 1 hook matchers in settings
+2026-02-12T08:29:06.515Z [DEBUG] Matched 4 unique hooks for query "Bash" (4 before deduplication)
+2026-02-12T08:29:06.517Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:29:06.517Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:29:06.517Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:29:06.517Z [DEBUG] Hook result has permissionBehavior=allow
+2026-02-12T08:29:06.517Z [DEBUG] Hook approved tool use for Bash, bypassing permission check
+2026-02-12T08:29:06.621Z [DEBUG] Tool search disabled for model 'claude-haiku-4-5-20251001': model does not support tool_reference blocks. This feature is only available on Claude Sonnet 4+, Opus 4+, and newer models.
+2026-02-12T08:29:06.621Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:29:06.621Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:29:06.622Z [DEBUG] Getting matching hook commands for PostToolUse with query: Bash
+2026-02-12T08:29:06.622Z [DEBUG] Found 5 hook matchers in settings
+2026-02-12T08:29:06.622Z [DEBUG] Matched 0 unique hooks for query "Bash" (0 before deduplication)
+2026-02-12T08:29:06.622Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:29:06.623Z [DEBUG] LSP Diagnostics: getLSPDiagnosticAttachments called
+2026-02-12T08:29:06.623Z [DEBUG] LSP Diagnostics: Checking registry - 0 pending
+2026-02-12T08:29:06.623Z [DEBUG] Hooks: Found 0 total hooks in registry
+2026-02-12T08:29:06.623Z [DEBUG] Hooks: checkForNewResponses returning 0 responses
+2026-02-12T08:29:06.625Z [DEBUG] Persisted tool result to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01USeYcmaEwpZK46anw8ZsJ3.txt (1.1KB)
+2026-02-12T08:29:06.625Z [DEBUG] Persisted tool result to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01LFySj5FfwkJFWgd8ndZLFU.txt (1.5KB)
+2026-02-12T08:29:06.626Z [DEBUG] Persisted tool result to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01DVtN9gy71GdaTit7tn6d71.txt (1.8KB)
+2026-02-12T08:29:06.627Z [DEBUG] Persisted tool result to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01UfbfbUycjAQJHrCYqvy4Gy.txt (1KB)
+2026-02-12T08:29:06.627Z [DEBUG] Persisted tool result to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_016LNq1BghoC4SuP77pYYrNk.txt (950 bytes)
+2026-02-12T08:29:06.628Z [DEBUG] Persisted tool result to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_018nZ4QcVjViZjC4owerfgB6.txt (732 bytes)
+2026-02-12T08:29:06.628Z [DEBUG] Persisted tool result to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01S4zPCBXj7t5rucV6XsVtxi.txt (938 bytes)
+2026-02-12T08:29:06.628Z [DEBUG] Persisted tool result to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01PZfJZFmYKdfpTF9ASkHmFi.txt (484 bytes)
+2026-02-12T08:29:06.629Z [DEBUG] Persisted tool result to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01DDdKyhCpX3NyGSXpCBoa8p.txt (3.7KB)
+2026-02-12T08:29:06.630Z [DEBUG] Persisted tool result to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01CdRe5zetrzLFPAYPsV1WRm.txt (7.2KB)
+2026-02-12T08:29:06.630Z [DEBUG] Persisted tool result to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01Ji8cTnppfDn8qvypC34pB9.txt (8.4KB)
+2026-02-12T08:29:06.631Z [DEBUG] Persisted tool result to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01YAXYMaoThnCvTPmKX4eCur.txt (42.1KB)
+2026-02-12T08:29:06.631Z [DEBUG] Persisted tool result to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01BCtFVyAE3nM9CjwzFzK1dq.txt (61.3KB)
+2026-02-12T08:29:06.632Z [DEBUG] Persisted tool result to /tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/projects/-tmp-polsia-workspaces-company-956-agent-30-exec-62211-hireloop/35e200b5-0950-4e32-8554-b040d22bd027/tool-results/toolu_01KvGdmPZ8yrx1cXJ1Kf5Wss.txt (21.7KB)
+2026-02-12T08:29:06.633Z [DEBUG] autocompact: tokens=147269 threshold=167000 effectiveWindow=180000
+2026-02-12T08:29:06.633Z [DEBUG] Tool search disabled: ToolSearchTool is not available (may have been disallowed via disallowedTools).
+2026-02-12T08:29:06.641Z [DEBUG] [API:request] Creating client, ANTHROPIC_CUSTOM_HEADERS present: false, has Authorization header: false
+2026-02-12T08:29:06.641Z [DEBUG] [API:auth] OAuth token check starting
+2026-02-12T08:29:06.641Z [DEBUG] [API:auth] OAuth token check complete
+2026-02-12T08:29:07.058Z [DEBUG] Stream started - received first chunk

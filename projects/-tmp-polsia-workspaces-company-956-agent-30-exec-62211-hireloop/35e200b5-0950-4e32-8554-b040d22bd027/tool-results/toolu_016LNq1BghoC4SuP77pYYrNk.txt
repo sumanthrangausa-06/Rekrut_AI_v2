@@ -1,0 +1,10 @@
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/public/recruiter-dashboard.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/public/recruiter-interviews.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/public/recruiter-applications.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/public/recruiter-onboarding-docs.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/public/recruiter-jobs.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/public/recruiter-analytics.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/public/recruiter-register.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/public/recruiter-profile.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/public/recruiter-trustscore.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/recruiter.js

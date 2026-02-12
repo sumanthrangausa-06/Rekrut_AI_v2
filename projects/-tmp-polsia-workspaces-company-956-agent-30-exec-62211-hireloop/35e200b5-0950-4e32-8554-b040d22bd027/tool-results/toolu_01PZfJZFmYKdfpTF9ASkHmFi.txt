@@ -1,0 +1,5 @@
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/migrations/004_candidate_profiles.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/migrations/019_candidate_onboarding_wizard.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/public/candidate-dashboard.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/public/candidate-profile.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop/routes/candidate.js

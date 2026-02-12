@@ -1,0 +1,1034 @@
+     1→// Recruiter Dashboard & Job Management Routes
+     2→const express = require('express');
+     3→const pool = require('../lib/db');
+     4→const { authMiddleware } = require('../lib/auth');
+     5→const trustscoreService = require('../services/trustscore');
+     6→const jobOptimizer = require('../services/job-optimizer');
+     7→const { AuditLogger } = require('../services/auditLogger');
+     8→
+     9→const router = express.Router();
+    10→
+    11→// Middleware to require recruiter role
+    12→function requireRecruiter(req, res, next) {
+    13→  if (!req.user.company_id || !['recruiter', 'hiring_manager', 'employer', 'admin'].includes(req.user.role)) {
+    14→    return res.status(403).json({ error: 'Recruiter access required' });
+    15→  }
+    16→  next();
+    17→}
+    18→
+    19→// Dashboard overview
+    20→router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
+    21→  try {
+    22→    const companyId = req.user.company_id;
+    23→
+    24→    // Get TrustScore
+    25→    const trustScore = await trustscoreService.calculateTrustScore(companyId);
+    26→
+    27→    // Get job stats
+    28→    const jobStats = await pool.query(`
+    29→      SELECT
+    30→        COUNT(*) FILTER (WHERE status = 'active') as active_jobs,
+    31→        COUNT(*) FILTER (WHERE status = 'paused') as paused_jobs,
+    32→        COUNT(*) FILTER (WHERE status = 'closed') as closed_jobs
+    33→      FROM jobs WHERE company_id = $1
+    34→    `, [companyId]);
+    35→
+    36→    // Get application stats
+    37→    const appStats = await pool.query(`
+    38→      SELECT
+    39→        COUNT(*) as total_applications,
+    40→        COUNT(*) FILTER (WHERE status = 'applied') as new_applications,
+    41→        COUNT(*) FILTER (WHERE status = 'reviewing') as reviewing,
+    42→        COUNT(*) FILTER (WHERE status = 'interviewed') as interviewed,
+    43→        COUNT(*) FILTER (WHERE status = 'offered') as offered,
+    44→        COUNT(*) FILTER (WHERE status = 'hired') as hired
+    45→      FROM job_applications WHERE company_id = $1
+    46→    `, [companyId]);
+    47→
+    48→    // Get upcoming interviews
+    49→    const upcomingInterviews = await pool.query(`
+    50→      SELECT si.id, si.scheduled_at, si.interview_type, si.status,
+    51→             u.name as candidate_name, u.email as candidate_email,
+    52→             j.title as job_title
+    53→      FROM scheduled_interviews si
+    54→      JOIN users u ON si.candidate_id = u.id
+    55→      JOIN jobs j ON si.job_id = j.id
+    56→      WHERE si.company_id = $1
+    57→        AND si.scheduled_at > NOW()
+    58→        AND si.status = 'scheduled'
+    59→      ORDER BY si.scheduled_at
+    60→      LIMIT 5
+    61→    `, [companyId]);
+    62→
+    63→    // Get recent applications
+    64→    const recentApps = await pool.query(`
+    65→      SELECT ja.id, ja.status, ja.applied_at, ja.omniscore_at_apply,
+    66→             u.name as candidate_name, u.email as candidate_email,
+    67→             j.title as job_title, j.id as job_id
+    68→      FROM job_applications ja
+    69→      JOIN users u ON ja.candidate_id = u.id
+    70→      JOIN jobs j ON ja.job_id = j.id
+    71→      WHERE ja.company_id = $1
+    72→      ORDER BY ja.applied_at DESC
+    73→      LIMIT 10
+    74→    `, [companyId]);
+    75→
+    76→    res.json({
+    77→      success: true,
+    78→      trust_score: trustScore,
+    79→      job_stats: jobStats.rows[0],
+    80→      application_stats: appStats.rows[0],
+    81→      upcoming_interviews: upcomingInterviews.rows,
+    82→      recent_applications: recentApps.rows
+    83→    });
+    84→  } catch (err) {
+    85→    console.error('Dashboard error:', err);
+    86→    res.status(500).json({ error: 'Failed to load dashboard' });
+    87→  }
+    88→});
+    89→
+    90→// Get all jobs for company
+    91→router.get('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
+    92→  try {
+    93→    const { status, limit = 50, offset = 0 } = req.query;
+    94→
+    95→    let query = `
+    96→      SELECT j.*,
+    97→             COALESCE(ja.views, 0) as views,
+    98→             COALESCE((SELECT COUNT(*) FROM job_applications japp WHERE japp.job_id = j.id), 0) as application_count,
+    99→             COALESCE(ja.interviews_scheduled, 0) as interviews
+   100→      FROM jobs j
+   101→      LEFT JOIN job_analytics ja ON j.id = ja.job_id
+   102→      WHERE (j.company_id = $1 OR j.user_id = $2)
+   103→    `;
+   104→    const params = [req.user.company_id, req.user.id];
+   105→
+   106→    if (status) {
+   107→      query += ` AND j.status = $${params.length + 1}`;
+   108→      params.push(status);
+   109→    }
+   110→
+   111→    query += ` ORDER BY j.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+   112→    params.push(limit, offset);
+   113→
+   114→    const result = await pool.query(query, params);
+   115→
+   116→    res.json({ jobs: result.rows });
+   117→  } catch (err) {
+   118→    console.error('Get jobs error:', err);
+   119→    res.status(500).json({ error: 'Failed to fetch jobs' });
+   120→  }
+   121→});
+   122→
+   123→// Create job with optional AI optimization
+   124→router.post('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
+   125→  try {
+   126→    const {
+   127→      title, description, requirements, location, salary_range, job_type,
+   128→      screening_questions,
+   129→      optimize = false // Flag to run AI optimization
+   130→    } = req.body;
+   131→
+   132→    if (!title) {
+   133→      return res.status(400).json({ error: 'Job title is required' });
+   134→    }
+   135→
+   136→    let finalDescription = description;
+   137→    let finalRequirements = requirements;
+   138→    let optimizationResult = null;
+   139→
+   140→    // Run AI optimization if requested
+   141→    if (optimize) {
+   142→      try {
+   143→        optimizationResult = await jobOptimizer.optimizeJobDescription({
+   144→          title, description, requirements, location, salary_range, job_type,
+   145→          company: req.user.company_name
+   146→        });
+   147→        finalDescription = optimizationResult.optimized_description || description;
+   148→        finalRequirements = optimizationResult.optimized_requirements || requirements;
+   149→      } catch (e) {
+   150→        console.error('Job optimization error:', e);
+   151→        // Continue without optimization
+   152→      }
+   153→    }
+   154→
+   155→    // Create job
+   156→    const result = await pool.query(
+   157→      `INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions)
+   158→       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+   159→       RETURNING *`,
+   160→      [req.user.id, req.user.company_id, title, req.user.company_name,
+   161→       finalDescription, finalRequirements, location, salary_range, job_type || 'full-time',
+   162→       screening_questions ? JSON.stringify(screening_questions) : null]
+   163→    );
+   164→
+   165→    const job = result.rows[0];
+   166→
+   167→    // Create analytics entry
+   168→    await pool.query(
+   169→      'INSERT INTO job_analytics (job_id) VALUES ($1)',
+   170→      [job.id]
+   171→    );
+   172→
+   173→    // Analyze and add authenticity score
+   174→    try {
+   175→      const analysis = await jobOptimizer.analyzeJobPosting({
+   176→        title, description: finalDescription, requirements: finalRequirements,
+   177→        location, salary_range, job_type, company: req.user.company_name
+   178→      });
+   179→
+   180→      await trustscoreService.addJobAuthenticityComponent(
+   181→        req.user.company_id,
+   182→        job.id,
+   183→        analysis.overall_score
+   184→      );
+   185→
+   186→      res.json({
+   187→        success: true,
+   188→        job,
+   189→        optimization: optimizationResult,
+   190→        analysis,
+   191→        message: optimize ? 'Job created with AI optimization!' : 'Job created successfully'
+   192→      });
+   193→    } catch (e) {
+   194→      // Return job without analysis
+   195→      res.json({ success: true, job });
+   196→    }
+   197→
+   198→  } catch (err) {
+   199→    console.error('Create job error:', err);
+   200→    res.status(500).json({ error: 'Failed to create job' });
+   201→  }
+   202→});
+   203→
+   204→// Analyze job posting
+   205→router.post('/jobs/analyze', authMiddleware, requireRecruiter, async (req, res) => {
+   206→  try {
+   207→    const analysis = await jobOptimizer.analyzeJobPosting(req.body);
+   208→    res.json({ success: true, analysis });
+   209→  } catch (err) {
+   210→    console.error('Analyze job error:', err);
+   211→    res.status(500).json({ error: 'Failed to analyze job' });
+   212→  }
+   213→});
+   214→
+   215→// Optimize job description with AI
+   216→router.post('/jobs/optimize', authMiddleware, requireRecruiter, async (req, res) => {
+   217→  try {
+   218→    const optimized = await jobOptimizer.optimizeJobDescription(req.body);
+   219→    res.json({ success: true, optimized });
+   220→  } catch (err) {
+   221→    console.error('Optimize job error:', err);
+   222→    res.status(500).json({ error: 'Failed to optimize job' });
+   223→  }
+   224→});
+   225→
+   226→// Get salary insights
+   227→router.get('/salary-insights', authMiddleware, requireRecruiter, async (req, res) => {
+   228→  try {
+   229→    const { title, location, experience_level } = req.query;
+   230→
+   231→    if (!title) {
+   232→      return res.status(400).json({ error: 'Job title is required' });
+   233→    }
+   234→
+   235→    const insights = await jobOptimizer.getSalaryInsights(title, location, experience_level);
+   236→    res.json({ success: true, insights });
+   237→  } catch (err) {
+   238→    console.error('Salary insights error:', err);
+   239→    res.status(500).json({ error: 'Failed to get salary insights' });
+   240→  }
+   241→});
+   242→
+   243→// Update job
+   244→router.put('/jobs/:id', authMiddleware, requireRecruiter, async (req, res) => {
+   245→  try {
+   246→    const { title, description, requirements, location, salary_range, job_type, status, screening_questions } = req.body;
+   247→
+   248→    // Verify ownership (company_id or user_id)
+   249→    const existing = await pool.query(
+   250→      'SELECT id FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+   251→      [req.params.id, req.user.company_id, req.user.id]
+   252→    );
+   253→
+   254→    if (existing.rows.length === 0) {
+   255→      return res.status(404).json({ error: 'Job not found' });
+   256→    }
+   257→
+   258→    const result = await pool.query(
+   259→      `UPDATE jobs SET
+   260→        title = COALESCE($1, title),
+   261→        description = COALESCE($2, description),
+   262→        requirements = COALESCE($3, requirements),
+   263→        location = COALESCE($4, location),
+   264→        salary_range = COALESCE($5, salary_range),
+   265→        job_type = COALESCE($6, job_type),
+   266→        status = COALESCE($7, status),
+   267→        screening_questions = COALESCE($8, screening_questions),
+   268→        updated_at = NOW()
+   269→       WHERE id = $9
+   270→       RETURNING *`,
+   271→      [title, description, requirements, location, salary_range, job_type, status, screening_questions || null, req.params.id]
+   272→    );
+   273→
+   274→    res.json({ success: true, job: result.rows[0] });
+   275→  } catch (err) {
+   276→    console.error('Update job error:', err);
+   277→    res.status(500).json({ error: 'Failed to update job' });
+   278→  }
+   279→});
+   280→
+   281→// Get ALL applications for the company
+   282→router.get('/applications', authMiddleware, requireRecruiter, async (req, res) => {
+   283→  try {
+   284→    const { status, job_id, limit = 100, offset = 0 } = req.query;
+   285→
+   286→    let query = `
+   287→      SELECT ja.*,
+   288→             u.name as candidate_name, u.email as candidate_email,
+   289→             j.title as job_title, j.id as job_id,
+   290→             j.screening_questions,
+   291→             os.total_score as current_omniscore, os.score_tier,
+   292→             (SELECT COUNT(*) FROM skill_assessments sa2 JOIN candidate_skills cs2 ON sa2.skill_id = cs2.id WHERE cs2.user_id = ja.candidate_id AND sa2.passed = true) as verified_skills_count,
+   293→             (SELECT MAX(i2.overall_score) FROM interviews i2 WHERE i2.user_id = ja.candidate_id AND i2.status = 'completed') as best_interview_score,
+   294→             (SELECT COUNT(*) FROM interviews i3 WHERE i3.user_id = ja.candidate_id AND i3.status = 'completed') as completed_interviews
+   295→      FROM job_applications ja
+   296→      JOIN users u ON ja.candidate_id = u.id
+   297→      JOIN jobs j ON ja.job_id = j.id
+   298→      LEFT JOIN omni_scores os ON u.id = os.user_id
+   299→      WHERE ja.company_id = $1
+   300→    `;
+   301→    const params = [req.user.company_id];
+   302→
+   303→    if (status) {
+   304→      query += ` AND ja.status = $${params.length + 1}`;
+   305→      params.push(status);
+   306→    }
+   307→
+   308→    if (job_id) {
+   309→      query += ` AND ja.job_id = $${params.length + 1}`;
+   310→      params.push(job_id);
+   311→    }
+   312→
+   313→    query += ` ORDER BY ja.applied_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+   314→    params.push(limit, offset);
+   315→
+   316→    const result = await pool.query(query, params);
+   317→
+   318→    res.json({ applications: result.rows });
+   319→  } catch (err) {
+   320→    console.error('Get applications error:', err);
+   321→    res.status(500).json({ error: 'Failed to fetch applications' });
+   322→  }
+   323→});
+   324→
+   325→// Update application status (alternative route)
+   326→router.put('/applications/:id/status', authMiddleware, requireRecruiter, async (req, res) => {
+   327→  try {
+   328→    const { status } = req.body;
+   329→
+   330→    // Verify application belongs to company
+   331→    const existing = await pool.query(
+   332→      'SELECT id, job_id, candidate_id FROM job_applications WHERE id = $1 AND company_id = $2',
+   333→      [req.params.id, req.user.company_id]
+   334→    );
+   335→
+   336→    if (existing.rows.length === 0) {
+   337→      return res.status(404).json({ error: 'Application not found' });
+   338→    }
+   339→
+   340→    const result = await pool.query(
+   341→      `UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+   342→      [status, req.params.id]
+   343→    );
+   344→
+   345→    // Audit log
+   346→    await AuditLogger.log({
+   347→      actionType: 'application_status_changed',
+   348→      userId: req.user.id,
+   349→      targetType: 'job_application',
+   350→      targetId: parseInt(req.params.id),
+   351→      metadata: {
+   352→        candidate_id: existing.rows[0].candidate_id,
+   353→        job_id: existing.rows[0].job_id,
+   354→        new_status: status
+   355→      },
+   356→      req
+   357→    });
+   358→
+   359→    res.json({ success: true, application: result.rows[0] });
+   360→  } catch (err) {
+   361→    console.error('Update application status error:', err);
+   362→    res.status(500).json({ error: 'Failed to update application' });
+   363→  }
+   364→});
+   365→
+   366→// Create interview (POST to /interviews)
+   367→router.post('/interviews', authMiddleware, requireRecruiter, async (req, res) => {
+   368→  try {
+   369→    const {
+   370→      application_id, scheduled_at, duration = 60,
+   371→      interview_type = 'video', notes
+   372→    } = req.body;
+   373→
+   374→    // Get application details
+   375→    const app = await pool.query(
+   376→      'SELECT ja.job_id, ja.candidate_id FROM job_applications ja WHERE ja.id = $1 AND ja.company_id = $2',
+   377→      [application_id, req.user.company_id]
+   378→    );
+   379→
+   380→    if (app.rows.length === 0) {
+   381→      return res.status(404).json({ error: 'Application not found' });
+   382→    }
+   383→
+   384→    const { job_id, candidate_id } = app.rows[0];
+   385→
+   386→    // Auto-generate Jitsi meeting link for video interviews
+   387→    let meeting_link = null;
+   388→    if (interview_type === 'video') {
+   389→      const roomId = `Rekrut AI-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
+   390→      meeting_link = `https://meet.jit.si/${roomId}`;
+   391→    }
+   392→
+   393→    const result = await pool.query(
+   394→      `INSERT INTO scheduled_interviews
+   395→       (company_id, job_id, candidate_id, recruiter_id, scheduled_at, duration_minutes, interview_type, meeting_link, notes)
+   396→       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+   397→       RETURNING *`,
+   398→      [req.user.company_id, job_id, candidate_id, req.user.id, scheduled_at, duration, interview_type, meeting_link, notes]
+   399→    );
+   400→
+   401→    // Update application status
+   402→    await pool.query(
+   403→      `UPDATE job_applications SET status = 'interviewed', updated_at = NOW() WHERE id = $1`,
+   404→      [application_id]
+   405→    );
+   406→
+   407→    res.json({ success: true, interview: result.rows[0] });
+   408→  } catch (err) {
+   409→    console.error('Create interview error:', err);
+   410→    res.status(500).json({ error: 'Failed to create interview' });
+   411→  }
+   412→});
+   413→
+   414→// Delete/cancel interview
+   415→router.delete('/interviews/:id', authMiddleware, requireRecruiter, async (req, res) => {
+   416→  try {
+   417→    const result = await pool.query(
+   418→      'DELETE FROM scheduled_interviews WHERE id = $1 AND company_id = $2 RETURNING id',
+   419→      [req.params.id, req.user.company_id]
+   420→    );
+   421→
+   422→    if (result.rows.length === 0) {
+   423→      return res.status(404).json({ error: 'Interview not found' });
+   424→    }
+   425→
+   426→    res.json({ success: true });
+   427→  } catch (err) {
+   428→    console.error('Delete interview error:', err);
+   429→    res.status(500).json({ error: 'Failed to delete interview' });
+   430→  }
+   431→});
+   432→
+   433→// Get all candidates who have applied (for offer creation dropdown)
+   434→router.get('/candidates', authMiddleware, requireRecruiter, async (req, res) => {
+   435→  try {
+   436→    const result = await pool.query(`
+   437→      SELECT DISTINCT ON (u.id)
+   438→        u.id, u.name, u.email
+   439→      FROM job_applications ja
+   440→      JOIN users u ON ja.candidate_id = u.id
+   441→      WHERE ja.company_id = $1
+   442→      ORDER BY u.id, ja.applied_at DESC
+   443→    `, [req.user.company_id]);
+   444→
+   445→    res.json({ candidates: result.rows });
+   446→  } catch (err) {
+   447→    console.error('Get candidates error:', err);
+   448→    res.status(500).json({ error: 'Failed to fetch candidates' });
+   449→  }
+   450→});
+   451→
+   452→// Get applications for a job
+   453→router.get('/jobs/:id/applications', authMiddleware, requireRecruiter, async (req, res) => {
+   454→  try {
+   455→    // Verify job belongs to company or user
+   456→    const job = await pool.query(
+   457→      'SELECT id, title, screening_questions FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+   458→      [req.params.id, req.user.company_id, req.user.id]
+   459→    );
+   460→
+   461→    if (job.rows.length === 0) {
+   462→      return res.status(404).json({ error: 'Job not found' });
+   463→    }
+   464→
+   465→    const applications = await pool.query(`
+   466→      SELECT ja.*,
+   467→             u.name as candidate_name, u.email as candidate_email,
+   468→             os.total_score as current_omniscore, os.score_tier
+   469→      FROM job_applications ja
+   470→      JOIN users u ON ja.candidate_id = u.id
+   471→      LEFT JOIN omni_scores os ON u.id = os.user_id
+   472→      WHERE ja.job_id = $1
+   473→      ORDER BY ja.applied_at DESC
+   474→    `, [req.params.id]);
+   475→
+   476→    res.json({
+   477→      job: job.rows[0],
+   478→      applications: applications.rows
+   479→    });
+   480→  } catch (err) {
+   481→    console.error('Get applications error:', err);
+   482→    res.status(500).json({ error: 'Failed to fetch applications' });
+   483→  }
+   484→});
+   485→
+   486→// Update application status
+   487→router.put('/applications/:id', authMiddleware, requireRecruiter, async (req, res) => {
+   488→  try {
+   489→    const { status, recruiter_notes } = req.body;
+   490→
+   491→    // Verify application belongs to company
+   492→    const existing = await pool.query(
+   493→      'SELECT id, job_id, candidate_id FROM job_applications WHERE id = $1 AND company_id = $2',
+   494→      [req.params.id, req.user.company_id]
+   495→    );
+   496→
+   497→    if (existing.rows.length === 0) {
+   498→      return res.status(404).json({ error: 'Application not found' });
+   499→    }
+   500→
+   501→    const result = await pool.query(
+   502→      `UPDATE job_applications SET
+   503→        status = COALESCE($1, status),
+   504→        recruiter_notes = COALESCE($2, recruiter_notes),
+   505→        updated_at = NOW()
+   506→       WHERE id = $3
+   507→       RETURNING *`,
+   508→      [status, recruiter_notes, req.params.id]
+   509→    );
+   510→
+   511→    // Update job analytics
+   512→    if (status) {
+   513→      const app = existing.rows[0];
+   514→
+   515→      // Update counters based on status
+   516→      if (status === 'interviewed') {
+   517→        await pool.query(
+   518→          'UPDATE job_analytics SET interviews_scheduled = interviews_scheduled + 1 WHERE job_id = $1',
+   519→          [app.job_id]
+   520→        );
+   521→      } else if (status === 'offered') {
+   522→        await pool.query(
+   523→          'UPDATE job_analytics SET offers_made = offers_made + 1 WHERE job_id = $1',
+   524→          [app.job_id]
+   525→        );
+   526→
+   527→        // Update hiring ratio score
+   528→        await trustscoreService.updateHiringRatioScore(req.user.company_id);
+   529→      } else if (status === 'hired') {
+   530→        await pool.query(
+   531→          'UPDATE job_analytics SET offers_accepted = offers_accepted + 1 WHERE job_id = $1',
+   532→          [app.job_id]
+   533→        );
+   534→      }
+   535→    }
+   536→
+   537→    // Audit log: Application status change
+   538→    if (status) {
+   539→      await AuditLogger.log({
+   540→        actionType: 'application_status_changed',
+   541→        userId: req.user.id,
+   542→        targetType: 'job_application',
+   543→        targetId: parseInt(req.params.id),
+   544→        metadata: {
+   545→          candidate_id: existing.rows[0].candidate_id,
+   546→          job_id: existing.rows[0].job_id,
+   547→          new_status: status,
+   548→          recruiter_notes: recruiter_notes || null
+   549→        },
+   550→        req
+   551→      });
+   552→    }
+   553→
+   554→    res.json({ success: true, application: result.rows[0] });
+   555→  } catch (err) {
+   556→    console.error('Update application error:', err);
+   557→    res.status(500).json({ error: 'Failed to update application' });
+   558→  }
+   559→});
+   560→
+   561→// Schedule interview
+   562→router.post('/interviews/schedule', authMiddleware, requireRecruiter, async (req, res) => {
+   563→  try {
+   564→    let {
+   565→      job_id, candidate_id, scheduled_at, duration_minutes = 60,
+   566→      interview_type = 'video', meeting_link, notes
+   567→    } = req.body;
+   568→
+   569→    if (!job_id || !candidate_id || !scheduled_at) {
+   570→      return res.status(400).json({ error: 'Job, candidate, and scheduled time are required' });
+   571→    }
+   572→
+   573→    // Verify job belongs to company
+   574→    const job = await pool.query(
+   575→      'SELECT id FROM jobs WHERE id = $1 AND company_id = $2',
+   576→      [job_id, req.user.company_id]
+   577→    );
+   578→
+   579→    if (job.rows.length === 0) {
+   580→      return res.status(404).json({ error: 'Job not found' });
+   581→    }
+   582→
+   583→    // Auto-generate Jitsi meeting link for video interviews if not provided
+   584→    if (interview_type === 'video' && !meeting_link) {
+   585→      const roomId = `Rekrut AI-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
+   586→      meeting_link = `https://meet.jit.si/${roomId}`;
+   587→    }
+   588→
+   589→    const result = await pool.query(
+   590→      `INSERT INTO scheduled_interviews
+   591→       (company_id, job_id, candidate_id, recruiter_id, scheduled_at, duration_minutes, interview_type, meeting_link, notes)
+   592→       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+   593→       RETURNING *`,
+   594→      [req.user.company_id, job_id, candidate_id, req.user.id,
+   595→       scheduled_at, duration_minutes, interview_type, meeting_link, notes]
+   596→    );
+   597→
+   598→    // Update application status
+   599→    await pool.query(
+   600→      `UPDATE job_applications SET status = 'interviewed', updated_at = NOW()
+   601→       WHERE job_id = $1 AND candidate_id = $2`,
+   602→      [job_id, candidate_id]
+   603→    );
+   604→
+   605→    // Update job analytics
+   606→    await pool.query(
+   607→      'UPDATE job_analytics SET interviews_scheduled = interviews_scheduled + 1 WHERE job_id = $1',
+   608→      [job_id]
+   609→    );
+   610→
+   611→    // Add behavior points for scheduling
+   612→    await trustscoreService.addBehaviorComponent(req.user.company_id, 'interview_scheduled', 5, 10);
+   613→
+   614→    res.json({ success: true, interview: result.rows[0] });
+   615→  } catch (err) {
+   616→    console.error('Schedule interview error:', err);
+   617→    res.status(500).json({ error: 'Failed to schedule interview' });
+   618→  }
+   619→});
+   620→
+   621→// Get scheduled interviews
+   622→router.get('/interviews', authMiddleware, requireRecruiter, async (req, res) => {
+   623→  try {
+   624→    const { upcoming_only = 'false', status, limit = 50 } = req.query;
+   625→
+   626→    let query = `
+   627→      SELECT si.*,
+   628→             u.name as candidate_name, u.email as candidate_email,
+   629→             j.title as job_title
+   630→      FROM scheduled_interviews si
+   631→      JOIN users u ON si.candidate_id = u.id
+   632→      JOIN jobs j ON si.job_id = j.id
+   633→      WHERE si.company_id = $1
+   634→    `;
+   635→    const params = [req.user.company_id];
+   636→
+   637→    if (upcoming_only === 'true') {
+   638→      query += ` AND si.scheduled_at > NOW() AND si.status IN ('scheduled', 'confirmed')`;
+   639→    }
+   640→
+   641→    if (status) {
+   642→      query += ` AND si.status = $${params.length + 1}`;
+   643→      params.push(status);
+   644→    }
+   645→
+   646→    query += ` ORDER BY si.scheduled_at DESC LIMIT $${params.length + 1}`;
+   647→    params.push(limit);
+   648→
+   649→    const result = await pool.query(query, params);
+   650→
+   651→    res.json({ interviews: result.rows });
+   652→  } catch (err) {
+   653→    console.error('Get interviews error:', err);
+   654→    res.status(500).json({ error: 'Failed to fetch interviews' });
+   655→  }
+   656→});
+   657→
+   658→// Update interview outcome
+   659→router.put('/interviews/:id', authMiddleware, requireRecruiter, async (req, res) => {
+   660→  try {
+   661→    const { status, outcome, feedback, meeting_link } = req.body;
+   662→
+   663→    const result = await pool.query(
+   664→      `UPDATE scheduled_interviews SET
+   665→        status = COALESCE($1, status),
+   666→        outcome = COALESCE($2, outcome),
+   667→        feedback = COALESCE($3, feedback),
+   668→        meeting_link = COALESCE($4, meeting_link),
+   669→        updated_at = NOW()
+   670→       WHERE id = $5 AND company_id = $6
+   671→       RETURNING *`,
+   672→      [status, outcome, feedback ? JSON.stringify(feedback) : null, meeting_link, req.params.id, req.user.company_id]
+   673→    );
+   674→
+   675→    if (result.rows.length === 0) {
+   676→      return res.status(404).json({ error: 'Interview not found' });
+   677→    }
+   678→
+   679→    res.json({ success: true, interview: result.rows[0] });
+   680→  } catch (err) {
+   681→    console.error('Update interview error:', err);
+   682→    res.status(500).json({ error: 'Failed to update interview' });
+   683→  }
+   684→});
+   685→
+   686→// Generate interview questions for a job
+   687→router.post('/jobs/:id/questions', authMiddleware, requireRecruiter, async (req, res) => {
+   688→  try {
+   689→    const job = await pool.query(
+   690→      'SELECT title, description, requirements FROM jobs WHERE id = $1 AND company_id = $2',
+   691→      [req.params.id, req.user.company_id]
+   692→    );
+   693→
+   694→    if (job.rows.length === 0) {
+   695→      return res.status(404).json({ error: 'Job not found' });
+   696→    }
+   697→
+   698→    const { count = 8 } = req.body;
+   699→    const questions = await jobOptimizer.generateInterviewQuestionsForJob(job.rows[0], count);
+   700→
+   701→    res.json({ success: true, questions });
+   702→  } catch (err) {
+   703→    console.error('Generate questions error:', err);
+   704→    res.status(500).json({ error: 'Failed to generate questions' });
+   705→  }
+   706→});
+   707→
+   708→// Analyze candidate fit for a job
+   709→router.post('/jobs/:id/analyze-candidate', authMiddleware, requireRecruiter, async (req, res) => {
+   710→  try {
+   711→    const { candidate_id } = req.body;
+   712→
+   713→    // Get job details
+   714→    const job = await pool.query(
+   715→      'SELECT * FROM jobs WHERE id = $1 AND company_id = $2',
+   716→      [req.params.id, req.user.company_id]
+   717→    );
+   718→
+   719→    if (job.rows.length === 0) {
+   720→      return res.status(404).json({ error: 'Job not found' });
+   721→    }
+   722→
+   723→    // Get candidate profile
+   724→    const candidate = await pool.query(`
+   725→      SELECT u.*, os.total_score as omniscore, os.score_tier,
+   726→             AVG(i.overall_score) as avg_interview_score
+   727→      FROM users u
+   728→      LEFT JOIN omni_scores os ON u.id = os.user_id
+   729→      LEFT JOIN interviews i ON u.id = i.user_id AND i.status = 'completed'
+   730→      WHERE u.id = $1
+   731→      GROUP BY u.id, os.total_score, os.score_tier
+   732→    `, [candidate_id]);
+   733→
+   734→    if (candidate.rows.length === 0) {
+   735→      return res.status(404).json({ error: 'Candidate not found' });
+   736→    }
+   737→
+   738→    const analysis = await jobOptimizer.analyzeCandidateFit(
+   739→      {
+   740→        name: candidate.rows[0].name,
+   741→        omniscore: candidate.rows[0].omniscore,
+   742→        interview_score: candidate.rows[0].avg_interview_score
+   743→      },
+   744→      job.rows[0]
+   745→    );
+   746→
+   747→    res.json({ success: true, analysis });
+   748→  } catch (err) {
+   749→    console.error('Analyze candidate error:', err);
+   750→    res.status(500).json({ error: 'Failed to analyze candidate' });
+   751→  }
+   752→});
+   753→
+   754→// Get candidate coaching/practice history (for recruiter review)
+   755→router.get('/candidates/:id/coaching', authMiddleware, requireRecruiter, async (req, res) => {
+   756→  try {
+   757→    const candidateId = req.params.id;
+   758→
+   759→    // Verify candidate has applied to one of recruiter's jobs
+   760→    const hasRelation = await pool.query(
+   761→      `SELECT 1 FROM job_applications ja
+   762→       JOIN jobs j ON ja.job_id = j.id
+   763→       WHERE ja.candidate_id = $1 AND (j.company_id = $2 OR j.user_id = $3)
+   764→       LIMIT 1`,
+   765→      [candidateId, req.user.company_id, req.user.id]
+   766→    );
+   767→
+   768→    if (hasRelation.rows.length === 0) {
+   769→      return res.status(403).json({ error: 'Access denied — candidate has not applied to your jobs' });
+   770→    }
+   771→
+   772→    // Get candidate name
+   773→    const candidate = await pool.query('SELECT name, email FROM users WHERE id = $1', [candidateId]);
+   774→
+   775→    // Get all coaching sessions
+   776→    const sessions = await pool.query(
+   777→      `SELECT
+   778→        id, question, category, score, coaching_data, response_type,
+   779→        duration_seconds, created_at
+   780→       FROM practice_sessions
+   781→       WHERE user_id = $1
+   782→       ORDER BY created_at DESC`,
+   783→      [candidateId]
+   784→    );
+   785→
+   786→    // Get aggregate stats
+   787→    const stats = await pool.query(
+   788→      `SELECT
+   789→        COUNT(*) as total_sessions,
+   790→        AVG(score) as average_score,
+   791→        MIN(score) as lowest_score,
+   792→        MAX(score) as highest_score,
+   793→        MIN(created_at) as first_session,
+   794→        MAX(created_at) as last_session
+   795→       FROM practice_sessions
+   796→       WHERE user_id = $1`,
+   797→      [candidateId]
+   798→    );
+   799→
+   800→    // Calculate improvement trend
+   801→    const improvement = await pool.query(
+   802→      `WITH ordered AS (
+   803→        SELECT score, ROW_NUMBER() OVER (ORDER BY created_at) as rn,
+   804→               COUNT(*) OVER () as total
+   805→        FROM practice_sessions WHERE user_id = $1
+   806→      )
+   807→      SELECT
+   808→        AVG(CASE WHEN rn <= total/2 THEN score END) as first_half_avg,
+   809→        AVG(CASE WHEN rn > total/2 THEN score END) as second_half_avg
+   810→      FROM ordered`,
+   811→      [candidateId]
+   812→    );
+   813→
+   814→    let improvementPercent = null;
+   815→    if (improvement.rows[0].first_half_avg && improvement.rows[0].second_half_avg) {
+   816→      const firstHalf = parseFloat(improvement.rows[0].first_half_avg);
+   817→      const secondHalf = parseFloat(improvement.rows[0].second_half_avg);
+   818→      improvementPercent = Math.round(((secondHalf - firstHalf) / firstHalf) * 100);
+   819→    }
+   820→
+   821→    // Category breakdown
+   822→    const byCategory = await pool.query(
+   823→      `SELECT category, COUNT(*) as count, AVG(score) as avg_score
+   824→       FROM practice_sessions WHERE user_id = $1
+   825→       GROUP BY category ORDER BY avg_score DESC`,
+   826→      [candidateId]
+   827→    );
+   828→
+   829→    const parsed = sessions.rows.map(row => ({
+   830→      ...row,
+   831→      coaching_data: typeof row.coaching_data === 'string' ? JSON.parse(row.coaching_data) : row.coaching_data,
+   832→    }));
+   833→
+   834→    res.json({
+   835→      success: true,
+   836→      candidate: candidate.rows[0] || { name: 'Unknown', email: '' },
+   837→      stats: {
+   838→        total_sessions: parseInt(stats.rows[0].total_sessions) || 0,
+   839→        average_score: parseFloat(stats.rows[0].average_score) || null,
+   840→        lowest_score: parseFloat(stats.rows[0].lowest_score) || null,
+   841→        highest_score: parseFloat(stats.rows[0].highest_score) || null,
+   842→        improvement_percent: improvementPercent,
+   843→        first_session: stats.rows[0].first_session,
+   844→        last_session: stats.rows[0].last_session,
+   845→      },
+   846→      by_category: byCategory.rows,
+   847→      sessions: parsed,
+   848→    });
+   849→  } catch (err) {
+   850→    console.error('Get candidate coaching history error:', err);
+   851→    res.status(500).json({ error: 'Failed to fetch coaching history' });
+   852→  }
+   853→});
+   854→
+   855→// ============= PIPELINE STAGES =============
+   856→
+   857→// Valid pipeline stages in order
+   858→const PIPELINE_STAGES = ['applied', 'screening', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn'];
+   859→
+   860→// Batch update application status (for bulk actions)
+   861→router.put('/applications/batch-status', authMiddleware, requireRecruiter, async (req, res) => {
+   862→  try {
+   863→    const { application_ids, status } = req.body;
+   864→
+   865→    if (!application_ids || !Array.isArray(application_ids) || application_ids.length === 0) {
+   866→      return res.status(400).json({ error: 'application_ids array required' });
+   867→    }
+   868→
+   869→    if (!status || !PIPELINE_STAGES.includes(status)) {
+   870→      return res.status(400).json({ error: `Invalid status. Must be one of: ${PIPELINE_STAGES.join(', ')}` });
+   871→    }
+   872→
+   873→    if (application_ids.length > 50) {
+   874→      return res.status(400).json({ error: 'Max 50 applications per batch' });
+   875→    }
+   876→
+   877→    // Verify all applications belong to the company
+   878→    const placeholders = application_ids.map((_, i) => `$${i + 2}`).join(',');
+   879→    const verification = await pool.query(
+   880→      `SELECT id FROM job_applications WHERE company_id = $1 AND id IN (${placeholders})`,
+   881→      [req.user.company_id, ...application_ids]
+   882→    );
+   883→
+   884→    const validIds = verification.rows.map(r => r.id);
+   885→    if (validIds.length === 0) {
+   886→      return res.status(404).json({ error: 'No valid applications found' });
+   887→    }
+   888→
+   889→    // Update all valid applications
+   890→    const updatePlaceholders = validIds.map((_, i) => `$${i + 2}`).join(',');
+   891→    const result = await pool.query(
+   892→      `UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id IN (${updatePlaceholders}) RETURNING *`,
+   893→      [status, ...validIds]
+   894→    );
+   895→
+   896→    // Audit log batch action
+   897→    await AuditLogger.log({
+   898→      actionType: 'batch_status_change',
+   899→      userId: req.user.id,
+   900→      targetType: 'job_applications',
+   901→      targetId: null,
+   902→      metadata: {
+   903→        application_ids: validIds,
+   904→        new_status: status,
+   905→        count: validIds.length
+   906→      },
+   907→      req
+   908→    });
+   909→
+   910→    res.json({
+   911→      success: true,
+   912→      updated: result.rows.length,
+   913→      applications: result.rows
+   914→    });
+   915→  } catch (err) {
+   916→    console.error('Batch status update error:', err);
+   917→    res.status(500).json({ error: 'Failed to update applications' });
+   918→  }
+   919→});
+   920→
+   921→// Get applications grouped by pipeline stage (for kanban view)
+   922→router.get('/pipeline/:jobId', authMiddleware, requireRecruiter, async (req, res) => {
+   923→  try {
+   924→    const jobId = req.params.jobId;
+   925→
+   926→    // Verify job belongs to company
+   927→    const job = await pool.query(
+   928→      'SELECT id, title, status FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+   929→      [jobId, req.user.company_id, req.user.id]
+   930→    );
+   931→
+   932→    if (job.rows.length === 0) {
+   933→      return res.status(404).json({ error: 'Job not found' });
+   934→    }
+   935→
+   936→    // Get all applications for this job with candidate details
+   937→    const applications = await pool.query(`
+   938→      SELECT ja.*,
+   939→             u.name as candidate_name, u.email as candidate_email,
+   940→             os.total_score as current_omniscore, os.score_tier,
+   941→             (SELECT COUNT(*) FROM skill_assessments sa2 JOIN candidate_skills cs2 ON sa2.skill_id = cs2.id WHERE cs2.user_id = ja.candidate_id AND sa2.passed = true) as verified_skills_count,
+   942→             (SELECT MAX(i2.overall_score) FROM interviews i2 WHERE i2.user_id = ja.candidate_id AND i2.status = 'completed') as best_interview_score
+   943→      FROM job_applications ja
+   944→      JOIN users u ON ja.candidate_id = u.id
+   945→      LEFT JOIN omni_scores os ON u.id = os.user_id
+   946→      WHERE ja.job_id = $1
+   947→      ORDER BY ja.match_score DESC NULLS LAST, ja.applied_at ASC
+   948→    `, [jobId]);
+   949→
+   950→    // Group by pipeline stage
+   951→    const pipeline = {};
+   952→    for (const stage of PIPELINE_STAGES) {
+   953→      pipeline[stage] = [];
+   954→    }
+   955→
+   956→    for (const app of applications.rows) {
+   957→      const stage = PIPELINE_STAGES.includes(app.status) ? app.status : 'applied';
+   958→      pipeline[stage].push(app);
+   959→    }
+   960→
+   961→    // Get stage counts
+   962→    const stageCounts = {};
+   963→    for (const stage of PIPELINE_STAGES) {
+   964→      stageCounts[stage] = pipeline[stage].length;
+   965→    }
+   966→
+   967→    res.json({
+   968→      success: true,
+   969→      job: job.rows[0],
+   970→      pipeline,
+   971→      stage_counts: stageCounts,
+   972→      total: applications.rows.length,
+   973→      stages: PIPELINE_STAGES
+   974→    });
+   975→  } catch (err) {
+   976→    console.error('Get pipeline error:', err);
+   977→    res.status(500).json({ error: 'Failed to get pipeline' });
+   978→  }
+   979→});
+   980→
+   981→// Get ranked candidates for a job (by match score)
+   982→router.get('/jobs/:id/ranked-candidates', authMiddleware, requireRecruiter, async (req, res) => {
+   983→  try {
+   984→    const jobId = req.params.id;
+   985→    const { min_score = 0 } = req.query;
+   986→
+   987→    // Verify job belongs to company
+   988→    const job = await pool.query(
+   989→      'SELECT id, title FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+   990→      [jobId, req.user.company_id, req.user.id]
+   991→    );
+   992→
+   993→    if (job.rows.length === 0) {
+   994→      return res.status(404).json({ error: 'Job not found' });
+   995→    }
+   996→
+   997→    // Get applications ranked by match score
+   998→    const ranked = await pool.query(`
+   999→      SELECT ja.*,
+  1000→             u.name as candidate_name, u.email as candidate_email,
+  1001→             os.total_score as current_omniscore, os.score_tier,
+  1002→             cp.headline, cp.location as candidate_location, cp.years_experience,
+  1003→             (SELECT json_agg(json_build_object('name', cs.skill_name, 'level', cs.level, 'verified', cs.is_verified))
+  1004→              FROM candidate_skills cs WHERE cs.user_id = ja.candidate_id) as skills,
+  1005→             mr.matching_skills, mr.missing_skills, mr.similarity_score, mr.match_explanation
+  1006→      FROM job_applications ja
+  1007→      JOIN users u ON ja.candidate_id = u.id
+  1008→      LEFT JOIN omni_scores os ON u.id = os.user_id
+  1009→      LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+  1010→      LEFT JOIN match_results mr ON mr.candidate_id = ja.candidate_id AND mr.job_id = ja.job_id
+  1011→      WHERE ja.job_id = $1
+  1012→        AND ja.status NOT IN ('withdrawn', 'rejected')
+  1013→        AND COALESCE(ja.match_score, 0) >= $2
+  1014→      ORDER BY ja.match_score DESC NULLS LAST, os.total_score DESC NULLS LAST
+  1015→    `, [jobId, min_score]);
+  1016→
+  1017→    res.json({
+  1018→      success: true,
+  1019→      job: job.rows[0],
+  1020→      candidates: ranked.rows,
+  1021→      total: ranked.rows.length
+  1022→    });
+  1023→  } catch (err) {
+  1024→    console.error('Get ranked candidates error:', err);
+  1025→    res.status(500).json({ error: 'Failed to get ranked candidates' });
+  1026→  }
+  1027→});
+  1028→
+  1029→module.exports = router;
+  1030→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

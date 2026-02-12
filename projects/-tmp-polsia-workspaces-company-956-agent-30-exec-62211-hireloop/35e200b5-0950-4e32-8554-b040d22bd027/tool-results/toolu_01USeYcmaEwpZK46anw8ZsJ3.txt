@@ -1,0 +1,21 @@
+/tmp/polsia-workspaces/company-956/agent-30/exec-62211/hireloop
+71a6deb Agent changes
+d700f6d Phase 3/5: Recruiter pipeline kanban board + match ranking + bulk actions
+d3cae9e Agent changes
+9c63169 Phase 2/5: Backend — batch status update, pipeline API, ranked candidates, fix metrics bug
+d962396 Agent changes
+9ca78e7 Fix DB pool exhaustion + add Compliance & Doc Verification module cards
+0e3c522 Agent changes
+c897f40 fix: migration 035 missing name export + smart activity event logging
+51a46a1 Agent changes
+1ba2ade Admin dashboard: add ALL module metrics cards + comprehensive modules API endpoint
+07fc6c4 Agent changes
+73f60d0 Comprehensive admin dashboard: real metrics, query tracking, per-provider tokens
+7fe76fa Agent changes
+3c1dca2 fix: replace MemoryStore with PostgreSQL session store
+9b5e43f Agent changes
+7722d83 Phase 5/6: Enhanced admin dashboard UI with 3-tab layout
+d92d085 Phase 4/6: Comprehensive monitoring metrics backend
+7ec96f8 Phase 3/6: Event logging system + activity feed backend
+73ce074 Phase 1+2/6: OpenAI 100K/day token budget + auto-failover to NIM
+62272c8 Agent changes
