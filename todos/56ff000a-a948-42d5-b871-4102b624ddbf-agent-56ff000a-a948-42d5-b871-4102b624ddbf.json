@@ -6,13 +6,13 @@
   },
   {
     "content": "Phase 2: Frontend — Communication Hub page for recruiters",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Building communication hub frontend"
   },
   {
-    "content": "Phase 3: Frontend — Draft Message + Bulk Outreach modals",
-    "status": "pending",
-    "activeForm": "Building message composer and bulk outreach"
+    "content": "Phase 3: Add ✨Draft Message button to candidate cards + sidebar nav across all pages",
+    "status": "in_progress",
+    "activeForm": "Adding draft message buttons to candidate views"
   },
   {
     "content": "Phase 4: E2E Verification + Deploy",
