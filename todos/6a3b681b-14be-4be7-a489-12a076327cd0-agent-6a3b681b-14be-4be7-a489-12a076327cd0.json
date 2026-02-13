@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate current verify endpoint and understand codebase",
+    "status": "completed",
+    "activeForm": "Investigating current verify endpoint and codebase"
+  },
+  {
+    "content": "Phase 1: Expand verify endpoint to ALL providers (LLM, TTS, ASR, Embedding, Safety)",
+    "status": "completed",
+    "activeForm": "Expanding verify endpoint to all providers"
+  },
+  {
+    "content": "Phase 2: Add 30-minute auto-verify cron + store results with timestamps",
+    "status": "completed",
+    "activeForm": "Adding auto-verify cron and timestamp storage"
+  },
+  {
+    "content": "Phase 3: Frontend — Verify Now button + last verified + response times + module breakdown",
+    "status": "completed",
+    "activeForm": "Building frontend verify UI and token breakdown"
+  },
+  {
+    "content": "Deploy and verify all changes",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying all changes"
+  }
+]
