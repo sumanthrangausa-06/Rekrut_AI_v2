@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate voice quality analysis JSON parse error in routes/interviews.js",
+    "status": "completed",
+    "activeForm": "Investigating voice quality JSON parse error"
+  },
+  {
+    "content": "Fix vision timeout (10s → 30s) and NIM vision fallback 404",
+    "status": "completed",
+    "activeForm": "Fixing vision timeout and NIM fallback"
+  },
+  {
+    "content": "Fix AI turn generation failure in voice-respond",
+    "status": "completed",
+    "activeForm": "Fixing AI turn generation fallback"
+  },
+  {
+    "content": "Deploy and verify fixes",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying fixes"
+  }
+]
