@@ -11,12 +11,12 @@
   },
   {
     "content": "Phase 3: Add ✨Draft Message button to candidate cards + sidebar nav across all pages",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Adding draft message buttons to candidate views"
   },
   {
     "content": "Phase 4: E2E Verification + Deploy",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Verifying end-to-end communication flows"
   }
 ]
