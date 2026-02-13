@@ -201,7 +201,7 @@ app.post('/api/ai-health/reset', requireAdmin, (req, res) => {
   }
 });
 
-// POST /api/ai-health/verify — run real API calls to verify NIM models respond
+// POST /api/ai-health/verify — run real API calls to verify ALL providers across ALL modalities
 app.post('/api/ai-health/verify', requireAdmin, async (req, res) => {
   try {
     const { aiProvider } = require('./lib/polsia-ai');
@@ -211,6 +211,57 @@ app.post('/api/ai-health/verify', requireAdmin, async (req, res) => {
     res.status(500).json({ error: 'Model verification failed', message: err.message });
   }
 });
+
+// GET /api/ai-health/verify-status — get last verification results + auto-verify status
+app.get('/api/ai-health/verify-status', requireAdmin, (req, res) => {
+  try {
+    const { aiProvider } = require('./lib/polsia-ai');
+    const last = aiProvider.getLastVerification();
+    if (!last) {
+      return res.json({ verified: false, message: 'No verification run yet. Click "Verify Now" to run.' });
+    }
+    // Calculate age in minutes
+    const ageMs = Date.now() - new Date(last.timestamp).getTime();
+    const ageMinutes = Math.round(ageMs / 60000);
+    res.json({
+      verified: true,
+      ageMinutes,
+      stale: ageMinutes > 35, // auto-verify runs every 30min, flag if >35min
+      ...last,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get verify status', message: err.message });
+  }
+});
+
+// ─── Auto-verify cron: run full verification every 30 minutes ─────────────
+// Minimal token cost (~3 tokens per model, ~60 tokens total per cycle)
+(function startAutoVerify() {
+  const AUTO_VERIFY_INTERVAL = 30 * 60 * 1000; // 30 minutes
+  // Run first verification 30s after startup (let all providers initialize)
+  setTimeout(async () => {
+    try {
+      const { aiProvider } = require('./lib/polsia-ai');
+      console.log('[auto-verify] Running initial verification...');
+      await aiProvider.verifyModels();
+      console.log('[auto-verify] Initial verification complete');
+    } catch (err) {
+      console.error('[auto-verify] Initial verification failed:', err.message);
+    }
+  }, 30000);
+
+  // Then every 30 minutes
+  setInterval(async () => {
+    try {
+      const { aiProvider } = require('./lib/polsia-ai');
+      console.log('[auto-verify] Running scheduled verification...');
+      await aiProvider.verifyModels();
+      console.log('[auto-verify] Scheduled verification complete');
+    } catch (err) {
+      console.error('[auto-verify] Scheduled verification failed:', err.message);
+    }
+  }, AUTO_VERIFY_INTERVAL);
+})();
 
 // ─── AI Health Monitoring Endpoints ──────────────────────────────────────────
 // Comprehensive AI call logs, model metrics, budget predictions, prompt management

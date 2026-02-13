@@ -1801,6 +1801,26 @@ export function AiHealthPage() {
   const [budgetData, setBudgetData] = useState<BudgetData | null>(null)
   const [aiLogs, setAiLogs] = useState<AiCallLog[]>([])
   const [prompts, setPrompts] = useState<PromptData[]>([])
+  // Verification state
+  const [verifyStatus, setVerifyStatus] = useState<{
+    verified: boolean
+    ageMinutes?: number
+    stale?: boolean
+    timestamp?: string
+    totalTested?: number
+    totalWorking?: number
+    totalDead?: number
+    results?: Array<{
+      modality: string
+      key: string
+      model: string
+      status: string
+      ms: number
+      note?: string
+      error?: string
+    }>
+  } | null>(null)
+  const [verifying, setVerifying] = useState(false)
 
   const handleLogout = useCallback(async () => {
     await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' })
@@ -1912,6 +1932,25 @@ export function AiHealthPage() {
     } catch { /* optional */ }
   }, [])
 
+  const fetchVerifyStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/ai-health/verify-status', { credentials: 'include' })
+      if (res.ok) setVerifyStatus(await res.json())
+    } catch { /* optional */ }
+  }, [])
+
+  const triggerVerify = useCallback(async () => {
+    setVerifying(true)
+    try {
+      const res = await fetch('/api/ai-health/verify', { method: 'POST', credentials: 'include' })
+      if (res.ok) {
+        const json = await res.json()
+        setVerifyStatus({ verified: true, ageMinutes: 0, stale: false, ...json })
+      }
+    } catch { /* optional */ }
+    finally { setVerifying(false) }
+  }, [])
+
   useEffect(() => {
     // Initial load
     fetchHealth()
@@ -1922,6 +1961,7 @@ export function AiHealthPage() {
     fetchBudget()
     fetchAiLogs()
     fetchPrompts()
+    fetchVerifyStatus()
 
     // Auto-refresh: health + metrics + modules every 30s, AI monitoring every 15s, activity every 10s
     const healthInterval = setInterval(() => {
@@ -1941,7 +1981,7 @@ export function AiHealthPage() {
       clearInterval(aiInterval)
       clearInterval(activityInterval)
     }
-  }, [fetchHealth, fetchMetrics, fetchModules, fetchActivity, fetchAiUsage, fetchBudget, fetchAiLogs, fetchPrompts])
+  }, [fetchHealth, fetchMetrics, fetchModules, fetchActivity, fetchAiUsage, fetchBudget, fetchAiLogs, fetchPrompts, fetchVerifyStatus])
 
   // Countdown timer
   useEffect(() => {
@@ -2095,6 +2135,99 @@ export function AiHealthPage() {
         {/* ─── AI PROVIDERS TAB ─── */}
         {activeTab === 'ai' && (
           <>
+            {/* Verification Banner */}
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="py-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <ShieldCheck className="h-5 w-5 text-primary shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium">
+                        Real-Time Provider Verification
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {verifyStatus?.verified
+                          ? <>Last verified: <span className={cn('font-medium', verifyStatus.stale ? 'text-amber-600' : 'text-emerald-600')}>{verifyStatus.ageMinutes}m ago</span> · {verifyStatus.totalWorking}/{verifyStatus.totalTested} providers working</>
+                          : 'No verification yet — click "Verify Now" to test all providers with real API calls'
+                        }
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={triggerVerify}
+                    disabled={verifying}
+                    className="gap-1.5 shrink-0"
+                  >
+                    <RefreshCw className={cn('h-3.5 w-3.5', verifying && 'animate-spin')} />
+                    {verifying ? 'Verifying...' : 'Verify Now'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Verification Results Table */}
+            {verifyStatus?.verified && verifyStatus.results && verifyStatus.results.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    <CardTitle className="text-base">Verification Results</CardTitle>
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {verifyStatus.timestamp ? new Date(verifyStatus.timestamp).toLocaleTimeString() : ''}
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left">
+                          <th className="pb-2 font-medium text-muted-foreground">Modality</th>
+                          <th className="pb-2 font-medium text-muted-foreground">Provider</th>
+                          <th className="pb-2 font-medium text-muted-foreground">Model</th>
+                          <th className="pb-2 font-medium text-muted-foreground text-center">Status</th>
+                          <th className="pb-2 font-medium text-muted-foreground text-right">Response</th>
+                          <th className="pb-2 font-medium text-muted-foreground">Details</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {verifyStatus.results.map((r, i) => (
+                          <tr key={i} className="border-b last:border-0">
+                            <td className="py-2">
+                              <Badge variant="outline" className="text-[10px]">
+                                {r.modality.toUpperCase()}
+                              </Badge>
+                            </td>
+                            <td className="py-2 font-mono text-xs">{r.key}</td>
+                            <td className="py-2 text-xs text-muted-foreground max-w-[200px] truncate">{r.model}</td>
+                            <td className="py-2 text-center">
+                              {r.status === 'working' ? (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-500 inline-block" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-red-500 inline-block" />
+                              )}
+                            </td>
+                            <td className="py-2 text-right tabular-nums text-xs">
+                              <span className={cn(
+                                'font-medium',
+                                r.ms < 500 ? 'text-emerald-600' : r.ms < 2000 ? 'text-amber-600' : 'text-red-600',
+                              )}>
+                                {r.ms}ms
+                              </span>
+                            </td>
+                            <td className="py-2 text-xs text-muted-foreground max-w-[200px] truncate">
+                              {r.note || r.error || '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Modality Status Cards */}
             <div>
               <div className="flex items-center gap-2 mb-4">
