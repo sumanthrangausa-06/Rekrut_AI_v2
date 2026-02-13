@@ -2,6 +2,9 @@ node_modules/
 .env
 .DS_Store
 
+# Self-hosted audio binaries (downloaded at build time)
+bin/audio/
+
 # Polsia test fixtures (auto-injected, do not commit)
 test-fixtures/
 
