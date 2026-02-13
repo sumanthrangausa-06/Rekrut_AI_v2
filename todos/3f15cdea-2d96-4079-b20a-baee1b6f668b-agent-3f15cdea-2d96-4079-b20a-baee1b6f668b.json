@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Phase 1-3: Backend — AI call logging, prompt management, model metrics",
+    "status": "completed",
+    "activeForm": "Building backend AI monitoring systems"
+  },
+  {
+    "content": "Phase 4: Enhanced AI Health Dashboard frontend",
+    "status": "completed",
+    "activeForm": "Building enhanced AI health dashboard UI"
+  },
+  {
+    "content": "Phase 5: Deploy + verify end-to-end",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying end-to-end"
+  }
+]
