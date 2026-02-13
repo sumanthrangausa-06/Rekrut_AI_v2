@@ -15,8 +15,27 @@ const {
   generateInterviewCoaching
 } = require('../lib/polsia-ai');
 
+const omniscoreService = require('../services/omniscore');
+let matchingEngine;
+try { matchingEngine = require('../services/matching-engine'); } catch(e) { matchingEngine = null; }
+
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+// Helper: trigger async profile re-embedding + OmniScore recalc on profile changes
+function triggerProfileUpdate(userId, changeType) {
+  setImmediate(async () => {
+    try {
+      if (matchingEngine && matchingEngine.updateCandidateEmbedding) {
+        await matchingEngine.updateCandidateEmbedding(userId);
+        console.log(`[Profile] Re-embedded profile for user ${userId} (${changeType})`);
+      }
+      await omniscoreService.onProfileUpdate(userId, changeType);
+    } catch (err) {
+      console.error(`[Profile] Async update failed for user ${userId}:`, err.message);
+    }
+  });
+}
 
 // Helper function to extract text from various file formats
 async function extractTextFromFile(buffer, mimetype) {
@@ -583,6 +602,7 @@ router.post('/experience', authMiddleware, async (req, res) => {
     `, [req.user.id, String(company_name).trim(), String(title).trim(), location, start_date, end_date, is_current, description,
         JSON.stringify(achievements || []), JSON.stringify(skills_used || [])]);
 
+    triggerProfileUpdate(req.user.id, 'new_experience');
     res.json({ success: true, experience: result.rows[0] });
   } catch (err) {
     console.error('Add experience error:', err);
@@ -614,6 +634,7 @@ router.put('/experience/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Experience not found' });
     }
 
+    triggerProfileUpdate(req.user.id, 'updated_experience');
     res.json({ success: true, experience: result.rows[0] });
   } catch (err) {
     console.error('Update experience error:', err);
@@ -625,6 +646,7 @@ router.delete('/experience/:id', authMiddleware, async (req, res) => {
   try {
     await pool.query('DELETE FROM work_experience WHERE id = $1 AND user_id = $2',
       [req.params.id, req.user.id]);
+    triggerProfileUpdate(req.user.id, 'deleted_experience');
     res.json({ success: true });
   } catch (err) {
     console.error('Delete experience error:', err);
@@ -645,6 +667,7 @@ router.post('/education', authMiddleware, async (req, res) => {
     `, [req.user.id, institution, degree, field_of_study, start_date, end_date, is_current, gpa,
         JSON.stringify(achievements || [])]);
 
+    triggerProfileUpdate(req.user.id, 'new_education');
     res.json({ success: true, education: result.rows[0] });
   } catch (err) {
     console.error('Add education error:', err);
@@ -675,6 +698,7 @@ router.put('/education/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Education not found' });
     }
 
+    triggerProfileUpdate(req.user.id, 'updated_education');
     res.json({ success: true, education: result.rows[0] });
   } catch (err) {
     console.error('Update education error:', err);
@@ -686,6 +710,7 @@ router.delete('/education/:id', authMiddleware, async (req, res) => {
   try {
     await pool.query('DELETE FROM education WHERE id = $1 AND user_id = $2',
       [req.params.id, req.user.id]);
+    triggerProfileUpdate(req.user.id, 'deleted_education');
     res.json({ success: true });
   } catch (err) {
     console.error('Delete education error:', err);
@@ -734,6 +759,7 @@ router.post('/skills', authMiddleware, async (req, res) => {
       RETURNING *
     `, [req.user.id, String(skill_name).trim(), category || 'technical', level, years_experience || 0]);
 
+    triggerProfileUpdate(req.user.id, 'new_skill');
     res.json({ success: true, skill: result.rows[0] });
   } catch (err) {
     console.error('Add skill error:', err);
@@ -758,6 +784,7 @@ router.put('/skills/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Skill not found' });
     }
 
+    triggerProfileUpdate(req.user.id, 'updated_skill');
     res.json({ success: true, skill: result.rows[0] });
   } catch (err) {
     console.error('Update skill error:', err);

@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { chat } = require('../lib/polsia-ai');
+const omniscoreService = require('../services/omniscore');
 
 // Skill catalog - available to all candidates without pre-existing skills
 const SKILL_CATALOG = [
@@ -644,6 +645,14 @@ async function completeAssessment(client, sessionId, userId) {
       'UPDATE candidate_skills SET is_verified = true, verified_at = NOW(), verified_score = $1 WHERE id = $2',
       [session.score, session.skill_id]
     );
+  }
+
+  // Event-driven: Feed assessment score into OmniScore technical component
+  try {
+    await omniscoreService.addTechnicalComponent(userId, assessmentResult.rows[0].id, session.score || 0, 100);
+    console.log(`[OmniScore] Assessment ${assessmentResult.rows[0].id} fed into OmniScore for user ${userId} (score: ${session.score})`);
+  } catch (err) {
+    console.error('[OmniScore] Failed to update from assessment:', err.message);
   }
 
   return assessmentResult.rows[0].id;

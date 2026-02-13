@@ -265,13 +265,77 @@ async function updateRoleScore(userId, roleName, interviewScore) {
   return result.rows[0];
 }
 
+// Add technical component from assessment completion
+async function addTechnicalComponent(userId, assessmentId, score, maxScore = 100) {
+  // Convert 0-100 score to points (max 40 points per assessment, up to 5 = 200 max)
+  const points = Math.round((score / maxScore) * 40);
+
+  await pool.query(`
+    INSERT INTO score_components (user_id, component_type, source_type, source_id, points, max_points)
+    VALUES ($1, 'technical', 'assessment', $2, $3, 40)
+  `, [userId, String(assessmentId), points]);
+
+  // Record history
+  const oldScore = await getOrCreateScore(userId);
+  const newScoreData = await calculateScore(userId);
+
+  await pool.query(`
+    INSERT INTO score_history (user_id, previous_score, new_score, change_amount, change_reason, component_type)
+    VALUES ($1, $2, $3, $4, $5, 'technical')
+  `, [userId, oldScore.total_score, newScoreData.total_score, newScoreData.total_score - oldScore.total_score, 'Completed skill assessment']);
+
+  return newScoreData;
+}
+
+// Add resume component from resume scoring
+async function addResumeComponent(userId, score, maxScore = 100) {
+  const points = Math.round((score / maxScore) * 200);
+
+  // Upsert - only keep the latest resume score
+  await pool.query(`
+    INSERT INTO score_components (user_id, component_type, source_type, source_id, points, max_points)
+    VALUES ($1, 'resume', 'resume_score', 'latest', $2, 200)
+    ON CONFLICT (user_id, component_type, source_type, source_id)
+    DO UPDATE SET points = $2, created_at = NOW()
+  `, [userId, points]);
+
+  const oldScore = await getOrCreateScore(userId);
+  const newScoreData = await calculateScore(userId);
+
+  await pool.query(`
+    INSERT INTO score_history (user_id, previous_score, new_score, change_amount, change_reason, component_type)
+    VALUES ($1, $2, $3, $4, $5, 'resume')
+  `, [userId, oldScore.total_score, newScoreData.total_score, newScoreData.total_score - oldScore.total_score, 'Resume quality updated']);
+
+  return newScoreData;
+}
+
+// Recalculate on profile update (experience/skills/education change)
+async function onProfileUpdate(userId, changeType) {
+  const oldScore = await getOrCreateScore(userId);
+  const newScoreData = await calculateScore(userId);
+
+  // Only record history if score actually changed
+  if (newScoreData.total_score !== oldScore.total_score) {
+    await pool.query(`
+      INSERT INTO score_history (user_id, previous_score, new_score, change_amount, change_reason, component_type)
+      VALUES ($1, $2, $3, $4, $5, 'behavior')
+    `, [userId, oldScore.total_score, newScoreData.total_score, newScoreData.total_score - oldScore.total_score, `Profile updated: ${changeType}`]);
+  }
+
+  return newScoreData;
+}
+
 module.exports = {
   SCORE_RANGES,
   COMPONENT_WEIGHTS,
   getOrCreateScore,
   calculateScore,
   addInterviewComponent,
+  addTechnicalComponent,
+  addResumeComponent,
   addBehaviorComponent,
+  onProfileUpdate,
   getScoreBreakdown,
   generateRecommendations,
   getRoleScores,
