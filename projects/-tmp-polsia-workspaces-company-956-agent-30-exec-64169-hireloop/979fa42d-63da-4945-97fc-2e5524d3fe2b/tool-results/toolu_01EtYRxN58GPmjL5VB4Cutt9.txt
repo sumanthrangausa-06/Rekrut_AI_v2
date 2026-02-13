@@ -1,0 +1,11 @@
+Found 10 files
+routes/memory.js
+routes/omniscore.js
+routes/recruiter.js
+routes/trustscore.js
+routes/candidate.js
+routes/communications.js
+routes/compliance.js
+routes/interviews.js
+routes/jobs.js
+routes/analytics.js

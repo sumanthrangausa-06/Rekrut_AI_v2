@@ -1,0 +1,204 @@
+   250→    }
+   251→
+   252→    const generated = await jobOptimizer.generateJobDescription(title, brief_notes, {
+   253→      location,
+   254→      job_type,
+   255→      company: req.user.company_name
+   256→    });
+   257→    res.json({ success: true, generated });
+   258→  } catch (err) {
+   259→    console.error('Generate job description error:', err);
+   260→    res.status(500).json({ error: 'Failed to generate job description' });
+   261→  }
+   262→});
+   263→
+   264→// Suggest skills and requirements for a role
+   265→router.post('/jobs/suggest-skills', authMiddleware, requireRecruiter, async (req, res) => {
+   266→  try {
+   267→    const { title, description, current_skills } = req.body;
+   268→
+   269→    if (!title) {
+   270→      return res.status(400).json({ error: 'Job title is required' });
+   271→    }
+   272→
+   273→    const suggestions = await jobOptimizer.suggestSkillsForRole(title, description, current_skills || []);
+   274→    res.json({ success: true, suggestions });
+   275→  } catch (err) {
+   276→    console.error('Suggest skills error:', err);
+   277→    res.status(500).json({ error: 'Failed to suggest skills' });
+   278→  }
+   279→});
+   280→
+   281→// Suggest optimized job titles
+   282→router.post('/jobs/suggest-title', authMiddleware, requireRecruiter, async (req, res) => {
+   283→  try {
+   284→    const { title, description } = req.body;
+   285→
+   286→    if (!title) {
+   287→      return res.status(400).json({ error: 'Current job title is required' });
+   288→    }
+   289→
+   290→    const suggestions = await jobOptimizer.suggestJobTitles(title, description);
+   291→    res.json({ success: true, suggestions });
+   292→  } catch (err) {
+   293→    console.error('Suggest title error:', err);
+   294→    res.status(500).json({ error: 'Failed to suggest titles' });
+   295→  }
+   296→});
+   297→
+   298→// Update job
+   299→router.put('/jobs/:id', authMiddleware, requireRecruiter, async (req, res) => {
+   300→  try {
+   301→    const { title, description, requirements, location, salary_range, job_type, status, screening_questions } = req.body;
+   302→
+   303→    // Verify ownership (company_id or user_id)
+   304→    const existing = await pool.query(
+   305→      'SELECT id FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
+   306→      [req.params.id, req.user.company_id, req.user.id]
+   307→    );
+   308→
+   309→    if (existing.rows.length === 0) {
+   310→      return res.status(404).json({ error: 'Job not found' });
+   311→    }
+   312→
+   313→    const result = await pool.query(
+   314→      `UPDATE jobs SET
+   315→        title = COALESCE($1, title),
+   316→        description = COALESCE($2, description),
+   317→        requirements = COALESCE($3, requirements),
+   318→        location = COALESCE($4, location),
+   319→        salary_range = COALESCE($5, salary_range),
+   320→        job_type = COALESCE($6, job_type),
+   321→        status = COALESCE($7, status),
+   322→        screening_questions = COALESCE($8, screening_questions),
+   323→        updated_at = NOW()
+   324→       WHERE id = $9
+   325→       RETURNING *`,
+   326→      [title, description, requirements, location, salary_range, job_type, status, screening_questions || null, req.params.id]
+   327→    );
+   328→
+   329→    res.json({ success: true, job: result.rows[0] });
+   330→  } catch (err) {
+   331→    console.error('Update job error:', err);
+   332→    res.status(500).json({ error: 'Failed to update job' });
+   333→  }
+   334→});
+   335→
+   336→// Get ALL applications for the company
+   337→router.get('/applications', authMiddleware, requireRecruiter, async (req, res) => {
+   338→  try {
+   339→    const { status, job_id, limit = 100, offset = 0 } = req.query;
+   340→
+   341→    let query = `
+   342→      SELECT ja.*,
+   343→             u.name as candidate_name, u.email as candidate_email,
+   344→             j.title as job_title, j.id as job_id,
+   345→             j.screening_questions,
+   346→             os.total_score as current_omniscore, os.score_tier,
+   347→             (SELECT COUNT(*) FROM skill_assessments sa2 JOIN candidate_skills cs2 ON sa2.skill_id = cs2.id WHERE cs2.user_id = ja.candidate_id AND sa2.passed = true) as verified_skills_count,
+   348→             (SELECT MAX(i2.overall_score) FROM interviews i2 WHERE i2.user_id = ja.candidate_id AND i2.status = 'completed') as best_interview_score,
+   349→             (SELECT COUNT(*) FROM interviews i3 WHERE i3.user_id = ja.candidate_id AND i3.status = 'completed') as completed_interviews
+   350→      FROM job_applications ja
+   351→      JOIN users u ON ja.candidate_id = u.id
+   352→      JOIN jobs j ON ja.job_id = j.id
+   353→      LEFT JOIN omni_scores os ON u.id = os.user_id
+   354→      WHERE ja.company_id = $1
+   355→    `;
+   356→    const params = [req.user.company_id];
+   357→
+   358→    if (status) {
+   359→      query += ` AND ja.status = $${params.length + 1}`;
+   360→      params.push(status);
+   361→    }
+   362→
+   363→    if (job_id) {
+   364→      query += ` AND ja.job_id = $${params.length + 1}`;
+   365→      params.push(job_id);
+   366→    }
+   367→
+   368→    query += ` ORDER BY ja.applied_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+   369→    params.push(limit, offset);
+   370→
+   371→    const result = await pool.query(query, params);
+   372→
+   373→    res.json({ applications: result.rows });
+   374→  } catch (err) {
+   375→    console.error('Get applications error:', err);
+   376→    res.status(500).json({ error: 'Failed to fetch applications' });
+   377→  }
+   378→});
+   379→
+   380→// Update application status (alternative route)
+   381→router.put('/applications/:id/status', authMiddleware, requireRecruiter, async (req, res) => {
+   382→  try {
+   383→    const { status } = req.body;
+   384→
+   385→    // Verify application belongs to company
+   386→    const existing = await pool.query(
+   387→      'SELECT id, job_id, candidate_id FROM job_applications WHERE id = $1 AND company_id = $2',
+   388→      [req.params.id, req.user.company_id]
+   389→    );
+   390→
+   391→    if (existing.rows.length === 0) {
+   392→      return res.status(404).json({ error: 'Application not found' });
+   393→    }
+   394→
+   395→    const result = await pool.query(
+   396→      `UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+   397→      [status, req.params.id]
+   398→    );
+   399→
+   400→    // Audit log
+   401→    await AuditLogger.log({
+   402→      actionType: 'application_status_changed',
+   403→      userId: req.user.id,
+   404→      targetType: 'job_application',
+   405→      targetId: parseInt(req.params.id),
+   406→      metadata: {
+   407→        candidate_id: existing.rows[0].candidate_id,
+   408→        job_id: existing.rows[0].job_id,
+   409→        new_status: status
+   410→      },
+   411→      req
+   412→    });
+   413→
+   414→    res.json({ success: true, application: result.rows[0] });
+   415→  } catch (err) {
+   416→    console.error('Update application status error:', err);
+   417→    res.status(500).json({ error: 'Failed to update application' });
+   418→  }
+   419→});
+   420→
+   421→// Create interview (POST to /interviews)
+   422→router.post('/interviews', authMiddleware, requireRecruiter, async (req, res) => {
+   423→  try {
+   424→    const {
+   425→      application_id, scheduled_at, duration = 60,
+   426→      interview_type = 'video', notes
+   427→    } = req.body;
+   428→
+   429→    // Get application details
+   430→    const app = await pool.query(
+   431→      'SELECT ja.job_id, ja.candidate_id FROM job_applications ja WHERE ja.id = $1 AND ja.company_id = $2',
+   432→      [application_id, req.user.company_id]
+   433→    );
+   434→
+   435→    if (app.rows.length === 0) {
+   436→      return res.status(404).json({ error: 'Application not found' });
+   437→    }
+   438→
+   439→    const { job_id, candidate_id } = app.rows[0];
+   440→
+   441→    // Auto-generate Jitsi meeting link for video interviews
+   442→    let meeting_link = null;
+   443→    if (interview_type === 'video') {
+   444→      const roomId = `Rekrut AI-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
+   445→      meeting_link = `https://meet.jit.si/${roomId}`;
+   446→    }
+   447→
+   448→    const result = await pool.query(
+   449→      `INSERT INTO scheduled_interviews
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

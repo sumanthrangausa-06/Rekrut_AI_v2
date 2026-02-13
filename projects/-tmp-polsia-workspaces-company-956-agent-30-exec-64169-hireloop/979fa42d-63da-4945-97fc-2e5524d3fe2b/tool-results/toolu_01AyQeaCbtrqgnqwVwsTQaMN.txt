@@ -1,0 +1,104 @@
+    80→
+    81→  // Determine tier
+    82→  let tier = 'needs_work';
+    83→  for (const [key, range] of Object.entries(SCORE_RANGES.TIERS)) {
+    84→    if (total >= range.min && total <= range.max) {
+    85→      tier = key;
+    86→      break;
+    87→    }
+    88→  }
+    89→
+    90→  // Update the score
+    91→  await pool.query(`
+    92→    UPDATE omni_scores SET
+    93→      total_score = $1,
+    94→      interview_score = $2,
+    95→      technical_score = $3,
+    96→      resume_score = $4,
+    97→      behavior_score = $5,
+    98→      score_tier = $6,
+    99→      last_updated = NOW()
+   100→    WHERE user_id = $7
+   101→  `, [total, scores.interview, scores.technical, scores.resume, scores.behavior, tier, userId]);
+   102→
+   103→  return {
+   104→    total_score: total,
+   105→    ...scores,
+   106→    tier,
+   107→    tier_label: SCORE_RANGES.TIERS[tier]?.label || 'New'
+   108→  };
+   109→}
+   110→
+   111→// Add score component from interview completion
+   112→async function addInterviewComponent(userId, interviewId, score, maxScore = 10) {
+   113→  // Convert 1-10 score to points (max 40 points per interview, up to 5 interviews = 200 max)
+   114→  const points = Math.round((score / maxScore) * 40);
+   115→
+   116→  await pool.query(`
+   117→    INSERT INTO score_components (user_id, component_type, source_type, source_id, points, max_points)
+   118→    VALUES ($1, 'interview', 'interview', $2, $3, 40)
+   119→  `, [userId, interviewId, points]);
+   120→
+   121→  // Record history
+   122→  const oldScore = await getOrCreateScore(userId);
+   123→  const newScoreData = await calculateScore(userId);
+   124→
+   125→  await pool.query(`
+   126→    INSERT INTO score_history (user_id, previous_score, new_score, change_amount, change_reason, component_type)
+   127→    VALUES ($1, $2, $3, $4, $5, 'interview')
+   128→  `, [userId, oldScore.total_score, newScoreData.total_score, newScoreData.total_score - oldScore.total_score, 'Completed mock interview']);
+   129→
+   130→  // Update role-specific score if job_title is provided
+   131→  return newScoreData;
+   132→}
+   133→
+   134→// Add behavior component (for platform activity)
+   135→async function addBehaviorComponent(userId, reason, points, maxPoints = 10) {
+   136→  await pool.query(`
+   137→    INSERT INTO score_components (user_id, component_type, source_type, points, max_points, metadata)
+   138→    VALUES ($1, 'behavior', 'activity', $2, $3, $4)
+   139→  `, [userId, points, maxPoints, JSON.stringify({ reason })]);
+   140→
+   141→  return await calculateScore(userId);
+   142→}
+   143→
+   144→// Get score breakdown for display
+   145→async function getScoreBreakdown(userId) {
+   146→  const score = await getOrCreateScore(userId);
+   147→
+   148→  // Get recent components
+   149→  const recentComponents = await pool.query(`
+   150→    SELECT component_type, source_type, points, max_points, created_at
+   151→    FROM score_components
+   152→    WHERE user_id = $1
+   153→    ORDER BY created_at DESC
+   154→    LIMIT 20
+   155→  `, [userId]);
+   156→
+   157→  // Get score history
+   158→  const history = await pool.query(`
+   159→    SELECT previous_score, new_score, change_amount, change_reason, created_at
+   160→    FROM score_history
+   161→    WHERE user_id = $1
+   162→    ORDER BY created_at DESC
+   163→    LIMIT 10
+   164→  `, [userId]);
+   165→
+   166→  // Calculate current scores with decay
+   167→  const currentScores = await calculateScore(userId);
+   168→
+   169→  return {
+   170→    current: currentScores,
+   171→    breakdown: {
+   172→      interview: {
+   173→        score: currentScores.interview,
+   174→        max: COMPONENT_WEIGHTS.interview.max,
+   175→        label: 'Interview Performance',
+   176→        description: 'Based on your mock interview scores'
+   177→      },
+   178→      technical: {
+   179→        score: currentScores.technical,
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

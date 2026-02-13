@@ -1,0 +1,8 @@
+admin
+candidate
+landing.tsx
+login.tsx
+placeholder.tsx
+recruiter
+register.tsx
+test-camera.tsx

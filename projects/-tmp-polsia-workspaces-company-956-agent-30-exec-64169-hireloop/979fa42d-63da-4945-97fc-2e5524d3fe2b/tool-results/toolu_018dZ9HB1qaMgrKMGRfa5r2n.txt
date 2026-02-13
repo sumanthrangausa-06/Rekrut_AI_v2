@@ -1,0 +1,20 @@
+3bafbbc Agent changes
+f995804 Update MODULE_PRIORITY + MODULE_META maps with all new module names
+1815fd8 Agent changes
+6631733 Phase 3/3: Add daily token breakdown API + dashboard table for per-module attribution
+9fa4a27 Phase 1-2/3: Add module tags to ALL AI calls — eliminate Unknown attribution
+95506d7 Agent changes
+631835b Expand /api/ai-health/verify to test ALL providers across ALL modalities
+28cabe4 Agent changes
+369e361 Fix: serve legacy public/ HTML files alongside React SPA
+f87417c Agent changes
+fa889de Phase 4a/4: Add Communications sidebar nav to all recruiter pages
+3894017 Agent changes
+96fc564 Phase 3/4: Draft Message buttons + sidebar nav + URL params for auto-compose
+fc73fa8 Agent changes
+f3622ec Phase 2/4: Communication Hub frontend — AI message composer + history + pipeline UI
+e60f3f3 Agent changes
+f2468cf Phase 1/4: AI Communication Hub — migration + generation API + multi-agent pipeline
+86c6c7e Agent changes
+198ac5a Fix NIM embedding calls — use raw fetch instead of OpenAI SDK extra_body
+6acc0f7 Agent changes

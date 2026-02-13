@@ -1,0 +1,2 @@
+95:app.use('/api/interviews', interviewRoutes);
+103:app.use('/api/recruiter', recruiterRoutes);
