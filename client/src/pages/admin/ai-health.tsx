@@ -95,6 +95,8 @@ interface HealthData {
   timestamp: string
   nim_configured: boolean
   deepgram_configured: boolean
+  selfhosted_stt: boolean
+  selfhosted_tts: boolean
   total_models_registered: number
   stats: {
     totalCalls: number
@@ -340,6 +342,9 @@ interface PromptData {
 }
 
 function formatProviderName(key: string): string {
+  // Self-hosted providers get descriptive names
+  if (key === 'selfhosted_tts') return 'Piper TTS (Self-hosted)';
+  if (key === 'selfhosted_stt') return 'Whisper.cpp (Self-hosted)';
   return key
     .replace(/^nim_/, 'NIM ')
     .replace(/^openai_?/, 'OpenAI ')
@@ -951,7 +956,7 @@ function StatusBanner({ data }: { data: HealthData }) {
           <div>
             <h1 className="text-2xl font-bold font-heading">{config.label}</h1>
             <p className="text-sm text-white/80 mt-1">
-              {data.total_models_registered} models &middot; NIM {data.nim_configured ? 'on' : 'off'} &middot; Deepgram {data.deepgram_configured ? 'on' : 'off'}
+              {data.total_models_registered} models &middot; NIM {data.nim_configured ? 'on' : 'off'} &middot; Self-hosted {(data.selfhosted_stt || data.selfhosted_tts) ? 'on' : 'off'} &middot; Deepgram {data.deepgram_configured ? 'on' : 'off'}
               {budget && (
                 <> &middot; OpenAI: {budget.budgetExhausted ? (
                   <span className="font-bold text-red-200">BUDGET EXHAUSTED</span>
@@ -1030,6 +1035,9 @@ function ModalityCard({ name, modality }: { name: string; modality: ModalityInfo
                   'h-2 w-2 rounded-full shrink-0',
                   isAvailable ? 'bg-emerald-500' : 'bg-red-400',
                 )} />
+                {(name === 'tts' || name === 'asr') && (
+                  <span className="text-[9px] font-mono text-muted-foreground bg-muted rounded px-1">L{i+1}</span>
+                )}
                 <span className="font-medium truncate">{formatProviderName(provider.key)}</span>
                 {isActive && (
                   <Badge variant="default" className="text-[9px] ml-1 px-1.5 py-0">
