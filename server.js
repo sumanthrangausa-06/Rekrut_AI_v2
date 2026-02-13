@@ -197,6 +197,317 @@ app.post('/api/ai-health/reset', requireAdmin, (req, res) => {
   }
 });
 
+// ─── AI Health Monitoring Endpoints ──────────────────────────────────────────
+// Comprehensive AI call logs, model metrics, budget predictions, prompt management
+
+// GET /api/ai-health/usage — usage summary with model + module breakdown
+app.get('/api/ai-health/usage', requireAdmin, (req, res) => {
+  try {
+    const aiCallLogger = require('./lib/ai-call-logger');
+    const tokenBudgetSvc = require('./lib/token-budget');
+    res.json({
+      summary: aiCallLogger.getUsageSummary(),
+      models: aiCallLogger.getModelMetrics(),
+      modules: aiCallLogger.getModuleBreakdown(),
+      hourly: aiCallLogger.getHourlyUsage(),
+      budget: tokenBudgetSvc.getStatus(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get usage', message: err.message });
+  }
+});
+
+// GET /api/ai-health/budget — budget status + predictions
+app.get('/api/ai-health/budget', requireAdmin, (req, res) => {
+  try {
+    const aiCallLogger = require('./lib/ai-call-logger');
+    const tokenBudgetSvc = require('./lib/token-budget');
+    const status = tokenBudgetSvc.getStatus();
+    res.json({
+      ...status,
+      prediction: aiCallLogger.getBudgetPrediction(status),
+      moduleBreakdown: aiCallLogger.getModuleBreakdown(),
+      throttleStatus: Object.entries(aiCallLogger.MODULE_PRIORITY).map(([mod, priority]) => ({
+        module: mod,
+        priority,
+        throttled: aiCallLogger.shouldThrottle(mod, status),
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get budget', message: err.message });
+  }
+});
+
+// GET /api/ai-health/logs — searchable call logs
+app.get('/api/ai-health/logs', requireAdmin, async (req, res) => {
+  try {
+    const aiCallLogger = require('./lib/ai-call-logger');
+    const { module, modality, provider, success, start_date, end_date, limit, offset, realtime } = req.query;
+
+    if (realtime === 'true') {
+      const calls = aiCallLogger.getRecentCalls({
+        module, modality, provider,
+        success: success !== undefined ? success === 'true' : undefined,
+        limit: parseInt(limit, 10) || 50,
+      });
+      return res.json({ logs: calls, total: calls.length, source: 'memory' });
+    }
+
+    const result = await aiCallLogger.queryCallLogs({
+      module, modality, provider,
+      success: success !== undefined ? success === 'true' : undefined,
+      startDate: start_date,
+      endDate: end_date,
+      limit: parseInt(limit, 10) || 50,
+      offset: parseInt(offset, 10) || 0,
+    });
+    res.json({ ...result, source: 'database' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get logs', message: err.message });
+  }
+});
+
+// GET /api/ai-health/models — per-model performance metrics
+app.get('/api/ai-health/models', requireAdmin, (req, res) => {
+  try {
+    const aiCallLogger = require('./lib/ai-call-logger');
+    res.json(aiCallLogger.getModelMetrics());
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get model metrics', message: err.message });
+  }
+});
+
+// GET /api/ai-health/failover-stats — failover analytics
+app.get('/api/ai-health/failover-stats', requireAdmin, (req, res) => {
+  try {
+    const aiCallLogger = require('./lib/ai-call-logger');
+    res.json(aiCallLogger.getFailoverStats());
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get failover stats', message: err.message });
+  }
+});
+
+// GET /api/ai-health/predictions — budget predictions + throttle status
+app.get('/api/ai-health/predictions', requireAdmin, (req, res) => {
+  try {
+    const aiCallLogger = require('./lib/ai-call-logger');
+    const tokenBudgetSvc = require('./lib/token-budget');
+    const status = tokenBudgetSvc.getStatus();
+    res.json({
+      prediction: aiCallLogger.getBudgetPrediction(status),
+      hourlyUsage: aiCallLogger.getHourlyUsage(),
+      throttleStatus: Object.entries(aiCallLogger.MODULE_PRIORITY).map(([mod, priority]) => ({
+        module: mod,
+        priority,
+        throttled: aiCallLogger.shouldThrottle(mod, status),
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get predictions', message: err.message });
+  }
+});
+
+// ─── Prompt Management (Pezzo-style) ────────────────────────────────────────
+
+// GET /api/ai-health/prompts — list all prompts with performance data
+app.get('/api/ai-health/prompts', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM ai_prompts ORDER BY module, name'
+    );
+    res.json({ prompts: result.rows });
+  } catch (err) {
+    if (err.message.includes('does not exist')) {
+      return res.json({ prompts: [], message: 'Migration pending' });
+    }
+    res.status(500).json({ error: 'Failed to get prompts', message: err.message });
+  }
+});
+
+// GET /api/ai-health/prompts/:id — get a prompt with all versions
+app.get('/api/ai-health/prompts/:id', requireAdmin, async (req, res) => {
+  try {
+    const [promptResult, versionsResult, testsResult] = await Promise.all([
+      pool.query('SELECT * FROM ai_prompts WHERE id = $1', [req.params.id]),
+      pool.query('SELECT * FROM ai_prompt_versions WHERE prompt_id = $1 ORDER BY version DESC', [req.params.id]),
+      pool.query('SELECT * FROM ai_ab_tests WHERE prompt_id = $1 ORDER BY created_at DESC', [req.params.id]),
+    ]);
+    if (promptResult.rows.length === 0) return res.status(404).json({ error: 'Prompt not found' });
+    res.json({
+      prompt: promptResult.rows[0],
+      versions: versionsResult.rows,
+      abTests: testsResult.rows,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get prompt', message: err.message });
+  }
+});
+
+// POST /api/ai-health/prompts — create or update a prompt
+app.post('/api/ai-health/prompts', requireAdmin, async (req, res) => {
+  try {
+    const { slug, name, module, feature, description, systemPrompt, userTemplate, temperature, maxTokens, model, changeNote } = req.body;
+    if (!slug || !name || !module) {
+      return res.status(400).json({ error: 'slug, name, and module are required' });
+    }
+
+    // Upsert prompt
+    const upsertResult = await pool.query(
+      `INSERT INTO ai_prompts (slug, name, module, feature, description, model)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (slug) DO UPDATE SET
+         name = EXCLUDED.name, module = EXCLUDED.module, feature = EXCLUDED.feature,
+         description = EXCLUDED.description, model = EXCLUDED.model,
+         current_version = ai_prompts.current_version + 1,
+         updated_at = NOW()
+       RETURNING *`,
+      [slug, name, module, feature || null, description || null, model || null]
+    );
+    const prompt = upsertResult.rows[0];
+
+    // Create version entry
+    await pool.query(
+      `INSERT INTO ai_prompt_versions (prompt_id, version, system_prompt, user_template, temperature, max_tokens, model, change_note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [prompt.id, prompt.current_version, systemPrompt || null, userTemplate || null,
+       temperature || 0.7, maxTokens || 8192, model || null, changeNote || 'Initial version']
+    );
+
+    res.json({ prompt, message: `Version ${prompt.current_version} created` });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save prompt', message: err.message });
+  }
+});
+
+// PUT /api/ai-health/prompts/:id — update a prompt (creates new version)
+app.put('/api/ai-health/prompts/:id', requireAdmin, async (req, res) => {
+  try {
+    const { systemPrompt, userTemplate, temperature, maxTokens, model, changeNote } = req.body;
+    // Increment version
+    const updateResult = await pool.query(
+      `UPDATE ai_prompts SET current_version = current_version + 1, updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [req.params.id]
+    );
+    if (updateResult.rows.length === 0) return res.status(404).json({ error: 'Prompt not found' });
+    const prompt = updateResult.rows[0];
+
+    // Create new version
+    await pool.query(
+      `INSERT INTO ai_prompt_versions (prompt_id, version, system_prompt, user_template, temperature, max_tokens, model, change_note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [prompt.id, prompt.current_version, systemPrompt, userTemplate,
+       temperature || 0.7, maxTokens || 8192, model || null, changeNote || 'Updated']
+    );
+
+    res.json({ prompt, message: `Version ${prompt.current_version} created` });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update prompt', message: err.message });
+  }
+});
+
+// POST /api/ai-health/prompts/:id/rollback — revert to previous version
+app.post('/api/ai-health/prompts/:id/rollback', requireAdmin, async (req, res) => {
+  try {
+    const { targetVersion } = req.body;
+    if (!targetVersion) return res.status(400).json({ error: 'targetVersion required' });
+
+    // Get the target version content
+    const versionResult = await pool.query(
+      'SELECT * FROM ai_prompt_versions WHERE prompt_id = $1 AND version = $2',
+      [req.params.id, targetVersion]
+    );
+    if (versionResult.rows.length === 0) return res.status(404).json({ error: 'Version not found' });
+    const oldVersion = versionResult.rows[0];
+
+    // Create new version with old content
+    const updateResult = await pool.query(
+      `UPDATE ai_prompts SET current_version = current_version + 1, updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [req.params.id]
+    );
+    const prompt = updateResult.rows[0];
+
+    await pool.query(
+      `INSERT INTO ai_prompt_versions (prompt_id, version, system_prompt, user_template, temperature, max_tokens, model, change_note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [prompt.id, prompt.current_version, oldVersion.system_prompt, oldVersion.user_template,
+       oldVersion.temperature, oldVersion.max_tokens, oldVersion.model,
+       `Rollback to version ${targetVersion}`]
+    );
+
+    res.json({ prompt, message: `Rolled back to version ${targetVersion} (as new version ${prompt.current_version})` });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to rollback', message: err.message });
+  }
+});
+
+// POST /api/ai-health/prompts/:id/ab-test — start A/B test between versions
+app.post('/api/ai-health/prompts/:id/ab-test', requireAdmin, async (req, res) => {
+  try {
+    const { name, versionA, versionB, trafficSplit } = req.body;
+    if (!versionA || !versionB) return res.status(400).json({ error: 'versionA and versionB required' });
+
+    const result = await pool.query(
+      `INSERT INTO ai_ab_tests (prompt_id, name, version_a, version_b, traffic_split)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [req.params.id, name || `A/B Test v${versionA} vs v${versionB}`, versionA, versionB, trafficSplit || 0.5]
+    );
+
+    res.json({ test: result.rows[0], message: 'A/B test started' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to start A/B test', message: err.message });
+  }
+});
+
+// PUT /api/ai-health/ab-tests/:id/end — end an A/B test with winner
+app.put('/api/ai-health/ab-tests/:id/end', requireAdmin, async (req, res) => {
+  try {
+    const { winner } = req.body; // 'a' or 'b'
+    const result = await pool.query(
+      `UPDATE ai_ab_tests SET status = 'completed', winner = $1, ended_at = NOW() WHERE id = $2 RETURNING *`,
+      [winner || null, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Test not found' });
+    res.json({ test: result.rows[0], message: `A/B test ended${winner ? ` — winner: version ${winner}` : ''}` });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to end test', message: err.message });
+  }
+});
+
+// POST /api/ai-health/query — natural language query about AI usage
+app.post('/api/ai-health/query', requireAdmin, async (req, res) => {
+  try {
+    const { question } = req.body;
+    if (!question) return res.status(400).json({ error: 'question required' });
+
+    const aiCallLogger = require('./lib/ai-call-logger');
+    const tokenBudgetSvc = require('./lib/token-budget');
+
+    // Gather context data
+    const summary = aiCallLogger.getUsageSummary();
+    const models = aiCallLogger.getModelMetrics();
+    const modules = aiCallLogger.getModuleBreakdown();
+    const budget = tokenBudgetSvc.getStatus();
+    const failoverStats = aiCallLogger.getFailoverStats();
+
+    // Use AI to answer the question based on current metrics
+    const { aiProvider } = require('./lib/polsia-ai');
+    const context = JSON.stringify({ summary, models, modules, budget, failoverStats }, null, 2);
+    const answer = await aiProvider.chatCompletion([
+      { role: 'user', content: question }
+    ], {
+      system: `You are an AI analytics assistant for HireLoop. Answer questions about AI usage based on the following real-time metrics data. Be concise and specific with numbers.\n\nMetrics Data:\n${context}`,
+      maxTokens: 1024,
+      temperature: 0.3,
+      module: 'admin',
+      feature: 'nl-query',
+    });
+
+    res.json({ question, answer, data: { summary, models, modules, budget } });
+  } catch (err) {
+    res.status(500).json({ error: 'Query failed', message: err.message });
+  }
+});
+
 // ─── Comprehensive Module Metrics — ALL platform modules ────────────────────
 app.get('/api/admin/modules', requireAdmin, async (req, res) => {
   try {
