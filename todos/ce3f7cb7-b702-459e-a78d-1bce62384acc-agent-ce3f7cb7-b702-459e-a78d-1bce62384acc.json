@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate: Check production logs and trace interview flow to find where it breaks",
+    "status": "completed",
+    "activeForm": "Investigating production logs and interview flow"
+  },
+  {
+    "content": "Phase 1: Backend — Add overall timeout wrapper for interview AI calls",
+    "status": "completed",
+    "activeForm": "Adding overall timeout wrapper to backend interview endpoints"
+  },
+  {
+    "content": "Phase 2: Frontend — Add fetch timeout + retry UI for voice responses",
+    "status": "completed",
+    "activeForm": "Adding fetch timeout and retry UI to frontend"
+  },
+  {
+    "content": "Deploy and verify end-to-end interview flow on live app",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying end-to-end interview flow"
+  }
+]
