@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Phase 1: Investigate — read ai-provider.js, health dashboard, test NIM endpoints",
+    "status": "completed",
+    "activeForm": "Investigating current NIM model code and health checks"
+  },
+  {
+    "content": "Phase 2: Remove dead reranking models + update health endpoint with real checks",
+    "status": "completed",
+    "activeForm": "Removing dead reranking models and adding real health checks"
+  },
+  {
+    "content": "Phase 3: Deploy + verify dashboard accuracy",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying dashboard accuracy"
+  }
+]
