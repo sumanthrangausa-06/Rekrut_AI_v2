@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Phase 1: Audit all TTS/ASR usage + understand failover architecture",
+    "status": "completed",
+    "activeForm": "Auditing TTS/ASR usage and failover architecture"
+  },
+  {
+    "content": "Phase 2: Add Deepgram TTS + STT fallback to ai-provider.js",
+    "status": "completed",
+    "activeForm": "Adding Deepgram TTS + STT fallback to ai-provider.js"
+  },
+  {
+    "content": "Phase 3: Update AI Health Dashboard frontend",
+    "status": "completed",
+    "activeForm": "Updating AI Health Dashboard frontend"
+  },
+  {
+    "content": "Phase 4: Deploy & verify end-to-end",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying end-to-end"
+  }
+]
