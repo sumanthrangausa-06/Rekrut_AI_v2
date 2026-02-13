@@ -164,6 +164,8 @@ interface MockSessionSummary {
   started_at: string
   completed_at: string | null
   duration_minutes: number
+  category_tags?: string[] // BUG FIX #7: actual question categories
+  interview_type?: string
 }
 
 interface SessionFeedback {
@@ -1213,6 +1215,13 @@ export function AiCoachingPage() {
           if (res.interviewer_message?.text) {
             playInterviewerAudio(res.interviewer_message.text)
           }
+          // BUG FIX #1: Auto-end interview when wrap_up is signaled
+          if (res.is_wrapping_up) {
+            // Give time for TTS to play the wrap-up message, then auto-end
+            setTimeout(() => {
+              if (!mockEnding) endMockInterview()
+            }, 8000)
+          }
         }
       } finally {
         clearTimeout(textTimeout)
@@ -1279,6 +1288,26 @@ export function AiCoachingPage() {
           } as SessionFeedback)
         } else {
           setMockFeedback(res.feedback)
+          // BUG FIX #5: Poll for updated feedback (body language analysis runs in background)
+          // If presentation data is missing, poll twice at 15s and 30s to get it
+          if (res.feedback && !res.feedback.presentation) {
+            const sessionIdForPolling = mockSession.id
+            const pollFeedback = async () => {
+              try {
+                const pollRes = await apiCall<{ success: boolean; feedback: SessionFeedback }>(`/interviews/mock/sessions/${sessionIdForPolling}/feedback`)
+                if (pollRes.success && pollRes.feedback) {
+                  setMockFeedback(pollRes.feedback)
+                  return !!pollRes.feedback.presentation // stop polling if we have presentation data
+                }
+              } catch { /* ignore poll errors */ }
+              return false
+            }
+            // Poll at 15s and 30s
+            setTimeout(async () => {
+              const done = await pollFeedback()
+              if (!done) setTimeout(pollFeedback, 15000)
+            }, 15000)
+          }
         }
         setMockSession(prev => prev ? { ...prev, status: 'completed' } : null)
         mockFramesRef.current = []
@@ -2466,7 +2495,7 @@ export function AiCoachingPage() {
                       {mockFeedback.presentation ? (
                         <span className={`text-xs font-bold ${scoreColor(mockFeedback.presentation.score)}`}>{mockFeedback.presentation.score}/10</span>
                       ) : (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Analyzing...</span>
+                        <span className="text-xs text-muted-foreground">Not available</span>
                       )}
                     </span>
                     {expandedSection === 'mock-presentation' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -2503,9 +2532,8 @@ export function AiCoachingPage() {
                           )}
                         </>
                       ) : (
-                        <p className="text-xs text-muted-foreground flex items-center gap-2">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          Video analysis processing in background. Refresh the page in a minute to see results.
+                        <p className="text-xs text-muted-foreground">
+                          📹 Body language analysis requires camera access during the interview. Enable your camera next time for presentation feedback.
                         </p>
                       )}
                     </div>
@@ -2712,43 +2740,61 @@ export function AiCoachingPage() {
                     <History className="h-4 w-4 text-muted-foreground" /> Past Mock Interviews
                   </h3>
                   <div className="space-y-2">
-                    {mockPastSessions.map(s => (
-                      <Card key={s.id} className="hover:border-primary/30 transition-colors">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              {s.overall_score ? (
-                                <div className={`h-10 w-10 rounded-lg flex items-center justify-center border ${scoreBg(s.overall_score)}`}>
-                                  <span className={`font-bold ${scoreColor(s.overall_score)}`}>{s.overall_score}</span>
-                                </div>
-                              ) : (
-                                <div className="h-10 w-10 rounded-lg flex items-center justify-center bg-muted">
-                                  <span className="text-xs text-muted-foreground">—</span>
-                                </div>
-                              )}
-                              <div>
-                                <p className="text-sm font-medium">{s.target_role}</p>
-                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
-                                  <span>{s.questions_asked} questions</span>
-                                  <span>·</span>
-                                  <span>{s.follow_ups_asked} follow-ups</span>
-                                  <span>·</span>
-                                  <span>{Math.round(s.duration_minutes)} min</span>
+                    {mockPastSessions.map(s => {
+                      const tags = s.category_tags || ['behavioral']
+                      return (
+                        <Card key={s.id} className="hover:border-primary/30 transition-colors">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                {s.overall_score ? (
+                                  <div className={`h-10 w-10 rounded-lg flex items-center justify-center border ${scoreBg(s.overall_score)}`}>
+                                    <span className={`font-bold ${scoreColor(s.overall_score)}`}>{s.overall_score}</span>
+                                  </div>
+                                ) : (
+                                  <div className="h-10 w-10 rounded-lg flex items-center justify-center bg-muted">
+                                    <span className="text-xs text-muted-foreground">—</span>
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="text-sm font-medium">{s.target_role}</p>
+                                  {/* BUG FIX #7: Show actual category tags instead of just "Behavioral" */}
+                                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                    {tags.map(tag => {
+                                      const cfg = categoryConfig[tag] || categoryConfig.behavioral
+                                      const TagIcon = cfg.icon
+                                      return (
+                                        <Badge key={tag} variant="secondary" className={`${cfg.bg} ${cfg.color} text-[10px] border-0 py-0`}>
+                                          <TagIcon className="h-2.5 w-2.5 mr-0.5" /> {cfg.label}
+                                        </Badge>
+                                      )
+                                    })}
+                                    <Badge variant="outline" className="text-[10px] py-0">
+                                      <Mic className="h-2.5 w-2.5 mr-0.5" /> Voice
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+                                    <span>{s.questions_asked} questions</span>
+                                    <span>·</span>
+                                    <span>{s.follow_ups_asked} follow-ups</span>
+                                    <span>·</span>
+                                    <span>{Math.round(s.duration_minutes)} min</span>
+                                  </div>
                                 </div>
                               </div>
+                              <div className="text-right">
+                                <Badge variant={s.status === 'completed' ? 'secondary' : 'outline'} className="text-[10px]">
+                                  {s.status === 'completed' ? 'Completed' : 'In Progress'}
+                                </Badge>
+                                <p className="text-[10px] text-muted-foreground mt-1">
+                                  {new Date(s.started_at).toLocaleDateString()}
+                                </p>
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <Badge variant={s.status === 'completed' ? 'secondary' : 'outline'} className="text-[10px]">
-                                {s.status === 'completed' ? 'Completed' : 'In Progress'}
-                              </Badge>
-                              <p className="text-[10px] text-muted-foreground mt-1">
-                                {new Date(s.started_at).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
                   </div>
                 </div>
               )}
