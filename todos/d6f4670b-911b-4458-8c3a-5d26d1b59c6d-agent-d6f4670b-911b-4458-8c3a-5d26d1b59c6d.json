@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Phase 1: Audit DB schema against all 6 error queries",
+    "status": "completed",
+    "activeForm": "Auditing DB schema against all 6 error queries"
+  },
+  {
+    "content": "Phase 2: Fix all 7 SQL errors + commit + deploy",
+    "status": "in_progress",
+    "activeForm": "Fixing all 7 SQL errors"
+  },
+  {
+    "content": "Phase 3: Verify zero recurrence in production logs",
+    "status": "pending",
+    "activeForm": "Verifying zero recurrence in production logs"
+  }
+]
