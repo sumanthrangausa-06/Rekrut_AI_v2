@@ -1,0 +1,1946 @@
+     1→const express = require('express');
+     2→const pool = require('../lib/db');
+     3→const { authMiddleware } = require('../lib/auth');
+     4→const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching, analyzeVideoInterviewResponse, analyzeVideoPresentation, analyzeVoiceQuality, generateQuestionBank, conductInterviewTurn, generateSessionFeedback, textToSpeech, transcribeAudioWithWhisper, aiProvider } = require('../lib/polsia-ai');
+     5→const crypto = require('crypto');
+     6→const omniscoreService = require('../services/omniscore');
+     7→const multer = require('multer');
+     8→const fetch = require('node-fetch');
+     9→const FormData = require('form-data');
+    10→
+    11→const router = express.Router();
+    12→const upload = multer({ storage: multer.memoryStorage() });
+    13→
+    14→// Helper: Race a promise against a timeout to prevent hanging when AI providers are slow.
+    15→// The AI provider chain can take 9×15s = 135s worst case; Render kills requests at ~30s.
+    16→// This ensures we hit the scripted fallback BEFORE the request is killed.
+    17→function withTimeout(promise, ms, label = 'Operation') {
+    18→  return Promise.race([
+    19→    promise,
+    20→    new Promise((_, reject) => setTimeout(() => {
+    21→      reject(new Error(`${label} timed out after ${ms}ms`));
+    22→    }, ms))
+    23→  ]);
+    24→}
+    25→
+    26→// Fallback questions if AI generation fails
+    27→const FALLBACK_QUESTIONS = [
+    28→  {
+    29→    question: 'Tell me about yourself and why you are interested in this role.',
+    30→    category: 'behavioral',
+    31→    difficulty: 'easy',
+    32→    key_points: ['Self-introduction', 'Relevant experience', 'Career goals', 'Enthusiasm']
+    33→  },
+    34→  {
+    35→    question: 'Describe a challenging project you worked on. What was your role and how did you handle obstacles?',
+    36→    category: 'behavioral',
+    37→    difficulty: 'medium',
+    38→    key_points: ['Problem-solving', 'Resilience', 'Technical skills', 'Teamwork']
+    39→  },
+    40→  {
+    41→    question: 'How do you prioritize your work when you have multiple deadlines?',
+    42→    category: 'situational',
+    43→    difficulty: 'medium',
+    44→    key_points: ['Time management', 'Organization', 'Communication', 'Prioritization frameworks']
+    45→  },
+    46→  {
+    47→    question: 'Tell me about a time you received constructive criticism. How did you respond?',
+    48→    category: 'behavioral',
+    49→    difficulty: 'medium',
+    50→    key_points: ['Self-awareness', 'Growth mindset', 'Professional maturity', 'Adaptability']
+    51→  },
+    52→  {
+    53→    question: 'Where do you see yourself in 5 years, and how does this role fit into your career plan?',
+    54→    category: 'situational',
+    55→    difficulty: 'easy',
+    56→    key_points: ['Career vision', 'Ambition', 'Role alignment', 'Long-term thinking']
+    57→  }
+    58→];
+    59→
+    60→// Start a new interview
+    61→router.post('/start', authMiddleware, async (req, res) => {
+    62→  try {
+    63→    const { job_id, job_title, job_description, interview_type = 'mock' } = req.body;
+    64→
+    65→    // Generate questions using AI with fallback
+    66→    let questions;
+    67→    try {
+    68→      questions = await generateInterviewQuestions(
+    69→        job_title || 'Software Developer',
+    70→        job_description,
+    71→        5
+    72→      );
+    73→      console.log('AI generated', questions.length, 'interview questions');
+    74→    } catch (aiErr) {
+    75→      console.error('AI question generation failed, using fallback questions:', aiErr.message);
+    76→      questions = FALLBACK_QUESTIONS;
+    77→    }
+    78→
+    79→    // Validate questions array
+    80→    if (!questions || !Array.isArray(questions) || questions.length === 0) {
+    81→      console.warn('Invalid questions from AI, using fallback');
+    82→      questions = FALLBACK_QUESTIONS;
+    83→    }
+    84→
+    85→    // Create interview record
+    86→    const result = await pool.query(
+    87→      `INSERT INTO interviews (user_id, job_id, interview_type, questions, status)
+    88→       VALUES ($1, $2, $3, $4, 'in_progress')
+    89→       RETURNING *`,
+    90→      [req.user.id, job_id, interview_type, JSON.stringify(questions)]
+    91→    );
+    92→
+    93→    // Track mock interview start
+    94→    try {
+    95→      await pool.query(
+    96→        'INSERT INTO events (event_type, user_id, metadata) VALUES ($1, $2, $3)',
+    97→        ['mock_interview_start', req.user.id, JSON.stringify({ interview_type, job_id })]
+    98→      );
+    99→    } catch (e) {
+   100→      console.error('Failed to log interview start event:', e);
+   101→    }
+   102→
+   103→    res.json({
+   104→      success: true,
+   105→      interview: result.rows[0],
+   106→      questions: questions.map((q, i) => ({
+   107→        index: i,
+   108→        question: q.question,
+   109→        category: q.category,
+   110→        difficulty: q.difficulty
+   111→      }))
+   112→    });
+   113→  } catch (err) {
+   114→    console.error('Start interview error:', err);
+   115→    res.status(500).json({ error: 'Failed to start interview' });
+   116→  }
+   117→});
+   118→
+   119→// Submit response to a question
+   120→router.post('/:id/respond', authMiddleware, async (req, res) => {
+   121→  try {
+   122→    const { question_index, response_text, video_url } = req.body;
+   123→
+   124→    // Get interview
+   125→    const interview = await pool.query(
+   126→      'SELECT * FROM interviews WHERE id = $1 AND user_id = $2',
+   127→      [req.params.id, req.user.id]
+   128→    );
+   129→
+   130→    if (interview.rows.length === 0) {
+   131→      return res.status(404).json({ error: 'Interview not found' });
+   132→    }
+   133→
+   134→    const interviewData = interview.rows[0];
+   135→    const questions = interviewData.questions;
+   136→    const question = questions[question_index];
+   137→
+   138→    if (!question) {
+   139→      return res.status(400).json({ error: 'Invalid question index' });
+   140→    }
+   141→
+   142→    // Analyze response with AI
+   143→    const analysis = await analyzeInterviewResponse(
+   144→      question.question,
+   145→      response_text,
+   146→      question.key_points || [],
+   147→      { subscriptionId: req.user.stripe_subscription_id }
+   148→    );
+   149→
+   150→    // Update responses array
+   151→    const responses = interviewData.responses || [];
+   152→    responses[question_index] = {
+   153→      question_index,
+   154→      response_text,
+   155→      video_url,
+   156→      analysis,
+   157→      submitted_at: new Date().toISOString()
+   158→    };
+   159→
+   160→    // Update video URLs if provided
+   161→    const videoUrls = interviewData.video_urls || [];
+   162→    if (video_url) {
+   163→      videoUrls[question_index] = video_url;
+   164→    }
+   165→
+   166→    // Update responses - use updated_at if column exists, fallback gracefully
+   167→    try {
+   168→      await pool.query(
+   169→        `UPDATE interviews SET responses = $1, video_urls = $2, updated_at = NOW()
+   170→         WHERE id = $3`,
+   171→        [JSON.stringify(responses), JSON.stringify(videoUrls), req.params.id]
+   172→      );
+   173→    } catch (updateErr) {
+   174→      // Fallback if updated_at column doesn't exist yet (pre-migration)
+   175→      if (updateErr.message && updateErr.message.includes('updated_at')) {
+   176→        console.warn('updated_at column missing, updating without it');
+   177→        await pool.query(
+   178→          `UPDATE interviews SET responses = $1, video_urls = $2
+   179→           WHERE id = $3`,
+   180→          [JSON.stringify(responses), JSON.stringify(videoUrls), req.params.id]
+   181→        );
+   182→      } else {
+   183→        throw updateErr;
+   184→      }
+   185→    }
+   186→
+   187→    res.json({
+   188→      success: true,
+   189→      analysis,
+   190→      questions_remaining: questions.length - responses.filter(r => r).length
+   191→    });
+   192→  } catch (err) {
+   193→    console.error('Submit response error:', err);
+   194→    res.status(500).json({ error: 'Failed to submit response' });
+   195→  }
+   196→});
+   197→
+   198→// Complete interview and get overall feedback
+   199→router.post('/:id/complete', authMiddleware, async (req, res) => {
+   200→  try {
+   201→    const interview = await pool.query(
+   202→      'SELECT * FROM interviews WHERE id = $1 AND user_id = $2',
+   203→      [req.params.id, req.user.id]
+   204→    );
+   205→
+   206→    if (interview.rows.length === 0) {
+   207→      return res.status(404).json({ error: 'Interview not found' });
+   208→    }
+   209→
+   210→    const interviewData = interview.rows[0];
+   211→    const responses = interviewData.responses || [];
+   212→    const validResponses = responses.filter(r => r && r.analysis);
+   213→
+   214→    if (validResponses.length === 0) {
+   215→      return res.status(400).json({ error: 'No responses to evaluate' });
+   216→    }
+   217→
+   218→    // Generate overall feedback
+   219→    const overallFeedback = await generateOverallFeedback(
+   220→      validResponses.map(r => r.analysis),
+   221→      { subscriptionId: req.user.stripe_subscription_id }
+   222→    );
+   223→
+   224→    // Calculate duration
+   225→    const startTime = new Date(interviewData.created_at);
+   226→    const duration = Math.floor((Date.now() - startTime.getTime()) / 1000);
+   227→
+   228→    // Update interview record
+   229→    await pool.query(
+   230→      `UPDATE interviews SET
+   231→        status = 'completed',
+   232→        ai_feedback = $1,
+   233→        overall_score = $2,
+   234→        duration_seconds = $3,
+   235→        completed_at = NOW()
+   236→       WHERE id = $4`,
+   237→      [JSON.stringify(overallFeedback), overallFeedback.overall_score, duration, req.params.id]
+   238→    );
+   239→
+   240→    // Update OmniScore with interview results
+   241→    let omniscoreUpdate = null;
+   242→    try {
+   243→      omniscoreUpdate = await omniscoreService.addInterviewComponent(
+   244→        req.user.id,
+   245→        req.params.id,
+   246→        overallFeedback.overall_score
+   247→      );
+   248→
+   249→      // Update role-specific score if job title is available
+   250→      if (interviewData.job_id) {
+   251→        const job = await pool.query('SELECT title FROM jobs WHERE id = $1', [interviewData.job_id]);
+   252→        if (job.rows.length > 0) {
+   253→          await omniscoreService.updateRoleScore(
+   254→            req.user.id,
+   255→            job.rows[0].title,
+   256→            overallFeedback.overall_score
+   257→          );
+   258→        }
+   259→      }
+   260→    } catch (scoreErr) {
+   261→      console.error('OmniScore update error:', scoreErr);
+   262→      // Don't fail the request if OmniScore update fails
+   263→    }
+   264→
+   265→    res.json({
+   266→      success: true,
+   267→      overall_feedback: overallFeedback,
+   268→      duration_seconds: duration,
+   269→      response_count: validResponses.length,
+   270→      omniscore: omniscoreUpdate
+   271→    });
+   272→  } catch (err) {
+   273→    console.error('Complete interview error:', err);
+   274→    res.status(500).json({ error: 'Failed to complete interview' });
+   275→  }
+   276→});
+   277→
+   278→// Get interview history
+   279→router.get('/history', authMiddleware, async (req, res) => {
+   280→  try {
+   281→    const { limit = 10, offset = 0 } = req.query;
+   282→
+   283→    const result = await pool.query(
+   284→      `SELECT i.*, j.title as job_title, j.company as job_company
+   285→       FROM interviews i
+   286→       LEFT JOIN jobs j ON i.job_id = j.id
+   287→       WHERE i.user_id = $1
+   288→       ORDER BY i.created_at DESC
+   289→       LIMIT $2 OFFSET $3`,
+   290→      [req.user.id, limit, offset]
+   291→    );
+   292→
+   293→    res.json({ interviews: result.rows });
+   294→  } catch (err) {
+   295→    console.error('Get history error:', err);
+   296→    res.status(500).json({ error: 'Failed to fetch history' });
+   297→  }
+   298→});
+   299→
+   300→// Get interview details
+   301→router.get('/:id', authMiddleware, async (req, res) => {
+   302→  try {
+   303→    const result = await pool.query(
+   304→      `SELECT i.*, j.title as job_title, j.company as job_company
+   305→       FROM interviews i
+   306→       LEFT JOIN jobs j ON i.job_id = j.id
+   307→       WHERE i.id = $1 AND i.user_id = $2`,
+   308→      [req.params.id, req.user.id]
+   309→    );
+   310→
+   311→    if (result.rows.length === 0) {
+   312→      return res.status(404).json({ error: 'Interview not found' });
+   313→    }
+   314→
+   315→    res.json({ interview: result.rows[0] });
+   316→  } catch (err) {
+   317→    console.error('Get interview error:', err);
+   318→    res.status(500).json({ error: 'Failed to fetch interview' });
+   319→  }
+   320→});
+   321→
+   322→// Upload video for interview response
+   323→router.post('/upload-video', authMiddleware, upload.single('video'), async (req, res) => {
+   324→  try {
+   325→    if (!req.file) {
+   326→      return res.status(400).json({ error: 'No video file provided' });
+   327→    }
+   328→
+   329→    const { interview_id, question_index } = req.body;
+   330→
+   331→    if (!interview_id || question_index === undefined) {
+   332→      return res.status(400).json({ error: 'Missing interview_id or question_index' });
+   333→    }
+   334→
+   335→    // Verify interview belongs to user
+   336→    const interview = await pool.query(
+   337→      'SELECT * FROM interviews WHERE id = $1 AND user_id = $2',
+   338→      [interview_id, req.user.id]
+   339→    );
+   340→
+   341→    if (interview.rows.length === 0) {
+   342→      return res.status(404).json({ error: 'Interview not found' });
+   343→    }
+   344→
+   345→    // Upload to R2
+   346→    const formData = new FormData();
+   347→    formData.append('file', req.file.buffer, {
+   348→      filename: `interview-${interview_id}-q${question_index}.webm`,
+   349→      contentType: req.file.mimetype
+   350→    });
+   351→
+   352→    const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
+   353→      method: 'POST',
+   354→      headers: {
+   355→        'Authorization': `Bearer ${process.env.POLSIA_API_KEY}`,
+   356→        ...formData.getHeaders()
+   357→      },
+   358→      body: formData
+   359→    });
+   360→
+   361→    const result = await uploadRes.json();
+   362→
+   363→    if (!result.success) {
+   364→      console.error('R2 upload error:', result.error);
+   365→      return res.status(500).json({ error: 'Failed to upload video' });
+   366→    }
+   367→
+   368→    res.json({
+   369→      success: true,
+   370→      video_url: result.file.url
+   371→    });
+   372→  } catch (err) {
+   373→    console.error('Upload video error:', err);
+   374→    res.status(500).json({ error: 'Failed to upload video' });
+   375→  }
+   376→});
+   377→
+   378→// Get stats for dashboard
+   379→router.get('/stats/summary', authMiddleware, async (req, res) => {
+   380→  try {
+   381→    const stats = await pool.query(
+   382→      `SELECT
+   383→        COUNT(*) as total_interviews,
+   384→        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+   385→        AVG(CASE WHEN overall_score IS NOT NULL THEN overall_score END) as avg_score,
+   386→        MAX(overall_score) as best_score
+   387→       FROM interviews
+   388→       WHERE user_id = $1`,
+   389→      [req.user.id]
+   390→    );
+   391→
+   392→    const recentScores = await pool.query(
+   393→      `SELECT overall_score, created_at
+   394→       FROM interviews
+   395→       WHERE user_id = $1 AND status = 'completed' AND overall_score IS NOT NULL
+   396→       ORDER BY created_at DESC
+   397→       LIMIT 10`,
+   398→      [req.user.id]
+   399→    );
+   400→
+   401→    res.json({
+   402→      stats: stats.rows[0],
+   403→      recent_scores: recentScores.rows
+   404→    });
+   405→  } catch (err) {
+   406→    console.error('Get stats error:', err);
+   407→    res.status(500).json({ error: 'Failed to fetch stats' });
+   408→  }
+   409→});
+   410→
+   411→// =============== INTERVIEW PRACTICE & COACHING ===============
+   412→
+   413→// Predefined question library (shared between routes)
+   414→const PRACTICE_QUESTION_LIBRARY = [
+   415→      // Behavioral Questions
+   416→      {
+   417→        id: 'beh-1',
+   418→        category: 'behavioral',
+   419→        difficulty: 'Medium',
+   420→        question: 'Tell me about a time when you had to deal with a difficult team member. How did you handle it?',
+   421→        key_points: ['Conflict resolution', 'Communication skills', 'Team dynamics', 'Professional approach']
+   422→      },
+   423→      {
+   424→        id: 'beh-2',
+   425→        category: 'behavioral',
+   426→        difficulty: 'Medium',
+   427→        question: 'Describe a situation where you failed at something. What did you learn from it?',
+   428→        key_points: ['Self-awareness', 'Learning from mistakes', 'Growth mindset', 'Accountability']
+   429→      },
+   430→      {
+   431→        id: 'beh-3',
+   432→        category: 'behavioral',
+   433→        difficulty: 'Hard',
+   434→        question: 'Tell me about a time when you had to make a difficult decision with incomplete information.',
+   435→        key_points: ['Decision-making', 'Risk assessment', 'Critical thinking', 'Taking initiative']
+   436→      },
+   437→      {
+   438→        id: 'beh-4',
+   439→        category: 'behavioral',
+   440→        difficulty: 'Easy',
+   441→        question: 'What motivates you to come to work every day?',
+   442→        key_points: ['Passion', 'Career goals', 'Work ethic', 'Cultural fit']
+   443→      },
+   444→      {
+   445→        id: 'beh-5',
+   446→        category: 'behavioral',
+   447→        difficulty: 'Medium',
+   448→        question: 'Describe a time when you went above and beyond your job responsibilities.',
+   449→        key_points: ['Initiative', 'Dedication', 'Problem-solving', 'Impact']
+   450→      },
+   451→
+   452→      // Technical Questions
+   453→      {
+   454→        id: 'tech-1',
+   455→        category: 'technical',
+   456→        difficulty: 'Medium',
+   457→        question: 'Walk me through how you would approach debugging a critical production issue.',
+   458→        key_points: ['Systematic approach', 'Problem-solving', 'Communication', 'Technical knowledge']
+   459→      },
+   460→      {
+   461→        id: 'tech-2',
+   462→        category: 'technical',
+   463→        difficulty: 'Hard',
+   464→        question: 'How would you design a system to handle 1 million concurrent users?',
+   465→        key_points: ['Scalability', 'Architecture', 'Trade-offs', 'Technical depth']
+   466→      },
+   467→      {
+   468→        id: 'tech-3',
+   469→        category: 'technical',
+   470→        difficulty: 'Medium',
+   471→        question: 'Explain a complex technical concept to someone without a technical background.',
+   472→        key_points: ['Communication', 'Simplification', 'Analogies', 'Clarity']
+   473→      },
+   474→      {
+   475→        id: 'tech-4',
+   476→        category: 'technical',
+   477→        difficulty: 'Easy',
+   478→        question: 'What are your favorite tools or technologies, and why?',
+   479→        key_points: ['Technical passion', 'Learning', 'Practical experience', 'Reasoning']
+   480→      },
+   481→
+   482→      // Situational Questions
+   483→      {
+   484→        id: 'sit-1',
+   485→        category: 'situational',
+   486→        difficulty: 'Medium',
+   487→        question: 'If you were given a project with an impossible deadline, how would you handle it?',
+   488→        key_points: ['Time management', 'Communication', 'Prioritization', 'Stakeholder management']
+   489→      },
+   490→      {
+   491→        id: 'sit-2',
+   492→        category: 'situational',
+   493→        difficulty: 'Hard',
+   494→        question: 'You discover your manager is making a decision you strongly disagree with. What do you do?',
+   495→        key_points: ['Professional disagreement', 'Communication', 'Respect', 'Problem-solving']
+   496→      },
+   497→      {
+   498→        id: 'sit-3',
+   499→        category: 'situational',
+   500→        difficulty: 'Medium',
+   501→        question: 'How would you handle a situation where you need to learn a new technology quickly?',
+   502→        key_points: ['Learning agility', 'Resourcefulness', 'Time management', 'Adaptability']
+   503→      },
+   504→      {
+   505→        id: 'sit-4',
+   506→        category: 'situational',
+   507→        difficulty: 'Easy',
+   508→        question: 'What would you do if you noticed a coworker was struggling with their workload?',
+   509→        key_points: ['Teamwork', 'Empathy', 'Communication', 'Collaboration']
+   510→      }
+   511→];
+   512→
+   513→// Get practice question library
+   514→router.get('/practice/library', authMiddleware, async (req, res) => {
+   515→  try {
+   516→    const questionLibrary = PRACTICE_QUESTION_LIBRARY;
+   517→
+   518→    // Get user's practice history for this question
+   519→    const practiceHistory = await pool.query(
+   520→      `SELECT question_id, COUNT(*) as times_practiced,
+   521→              MAX(score) as best_score,
+   522→              AVG(score) as avg_score,
+   523→              MAX(created_at) as last_practiced
+   524→       FROM practice_sessions
+   525→       WHERE user_id = $1
+   526→       GROUP BY question_id`,
+   527→      [req.user.id]
+   528→    );
+   529→
+   530→    const historyMap = {};
+   531→    practiceHistory.rows.forEach(row => {
+   532→      historyMap[row.question_id] = {
+   533→        times_practiced: parseInt(row.times_practiced),
+   534→        last_score: row.best_score,
+   535→        avg_score: parseFloat(row.avg_score),
+   536→        last_practiced: row.last_practiced
+   537→      };
+   538→    });
+   539→
+   540→    // Enrich questions with user's practice data
+   541→    const enrichedQuestions = questionLibrary.map(q => ({
+   542→      ...q,
+   543→      times_practiced: historyMap[q.id]?.times_practiced || 0,
+   544→      last_score: historyMap[q.id]?.last_score || null,
+   545→      avg_score: historyMap[q.id]?.avg_score || null,
+   546→      last_practiced: historyMap[q.id]?.last_practiced || null
+   547→    }));
+   548→
+   549→    res.json({
+   550→      success: true,
+   551→      questions: enrichedQuestions
+   552→    });
+   553→  } catch (err) {
+   554→    console.error('Get practice library error:', err);
+   555→    res.status(500).json({ error: 'Failed to fetch question library' });
+   556→  }
+   557→});
+   558→
+   559→// Submit practice response and get AI coaching
+   560→router.post('/practice/submit', authMiddleware, async (req, res) => {
+   561→  try {
+   562→    const { question_id, category, response_text } = req.body;
+   563→    // Default question text from library if not provided
+   564→    const libraryQ = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
+   565→    const question = req.body.question || (libraryQ && libraryQ.question) || `Practice question ${question_id || 'unknown'}`;
+   566→
+   567→    if (!response_text || response_text.trim().length < 50) {
+   568→      return res.status(400).json({ error: 'Response must be at least 50 characters' });
+   569→    }
+   570→
+   571→    // Look up key_points from question library
+   572→    const libraryQuestion = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
+   573→    const keyPoints = libraryQuestion ? libraryQuestion.key_points : ['Content quality', 'Structure', 'Clarity', 'Relevance'];
+   574→
+   575→    // First, analyze the response with real key points
+   576→    const analysis = await analyzeInterviewResponse(
+   577→      question,
+   578→      response_text,
+   579→      keyPoints,
+   580→      { subscriptionId: req.user.stripe_subscription_id }
+   581→    );
+   582→
+   583→    // Then, generate detailed coaching
+   584→    const coaching = await generateInterviewCoaching(
+   585→      question,
+   586→      response_text,
+   587→      analysis,
+   588→      { subscriptionId: req.user.stripe_subscription_id }
+   589→    );
+   590→
+   591→    // Combine analysis and coaching
+   592→    const fullCoaching = {
+   593→      score: analysis.score,
+   594→      strengths: analysis.strengths,
+   595→      improvements: analysis.improvements,
+   596→      ...coaching
+   597→    };
+   598→
+   599→    // Save practice session
+   600→    await pool.query(
+   601→      `INSERT INTO practice_sessions
+   602→       (user_id, question_id, question, category, response_text, score, coaching_data, created_at)
+   603→       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+   604→      [
+   605→        req.user.id,
+   606→        question_id,
+   607→        question,
+   608→        category,
+   609→        response_text,
+   610→        analysis.score,
+   611→        JSON.stringify(fullCoaching)
+   612→      ]
+   613→    );
+   614→
+   615→    res.json({
+   616→      success: true,
+   617→      coaching: fullCoaching
+   618→    });
+   619→  } catch (err) {
+   620→    console.error('Submit practice response error:', err);
+   621→    res.status(500).json({ error: 'Failed to analyze response' });
+   622→  }
+   623→});
+   624→
+   625→// Submit video practice response and get comprehensive AI coaching
+   626→router.post('/practice/submit-video', authMiddleware, async (req, res) => {
+   627→  try {
+   628→    const { question_id, category, transcription, frames, duration_seconds, audio_data } = req.body;
+   629→    // Default question text from library if not provided
+   630→    const libQ = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
+   631→    const question = req.body.question || (libQ && libQ.question) || `Practice question ${question_id || 'unknown'}`;
+   632→
+   633→    if (!transcription || transcription.trim().length < 20) {
+   634→      return res.status(400).json({ error: 'Transcription too short. Please speak for at least 15-20 seconds.' });
+   635→    }
+   636→
+   637→    if (!frames || !Array.isArray(frames) || frames.length === 0) {
+   638→      return res.status(400).json({ error: 'No video frames captured. Please allow camera access.' });
+   639→    }
+   640→
+   641→    // Look up key_points from question library
+   642→    const libraryQuestion = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
+   643→    const keyPoints = libraryQuestion ? libraryQuestion.key_points : ['Content quality', 'Structure', 'Clarity', 'Relevance'];
+   644→
+   645→    // Run comprehensive multi-modal analysis (now with optional audio)
+   646→    const coaching = await analyzeVideoInterviewResponse(
+   647→      question,
+   648→      transcription,
+   649→      frames,
+   650→      duration_seconds || 60,
+   651→      keyPoints,
+   652→      { subscriptionId: req.user.stripe_subscription_id, audioData: audio_data || null }
+   653→    );
+   654→
+   655→    // Save practice session with video data
+   656→    await pool.query(
+   657→      `INSERT INTO practice_sessions
+   658→       (user_id, question_id, question, category, response_text, score, coaching_data, response_type, transcription, audio_analysis, video_analysis, duration_seconds, created_at)
+   659→       VALUES ($1, $2, $3, $4, $5, $6, $7, 'video', $8, $9, $10, $11, NOW())`,
+   660→      [
+   661→        req.user.id,
+   662→        question_id,
+   663→        question,
+   664→        category,
+   665→        transcription,
+   666→        Math.round(coaching.overall_score),
+   667→        JSON.stringify(coaching),
+   668→        transcription,
+   669→        JSON.stringify(coaching.communication),
+   670→        JSON.stringify(coaching.presentation),
+   671→        duration_seconds || 60
+   672→      ]
+   673→    );
+   674→
+   675→    res.json({
+   676→      success: true,
+   677→      coaching
+   678→    });
+   679→  } catch (err) {
+   680→    console.error('Submit video practice response error:', err);
+   681→    res.status(500).json({ error: 'Failed to analyze video response. Please try again.' });
+   682→  }
+   683→});
+   684→
+   685→// Get practice statistics
+   686→router.get('/practice/stats', authMiddleware, async (req, res) => {
+   687→  try {
+   688→    const stats = await pool.query(
+   689→      `SELECT
+   690→        COUNT(*) as total_questions,
+   691→        AVG(score) as average_score,
+   692→        MAX(created_at) as last_practice
+   693→       FROM practice_sessions
+   694→       WHERE user_id = $1`,
+   695→      [req.user.id]
+   696→    );
+   697→
+   698→    // Calculate improvement (compare first half vs second half of sessions)
+   699→    const improvement = await pool.query(
+   700→      `WITH ordered_sessions AS (
+   701→        SELECT score, ROW_NUMBER() OVER (ORDER BY created_at) as rn,
+   702→               COUNT(*) OVER () as total
+   703→        FROM practice_sessions
+   704→        WHERE user_id = $1
+   705→      )
+   706→      SELECT
+   707→        AVG(CASE WHEN rn <= total/2 THEN score END) as first_half_avg,
+   708→        AVG(CASE WHEN rn > total/2 THEN score END) as second_half_avg
+   709→      FROM ordered_sessions`,
+   710→      [req.user.id]
+   711→    );
+   712→
+   713→    let improvementPercent = null;
+   714→    if (improvement.rows[0].first_half_avg && improvement.rows[0].second_half_avg) {
+   715→      const firstHalf = parseFloat(improvement.rows[0].first_half_avg);
+   716→      const secondHalf = parseFloat(improvement.rows[0].second_half_avg);
+   717→      improvementPercent = ((secondHalf - firstHalf) / firstHalf) * 100;
+   718→    }
+   719→
+   720→    // Calculate day streak
+   721→    const streakResult = await pool.query(
+   722→      `WITH RECURSIVE date_series AS (
+   723→        SELECT CURRENT_DATE::date as check_date, 0 as days_back
+   724→        UNION ALL
+   725→        SELECT (check_date - INTERVAL '1 day')::date, days_back + 1
+   726→        FROM date_series
+   727→        WHERE days_back < 30
+   728→      )
+   729→      SELECT COUNT(*) as streak
+   730→      FROM date_series d
+   731→      WHERE EXISTS (
+   732→        SELECT 1 FROM practice_sessions
+   733→        WHERE user_id = $1 AND DATE(created_at) = d.check_date
+   734→      )
+   735→      AND d.check_date <= CURRENT_DATE
+   736→      AND NOT EXISTS (
+   737→        SELECT 1 FROM date_series d2
+   738→        WHERE d2.check_date > d.check_date
+   739→        AND d2.check_date <= CURRENT_DATE
+   740→        AND NOT EXISTS (
+   741→          SELECT 1 FROM practice_sessions
+   742→          WHERE user_id = $1 AND DATE(created_at) = d2.check_date
+   743→        )
+   744→      )`,
+   745→      [req.user.id]
+   746→    );
+   747→
+   748→    res.json({
+   749→      success: true,
+   750→      stats: {
+   751→        total_questions: parseInt(stats.rows[0].total_questions) || 0,
+   752→        average_score: parseFloat(stats.rows[0].average_score) || null,
+   753→        improvement: improvementPercent,
+   754→        day_streak: parseInt(streakResult.rows[0].streak) || 0,
+   755→        last_practice: stats.rows[0].last_practice
+   756→      }
+   757→    });
+   758→  } catch (err) {
+   759→    console.error('Get practice stats error:', err);
+   760→    res.status(500).json({ error: 'Failed to fetch statistics' });
+   761→  }
+   762→});
+   763→
+   764→// Get practice progress dashboard
+   765→router.get('/practice/progress', authMiddleware, async (req, res) => {
+   766→  try {
+   767→    // Progress by category
+   768→    const byCategory = await pool.query(
+   769→      `SELECT
+   770→        category,
+   771→        COUNT(*) as count,
+   772→        AVG(score) as average_score
+   773→       FROM practice_sessions
+   774→       WHERE user_id = $1
+   775→       GROUP BY category
+   776→       ORDER BY average_score DESC`,
+   777→      [req.user.id]
+   778→    );
+   779→
+   780→    // Recent practice sessions
+   781→    const recentSessions = await pool.query(
+   782→      `SELECT
+   783→        question,
+   784→        category,
+   785→        score,
+   786→        coaching_data->>'improvements' as improvements,
+   787→        created_at
+   788→       FROM practice_sessions
+   789→       WHERE user_id = $1
+   790→       ORDER BY created_at DESC
+   791→       LIMIT 10`,
+   792→      [req.user.id]
+   793→    );
+   794→
+   795→    // Parse improvements JSON string
+   796→    const sessionsWithParsedData = recentSessions.rows.map(row => {
+   797→      let improvements = [];
+   798→      try {
+   799→        if (row.improvements) {
+   800→          improvements = JSON.parse(row.improvements);
+   801→        }
+   802→      } catch (e) {
+   803→        console.error('Failed to parse improvements:', e);
+   804→      }
+   805→
+   806→      return {
+   807→        question: row.question,
+   808→        category: row.category,
+   809→        score: row.score,
+   810→        improvements,
+   811→        created_at: row.created_at
+   812→      };
+   813→    });
+   814→
+   815→    res.json({
+   816→      success: true,
+   817→      progress: {
+   818→        by_category: byCategory.rows,
+   819→        recent_sessions: sessionsWithParsedData
+   820→      }
+   821→    });
+   822→  } catch (err) {
+   823→    console.error('Get practice progress error:', err);
+   824→    res.status(500).json({ error: 'Failed to fetch progress' });
+   825→  }
+   826→});
+   827→
+   828→// =============== COACHING SESSION HISTORY ===============
+   829→
+   830→// Get all coaching sessions with full feedback data
+   831→router.get('/practice/sessions', authMiddleware, async (req, res) => {
+   832→  try {
+   833→    const { limit = 20, offset = 0, category } = req.query;
+   834→
+   835→    let whereClause = 'WHERE user_id = $1';
+   836→    const params = [req.user.id];
+   837→
+   838→    if (category && category !== 'all') {
+   839→      params.push(category);
+   840→      whereClause += ` AND category = $${params.length}`;
+   841→    }
+   842→
+   843→    const sessions = await pool.query(
+   844→      `SELECT
+   845→        id, question_id, question, category, response_text, score,
+   846→        coaching_data, response_type, transcription,
+   847→        audio_analysis, video_analysis, duration_seconds, created_at
+   848→       FROM practice_sessions
+   849→       ${whereClause}
+   850→       ORDER BY created_at DESC
+   851→       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+   852→      [...params, Number(limit), Number(offset)]
+   853→    );
+   854→
+   855→    const total = await pool.query(
+   856→      `SELECT COUNT(*) as count FROM practice_sessions ${whereClause}`,
+   857→      params
+   858→    );
+   859→
+   860→    // Parse JSONB fields
+   861→    const parsed = sessions.rows.map(row => ({
+   862→      ...row,
+   863→      coaching_data: typeof row.coaching_data === 'string' ? JSON.parse(row.coaching_data) : row.coaching_data,
+   864→      audio_analysis: typeof row.audio_analysis === 'string' ? JSON.parse(row.audio_analysis) : row.audio_analysis,
+   865→      video_analysis: typeof row.video_analysis === 'string' ? JSON.parse(row.video_analysis) : row.video_analysis,
+   866→    }));
+   867→
+   868→    res.json({
+   869→      success: true,
+   870→      sessions: parsed,
+   871→      total: parseInt(total.rows[0].count),
+   872→      has_more: (Number(offset) + parsed.length) < parseInt(total.rows[0].count)
+   873→    });
+   874→  } catch (err) {
+   875→    console.error('Get practice sessions error:', err);
+   876→    res.status(500).json({ error: 'Failed to fetch coaching sessions' });
+   877→  }
+   878→});
+   879→
+   880→// Get single coaching session detail
+   881→router.get('/practice/sessions/:id', authMiddleware, async (req, res) => {
+   882→  try {
+   883→    const session = await pool.query(
+   884→      `SELECT
+   885→        id, question_id, question, category, response_text, score,
+   886→        coaching_data, response_type, transcription,
+   887→        audio_analysis, video_analysis, duration_seconds, created_at
+   888→       FROM practice_sessions
+   889→       WHERE id = $1 AND user_id = $2`,
+   890→      [req.params.id, req.user.id]
+   891→    );
+   892→
+   893→    if (session.rows.length === 0) {
+   894→      return res.status(404).json({ error: 'Session not found' });
+   895→    }
+   896→
+   897→    const row = session.rows[0];
+   898→    res.json({
+   899→      success: true,
+   900→      session: {
+   901→        ...row,
+   902→        coaching_data: typeof row.coaching_data === 'string' ? JSON.parse(row.coaching_data) : row.coaching_data,
+   903→        audio_analysis: typeof row.audio_analysis === 'string' ? JSON.parse(row.audio_analysis) : row.audio_analysis,
+   904→        video_analysis: typeof row.video_analysis === 'string' ? JSON.parse(row.video_analysis) : row.video_analysis,
+   905→      }
+   906→    });
+   907→  } catch (err) {
+   908→    console.error('Get practice session detail error:', err);
+   909→    res.status(500).json({ error: 'Failed to fetch session details' });
+   910→  }
+   911→});
+   912→
+   913→// =============== VIDEO ANALYSIS ===============
+   914→
+   915→// Save video analysis data
+   916→router.post('/save-analysis', authMiddleware, async (req, res) => {
+   917→  try {
+   918→    const { interview_id, question_index, analysis_data, scores } = req.body;
+   919→
+   920→    // Verify interview belongs to user
+   921→    const interview = await pool.query(
+   922→      'SELECT * FROM interviews WHERE id = $1 AND user_id = $2',
+   923→      [interview_id, req.user.id]
+   924→    );
+   925→
+   926→    if (interview.rows.length === 0) {
+   927→      return res.status(404).json({ error: 'Interview not found' });
+   928→    }
+   929→
+   930→    // Insert or update analysis
+   931→    await pool.query(
+   932→      `INSERT INTO interview_analysis (
+   933→        interview_id, question_index, analysis_data,
+   934→        eye_contact_score, expression_score, body_language_score,
+   935→        voice_score, presentation_score
+   936→      )
+   937→      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+   938→      ON CONFLICT (interview_id, question_index)
+   939→      DO UPDATE SET
+   940→        analysis_data = $3,
+   941→        eye_contact_score = $4,
+   942→        expression_score = $5,
+   943→        body_language_score = $6,
+   944→        voice_score = $7,
+   945→        presentation_score = $8`,
+   946→      [
+   947→        interview_id,
+   948→        question_index,
+   949→        JSON.stringify(analysis_data),
+   950→        scores.eyeContact || 0,
+   951→        scores.expression || 0,
+   952→        scores.bodyLanguage || 0,
+   953→        scores.voice || 0,
+   954→        scores.presentation || 0
+   955→      ]
+   956→    );
+   957→
+   958→    res.json({ success: true });
+   959→  } catch (err) {
+   960→    console.error('Save analysis error:', err);
+   961→    res.status(500).json({ error: 'Failed to save analysis' });
+   962→  }
+   963→});
+   964→
+   965→// Get video analysis for an interview
+   966→router.get('/:id/analysis', authMiddleware, async (req, res) => {
+   967→  try {
+   968→    // Verify interview belongs to user
+   969→    const interview = await pool.query(
+   970→      'SELECT * FROM interviews WHERE id = $1 AND user_id = $2',
+   971→      [req.params.id, req.user.id]
+   972→    );
+   973→
+   974→    if (interview.rows.length === 0) {
+   975→      return res.status(404).json({ error: 'Interview not found' });
+   976→    }
+   977→
+   978→    // Get all analysis data for this interview
+   979→    const analysis = await pool.query(
+   980→      `SELECT * FROM interview_analysis
+   981→       WHERE interview_id = $1
+   982→       ORDER BY question_index ASC`,
+   983→      [req.params.id]
+   984→    );
+   985→
+   986→    // Calculate aggregate presentation score for OmniScore
+   987→    let avgPresentationScore = null;
+   988→    if (analysis.rows.length > 0) {
+   989→      const scores = analysis.rows.map(row => parseFloat(row.presentation_score || 0));
+   990→      avgPresentationScore = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+   991→    }
+   992→
+   993→    res.json({
+   994→      success: true,
+   995→      interview: interview.rows[0],
+   996→      analysis: analysis.rows.map(row => ({
+   997→        ...row,
+   998→        analysis_data: typeof row.analysis_data === 'string'
+   999→          ? JSON.parse(row.analysis_data)
+  1000→          : row.analysis_data
+  1001→      })),
+  1002→      aggregate_scores: {
+  1003→        presentation: avgPresentationScore
+  1004→      }
+  1005→    });
+  1006→  } catch (err) {
+  1007→    console.error('Get analysis error:', err);
+  1008→    res.status(500).json({ error: 'Failed to fetch analysis' });
+  1009→  }
+  1010→});
+  1011→
+  1012→// =============== MOCK INTERVIEW SESSIONS (Dynamic AI Interviewer) ===============
+  1013→
+  1014→// Helper: hash JD for dedup
+  1015→function hashJD(text) {
+  1016→  if (!text) return null;
+  1017→  return crypto.createHash('sha256').update(text.trim().toLowerCase()).digest('hex').substring(0, 16);
+  1018→}
+  1019→
+  1020→// Universal fallback questions — used when AI question generation fails (429, timeout, etc.)
+  1021→// Adapted with the target role name to feel personalized
+  1022→function getFallbackMockQuestions(role) {
+  1023→  return [
+  1024→    { question_text: `Tell me about yourself and why you're interested in a ${role} position.`, question_type: 'behavioral', difficulty: 'easy', key_points: ['Self-introduction', 'Relevant experience', 'Role motivation'], skills_tested: ['communication', 'self-awareness'] },
+  1025→    { question_text: `Describe a challenging project you worked on recently. What was your role and how did you handle obstacles?`, question_type: 'behavioral', difficulty: 'medium', key_points: ['Problem-solving', 'Resilience', 'Technical skills', 'Teamwork'], skills_tested: ['problem-solving', 'resilience'] },
+  1026→    { question_text: `What specific skills or experiences make you a strong candidate for a ${role} position?`, question_type: 'competency', difficulty: 'medium', key_points: ['Core competencies', 'Specific examples', 'Self-assessment'], skills_tested: ['self-assessment', 'communication'] },
+  1027→    { question_text: `How do you prioritize your work when you have multiple deadlines?`, question_type: 'situational', difficulty: 'medium', key_points: ['Time management', 'Organization', 'Communication', 'Prioritization'], skills_tested: ['time-management', 'organization'] },
+  1028→    { question_text: `Tell me about a time you received constructive criticism. How did you respond and what did you change?`, question_type: 'behavioral', difficulty: 'medium', key_points: ['Self-awareness', 'Growth mindset', 'Professional maturity', 'Adaptability'], skills_tested: ['adaptability', 'growth-mindset'] },
+  1029→    { question_text: `How do you stay current with industry trends and developments relevant to ${role}?`, question_type: 'competency', difficulty: 'easy', key_points: ['Continuous learning', 'Industry knowledge', 'Proactive development'], skills_tested: ['learning', 'industry-knowledge'] },
+  1030→    { question_text: `Describe a situation where you had to work with someone who had a very different working style from yours.`, question_type: 'behavioral', difficulty: 'medium', key_points: ['Collaboration', 'Flexibility', 'Communication', 'Conflict resolution'], skills_tested: ['teamwork', 'communication'] },
+  1031→    { question_text: `Where do you see yourself in 3-5 years, and how does a ${role} position fit into your career plan?`, question_type: 'situational', difficulty: 'easy', key_points: ['Career vision', 'Ambition', 'Role alignment', 'Long-term thinking'], skills_tested: ['planning', 'ambition'] },
+  1032→  ];
+  1033→}
+  1034→
+  1035→// Start a mock interview session — generates or pulls questions for the role
+  1036→router.post('/mock/start', authMiddleware, async (req, res) => {
+  1037→  try {
+  1038→    const { target_role, job_description } = req.body;
+  1039→
+  1040→    if (!target_role || target_role.trim().length < 2) {
+  1041→      return res.status(400).json({ error: 'Please enter a target role (e.g., "Software Engineer", "Product Manager")' });
+  1042→    }
+  1043→
+  1044→    const role = target_role.trim();
+  1045→    const jdHash = hashJD(job_description);
+  1046→
+  1047→    // Check if we already have questions in the bank for this role/JD combo
+  1048→    let bankQuestions;
+  1049→    let usedFallback = false;
+  1050→    const existing = await pool.query(
+  1051→      `SELECT * FROM question_bank WHERE LOWER(role) = LOWER($1) ${jdHash ? 'AND jd_hash = $2' : 'AND jd_hash IS NULL'}
+  1052→       ORDER BY RANDOM()`,
+  1053→      jdHash ? [role, jdHash] : [role]
+  1054→    );
+  1055→
+  1056→    if (existing.rows.length >= 8) {
+  1057→      // Use existing bank — pick random 8-10
+  1058→      bankQuestions = existing.rows.slice(0, Math.min(10, existing.rows.length));
+  1059→      console.log(`[mock] Found ${existing.rows.length} existing questions for "${role}", using ${bankQuestions.length}`);
+  1060→    } else {
+  1061→      // Try to generate new question bank
+  1062→      console.log(`[mock] Generating new question bank for "${role}"...`);
+  1063→      try {
+  1064→        const generated = await withTimeout(
+  1065→          generateQuestionBank(role, job_description, {
+  1066→            subscriptionId: req.user.stripe_subscription_id
+  1067→          }),
+  1068→          25000,
+  1069→          'AI question generation'
+  1070→        );
+  1071→
+  1072→        if (generated && Array.isArray(generated) && generated.length > 0) {
+  1073→          // Store in question_bank
+  1074→          const insertedIds = [];
+  1075→          for (const q of generated) {
+  1076→            try {
+  1077→              const result = await pool.query(
+  1078→                `INSERT INTO question_bank (role, jd_hash, skills, question_text, question_type, difficulty, key_points)
+  1079→                 VALUES ($1, $2, $3, $4, $5, $6, $7)
+  1080→                 RETURNING id`,
+  1081→                [
+  1082→                  role,
+  1083→                  jdHash,
+  1084→                  q.skills_tested || [],
+  1085→                  q.question_text,
+  1086→                  q.question_type || 'behavioral',
+  1087→                  q.difficulty || 'medium',
+  1088→                  q.key_points || []
+  1089→                ]
+  1090→              );
+  1091→              insertedIds.push(result.rows[0].id);
+  1092→            } catch (insertErr) {
+  1093→              console.error('[mock] Failed to insert question:', insertErr.message);
+  1094→            }
+  1095→          }
+  1096→
+  1097→          console.log(`[mock] Stored ${insertedIds.length} questions in bank`);
+  1098→
+  1099→          // Pull 8-10 random from what we just inserted
+  1100→          const freshQuestions = await pool.query(
+  1101→            `SELECT * FROM question_bank WHERE id = ANY($1) ORDER BY RANDOM() LIMIT 10`,
+  1102→            [insertedIds]
+  1103→          );
+  1104→          bankQuestions = freshQuestions.rows;
+  1105→        }
+  1106→      } catch (genErr) {
+  1107→        console.warn(`[mock] AI question generation failed (${genErr.message}), using fallback questions`);
+  1108→      }
+  1109→
+  1110→      // FALLBACK: If AI generation failed or returned nothing, insert generic role-adapted questions
+  1111→      if (!bankQuestions || bankQuestions.length === 0) {
+  1112→        console.log(`[mock] Using fallback questions for "${role}"`);
+  1113→        usedFallback = true;
+  1114→        const fallbacks = getFallbackMockQuestions(role);
+  1115→        const insertedIds = [];
+  1116→        for (const q of fallbacks) {
+  1117→          try {
+  1118→            const result = await pool.query(
+  1119→              `INSERT INTO question_bank (role, jd_hash, skills, question_text, question_type, difficulty, key_points)
+  1120→               VALUES ($1, $2, $3, $4, $5, $6, $7)
+  1121→               RETURNING id`,
+  1122→              [role, jdHash, q.skills_tested || [], q.question_text, q.question_type, q.difficulty, q.key_points || []]
+  1123→            );
+  1124→            insertedIds.push(result.rows[0].id);
+  1125→          } catch (insertErr) {
+  1126→            console.error('[mock] Failed to insert fallback question:', insertErr.message);
+  1127→          }
+  1128→        }
+  1129→        if (insertedIds.length > 0) {
+  1130→          const freshQuestions = await pool.query(
+  1131→            `SELECT * FROM question_bank WHERE id = ANY($1) ORDER BY RANDOM() LIMIT 10`,
+  1132→            [insertedIds]
+  1133→          );
+  1134→          bankQuestions = freshQuestions.rows;
+  1135→        }
+  1136→      }
+  1137→    }
+  1138→
+  1139→    if (!bankQuestions || bankQuestions.length === 0) {
+  1140→      return res.status(500).json({ error: 'No questions available. Please try again.' });
+  1141→    }
+  1142→
+  1143→    // Create mock interview session
+  1144→    const questionIds = bankQuestions.map(q => q.id);
+  1145→
+  1146→    // Build opening message — natural interview greeting, NO format explanation
+  1147→    // The first actual question comes AFTER the candidate introduces themselves
+  1148→    const openingMessage = {
+  1149→      role: 'interviewer',
+  1150→      text: `Hi there! I'm Alex, and I'll be interviewing you today for the ${role} position. Thanks for taking the time — before we dive in, could you tell me a little about yourself and what drew you to this role?`,
+  1151→      action: 'introduction',
+  1152→      timestamp: new Date().toISOString()
+  1153→    };
+  1154→
+  1155→    const session = await pool.query(
+  1156→      `INSERT INTO mock_interview_sessions
+  1157→       (user_id, target_role, job_description, jd_hash, question_ids, conversation, current_question_index, questions_asked)
+  1158→       VALUES ($1, $2, $3, $4, $5, $6, 0, 0)
+  1159→       RETURNING *`,
+  1160→      [
+  1161→        req.user.id,
+  1162→        role,
+  1163→        job_description || null,
+  1164→        jdHash,
+  1165→        questionIds,
+  1166→        JSON.stringify([openingMessage])
+  1167→      ]
+  1168→    );
+  1169→
+  1170→    // Don't increment times_used yet — first question comes after candidate intro
+  1171→
+  1172→    res.json({
+  1173→      success: true,
+  1174→      session: session.rows[0],
+  1175→      questions_count: bankQuestions.length,
+  1176→      first_message: openingMessage
+  1177→    });
+  1178→  } catch (err) {
+  1179→    console.error('Start mock interview error:', err);
+  1180→    res.status(500).json({ error: 'Failed to start mock interview' });
+  1181→  }
+  1182→});
+  1183→
+  1184→// Submit a response in a mock interview — AI responds conversationally
+  1185→router.post('/mock/:sessionId/respond', authMiddleware, async (req, res) => {
+  1186→  try {
+  1187→    const { response_text } = req.body;
+  1188→    const sessionId = req.params.sessionId;
+  1189→
+  1190→    if (!response_text || response_text.trim().length < 10) {
+  1191→      return res.status(400).json({ error: 'Response too short. Please elaborate on your answer.' });
+  1192→    }
+  1193→
+  1194→    // Get session
+  1195→    const sessionResult = await pool.query(
+  1196→      'SELECT * FROM mock_interview_sessions WHERE id = $1 AND user_id = $2 AND status = $3',
+  1197→      [sessionId, req.user.id, 'in_progress']
+  1198→    );
+  1199→
+  1200→    if (sessionResult.rows.length === 0) {
+  1201→      return res.status(404).json({ error: 'Session not found or already completed' });
+  1202→    }
+  1203→
+  1204→    const session = sessionResult.rows[0];
+  1205→    const conversation = session.conversation || [];
+  1206→    const questionIds = session.question_ids || [];
+  1207→
+  1208→    // Get base questions from bank
+  1209→    const questionsResult = await pool.query(
+  1210→      'SELECT * FROM question_bank WHERE id = ANY($1)',
+  1211→      [questionIds]
+  1212→    );
+  1213→    // Maintain order from questionIds
+  1214→    const questionMap = {};
+  1215→    questionsResult.rows.forEach(q => { questionMap[q.id] = q; });
+  1216→    const baseQuestions = questionIds.map(id => questionMap[id]).filter(Boolean);
+  1217→
+  1218→    // Add candidate response to conversation
+  1219→    const candidateMessage = {
+  1220→      role: 'candidate',
+  1221→      text: response_text.trim(),
+  1222→      timestamp: new Date().toISOString()
+  1223→    };
+  1224→    conversation.push(candidateMessage);
+  1225→
+  1226→    // AI generates next interviewer turn (with fallback on failure)
+  1227→    // BUG FIX: Wrap with 20s overall timeout — the LLM chain can take 135s (9 providers × 15s each),
+  1228→    // but Render kills the request at ~30s. Without this, the scripted fallback never fires.
+  1229→    let aiTurn;
+  1230→    try {
+  1231→      aiTurn = await withTimeout(
+  1232→        conductInterviewTurn(
+  1233→          conversation,
+  1234→          baseQuestions,
+  1235→          session.current_question_index,
+  1236→          session.target_role,
+  1237→          { subscriptionId: req.user.stripe_subscription_id }
+  1238→        ),
+  1239→        20000,
+  1240→        'Interview AI turn generation'
+  1241→      );
+  1242→    } catch (aiErr) {
+  1243→      console.warn(`[mock] AI turn generation failed (${aiErr.message}), using scripted fallback`);
+  1244→      // Scripted fallback: acknowledge answer and move to next question from bank
+  1245→      const nextIdx = session.current_question_index + 1;
+  1246→      const nextQ = baseQuestions[nextIdx];
+  1247→      const candidateTurnCount = conversation.filter(t => t.role === 'candidate').length;
+  1248→      if (nextQ && candidateTurnCount < 8) {
+  1249→        aiTurn = {
+  1250→          reaction: "Thank you for that response. That's helpful context.",
+  1251→          action: 'transition',
+  1252→          question: nextQ.question_text,
+  1253→          score_hint: null,
+  1254→          notes: 'AI unavailable — scripted transition'
+  1255→        };
+  1256→      } else {
+  1257→        aiTurn = {
+  1258→          reaction: "Thank you for sharing all of that. I think we've covered a good range of topics.",
+  1259→          action: 'wrap_up',
+  1260→          question: "Is there anything else you'd like to add before we wrap up?",
+  1261→          score_hint: null,
+  1262→          notes: 'AI unavailable — scripted wrap-up'
+  1263→        };
+  1264→      }
+  1265→    }
+  1266→
+  1267→    // Build interviewer message
+  1268→    let interviewerText = aiTurn.reaction || '';
+  1269→    if (aiTurn.question) {
+  1270→      interviewerText += (interviewerText ? '\n\n' : '') + aiTurn.question;
+  1271→    }
+  1272→
+  1273→    const interviewerMessage = {
+  1274→      role: 'interviewer',
+  1275→      text: interviewerText,
+  1276→      action: aiTurn.action || 'transition',
+  1277→      score_hint: aiTurn.score_hint || null,
+  1278→      notes: aiTurn.notes || null,
+  1279→      timestamp: new Date().toISOString()
+  1280→    };
+  1281→    conversation.push(interviewerMessage);
+  1282→
+  1283→    // Update session
+  1284→    const isWrappingUp = aiTurn.action === 'wrap_up';
+  1285→    const isTransition = aiTurn.action === 'transition';
+  1286→    const newQuestionIndex = isTransition
+  1287→      ? Math.min(session.current_question_index + 1, baseQuestions.length)
+  1288→      : session.current_question_index;
+  1289→    const newFollowUps = (aiTurn.action === 'follow_up' || aiTurn.action === 'challenge')
+  1290→      ? (session.follow_ups_asked || 0) + 1
+  1291→      : session.follow_ups_asked || 0;
+  1292→
+  1293→    // Increment times_used for the new question if transitioning
+  1294→    if (isTransition && newQuestionIndex < baseQuestions.length) {
+  1295→      const nextQ = baseQuestions[newQuestionIndex];
+  1296→      if (nextQ) {
+  1297→        await pool.query('UPDATE question_bank SET times_used = times_used + 1 WHERE id = $1', [nextQ.id]);
+  1298→      }
+  1299→    }
+  1300→
+  1301→    await pool.query(
+  1302→      `UPDATE mock_interview_sessions
+  1303→       SET conversation = $1, current_question_index = $2,
+  1304→           questions_asked = $3, follow_ups_asked = $4
+  1305→       WHERE id = $5`,
+  1306→      [
+  1307→        JSON.stringify(conversation),
+  1308→        newQuestionIndex,
+  1309→        isTransition ? (session.questions_asked || 0) + 1 : session.questions_asked || 0,
+  1310→        newFollowUps,
+  1311→        sessionId
+  1312→      ]
+  1313→    );
+  1314→
+  1315→    // BUG FIX: Pre-generate feedback in background after 3+ candidate turns
+  1316→    // This dramatically reduces wait time when user clicks "End"
+  1317→    const candidateTurnCount = conversation.filter(t => t.role === 'candidate').length;
+  1318→    if (candidateTurnCount >= 3 && !isWrappingUp) {
+  1319→      // Fire and forget — generate text feedback in background and cache it
+  1320→      generateSessionFeedback(conversation, session.target_role, { subscriptionId: req.user.stripe_subscription_id })
+  1321→        .then(feedback => {
+  1322→          // Store cached feedback in session (overwrite each time for freshest data)
+  1323→          pool.query(
+  1324→            `UPDATE mock_interview_sessions SET cached_feedback = $1 WHERE id = $2 AND status = 'in_progress'`,
+  1325→            [JSON.stringify(feedback), sessionId]
+  1326→          ).catch(() => {}); // Non-fatal
+  1327→          console.log(`[mock] Background feedback cached for session ${sessionId} (${candidateTurnCount} turns)`);
+  1328→        })
+  1329→        .catch(err => console.warn('[mock] Background feedback generation failed:', err.message));
+  1330→    }
+  1331→
+  1332→    res.json({
+  1333→      success: true,
+  1334→      interviewer_message: interviewerMessage,
+  1335→      action: aiTurn.action,
+  1336→      questions_asked: isTransition ? (session.questions_asked || 0) + 1 : session.questions_asked || 0,
+  1337→      is_wrapping_up: isWrappingUp
+  1338→    });
+  1339→  } catch (err) {
+  1340→    console.error('Mock interview respond error:', err);
+  1341→    res.status(500).json({ error: 'Failed to process response. Please try again.' });
+  1342→  }
+  1343→});
+  1344→
+  1345→// End a mock interview session and get comprehensive feedback
+  1346→router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
+  1347→  try {
+  1348→    const sessionId = req.params.sessionId;
+  1349→    const { frames } = req.body; // Video frames for body language analysis
+  1350→
+  1351→    const sessionResult = await pool.query(
+  1352→      'SELECT * FROM mock_interview_sessions WHERE id = $1 AND user_id = $2',
+  1353→      [sessionId, req.user.id]
+  1354→    );
+  1355→
+  1356→    if (sessionResult.rows.length === 0) {
+  1357→      return res.status(404).json({ error: 'Session not found' });
+  1358→    }
+  1359→
+  1360→    const session = sessionResult.rows[0];
+  1361→    const conversation = session.conversation || [];
+  1362→
+  1363→    // BUG FIX: Allow ending at any time. If 0 answers, return success with no_feedback flag
+  1364→    // instead of 400 error (which left the session stuck and the end button broken).
+  1365→    const candidateTurns = conversation.filter(t => t.role === 'candidate');
+  1366→    if (candidateTurns.length === 0) {
+  1367→      // Mark session as completed even with no answers
+  1368→      await pool.query(
+  1369→        `UPDATE mock_interview_sessions SET status = 'completed', completed_at = NOW() WHERE id = $1`,
+  1370→        [sessionId]
+  1371→      );
+  1372→      return res.json({
+  1373→        success: true,
+  1374→        no_feedback: true,
+  1375→        feedback: null,
+  1376→        session: {
+  1377→          id: session.id,
+  1378→          target_role: session.target_role,
+  1379→          questions_asked: 0,
+  1380→          follow_ups_asked: 0,
+  1381→          duration_minutes: 0
+  1382→        }
+  1383→      });
+  1384→    }
+  1385→
+  1386→    // BUG FIX: Return text feedback IMMEDIATELY. Video/voice analysis runs in background.
+  1387→    const candidateText = candidateTurns.map(t => t.text).join('\n\n');
+  1388→    const durationSeconds = Math.round((Date.now() - new Date(session.started_at).getTime()) / 1000);
+  1389→    const options = { subscriptionId: req.user.stripe_subscription_id };
+  1390→
+  1391→    // Step 1: Get text feedback (use cache if available — pre-generated during interview)
+  1392→    let feedback = null;
+  1393→    if (session.cached_feedback) {
+  1394→      try {
+  1395→        feedback = typeof session.cached_feedback === 'string'
+  1396→          ? JSON.parse(session.cached_feedback)
+  1397→          : session.cached_feedback;
+  1398→        console.log(`[mock-end] Using cached feedback (pre-generated during interview)`);
+  1399→      } catch { feedback = null; }
+  1400→    }
+  1401→    if (!feedback) {
+  1402→      try {
+  1403→        feedback = await generateSessionFeedback(conversation, session.target_role, options);
+  1404→      } catch (feedbackErr) {
+  1405→        console.warn(`[mock-end] AI feedback generation failed (${feedbackErr.message}), using basic feedback`);
+  1406→        // Generate basic feedback without AI when rate-limited
+  1407→        feedback = {
+  1408→          overall_score: 5,
+  1409→          interview_readiness: 'almost_ready',
+  1410→          summary: `You completed a ${session.target_role} mock interview with ${candidateTurns.length} response(s). AI-powered detailed feedback is temporarily unavailable — try again later for in-depth analysis.`,
+  1411→          strengths: ['You showed up and practiced — that alone puts you ahead of most candidates.'],
+  1412→          improvements: ['Try the interview again when AI analysis is available for detailed feedback on your responses.'],
+  1413→          question_scores: [],
+  1414→          star_method_usage: { score: 5, feedback: 'Detailed STAR analysis unavailable at this time.' },
+  1415→          communication_quality: { score: 5, feedback: 'Detailed communication analysis unavailable at this time.' },
+  1416→          technical_depth: { score: 5, feedback: 'Detailed technical analysis unavailable at this time.' },
+  1417→          top_tip: 'Practice makes perfect. Come back and try again for AI-powered feedback!'
+  1418→        };
+  1419→      }
+  1420→    }
+  1421→
+  1422→    // Step 2: Save and return text feedback immediately
+  1423→    await pool.query(
+  1424→      `UPDATE mock_interview_sessions
+  1425→       SET status = 'completed', overall_score = $1, overall_feedback = $2, completed_at = NOW()
+  1426→       WHERE id = $3`,
+  1427→      [feedback.overall_score || 5, JSON.stringify(feedback), sessionId]
+  1428→    );
+  1429→
+  1430→    // Save as practice_session for stats
+  1431→    try {
+  1432→      await pool.query(
+  1433→        `INSERT INTO practice_sessions
+  1434→         (user_id, question_id, question, category, response_text, score, coaching_data, created_at)
+  1435→         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+  1436→        [
+  1437→          req.user.id,
+  1438→          `mock-${sessionId}`,
+  1439→          `Mock Interview: ${session.target_role}`,
+  1440→          'mock_interview',
+  1441→          candidateText,
+  1442→          Math.round(feedback.overall_score || 5),
+  1443→          JSON.stringify(feedback)
+  1444→        ]
+  1445→      );
+  1446→    } catch (psErr) {
+  1447→      console.error('Failed to save mock session to practice_sessions:', psErr.message);
+  1448→    }
+  1449→
+  1450→    // Return feedback to user IMMEDIATELY (no waiting for video/voice analysis)
+  1451→    res.json({
+  1452→      success: true,
+  1453→      feedback,
+  1454→      session: {
+  1455→        id: session.id,
+  1456→        target_role: session.target_role,
+  1457→        questions_asked: session.questions_asked,
+  1458→        follow_ups_asked: session.follow_ups_asked,
+  1459→        duration_minutes: Math.round(durationSeconds / 60)
+  1460→      }
+  1461→    });
+  1462→
+  1463→    // Step 3: Run video/voice analysis in BACKGROUND (fire and forget)
+  1464→    // Results get saved to DB — user can see them on next page load or refresh
+  1465→    const bgSessionId = sessionId;
+  1466→    const bgUserId = req.user.id;
+  1467→    (async () => {
+  1468→      try {
+  1469→        const bgPromises = [];
+  1470→        if (frames && Array.isArray(frames) && frames.length > 0) {
+  1471→          console.log(`[mock-end-bg] Running background body language analysis with ${frames.length} frames`);
+  1472→          bgPromises.push(analyzeVideoPresentation(frames, options).catch(e => { console.warn('[mock-end-bg] Video analysis failed:', e.message); return null; }));
+  1473→        } else {
+  1474→          bgPromises.push(Promise.resolve(null));
+  1475→        }
+  1476→        if (candidateText.length > 20) {
+  1477→          console.log(`[mock-end-bg] Running background voice quality analysis`);
+  1478→          bgPromises.push(analyzeVoiceQuality(candidateText, durationSeconds, options).catch(e => { console.warn('[mock-end-bg] Voice analysis failed:', e.message); return null; }));
+  1479→        } else {
+  1480→          bgPromises.push(Promise.resolve(null));
+  1481→        }
+  1482→
+  1483→        const [videoAnalysis, voiceAnalysis] = await Promise.all(bgPromises);
+  1484→
+  1485→        // Merge into feedback
+  1486→        if (videoAnalysis) {
+  1487→          feedback.presentation = {
+  1488→            score: videoAnalysis.overall_presentation || 5,
+  1489→            eye_contact: videoAnalysis.eye_contact || { score: 5, feedback: '' },
+  1490→            facial_expressions: videoAnalysis.facial_expressions || { score: 5, feedback: '' },
+  1491→            body_language: videoAnalysis.body_language || { score: 5, feedback: '' },
+  1492→            professional_appearance: videoAnalysis.professional_appearance || { score: 5, feedback: '' },
+  1493→            summary: videoAnalysis.summary || ''
+  1494→          };
+  1495→        }
+  1496→        if (voiceAnalysis) {
+  1497→          feedback.voice_analysis = voiceAnalysis;
+  1498→        }
+  1499→
+  1500→        // Recalculate score with presentation/voice
+  1501→        if (videoAnalysis || voiceAnalysis) {
+  1502→          const textScore = feedback.overall_score || 5;
+  1503→          const presScore = videoAnalysis?.overall_presentation || textScore;
+  1504→          const voiceScore = voiceAnalysis?.overall_voice_score || textScore;
+  1505→          feedback.overall_score = Math.round((textScore * 0.5 + presScore * 0.25 + voiceScore * 0.25) * 10) / 10;
+  1506→        }
+  1507→
+  1508→        // Update DB with enriched feedback
+  1509→        await pool.query(
+  1510→          `UPDATE mock_interview_sessions SET overall_score = $1, overall_feedback = $2 WHERE id = $3`,
+  1511→          [feedback.overall_score, JSON.stringify(feedback), bgSessionId]
+  1512→        );
+  1513→        console.log(`[mock-end-bg] Background analysis complete for session ${bgSessionId}`);
+  1514→      } catch (bgErr) {
+  1515→        console.error('[mock-end-bg] Background analysis error:', bgErr.message);
+  1516→      }
+  1517→    })();
+  1518→  } catch (err) {
+  1519→    console.error('End mock interview error:', err);
+  1520→    res.status(500).json({ error: 'Failed to generate feedback' });
+  1521→  }
+  1522→});
+  1523→
+  1524→// Get mock interview session history
+  1525→router.get('/mock/sessions', authMiddleware, async (req, res) => {
+  1526→  try {
+  1527→    const { limit = 20, offset = 0 } = req.query;
+  1528→
+  1529→    const sessions = await pool.query(
+  1530→      `SELECT id, target_role, status, overall_score, questions_asked, follow_ups_asked,
+  1531→              started_at, completed_at,
+  1532→              EXTRACT(EPOCH FROM (COALESCE(completed_at, NOW()) - started_at)) / 60 as duration_minutes
+  1533→       FROM mock_interview_sessions
+  1534→       WHERE user_id = $1
+  1535→       ORDER BY started_at DESC
+  1536→       LIMIT $2 OFFSET $3`,
+  1537→      [req.user.id, Number(limit), Number(offset)]
+  1538→    );
+  1539→
+  1540→    const total = await pool.query(
+  1541→      'SELECT COUNT(*) as count FROM mock_interview_sessions WHERE user_id = $1',
+  1542→      [req.user.id]
+  1543→    );
+  1544→
+  1545→    res.json({
+  1546→      success: true,
+  1547→      sessions: sessions.rows,
+  1548→      total: parseInt(total.rows[0].count)
+  1549→    });
+  1550→  } catch (err) {
+  1551→    console.error('Get mock sessions error:', err);
+  1552→    res.status(500).json({ error: 'Failed to fetch sessions' });
+  1553→  }
+  1554→});
+  1555→
+  1556→// Get single mock interview session with full conversation
+  1557→router.get('/mock/sessions/:id', authMiddleware, async (req, res) => {
+  1558→  try {
+  1559→    const session = await pool.query(
+  1560→      `SELECT * FROM mock_interview_sessions WHERE id = $1 AND user_id = $2`,
+  1561→      [req.params.id, req.user.id]
+  1562→    );
+  1563→
+  1564→    if (session.rows.length === 0) {
+  1565→      return res.status(404).json({ error: 'Session not found' });
+  1566→    }
+  1567→
+  1568→    res.json({ success: true, session: session.rows[0] });
+  1569→  } catch (err) {
+  1570→    console.error('Get mock session error:', err);
+  1571→    res.status(500).json({ error: 'Failed to fetch session' });
+  1572→  }
+  1573→});
+  1574→
+  1575→// Get question bank stats (for admin/debugging)
+  1576→router.get('/mock/question-bank', authMiddleware, async (req, res) => {
+  1577→  try {
+  1578→    const { role } = req.query;
+  1579→
+  1580→    let whereClause = '';
+  1581→    const params = [];
+  1582→    if (role) {
+  1583→      params.push(role);
+  1584→      whereClause = 'WHERE LOWER(role) = LOWER($1)';
+  1585→    }
+  1586→
+  1587→    const stats = await pool.query(
+  1588→      `SELECT role, question_type, COUNT(*) as count, AVG(avg_score) as avg_score
+  1589→       FROM question_bank ${whereClause}
+  1590→       GROUP BY role, question_type
+  1591→       ORDER BY role, question_type`,
+  1592→      params
+  1593→    );
+  1594→
+  1595→    const totalQuestions = await pool.query(
+  1596→      `SELECT COUNT(*) as total, COUNT(DISTINCT role) as roles FROM question_bank ${whereClause}`,
+  1597→      params
+  1598→    );
+  1599→
+  1600→    res.json({
+  1601→      success: true,
+  1602→      bank_stats: stats.rows,
+  1603→      total_questions: parseInt(totalQuestions.rows[0].total),
+  1604→      total_roles: parseInt(totalQuestions.rows[0].roles)
+  1605→    });
+  1606→  } catch (err) {
+  1607→    console.error('Get question bank error:', err);
+  1608→    res.status(500).json({ error: 'Failed to fetch question bank' });
+  1609→  }
+  1610→});
+  1611→
+  1612→// =============== VOICE INTERVIEW (TTS + STT) ===============
+  1613→
+  1614→// Text-to-Speech endpoint — converts interviewer text to spoken audio
+  1615→// Real-time single-frame body language analysis (lightweight, called every ~20s during interview)
+  1616→router.post('/mock/analyze-frame', authMiddleware, async (req, res) => {
+  1617→  try {
+  1618→    const { frame } = req.body;
+  1619→    if (!frame) {
+  1620→      return res.status(400).json({ error: 'No frame provided' });
+  1621→    }
+  1622→
+  1623→    // Upload single frame to R2
+  1624→    const { uploadFrameToR2 } = require('../lib/polsia-ai');
+  1625→    const frameUrl = await uploadFrameToR2(frame, 0);
+  1626→    if (!frameUrl) {
+  1627→      return res.json({ success: false, error: 'Frame upload failed' });
+  1628→    }
+  1629→
+  1630→    // Quick analysis with vision API — uses provider fallback (GPT-4o → NIM Cosmos → NIM Nemotron VL)
+  1631→    const { aiProvider } = require('../lib/polsia-ai');
+  1632→    const analysisPrompt = `Quick interview body language check. Rate each as "good", "fair", or "poor" with a 2-3 word tip. Return JSON only:
+  1633→{"eye_contact":"good|fair|poor","posture":"good|fair|poor","confidence":"good|fair|poor","expression":"good|fair|poor","tip":"brief tip"}`;
+  1634→
+  1635→    const text = await aiProvider.visionAnalysis([frameUrl], analysisPrompt, {
+  1636→      maxTokens: 200,
+  1637→      task: 'interview-realtime-body-language',
+  1638→    });
+  1639→    let indicators;
+  1640→    try {
+  1641→      const jsonMatch = text.match(/\{[\s\S]*\}/);
+  1642→      indicators = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+  1643→    } catch {
+  1644→      indicators = null;
+  1645→    }
+  1646→
+  1647→    if (indicators) {
+  1648→      res.json({ success: true, indicators });
+  1649→    } else {
+  1650→      res.json({ success: false, error: 'Could not parse analysis' });
+  1651→    }
+  1652→  } catch (err) {
+  1653→    console.error('[analyze-frame] Error:', err.message);
+  1654→    res.json({ success: false, error: 'Analysis failed' });
+  1655→  }
+  1656→});
+  1657→
+  1658→router.post('/mock/tts', authMiddleware, async (req, res) => {
+  1659→  try {
+  1660→    const { text, voice } = req.body;
+  1661→
+  1662→    if (!text || text.trim().length < 2) {
+  1663→      return res.status(400).json({ error: 'No text provided' });
+  1664→    }
+  1665→
+  1666→    const audioBuffer = await textToSpeech(text.trim(), {
+  1667→      voice: voice || 'nova',
+  1668→      subscriptionId: req.user.stripe_subscription_id
+  1669→    });
+  1670→
+  1671→    if (!audioBuffer) {
+  1672→      // Return 200 with JSON flag instead of 500 — lets frontend fall back to browser speech synthesis
+  1673→      return res.status(200).json({ tts_unavailable: true, text: text.trim() });
+  1674→    }
+  1675→
+  1676→    // Return audio as binary MP3
+  1677→    res.set({
+  1678→      'Content-Type': 'audio/mpeg',
+  1679→      'Content-Length': audioBuffer.length,
+  1680→      'Cache-Control': 'no-cache',
+  1681→    });
+  1682→    res.send(audioBuffer);
+  1683→  } catch (err) {
+  1684→    console.error('TTS endpoint error:', err);
+  1685→    // Return 200 with fallback flag instead of crashing
+  1686→    res.status(200).json({ tts_unavailable: true, text: req.body?.text || '' });
+  1687→  }
+  1688→});
+  1689→
+  1690→// Voice response endpoint — candidate audio → Whisper transcription → AI response → TTS audio
+  1691→router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('audio'), async (req, res) => {
+  1692→  try {
+  1693→    const sessionId = req.params.sessionId;
+  1694→
+  1695→    // BUG FIX: Validate sessionId is a valid integer (prevents "undefined" SQL errors)
+  1696→    if (!sessionId || sessionId === 'undefined' || sessionId === 'null' || isNaN(parseInt(sessionId))) {
+  1697→      return res.status(400).json({ error: 'Invalid session. Please restart the interview.' });
+  1698→    }
+  1699→
+  1700→    // Get session
+  1701→    const sessionResult = await pool.query(
+  1702→      'SELECT * FROM mock_interview_sessions WHERE id = $1 AND user_id = $2 AND status = $3',
+  1703→      [parseInt(sessionId), req.user.id, 'in_progress']
+  1704→    );
+  1705→
+  1706→    if (sessionResult.rows.length === 0) {
+  1707→      return res.status(404).json({ error: 'Session not found or already completed' });
+  1708→    }
+  1709→
+  1710→    const session = sessionResult.rows[0];
+  1711→    const conversation = session.conversation || [];
+  1712→    const questionIds = session.question_ids || [];
+  1713→
+  1714→    // Step 1: Transcribe audio with Whisper (with client-side SpeechRecognition fallback)
+  1715→    // The client sends the live SpeechRecognition transcript alongside the audio as a fallback
+  1716→    const clientTranscript = (req.body.response_text || '').trim();
+  1717→    let transcribedText = '';
+  1718→    let usedFallback = false;
+  1719→
+  1720→    if (req.file) {
+  1721→      // Audio file uploaded as multipart — use ASR fallback chain (Whisper → NIM Parakeet v2 → v3)
+  1722→      const baseMime = (req.file.mimetype || 'audio/webm').split(';')[0];
+  1723→      const ext = baseMime.includes('mp4') ? 'mp4' : baseMime.includes('ogg') ? 'ogg' : 'webm';
+  1724→      const filename = `recording.${ext}`;
+  1725→      console.log(`[voice-respond] Received file: ${req.file.size} bytes, mime: ${req.file.mimetype}, client transcript: ${clientTranscript.length} chars`);
+  1726→
+  1727→      try {
+  1728→        // Use the full ASR fallback chain (OpenAI Whisper → NIM Parakeet v2 → NIM Parakeet v3)
+  1729→        const asrResult = await aiProvider.transcribeAudio(
+  1730→          req.file.buffer,
+  1731→          filename,
+  1732→          baseMime,
+  1733→          { subscriptionId: req.user.stripe_subscription_id }
+  1734→        );
+  1735→        if (asrResult && asrResult.text) {
+  1736→          transcribedText = asrResult.text.trim();
+  1737→          console.log(`[voice-respond] ASR transcription: "${transcribedText.substring(0, 100)}..."`);
+  1738→        } else if (clientTranscript.length >= 10) {
+  1739→          // ASR returned nothing — use client transcript
+  1740→          transcribedText = clientTranscript;
+  1741→          usedFallback = true;
+  1742→          console.log(`[voice-respond] ASR empty, using client transcript`);
+  1743→        }
+  1744→      } catch (asrErr) {
+  1745→        console.error('[voice-respond] ASR fallback chain failed:', asrErr.message);
+  1746→        // All ASR providers failed — fall back to client-side SpeechRecognition transcript
+  1747→        if (clientTranscript.length >= 10) {
+  1748→          transcribedText = clientTranscript;
+  1749→          usedFallback = true;
+  1750→          console.log(`[voice-respond] Using client SpeechRecognition fallback: "${transcribedText.substring(0, 100)}..."`);
+  1751→        }
+  1752→      }
+  1753→    } else if (req.body.audio_base64) {
+  1754→      const whisperResult = await transcribeAudioWithWhisper(req.body.audio_base64, {
+  1755→        subscriptionId: req.user.stripe_subscription_id
+  1756→      });
+  1757→      if (whisperResult && whisperResult.text) {
+  1758→        transcribedText = whisperResult.text.trim();
+  1759→      }
+  1760→    } else if (clientTranscript.length >= 5) {
+  1761→      // Client-side transcript only (no audio file)
+  1762→      transcribedText = clientTranscript;
+  1763→      usedFallback = true;
+  1764→    }
+  1765→
+  1766→    // BUG FIX: Whisper hallucinates known phrases on silent/near-silent audio
+  1767→    const WHISPER_HALLUCINATIONS = [
+  1768→      'ご視聴ありがとうございました', '視聴ありがとうございました', 'ありがとうございました',
+  1769→      'ご視聴ありがとうございます', '字幕', 'サブスクライブ', 'チャンネル登録',
+  1770→      '谢谢观看', '感谢观看', 'Sous-titres', 'Sottotitoli', 'Untertitel',
+  1771→      'Thanks for watching', 'Thank you for watching', 'Please subscribe', 'Like and subscribe',
+  1772→    ];
+  1773→    const isHallucination = !usedFallback && WHISPER_HALLUCINATIONS.some(phrase =>
+  1774→      transcribedText.toLowerCase().includes(phrase.toLowerCase())
+  1775→    );
+  1776→    if (isHallucination) {
+  1777→      console.log(`[voice-respond] Filtered Whisper hallucination: "${transcribedText}"`);
+  1778→      // Try client transcript before rejecting
+  1779→      if (clientTranscript.length >= 10) {
+  1780→        transcribedText = clientTranscript;
+  1781→        usedFallback = true;
+  1782→      } else {
+  1783→        return res.status(400).json({ error: 'I didn\'t catch that. Could you please repeat your answer.' });
+  1784→      }
+  1785→    }
+  1786→
+  1787→    if (!transcribedText || transcribedText.length < 5) {
+  1788→      return res.status(400).json({ error: 'Could not transcribe your response. Please try speaking louder and more clearly.' });
+  1789→    }
+  1790→
+  1791→    // Step 2: Add candidate response to conversation
+  1792→    const candidateMessage = {
+  1793→      role: 'candidate',
+  1794→      text: transcribedText,
+  1795→      timestamp: new Date().toISOString()
+  1796→    };
+  1797→    conversation.push(candidateMessage);
+  1798→
+  1799→    // Step 3: Get base questions and AI response (with fallback)
+  1800→    const questionsResult = await pool.query(
+  1801→      'SELECT * FROM question_bank WHERE id = ANY($1)',
+  1802→      [questionIds]
+  1803→    );
+  1804→    const questionMap = {};
+  1805→    questionsResult.rows.forEach(q => { questionMap[q.id] = q; });
+  1806→    const baseQuestions = questionIds.map(id => questionMap[id]).filter(Boolean);
+  1807→
+  1808→    // BUG FIX: Wrap with 20s overall timeout — the LLM chain can take 135s (9 providers × 15s each),
+  1809→    // but Render kills the request at ~30s. Without this, the scripted fallback never fires.
+  1810→    let aiTurn;
+  1811→    try {
+  1812→      aiTurn = await withTimeout(
+  1813→        conductInterviewTurn(
+  1814→          conversation,
+  1815→          baseQuestions,
+  1816→          session.current_question_index,
+  1817→          session.target_role,
+  1818→          { subscriptionId: req.user.stripe_subscription_id }
+  1819→        ),
+  1820→        20000,
+  1821→        'Voice interview AI turn generation'
+  1822→      );
+  1823→    } catch (aiErr) {
+  1824→      console.warn(`[voice-respond] AI turn generation failed (${aiErr.message}), using scripted fallback`);
+  1825→      const nextIdx = session.current_question_index + 1;
+  1826→      const nextQ = baseQuestions[nextIdx];
+  1827→      const candidateTurnCount = conversation.filter(t => t.role === 'candidate').length;
+  1828→      if (nextQ && candidateTurnCount < 8) {
+  1829→        aiTurn = {
+  1830→          reaction: "Thank you for that response.",
+  1831→          action: 'transition',
+  1832→          question: nextQ.question_text,
+  1833→          score_hint: null,
+  1834→          notes: 'AI unavailable — scripted transition'
+  1835→        };
+  1836→      } else {
+  1837→        aiTurn = {
+  1838→          reaction: "Thank you for sharing all of that.",
+  1839→          action: 'wrap_up',
+  1840→          question: "Is there anything else you'd like to add before we wrap up?",
+  1841→          score_hint: null,
+  1842→          notes: 'AI unavailable — scripted wrap-up'
+  1843→        };
+  1844→      }
+  1845→    }
+  1846→
+  1847→    // Build interviewer message
+  1848→    let interviewerText = aiTurn.reaction || '';
+  1849→    if (aiTurn.question) {
+  1850→      interviewerText += (interviewerText ? '\n\n' : '') + aiTurn.question;
+  1851→    }
+  1852→
+  1853→    const interviewerMessage = {
+  1854→      role: 'interviewer',
+  1855→      text: interviewerText,
+  1856→      action: aiTurn.action || 'transition',
+  1857→      score_hint: aiTurn.score_hint || null,
+  1858→      notes: aiTurn.notes || null,
+  1859→      timestamp: new Date().toISOString()
+  1860→    };
+  1861→    conversation.push(interviewerMessage);
+  1862→
+  1863→    // Step 4: Update session in DB
+  1864→    const isWrappingUp = aiTurn.action === 'wrap_up';
+  1865→    const isTransition = aiTurn.action === 'transition';
+  1866→    const newQuestionIndex = isTransition
+  1867→      ? Math.min(session.current_question_index + 1, baseQuestions.length)
+  1868→      : session.current_question_index;
+  1869→    const newFollowUps = (aiTurn.action === 'follow_up' || aiTurn.action === 'challenge')
+  1870→      ? (session.follow_ups_asked || 0) + 1
+  1871→      : session.follow_ups_asked || 0;
+  1872→
+  1873→    if (isTransition && newQuestionIndex < baseQuestions.length) {
+  1874→      const nextQ = baseQuestions[newQuestionIndex];
+  1875→      if (nextQ) {
+  1876→        await pool.query('UPDATE question_bank SET times_used = times_used + 1 WHERE id = $1', [nextQ.id]);
+  1877→      }
+  1878→    }
+  1879→
+  1880→    await pool.query(
+  1881→      `UPDATE mock_interview_sessions
+  1882→       SET conversation = $1, current_question_index = $2,
+  1883→           questions_asked = $3, follow_ups_asked = $4
+  1884→       WHERE id = $5`,
+  1885→      [
+  1886→        JSON.stringify(conversation),
+  1887→        newQuestionIndex,
+  1888→        isTransition ? (session.questions_asked || 0) + 1 : session.questions_asked || 0,
+  1889→        newFollowUps,
+  1890→        sessionId
+  1891→      ]
+  1892→    );
+  1893→
+  1894→    // BUG FIX: Pre-generate feedback in background after 3+ candidate turns (same as text respond)
+  1895→    const voiceCandidateTurnCount = conversation.filter(t => t.role === 'candidate').length;
+  1896→    if (voiceCandidateTurnCount >= 3 && !isWrappingUp) {
+  1897→      generateSessionFeedback(conversation, session.target_role, { subscriptionId: req.user.stripe_subscription_id })
+  1898→        .then(feedback => {
+  1899→          pool.query(
+  1900→            `UPDATE mock_interview_sessions SET cached_feedback = $1 WHERE id = $2 AND status = 'in_progress'`,
+  1901→            [JSON.stringify(feedback), sessionId]
+  1902→          ).catch(() => {});
+  1903→          console.log(`[voice-respond] Background feedback cached for session ${sessionId} (${voiceCandidateTurnCount} turns)`);
+  1904→        })
+  1905→        .catch(err => console.warn('[voice-respond] Background feedback generation failed:', err.message));
+  1906→    }
+  1907→
+  1908→    // Step 5: Generate TTS for interviewer response (8s timeout — TTS chain is 2 providers × 8s max)
+  1909→    let audioBase64 = null;
+  1910→    try {
+  1911→      const audioBuffer = await withTimeout(
+  1912→        textToSpeech(interviewerText, {
+  1913→          voice: 'nova',
+  1914→          subscriptionId: req.user.stripe_subscription_id
+  1915→        }),
+  1916→        10000,
+  1917→        'TTS generation'
+  1918→      );
+  1919→      if (audioBuffer) {
+  1920→        audioBase64 = audioBuffer.toString('base64');
+  1921→      }
+  1922→    } catch (ttsErr) {
+  1923→      console.error('TTS generation failed for voice-respond:', ttsErr.message);
+  1924→      // Non-fatal — response still works without audio
+  1925→    }
+  1926→
+  1927→    res.json({
+  1928→      success: true,
+  1929→      transcribed_text: transcribedText,
+  1930→      interviewer_message: interviewerMessage,
+  1931→      interviewer_audio_base64: audioBase64,
+  1932→      action: aiTurn.action,
+  1933→      questions_asked: isTransition ? (session.questions_asked || 0) + 1 : session.questions_asked || 0,
+  1934→      is_wrapping_up: isWrappingUp
+  1935→    });
+  1936→  } catch (err) {
+  1937→    console.error('Voice respond error:', err);
+  1938→    res.status(500).json({ error: 'Failed to process voice response. Please try again.' });
+  1939→  }
+  1940→});
+  1941→
+  1942→module.exports = router;
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

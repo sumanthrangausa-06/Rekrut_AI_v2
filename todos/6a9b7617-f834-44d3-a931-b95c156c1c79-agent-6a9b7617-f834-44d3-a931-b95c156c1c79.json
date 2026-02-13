@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate codebase: read interview routes, frontend, DB schema",
+    "status": "completed",
+    "activeForm": "Investigating codebase"
+  },
+  {
+    "content": "Phase 1: Backend fixes — question limit, categorization, improved AI prompt, session categories API",
+    "status": "completed",
+    "activeForm": "Fixing backend issues"
+  },
+  {
+    "content": "Phase 2: Frontend fixes — session category tags, body language polling, feedback display, question bank browse",
+    "status": "completed",
+    "activeForm": "Fixing frontend issues"
+  },
+  {
+    "content": "Deploy and verify all fixes",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying"
+  }
+]
