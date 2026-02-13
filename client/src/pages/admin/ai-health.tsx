@@ -267,7 +267,76 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string
   error:      { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200' },
 }
 
-type TabId = 'overview' | 'ai' | 'activity'
+type TabId = 'overview' | 'ai' | 'monitoring' | 'prompts' | 'activity'
+
+// ─── AI Monitoring Types ────────────────────────────────────────────────────
+
+interface AiUsageData {
+  summary: { totalCalls: number; totalTokens: number; totalCost: number; avgLatency: number; failures: number; successRate: number }
+  models: Record<string, { calls: number; totalTokens: number; avgTokens: number; avgLatencyMs: number; successRate: number; failures: number; cost: number; lastUsed: string | null }>
+  modules: Record<string, { calls: number; totalTokens: number; cost: number; failures: number }>
+  hourly: Array<{ hour: string; label: string; calls: number; tokens: number; cost: number }>
+  budget: TokenBudgetData
+}
+
+interface BudgetPrediction {
+  exhausted: boolean
+  burnRatePerMinute: number
+  prediction: string
+  exhaustsAt: string | null
+  minutesRemaining: number | null
+}
+
+interface BudgetData extends TokenBudgetData {
+  prediction: BudgetPrediction
+  moduleBreakdown: Record<string, { calls: number; totalTokens: number; cost: number; failures: number }>
+  throttleStatus: Array<{ module: string; priority: string; throttled: boolean }>
+}
+
+interface AiCallLog {
+  id: number
+  module: string
+  feature: string
+  modality: string
+  provider: string
+  model: string
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  latency_ms: number
+  success: boolean
+  error_message: string | null
+  cost_estimate: number
+  fallback_chain: string[] | null
+  created_at: string
+  // In-memory fields
+  promptTokens?: number
+  completionTokens?: number
+  totalTokens?: number
+  latencyMs?: number
+  errorMessage?: string
+  costEstimate?: number
+  fallbackChain?: string[] | null
+  createdAt?: string
+}
+
+interface PromptData {
+  id: number
+  slug: string
+  name: string
+  module: string
+  feature: string
+  description: string
+  current_version: number
+  model: string
+  avg_tokens: number
+  avg_latency_ms: number
+  success_rate: number
+  total_calls: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
 
 function formatProviderName(key: string): string {
   return key
@@ -1369,6 +1438,328 @@ function ModuleCards({ modules }: { modules: ModulesData }) {
   )
 }
 
+// ─── AI Monitoring Tab Components ────────────────────────────────────────────
+
+function BudgetPredictionPanel({ budget }: { budget: BudgetData }) {
+  const pred = budget.prediction
+  const pct = Math.min(100, budget.percentUsed)
+  const barColor = budget.budgetExhausted ? 'bg-red-500' : pct > 80 ? 'bg-amber-500' : pct > 50 ? 'bg-yellow-500' : 'bg-emerald-500'
+
+  return (
+    <Card className={cn(budget.budgetExhausted && 'border-red-300 ring-2 ring-red-200')}>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-base">Budget & Predictions</CardTitle>
+          </div>
+          {budget.budgetExhausted ? (
+            <Badge variant="destructive" className="animate-pulse">EXHAUSTED</Badge>
+          ) : pct > 80 ? (
+            <Badge className="bg-amber-100 text-amber-800 border-amber-300">Warning</Badge>
+          ) : (
+            <Badge variant="outline" className="text-emerald-700 border-emerald-300 bg-emerald-50">Healthy</Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex justify-between items-baseline">
+          <span className="text-3xl font-bold tabular-nums">{budget.tokensUsed.toLocaleString()}</span>
+          <span className="text-sm text-muted-foreground">/ {budget.dailyBudget.toLocaleString()}</span>
+        </div>
+        <div className="h-3 rounded-full bg-muted overflow-hidden">
+          <div className={cn('h-full rounded-full transition-all duration-500', barColor)} style={{ width: `${pct}%` }} />
+        </div>
+        {/* Prediction */}
+        <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+          <p className="text-sm font-medium">{pred.prediction}</p>
+          {pred.burnRatePerMinute > 0 && (
+            <p className="text-xs text-muted-foreground">Burn rate: ~{pred.burnRatePerMinute.toLocaleString()} tokens/min</p>
+          )}
+        </div>
+        {/* Throttle status */}
+        {budget.throttleStatus.some(t => t.throttled) && (
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Throttled Modules</p>
+            <div className="flex flex-wrap gap-1.5">
+              {budget.throttleStatus.filter(t => t.throttled).map(t => (
+                <Badge key={t.module} variant="destructive" className="text-xs">
+                  {formatModuleName(t.module)}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* Priority legend */}
+        <div className="flex gap-2 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-400" /> Critical</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" /> High</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-blue-400" /> Medium</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-slate-400" /> Low</span>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ModelPerformanceTable({ models }: { models: AiUsageData['models'] }) {
+  const entries = Object.entries(models).sort((a, b) => b[1].calls - a[1].calls)
+  if (entries.length === 0) {
+    return <p className="text-sm text-muted-foreground py-4 text-center">No AI calls yet — metrics will appear as calls are made</p>
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b text-left">
+            <th className="pb-2 font-medium">Model</th>
+            <th className="pb-2 font-medium text-right">Calls</th>
+            <th className="pb-2 font-medium text-right">Avg Tokens</th>
+            <th className="pb-2 font-medium text-right">Avg Latency</th>
+            <th className="pb-2 font-medium text-right">Success</th>
+            <th className="pb-2 font-medium text-right">Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map(([model, m]) => (
+            <tr key={model} className="border-b border-muted/50 hover:bg-muted/30">
+              <td className="py-2 font-mono text-xs max-w-[200px] truncate" title={model}>
+                {formatProviderName(model)}
+              </td>
+              <td className="py-2 text-right tabular-nums">{m.calls}</td>
+              <td className="py-2 text-right tabular-nums">{m.avgTokens.toLocaleString()}</td>
+              <td className="py-2 text-right tabular-nums">
+                <span className={cn(m.avgLatencyMs > 5000 ? 'text-red-600' : m.avgLatencyMs > 2000 ? 'text-amber-600' : '')}>
+                  {m.avgLatencyMs.toLocaleString()}ms
+                </span>
+              </td>
+              <td className="py-2 text-right tabular-nums">
+                <span className={cn(m.successRate < 90 ? 'text-red-600' : m.successRate < 99 ? 'text-amber-600' : 'text-emerald-600')}>
+                  {m.successRate}%
+                </span>
+              </td>
+              <td className="py-2 text-right tabular-nums text-muted-foreground">${m.cost.toFixed(4)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function ModuleCostBreakdown({ modules }: { modules: AiUsageData['modules'] }) {
+  const entries = Object.entries(modules).sort((a, b) => b[1].totalTokens - a[1].totalTokens)
+  if (entries.length === 0) return null
+  const maxTokens = Math.max(...entries.map(([, m]) => m.totalTokens))
+
+  return (
+    <div className="space-y-2">
+      {entries.map(([mod, m]) => {
+        const pct = maxTokens > 0 ? (m.totalTokens / maxTokens) * 100 : 0
+        return (
+          <div key={mod} className="flex items-center gap-3">
+            <span className="text-xs font-medium w-28 truncate" title={mod}>{formatModuleName(mod)}</span>
+            <div className="flex-1 h-5 bg-muted rounded-full overflow-hidden">
+              <div className="h-full bg-primary/60 rounded-full transition-all" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="text-xs tabular-nums text-muted-foreground w-20 text-right">{m.totalTokens.toLocaleString()}</span>
+            <span className="text-xs tabular-nums text-muted-foreground w-16 text-right">${m.cost.toFixed(4)}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function HourlyUsageChart({ hourly }: { hourly: AiUsageData['hourly'] }) {
+  if (!hourly || hourly.length === 0) return null
+  const maxTokens = Math.max(...hourly.map(h => h.tokens), 1)
+
+  return (
+    <div>
+      <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Token Usage (Last 24h)</p>
+      <div className="flex items-end gap-0.5 h-24">
+        {hourly.map((h, i) => {
+          const height = Math.max(2, (h.tokens / maxTokens) * 100)
+          return (
+            <div key={i} className="flex-1 flex flex-col items-center" title={`${h.label}: ${h.tokens.toLocaleString()} tokens, ${h.calls} calls`}>
+              <div className={cn('w-full rounded-t-sm', h.tokens > 0 ? 'bg-primary/60 hover:bg-primary/80' : 'bg-muted/30')} style={{ height: `${height}%` }} />
+            </div>
+          )
+        })}
+      </div>
+      <div className="flex justify-between mt-1">
+        <span className="text-[10px] text-muted-foreground">{hourly[0]?.label}</span>
+        <span className="text-[10px] text-muted-foreground">{hourly[hourly.length - 1]?.label}</span>
+      </div>
+    </div>
+  )
+}
+
+function AiCallLogTable({ logs }: { logs: AiCallLog[] }) {
+  if (logs.length === 0) {
+    return <p className="text-sm text-muted-foreground py-4 text-center">No AI calls logged yet</p>
+  }
+  return (
+    <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+      <table className="w-full text-xs">
+        <thead className="sticky top-0 bg-card">
+          <tr className="border-b text-left">
+            <th className="pb-2 font-medium">Time</th>
+            <th className="pb-2 font-medium">Module</th>
+            <th className="pb-2 font-medium">Modality</th>
+            <th className="pb-2 font-medium">Provider</th>
+            <th className="pb-2 font-medium text-right">Tokens</th>
+            <th className="pb-2 font-medium text-right">Latency</th>
+            <th className="pb-2 font-medium text-center">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {logs.map((log, i) => {
+            const ts = log.created_at || log.createdAt || ''
+            const tokens = log.total_tokens || log.totalTokens || 0
+            const latency = log.latency_ms || log.latencyMs || 0
+            const ok = log.success !== false
+            return (
+              <tr key={log.id || i} className="border-b border-muted/30 hover:bg-muted/20">
+                <td className="py-1.5 text-muted-foreground tabular-nums">{ts ? timeAgo(ts) : '-'}</td>
+                <td className="py-1.5">{formatModuleName(log.module)}</td>
+                <td className="py-1.5 capitalize">{log.modality}</td>
+                <td className="py-1.5 font-mono truncate max-w-[120px]" title={log.model || log.provider}>
+                  {formatProviderName(log.provider)}
+                </td>
+                <td className="py-1.5 text-right tabular-nums">{tokens.toLocaleString()}</td>
+                <td className="py-1.5 text-right tabular-nums">{latency}ms</td>
+                <td className="py-1.5 text-center">
+                  {ok ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 mx-auto" /> : <XCircle className="h-3.5 w-3.5 text-red-500 mx-auto" />}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function NlQueryPanel() {
+  const [question, setQuestion] = useState('')
+  const [answer, setAnswer] = useState('')
+  const [querying, setQuerying] = useState(false)
+
+  const handleQuery = async () => {
+    if (!question.trim()) return
+    setQuerying(true)
+    setAnswer('')
+    try {
+      const res = await fetch('/api/ai-health/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ question }),
+      })
+      if (res.ok) {
+        const json = await res.json()
+        setAnswer(json.answer || 'No answer generated')
+      } else {
+        setAnswer('Query failed — check console')
+      }
+    } catch {
+      setAnswer('Connection error')
+    } finally {
+      setQuerying(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-5 w-5 text-muted-foreground" />
+          <CardTitle className="text-base">Ask About AI Usage</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="e.g., Which AI features cost the most?"
+            value={question}
+            onChange={e => setQuestion(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleQuery()}
+            className="flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+          />
+          <Button size="sm" onClick={handleQuery} disabled={querying || !question.trim()}>
+            {querying ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </Button>
+        </div>
+        <div className="flex gap-1.5 flex-wrap">
+          {['Show me token usage by module', "What's our OpenAI vs NIM split?", 'Which module had the most failures?'].map(q => (
+            <button key={q} onClick={() => { setQuestion(q); }} className="text-xs px-2 py-1 rounded-full bg-muted hover:bg-muted/80 text-muted-foreground">
+              {q}
+            </button>
+          ))}
+        </div>
+        {answer && (
+          <div className="rounded-lg bg-muted/50 p-3 text-sm whitespace-pre-wrap">{answer}</div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─── Prompts Tab Components ─────────────────────────────────────────────────
+
+function PromptsPanel({ prompts }: { prompts: PromptData[] }) {
+  if (prompts.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <FileText className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">No prompts registered yet</p>
+          <p className="text-xs text-muted-foreground mt-1">Prompts will appear here as AI features register them</p>
+        </CardContent>
+      </Card>
+    )
+  }
+  return (
+    <div className="space-y-3">
+      {prompts.map(prompt => (
+        <Card key={prompt.id} className="hover:border-primary/30 transition-colors">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-medium text-sm">{prompt.name}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{prompt.slug}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">{formatModuleName(prompt.module)}</Badge>
+                <Badge variant="outline" className="text-xs">v{prompt.current_version}</Badge>
+                {prompt.is_active ? (
+                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">Active</Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-xs">Inactive</Badge>
+                )}
+              </div>
+            </div>
+            {prompt.description && (
+              <p className="text-xs text-muted-foreground mt-2">{prompt.description}</p>
+            )}
+            <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
+              <span>Calls: <strong className="text-foreground">{prompt.total_calls}</strong></span>
+              <span>Avg Tokens: <strong className="text-foreground">{Math.round(Number(prompt.avg_tokens) || 0)}</strong></span>
+              <span>Avg Latency: <strong className="text-foreground">{Math.round(Number(prompt.avg_latency_ms) || 0)}ms</strong></span>
+              <span>Success: <strong className={cn(
+                Number(prompt.success_rate) < 90 ? 'text-red-600' : 'text-emerald-600',
+              )}>{Number(prompt.success_rate || 100).toFixed(1)}%</strong></span>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export function AiHealthPage() {
@@ -1385,6 +1776,11 @@ export function AiHealthPage() {
   const [countdown, setCountdown] = useState(30)
   const [activeTab, setActiveTab] = useState<TabId>('overview')
   const [activityFilter, setActivityFilter] = useState('all')
+  // AI monitoring state
+  const [aiUsage, setAiUsage] = useState<AiUsageData | null>(null)
+  const [budgetData, setBudgetData] = useState<BudgetData | null>(null)
+  const [aiLogs, setAiLogs] = useState<AiCallLog[]>([])
+  const [prompts, setPrompts] = useState<PromptData[]>([])
 
   const handleLogout = useCallback(async () => {
     await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' })
@@ -1462,26 +1858,70 @@ export function AiHealthPage() {
     }
   }, [])
 
+  const fetchAiUsage = useCallback(async () => {
+    try {
+      const res = await fetch('/api/ai-health/usage', { credentials: 'include' })
+      if (res.ok) setAiUsage(await res.json())
+    } catch { /* optional */ }
+  }, [])
+
+  const fetchBudget = useCallback(async () => {
+    try {
+      const res = await fetch('/api/ai-health/budget', { credentials: 'include' })
+      if (res.ok) setBudgetData(await res.json())
+    } catch { /* optional */ }
+  }, [])
+
+  const fetchAiLogs = useCallback(async () => {
+    try {
+      const res = await fetch('/api/ai-health/logs?realtime=true&limit=100', { credentials: 'include' })
+      if (res.ok) {
+        const json = await res.json()
+        setAiLogs(json.logs || [])
+      }
+    } catch { /* optional */ }
+  }, [])
+
+  const fetchPrompts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/ai-health/prompts', { credentials: 'include' })
+      if (res.ok) {
+        const json = await res.json()
+        setPrompts(json.prompts || [])
+      }
+    } catch { /* optional */ }
+  }, [])
+
   useEffect(() => {
     // Initial load
     fetchHealth()
     fetchMetrics()
     fetchModules()
     fetchActivity()
+    fetchAiUsage()
+    fetchBudget()
+    fetchAiLogs()
+    fetchPrompts()
 
-    // Auto-refresh: health + metrics + modules every 30s, activity every 10s
+    // Auto-refresh: health + metrics + modules every 30s, AI monitoring every 15s, activity every 10s
     const healthInterval = setInterval(() => {
       fetchHealth()
       fetchMetrics()
       fetchModules()
     }, 30000)
+    const aiInterval = setInterval(() => {
+      fetchAiUsage()
+      fetchBudget()
+      fetchAiLogs()
+    }, 15000)
     const activityInterval = setInterval(() => fetchActivity(), 10000)
 
     return () => {
       clearInterval(healthInterval)
+      clearInterval(aiInterval)
       clearInterval(activityInterval)
     }
-  }, [fetchHealth, fetchMetrics, fetchModules, fetchActivity])
+  }, [fetchHealth, fetchMetrics, fetchModules, fetchActivity, fetchAiUsage, fetchBudget, fetchAiLogs, fetchPrompts])
 
   // Countdown timer
   useEffect(() => {
@@ -1523,7 +1963,9 @@ export function AiHealthPage() {
 
   const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
     { id: 'overview', label: 'Overview', icon: Server },
+    { id: 'monitoring', label: 'AI Monitoring', icon: TrendingUp },
     { id: 'ai', label: 'AI Providers', icon: Brain },
+    { id: 'prompts', label: 'Prompts', icon: FileText },
     { id: 'activity', label: 'Activity Feed', icon: Activity },
   ]
 
@@ -1548,7 +1990,7 @@ export function AiHealthPage() {
             <span className="text-xs text-muted-foreground tabular-nums hidden sm:inline">
               {countdown}s
             </span>
-            <Button variant="outline" size="sm" onClick={() => { fetchHealth(); fetchMetrics(); fetchModules(); fetchActivity() }} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => { fetchHealth(); fetchMetrics(); fetchModules(); fetchActivity(); fetchAiUsage(); fetchBudget(); fetchAiLogs(); fetchPrompts() }} className="gap-1.5">
               <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
@@ -1660,6 +2102,127 @@ export function AiHealthPage() {
                 ))}
               </div>
             </div>
+          </>
+        )}
+
+        {/* ─── AI MONITORING TAB ─── */}
+        {activeTab === 'monitoring' && (
+          <>
+            {/* Budget Prediction + NL Query */}
+            <div className="grid gap-4 lg:grid-cols-2">
+              {budgetData && <BudgetPredictionPanel budget={budgetData} />}
+              <NlQueryPanel />
+            </div>
+
+            {/* Usage Summary Cards */}
+            {aiUsage && (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-xs text-muted-foreground uppercase">Total Calls</p>
+                    <p className="text-2xl font-bold tabular-nums">{aiUsage.summary.totalCalls.toLocaleString()}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-xs text-muted-foreground uppercase">Total Tokens</p>
+                    <p className="text-2xl font-bold tabular-nums">{aiUsage.summary.totalTokens.toLocaleString()}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-xs text-muted-foreground uppercase">Avg Latency</p>
+                    <p className="text-2xl font-bold tabular-nums">{aiUsage.summary.avgLatency}ms</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-xs text-muted-foreground uppercase">Success Rate</p>
+                    <p className={cn('text-2xl font-bold tabular-nums', aiUsage.summary.successRate < 95 ? 'text-amber-600' : 'text-emerald-600')}>{aiUsage.summary.successRate}%</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-xs text-muted-foreground uppercase">Est. Cost</p>
+                    <p className="text-2xl font-bold tabular-nums">${aiUsage.summary.totalCost.toFixed(4)}</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Hourly Chart + Module Breakdown */}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                    <CardTitle className="text-base">Hourly Usage</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {aiUsage && <HourlyUsageChart hourly={aiUsage.hourly} />}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <LayoutGrid className="h-5 w-5 text-muted-foreground" />
+                    <CardTitle className="text-base">Module Cost Breakdown</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {aiUsage && <ModuleCostBreakdown modules={aiUsage.modules} />}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Model Performance Table */}
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Cpu className="h-5 w-5 text-muted-foreground" />
+                  <CardTitle className="text-base">Model Performance Comparison</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {aiUsage && <ModelPerformanceTable models={aiUsage.models} />}
+              </CardContent>
+            </Card>
+
+            {/* AI Call Log */}
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-muted-foreground" />
+                    <CardTitle className="text-base">AI Call Log</CardTitle>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={fetchAiLogs}>
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <AiCallLogTable logs={aiLogs} />
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {/* ─── PROMPTS TAB ─── */}
+        {activeTab === 'prompts' && (
+          <>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                <h2 className="font-heading text-lg font-semibold">Prompt Registry</h2>
+                <span className="text-xs text-muted-foreground">({prompts.length} prompts)</span>
+              </div>
+              <Button variant="outline" size="sm" onClick={fetchPrompts}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh
+              </Button>
+            </div>
+            <PromptsPanel prompts={prompts} />
           </>
         )}
 
