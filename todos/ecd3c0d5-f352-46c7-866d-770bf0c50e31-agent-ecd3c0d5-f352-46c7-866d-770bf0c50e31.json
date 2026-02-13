@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Phase 1: Job-based AI Assessment Generator API (POST /api/assessments/generate)",
+    "status": "completed",
+    "activeForm": "Building job-based AI assessment generator API"
+  },
+  {
+    "content": "Phase 2: AI Scoring Engine with composite breakdown + recruiter summary",
+    "status": "completed",
+    "activeForm": "Building AI scoring engine with composite breakdown"
+  },
+  {
+    "content": "Phase 3: Adaptive difficulty + conversational assessment API",
+    "status": "completed",
+    "activeForm": "Building adaptive difficulty and conversational assessment"
+  },
+  {
+    "content": "Phase 4: Frontend — recruiter generate + candidate take + results UI",
+    "status": "in_progress",
+    "activeForm": "Building frontend assessment UI for recruiters and candidates"
+  },
+  {
+    "content": "Phase 5: Commit, deploy, and verify E2E",
+    "status": "pending",
+    "activeForm": "Deploying and verifying E2E assessment flow"
+  }
+]
