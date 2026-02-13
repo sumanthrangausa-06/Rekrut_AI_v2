@@ -1223,44 +1223,72 @@ router.post('/mock/:sessionId/respond', authMiddleware, async (req, res) => {
     };
     conversation.push(candidateMessage);
 
+    // BUG FIX #1: Hard question limit — force wrap_up after 8 candidate turns
+    const MAX_QUESTIONS = 8;
+    const candidateTurnCount = conversation.filter(t => t.role === 'candidate').length;
+    const shouldForceEnd = candidateTurnCount >= MAX_QUESTIONS;
+
     // AI generates next interviewer turn (with fallback on failure)
     // BUG FIX: Wrap with 20s overall timeout — the LLM chain can take 135s (9 providers × 15s each),
     // but Render kills the request at ~30s. Without this, the scripted fallback never fires.
     let aiTurn;
-    try {
-      aiTurn = await withTimeout(
-        conductInterviewTurn(
-          conversation,
-          baseQuestions,
-          session.current_question_index,
-          session.target_role,
-          { subscriptionId: req.user.stripe_subscription_id }
-        ),
-        20000,
-        'Interview AI turn generation'
-      );
-    } catch (aiErr) {
-      console.warn(`[mock] AI turn generation failed (${aiErr.message}), using scripted fallback`);
-      // Scripted fallback: acknowledge answer and move to next question from bank
-      const nextIdx = session.current_question_index + 1;
-      const nextQ = baseQuestions[nextIdx];
-      const candidateTurnCount = conversation.filter(t => t.role === 'candidate').length;
-      if (nextQ && candidateTurnCount < 8) {
-        aiTurn = {
-          reaction: "Thank you for that response. That's helpful context.",
-          action: 'transition',
-          question: nextQ.question_text,
-          score_hint: null,
-          notes: 'AI unavailable — scripted transition'
-        };
-      } else {
-        aiTurn = {
-          reaction: "Thank you for sharing all of that. I think we've covered a good range of topics.",
-          action: 'wrap_up',
-          question: "Is there anything else you'd like to add before we wrap up?",
-          score_hint: null,
-          notes: 'AI unavailable — scripted wrap-up'
-        };
+
+    if (shouldForceEnd) {
+      // Hard limit reached — skip AI call entirely to save tokens
+      console.log(`[mock] Hard question limit reached (${candidateTurnCount} turns), forcing wrap_up`);
+      aiTurn = {
+        reaction: `That's been a really thorough interview — we've covered a lot of ground across ${candidateTurnCount} questions.`,
+        action: 'wrap_up',
+        question: "Before we finish, is there anything you'd like to add or any questions about the role?",
+        score_hint: null,
+        notes: 'Hard question limit reached'
+      };
+    } else {
+      try {
+        aiTurn = await withTimeout(
+          conductInterviewTurn(
+            conversation,
+            baseQuestions,
+            session.current_question_index,
+            session.target_role,
+            { subscriptionId: req.user.stripe_subscription_id }
+          ),
+          20000,
+          'Interview AI turn generation'
+        );
+        // BUG FIX #6: Override generic AI reactions with specific ones
+        if (aiTurn && aiTurn.reaction && /^(Thank you for (that|sharing|your) (response|answer)|That's (helpful|great|good|interesting)\.?)\s*$/i.test(aiTurn.reaction.trim())) {
+          // AI gave a generic filler reaction — replace with something referencing the answer
+          const lastAnswer = response_text.trim();
+          const firstSentence = lastAnswer.split(/[.!?]/)[0].substring(0, 80);
+          aiTurn.reaction = `Interesting — ${firstSentence.length > 30 ? "you mentioned " + firstSentence.toLowerCase() + "." : "that gives me good context."} Let me dig into that a bit more.`;
+        }
+      } catch (aiErr) {
+        console.warn(`[mock] AI turn generation failed (${aiErr.message}), using scripted fallback`);
+        // BUG FIX #6: Better scripted fallback — reference the candidate's actual answer
+        const nextIdx = session.current_question_index + 1;
+        const nextQ = baseQuestions[nextIdx];
+        const lastAnswer = response_text.trim();
+        const answerSnippet = lastAnswer.substring(0, 60).split(/[.!?]/)[0];
+        if (nextQ && candidateTurnCount < MAX_QUESTIONS) {
+          aiTurn = {
+            reaction: answerSnippet.length > 15
+              ? `I appreciate you sharing about ${answerSnippet.toLowerCase()}. That's useful context.`
+              : "Thanks for walking me through that — good detail there.",
+            action: 'transition',
+            question: nextQ.question_text,
+            score_hint: null,
+            notes: 'AI unavailable — scripted transition'
+          };
+        } else {
+          aiTurn = {
+            reaction: `We've covered a good range of topics across our conversation. I've got a strong sense of your background.`,
+            action: 'wrap_up',
+            question: "Is there anything else you'd like to add before we wrap up?",
+            score_hint: null,
+            notes: 'AI unavailable — scripted wrap-up'
+          };
+        }
       }
     }
 
@@ -1314,8 +1342,8 @@ router.post('/mock/:sessionId/respond', authMiddleware, async (req, res) => {
 
     // BUG FIX: Pre-generate feedback in background after 3+ candidate turns
     // This dramatically reduces wait time when user clicks "End"
-    const candidateTurnCount = conversation.filter(t => t.role === 'candidate').length;
-    if (candidateTurnCount >= 3 && !isWrappingUp) {
+    const currentCandidateTurns = conversation.filter(t => t.role === 'candidate').length;
+    if (currentCandidateTurns >= 3 && !isWrappingUp) {
       // Fire and forget — generate text feedback in background and cache it
       generateSessionFeedback(conversation, session.target_role, { subscriptionId: req.user.stripe_subscription_id })
         .then(feedback => {
@@ -1427,20 +1455,39 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
       [feedback.overall_score || 5, JSON.stringify(feedback), sessionId]
     );
 
-    // Save as practice_session for stats
+    // BUG FIX #7: Compute dominant category from actual questions asked (not hardcoded 'mock_interview')
+    let dominantCategory = 'behavioral'; // default fallback
+    try {
+      const questionIds = session.question_ids || [];
+      if (questionIds.length > 0) {
+        const qTypesResult = await pool.query(
+          'SELECT question_type, COUNT(*) as cnt FROM question_bank WHERE id = ANY($1) GROUP BY question_type ORDER BY cnt DESC LIMIT 1',
+          [questionIds]
+        );
+        if (qTypesResult.rows.length > 0) {
+          const rawType = qTypesResult.rows[0].question_type;
+          dominantCategory = rawType === 'competency' ? 'behavioral' : rawType;
+        }
+      }
+    } catch (catErr) {
+      console.error('Failed to compute dominant category:', catErr.message);
+    }
+
+    // Save as practice_session for stats (with correct category)
     try {
       await pool.query(
         `INSERT INTO practice_sessions
-         (user_id, question_id, question, category, response_text, score, coaching_data, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+         (user_id, question_id, question, category, response_text, score, coaching_data, response_type, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
         [
           req.user.id,
           `mock-${sessionId}`,
           `Mock Interview: ${session.target_role}`,
-          'mock_interview',
+          dominantCategory,
           candidateText,
           Math.round(feedback.overall_score || 5),
-          JSON.stringify(feedback)
+          JSON.stringify(feedback),
+          'voice'
         ]
       );
     } catch (psErr) {
@@ -1521,14 +1568,14 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
   }
 });
 
-// Get mock interview session history
+// Get mock interview session history (with category tags from question_bank)
 router.get('/mock/sessions', authMiddleware, async (req, res) => {
   try {
     const { limit = 20, offset = 0 } = req.query;
 
     const sessions = await pool.query(
       `SELECT id, target_role, status, overall_score, questions_asked, follow_ups_asked,
-              started_at, completed_at,
+              question_ids, started_at, completed_at,
               EXTRACT(EPOCH FROM (COALESCE(completed_at, NOW()) - started_at)) / 60 as duration_minutes
        FROM mock_interview_sessions
        WHERE user_id = $1
@@ -1537,6 +1584,30 @@ router.get('/mock/sessions', authMiddleware, async (req, res) => {
       [req.user.id, Number(limit), Number(offset)]
     );
 
+    // BUG FIX #7: Compute actual category tags for each session from question_bank
+    const allQuestionIds = [...new Set(sessions.rows.flatMap(s => s.question_ids || []))];
+    let questionTypeMap = {};
+    if (allQuestionIds.length > 0) {
+      const qTypes = await pool.query(
+        'SELECT id, question_type FROM question_bank WHERE id = ANY($1)',
+        [allQuestionIds]
+      );
+      qTypes.rows.forEach(q => { questionTypeMap[q.id] = q.question_type; });
+    }
+
+    // Enrich sessions with category tags
+    const enrichedSessions = sessions.rows.map(s => {
+      const categories = [...new Set((s.question_ids || []).map(id => questionTypeMap[id]).filter(Boolean))];
+      // Normalize category names: 'competency' → 'behavioral' for display
+      const normalizedCategories = [...new Set(categories.map(c => c === 'competency' ? 'behavioral' : c))];
+      return {
+        ...s,
+        question_ids: undefined, // Don't leak raw IDs to client
+        category_tags: normalizedCategories.length > 0 ? normalizedCategories : ['behavioral'],
+        interview_type: 'voice', // Mock interviews are always voice-based
+      };
+    });
+
     const total = await pool.query(
       'SELECT COUNT(*) as count FROM mock_interview_sessions WHERE user_id = $1',
       [req.user.id]
@@ -1544,7 +1615,7 @@ router.get('/mock/sessions', authMiddleware, async (req, res) => {
 
     res.json({
       success: true,
-      sessions: sessions.rows,
+      sessions: enrichedSessions,
       total: parseInt(total.rows[0].count)
     });
   } catch (err) {
@@ -1606,6 +1677,95 @@ router.get('/mock/question-bank', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Get question bank error:', err);
     res.status(500).json({ error: 'Failed to fetch question bank' });
+  }
+});
+
+// =============== QUESTION BANK BROWSE (Bug Fix #8) ===============
+
+// Browse question bank — candidates can browse/filter past questions by role/category
+router.get('/mock/question-bank/browse', authMiddleware, async (req, res) => {
+  try {
+    const { role, category, difficulty, limit = 50, offset = 0 } = req.query;
+
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+
+    if (role) {
+      params.push(role);
+      whereClause += ` AND LOWER(role) = LOWER($${params.length})`;
+    }
+    if (category) {
+      params.push(category);
+      whereClause += ` AND question_type = $${params.length}`;
+    }
+    if (difficulty) {
+      params.push(difficulty);
+      whereClause += ` AND difficulty = $${params.length}`;
+    }
+
+    // Get questions
+    const questions = await pool.query(
+      `SELECT id, role, question_text, question_type, difficulty, key_points, times_used, avg_score, created_at
+       FROM question_bank
+       ${whereClause}
+       ORDER BY times_used DESC, created_at DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, Number(limit), Number(offset)]
+    );
+
+    // Get available roles for filter dropdown
+    const roles = await pool.query(
+      'SELECT DISTINCT role, COUNT(*) as count FROM question_bank GROUP BY role ORDER BY count DESC'
+    );
+
+    // Get category counts
+    const categoryCounts = await pool.query(
+      `SELECT question_type, COUNT(*) as count FROM question_bank ${whereClause} GROUP BY question_type ORDER BY count DESC`,
+      params
+    );
+
+    const total = await pool.query(
+      `SELECT COUNT(*) as count FROM question_bank ${whereClause}`,
+      params
+    );
+
+    res.json({
+      success: true,
+      questions: questions.rows,
+      total: parseInt(total.rows[0].count),
+      available_roles: roles.rows,
+      category_counts: categoryCounts.rows
+    });
+  } catch (err) {
+    console.error('Browse question bank error:', err);
+    res.status(500).json({ error: 'Failed to browse question bank' });
+  }
+});
+
+// Get session feedback (for polling — allows frontend to fetch updated feedback after background analysis)
+router.get('/mock/sessions/:id/feedback', authMiddleware, async (req, res) => {
+  try {
+    const session = await pool.query(
+      'SELECT overall_feedback, overall_score, status FROM mock_interview_sessions WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (session.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    const row = session.rows[0];
+    const feedback = typeof row.overall_feedback === 'string'
+      ? JSON.parse(row.overall_feedback)
+      : row.overall_feedback;
+
+    res.json({
+      success: true,
+      feedback,
+      overall_score: row.overall_score,
+      status: row.status
+    });
+  } catch (err) {
+    console.error('Get session feedback error:', err);
+    res.status(500).json({ error: 'Failed to fetch feedback' });
   }
 });
 
@@ -1805,42 +1965,66 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
     questionsResult.rows.forEach(q => { questionMap[q.id] = q; });
     const baseQuestions = questionIds.map(id => questionMap[id]).filter(Boolean);
 
-    // BUG FIX: Wrap with 20s overall timeout — the LLM chain can take 135s (9 providers × 15s each),
-    // but Render kills the request at ~30s. Without this, the scripted fallback never fires.
+    // BUG FIX #1: Hard question limit — force wrap_up after 8 candidate turns
+    const MAX_QUESTIONS = 8;
+    const voiceCandidateCount = conversation.filter(t => t.role === 'candidate').length;
+    const shouldForceEnd = voiceCandidateCount >= MAX_QUESTIONS;
+
     let aiTurn;
-    try {
-      aiTurn = await withTimeout(
-        conductInterviewTurn(
-          conversation,
-          baseQuestions,
-          session.current_question_index,
-          session.target_role,
-          { subscriptionId: req.user.stripe_subscription_id }
-        ),
-        20000,
-        'Voice interview AI turn generation'
-      );
-    } catch (aiErr) {
-      console.warn(`[voice-respond] AI turn generation failed (${aiErr.message}), using scripted fallback`);
-      const nextIdx = session.current_question_index + 1;
-      const nextQ = baseQuestions[nextIdx];
-      const candidateTurnCount = conversation.filter(t => t.role === 'candidate').length;
-      if (nextQ && candidateTurnCount < 8) {
-        aiTurn = {
-          reaction: "Thank you for that response.",
-          action: 'transition',
-          question: nextQ.question_text,
-          score_hint: null,
-          notes: 'AI unavailable — scripted transition'
-        };
-      } else {
-        aiTurn = {
-          reaction: "Thank you for sharing all of that.",
-          action: 'wrap_up',
-          question: "Is there anything else you'd like to add before we wrap up?",
-          score_hint: null,
-          notes: 'AI unavailable — scripted wrap-up'
-        };
+
+    if (shouldForceEnd) {
+      console.log(`[voice-respond] Hard question limit reached (${voiceCandidateCount} turns), forcing wrap_up`);
+      aiTurn = {
+        reaction: `Great conversation — we've covered a lot across ${voiceCandidateCount} questions. I have a good picture of your background.`,
+        action: 'wrap_up',
+        question: "Before we wrap up, is there anything you'd like to add or ask about the role?",
+        score_hint: null,
+        notes: 'Hard question limit reached'
+      };
+    } else {
+      // BUG FIX: Wrap with 20s overall timeout — the LLM chain can take 135s (9 providers × 15s each),
+      // but Render kills the request at ~30s. Without this, the scripted fallback never fires.
+      try {
+        aiTurn = await withTimeout(
+          conductInterviewTurn(
+            conversation,
+            baseQuestions,
+            session.current_question_index,
+            session.target_role,
+            { subscriptionId: req.user.stripe_subscription_id }
+          ),
+          20000,
+          'Voice interview AI turn generation'
+        );
+        // BUG FIX #6: Override generic AI reactions
+        if (aiTurn && aiTurn.reaction && /^(Thank you for (that|sharing|your) (response|answer)|That's (helpful|great|good|interesting)\.?)\s*$/i.test(aiTurn.reaction.trim())) {
+          const firstSentence = transcribedText.split(/[.!?]/)[0].substring(0, 80);
+          aiTurn.reaction = `Interesting — ${firstSentence.length > 30 ? "you mentioned " + firstSentence.toLowerCase() + "." : "that gives me good context."} Let me follow up on that.`;
+        }
+      } catch (aiErr) {
+        console.warn(`[voice-respond] AI turn generation failed (${aiErr.message}), using scripted fallback`);
+        const nextIdx = session.current_question_index + 1;
+        const nextQ = baseQuestions[nextIdx];
+        const answerSnippet = transcribedText.substring(0, 60).split(/[.!?]/)[0];
+        if (nextQ && voiceCandidateCount < MAX_QUESTIONS) {
+          aiTurn = {
+            reaction: answerSnippet.length > 15
+              ? `Got it — ${answerSnippet.toLowerCase()}. That's useful context.`
+              : "Thanks for sharing that detail. Good to know.",
+            action: 'transition',
+            question: nextQ.question_text,
+            score_hint: null,
+            notes: 'AI unavailable — scripted transition'
+          };
+        } else {
+          aiTurn = {
+            reaction: `We've had a thorough discussion. I've got a good sense of your experience and approach.`,
+            action: 'wrap_up',
+            question: "Is there anything else you'd like to add before we wrap up?",
+            score_hint: null,
+            notes: 'AI unavailable — scripted wrap-up'
+          };
+        }
       }
     }
 
