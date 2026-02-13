@@ -334,6 +334,14 @@ export function RecruiterJobApplicantsPage() {
         <Button
           variant="outline"
           size="sm"
+          onClick={() => navigate(`/recruiter/jobs/${id}/assessment`)}
+          className="gap-1 h-8 border-violet-200 text-violet-700 hover:bg-violet-50"
+        >
+          <GraduationCap className="h-3.5 w-3.5" /> ✨ Assessment
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => { setShowAutomation(true); loadAutomation() }}
           className="gap-1 h-8"
         >

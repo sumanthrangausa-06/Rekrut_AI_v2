@@ -54,14 +54,25 @@ export function CandidateJobDetailPage() {
   const [loadingMatch, setLoadingMatch] = useState(false)
   const [reviewResult, setReviewResult] = useState<any>(null)
   const [reviewing, setReviewing] = useState(false)
+  const [jobAssessment, setJobAssessment] = useState<{ id: number; title: string; status: string; question_count: number } | null>(null)
 
   useEffect(() => {
     loadJob()
     if (user) {
       checkIfApplied()
       loadMatchBreakdown()
+      loadJobAssessment()
     }
   }, [id, user])
+
+  async function loadJobAssessment() {
+    try {
+      const data = await apiCall<{ assessment: any }>(`/assessments/job/${id}`)
+      if (data.assessment && data.assessment.status === 'published') {
+        setJobAssessment(data.assessment)
+      }
+    } catch {}
+  }
 
   async function loadJob() {
     try {
@@ -281,6 +292,28 @@ export function CandidateJobDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Job Assessment — Take the skill test */}
+      {jobAssessment && applied && (
+        <Card className="border-violet-200 bg-gradient-to-r from-violet-50/50 to-indigo-50/50">
+          <CardContent className="py-4 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center shrink-0">
+              <GraduationCap className="h-5 w-5 text-violet-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm">{jobAssessment.title}</p>
+              <p className="text-xs text-muted-foreground">{jobAssessment.question_count} questions &middot; AI-scored &middot; Adaptive difficulty</p>
+            </div>
+            <Button
+              onClick={() => navigate(`/candidate/job-assessment/${jobAssessment.id}`)}
+              className="gap-1.5 shrink-0 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white"
+              size="sm"
+            >
+              <Sparkles className="h-3.5 w-3.5" /> Take Assessment
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Match Breakdown — Why This Job Matches You */}
       {user && matchBreakdown && matchBreakdown.overall_score > 0 && (
