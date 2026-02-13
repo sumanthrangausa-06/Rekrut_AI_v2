@@ -1256,25 +1256,32 @@ router.post('/mock/:sessionId/respond', authMiddleware, async (req, res) => {
           20000,
           'Interview AI turn generation'
         );
-        // BUG FIX #6: Override generic AI reactions with specific ones
+        // BUG FIX: Override generic AI reactions — don't echo user's words
         if (aiTurn && aiTurn.reaction && /^(Thank you for (that|sharing|your) (response|answer)|That's (helpful|great|good|interesting)\.?)\s*$/i.test(aiTurn.reaction.trim())) {
-          // AI gave a generic filler reaction — replace with something referencing the answer
-          const lastAnswer = response_text.trim();
-          const firstSentence = lastAnswer.split(/[.!?]/)[0].substring(0, 80);
-          aiTurn.reaction = `Interesting — ${firstSentence.length > 30 ? "you mentioned " + firstSentence.toLowerCase() + "." : "that gives me good context."} Let me dig into that a bit more.`;
+          const NATURAL_AI_ACKS = [
+            "Interesting perspective. Let me follow up on that.",
+            "That gives me good context. I'd like to dig a little deeper.",
+            "That's a thoughtful response. Let me explore another angle.",
+            "I appreciate the detail. Let me build on that.",
+          ];
+          aiTurn.reaction = NATURAL_AI_ACKS[candidateTurnCount % NATURAL_AI_ACKS.length];
         }
       } catch (aiErr) {
         console.warn(`[mock] AI turn generation failed (${aiErr.message}), using scripted fallback`);
-        // BUG FIX #6: Better scripted fallback — reference the candidate's actual answer
+        // BUG FIX: Don't echo user's words back — use natural acknowledgments instead
         const nextIdx = session.current_question_index + 1;
         const nextQ = baseQuestions[nextIdx];
-        const lastAnswer = response_text.trim();
-        const answerSnippet = lastAnswer.substring(0, 60).split(/[.!?]/)[0];
+        const NATURAL_ACKS = [
+          "Thanks for that. Really helpful to understand your perspective.",
+          "Appreciate you sharing that. It gives me good insight into how you think.",
+          "Good to hear. That's exactly the kind of detail I was looking for.",
+          "Understood. That paints a clear picture of your experience.",
+          "Thanks for walking me through that. Let me ask you something else.",
+        ];
+        const ackIdx = candidateTurnCount % NATURAL_ACKS.length;
         if (nextQ && candidateTurnCount < MAX_QUESTIONS) {
           aiTurn = {
-            reaction: answerSnippet.length > 15
-              ? `I appreciate you sharing about ${answerSnippet.toLowerCase()}. That's useful context.`
-              : "Thanks for walking me through that — good detail there.",
+            reaction: NATURAL_ACKS[ackIdx],
             action: 'transition',
             question: nextQ.question_text,
             score_hint: null,
@@ -1997,21 +2004,32 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
           20000,
           'Voice interview AI turn generation'
         );
-        // BUG FIX #6: Override generic AI reactions
+        // BUG FIX: Override generic AI reactions — don't echo user's words
         if (aiTurn && aiTurn.reaction && /^(Thank you for (that|sharing|your) (response|answer)|That's (helpful|great|good|interesting)\.?)\s*$/i.test(aiTurn.reaction.trim())) {
-          const firstSentence = transcribedText.split(/[.!?]/)[0].substring(0, 80);
-          aiTurn.reaction = `Interesting — ${firstSentence.length > 30 ? "you mentioned " + firstSentence.toLowerCase() + "." : "that gives me good context."} Let me follow up on that.`;
+          const NATURAL_AI_ACKS = [
+            "Interesting perspective. Let me follow up on that.",
+            "That gives me good context. I'd like to dig a little deeper.",
+            "That's a thoughtful response. Let me explore another angle.",
+            "I appreciate the detail. Let me build on that.",
+          ];
+          aiTurn.reaction = NATURAL_AI_ACKS[voiceCandidateCount % NATURAL_AI_ACKS.length];
         }
       } catch (aiErr) {
         console.warn(`[voice-respond] AI turn generation failed (${aiErr.message}), using scripted fallback`);
         const nextIdx = session.current_question_index + 1;
         const nextQ = baseQuestions[nextIdx];
-        const answerSnippet = transcribedText.substring(0, 60).split(/[.!?]/)[0];
+        // BUG FIX: Don't echo user's words back — use natural acknowledgments instead
+        const NATURAL_ACKS = [
+          "Thanks for that. Really helpful to understand your perspective.",
+          "Appreciate you sharing that. It gives me good insight into how you think.",
+          "Good to hear. That's exactly the kind of detail I was looking for.",
+          "Understood. That paints a clear picture of your experience.",
+          "Thanks for walking me through that. Let me ask you something else.",
+        ];
+        const ackIdx = voiceCandidateCount % NATURAL_ACKS.length;
         if (nextQ && voiceCandidateCount < MAX_QUESTIONS) {
           aiTurn = {
-            reaction: answerSnippet.length > 15
-              ? `Got it — ${answerSnippet.toLowerCase()}. That's useful context.`
-              : "Thanks for sharing that detail. Good to know.",
+            reaction: NATURAL_ACKS[ackIdx],
             action: 'transition',
             question: nextQ.question_text,
             score_hint: null,

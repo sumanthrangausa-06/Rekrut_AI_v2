@@ -315,6 +315,7 @@ export function AiCoachingPage() {
   const [mockJobDescription, setMockJobDescription] = useState('')
   const [mockStarting, setMockStarting] = useState(false)
   const [mockSession, setMockSession] = useState<MockSession | null>(null)
+  const mockSessionRef = useRef<MockSession | null>(null) // BUG FIX: ref mirrors state — stale closures in voice callbacks read this
   const [mockResponseText, setMockResponseText] = useState('')
   const [mockSending, setMockSending] = useState(false)
   const [mockEnding, setMockEnding] = useState(false)
@@ -330,6 +331,7 @@ export function AiCoachingPage() {
   const [candidateRecording, setCandidateRecording] = useState(false)
   const candidateRecordingRef = useRef(false)  // BUG FIX: ref for stale closures
   const [voiceProcessing, setVoiceProcessing] = useState(false)
+  const voiceProcessingRef = useRef(false) // BUG FIX: ref for endMockInterview to await in-flight voice
   const [silenceTimer, setSilenceTimer] = useState<number>(0)
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const aiAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -437,6 +439,11 @@ export function AiCoachingPage() {
       }
     }
   }, [mockCameraReady, mockSession])
+
+  // BUG FIX: Keep mockSessionRef in sync so voice callbacks always read fresh session
+  useEffect(() => {
+    mockSessionRef.current = mockSession
+  }, [mockSession])
 
   // Capture a frame from mock interview camera
   function captureMockFrame(): string | null {
@@ -554,7 +561,8 @@ export function AiCoachingPage() {
     }
 
     recognition.onend = () => {
-      if (candidateRecording) {
+      // BUG FIX: Read from ref — state is stale in this closure (captured at startMockSpeechRecognition time)
+      if (candidateRecordingRef.current) {
         try { recognition.start() } catch (_) {}
       }
     }
@@ -1241,6 +1249,22 @@ export function AiCoachingPage() {
     if (!mockSession) return
     setMockEnding(true)
 
+    // BUG FIX: If voice response is in-flight, wait for it before ending
+    // Otherwise end API reads DB before voice-respond writes candidate turn → 0/10 score
+    if (voiceProcessingRef.current) {
+      console.log('[end] Waiting for in-flight voice response to complete...')
+      await new Promise<void>(resolve => {
+        const check = setInterval(() => {
+          if (!voiceProcessingRef.current) {
+            clearInterval(check)
+            resolve()
+          }
+        }, 200)
+        // Max 6 seconds — don't hang forever
+        setTimeout(() => { clearInterval(check); resolve() }, 6000)
+      })
+    }
+
     // IMMEDIATELY stop all audio, recording, and camera — don't wait for anything
     stopVoiceMode()
     stopMockFrameCapture()
@@ -1621,12 +1645,16 @@ export function AiCoachingPage() {
         }
 
         setVoiceProcessing(true)
+        voiceProcessingRef.current = true
         try {
-          // BUG FIX: Guard against undefined sessionId (causes SQL "invalid input syntax" error)
-          if (!mockSession?.id) {
+          // BUG FIX: Read session from REF not state — state is stale in this closure
+          // (captured when startVoiceRecording was called, before setMockSession updated)
+          const currentSession = mockSessionRef.current
+          if (!currentSession?.id) {
             console.error('[voice] No active session — cannot send voice response')
             setVoiceError('No active interview session. Please restart.')
             setVoiceProcessing(false)
+            voiceProcessingRef.current = false
             return
           }
 
@@ -1651,7 +1679,7 @@ export function AiCoachingPage() {
 
           let res: Response
           try {
-            res = await fetch(`/api/interviews/mock/${mockSession.id}/voice-respond`, {
+            res = await fetch(`/api/interviews/mock/${currentSession.id}/voice-respond`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${token}`
@@ -1755,6 +1783,7 @@ export function AiCoachingPage() {
           }
         } finally {
           setVoiceProcessing(false)
+          voiceProcessingRef.current = false
         }
       }
 
@@ -1811,6 +1840,7 @@ export function AiCoachingPage() {
     setCandidateRecording(false)
     candidateRecordingRef.current = false
     setVoiceProcessing(false)
+    voiceProcessingRef.current = false
     setSilenceTimer(0)
   }
 
