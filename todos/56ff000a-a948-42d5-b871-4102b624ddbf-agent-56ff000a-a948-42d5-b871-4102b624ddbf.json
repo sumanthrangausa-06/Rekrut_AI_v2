@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Phase 1: Backend — AI Communication Templates + Generation API",
+    "status": "in_progress",
+    "activeForm": "Building AI communication generation backend"
+  },
+  {
+    "content": "Phase 2: Backend — Multi-Agent Communication Pipeline + History",
+    "status": "pending",
+    "activeForm": "Building multi-agent communication pipeline"
+  },
+  {
+    "content": "Phase 3: Backend — Bulk Communication + Smart Sequences",
+    "status": "pending",
+    "activeForm": "Building bulk communication and sequences"
+  },
+  {
+    "content": "Phase 4: Frontend — Communication Hub UI",
+    "status": "pending",
+    "activeForm": "Building communication hub frontend"
+  },
+  {
+    "content": "Phase 5: E2E Verification + Deploy",
+    "status": "pending",
+    "activeForm": "Verifying end-to-end communication flows"
+  }
+]
