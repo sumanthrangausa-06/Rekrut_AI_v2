@@ -1,0 +1,21 @@
+/tmp/polsia-workspaces/company-956/agent-30/exec-63920/hireloop
+f4e99fa Agent changes
+da87ae4 Phase 2/3: Update AI Health Dashboard for 3-layer audio status
+fd0e7f2 Agent changes
+0bf1346 Phase 1/3: Add self-hosted audio layer — whisper.cpp STT + Piper TTS
+b3264f5 Agent changes
+9eb64de Phase 2/2: Frontend — add 28s fetch timeout + better error recovery for interviews
+da3b7bb Phase 1/2: Fix AI interview hang — add 20s overall timeout to LLM chain
+10d251c Agent changes
+949effb Phase 3/4: Update AI Health Dashboard to show Deepgram audio fallback status
+b682358 Phase 1-2/4: Add Deepgram TTS+STT as independent audio fallback providers
+5c1a7b5 Agent changes
+8088015 Fix voice/vision analysis: robust JSON parsing + 30s vision timeout
+538b84e Agent changes
+55f7e77 Phase 4: Enhanced AI Health Dashboard — monitoring tab, prompts tab, NL query, model performance, budget predictions
+8267bbd Phase 1-3: AI health monitoring — call logging, prompt management, model metrics, budget predictions
+ff24855 Agent changes
+3e3181d Fix 7 SQL/schema errors in production
+95dfc77 Agent changes
+ba2c2f9 Phase B: Frontend AI features — smart search, app review, comparison, automation
+bbd8e4e Phase A: Event-driven OmniScore hooks — assessment + profile updates

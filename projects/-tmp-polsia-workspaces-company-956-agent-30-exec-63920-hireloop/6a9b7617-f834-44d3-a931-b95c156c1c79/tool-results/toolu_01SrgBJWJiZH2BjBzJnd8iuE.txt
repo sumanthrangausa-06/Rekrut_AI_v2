@@ -1,0 +1,13 @@
+/tmp/polsia-workspaces/company-956/agent-30/exec-63920/hireloop/client/src/pages/candidate/interviews.tsx
+/tmp/polsia-workspaces/company-956/agent-30/exec-63920/hireloop/client/src/pages/recruiter/interviews.tsx
+/tmp/polsia-workspaces/company-956/agent-30/exec-63920/hireloop/migrations/023_fix_interviews_updated_at.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-63920/hireloop/migrations/032_mock_interview_cached_feedback.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-63920/hireloop/public/css/interview.css
+/tmp/polsia-workspaces/company-956/agent-30/exec-63920/hireloop/public/interview-practice.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-63920/hireloop/public/interview-analysis.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-63920/hireloop/public/interview.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-63920/hireloop/public/js/interview-practice.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-63920/hireloop/public/js/interview.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-63920/hireloop/public/recruiter-interviews.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-63920/hireloop/public/video-interview.html
+/tmp/polsia-workspaces/company-956/agent-30/exec-63920/hireloop/routes/interviews.js
