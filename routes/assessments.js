@@ -986,4 +986,913 @@ router.get('/recruiter/catalog', authMiddleware, async (req, res) => {
   }
 });
 
+// ========== JOB-BASED AI ASSESSMENT ENGINE ==========
+// Generate assessments from job requirements, auto-score, adaptive difficulty, conversational mode
+
+const { safeParseJSON } = require('../lib/polsia-ai');
+
+// Recruiter: Generate AI assessment from job posting
+router.post('/generate', authMiddleware, async (req, res) => {
+  try {
+    const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+    if (!recruiterRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Recruiter access required' });
+    }
+
+    const { jobId } = req.body;
+    if (!jobId) return res.status(400).json({ error: 'jobId is required' });
+
+    // Get job details
+    const jobResult = await pool.query('SELECT * FROM jobs WHERE id = $1', [jobId]);
+    if (jobResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+    const job = jobResult.rows[0];
+
+    // Check if assessment already exists for this job
+    const existing = await pool.query(
+      'SELECT id FROM job_assessments WHERE job_id = $1 AND status != $2',
+      [jobId, 'archived']
+    );
+    if (existing.rows.length > 0) {
+      return res.status(409).json({
+        error: 'Assessment already exists for this job',
+        assessmentId: existing.rows[0].id
+      });
+    }
+
+    // Detect job level from title/description for difficulty targeting
+    const titleLower = (job.title || '').toLowerCase();
+    const descLower = (job.description || '').toLowerCase();
+    let targetLevel = 'mid';
+    if (titleLower.includes('senior') || titleLower.includes('lead') || titleLower.includes('principal') || titleLower.includes('staff')) {
+      targetLevel = 'senior';
+    } else if (titleLower.includes('junior') || titleLower.includes('intern') || titleLower.includes('entry') || descLower.includes('0-2 years')) {
+      targetLevel = 'junior';
+    }
+
+    const difficultyRange = { junior: '1-2', mid: '2-3', senior: '3-5' }[targetLevel];
+
+    // Generate assessment questions via AI
+    const prompt = `You are an expert hiring manager. Generate a comprehensive skill assessment for this job posting.
+
+JOB TITLE: ${job.title}
+COMPANY: ${job.company || 'Not specified'}
+DESCRIPTION: ${(job.description || '').substring(0, 2000)}
+REQUIREMENTS: ${(job.requirements || '').substring(0, 1500)}
+JOB TYPE: ${job.job_type || 'full-time'}
+LEVEL: ${targetLevel}
+
+Generate exactly 15 assessment questions across these categories:
+- "technical" (6 questions): Test specific technical skills mentioned in requirements
+- "scenario" (4 questions): Real-world work scenarios relevant to the role
+- "behavioral" (3 questions): Soft skills, teamwork, communication, problem-solving
+- "code_challenge" (2 questions): Practical coding/analytical problems (if technical role) OR additional scenario questions (if non-technical)
+
+For each question, include:
+- question_type: "multiple_choice", "free_text", "scenario_response", or "code_challenge"
+- difficulty_level: ${difficultyRange} (1=beginner, 5=expert)
+- points: 5-20 based on difficulty and importance
+
+Rules:
+- Make questions SPECIFIC to this exact role, not generic
+- Multiple choice: exactly 4 options, one correct
+- Free text / scenario: provide a rubric for what a good answer includes
+- Code challenges: provide a clear problem with expected approach
+- Vary difficulty within the range
+
+Return ONLY valid JSON:
+{
+  "title": "Assessment title",
+  "description": "Brief assessment description",
+  "questions": [
+    {
+      "category": "technical|scenario|behavioral|code_challenge",
+      "question_type": "multiple_choice|free_text|scenario_response|code_challenge",
+      "question_text": "The question",
+      "options": ["A", "B", "C", "D"] or null,
+      "correct_answer": "A" or null,
+      "rubric": "What makes a good answer (for free text/scenario)",
+      "explanation": "Why the correct answer is right",
+      "difficulty_level": 1-5,
+      "points": 5-20,
+      "time_limit_seconds": 60-300
+    }
+  ]
+}`;
+
+    const response = await chat(prompt, {
+      maxTokens: 4096,
+      system: 'You are a senior hiring manager creating job-specific assessments. Generate practical, relevant questions that test real-world capability. Always return valid JSON.',
+      module: 'assessments', feature: 'job_assessment_generation'
+    });
+
+    const parsed = safeParseJSON(response);
+    if (!parsed || !parsed.questions || !Array.isArray(parsed.questions)) {
+      console.error('[assessment-gen] Failed to parse AI response');
+      return res.status(500).json({ error: 'Failed to generate assessment. Please try again.' });
+    }
+
+    // Save assessment to database
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const categories = [...new Set(parsed.questions.map(q => q.category))];
+      const assessmentResult = await client.query(`
+        INSERT INTO job_assessments (job_id, created_by, title, description, difficulty_level, question_count, categories, ai_config)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *
+      `, [
+        jobId, req.user.id,
+        parsed.title || `${job.title} Assessment`,
+        parsed.description || `AI-generated assessment for ${job.title}`,
+        targetLevel,
+        parsed.questions.length,
+        JSON.stringify(categories),
+        JSON.stringify({ targetLevel, generated_at: new Date() })
+      ]);
+
+      const assessment = assessmentResult.rows[0];
+
+      // Insert questions
+      for (let i = 0; i < parsed.questions.length; i++) {
+        const q = parsed.questions[i];
+        await client.query(`
+          INSERT INTO job_assessment_questions
+          (assessment_id, category, question_type, question_text, options, correct_answer, rubric, explanation, difficulty_level, points, time_limit_seconds, order_index)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `, [
+          assessment.id,
+          q.category || 'technical',
+          q.question_type || 'multiple_choice',
+          q.question_text,
+          q.options ? JSON.stringify(q.options) : null,
+          q.correct_answer || null,
+          q.rubric || null,
+          q.explanation || null,
+          q.difficulty_level || 3,
+          q.points || 10,
+          q.time_limit_seconds || 120,
+          i
+        ]);
+      }
+
+      await client.query('COMMIT');
+
+      // Return the full assessment
+      const questions = await pool.query(
+        'SELECT * FROM job_assessment_questions WHERE assessment_id = $1 ORDER BY order_index',
+        [assessment.id]
+      );
+
+      res.json({
+        assessment: { ...assessment, questions: questions.rows }
+      });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error generating job assessment:', error);
+    res.status(500).json({ error: 'Failed to generate assessment' });
+  }
+});
+
+// Get job assessment (for a specific job)
+router.get('/job/:jobId', authMiddleware, async (req, res) => {
+  try {
+    const jobId = req.params.jobId;
+
+    const result = await pool.query(
+      "SELECT * FROM job_assessments WHERE job_id = $1 AND status != 'archived' ORDER BY created_at DESC LIMIT 1",
+      [jobId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ assessment: null });
+    }
+
+    const assessment = result.rows[0];
+    const questions = await pool.query(
+      'SELECT * FROM job_assessment_questions WHERE assessment_id = $1 ORDER BY order_index',
+      [assessment.id]
+    );
+
+    // Get attempt stats
+    const stats = await pool.query(`
+      SELECT COUNT(*) as total_attempts,
+             COUNT(*) FILTER (WHERE status = 'completed') as completed,
+             ROUND(AVG(composite_score) FILTER (WHERE scored_at IS NOT NULL), 1) as avg_score
+      FROM job_assessment_attempts WHERE assessment_id = $1
+    `, [assessment.id]);
+
+    res.json({
+      assessment: {
+        ...assessment,
+        questions: questions.rows,
+        stats: stats.rows[0] || {}
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching job assessment:', error);
+    res.status(500).json({ error: 'Failed to fetch assessment' });
+  }
+});
+
+// Recruiter: Update assessment question
+router.put('/job-assessment/:id/question/:qId', authMiddleware, async (req, res) => {
+  try {
+    const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+    if (!recruiterRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Recruiter access required' });
+    }
+
+    const { question_text, options, correct_answer, rubric, explanation, points, time_limit_seconds } = req.body;
+
+    const result = await pool.query(`
+      UPDATE job_assessment_questions
+      SET question_text = COALESCE($1, question_text),
+          options = COALESCE($2, options),
+          correct_answer = COALESCE($3, correct_answer),
+          rubric = COALESCE($4, rubric),
+          explanation = COALESCE($5, explanation),
+          points = COALESCE($6, points),
+          time_limit_seconds = COALESCE($7, time_limit_seconds)
+      WHERE id = $8 AND assessment_id = $9
+      RETURNING *
+    `, [
+      question_text || null,
+      options ? JSON.stringify(options) : null,
+      correct_answer || null,
+      rubric || null,
+      explanation || null,
+      points || null,
+      time_limit_seconds || null,
+      req.params.qId,
+      req.params.id
+    ]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+
+    res.json({ question: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating question:', error);
+    res.status(500).json({ error: 'Failed to update question' });
+  }
+});
+
+// Recruiter: Publish assessment
+router.post('/job-assessment/:id/publish', authMiddleware, async (req, res) => {
+  try {
+    const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+    if (!recruiterRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Recruiter access required' });
+    }
+
+    const result = await pool.query(
+      "UPDATE job_assessments SET status = 'published', published_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *",
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Assessment not found' });
+    }
+
+    res.json({ assessment: result.rows[0] });
+  } catch (error) {
+    console.error('Error publishing assessment:', error);
+    res.status(500).json({ error: 'Failed to publish assessment' });
+  }
+});
+
+// Candidate: Start a job assessment attempt
+router.post('/job-assessment/:id/start', authMiddleware, async (req, res) => {
+  try {
+    const assessmentId = req.params.id;
+    const candidateId = req.user.id;
+    const { applicationId } = req.body;
+
+    // Check assessment exists and is published
+    const assessment = await pool.query(
+      "SELECT * FROM job_assessments WHERE id = $1 AND status = 'published'",
+      [assessmentId]
+    );
+    if (assessment.rows.length === 0) {
+      return res.status(404).json({ error: 'Assessment not found or not published' });
+    }
+
+    // Check for existing active attempt
+    const existing = await pool.query(
+      "SELECT * FROM job_assessment_attempts WHERE assessment_id = $1 AND candidate_id = $2 AND status = 'in_progress'",
+      [assessmentId, candidateId]
+    );
+    if (existing.rows.length > 0) {
+      // Resume existing attempt
+      const attempt = existing.rows[0];
+      const answers = typeof attempt.answers === 'string' ? JSON.parse(attempt.answers) : (attempt.answers || []);
+      const nextIndex = answers.length;
+
+      const questions = await pool.query(
+        'SELECT id, category, question_type, question_text, options, difficulty_level, points, time_limit_seconds, order_index FROM job_assessment_questions WHERE assessment_id = $1 ORDER BY order_index',
+        [assessmentId]
+      );
+
+      const nextQ = questions.rows[nextIndex];
+      return res.json({
+        attemptId: attempt.id,
+        resumed: true,
+        progress: { current: nextIndex + 1, total: questions.rows.length },
+        question: nextQ ? {
+          id: nextQ.id,
+          category: nextQ.category,
+          type: nextQ.question_type,
+          text: nextQ.question_text,
+          options: typeof nextQ.options === 'string' ? JSON.parse(nextQ.options) : nextQ.options,
+          timeLimit: nextQ.time_limit_seconds,
+          points: nextQ.points,
+          difficulty: nextQ.difficulty_level,
+        } : null
+      });
+    }
+
+    // Create new attempt
+    const attempt = await pool.query(`
+      INSERT INTO job_assessment_attempts (assessment_id, candidate_id, application_id, status)
+      VALUES ($1, $2, $3, 'in_progress')
+      RETURNING *
+    `, [assessmentId, candidateId, applicationId || null]);
+
+    // Get first question
+    const questions = await pool.query(
+      'SELECT id, category, question_type, question_text, options, difficulty_level, points, time_limit_seconds FROM job_assessment_questions WHERE assessment_id = $1 ORDER BY order_index LIMIT 1',
+      [assessmentId]
+    );
+
+    const firstQ = questions.rows[0];
+    const totalCount = await pool.query(
+      'SELECT COUNT(*) as total FROM job_assessment_questions WHERE assessment_id = $1',
+      [assessmentId]
+    );
+
+    res.json({
+      attemptId: attempt.rows[0].id,
+      resumed: false,
+      progress: { current: 1, total: parseInt(totalCount.rows[0].total) },
+      question: firstQ ? {
+        id: firstQ.id,
+        category: firstQ.category,
+        type: firstQ.question_type,
+        text: firstQ.question_text,
+        options: typeof firstQ.options === 'string' ? JSON.parse(firstQ.options) : firstQ.options,
+        timeLimit: firstQ.time_limit_seconds,
+        points: firstQ.points,
+        difficulty: firstQ.difficulty_level,
+      } : null
+    });
+  } catch (error) {
+    console.error('Error starting job assessment:', error);
+    res.status(500).json({ error: 'Failed to start assessment' });
+  }
+});
+
+// Candidate: Submit answer and get next question (with adaptive difficulty)
+router.post('/job-assessment/:id/answer', authMiddleware, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const assessmentId = req.params.id;
+    const candidateId = req.user.id;
+    const { attemptId, questionId, answer, timeTaken } = req.body;
+
+    await client.query('BEGIN');
+
+    // Get attempt
+    const attemptResult = await client.query(
+      "SELECT * FROM job_assessment_attempts WHERE id = $1 AND candidate_id = $2 AND status = 'in_progress'",
+      [attemptId, candidateId]
+    );
+    if (attemptResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Active attempt not found' });
+    }
+    const attempt = attemptResult.rows[0];
+
+    // Get question
+    const qResult = await client.query(
+      'SELECT * FROM job_assessment_questions WHERE id = $1 AND assessment_id = $2',
+      [questionId, assessmentId]
+    );
+    if (qResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Question not found' });
+    }
+    const question = qResult.rows[0];
+
+    // Quick-score multiple choice immediately
+    let quickScore = null;
+    let feedback = null;
+    if (question.question_type === 'multiple_choice') {
+      const isCorrect = answer === question.correct_answer;
+      quickScore = isCorrect ? question.points : 0;
+      feedback = isCorrect ? 'Correct!' : `Incorrect. ${question.explanation || ''}`;
+    }
+
+    // Check for time anomaly
+    const minTime = question.question_type === 'multiple_choice' ? 3 : 10;
+    const isTimeAnomaly = timeTaken && timeTaken < minTime;
+
+    // Update answers
+    const answers = typeof attempt.answers === 'string' ? JSON.parse(attempt.answers) : (attempt.answers || []);
+    answers.push({
+      questionId,
+      answer,
+      timeTaken: timeTaken || 0,
+      quickScore,
+      category: question.category,
+      questionType: question.question_type,
+      points: question.points,
+      isTimeAnomaly,
+      timestamp: new Date()
+    });
+
+    // Adaptive difficulty: adjust based on performance in category
+    const categoryAnswers = answers.filter(a => a.category === question.category);
+    const categoryCorrect = categoryAnswers.filter(a => a.quickScore > 0).length;
+    const categoryRate = categoryAnswers.length > 0 ? categoryCorrect / categoryAnswers.length : 0.5;
+    let newDifficulty = attempt.current_difficulty || 3;
+    if (categoryRate > 0.75 && newDifficulty < 5) newDifficulty++;
+    else if (categoryRate < 0.4 && newDifficulty > 1) newDifficulty--;
+
+    const newTimeAnomalies = (attempt.time_anomalies || 0) + (isTimeAnomaly ? 1 : 0);
+    const newTimeSpent = (attempt.time_spent_seconds || 0) + (timeTaken || 0);
+
+    await client.query(`
+      UPDATE job_assessment_attempts
+      SET answers = $1, current_question_index = $2, current_difficulty = $3,
+          time_anomalies = $4, time_spent_seconds = $5
+      WHERE id = $6
+    `, [JSON.stringify(answers), answers.length, newDifficulty, newTimeAnomalies, newTimeSpent, attemptId]);
+
+    // Get all questions to find next
+    const allQuestions = await client.query(
+      'SELECT id, category, question_type, question_text, options, difficulty_level, points, time_limit_seconds, order_index FROM job_assessment_questions WHERE assessment_id = $1 ORDER BY order_index',
+      [assessmentId]
+    );
+
+    const totalQuestions = allQuestions.rows.length;
+    const nextIndex = answers.length;
+
+    if (nextIndex >= totalQuestions) {
+      // Assessment complete — trigger auto-scoring
+      await client.query(
+        "UPDATE job_assessment_attempts SET status = 'completed', completed_at = NOW() WHERE id = $1",
+        [attemptId]
+      );
+      await client.query('COMMIT');
+
+      // Trigger async scoring (don't wait)
+      scoreAttempt(attemptId, assessmentId).catch(err =>
+        console.error('[scoring] Async scoring failed:', err.message)
+      );
+
+      return res.json({
+        completed: true,
+        feedback,
+        progress: { current: totalQuestions, total: totalQuestions }
+      });
+    }
+
+    const nextQ = allQuestions.rows[nextIndex];
+    await client.query('COMMIT');
+
+    res.json({
+      completed: false,
+      feedback,
+      quickScore,
+      progress: { current: nextIndex + 1, total: totalQuestions },
+      nextQuestion: nextQ ? {
+        id: nextQ.id,
+        category: nextQ.category,
+        type: nextQ.question_type,
+        text: nextQ.question_text,
+        options: typeof nextQ.options === 'string' ? JSON.parse(nextQ.options) : nextQ.options,
+        timeLimit: nextQ.time_limit_seconds,
+        points: nextQ.points,
+        difficulty: nextQ.difficulty_level,
+      } : null
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error submitting job assessment answer:', error);
+    res.status(500).json({ error: 'Failed to submit answer' });
+  } finally {
+    client.release();
+  }
+});
+
+// Score an assessment attempt using AI
+async function scoreAttempt(attemptId, assessmentId) {
+  try {
+    const attempt = await pool.query('SELECT * FROM job_assessment_attempts WHERE id = $1', [attemptId]);
+    if (attempt.rows.length === 0) return;
+    const att = attempt.rows[0];
+
+    const answers = typeof att.answers === 'string' ? JSON.parse(att.answers) : (att.answers || []);
+    if (answers.length === 0) return;
+
+    // Get all questions
+    const questions = await pool.query(
+      'SELECT * FROM job_assessment_questions WHERE assessment_id = $1 ORDER BY order_index',
+      [assessmentId]
+    );
+    const qMap = {};
+    for (const q of questions.rows) qMap[q.id] = q;
+
+    // Group answers by category
+    const categoryGroups = {};
+    let totalPoints = 0;
+    let earnedPoints = 0;
+
+    for (const ans of answers) {
+      const q = qMap[ans.questionId];
+      if (!q) continue;
+
+      if (!categoryGroups[q.category]) {
+        categoryGroups[q.category] = { questions: [], totalPoints: 0, earnedPoints: 0 };
+      }
+
+      totalPoints += q.points;
+
+      if (q.question_type === 'multiple_choice') {
+        // Already scored
+        const pts = ans.quickScore || 0;
+        earnedPoints += pts;
+        categoryGroups[q.category].earnedPoints += pts;
+        categoryGroups[q.category].totalPoints += q.points;
+        categoryGroups[q.category].questions.push({
+          text: q.question_text, answer: ans.answer, score: pts, maxPoints: q.points, type: 'multiple_choice'
+        });
+      } else {
+        // AI-score free text / scenario / code challenge
+        const scorePrompt = `Score this assessment answer.
+
+QUESTION (${q.category}, ${q.question_type}): ${q.question_text}
+${q.rubric ? 'RUBRIC: ' + q.rubric : ''}
+${q.correct_answer ? 'EXPECTED: ' + q.correct_answer : ''}
+MAX POINTS: ${q.points}
+
+CANDIDATE'S ANSWER: ${ans.answer}
+
+Score on three dimensions:
+- Relevance: Does it address the question? (0-100)
+- Depth: How thorough and insightful? (0-100)
+- Accuracy: Is the information correct? (0-100)
+
+Return ONLY valid JSON:
+{
+  "relevance": 0-100,
+  "depth": 0-100,
+  "accuracy": 0-100,
+  "score": 0-${q.points},
+  "feedback": "2-3 sentence explanation of the score",
+  "strengths": ["strength 1"],
+  "weaknesses": ["weakness 1"]
+}`;
+
+        try {
+          const scoreResponse = await chat(scorePrompt, {
+            maxTokens: 512,
+            module: 'assessments', feature: 'ai_scoring'
+          });
+          const scoreData = safeParseJSON(scoreResponse);
+          if (scoreData) {
+            const pts = Math.min(q.points, Math.max(0, scoreData.score || 0));
+            earnedPoints += pts;
+            categoryGroups[q.category].earnedPoints += pts;
+            categoryGroups[q.category].totalPoints += q.points;
+            categoryGroups[q.category].questions.push({
+              text: q.question_text, answer: ans.answer, score: pts, maxPoints: q.points,
+              type: q.question_type, aiScore: scoreData
+            });
+            // Store score back in answers
+            ans.aiScore = scoreData;
+            ans.quickScore = pts;
+          }
+        } catch (err) {
+          console.error(`[scoring] Failed to score Q${q.id}:`, err.message);
+          categoryGroups[q.category].totalPoints += q.points;
+          categoryGroups[q.category].questions.push({
+            text: q.question_text, answer: ans.answer, score: 0, maxPoints: q.points, type: q.question_type
+          });
+        }
+      }
+    }
+
+    // Calculate composite and category scores
+    const compositeScore = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100 * 10) / 10 : 0;
+    const categoryScores = {};
+    for (const [cat, data] of Object.entries(categoryGroups)) {
+      categoryScores[cat] = {
+        score: data.totalPoints > 0 ? Math.round((data.earnedPoints / data.totalPoints) * 100 * 10) / 10 : 0,
+        earned: data.earnedPoints,
+        total: data.totalPoints,
+        questionCount: data.questions.length
+      };
+    }
+
+    // Generate AI summary for recruiter
+    const summaryPrompt = `You are a senior recruiter reviewing assessment results for a candidate.
+
+COMPOSITE SCORE: ${compositeScore}%
+CATEGORY BREAKDOWN:
+${Object.entries(categoryScores).map(([cat, s]) => `- ${cat}: ${s.score}% (${s.earned}/${s.total} points)`).join('\n')}
+
+DETAILED RESULTS:
+${Object.entries(categoryGroups).map(([cat, data]) =>
+  data.questions.map(q => `[${cat}] Q: ${q.text.substring(0, 100)}... → Score: ${q.score}/${q.maxPoints}${q.aiScore ? ' | ' + (q.aiScore.feedback || '') : ''}`).join('\n')
+).join('\n')}
+
+Provide a recruiter-facing assessment summary.
+
+Return ONLY valid JSON:
+{
+  "recommendation": "strong_hire|hire|maybe|no_hire",
+  "summary": "2-3 sentence overall assessment",
+  "strengths": ["Top strength 1", "Top strength 2", "Top strength 3"],
+  "weaknesses": ["Area of concern 1", "Area of concern 2"],
+  "fit_notes": "1-2 sentences about role fit",
+  "suggested_interview_focus": ["Topic to probe in interview 1", "Topic 2"]
+}`;
+
+    let aiSummary = null;
+    try {
+      const summaryResponse = await chat(summaryPrompt, {
+        maxTokens: 1024,
+        module: 'assessments', feature: 'recruiter_summary'
+      });
+      aiSummary = safeParseJSON(summaryResponse);
+    } catch (err) {
+      console.error('[scoring] Summary generation failed:', err.message);
+    }
+
+    // Calculate anti-cheat score
+    let antiCheatScore = 100;
+    antiCheatScore -= (att.tab_switches || 0) * 3;
+    antiCheatScore -= (att.copy_paste_attempts || 0) * 8;
+    antiCheatScore -= (att.time_anomalies || 0) * 5;
+    antiCheatScore = Math.max(0, antiCheatScore);
+
+    // Save scores
+    await pool.query(`
+      UPDATE job_assessment_attempts
+      SET answers = $1, scores = $2, composite_score = $3, category_scores = $4,
+          ai_summary = $5, anti_cheat_score = $6, scored_at = NOW()
+      WHERE id = $7
+    `, [
+      JSON.stringify(answers),
+      JSON.stringify({ earnedPoints, totalPoints, compositeScore }),
+      compositeScore,
+      JSON.stringify(categoryScores),
+      JSON.stringify(aiSummary),
+      antiCheatScore,
+      attemptId
+    ]);
+
+    console.log(`[scoring] Attempt ${attemptId} scored: ${compositeScore}% (${earnedPoints}/${totalPoints} pts)`);
+  } catch (error) {
+    console.error('[scoring] Failed to score attempt:', error);
+  }
+}
+
+// Manually trigger scoring for an attempt
+router.post('/job-assessment/:id/score', authMiddleware, async (req, res) => {
+  try {
+    const { attemptId } = req.body;
+    const assessmentId = req.params.id;
+
+    if (!attemptId) return res.status(400).json({ error: 'attemptId required' });
+
+    // Verify access
+    const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+    const isRecruiter = recruiterRoles.includes(req.user.role);
+    const isCandidate = !isRecruiter;
+
+    if (isCandidate) {
+      const check = await pool.query(
+        'SELECT id FROM job_assessment_attempts WHERE id = $1 AND candidate_id = $2',
+        [attemptId, req.user.id]
+      );
+      if (check.rows.length === 0) return res.status(403).json({ error: 'Access denied' });
+    }
+
+    await scoreAttempt(attemptId, assessmentId);
+
+    const result = await pool.query('SELECT * FROM job_assessment_attempts WHERE id = $1', [attemptId]);
+    res.json({ attempt: result.rows[0] || null });
+  } catch (error) {
+    console.error('Error scoring assessment:', error);
+    res.status(500).json({ error: 'Failed to score assessment' });
+  }
+});
+
+// Get assessment results
+router.get('/job-assessment/:id/results', authMiddleware, async (req, res) => {
+  try {
+    const assessmentId = req.params.id;
+    const { attemptId, candidateId } = req.query;
+
+    let query = 'SELECT ja.*, u.name as candidate_name, u.email as candidate_email FROM job_assessment_attempts ja LEFT JOIN users u ON ja.candidate_id = u.id WHERE ja.assessment_id = $1';
+    const params = [assessmentId];
+
+    if (attemptId) {
+      query += ' AND ja.id = $2';
+      params.push(attemptId);
+    } else if (candidateId) {
+      query += ' AND ja.candidate_id = $2';
+      params.push(candidateId);
+    } else {
+      // If candidate, show only their own
+      const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+      if (!recruiterRoles.includes(req.user.role)) {
+        query += ' AND ja.candidate_id = $2';
+        params.push(req.user.id);
+      }
+    }
+
+    query += ' ORDER BY ja.created_at DESC';
+
+    const results = await pool.query(query, params);
+
+    // Get the assessment details too
+    const assessment = await pool.query(
+      'SELECT title, description, question_count, categories, passing_score FROM job_assessments WHERE id = $1',
+      [assessmentId]
+    );
+
+    res.json({
+      assessment: assessment.rows[0] || null,
+      attempts: results.rows
+    });
+  } catch (error) {
+    console.error('Error fetching assessment results:', error);
+    res.status(500).json({ error: 'Failed to fetch results' });
+  }
+});
+
+// Recruiter: Get all job assessment results across all jobs
+router.get('/job-assessments/all', authMiddleware, async (req, res) => {
+  try {
+    const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+    if (!recruiterRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Recruiter access required' });
+    }
+
+    const result = await pool.query(`
+      SELECT jaa.id, jaa.composite_score, jaa.category_scores, jaa.ai_summary,
+             jaa.anti_cheat_score, jaa.status, jaa.completed_at, jaa.scored_at,
+             jaa.time_spent_seconds,
+             ja.title as assessment_title, ja.job_id,
+             j.title as job_title, j.company,
+             u.name as candidate_name, u.email as candidate_email, u.id as candidate_id
+      FROM job_assessment_attempts jaa
+      JOIN job_assessments ja ON jaa.assessment_id = ja.id
+      LEFT JOIN jobs j ON ja.job_id = j.id
+      LEFT JOIN users u ON jaa.candidate_id = u.id
+      WHERE jaa.scored_at IS NOT NULL
+      ORDER BY jaa.scored_at DESC
+      LIMIT 100
+    `);
+
+    res.json({ results: result.rows });
+  } catch (error) {
+    console.error('Error fetching all job assessment results:', error);
+    res.status(500).json({ error: 'Failed to fetch results' });
+  }
+});
+
+// Conversational assessment — AI asks follow-up questions based on answers
+router.post('/job-assessment/:id/converse', authMiddleware, async (req, res) => {
+  try {
+    const assessmentId = req.params.id;
+    const candidateId = req.user.id;
+    const { attemptId, questionId, message } = req.body;
+
+    if (!attemptId || !message) {
+      return res.status(400).json({ error: 'attemptId and message required' });
+    }
+
+    // Get the question context
+    const qResult = await pool.query(
+      'SELECT * FROM job_assessment_questions WHERE id = $1 AND assessment_id = $2',
+      [questionId, assessmentId]
+    );
+    if (qResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+    const question = qResult.rows[0];
+
+    // Get conversation history for this question
+    const history = await pool.query(
+      'SELECT role, message FROM assessment_conversations WHERE attempt_id = $1 AND question_id = $2 ORDER BY created_at',
+      [attemptId, questionId]
+    );
+
+    const convoHistory = history.rows.map(h => `${h.role}: ${h.message}`).join('\n');
+
+    // Save candidate's message
+    await pool.query(
+      'INSERT INTO assessment_conversations (attempt_id, question_id, role, message) VALUES ($1, $2, $3, $4)',
+      [attemptId, questionId, 'candidate', message]
+    );
+
+    // Limit to 3 follow-ups per question
+    const aiTurns = history.rows.filter(h => h.role === 'ai').length;
+    if (aiTurns >= 3) {
+      return res.json({
+        reply: "Thank you for your thorough response. Let's move on to the next question.",
+        done: true,
+        followUpCount: aiTurns
+      });
+    }
+
+    // AI generates follow-up
+    const prompt = `You are conducting a skill assessment conversation. Based on the candidate's answer, ask ONE probing follow-up question to assess their depth of understanding.
+
+ASSESSMENT QUESTION: ${question.question_text}
+${question.rubric ? 'RUBRIC: ' + question.rubric : ''}
+
+CONVERSATION SO FAR:
+${convoHistory}
+candidate: ${message}
+
+Rules:
+- Ask ONE specific follow-up that probes deeper
+- If they gave a surface-level answer, ask for specifics
+- If they mentioned an interesting approach, ask them to elaborate
+- If they seem to have fully answered, say so and indicate you're satisfied
+- Keep it conversational and professional
+
+Return ONLY valid JSON:
+{
+  "reply": "Your follow-up question or acknowledgment",
+  "satisfied": true/false,
+  "depth_score": 1-10,
+  "notes": "Brief assessment note"
+}`;
+
+    const response = await chat(prompt, {
+      maxTokens: 512,
+      module: 'assessments', feature: 'conversational'
+    });
+    const parsed = safeParseJSON(response);
+
+    const reply = parsed?.reply || "Could you elaborate on your approach?";
+    const satisfied = parsed?.satisfied || false;
+
+    // Save AI reply
+    await pool.query(
+      'INSERT INTO assessment_conversations (attempt_id, question_id, role, message, metadata) VALUES ($1, $2, $3, $4, $5)',
+      [attemptId, questionId, 'ai', reply, JSON.stringify({ satisfied, depth_score: parsed?.depth_score, notes: parsed?.notes })]
+    );
+
+    res.json({
+      reply,
+      done: satisfied,
+      followUpCount: aiTurns + 1
+    });
+  } catch (error) {
+    console.error('Error in conversational assessment:', error);
+    res.status(500).json({ error: 'Failed to generate follow-up' });
+  }
+});
+
+// Anti-cheat event logging for job assessments
+router.post('/job-assessment/:id/event', authMiddleware, async (req, res) => {
+  try {
+    const { attemptId, eventType } = req.body;
+    if (!attemptId || !eventType) return res.status(400).json({ error: 'attemptId and eventType required' });
+
+    if (eventType === 'tab_switch') {
+      await pool.query(
+        'UPDATE job_assessment_attempts SET tab_switches = COALESCE(tab_switches, 0) + 1 WHERE id = $1 AND candidate_id = $2',
+        [attemptId, req.user.id]
+      );
+    } else if (eventType === 'copy_paste') {
+      await pool.query(
+        'UPDATE job_assessment_attempts SET copy_paste_attempts = COALESCE(copy_paste_attempts, 0) + 1 WHERE id = $1 AND candidate_id = $2',
+        [attemptId, req.user.id]
+      );
+    }
+
+    res.json({ logged: true });
+  } catch (error) {
+    console.error('Error logging assessment event:', error);
+    res.status(500).json({ error: 'Failed to log event' });
+  }
+});
+
 module.exports = router;
