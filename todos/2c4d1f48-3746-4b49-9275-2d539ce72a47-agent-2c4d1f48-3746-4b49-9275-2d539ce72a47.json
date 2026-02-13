@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate previous assessment attempt — find what's broken",
+    "status": "completed",
+    "activeForm": "Investigating previous assessment attempt"
+  },
+  {
+    "content": "Phase 1: Add assessment button to recruiter job-applicants page",
+    "status": "completed",
+    "activeForm": "Adding assessment button to recruiter job pipeline"
+  },
+  {
+    "content": "Phase 2: Add assessment link to candidate job-detail page",
+    "status": "completed",
+    "activeForm": "Adding assessment link to candidate job detail"
+  },
+  {
+    "content": "Phase 3: Add job assessments tab to recruiter assessments page",
+    "status": "completed",
+    "activeForm": "Adding job assessments tab to recruiter assessments"
+  },
+  {
+    "content": "Phase 4: Deploy + E2E verification",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying end-to-end"
+  }
+]
