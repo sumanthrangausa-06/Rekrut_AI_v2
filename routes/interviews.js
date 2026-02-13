@@ -1795,6 +1795,7 @@ router.post('/mock/analyze-frame', authMiddleware, async (req, res) => {
     const text = await aiProvider.visionAnalysis([frameUrl], analysisPrompt, {
       maxTokens: 200,
       task: 'interview-realtime-body-language',
+      module: 'mock_interview', feature: 'realtime_body_language',
     });
     let indicators;
     try {
@@ -1890,7 +1891,7 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
           req.file.buffer,
           filename,
           baseMime,
-          { subscriptionId: req.user.stripe_subscription_id }
+          { subscriptionId: req.user.stripe_subscription_id, module: 'mock_interview', feature: 'voice_transcription' }
         );
         if (asrResult && asrResult.text) {
           transcribedText = asrResult.text.trim();

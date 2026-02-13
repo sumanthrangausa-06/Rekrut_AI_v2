@@ -40,7 +40,8 @@ Analyze and return a JSON object with:
 Only return the JSON object, no other text.`;
 
   const response = await chat(prompt, {
-    system: 'You are an expert HR consultant and job market analyst. Analyze job postings for quality, authenticity, and candidate appeal. Be specific and actionable. Always return valid JSON.'
+    system: 'You are an expert HR consultant and job market analyst. Analyze job postings for quality, authenticity, and candidate appeal. Be specific and actionable. Always return valid JSON.',
+    module: 'job_optimizer', feature: 'analyze_posting'
   });
 
   try {
@@ -99,7 +100,8 @@ Create an optimized version and return a JSON object with:
 Only return the JSON object.`;
 
   const response = await chat(prompt, {
-    system: 'You are a professional copywriter specializing in job postings. Create compelling, honest job descriptions that attract quality candidates. Use inclusive language and focus on growth opportunities. Always return valid JSON.'
+    system: 'You are a professional copywriter specializing in job postings. Create compelling, honest job descriptions that attract quality candidates. Use inclusive language and focus on growth opportunities. Always return valid JSON.',
+    module: 'job_optimizer', feature: 'optimize_description'
   });
 
   try {
@@ -144,7 +146,8 @@ Include at least 2 behavioral, 2 technical, and 2 situational questions.
 Only return the JSON array.`;
 
   const response = await chat(prompt, {
-    system: 'You are an expert interviewer who designs effective interview processes. Create questions that reveal candidate capabilities and cultural fit. Always return valid JSON.'
+    system: 'You are an expert interviewer who designs effective interview processes. Create questions that reveal candidate capabilities and cultural fit. Always return valid JSON.',
+    module: 'job_optimizer', feature: 'interview_questions'
   });
 
   try {
@@ -189,7 +192,8 @@ Return a JSON object:
 Only return the JSON object.`;
 
   const response = await chat(prompt, {
-    system: 'You are an experienced recruiter evaluating candidate-job fit. Be objective and data-driven. Always return valid JSON.'
+    system: 'You are an experienced recruiter evaluating candidate-job fit. Be objective and data-driven. Always return valid JSON.',
+    module: 'job_optimizer', feature: 'candidate_fit'
   });
 
   try {
@@ -230,7 +234,8 @@ Return a JSON object with:
 Use realistic 2024-2025 US market data. Only return the JSON object.`;
 
   const response = await chat(prompt, {
-    system: 'You are a compensation analyst with access to current salary data. Provide accurate, realistic salary ranges based on current market conditions. Always return valid JSON.'
+    system: 'You are a compensation analyst with access to current salary data. Provide accurate, realistic salary ranges based on current market conditions. Always return valid JSON.',
+    module: 'job_optimizer', feature: 'salary_insights'
   });
 
   try {
@@ -275,7 +280,8 @@ Make the description specific to the role, not generic. Use inclusive language.
 Only return the JSON object.`;
 
   const response = await chat(prompt, {
-    system: 'You are a senior talent acquisition specialist who writes compelling job descriptions that attract top talent. Your descriptions are specific, inclusive, and highlight growth opportunities. Always return valid JSON.'
+    system: 'You are a senior talent acquisition specialist who writes compelling job descriptions that attract top talent. Your descriptions are specific, inclusive, and highlight growth opportunities. Always return valid JSON.',
+    module: 'job_optimizer', feature: 'generate_description'
   });
 
   try {
@@ -319,7 +325,8 @@ Be specific to the role. Don't suggest generic skills like "communication" unles
 Only return the JSON object.`;
 
   const response = await chat(prompt, {
-    system: 'You are a technical recruiter with deep knowledge of role requirements across industries. Provide specific, actionable skill requirements. Always return valid JSON.'
+    system: 'You are a technical recruiter with deep knowledge of role requirements across industries. Provide specific, actionable skill requirements. Always return valid JSON.',
+    module: 'job_optimizer', feature: 'suggest_skills'
   });
 
   try {
@@ -363,7 +370,8 @@ Focus on titles that:
 Suggest 3-5 alternatives. Only return the JSON object.`;
 
   const response = await chat(prompt, {
-    system: 'You are a job market expert who optimizes job titles for maximum candidate reach and clarity. You know what candidates search for on LinkedIn, Indeed, and Glassdoor. Always return valid JSON.'
+    system: 'You are a job market expert who optimizes job titles for maximum candidate reach and clarity. You know what candidates search for on LinkedIn, Indeed, and Glassdoor. Always return valid JSON.',
+    module: 'job_optimizer', feature: 'suggest_titles'
   });
 
   try {

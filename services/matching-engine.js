@@ -28,7 +28,7 @@ async function generateEmbedding(text) {
     throw new Error('Cannot generate embedding for empty text');
   }
 
-  return aiProvider.generateEmbedding(text.substring(0, 8000));
+  return aiProvider.generateEmbedding(text.substring(0, 8000), { module: 'matching' });
 }
 
 /**

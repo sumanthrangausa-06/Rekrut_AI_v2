@@ -478,7 +478,7 @@ Requirements:
 - Keep question clear and unambiguous`;
 
   try {
-    const response = await chat(prompt, { maxTokens: 1024 });
+    const response = await chat(prompt, { maxTokens: 1024, module: 'assessments', feature: 'question_generation' });
 
     // Parse response - handle potential markdown code blocks
     let cleanResponse = response.trim();
@@ -572,7 +572,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 Score guide: 90-100=excellent, 70-89=good, 50-69=partial, below 50=incorrect`;
 
   try {
-    const response = await chat(prompt, { maxTokens: 512 });
+    const response = await chat(prompt, { maxTokens: 512, module: 'assessments', feature: 'answer_evaluation' });
     let cleanResponse = response.trim();
     if (cleanResponse.startsWith('```')) {
       cleanResponse = cleanResponse.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
