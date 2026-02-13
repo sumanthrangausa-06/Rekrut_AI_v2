@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Communication Hub — Rekrut AI</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.1/dist/tailwind.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="/css/globals.css">
+  <style>
+    .comm-layout { display: grid; grid-template-columns: 280px 1fr; gap: 1.5rem; min-height: calc(100vh - 180px); }
+    @media(max-width:900px) { .comm-layout { grid-template-columns: 1fr; } }
+
+    .comm-sidebar { background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
+    .comm-sidebar-header { padding: 1rem 1.25rem; border-bottom: 1px solid #e2e8f0; font-weight: 600; font-size: 0.875rem; color: #0f172a; display: flex; align-items: center; justify-content: space-between; }
+    .comm-tabs { display: flex; border-bottom: 1px solid #e2e8f0; }
+    .comm-tab { flex: 1; padding: 0.625rem 0.5rem; text-align: center; font-size: 0.75rem; font-weight: 500; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+    .comm-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+    .comm-tab:hover { color: #0f172a; }
+    .comm-list { max-height: 60vh; overflow-y: auto; }
+    .comm-item { padding: 0.875rem 1.25rem; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.1s; }
+    .comm-item:hover { background: #f8fafc; }
+    .comm-item.active { background: #eef2ff; border-left: 3px solid var(--color-primary); }
+    .comm-item-name { font-weight: 500; font-size: 0.875rem; color: #0f172a; margin-bottom: 2px; }
+    .comm-item-preview { font-size: 0.75rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .comm-item-meta { display: flex; align-items: center; gap: 0.5rem; margin-top: 4px; }
+    .comm-type-badge { font-size: 0.625rem; padding: 2px 6px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+    .comm-type-badge.outreach { background: #dbeafe; color: #1d4ed8; }
+    .comm-type-badge.follow_up { background: #fef3c7; color: #b45309; }
+    .comm-type-badge.rejection { background: #fecaca; color: #dc2626; }
+    .comm-type-badge.offer_letter { background: #d1fae5; color: #059669; }
+    .comm-type-badge.interview_confirmation { background: #e0e7ff; color: #4338ca; }
+    .comm-type-badge.custom { background: #f1f5f9; color: #475569; }
+
+    .comm-main { background: white; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; }
+    .comm-main-header { padding: 1rem 1.5rem; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .comm-main-body { flex: 1; padding: 1.5rem; overflow-y: auto; }
+
+    .compose-area { background: #f8fafc; border-radius: 10px; padding: 1.25rem; margin-top: 1rem; }
+    .compose-area textarea { width: 100%; min-height: 160px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem; font-size: 0.875rem; font-family: inherit; resize: vertical; background: white; }
+    .compose-area textarea:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+    .compose-area input { width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.625rem 0.75rem; font-size: 0.875rem; font-family: inherit; background: white; margin-bottom: 0.75rem; }
+    .compose-area input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+    .compose-actions { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
+
+    .ai-generate-panel { background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%); border: 1px solid #c7d2fe; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
+    .ai-generate-panel h4 { font-size: 0.875rem; font-weight: 600; color: #3730a3; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+
+    .tone-selector { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+    .tone-btn { padding: 0.375rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 500; border: 1px solid #d1d5db; background: white; cursor: pointer; transition: all 0.15s; }
+    .tone-btn.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+    .tone-btn:hover:not(.active) { border-color: var(--color-primary); color: var(--color-primary); }
+
+    .type-selector { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .type-btn { padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.8rem; font-weight: 500; border: 1px solid #d1d5db; background: white; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 0.375rem; }
+    .type-btn.active { background: #4f46e5; color: white; border-color: #4f46e5; }
+    .type-btn:hover:not(.active) { border-color: #4f46e5; color: #4f46e5; }
+
+    .pipeline-results { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem; margin-top: 0.75rem; font-size: 0.8rem; }
+    .pipeline-results.warning { background: #fefce8; border-color: #fde68a; }
+    .pipeline-flag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; margin-right: 4px; }
+    .pipeline-flag.pass { background: #dcfce7; color: #16a34a; }
+    .pipeline-flag.fail { background: #fecaca; color: #dc2626; }
+
+    .timeline { border-left: 2px solid #e2e8f0; padding-left: 1.25rem; margin-left: 0.5rem; }
+    .timeline-item { position: relative; padding-bottom: 1.25rem; }
+    .timeline-item::before { content: ''; position: absolute; left: -1.6rem; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: #4f46e5; border: 2px solid white; }
+    .timeline-item.sent::before { background: #059669; }
+    .timeline-item.draft::before { background: #d1d5db; }
+    .timeline-item.replied::before { background: #ea580c; }
+    .timeline-date { font-size: 0.7rem; color: #94a3b8; margin-bottom: 4px; }
+    .timeline-content { background: #f8fafc; border-radius: 8px; padding: 0.75rem; font-size: 0.8rem; color: #334155; }
+    .timeline-content .subject { font-weight: 600; color: #0f172a; margin-bottom: 4px; }
+
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .mini-stat { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; text-align: center; }
+    .mini-stat-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; }
+    .mini-stat-label { font-size: 0.7rem; color: #64748b; margin-top: 2px; }
+
+    .empty-hero { text-align: center; padding: 3rem 1.5rem; }
+    .empty-hero h3 { font-size: 1.125rem; margin-bottom: 0.5rem; }
+    .empty-hero p { color: #64748b; font-size: 0.875rem; margin-bottom: 1.25rem; max-width: 400px; margin-left: auto; margin-right: auto; }
+
+    select.form-select { padding: 0.5rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.8rem; background: white; cursor: pointer; }
+    select.form-select:focus { outline: none; border-color: var(--color-primary); }
+
+    .loading-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-spinner-dark { border-color: rgba(0,0,0,0.1); border-top-color: #4f46e5; }
+  </style>
+</head>
+<body>
+  <div class="loading-screen" id="loadingScreen">
+    <div class="spinner spinner-dark"></div>
+  </div>
+
+  <div id="app" style="display:none;"></div>
+
+  <template id="pageContent">
+    <!-- Stats -->
+    <div class="stats-row" id="commStats">
+      <div class="mini-stat"><div class="mini-stat-value" id="statTotal">—</div><div class="mini-stat-label">Total Messages</div></div>
+      <div class="mini-stat"><div class="mini-stat-value" id="statSent">—</div><div class="mini-stat-label">Sent</div></div>
+      <div class="mini-stat"><div class="mini-stat-value" id="statDrafts">—</div><div class="mini-stat-label">Drafts</div></div>
+      <div class="mini-stat"><div class="mini-stat-value" id="statReplied">—</div><div class="mini-stat-label">Replied</div></div>
+      <div class="mini-stat"><div class="mini-stat-value" id="statRate">—</div><div class="mini-stat-label">Response Rate</div></div>
+    </div>
+
+    <div class="comm-layout">
+      <!-- Sidebar: message list -->
+      <div class="comm-sidebar">
+        <div class="comm-sidebar-header">
+          <span>Messages</span>
+          <button class="btn btn-primary" style="padding:0.375rem 0.75rem;font-size:0.75rem;" onclick="showCompose()">+ New</button>
+        </div>
+        <div class="comm-tabs">
+          <div class="comm-tab active" data-filter="all" onclick="filterComms('all',this)">All</div>
+          <div class="comm-tab" data-filter="sent" onclick="filterComms('sent',this)">Sent</div>
+          <div class="comm-tab" data-filter="draft" onclick="filterComms('draft',this)">Drafts</div>
+        </div>
+        <div class="comm-list" id="commList">
+          <div style="display:flex;justify-content:center;padding:2rem;"><div class="spinner spinner-dark" style="width:24px;height:24px;"></div></div>
+        </div>
+      </div>
+
+      <!-- Main: compose / view -->
+      <div class="comm-main">
+        <div class="comm-main-header">
+          <h3 style="font-size:1rem;" id="mainTitle">AI Communication Hub</h3>
+          <div style="display:flex;gap:0.5rem;" id="mainActions"></div>
+        </div>
+        <div class="comm-main-body" id="mainBody">
+          <div class="empty-hero">
+            <div style="font-size:3rem;margin-bottom:0.75rem;">✨</div>
+            <h3>AI-Powered Recruiter Communications</h3>
+            <p>Draft personalized outreach, follow-ups, rejections, and offer letters — all powered by AI that adapts to each candidate.</p>
+            <button class="btn btn-primary" onclick="showCompose()">✨ Compose Message</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script src="/js/core.js"></script>
+  <script src="/js/ui.js"></script>
+  <script>
+    let allComms = [];
+    let currentFilter = 'all';
+    let selectedCommId = null;
+    let candidatesList = [];
+    let jobsList = [];
+
+    (async () => {
+      const ok = await Auth.require(['recruiter','employer','hiring_manager','admin']);
+      if (!ok) return;
+      document.getElementById('loadingScreen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+
+      const template = document.getElementById('pageContent');
+      const pageContent = document.createElement('div');
+      pageContent.id = 'page-content';
+      pageContent.innerHTML = template.innerHTML;
+      document.getElementById('app').appendChild(pageContent);
+
+      UI.initDashboard({ title: 'Communication Hub', subtitle: 'AI-powered recruiter messaging' });
+
+      loadAnalytics();
+      loadCommunications();
+      loadCandidatesAndJobs();
+    })();
+
+    async function loadAnalytics() {
+      try {
+        const data = await API.get('/communications/analytics');
+        if (data.success && data.analytics) {
+          const t = data.analytics.totals;
+          document.getElementById('statTotal').textContent = t.total || '0';
+          document.getElementById('statSent').textContent = t.sent || '0';
+          document.getElementById('statDrafts').textContent = t.drafts || '0';
+          document.getElementById('statReplied').textContent = t.replied || '0';
+          document.getElementById('statRate').textContent = (t.response_rate || '0') + '%';
+        }
+      } catch (err) {
+        console.log('Analytics not available yet:', err.message);
+      }
+    }
+
+    async function loadCommunications() {
+      try {
+        const data = await API.get('/communications?limit=100');
+        allComms = data.communications || [];
+        renderCommList();
+      } catch (err) {
+        document.getElementById('commList').innerHTML = '<p style="padding:1rem;text-align:center;color:#64748b;font-size:0.8rem;">No messages yet</p>';
+      }
+    }
+
+    async function loadCandidatesAndJobs() {
+      try {
+        const [appsData, jobsData] = await Promise.all([
+          API.get('/recruiter/applications').catch(() => ({ applications: [] })),
+          API.get('/recruiter/jobs').catch(() => ({ jobs: [] }))
+        ]);
+        // Extract unique candidates from applications
+        const seen = new Set();
+        candidatesList = (appsData.applications || []).filter(a => {
+          if (seen.has(a.candidate_id)) return false;
+          seen.add(a.candidate_id);
+          return true;
+        }).map(a => ({ id: a.candidate_id, name: a.candidate_name || a.name || 'Unknown' }));
+        jobsList = (jobsData.jobs || []).map(j => ({ id: j.id, title: j.title }));
+      } catch (err) {
+        console.log('Could not load candidates/jobs:', err.message);
+      }
+    }
+
+    function renderCommList() {
+      const container = document.getElementById('commList');
+      let filtered = allComms;
+      if (currentFilter === 'sent') filtered = allComms.filter(c => c.status === 'sent');
+      else if (currentFilter === 'draft') filtered = allComms.filter(c => c.status === 'draft');
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div style="padding:2rem;text-align:center;"><p style="color:#94a3b8;font-size:0.8rem;">No messages yet</p><button class="btn btn-primary" style="margin-top:0.75rem;font-size:0.75rem;" onclick="showCompose()">✨ Compose First Message</button></div>';
+        return;
+      }
+
+      container.innerHTML = filtered.map(c => `
+        <div class="comm-item ${c.id === selectedCommId ? 'active' : ''}" onclick="viewComm(${c.id})">
+          <div class="comm-item-name">${Utils.escapeHtml(c.candidate_name || 'Unknown')}</div>
+          <div class="comm-item-preview">${Utils.escapeHtml((c.subject || c.body || '').substring(0, 60))}</div>
+          <div class="comm-item-meta">
+            <span class="comm-type-badge ${c.type}">${(c.type || 'custom').replace(/_/g, ' ')}</span>
+            <span style="font-size:0.65rem;color:#94a3b8;">${Utils.formatRelative(c.created_at)}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function filterComms(filter, el) {
+      currentFilter = filter;
+      document.querySelectorAll('.comm-tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      renderCommList();
+    }
+
+    function viewComm(id) {
+      selectedCommId = id;
+      renderCommList();
+      const comm = allComms.find(c => c.id === id);
+      if (!comm) return;
+
+      document.getElementById('mainTitle').textContent = comm.subject || `${(comm.type || 'Message').replace(/_/g, ' ')} to ${comm.candidate_name || 'Candidate'}`;
+      document.getElementById('mainActions').innerHTML = `
+        <span class="comm-type-badge ${comm.type}" style="font-size:0.7rem;">${(comm.type || 'custom').replace(/_/g, ' ')}</span>
+        <span class="badge ${comm.status === 'sent' ? 'badge-success' : comm.status === 'draft' ? 'badge-warning' : 'badge-neutral'}" style="font-size:0.7rem;">${comm.status}</span>
+      `;
+
+      const body = document.getElementById('mainBody');
+      body.innerHTML = `
+        <div style="margin-bottom:1rem;">
+          <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
+            <div style="width:40px;height:40px;border-radius:50%;background:#eef2ff;display:flex;align-items:center;justify-content:center;font-weight:600;color:#4f46e5;">
+              ${(comm.candidate_name || '?')[0].toUpperCase()}
+            </div>
+            <div>
+              <div style="font-weight:600;font-size:0.9rem;">${Utils.escapeHtml(comm.candidate_name || 'Unknown Candidate')}</div>
+              <div style="font-size:0.75rem;color:#64748b;">${Utils.escapeHtml(comm.candidate_email || '')} · ${comm.job_title || 'No job linked'}</div>
+            </div>
+          </div>
+          ${comm.subject ? `<div style="font-weight:600;margin-bottom:0.5rem;">Subject: ${Utils.escapeHtml(comm.subject)}</div>` : ''}
+          <div style="background:#f8fafc;border-radius:8px;padding:1rem;font-size:0.875rem;line-height:1.7;white-space:pre-wrap;">${Utils.escapeHtml(comm.body || '')}</div>
+          ${comm.metadata && comm.metadata.pipeline ? `
+            <div class="pipeline-results" style="margin-top:1rem;">
+              <strong style="font-size:0.8rem;">🤖 AI Pipeline Results</strong>
+              <div style="margin-top:0.5rem;">
+                <span class="pipeline-flag pass">✓ Personalized</span>
+                <span class="pipeline-flag ${comm.metadata.pipeline.tone_check?.passed !== false ? 'pass' : 'fail'}">${comm.metadata.pipeline.tone_check?.passed !== false ? '✓' : '✗'} Tone</span>
+                <span class="pipeline-flag ${comm.metadata.pipeline.compliance?.passed !== false ? 'pass' : 'fail'}">${comm.metadata.pipeline.compliance?.passed !== false ? '✓' : '✗'} Compliance</span>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+        <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+          ${comm.status === 'draft' ? `<button class="btn btn-primary" onclick="sendDraft(${comm.id})">Send Message</button>` : ''}
+          <button class="btn btn-secondary" onclick="showCompose(${comm.candidate_id || 'null'}, ${comm.job_id || 'null'})">Reply / New Message</button>
+        </div>
+      `;
+    }
+
+    async function sendDraft(id) {
+      const comm = allComms.find(c => c.id === id);
+      if (!comm) return;
+      try {
+        await API.post('/communications/send', {
+          candidate_id: comm.candidate_id,
+          job_id: comm.job_id,
+          type: comm.type,
+          subject: comm.subject,
+          body: comm.body,
+          tone: comm.tone,
+          run_pipeline: true
+        });
+        Toast.success('Message sent!');
+        loadCommunications();
+        loadAnalytics();
+      } catch (err) {
+        Toast.error('Failed to send: ' + err.message);
+      }
+    }
+
+    function showCompose(candidateId, jobId) {
+      selectedCommId = null;
+      renderCommList();
+      document.getElementById('mainTitle').textContent = '✨ Compose AI Message';
+      document.getElementById('mainActions').innerHTML = '';
+
+      const candOptions = candidatesList.map(c => `<option value="${c.id}" ${c.id == candidateId ? 'selected' : ''}>${Utils.escapeHtml(c.name)}</option>`).join('');
+      const jobOptions = jobsList.map(j => `<option value="${j.id}" ${j.id == jobId ? 'selected' : ''}>${Utils.escapeHtml(j.title)}</option>`).join('');
+
+      document.getElementById('mainBody').innerHTML = `
+        <div class="ai-generate-panel">
+          <h4>✨ AI Message Generator</h4>
+          <p style="font-size:0.8rem;color:#475569;margin-bottom:1rem;">Select a candidate, job, and message type — AI will draft a personalized message.</p>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+            <div>
+              <label style="font-size:0.75rem;font-weight:500;color:#374151;display:block;margin-bottom:4px;">Candidate</label>
+              <select class="form-select" id="composeCandidate" style="width:100%;">
+                <option value="">Select candidate...</option>
+                ${candOptions}
+              </select>
+            </div>
+            <div>
+              <label style="font-size:0.75rem;font-weight:500;color:#374151;display:block;margin-bottom:4px;">Job</label>
+              <select class="form-select" id="composeJob" style="width:100%;">
+                <option value="">Select job (optional)...</option>
+                ${jobOptions}
+              </select>
+            </div>
+          </div>
+
+          <label style="font-size:0.75rem;font-weight:500;color:#374151;display:block;margin-bottom:4px;">Message Type</label>
+          <div class="type-selector" id="typeSelector">
+            <button class="type-btn active" data-type="outreach" onclick="selectType(this)">📨 Outreach</button>
+            <button class="type-btn" data-type="follow_up" onclick="selectType(this)">🔄 Follow-up</button>
+            <button class="type-btn" data-type="rejection" onclick="selectType(this)">❌ Rejection</button>
+            <button class="type-btn" data-type="offer_letter" onclick="selectType(this)">📝 Offer Letter</button>
+            <button class="type-btn" data-type="interview_confirmation" onclick="selectType(this)">📅 Interview</button>
+          </div>
+
+          <label style="font-size:0.75rem;font-weight:500;color:#374151;display:block;margin-bottom:4px;">Tone</label>
+          <div class="tone-selector" id="toneSelector">
+            <button class="tone-btn active" data-tone="professional" onclick="selectTone(this)">Professional</button>
+            <button class="tone-btn" data-tone="conversational" onclick="selectTone(this)">Conversational</button>
+            <button class="tone-btn" data-tone="formal" onclick="selectTone(this)">Formal</button>
+            <button class="tone-btn" data-tone="executive" onclick="selectTone(this)">Executive</button>
+            <button class="tone-btn" data-tone="friendly" onclick="selectTone(this)">Friendly</button>
+          </div>
+
+          <!-- Extra options for specific types -->
+          <div id="extraOptions"></div>
+
+          <button class="btn btn-primary" id="generateBtn" onclick="generateMessage()" style="width:100%;margin-top:0.5rem;">
+            ✨ Generate AI Message
+          </button>
+        </div>
+
+        <!-- Generated output -->
+        <div id="generatedOutput" style="display:none;">
+          <div class="compose-area">
+            <label style="font-size:0.75rem;font-weight:500;color:#374151;display:block;margin-bottom:4px;">Subject</label>
+            <input type="text" id="composeSubject" placeholder="Email subject...">
+            <label style="font-size:0.75rem;font-weight:500;color:#374151;display:block;margin-bottom:4px;">Message</label>
+            <textarea id="composeBody" placeholder="Message body..."></textarea>
+            <div id="pipelineOutput"></div>
+            <div class="compose-actions">
+              <button class="btn btn-primary" onclick="sendMessage()">📤 Send</button>
+              <button class="btn btn-secondary" onclick="saveDraft()">💾 Save Draft</button>
+              <button class="btn btn-secondary" onclick="runPipeline()">🤖 Run AI Pipeline</button>
+              <button class="btn btn-secondary" onclick="generateMessage()">🔄 Regenerate</button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      updateExtraOptions();
+    }
+
+    function selectType(el) {
+      document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+      el.classList.add('active');
+      updateExtraOptions();
+    }
+
+    function selectTone(el) {
+      document.querySelectorAll('.tone-btn').forEach(b => b.classList.remove('active'));
+      el.classList.add('active');
+    }
+
+    function getSelectedType() {
+      return document.querySelector('.type-btn.active')?.dataset.type || 'outreach';
+    }
+
+    function getSelectedTone() {
+      return document.querySelector('.tone-btn.active')?.dataset.tone || 'professional';
+    }
+
+    function updateExtraOptions() {
+      const type = getSelectedType();
+      const container = document.getElementById('extraOptions');
+      if (!container) return;
+
+      if (type === 'rejection') {
+        container.innerHTML = `
+          <div style="margin-top:0.75rem;">
+            <label style="font-size:0.75rem;font-weight:500;color:#374151;display:block;margin-bottom:4px;">Reason</label>
+            <select class="form-select" id="rejectionReason" style="width:100%;">
+              <option value="other_candidate">Stronger candidate selected</option>
+              <option value="experience">Insufficient experience</option>
+              <option value="skills">Missing key skills</option>
+              <option value="culture_fit">Culture fit</option>
+              <option value="position_filled">Position filled</option>
+              <option value="salary">Salary mismatch</option>
+            </select>
+            <textarea id="rejectionFeedback" placeholder="Optional constructive feedback..." style="width:100%;min-height:60px;border:1px solid #e2e8f0;border-radius:8px;padding:0.5rem;font-size:0.8rem;margin-top:0.5rem;resize:vertical;"></textarea>
+          </div>
+        `;
+      } else if (type === 'offer_letter') {
+        container.innerHTML = `
+          <div style="margin-top:0.75rem;display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+            <div>
+              <label style="font-size:0.75rem;font-weight:500;color:#374151;display:block;margin-bottom:4px;">Salary</label>
+              <input type="text" id="offerSalary" placeholder="e.g., $120,000/year" class="form-select" style="width:100%;">
+            </div>
+            <div>
+              <label style="font-size:0.75rem;font-weight:500;color:#374151;display:block;margin-bottom:4px;">Start Date</label>
+              <input type="date" id="offerStartDate" class="form-select" style="width:100%;">
+            </div>
+            <div>
+              <label style="font-size:0.75rem;font-weight:500;color:#374151;display:block;margin-bottom:4px;">Bonus</label>
+              <input type="text" id="offerBonus" placeholder="e.g., 10% annual" class="form-select" style="width:100%;">
+            </div>
+            <div>
+              <label style="font-size:0.75rem;font-weight:500;color:#374151;display:block;margin-bottom:4px;">Reporting To</label>
+              <input type="text" id="offerReporting" placeholder="e.g., VP of Engineering" class="form-select" style="width:100%;">
+            </div>
+          </div>
+        `;
+      } else if (type === 'interview_confirmation') {
+        container.innerHTML = `
+          <div style="margin-top:0.75rem;display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+            <div>
+              <label style="font-size:0.75rem;font-weight:500;color:#374151;display:block;margin-bottom:4px;">Interview Date</label>
+              <input type="datetime-local" id="interviewDate" class="form-select" style="width:100%;">
+            </div>
+            <div>
+              <label style="font-size:0.75rem;font-weight:500;color:#374151;display:block;margin-bottom:4px;">Interview Type</label>
+              <select class="form-select" id="interviewType" style="width:100%;">
+                <option value="Video call">Video Call</option>
+                <option value="Phone screen">Phone Screen</option>
+                <option value="On-site">On-site</option>
+                <option value="Technical assessment">Technical Assessment</option>
+              </select>
+            </div>
+          </div>
+        `;
+      } else {
+        container.innerHTML = '';
+      }
+    }
+
+    async function generateMessage() {
+      const candidateId = document.getElementById('composeCandidate')?.value;
+      const jobId = document.getElementById('composeJob')?.value;
+      const type = getSelectedType();
+      const tone = getSelectedTone();
+
+      if (!candidateId) {
+        Toast.warning('Please select a candidate');
+        return;
+      }
+
+      const btn = document.getElementById('generateBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loading-spinner"></span> Generating...';
+
+      try {
+        const options = {};
+
+        // Add type-specific options
+        if (type === 'rejection') {
+          options.reason = document.getElementById('rejectionReason')?.value || 'other_candidate';
+          options.feedback = document.getElementById('rejectionFeedback')?.value || '';
+        } else if (type === 'offer_letter') {
+          options.compensation = {
+            salary: document.getElementById('offerSalary')?.value || '',
+            bonus: document.getElementById('offerBonus')?.value || ''
+          };
+          options.start_date = document.getElementById('offerStartDate')?.value || '';
+          options.reporting_to = document.getElementById('offerReporting')?.value || '';
+        } else if (type === 'interview_confirmation') {
+          options.interview_date = document.getElementById('interviewDate')?.value || '';
+          options.interview_type = document.getElementById('interviewType')?.value || 'Video call';
+        }
+
+        const data = await API.post('/communications/generate', {
+          type,
+          candidate_id: parseInt(candidateId),
+          job_id: jobId ? parseInt(jobId) : null,
+          tone,
+          options
+        });
+
+        if (data.success && data.generated) {
+          document.getElementById('generatedOutput').style.display = 'block';
+          document.getElementById('composeSubject').value = data.generated.subject || '';
+          document.getElementById('composeBody').value = data.generated.body || '';
+          Toast.success('Message generated!');
+        } else {
+          Toast.error('Generation failed — try again');
+        }
+      } catch (err) {
+        Toast.error('Error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '✨ Generate AI Message';
+      }
+    }
+
+    async function runPipeline() {
+      const body = document.getElementById('composeBody').value;
+      const candidateId = document.getElementById('composeCandidate')?.value;
+      const jobId = document.getElementById('composeJob')?.value;
+      const type = getSelectedType();
+
+      if (!body) { Toast.warning('Generate or write a message first'); return; }
+
+      const pipelineContainer = document.getElementById('pipelineOutput');
+      pipelineContainer.innerHTML = '<div style="padding:0.5rem;"><span class="loading-spinner loading-spinner-dark"></span> Running AI pipeline...</div>';
+
+      try {
+        const data = await API.post('/communications/pipeline', {
+          draft: body,
+          candidate_id: candidateId ? parseInt(candidateId) : null,
+          job_id: jobId ? parseInt(jobId) : null,
+          type
+        });
+
+        if (data.success) {
+          // Update the message body with pipeline output
+          if (data.final_message) {
+            document.getElementById('composeBody').value = typeof data.final_message === 'string' ? data.final_message : data.final_message;
+          }
+
+          const pr = data.pipeline_results || {};
+          const allPassed = pr.passed_all_checks !== false;
+
+          pipelineContainer.innerHTML = `
+            <div class="pipeline-results ${allPassed ? '' : 'warning'}">
+              <strong style="font-size:0.8rem;">🤖 AI Pipeline Complete</strong>
+              <div style="margin-top:0.5rem;">
+                <span class="pipeline-flag pass">✓ Personalized</span>
+                <span class="pipeline-flag ${pr.tone_check?.passed !== false ? 'pass' : 'fail'}">${pr.tone_check?.passed !== false ? '✓' : '✗'} Tone Check</span>
+                <span class="pipeline-flag ${pr.compliance?.passed !== false ? 'pass' : 'fail'}">${pr.compliance?.passed !== false ? '✓' : '✗'} Compliance</span>
+              </div>
+              ${pr.compliance?.flags?.length ? `<div style="margin-top:0.5rem;font-size:0.75rem;color:#dc2626;">⚠️ ${pr.compliance.flags.join(', ')}</div>` : ''}
+              ${pr.tone_check?.assessment ? `<div style="margin-top:0.375rem;font-size:0.75rem;color:#475569;">Tone: ${pr.tone_check.assessment}</div>` : ''}
+            </div>
+          `;
+          Toast.success('Pipeline complete!');
+        }
+      } catch (err) {
+        pipelineContainer.innerHTML = `<div style="padding:0.5rem;color:#dc2626;font-size:0.8rem;">Pipeline error: ${err.message}</div>`;
+      }
+    }
+
+    async function sendMessage() {
+      const candidateId = document.getElementById('composeCandidate')?.value;
+      const jobId = document.getElementById('composeJob')?.value;
+      const subject = document.getElementById('composeSubject')?.value;
+      const body = document.getElementById('composeBody')?.value;
+      const type = getSelectedType();
+      const tone = getSelectedTone();
+
+      if (!candidateId || !body) { Toast.warning('Select a candidate and write a message'); return; }
+
+      try {
+        await API.post('/communications/send', {
+          candidate_id: parseInt(candidateId),
+          job_id: jobId ? parseInt(jobId) : null,
+          type,
+          subject,
+          body,
+          tone,
+          run_pipeline: true
+        });
+        Toast.success('Message sent!');
+        loadCommunications();
+        loadAnalytics();
+        showCompose();
+      } catch (err) {
+        Toast.error('Send failed: ' + err.message);
+      }
+    }
+
+    async function saveDraft() {
+      const candidateId = document.getElementById('composeCandidate')?.value;
+      const jobId = document.getElementById('composeJob')?.value;
+      const subject = document.getElementById('composeSubject')?.value;
+      const body = document.getElementById('composeBody')?.value;
+      const type = getSelectedType();
+      const tone = getSelectedTone();
+
+      if (!body) { Toast.warning('Write a message first'); return; }
+
+      try {
+        await API.post('/communications/draft', {
+          candidate_id: candidateId ? parseInt(candidateId) : null,
+          job_id: jobId ? parseInt(jobId) : null,
+          type,
+          subject,
+          body,
+          tone
+        });
+        Toast.success('Draft saved!');
+        loadCommunications();
+      } catch (err) {
+        Toast.error('Save failed: ' + err.message);
+      }
+    }
+  </script>
+  <script defer src="https://polsia.com/analytics.js" data-slug="hireloop"></script>
+</body>
+</html>
