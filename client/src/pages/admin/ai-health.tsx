@@ -239,17 +239,32 @@ const MODALITY_META: Record<string, { label: string; icon: React.ElementType; co
 }
 
 const MODULE_META: Record<string, { label: string; description: string }> = {
+  // New underscore-style module names (current)
+  'mock_interview': { label: 'Mock Interview', description: 'AI-powered interview practice' },
+  'resume_parsing': { label: 'Resume Parsing', description: 'OCR + extraction pipeline' },
+  'resume_tools': { label: 'Resume Tools', description: 'Resume optimization & cover letters' },
+  'matching': { label: 'Job Matching', description: 'Semantic match & ranking' },
+  'smart_search': { label: 'Smart Search', description: 'AI-powered job search' },
+  'screening': { label: 'Screening', description: 'Auto-fill screening questions' },
+  'omniscore': { label: 'OmniScore', description: 'Resume quality scoring' },
+  'recruiter_tools': { label: 'Recruiter Tools', description: 'AI assessments & comparisons' },
+  'job_optimizer': { label: 'Job Optimizer', description: 'Job posting optimization' },
+  'communication_hub': { label: 'Communication Hub', description: 'AI message generation' },
+  'application_review': { label: 'Application Review', description: 'Application readiness check' },
+  'health_verify': { label: 'Health Verify', description: 'Provider health checks' },
+  'admin': { label: 'Admin', description: 'AI dashboard queries' },
+  'onboarding': { label: 'Onboarding', description: 'New hire workflows' },
+  'assessments': { label: 'Assessments', description: 'Skill evaluation engine' },
+  'safety': { label: 'Safety', description: 'Content moderation' },
+  // Legacy hyphenated names (for historical data)
   'mock-interview': { label: 'Mock Interview', description: 'AI-powered interview practice' },
   'coaching': { label: 'AI Coaching', description: 'Career coaching assistant' },
   'resume-parsing': { label: 'Resume Parsing', description: 'OCR + extraction pipeline' },
   'job-matching': { label: 'Job Matching', description: 'Semantic match & ranking' },
-  'onboarding': { label: 'Onboarding', description: 'New hire workflows' },
-  'assessments': { label: 'Assessments', description: 'Skill evaluation engine' },
   'offer-management': { label: 'Offer Management', description: 'Offer letter generation' },
   'payroll': { label: 'Payroll', description: 'Compensation calculations' },
   'scheduling': { label: 'Scheduling', description: 'Interview scheduling' },
   'profile': { label: 'Profile', description: 'Profile analysis & search' },
-  'safety': { label: 'Safety', description: 'Content moderation' },
 }
 
 const COLOR_MAP: Record<string, { bg: string; text: string; border: string; dot: string; light: string }> = {
