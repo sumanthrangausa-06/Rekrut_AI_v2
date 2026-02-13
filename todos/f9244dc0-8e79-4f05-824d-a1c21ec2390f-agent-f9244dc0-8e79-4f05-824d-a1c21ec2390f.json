@@ -6,18 +6,18 @@
   },
   {
     "content": "Phase 1: Update fallback chains — remove dead, add working, reorder",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Updating fallback chains"
   },
   {
     "content": "Phase 2: Add Groq + Cerebras providers with env vars",
-    "status": "pending",
+    "status": "completed",
     "activeForm": "Wiring Groq + Cerebras providers"
   },
   {
-    "content": "Phase 3: Token tracking + dashboard attribution fixes",
-    "status": "pending",
-    "activeForm": "Fixing token tracking and dashboard"
+    "content": "Phase 3: Deploy + verify no syntax errors",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying"
   },
   {
     "content": "Phase 4: E2E verification of full fallback chain",
