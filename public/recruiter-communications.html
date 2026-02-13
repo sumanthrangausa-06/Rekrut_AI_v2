@@ -165,7 +165,15 @@
 
       loadAnalytics();
       loadCommunications();
-      loadCandidatesAndJobs();
+      await loadCandidatesAndJobs();
+
+      // Auto-open compose if URL params present
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlCandidate = urlParams.get('candidate');
+      const urlJob = urlParams.get('job');
+      if (urlCandidate) {
+        showCompose(parseInt(urlCandidate), urlJob ? parseInt(urlJob) : null);
+      }
     })();
 
     async function loadAnalytics() {

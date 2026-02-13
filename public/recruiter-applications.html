@@ -492,6 +492,7 @@
             ${app.best_interview_score ? `<span class="p-badge interview">🎤 ${app.best_interview_score}</span>` : ''}
           </div>
           <div class="pipeline-card-actions">
+            <button class="btn btn-ghost btn-xs" style="color:#7c3aed;" onclick="draftMessage(${app.candidate_id}, ${app.job_id || 'null'})">✨</button>
             ${nextStage ? `<button class="btn btn-primary btn-xs" onclick="moveToStage(${app.id}, '${nextStage}')">→ ${nextMeta.label}</button>` : ''}
             ${currentStage !== 'rejected' ? `<button class="btn btn-ghost btn-xs danger" onclick="moveToStage(${app.id}, 'rejected')">Reject</button>` : ''}
           </div>
@@ -604,6 +605,7 @@
               <option value="hired" ${app.status === 'hired' ? 'disabled' : ''}>🎉 Hired</option>
               <option value="rejected" ${app.status === 'rejected' ? 'disabled' : ''}>✕ Rejected</option>
             </select>
+            <button onclick="draftMessage(${app.candidate_id}, ${app.job_id})" class="btn btn-ghost btn-sm" style="color:#7c3aed;">✨ Message</button>
             <button onclick="scheduleInterview(${app.id})" class="btn btn-ghost btn-sm">📅 Interview</button>
             <button onclick="makeOffer(${app.id}, ${app.candidate_id}, '${(app.candidate_name || '').replace(/'/g, "\\'")}', '${(app.candidate_email || '').replace(/'/g, "\\'")}', ${app.job_id}, '${(app.job_title || '').replace(/'/g, "\\'")}')" class="btn btn-primary btn-sm" ${['offered','hired'].includes(app.status) ? 'disabled' : ''}>
               Make Offer
@@ -643,6 +645,10 @@
       } catch (err) {
         alert('Failed to update status');
       }
+    }
+
+    function draftMessage(candidateId, jobId) {
+      window.location.href = `/recruiter-communications.html?candidate=${candidateId}&job=${jobId || ''}`;
     }
 
     function scheduleInterview(appId) {
