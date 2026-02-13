@@ -178,9 +178,15 @@ export function CandidateInterviewsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-heading font-bold">My Interviews</h1>
-        <p className="text-muted-foreground text-sm">View and manage your scheduled interviews</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-heading font-bold">My Interviews</h1>
+          <p className="text-muted-foreground text-sm">View and manage your scheduled interviews</p>
+        </div>
+        <Button variant="outline" onClick={() => navigate('/candidate/ai-coaching')}>
+          <Briefcase className="h-4 w-4 mr-2" />
+          Practice Interview
+        </Button>
       </div>
 
       {/* Next interview highlight */}
@@ -218,6 +224,7 @@ export function CandidateInterviewsPage() {
                     onAccept={() => acceptInterview(interview.id)}
                     onDecline={() => { setShowDecline(interview); setDeclineReason('') }}
                     onReschedule={() => { setShowReschedule(interview); setRescheduleReason(''); setRescheduleTime('') }}
+                    onPractice={() => navigate(`/candidate/ai-coaching?role=${encodeURIComponent(interview.job_title)}`)}
                   />
                 ))}
             </div>
@@ -384,12 +391,14 @@ function InterviewCard({
   onAccept,
   onDecline,
   onReschedule,
+  onPractice,
   isPast,
 }: {
   interview: Interview
   onAccept?: () => void
   onDecline?: () => void
   onReschedule?: () => void
+  onPractice?: () => void
   isPast?: boolean
 }) {
   const config = statusConfig[interview.status] || statusConfig.scheduled
@@ -466,6 +475,11 @@ function InterviewCard({
             {canRespond && onDecline && (
               <Button size="sm" variant="ghost" className="text-destructive" onClick={onDecline}>
                 <XCircle className="h-3.5 w-3.5 mr-1" /> Decline
+              </Button>
+            )}
+            {isUpcoming && onPractice && (
+              <Button size="sm" variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50" onClick={onPractice}>
+                <Target className="h-3.5 w-3.5 mr-1" /> Practice
               </Button>
             )}
           </div>

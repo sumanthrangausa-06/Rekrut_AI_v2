@@ -57,6 +57,9 @@ import { RecruiterOmniScorePage } from '@/pages/recruiter/omniscore'
 // Camera Test (isolation debugging)
 import { TestCameraPage } from '@/pages/test-camera'
 
+// AI Screening (public - candidate completes via invite link)
+import { CandidateScreeningPage } from '@/pages/candidate/screening'
+
 // Admin
 import { AdminLoginPage } from '@/pages/admin/login'
 import { AdminAuthGuard } from '@/components/admin-auth-guard'
@@ -78,6 +81,7 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/test-camera" element={<TestCameraPage />} />
+      <Route path="/screening/:token" element={<CandidateScreeningPage />} />
 
       {/* Auto-redirect based on role */}
       <Route path="/dashboard" element={<RoleRedirect />} />

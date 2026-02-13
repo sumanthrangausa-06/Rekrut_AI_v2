@@ -13,6 +13,7 @@ import {
   Calendar, Plus, Video, Phone, MapPin, Clock, User, Briefcase,
   CheckCircle, XCircle, AlertCircle, MessageSquare, Edit2,
   ChevronLeft, ChevronRight, Trash2, RefreshCw, Star,
+  Sparkles, Send, FileText, Brain, Zap, ClipboardList,
 } from 'lucide-react'
 
 interface Interview {
@@ -29,6 +30,8 @@ interface Interview {
   status: string
   outcome: string | null
   feedback: any | null
+  ai_evaluation: any | null
+  ai_composite_score: number | null
   created_at: string
   updated_at: string
   candidate_name: string
@@ -44,6 +47,38 @@ interface Application {
   job_id: number
   job_title: string
   status: string
+  screening_status?: string
+  screening_score?: number
+}
+
+interface ScreeningTemplate {
+  id: number
+  job_id: number
+  title: string
+  questions: any[]
+  sessions_count: number
+  completed_count: number
+  job_title: string
+  auto_send_on_apply: boolean
+}
+
+interface ScreeningSession {
+  id: number
+  candidate_name: string
+  candidate_email: string
+  job_title: string
+  status: string
+  overall_score: number | null
+  started_at: string | null
+  completed_at: string | null
+}
+
+interface SlotSuggestion {
+  start: string
+  end: string
+  duration_minutes: number
+  day: string
+  date: string
 }
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'success' | 'warning' | 'destructive'; icon: React.ElementType }> = {
@@ -97,6 +132,22 @@ export function RecruiterInterviewsPage() {
   const [interviewType, setInterviewType] = useState('video')
   const [schedNotes, setSchedNotes] = useState('')
 
+  // AI Smart Scheduling
+  const [suggestedSlots, setSuggestedSlots] = useState<SlotSuggestion[]>([])
+  const [loadingSlots, setLoadingSlots] = useState(false)
+
+  // Screening
+  const [screeningTemplates, setScreeningTemplates] = useState<ScreeningTemplate[]>([])
+  const [showCreateTemplate, setShowCreateTemplate] = useState(false)
+  const [templateJobId, setTemplateJobId] = useState('')
+  const [templateTitle, setTemplateTitle] = useState('')
+  const [creatingTemplate, setCreatingTemplate] = useState(false)
+  const [showScreeningReport, setShowScreeningReport] = useState<any>(null)
+
+  // AI Evaluation
+  const [evaluating, setEvaluating] = useState<number | null>(null)
+  const [showAiScores, setShowAiScores] = useState<any>(null)
+
   // Feedback form
   const [fbOutcome, setFbOutcome] = useState('')
   const [fbRating, setFbRating] = useState('3')
@@ -107,6 +158,9 @@ export function RecruiterInterviewsPage() {
   // Calendar view
   const [calMonth, setCalMonth] = useState(new Date())
 
+  // Jobs for template creation
+  const [jobs, setJobs] = useState<any[]>([])
+
   useEffect(() => {
     loadData()
   }, [])
@@ -114,17 +168,45 @@ export function RecruiterInterviewsPage() {
   async function loadData() {
     setLoading(true)
     try {
-      const [intRes, appRes] = await Promise.all([
+      const [intRes, appRes, templRes, jobsRes] = await Promise.all([
         apiCall<{ interviews: Interview[] }>('/recruiter/interviews?upcoming_only=false'),
-        apiCall<{ applications: Application[] }>('/recruiter/applications?status=reviewing'),
+        apiCall<{ applications: Application[] }>('/recruiter/applications'),
+        apiCall<{ success: boolean; templates: ScreeningTemplate[] }>('/interviews/screening/templates').catch(() => ({ success: false, templates: [] })),
+        apiCall<{ jobs: any[] }>('/recruiter/jobs').catch(() => ({ jobs: [] })),
       ])
       setInterviews(intRes.interviews || [])
       setApplications(appRes.applications || [])
+      setScreeningTemplates(templRes.templates || [])
+      setJobs(jobsRes.jobs || [])
     } catch (err) {
       console.error('Load error:', err)
     } finally {
       setLoading(false)
     }
+  }
+
+  // AI Smart Scheduling — suggest optimal slots
+  async function findBestTime() {
+    setLoadingSlots(true)
+    setSuggestedSlots([])
+    try {
+      const res = await apiCall<{ success: boolean; slots: SlotSuggestion[] }>('/interviews/suggest-slots', {
+        method: 'POST',
+        body: { days_ahead: 7, slots_count: 6, duration_minutes: parseInt(duration) }
+      })
+      setSuggestedSlots(res.slots || [])
+    } catch (err: any) {
+      console.error('Smart scheduling error:', err)
+    } finally {
+      setLoadingSlots(false)
+    }
+  }
+
+  function selectSlot(slot: SlotSuggestion) {
+    const d = new Date(slot.start)
+    setSchedDate(d.toISOString().split('T')[0])
+    setSchedTime(d.toTimeString().slice(0, 5))
+    setSuggestedSlots([])
   }
 
   async function scheduleInterview() {
@@ -159,6 +241,70 @@ export function RecruiterInterviewsPage() {
     setDuration('60')
     setInterviewType('video')
     setSchedNotes('')
+    setSuggestedSlots([])
+  }
+
+  // Screening template
+  async function createTemplate() {
+    if (!templateJobId) return
+    setCreatingTemplate(true)
+    try {
+      await apiCall('/interviews/screening/create-template', {
+        method: 'POST',
+        body: {
+          job_id: parseInt(templateJobId),
+          title: templateTitle || undefined,
+        }
+      })
+      setShowCreateTemplate(false)
+      setTemplateJobId('')
+      setTemplateTitle('')
+      await loadData()
+    } catch (err: any) {
+      alert(err.message || 'Failed to create template')
+    } finally {
+      setCreatingTemplate(false)
+    }
+  }
+
+  // Send screening invite
+  async function sendScreening(templateId: number, candidateId: number, applicationId: number, jobId: number) {
+    try {
+      await apiCall('/interviews/screening/send', {
+        method: 'POST',
+        body: { template_id: templateId, candidate_id: candidateId, application_id: applicationId, job_id: jobId }
+      })
+      await loadData()
+    } catch (err: any) {
+      alert(err.message || 'Failed to send screening')
+    }
+  }
+
+  // View screening report
+  async function viewScreeningReport(sessionId: number) {
+    try {
+      const res = await apiCall<any>(`/interviews/screening/${sessionId}/report`)
+      setShowScreeningReport(res)
+    } catch (err: any) {
+      alert(err.message || 'Failed to load report')
+    }
+  }
+
+  // AI Multi-Evaluator
+  async function runAiEvaluation(interviewId: number) {
+    setEvaluating(interviewId)
+    try {
+      const res = await apiCall<any>('/interviews/evaluate', {
+        method: 'POST',
+        body: { interview_id: interviewId }
+      })
+      setShowAiScores(res)
+      await loadData()
+    } catch (err: any) {
+      alert(err.message || 'Failed to run AI evaluation')
+    } finally {
+      setEvaluating(null)
+    }
   }
 
   async function submitFeedback() {
@@ -244,11 +390,16 @@ export function RecruiterInterviewsPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-heading font-bold">Interviews</h1>
-          <p className="text-muted-foreground text-sm">Schedule and manage candidate interviews</p>
+          <p className="text-muted-foreground text-sm">Schedule, screen, and evaluate candidates with AI</p>
         </div>
-        <Button onClick={() => setShowSchedule(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Schedule Interview
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setShowCreateTemplate(true)}>
+            <ClipboardList className="h-4 w-4 mr-2" /> Screening Templates
+          </Button>
+          <Button onClick={() => setShowSchedule(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Schedule Interview
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -295,22 +446,54 @@ export function RecruiterInterviewsPage() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-orange-100 text-orange-700">
-                <RefreshCw className="h-5 w-5" />
+              <div className="p-2 rounded-lg bg-purple-100 text-purple-700">
+                <Brain className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{interviews.filter(i => i.status === 'reschedule_requested').length}</p>
-                <p className="text-xs text-muted-foreground">Reschedule Req.</p>
+                <p className="text-2xl font-bold">{screeningTemplates.reduce((sum, t) => sum + (t.completed_count || 0), 0)}</p>
+                <p className="text-xs text-muted-foreground">AI Screenings</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* Screening Templates Banner */}
+      {screeningTemplates.length > 0 && (
+        <Card className="border-purple-200 bg-purple-50/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+              <h3 className="font-semibold text-purple-900">AI Screening Pipeline</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {screeningTemplates.map(t => (
+                <div key={t.id} className="p-3 bg-white rounded-lg border border-purple-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-sm truncate">{t.title}</span>
+                    <Badge variant="secondary" className="text-xs shrink-0">{t.questions.length} Qs</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">{t.job_title}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">
+                      {t.completed_count}/{t.sessions_count} completed
+                    </span>
+                    {t.auto_send_on_apply && (
+                      <Badge variant="default" className="text-xs bg-purple-600">Auto-send</Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Main content */}
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="upcoming">Upcoming ({upcoming.length})</TabsTrigger>
+          <TabsTrigger value="screening">Screening</TabsTrigger>
           <TabsTrigger value="calendar">Calendar</TabsTrigger>
           <TabsTrigger value="past">Past ({past.length})</TabsTrigger>
         </TabsList>
@@ -344,10 +527,99 @@ export function RecruiterInterviewsPage() {
                     setFbNotes('')
                   }}
                   onConfirm={() => updateStatus(interview.id, 'confirmed')}
+                  onAiEvaluate={() => runAiEvaluation(interview.id)}
+                  evaluating={evaluating === interview.id}
                 />
               ))}
             </div>
           )}
+        </TabsContent>
+
+        {/* Screening tab */}
+        <TabsContent value="screening">
+          <div className="space-y-4">
+            {/* Screening-eligible applications */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <Send className="h-4 w-4" /> Send AI Screening
+                  </h3>
+                </div>
+                {applications.filter(a => !a.screening_status && screeningTemplates.length > 0).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {screeningTemplates.length === 0
+                      ? 'Create a screening template first to start sending AI screenings.'
+                      : 'All current applicants have been sent screenings or no new applicants available.'}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {applications.filter(a => !a.screening_status).slice(0, 10).map(app => {
+                      const matchingTemplate = screeningTemplates.find(t => t.job_id === app.job_id)
+                      return (
+                        <div key={app.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                          <div>
+                            <span className="font-medium text-sm">{app.candidate_name}</span>
+                            <span className="text-xs text-muted-foreground ml-2">{app.job_title}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {app.screening_status && (
+                              <Badge variant={app.screening_status === 'completed' ? 'success' : 'warning'} className="text-xs">
+                                {app.screening_status === 'completed' ? `Score: ${app.screening_score}/100` : app.screening_status}
+                              </Badge>
+                            )}
+                            {matchingTemplate && !app.screening_status && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => sendScreening(matchingTemplate.id, app.candidate_id, app.id, app.job_id)}
+                              >
+                                <Sparkles className="h-3.5 w-3.5 mr-1" /> Send Screening
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Completed screenings */}
+            <Card>
+              <CardContent className="p-4">
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <FileText className="h-4 w-4" /> Screening Results
+                </h3>
+                {applications.filter(a => a.screening_status === 'completed').length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No completed screenings yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {applications.filter(a => a.screening_status === 'completed').map(app => (
+                      <div key={app.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className={`text-lg font-bold ${
+                            (app.screening_score || 0) >= 70 ? 'text-green-600' :
+                            (app.screening_score || 0) >= 50 ? 'text-yellow-600' : 'text-red-600'
+                          }`}>
+                            {app.screening_score || 0}
+                          </div>
+                          <div>
+                            <span className="font-medium text-sm">{app.candidate_name}</span>
+                            <p className="text-xs text-muted-foreground">{app.job_title}</p>
+                          </div>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => viewScreeningReport(app.id)}>
+                          <FileText className="h-3.5 w-3.5 mr-1" /> View Report
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Calendar view */}
@@ -437,6 +709,8 @@ export function RecruiterInterviewsPage() {
                     setFbWeaknesses(interview.feedback?.weaknesses || '')
                     setFbNotes(interview.feedback?.notes || '')
                   }}
+                  onAiEvaluate={() => runAiEvaluation(interview.id)}
+                  evaluating={evaluating === interview.id}
                   isPast
                 />
               ))}
@@ -445,7 +719,7 @@ export function RecruiterInterviewsPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Schedule dialog */}
+      {/* Schedule dialog with AI Smart Scheduling */}
       <Dialog open={showSchedule} onClose={() => { setShowSchedule(false); resetScheduleForm() }}>
         <DialogHeader>
           <DialogTitle>Schedule Interview</DialogTitle>
@@ -461,9 +735,45 @@ export function RecruiterInterviewsPage() {
               ))}
             </Select>
             {applications.length === 0 && (
-              <p className="text-xs text-muted-foreground mt-1">No applicants in "Reviewing" status. Update an application status to "Reviewing" first.</p>
+              <p className="text-xs text-muted-foreground mt-1">No applicants available. Update an application status first.</p>
             )}
           </div>
+
+          {/* AI Smart Scheduling */}
+          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-blue-900 flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4" /> AI Smart Scheduling
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={findBestTime}
+                disabled={loadingSlots}
+                className="text-xs"
+              >
+                {loadingSlots ? 'Finding...' : '✨ Find Best Time'}
+              </Button>
+            </div>
+            {suggestedSlots.length > 0 && (
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                {suggestedSlots.map((slot, i) => (
+                  <button
+                    key={i}
+                    onClick={() => selectSlot(slot)}
+                    className="text-left p-2 bg-white rounded border border-blue-100 hover:border-blue-400 hover:bg-blue-50 transition-colors text-xs"
+                  >
+                    <div className="font-medium">{formatDate(slot.start)}</div>
+                    <div className="text-muted-foreground">{formatTime(slot.start)} — {slot.duration_minutes}min</div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {suggestedSlots.length === 0 && !loadingSlots && (
+              <p className="text-xs text-blue-700">Click "Find Best Time" to auto-suggest optimal interview slots based on your calendar.</p>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Date</Label>
@@ -507,6 +817,45 @@ export function RecruiterInterviewsPage() {
             <Button variant="outline" onClick={() => { setShowSchedule(false); resetScheduleForm() }}>Cancel</Button>
             <Button onClick={scheduleInterview} disabled={saving || !appId || !schedDate || !schedTime}>
               {saving ? 'Scheduling...' : 'Schedule Interview'}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Create screening template dialog */}
+      <Dialog open={showCreateTemplate} onClose={() => setShowCreateTemplate(false)}>
+        <DialogHeader>
+          <DialogTitle>Create Screening Template</DialogTitle>
+          <DialogDescription>AI will auto-generate screening questions from the job description</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 mt-4">
+          <div>
+            <Label>Job</Label>
+            <Select value={templateJobId} onChange={e => setTemplateJobId(e.target.value)}>
+              <option value="">Select a job...</option>
+              {jobs.map((j: any) => (
+                <option key={j.id} value={j.id}>{j.title}</option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label>Template Name (optional)</Label>
+            <Input
+              value={templateTitle}
+              onChange={e => setTemplateTitle(e.target.value)}
+              placeholder="Auto-generated from job title"
+            />
+          </div>
+          <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+            <p className="text-xs text-purple-700 flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              AI will analyze the job description and generate 6-8 tailored screening questions with evaluation criteria.
+            </p>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => setShowCreateTemplate(false)}>Cancel</Button>
+            <Button onClick={createTemplate} disabled={creatingTemplate || !templateJobId}>
+              {creatingTemplate ? 'Creating...' : '✨ Create Template'}
             </Button>
           </div>
         </div>
@@ -581,6 +930,161 @@ export function RecruiterInterviewsPage() {
           </div>
         </div>
       </Dialog>
+
+      {/* AI Evaluation Results Dialog */}
+      <Dialog open={!!showAiScores} onClose={() => setShowAiScores(null)}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5 text-purple-600" /> AI Multi-Evaluator Scores
+          </DialogTitle>
+          <DialogDescription>Three independent AI perspectives + composite recommendation</DialogDescription>
+        </DialogHeader>
+        {showAiScores && (
+          <div className="space-y-4 mt-4">
+            {/* Composite score */}
+            {showAiScores.composite && (
+              <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-lg">Composite Score</span>
+                  <span className={`text-3xl font-bold ${
+                    showAiScores.composite.composite_score >= 75 ? 'text-green-600' :
+                    showAiScores.composite.composite_score >= 60 ? 'text-blue-600' :
+                    showAiScores.composite.composite_score >= 45 ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    {showAiScores.composite.composite_score}/100
+                  </span>
+                </div>
+                <Badge variant={
+                  showAiScores.composite.recommendation === 'strong_hire' ? 'success' :
+                  showAiScores.composite.recommendation === 'hire' ? 'default' :
+                  showAiScores.composite.recommendation === 'consider' ? 'warning' : 'destructive'
+                }>
+                  {showAiScores.composite.recommendation?.replace('_', ' ').toUpperCase()}
+                </Badge>
+                <p className="text-sm text-muted-foreground mt-2">{showAiScores.composite.recommendation_reasoning}</p>
+              </div>
+            )}
+
+            {/* Individual evaluator scores */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {showAiScores.evaluations && Object.entries(showAiScores.evaluations).map(([type, eval_]: [string, any]) => (
+                <div key={type} className="p-3 border rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-sm capitalize">{type}</span>
+                    <span className={`text-xl font-bold ${
+                      eval_.score >= 75 ? 'text-green-600' :
+                      eval_.score >= 60 ? 'text-blue-600' :
+                      eval_.score >= 45 ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                      {eval_.score}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{eval_.reasoning}</p>
+                  {eval_.key_observations && (
+                    <ul className="mt-2 space-y-1">
+                      {eval_.key_observations.slice(0, 3).map((obs: string, i: number) => (
+                        <li key={i} className="text-xs flex items-start gap-1">
+                          <span className="text-muted-foreground">•</span> {obs}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => setShowAiScores(null)}>Close</Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
+
+      {/* Screening Report Dialog */}
+      <Dialog open={!!showScreeningReport} onClose={() => setShowScreeningReport(null)}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-purple-600" /> Screening Report
+          </DialogTitle>
+          <DialogDescription>
+            {showScreeningReport?.session && `${showScreeningReport.session.candidate_name} — ${showScreeningReport.session.job_title}`}
+          </DialogDescription>
+        </DialogHeader>
+        {showScreeningReport?.report && (
+          <div className="space-y-4 mt-4 max-h-[60vh] overflow-y-auto">
+            <div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
+              <div className={`text-3xl font-bold ${
+                (showScreeningReport.report.overall_score || 0) >= 70 ? 'text-green-600' :
+                (showScreeningReport.report.overall_score || 0) >= 50 ? 'text-yellow-600' : 'text-red-600'
+              }`}>
+                {showScreeningReport.report.overall_score || 0}/100
+              </div>
+              <div>
+                <Badge variant={
+                  showScreeningReport.report.recommendation === 'advance' ? 'success' :
+                  showScreeningReport.report.recommendation === 'consider' ? 'warning' : 'destructive'
+                }>
+                  {showScreeningReport.report.recommendation?.toUpperCase()}
+                </Badge>
+                <p className="text-sm text-muted-foreground mt-1">{showScreeningReport.report.recommendation_reasoning}</p>
+              </div>
+            </div>
+
+            {showScreeningReport.report.strengths && (
+              <div>
+                <h4 className="font-medium text-sm mb-1 text-green-700">Strengths</h4>
+                <ul className="space-y-1">
+                  {showScreeningReport.report.strengths.map((s: string, i: number) => (
+                    <li key={i} className="text-sm flex items-start gap-1.5">
+                      <CheckCircle className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" /> {s}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {showScreeningReport.report.red_flags && showScreeningReport.report.red_flags.length > 0 && (
+              <div>
+                <h4 className="font-medium text-sm mb-1 text-red-700">Red Flags</h4>
+                <ul className="space-y-1">
+                  {showScreeningReport.report.red_flags.map((f: string, i: number) => (
+                    <li key={i} className="text-sm flex items-start gap-1.5">
+                      <AlertCircle className="h-3.5 w-3.5 text-red-500 mt-0.5 shrink-0" /> {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Multi-evaluator scores if available */}
+            {showScreeningReport.composite && (
+              <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                <h4 className="font-medium text-sm mb-2 flex items-center gap-1.5">
+                  <Brain className="h-4 w-4 text-purple-600" /> AI Multi-Evaluator
+                </h4>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <div className="text-lg font-bold">{showScreeningReport.composite.technical_score}</div>
+                    <div className="text-xs text-muted-foreground">Technical</div>
+                  </div>
+                  <div>
+                    <div className="text-lg font-bold">{showScreeningReport.composite.culture_score}</div>
+                    <div className="text-xs text-muted-foreground">Culture</div>
+                  </div>
+                  <div>
+                    <div className="text-lg font-bold">{showScreeningReport.composite.experience_score}</div>
+                    <div className="text-xs text-muted-foreground">Experience</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => setShowScreeningReport(null)}>Close</Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
     </div>
   )
 }
@@ -590,12 +1094,16 @@ function InterviewCard({
   onCancel,
   onFeedback,
   onConfirm,
+  onAiEvaluate,
+  evaluating,
   isPast,
 }: {
   interview: Interview
   onCancel: () => void
   onFeedback: () => void
   onConfirm?: () => void
+  onAiEvaluate?: () => void
+  evaluating?: boolean
   isPast?: boolean
 }) {
   const config = statusConfig[interview.status] || statusConfig.scheduled
@@ -605,6 +1113,7 @@ function InterviewCard({
   const isNow = isToday(interview.scheduled_at) && ['scheduled', 'confirmed'].includes(interview.status)
   const needsFeedback = !interview.feedback && (isPast || interview.status === 'completed')
   const feedback = typeof interview.feedback === 'string' ? JSON.parse(interview.feedback) : interview.feedback
+  const hasAiScore = interview.ai_composite_score != null
 
   return (
     <Card className={isNow ? 'border-primary' : ''}>
@@ -632,6 +1141,11 @@ function InterviewCard({
                 <StatusIcon className="h-3 w-3 mr-1" /> {config.label}
               </Badge>
               {isNow && <Badge variant="default" className="bg-primary">Live Today</Badge>}
+              {hasAiScore && (
+                <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-700">
+                  <Brain className="h-3 w-3 mr-1" /> AI: {interview.ai_composite_score}/100
+                </Badge>
+              )}
             </div>
             <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
               <span className="flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" /> {interview.job_title}</span>
@@ -669,6 +1183,15 @@ function InterviewCard({
             {interview.status === 'reschedule_requested' && (
               <Button size="sm" variant="outline" onClick={onConfirm}>
                 <CheckCircle className="h-3.5 w-3.5 mr-1" /> Confirm
+              </Button>
+            )}
+            {onAiEvaluate && (isPast || interview.status === 'completed') && !hasAiScore && (
+              <Button size="sm" variant="outline" onClick={onAiEvaluate} disabled={evaluating} className="text-purple-700 border-purple-200 hover:bg-purple-50">
+                {evaluating ? (
+                  <><div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-purple-600 mr-1" /> Evaluating...</>
+                ) : (
+                  <><Sparkles className="h-3.5 w-3.5 mr-1" /> AI Evaluate</>
+                )}
               </Button>
             )}
             {needsFeedback && (
