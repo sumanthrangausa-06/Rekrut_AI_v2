@@ -94,6 +94,7 @@ interface HealthData {
   status: string
   timestamp: string
   nim_configured: boolean
+  deepgram_configured: boolean
   total_models_registered: number
   stats: {
     totalCalls: number
@@ -950,7 +951,7 @@ function StatusBanner({ data }: { data: HealthData }) {
           <div>
             <h1 className="text-2xl font-bold font-heading">{config.label}</h1>
             <p className="text-sm text-white/80 mt-1">
-              {data.total_models_registered} models &middot; NIM {data.nim_configured ? 'on' : 'off'}
+              {data.total_models_registered} models &middot; NIM {data.nim_configured ? 'on' : 'off'} &middot; Deepgram {data.deepgram_configured ? 'on' : 'off'}
               {budget && (
                 <> &middot; OpenAI: {budget.budgetExhausted ? (
                   <span className="font-bold text-red-200">BUDGET EXHAUSTED</span>
