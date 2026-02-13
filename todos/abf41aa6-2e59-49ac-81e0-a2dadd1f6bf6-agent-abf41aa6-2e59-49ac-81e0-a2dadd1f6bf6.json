@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate: Map all AI call functions and their callers",
+    "status": "completed",
+    "activeForm": "Investigating AI call functions and callers"
+  },
+  {
+    "content": "Phase 1: Add module tags to polsia-ai.js internal functions",
+    "status": "completed",
+    "activeForm": "Adding module tags to polsia-ai.js"
+  },
+  {
+    "content": "Phase 2: Add module tags to routes/services callers",
+    "status": "completed",
+    "activeForm": "Adding module tags to routes and services"
+  },
+  {
+    "content": "Phase 3: Add daily token breakdown API + dashboard",
+    "status": "completed",
+    "activeForm": "Adding daily token breakdown to AI Health dashboard"
+  },
+  {
+    "content": "Phase 4: Deploy and verify no Unknown entries remain",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying fix"
+  }
+]
