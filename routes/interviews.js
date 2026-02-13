@@ -11,6 +11,18 @@ const FormData = require('form-data');
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Helper: Race a promise against a timeout to prevent hanging when AI providers are slow.
+// The AI provider chain can take 9×15s = 135s worst case; Render kills requests at ~30s.
+// This ensures we hit the scripted fallback BEFORE the request is killed.
+function withTimeout(promise, ms, label = 'Operation') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms))
+  ]);
+}
+
 // Fallback questions if AI generation fails
 const FALLBACK_QUESTIONS = [
   {
@@ -1049,9 +1061,13 @@ router.post('/mock/start', authMiddleware, async (req, res) => {
       // Try to generate new question bank
       console.log(`[mock] Generating new question bank for "${role}"...`);
       try {
-        const generated = await generateQuestionBank(role, job_description, {
-          subscriptionId: req.user.stripe_subscription_id
-        });
+        const generated = await withTimeout(
+          generateQuestionBank(role, job_description, {
+            subscriptionId: req.user.stripe_subscription_id
+          }),
+          25000,
+          'AI question generation'
+        );
 
         if (generated && Array.isArray(generated) && generated.length > 0) {
           // Store in question_bank
@@ -1208,14 +1224,20 @@ router.post('/mock/:sessionId/respond', authMiddleware, async (req, res) => {
     conversation.push(candidateMessage);
 
     // AI generates next interviewer turn (with fallback on failure)
+    // BUG FIX: Wrap with 20s overall timeout — the LLM chain can take 135s (9 providers × 15s each),
+    // but Render kills the request at ~30s. Without this, the scripted fallback never fires.
     let aiTurn;
     try {
-      aiTurn = await conductInterviewTurn(
-        conversation,
-        baseQuestions,
-        session.current_question_index,
-        session.target_role,
-        { subscriptionId: req.user.stripe_subscription_id }
+      aiTurn = await withTimeout(
+        conductInterviewTurn(
+          conversation,
+          baseQuestions,
+          session.current_question_index,
+          session.target_role,
+          { subscriptionId: req.user.stripe_subscription_id }
+        ),
+        20000,
+        'Interview AI turn generation'
       );
     } catch (aiErr) {
       console.warn(`[mock] AI turn generation failed (${aiErr.message}), using scripted fallback`);
@@ -1783,14 +1805,20 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
     questionsResult.rows.forEach(q => { questionMap[q.id] = q; });
     const baseQuestions = questionIds.map(id => questionMap[id]).filter(Boolean);
 
+    // BUG FIX: Wrap with 20s overall timeout — the LLM chain can take 135s (9 providers × 15s each),
+    // but Render kills the request at ~30s. Without this, the scripted fallback never fires.
     let aiTurn;
     try {
-      aiTurn = await conductInterviewTurn(
-        conversation,
-        baseQuestions,
-        session.current_question_index,
-        session.target_role,
-        { subscriptionId: req.user.stripe_subscription_id }
+      aiTurn = await withTimeout(
+        conductInterviewTurn(
+          conversation,
+          baseQuestions,
+          session.current_question_index,
+          session.target_role,
+          { subscriptionId: req.user.stripe_subscription_id }
+        ),
+        20000,
+        'Voice interview AI turn generation'
       );
     } catch (aiErr) {
       console.warn(`[voice-respond] AI turn generation failed (${aiErr.message}), using scripted fallback`);
@@ -1877,13 +1905,17 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
         .catch(err => console.warn('[voice-respond] Background feedback generation failed:', err.message));
     }
 
-    // Step 5: Generate TTS for interviewer response
+    // Step 5: Generate TTS for interviewer response (8s timeout — TTS chain is 2 providers × 8s max)
     let audioBase64 = null;
     try {
-      const audioBuffer = await textToSpeech(interviewerText, {
-        voice: 'nova',
-        subscriptionId: req.user.stripe_subscription_id
-      });
+      const audioBuffer = await withTimeout(
+        textToSpeech(interviewerText, {
+          voice: 'nova',
+          subscriptionId: req.user.stripe_subscription_id
+        }),
+        10000,
+        'TTS generation'
+      );
       if (audioBuffer) {
         audioBase64 = audioBuffer.toString('base64');
       }
