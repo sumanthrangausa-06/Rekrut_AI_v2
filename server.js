@@ -333,6 +333,74 @@ app.get('/api/ai-health/logs', requireAdmin, async (req, res) => {
   }
 });
 
+// GET /api/ai-health/daily-breakdown — per-module daily token breakdown from DB
+app.get('/api/ai-health/daily-breakdown', requireAdmin, async (req, res) => {
+  try {
+    const pool = require('./lib/db');
+    const date = req.query.date || new Date().toISOString().substring(0, 10);
+    const result = await pool.query(
+      `SELECT module,
+              COUNT(*) as call_count,
+              COALESCE(SUM(total_tokens), 0) as total_tokens,
+              COALESCE(SUM(cost_estimate), 0) as total_cost,
+              COUNT(*) FILTER (WHERE success = false) as failures
+       FROM ai_call_log
+       WHERE created_at >= $1::date AND created_at < ($1::date + interval '1 day')
+       GROUP BY module
+       ORDER BY total_tokens DESC`,
+      [date]
+    );
+
+    // Calculate totals for percentage
+    const totalTokens = result.rows.reduce((s, r) => s + parseInt(r.total_tokens), 0);
+    const dailyBudget = 100000; // 100K daily budget
+
+    const breakdown = result.rows.map(r => ({
+      module: r.module,
+      call_count: parseInt(r.call_count),
+      total_tokens: parseInt(r.total_tokens),
+      total_cost: Math.round(parseFloat(r.total_cost) * 10000) / 10000,
+      failures: parseInt(r.failures),
+      pct_of_daily: totalTokens > 0 ? Math.round((parseInt(r.total_tokens) / totalTokens) * 1000) / 10 : 0,
+      pct_of_budget: Math.round((parseInt(r.total_tokens) / dailyBudget) * 1000) / 10,
+    }));
+
+    res.json({
+      date,
+      total_tokens: totalTokens,
+      total_calls: result.rows.reduce((s, r) => s + parseInt(r.call_count), 0),
+      daily_budget: dailyBudget,
+      budget_used_pct: Math.round((totalTokens / dailyBudget) * 1000) / 10,
+      modules: breakdown,
+    });
+  } catch (err) {
+    // Fallback to in-memory if DB table doesn't exist yet
+    if (err.message.includes('does not exist')) {
+      const aiCallLogger = require('./lib/ai-call-logger');
+      const modules = aiCallLogger.getModuleBreakdown();
+      const totalTokens = Object.values(modules).reduce((s, m) => s + m.totalTokens, 0);
+      res.json({
+        date: new Date().toISOString().substring(0, 10),
+        total_tokens: totalTokens,
+        total_calls: Object.values(modules).reduce((s, m) => s + m.calls, 0),
+        daily_budget: 100000,
+        budget_used_pct: Math.round((totalTokens / 100000) * 1000) / 10,
+        modules: Object.entries(modules).map(([mod, m]) => ({
+          module: mod,
+          call_count: m.calls,
+          total_tokens: m.totalTokens,
+          total_cost: m.cost,
+          failures: m.failures,
+          pct_of_daily: totalTokens > 0 ? Math.round((m.totalTokens / totalTokens) * 1000) / 10 : 0,
+          pct_of_budget: Math.round((m.totalTokens / 100000) * 1000) / 10,
+        })),
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to get daily breakdown', message: err.message });
+    }
+  }
+});
+
 // GET /api/ai-health/models — per-model performance metrics
 app.get('/api/ai-health/models', requireAdmin, (req, res) => {
   try {

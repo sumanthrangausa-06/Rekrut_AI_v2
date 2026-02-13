@@ -1591,6 +1591,104 @@ function ModuleCostBreakdown({ modules }: { modules: AiUsageData['modules'] }) {
   )
 }
 
+// ─── Daily Token Breakdown Table (per-module) ────────────────────────────────
+interface DailyBreakdownData {
+  date: string
+  total_tokens: number
+  total_calls: number
+  daily_budget: number
+  budget_used_pct: number
+  modules: Array<{
+    module: string
+    call_count: number
+    total_tokens: number
+    total_cost: number
+    failures: number
+    pct_of_daily: number
+    pct_of_budget: number
+  }>
+}
+
+function DailyTokenBreakdown() {
+  const [data, setData] = useState<DailyBreakdownData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/ai-health/daily-breakdown', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
+  if (loading) return <p className="text-xs text-muted-foreground animate-pulse">Loading daily breakdown...</p>
+  if (!data || data.modules.length === 0) return <p className="text-xs text-muted-foreground">No AI calls recorded today</p>
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Daily Token Budget: {data.budget_used_pct}% used ({data.total_tokens.toLocaleString()} / {data.daily_budget.toLocaleString()})
+        </p>
+        <Badge variant={data.budget_used_pct > 80 ? 'destructive' : data.budget_used_pct > 50 ? 'secondary' : 'outline'}>
+          {data.date}
+        </Badge>
+      </div>
+      <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+        <div
+          className={cn('h-full rounded-full transition-all', data.budget_used_pct > 80 ? 'bg-red-500' : data.budget_used_pct > 50 ? 'bg-amber-500' : 'bg-emerald-500')}
+          style={{ width: `${Math.min(100, data.budget_used_pct)}%` }}
+        />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b">
+              <th className="text-left py-2 px-2 font-semibold text-muted-foreground">Module</th>
+              <th className="text-right py-2 px-2 font-semibold text-muted-foreground">Calls</th>
+              <th className="text-right py-2 px-2 font-semibold text-muted-foreground">Tokens</th>
+              <th className="text-right py-2 px-2 font-semibold text-muted-foreground">% of Daily</th>
+              <th className="text-right py-2 px-2 font-semibold text-muted-foreground">% of Budget</th>
+              <th className="text-right py-2 px-2 font-semibold text-muted-foreground">Cost</th>
+              <th className="text-right py-2 px-2 font-semibold text-muted-foreground">Errors</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.modules.map(m => (
+              <tr key={m.module} className={cn('border-b border-muted/50 hover:bg-muted/30', m.module === 'unknown' && 'bg-red-500/10')}>
+                <td className="py-1.5 px-2 font-medium">
+                  {formatModuleName(m.module)}
+                  {m.module === 'unknown' && <span className="ml-1 text-red-500 text-[10px]">⚠ untagged</span>}
+                </td>
+                <td className="text-right py-1.5 px-2 tabular-nums">{m.call_count.toLocaleString()}</td>
+                <td className="text-right py-1.5 px-2 tabular-nums font-medium">{m.total_tokens.toLocaleString()}</td>
+                <td className="text-right py-1.5 px-2 tabular-nums">{m.pct_of_daily}%</td>
+                <td className="text-right py-1.5 px-2 tabular-nums">
+                  <span className={cn(m.pct_of_budget > 30 ? 'text-amber-600 font-medium' : '')}>{m.pct_of_budget}%</span>
+                </td>
+                <td className="text-right py-1.5 px-2 tabular-nums text-muted-foreground">${m.total_cost.toFixed(4)}</td>
+                <td className="text-right py-1.5 px-2 tabular-nums">
+                  {m.failures > 0 ? <span className="text-red-500">{m.failures}</span> : <span className="text-muted-foreground">0</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 font-semibold">
+              <td className="py-1.5 px-2">Total</td>
+              <td className="text-right py-1.5 px-2 tabular-nums">{data.total_calls.toLocaleString()}</td>
+              <td className="text-right py-1.5 px-2 tabular-nums">{data.total_tokens.toLocaleString()}</td>
+              <td className="text-right py-1.5 px-2 tabular-nums">100%</td>
+              <td className="text-right py-1.5 px-2 tabular-nums">{data.budget_used_pct}%</td>
+              <td className="text-right py-1.5 px-2 tabular-nums">${data.modules.reduce((s, m) => s + m.total_cost, 0).toFixed(4)}</td>
+              <td className="text-right py-1.5 px-2 tabular-nums">{data.modules.reduce((s, m) => s + m.failures, 0)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function HourlyUsageChart({ hourly }: { hourly: AiUsageData['hourly'] }) {
   if (!hourly || hourly.length === 0) return null
   const maxTokens = Math.max(...hourly.map(h => h.tokens), 1)
@@ -2328,6 +2426,19 @@ export function AiHealthPage() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Daily Token Breakdown Table */}
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                  <CardTitle className="text-base">Daily Token Breakdown by Module</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <DailyTokenBreakdown />
+              </CardContent>
+            </Card>
 
             {/* Model Performance Table */}
             <Card>
