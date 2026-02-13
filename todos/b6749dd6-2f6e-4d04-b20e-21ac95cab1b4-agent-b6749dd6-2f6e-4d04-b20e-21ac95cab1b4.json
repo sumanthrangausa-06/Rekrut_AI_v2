@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Phase 1: Investigate — check logs, trace interview session flow, identify root causes",
+    "status": "completed",
+    "activeForm": "Investigating mock interview bugs"
+  },
+  {
+    "content": "Phase 2: Fix stale closure — add mockSessionRef, fix recorder.onstop and recognition.onend",
+    "status": "completed",
+    "activeForm": "Fixing stale closure bug with mockSessionRef"
+  },
+  {
+    "content": "Phase 3: Fix scoring race condition + AI echo fallback",
+    "status": "completed",
+    "activeForm": "Fixing scoring race and AI echo"
+  },
+  {
+    "content": "Phase 4: Deploy and verify full interview flow end-to-end",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying end-to-end interview flow"
+  }
+]
