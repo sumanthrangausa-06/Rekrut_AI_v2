@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Phase 1: Investigate — find all in-memory data stores that get wiped on deploy",
+    "status": "completed",
+    "activeForm": "Investigating in-memory data stores"
+  },
+  {
+    "content": "Phase 2: Create DB migration + persist provider status, verification, token budget",
+    "status": "completed",
+    "activeForm": "Creating DB tables and persistence layer"
+  },
+  {
+    "content": "Phase 3: Load last-known state from DB on server startup",
+    "status": "completed",
+    "activeForm": "Implementing startup state restoration"
+  },
+  {
+    "content": "Phase 4: Deploy and verify dashboard retains data across restarts",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying persistence"
+  }
+]
