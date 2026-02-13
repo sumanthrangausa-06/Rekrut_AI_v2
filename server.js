@@ -25,6 +25,7 @@ const countryRoutes = require('./routes/countries');
 const adminRoutes = require('./routes/admin');
 const { requireAdmin } = require('./routes/admin');
 const memoryRoutes = require('./routes/memory');
+const communicationsRoutes = require('./routes/communications');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -124,6 +125,9 @@ app.use('/api/countries', countryRoutes);
 
 // API Routes - AI Memory, Auto-Fill, Question Bank
 app.use('/api/memory', memoryRoutes);
+
+// API Routes - AI Communication Hub
+app.use('/api/communications', communicationsRoutes);
 
 // Comprehensive Monitoring Metrics — protected by admin auth
 app.get('/api/admin/metrics', requireAdmin, async (req, res) => {
