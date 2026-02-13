@@ -834,7 +834,10 @@ const useReactApp = fs.existsSync(path.join(reactBuildPath, 'index.html'));
 
 if (useReactApp) {
   console.log('[server] Serving React SPA from client/dist');
+  // Serve React SPA assets first
   app.use(express.static(reactBuildPath));
+  // Also serve legacy public/ files (recruiter HTML pages, CSS, JS)
+  app.use(express.static(legacyPublicPath));
 
   // SPA fallback - serve index.html for all non-API routes
   app.get('*', (req, res) => {
