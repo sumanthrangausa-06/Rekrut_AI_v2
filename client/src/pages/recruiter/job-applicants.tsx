@@ -13,6 +13,7 @@ import {
   Mail, FileText, Send, CheckCircle, Clock, Gift, MessageSquare,
   ChevronRight, Zap, Target, AlertCircle, Sparkles, Loader2, X,
   ThumbsUp, ThumbsDown, BarChart3, Briefcase, GraduationCap, MapPin, DollarSign,
+  GitCompare, Settings2, Sliders,
 } from 'lucide-react'
 
 interface JobInfo {
@@ -98,6 +99,13 @@ export function RecruiterJobApplicantsPage() {
   const [matchBreakdown, setMatchBreakdown] = useState<any>(null)
   const [matchBreakdownLoading, setMatchBreakdownLoading] = useState(false)
   const [feedbackSending, setFeedbackSending] = useState(false)
+  const [comparing, setComparing] = useState(false)
+  const [comparisonResult, setComparisonResult] = useState<any>(null)
+  const [showComparison, setShowComparison] = useState(false)
+  const [showAutomation, setShowAutomation] = useState(false)
+  const [automationRules, setAutomationRules] = useState<any>(null)
+  const [automationLoading, setAutomationLoading] = useState(false)
+  const [automationSaving, setAutomationSaving] = useState(false)
 
   useEffect(() => {
     loadApplicants()
@@ -195,6 +203,55 @@ export function RecruiterJobApplicantsPage() {
     }
   }
 
+  // AI Compare candidates
+  async function compareCandidates() {
+    if (selectedIds.size < 2) return
+    setComparing(true)
+    setShowComparison(true)
+    try {
+      const candidateIds = applicants
+        .filter(a => selectedIds.has(a.id))
+        .map(a => a.candidate_id)
+      const data = await apiCall<{ success: boolean; comparison: any }>('/recruiter/ai/compare-candidates', {
+        method: 'POST',
+        body: { candidate_ids: candidateIds, job_id: Number(id) },
+      })
+      setComparisonResult(data.comparison || data)
+    } catch {
+      setComparisonResult({ error: 'Comparison failed. Ensure candidates have sufficient profile data.' })
+    } finally { setComparing(false) }
+  }
+
+  // Pipeline automation
+  async function loadAutomation() {
+    setAutomationLoading(true)
+    try {
+      const data = await apiCall<{ success: boolean; rules: any }>(`/recruiter/pipeline/automation/${id}`)
+      setAutomationRules(data.rules || { auto_advance: [], auto_reject: [] })
+    } catch {
+      setAutomationRules({ auto_advance: [], auto_reject: [] })
+    } finally { setAutomationLoading(false) }
+  }
+
+  async function saveAutomation(rules: any) {
+    setAutomationSaving(true)
+    try {
+      await apiCall(`/recruiter/pipeline/automation/${id}`, {
+        method: 'PUT',
+        body: { rules },
+      })
+    } catch {} finally { setAutomationSaving(false) }
+  }
+
+  async function runAutoCheck() {
+    try {
+      const data = await apiCall<{ success: boolean; actions: any[] }>(`/recruiter/pipeline/auto-check/${id}`, { method: 'POST' })
+      if (data.actions?.length) {
+        loadApplicants() // Refresh to show changes
+      }
+    } catch {}
+  }
+
   function toggleSelect(appId: number) {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -274,6 +331,14 @@ export function RecruiterJobApplicantsPage() {
             {job?.title || 'Job'} &mdash; {applicants.length} applicant{applicants.length !== 1 ? 's' : ''}
           </p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => { setShowAutomation(true); loadAutomation() }}
+          className="gap-1 h-8"
+        >
+          <Sliders className="h-3.5 w-3.5" /> Automation
+        </Button>
         <div className="flex items-center gap-1 border rounded-lg p-0.5">
           <Button
             variant={viewMode === 'kanban' ? 'default' : 'ghost'}
@@ -332,6 +397,11 @@ export function RecruiterJobApplicantsPage() {
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">{selectedIds.size} selected</span>
+            {selectedIds.size >= 2 && (
+              <Button variant="outline" size="sm" onClick={compareCandidates} disabled={comparing} className="gap-1 text-xs">
+                <GitCompare className="h-3.5 w-3.5" /> {comparing ? 'Comparing...' : 'AI Compare'}
+              </Button>
+            )}
             <Select
               value=""
               onChange={e => { if (e.target.value) batchUpdateStatus(e.target.value) }}
@@ -742,6 +812,188 @@ export function RecruiterJobApplicantsPage() {
               >
                 <Gift className="h-4 w-4" /> Make Offer to {selected.candidate_name?.split(' ')[0] || 'Candidate'}
               </Button>
+            )}
+          </div>
+        </Dialog>
+      )}
+
+      {/* AI Comparison Dialog */}
+      {showComparison && (
+        <Dialog open={true} onClose={() => { setShowComparison(false); setComparisonResult(null) }} className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitCompare className="h-5 w-5 text-primary" /> AI Candidate Comparison
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {comparing ? (
+              <div className="flex flex-col items-center gap-3 py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">AI is comparing {selectedIds.size} candidates...</p>
+              </div>
+            ) : comparisonResult?.error ? (
+              <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">{comparisonResult.error}</div>
+            ) : comparisonResult ? (
+              <>
+                {/* Ranking */}
+                {comparisonResult.ranking && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Ranking</h4>
+                    {comparisonResult.ranking.map((r: any, i: number) => {
+                      const app = applicants.find(a => a.candidate_id === r.candidate_id)
+                      return (
+                        <div key={r.candidate_id} className={`flex items-center gap-3 rounded-lg border p-3 ${i === 0 ? 'border-green-200 bg-green-50' : ''}`}>
+                          <span className="text-lg font-bold text-muted-foreground">#{i + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm">{app?.candidate_name || `Candidate ${r.candidate_id}`}</p>
+                            {r.reasoning && <p className="text-xs text-muted-foreground truncate">{r.reasoning}</p>}
+                          </div>
+                          {r.overall_score != null && (
+                            <div className={`rounded-lg border px-2 py-1 text-center ${matchScoreBg(r.overall_score)}`}>
+                              <span className="font-bold text-sm">{r.overall_score}</span>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                {/* Dimensions comparison */}
+                {comparisonResult.dimensions && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Dimension Comparison</h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-2 text-xs">Dimension</th>
+                            {comparisonResult.ranking?.map((r: any) => {
+                              const app = applicants.find(a => a.candidate_id === r.candidate_id)
+                              return <th key={r.candidate_id} className="text-center py-2 text-xs">{app?.candidate_name?.split(' ')[0] || 'Candidate'}</th>
+                            })}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(comparisonResult.dimensions).map(([dim, scores]: [string, any]) => (
+                            <tr key={dim} className="border-b">
+                              <td className="py-2 capitalize text-xs font-medium">{dim.replace(/_/g, ' ')}</td>
+                              {comparisonResult.ranking?.map((r: any) => (
+                                <td key={r.candidate_id} className="text-center py-2">
+                                  <span className={`text-xs font-bold ${matchScoreColor(scores[r.candidate_id] || 0)}`}>
+                                    {scores[r.candidate_id] ?? '-'}
+                                  </span>
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+                {/* Key differentiators */}
+                {comparisonResult.key_differentiators && (
+                  <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-sm text-blue-800">
+                    <p className="font-medium mb-1">Key Differentiators</p>
+                    <p>{typeof comparisonResult.key_differentiators === 'string' ? comparisonResult.key_differentiators : JSON.stringify(comparisonResult.key_differentiators)}</p>
+                  </div>
+                )}
+                {comparisonResult.recommendation && (
+                  <div className="rounded-lg bg-green-50 border border-green-100 p-3 text-sm text-green-800">
+                    <p className="font-medium mb-1">Recommendation</p>
+                    <p>{comparisonResult.recommendation}</p>
+                  </div>
+                )}
+              </>
+            ) : null}
+          </div>
+        </Dialog>
+      )}
+
+      {/* Pipeline Automation Dialog */}
+      {showAutomation && (
+        <Dialog open={true} onClose={() => setShowAutomation(false)} className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sliders className="h-5 w-5 text-primary" /> Pipeline Automation
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {automationLoading ? (
+              <div className="flex items-center gap-2 justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" /> Loading rules...</div>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Set up auto-advance and auto-reject rules based on OmniScore and match score thresholds. Candidates meeting criteria will be automatically moved in the pipeline.
+                </p>
+                <div className="space-y-3">
+                  <div className="rounded-lg border p-4 space-y-3">
+                    <h4 className="text-sm font-medium flex items-center gap-1.5"><CheckCircle className="h-4 w-4 text-green-600" /> Auto-Advance</h4>
+                    <p className="text-xs text-muted-foreground">Automatically advance candidates from Applied to Screening when their scores meet thresholds.</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium">Min OmniScore</label>
+                        <Input
+                          type="number"
+                          min={300}
+                          max={850}
+                          value={automationRules?.advance_omniscore_min || 600}
+                          onChange={e => setAutomationRules((r: any) => ({ ...r, advance_omniscore_min: Number(e.target.value) }))}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium">Min Match Score</label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={automationRules?.advance_match_min || 70}
+                          onChange={e => setAutomationRules((r: any) => ({ ...r, advance_match_min: Number(e.target.value) }))}
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-4 space-y-3">
+                    <h4 className="text-sm font-medium flex items-center gap-1.5"><AlertCircle className="h-4 w-4 text-red-500" /> Auto-Reject</h4>
+                    <p className="text-xs text-muted-foreground">Automatically reject candidates who fall below minimum thresholds.</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium">Max OmniScore (reject below)</label>
+                        <Input
+                          type="number"
+                          min={300}
+                          max={850}
+                          value={automationRules?.reject_omniscore_max || 400}
+                          onChange={e => setAutomationRules((r: any) => ({ ...r, reject_omniscore_max: Number(e.target.value) }))}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium">Max Match Score (reject below)</label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={automationRules?.reject_match_max || 30}
+                          onChange={e => setAutomationRules((r: any) => ({ ...r, reject_match_max: Number(e.target.value) }))}
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button onClick={() => saveAutomation(automationRules)} disabled={automationSaving} className="gap-1.5">
+                    {automationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings2 className="h-4 w-4" />}
+                    Save Rules
+                  </Button>
+                  <Button variant="outline" onClick={runAutoCheck} className="gap-1.5">
+                    <Zap className="h-4 w-4" /> Run Now
+                  </Button>
+                </div>
+              </>
             )}
           </div>
         </Dialog>

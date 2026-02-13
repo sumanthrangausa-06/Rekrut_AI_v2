@@ -52,6 +52,8 @@ export function CandidateJobDetailPage() {
   const [generatingSuggestions, setGeneratingSuggestions] = useState(false)
   const [matchBreakdown, setMatchBreakdown] = useState<any>(null)
   const [loadingMatch, setLoadingMatch] = useState(false)
+  const [reviewResult, setReviewResult] = useState<any>(null)
+  const [reviewing, setReviewing] = useState(false)
 
   useEffect(() => {
     loadJob()
@@ -428,10 +430,51 @@ export function CandidateJobDetailPage() {
               </div>
             )}
 
+            {/* AI Application Review */}
+            {reviewResult && (
+              <div className={`rounded-lg border p-4 space-y-3 ${reviewResult.ready_to_submit ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                <div className="flex items-center gap-2">
+                  {reviewResult.ready_to_submit ? <CheckCircle className="h-4 w-4 text-green-600" /> : <AlertCircle className="h-4 w-4 text-amber-600" />}
+                  <span className="font-medium text-sm">
+                    {reviewResult.ready_to_submit ? 'Application looks great!' : 'Some improvements suggested'}
+                  </span>
+                  <Badge variant="outline" className="ml-auto">{reviewResult.completeness_score || 0}% complete</Badge>
+                </div>
+                {reviewResult.strengths?.length > 0 && (
+                  <div className="space-y-0.5">
+                    {reviewResult.strengths.slice(0, 2).map((s: string, i: number) => (
+                      <p key={i} className="text-xs text-green-700 flex items-center gap-1"><CheckCircle className="h-3 w-3 shrink-0" />{s}</p>
+                    ))}
+                  </div>
+                )}
+                {reviewResult.issues?.filter((i: any) => i.severity === 'critical' || i.severity === 'warning').length > 0 && (
+                  <div className="space-y-0.5">
+                    {reviewResult.issues.filter((i: any) => i.severity !== 'tip').slice(0, 3).map((issue: any, i: number) => (
+                      <p key={i} className="text-xs text-amber-700 flex items-center gap-1"><AlertCircle className="h-3 w-3 shrink-0" />{issue.message}{issue.fix && <span className="text-amber-600"> — {issue.fix}</span>}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex gap-2 pt-2 border-t">
               <Button onClick={handleApply} disabled={applying} className="gap-2">
                 {applying ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Send className="h-4 w-4" />}
                 Submit Application
+              </Button>
+              <Button variant="outline" onClick={async () => {
+                if (!job) return
+                setReviewing(true)
+                try {
+                  const data = await apiCall<{ success: boolean; review: any }>('/candidate/ai/application-review', {
+                    method: 'POST',
+                    body: { job_id: job.id, cover_letter: coverLetter, screening_answers: screeningAnswers },
+                  })
+                  if (data.review) setReviewResult(data.review)
+                } catch {} finally { setReviewing(false) }
+              }} disabled={reviewing} className="gap-1.5">
+                {reviewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {reviewing ? 'Reviewing...' : 'AI Review'}
               </Button>
               <Button variant="outline" onClick={() => setShowApplyForm(false)}>Cancel</Button>
             </div>

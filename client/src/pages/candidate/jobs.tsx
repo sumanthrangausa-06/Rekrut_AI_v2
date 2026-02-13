@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Select } from '@/components/ui/select'
 import {
   Briefcase, MapPin, DollarSign, Clock, Search, Building2, ArrowRight,
-  Sparkles, Target, Zap, Star,
+  Sparkles, Target, Zap, Star, Brain, Loader2, X, CheckCircle2, AlertTriangle,
 } from 'lucide-react'
 
 interface Job {
@@ -61,6 +61,10 @@ export function CandidateJobsPage() {
   const [typeFilter, setTypeFilter] = useState('')
   const [locationFilter, setLocationFilter] = useState('')
   const [showRecommended, setShowRecommended] = useState(true)
+  const [aiSearchMode, setAiSearchMode] = useState(false)
+  const [aiSearchQuery, setAiSearchQuery] = useState('')
+  const [aiSearching, setAiSearching] = useState(false)
+  const [aiResults, setAiResults] = useState<Job[] | null>(null)
 
   useEffect(() => {
     loadJobs()
@@ -118,6 +122,33 @@ export function CandidateJobsPage() {
     const matchLocation = !locationFilter || j.location?.toLowerCase().includes(locationFilter.toLowerCase())
     return matchSearch && matchType && matchLocation
   })
+
+  async function handleAiSearch() {
+    if (!aiSearchQuery.trim()) return
+    setAiSearching(true)
+    try {
+      const data = await apiCall<{ success: boolean; results: any[] }>('/candidate/ai/smart-search', {
+        method: 'POST',
+        body: JSON.stringify({ query: aiSearchQuery }),
+      })
+      if (data.results) {
+        setAiResults(data.results)
+      }
+    } catch {
+      // Fallback to local search
+      setSearch(aiSearchQuery)
+      setAiSearchMode(false)
+      setAiResults(null)
+    } finally {
+      setAiSearching(false)
+    }
+  }
+
+  function clearAiSearch() {
+    setAiResults(null)
+    setAiSearchQuery('')
+    setAiSearchMode(false)
+  }
 
   const jobTypes = [...new Set(jobs.map(j => j.job_type).filter(Boolean))]
 
@@ -191,42 +222,81 @@ export function CandidateJobsPage() {
         </div>
       )}
 
-      {/* Filters */}
+      {/* Filters + AI Smart Search */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <CardContent className="p-4 space-y-3">
+          {aiSearchMode ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Brain className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">AI Smart Search</span>
+                <Badge variant="secondary" className="text-[10px]">Natural Language</Badge>
+                <Button variant="ghost" size="sm" className="ml-auto h-6 px-2" onClick={clearAiSearch}>
+                  <X className="h-3 w-3" /> Close
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder='Try: "remote python jobs paying over 100k" or "entry level design roles in NYC"'
+                  value={aiSearchQuery}
+                  onChange={e => setAiSearchQuery(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAiSearch()}
+                  className="flex-1"
+                  autoFocus
+                />
+                <Button onClick={handleAiSearch} disabled={aiSearching || !aiSearchQuery.trim()} size="sm">
+                  {aiSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  {aiSearching ? 'Searching...' : 'Search'}
+                </Button>
+              </div>
+              {aiResults && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3 text-green-500" />
+                  AI found {aiResults.length} matching jobs
+                  <button className="underline ml-1" onClick={clearAiSearch}>Clear</button>
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search jobs by title, company, or keywords..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setAiSearchMode(true)} className="gap-1.5 shrink-0">
+                <Brain className="h-3.5 w-3.5" /> AI Search
+              </Button>
+              <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="sm:w-40">
+                <option value="">All Types</option>
+                {jobTypes.map(t => <option key={t} value={t}>{t}</option>)}
+              </Select>
               <Input
-                placeholder="Search jobs by title, company, or keywords..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="pl-9"
+                placeholder="Location..."
+                value={locationFilter}
+                onChange={e => setLocationFilter(e.target.value)}
+                className="sm:w-40"
               />
             </div>
-            <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="sm:w-40">
-              <option value="">All Types</option>
-              {jobTypes.map(t => <option key={t} value={t}>{t}</option>)}
-            </Select>
-            <Input
-              placeholder="Location..."
-              value={locationFilter}
-              onChange={e => setLocationFilter(e.target.value)}
-              className="sm:w-40"
-            />
-          </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Results count */}
-      <p className="text-sm text-muted-foreground">{filtered.length} jobs found</p>
+      <p className="text-sm text-muted-foreground">
+        {aiResults ? `${aiResults.length} AI-matched jobs` : `${filtered.length} jobs found`}
+      </p>
 
       {/* Job list */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : (aiResults || filtered).length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
             <Briefcase className="mx-auto mb-3 h-10 w-10 opacity-30" />
@@ -235,7 +305,7 @@ export function CandidateJobsPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {filtered.map(job => {
+          {(aiResults || filtered).map(job => {
             const score = job.weighted_score ? Math.round(job.weighted_score) : null
             return (
               <Link key={job.id} to={`/candidate/jobs/${job.id}`}>
