@@ -2124,4 +2124,713 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
   }
 });
 
+// =============== SMART SCHEDULING ===============
+const interviewAI = require('../services/interview-ai');
+
+// POST /api/interviews/suggest-slots — AI suggests optimal interview time slots
+router.post('/suggest-slots', authMiddleware, async (req, res) => {
+  try {
+    const { candidate_timezone, days_ahead, slots_count, duration_minutes } = req.body;
+
+    const slots = await interviewAI.suggestSlots(
+      req.user.id,
+      candidate_timezone || 'America/New_York',
+      {
+        daysAhead: Math.min(days_ahead || 7, 30),
+        slotsCount: Math.min(slots_count || 6, 12),
+        durationMinutes: duration_minutes || 60
+      }
+    );
+
+    res.json({ success: true, slots, count: slots.length });
+  } catch (err) {
+    console.error('Suggest slots error:', err);
+    res.status(500).json({ error: 'Failed to suggest interview slots' });
+  }
+});
+
+// POST /api/interviews/schedule — Schedule with AI-suggested slot + create reminders
+router.post('/schedule', authMiddleware, async (req, res) => {
+  try {
+    const { job_id, candidate_id, scheduled_at, duration_minutes = 60, interview_type = 'video', notes } = req.body;
+
+    if (!job_id || !candidate_id || !scheduled_at) {
+      return res.status(400).json({ error: 'Job, candidate, and time are required' });
+    }
+
+    // Auto-generate meeting link
+    let meeting_link = null;
+    if (interview_type === 'video') {
+      const roomId = `RekrutAI-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
+      meeting_link = `https://meet.jit.si/${roomId}`;
+    }
+
+    // Get company_id from user
+    const companyId = req.user.company_id;
+
+    const result = await pool.query(
+      `INSERT INTO scheduled_interviews
+       (company_id, job_id, candidate_id, recruiter_id, scheduled_at, duration_minutes, interview_type, meeting_link, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [companyId, job_id, candidate_id, req.user.id, scheduled_at, duration_minutes, interview_type, meeting_link, notes]
+    );
+
+    const interview = result.rows[0];
+
+    // Create reminders
+    const reminderCount = await interviewAI.createReminders(interview.id, candidate_id, req.user.id, scheduled_at);
+
+    res.json({
+      success: true,
+      interview,
+      reminders_created: reminderCount
+    });
+  } catch (err) {
+    console.error('Schedule interview error:', err);
+    res.status(500).json({ error: 'Failed to schedule interview' });
+  }
+});
+
+// PUT /api/interviews/reschedule — Cancel and suggest new slots
+router.put('/reschedule', authMiddleware, async (req, res) => {
+  try {
+    const { interview_id, new_scheduled_at } = req.body;
+
+    if (!interview_id) {
+      return res.status(400).json({ error: 'Interview ID is required' });
+    }
+
+    // Get interview
+    const existing = await pool.query(
+      'SELECT * FROM scheduled_interviews WHERE id = $1',
+      [interview_id]
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Interview not found' });
+    }
+
+    if (new_scheduled_at) {
+      // Reschedule to specific time
+      let meeting_link = existing.rows[0].meeting_link;
+      if (existing.rows[0].interview_type === 'video' && !meeting_link) {
+        const roomId = `RekrutAI-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
+        meeting_link = `https://meet.jit.si/${roomId}`;
+      }
+
+      await pool.query(
+        `UPDATE scheduled_interviews SET scheduled_at = $1, status = 'scheduled', meeting_link = $2, updated_at = NOW() WHERE id = $3`,
+        [new_scheduled_at, meeting_link, interview_id]
+      );
+
+      // Delete old reminders, create new ones
+      await pool.query('DELETE FROM interview_reminders WHERE interview_id = $1', [interview_id]);
+      const reminderCount = await interviewAI.createReminders(
+        interview_id,
+        existing.rows[0].candidate_id,
+        existing.rows[0].recruiter_id,
+        new_scheduled_at
+      );
+
+      const updated = await pool.query('SELECT * FROM scheduled_interviews WHERE id = $1', [interview_id]);
+      res.json({ success: true, interview: updated.rows[0], reminders_created: reminderCount });
+    } else {
+      // Cancel current and suggest new slots
+      await pool.query(
+        `UPDATE scheduled_interviews SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
+        [interview_id]
+      );
+
+      const suggestedSlots = await interviewAI.suggestRescheduleSlots(interview_id);
+      res.json({ success: true, cancelled: true, suggested_slots: suggestedSlots });
+    }
+  } catch (err) {
+    console.error('Reschedule interview error:', err);
+    res.status(500).json({ error: 'Failed to reschedule interview' });
+  }
+});
+
+// Save/update scheduling preferences
+router.post('/scheduling-preferences', authMiddleware, async (req, res) => {
+  try {
+    const { timezone, available_days, available_hours, buffer_minutes, preferred_duration, blackout_dates } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO scheduling_preferences (user_id, timezone, available_days, available_hours, buffer_minutes, preferred_duration, blackout_dates)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (user_id) DO UPDATE SET
+         timezone = COALESCE($2, scheduling_preferences.timezone),
+         available_days = COALESCE($3, scheduling_preferences.available_days),
+         available_hours = COALESCE($4, scheduling_preferences.available_hours),
+         buffer_minutes = COALESCE($5, scheduling_preferences.buffer_minutes),
+         preferred_duration = COALESCE($6, scheduling_preferences.preferred_duration),
+         blackout_dates = COALESCE($7, scheduling_preferences.blackout_dates),
+         updated_at = NOW()
+       RETURNING *`,
+      [
+        req.user.id,
+        timezone || 'America/New_York',
+        JSON.stringify(available_days || ['monday','tuesday','wednesday','thursday','friday']),
+        JSON.stringify(available_hours || { start: '09:00', end: '17:00' }),
+        buffer_minutes || 15,
+        preferred_duration || 60,
+        JSON.stringify(blackout_dates || [])
+      ]
+    );
+
+    res.json({ success: true, preferences: result.rows[0] });
+  } catch (err) {
+    console.error('Save scheduling preferences error:', err);
+    res.status(500).json({ error: 'Failed to save preferences' });
+  }
+});
+
+// Get scheduling preferences
+router.get('/scheduling-preferences', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM scheduling_preferences WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    res.json({
+      success: true,
+      preferences: result.rows[0] || {
+        timezone: 'America/New_York',
+        available_days: ['monday','tuesday','wednesday','thursday','friday'],
+        available_hours: { start: '09:00', end: '17:00' },
+        buffer_minutes: 15,
+        preferred_duration: 60,
+        blackout_dates: []
+      }
+    });
+  } catch (err) {
+    console.error('Get scheduling preferences error:', err);
+    res.status(500).json({ error: 'Failed to get preferences' });
+  }
+});
+
+// =============== SCREENING PIPELINE ===============
+
+// POST /api/interviews/screening/create-template — Recruiter creates a screening template
+router.post('/screening/create-template', authMiddleware, async (req, res) => {
+  try {
+    const { job_id, title, description, questions, time_limit_minutes, auto_send_on_apply } = req.body;
+
+    if (!job_id) {
+      return res.status(400).json({ error: 'Job ID is required' });
+    }
+
+    // Get job details for AI question generation
+    const job = await pool.query('SELECT title, description FROM jobs WHERE id = $1', [job_id]);
+    if (job.rows.length === 0) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // Use provided questions or generate with AI
+    let finalQuestions = questions;
+    if (!finalQuestions || finalQuestions.length === 0) {
+      finalQuestions = await interviewAI.generateScreeningQuestions(
+        job.rows[0].title,
+        job.rows[0].description
+      );
+    }
+
+    const result = await pool.query(
+      `INSERT INTO screening_templates (company_id, job_id, created_by, title, description, questions, time_limit_minutes, auto_send_on_apply)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [
+        req.user.company_id,
+        job_id,
+        req.user.id,
+        title || `Screening: ${job.rows[0].title}`,
+        description || `AI screening interview for ${job.rows[0].title} candidates`,
+        JSON.stringify(finalQuestions),
+        time_limit_minutes || 45,
+        auto_send_on_apply || false
+      ]
+    );
+
+    res.json({ success: true, template: result.rows[0] });
+  } catch (err) {
+    console.error('Create screening template error:', err);
+    res.status(500).json({ error: 'Failed to create screening template' });
+  }
+});
+
+// GET /api/interviews/screening/templates — Get screening templates for company
+router.get('/screening/templates', authMiddleware, async (req, res) => {
+  try {
+    const { job_id } = req.query;
+    let query = `
+      SELECT st.*, j.title as job_title,
+             (SELECT COUNT(*) FROM screening_sessions ss WHERE ss.template_id = st.id) as sessions_count,
+             (SELECT COUNT(*) FROM screening_sessions ss WHERE ss.template_id = st.id AND ss.status = 'completed') as completed_count
+      FROM screening_templates st
+      JOIN jobs j ON st.job_id = j.id
+      WHERE st.company_id = $1 AND st.status = 'active'
+    `;
+    const params = [req.user.company_id];
+
+    if (job_id) {
+      query += ` AND st.job_id = $2`;
+      params.push(job_id);
+    }
+
+    query += ' ORDER BY st.created_at DESC';
+
+    const result = await pool.query(query, params);
+    res.json({ success: true, templates: result.rows });
+  } catch (err) {
+    console.error('Get screening templates error:', err);
+    res.status(500).json({ error: 'Failed to fetch templates' });
+  }
+});
+
+// POST /api/interviews/screening/send — Send screening invite to candidate
+router.post('/screening/send', authMiddleware, async (req, res) => {
+  try {
+    const { template_id, candidate_id, application_id, job_id } = req.body;
+
+    if (!template_id || !candidate_id) {
+      return res.status(400).json({ error: 'Template and candidate are required' });
+    }
+
+    // Get template
+    const template = await pool.query(
+      'SELECT * FROM screening_templates WHERE id = $1 AND company_id = $2',
+      [template_id, req.user.company_id]
+    );
+
+    if (template.rows.length === 0) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
+    const tmpl = template.rows[0];
+
+    // Check if screening already sent
+    const existing = await pool.query(
+      `SELECT id FROM screening_sessions WHERE template_id = $1 AND candidate_id = $2 AND status != 'expired'`,
+      [template_id, candidate_id]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'Screening already sent to this candidate', session_id: existing.rows[0].id });
+    }
+
+    // Create screening session with invite token
+    const inviteToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60000); // 7 days
+
+    const result = await pool.query(
+      `INSERT INTO screening_sessions
+       (template_id, company_id, job_id, candidate_id, application_id, invited_by, invite_token, questions, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        template_id,
+        req.user.company_id,
+        tmpl.job_id || job_id,
+        candidate_id,
+        application_id || null,
+        req.user.id,
+        inviteToken,
+        JSON.stringify(tmpl.questions),
+        expiresAt
+      ]
+    );
+
+    // Update application screening status
+    if (application_id) {
+      await pool.query(
+        `UPDATE job_applications SET screening_status = 'sent', updated_at = NOW() WHERE id = $1`,
+        [application_id]
+      );
+    }
+
+    res.json({
+      success: true,
+      session: result.rows[0],
+      invite_url: `/screening/${inviteToken}`
+    });
+  } catch (err) {
+    console.error('Send screening error:', err);
+    res.status(500).json({ error: 'Failed to send screening invite' });
+  }
+});
+
+// GET /api/interviews/screening/session/:token — Candidate loads screening (by token)
+router.get('/screening/session/:token', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT ss.*, j.title as job_title, j.description as job_description, c.name as company_name
+       FROM screening_sessions ss
+       JOIN jobs j ON ss.job_id = j.id
+       JOIN companies c ON ss.company_id = c.id
+       WHERE ss.invite_token = $1`,
+      [req.params.token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Screening not found or expired' });
+    }
+
+    const session = result.rows[0];
+
+    // Check expiry
+    if (session.expires_at && new Date(session.expires_at) < new Date()) {
+      return res.status(410).json({ error: 'Screening has expired' });
+    }
+
+    // Don't expose internal IDs
+    res.json({
+      success: true,
+      screening: {
+        id: session.id,
+        job_title: session.job_title,
+        company_name: session.company_name,
+        questions: session.questions,
+        status: session.status,
+        time_limit_minutes: 45,
+        started_at: session.started_at,
+        completed_at: session.completed_at
+      }
+    });
+  } catch (err) {
+    console.error('Get screening session error:', err);
+    res.status(500).json({ error: 'Failed to load screening' });
+  }
+});
+
+// POST /api/interviews/screening/session/:token/start — Candidate starts screening
+router.post('/screening/session/:token/start', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE screening_sessions SET status = 'in_progress', started_at = NOW()
+       WHERE invite_token = $1 AND status = 'invited'
+       RETURNING id`,
+      [req.params.token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Screening not found or already started' });
+    }
+
+    // Update application status
+    const session = await pool.query('SELECT application_id FROM screening_sessions WHERE invite_token = $1', [req.params.token]);
+    if (session.rows[0]?.application_id) {
+      await pool.query(
+        `UPDATE job_applications SET screening_status = 'in_progress', updated_at = NOW() WHERE id = $1`,
+        [session.rows[0].application_id]
+      );
+    }
+
+    res.json({ success: true, started: true });
+  } catch (err) {
+    console.error('Start screening error:', err);
+    res.status(500).json({ error: 'Failed to start screening' });
+  }
+});
+
+// POST /api/interviews/screening/session/:token/respond — Candidate submits a response
+router.post('/screening/session/:token/respond', async (req, res) => {
+  try {
+    const { question_index, response_text } = req.body;
+
+    const session = await pool.query(
+      `SELECT * FROM screening_sessions WHERE invite_token = $1 AND status = 'in_progress'`,
+      [req.params.token]
+    );
+
+    if (session.rows.length === 0) {
+      return res.status(404).json({ error: 'Screening not found or not in progress' });
+    }
+
+    const s = session.rows[0];
+    const responses = s.responses || [];
+    const conversation = s.conversation || [];
+
+    // Save response
+    responses[question_index] = {
+      question_index,
+      response_text: response_text || '',
+      submitted_at: new Date().toISOString()
+    };
+
+    // Add to conversation
+    const q = s.questions[question_index];
+    if (q) {
+      conversation.push(
+        { role: 'interviewer', text: q.question_text, timestamp: new Date().toISOString() },
+        { role: 'candidate', text: response_text || '', timestamp: new Date().toISOString() }
+      );
+    }
+
+    await pool.query(
+      `UPDATE screening_sessions SET responses = $1, conversation = $2 WHERE id = $3`,
+      [JSON.stringify(responses), JSON.stringify(conversation), s.id]
+    );
+
+    const answeredCount = responses.filter(r => r && r.response_text).length;
+    const totalQuestions = s.questions.length;
+
+    res.json({
+      success: true,
+      answered: answeredCount,
+      total: totalQuestions,
+      is_complete: answeredCount >= totalQuestions
+    });
+  } catch (err) {
+    console.error('Screening respond error:', err);
+    res.status(500).json({ error: 'Failed to save response' });
+  }
+});
+
+// POST /api/interviews/screening/session/:token/complete — Candidate completes screening
+router.post('/screening/session/:token/complete', async (req, res) => {
+  try {
+    const session = await pool.query(
+      `SELECT * FROM screening_sessions WHERE invite_token = $1 AND status = 'in_progress'`,
+      [req.params.token]
+    );
+
+    if (session.rows.length === 0) {
+      return res.status(404).json({ error: 'Screening not found or not in progress' });
+    }
+
+    const s = session.rows[0];
+
+    // Generate AI evaluation report
+    const report = await interviewAI.generateScreeningReport(s);
+
+    // Save report and complete
+    await pool.query(
+      `UPDATE screening_sessions SET status = 'completed', ai_report = $1, overall_score = $2, completed_at = NOW() WHERE id = $3`,
+      [JSON.stringify(report), report.overall_score, s.id]
+    );
+
+    // Update application screening status
+    if (s.application_id) {
+      await pool.query(
+        `UPDATE job_applications SET screening_status = 'completed', screening_score = $1, updated_at = NOW() WHERE id = $2`,
+        [report.overall_score, s.application_id]
+      );
+    }
+
+    // Run multi-evaluator scoring in background
+    const jobResult = await pool.query('SELECT title, description FROM jobs WHERE id = $1', [s.job_id]);
+    const jobData = jobResult.rows[0] || {};
+
+    interviewAI.runMultiEvaluation(s.candidate_id, s.job_id, s.company_id, {
+      screeningSessionId: s.id,
+      conversation: s.conversation || [],
+      responses: s.responses || [],
+      jobTitle: jobData.title,
+      jobDescription: jobData.description
+    }).catch(err => console.error('[screening] Multi-evaluation background failed:', err.message));
+
+    res.json({
+      success: true,
+      report: {
+        overall_score: report.overall_score,
+        recommendation: report.recommendation,
+        strengths: report.strengths
+      }
+    });
+  } catch (err) {
+    console.error('Complete screening error:', err);
+    res.status(500).json({ error: 'Failed to complete screening' });
+  }
+});
+
+// GET /api/interviews/screening/:id/report — Recruiter gets screening report
+router.get('/screening/:id/report', authMiddleware, async (req, res) => {
+  try {
+    const session = await pool.query(
+      `SELECT ss.*, j.title as job_title, u.name as candidate_name, u.email as candidate_email
+       FROM screening_sessions ss
+       JOIN jobs j ON ss.job_id = j.id
+       JOIN users u ON ss.candidate_id = u.id
+       WHERE ss.id = $1 AND ss.company_id = $2`,
+      [req.params.id, req.user.company_id]
+    );
+
+    if (session.rows.length === 0) {
+      return res.status(404).json({ error: 'Screening session not found' });
+    }
+
+    const s = session.rows[0];
+
+    // Get multi-evaluation scores if available
+    const evaluations = await pool.query(
+      `SELECT evaluator_type, score, breakdown, reasoning FROM interview_evaluations
+       WHERE screening_session_id = $1 ORDER BY created_at`,
+      [s.id]
+    );
+
+    const composite = await pool.query(
+      `SELECT * FROM interview_composite_scores WHERE screening_session_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [s.id]
+    );
+
+    res.json({
+      success: true,
+      session: {
+        id: s.id,
+        candidate_name: s.candidate_name,
+        candidate_email: s.candidate_email,
+        job_title: s.job_title,
+        status: s.status,
+        overall_score: s.overall_score,
+        started_at: s.started_at,
+        completed_at: s.completed_at,
+        questions: s.questions,
+        responses: s.responses,
+        conversation: s.conversation
+      },
+      report: s.ai_report,
+      evaluations: evaluations.rows,
+      composite: composite.rows[0] || null
+    });
+  } catch (err) {
+    console.error('Get screening report error:', err);
+    res.status(500).json({ error: 'Failed to fetch report' });
+  }
+});
+
+// =============== MULTI-EVALUATOR SCORING ===============
+
+// POST /api/interviews/evaluate — Run multi-agent evaluation on an interview
+router.post('/evaluate', authMiddleware, async (req, res) => {
+  try {
+    const { interview_id, screening_session_id } = req.body;
+
+    let candidateId, jobId, companyId, conversation, responses, jobTitle, jobDescription;
+
+    if (interview_id) {
+      // Evaluate a scheduled interview
+      const interview = await pool.query(
+        `SELECT si.*, j.title as job_title, j.description as job_description
+         FROM scheduled_interviews si
+         JOIN jobs j ON si.job_id = j.id
+         WHERE si.id = $1 AND si.company_id = $2`,
+        [interview_id, req.user.company_id]
+      );
+
+      if (interview.rows.length === 0) {
+        return res.status(404).json({ error: 'Interview not found' });
+      }
+
+      const i = interview.rows[0];
+      candidateId = i.candidate_id;
+      jobId = i.job_id;
+      companyId = i.company_id;
+      jobTitle = i.job_title;
+      jobDescription = i.job_description;
+
+      // Try to get conversation from mock_interview_sessions for this candidate
+      const mockSession = await pool.query(
+        `SELECT conversation FROM mock_interview_sessions
+         WHERE user_id = $1 AND status = 'completed'
+         ORDER BY completed_at DESC LIMIT 1`,
+        [candidateId]
+      );
+      conversation = mockSession.rows[0]?.conversation || [];
+
+      // Also check feedback from interview notes
+      if (i.feedback) {
+        const fb = typeof i.feedback === 'string' ? JSON.parse(i.feedback) : i.feedback;
+        if (fb.notes) {
+          conversation.push({ role: 'interviewer_notes', text: fb.notes });
+        }
+      }
+    } else if (screening_session_id) {
+      // Evaluate a screening session
+      const session = await pool.query(
+        `SELECT ss.*, j.title as job_title, j.description as job_description
+         FROM screening_sessions ss
+         JOIN jobs j ON ss.job_id = j.id
+         WHERE ss.id = $1 AND ss.company_id = $2`,
+        [screening_session_id, req.user.company_id]
+      );
+
+      if (session.rows.length === 0) {
+        return res.status(404).json({ error: 'Screening session not found' });
+      }
+
+      const s = session.rows[0];
+      candidateId = s.candidate_id;
+      jobId = s.job_id;
+      companyId = s.company_id;
+      conversation = s.conversation || [];
+      responses = s.responses || [];
+      jobTitle = s.job_title;
+      jobDescription = s.job_description;
+    } else {
+      return res.status(400).json({ error: 'interview_id or screening_session_id required' });
+    }
+
+    const result = await interviewAI.runMultiEvaluation(candidateId, jobId, companyId, {
+      interviewId: interview_id || null,
+      screeningSessionId: screening_session_id || null,
+      conversation,
+      responses,
+      jobTitle,
+      jobDescription
+    });
+
+    if (!result) {
+      return res.status(400).json({ error: 'Not enough interview data to evaluate' });
+    }
+
+    // Update interview record with AI evaluation
+    if (interview_id) {
+      await pool.query(
+        `UPDATE scheduled_interviews SET ai_evaluation = $1, ai_composite_score = $2, updated_at = NOW() WHERE id = $3`,
+        [JSON.stringify(result), result.composite.composite_score, interview_id]
+      );
+    }
+
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('Evaluate interview error:', err);
+    res.status(500).json({ error: 'Failed to evaluate interview' });
+  }
+});
+
+// GET /api/interviews/:id/ai-scores — Get AI evaluation scores for an interview
+router.get('/:id/ai-scores', authMiddleware, async (req, res) => {
+  try {
+    const interviewId = req.params.id;
+
+    // Get individual evaluations
+    const evaluations = await pool.query(
+      `SELECT evaluator_type, score, breakdown, reasoning, created_at
+       FROM interview_evaluations
+       WHERE interview_id = $1 OR screening_session_id = $1
+       ORDER BY created_at`,
+      [interviewId]
+    );
+
+    // Get composite score
+    const composite = await pool.query(
+      `SELECT * FROM interview_composite_scores
+       WHERE interview_id = $1 OR screening_session_id = $1
+       ORDER BY created_at DESC LIMIT 1`,
+      [interviewId]
+    );
+
+    res.json({
+      success: true,
+      evaluations: evaluations.rows,
+      composite: composite.rows[0] || null
+    });
+  } catch (err) {
+    console.error('Get AI scores error:', err);
+    res.status(500).json({ error: 'Failed to fetch AI scores' });
+  }
+});
+
 module.exports = router;
