@@ -1191,25 +1191,38 @@ export function AiCoachingPage() {
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
 
     try {
-      const res = await apiCall<{
-        success: boolean; interviewer_message: MockConversationTurn; action: string; is_wrapping_up: boolean
-      }>(`/interviews/mock/${mockSession.id}/respond`, {
-        method: 'POST',
-        body: { response_text: text }
-      })
-      if (res.success) {
-        setMockSession(prev => prev ? {
-          ...prev,
-          conversation: [...prev.conversation, res.interviewer_message]
-        } : null)
-        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-        // Always play TTS in mock interview (voice is always on)
-        if (res.interviewer_message?.text) {
-          playInterviewerAudio(res.interviewer_message.text)
+      // BUG FIX: Add 28s timeout — prevents hanging when AI providers are all down
+      const textAbort = new AbortController()
+      const textTimeout = setTimeout(() => textAbort.abort(), 28000)
+
+      try {
+        const res = await apiCall<{
+          success: boolean; interviewer_message: MockConversationTurn; action: string; is_wrapping_up: boolean
+        }>(`/interviews/mock/${mockSession.id}/respond`, {
+          method: 'POST',
+          body: { response_text: text },
+          signal: textAbort.signal
+        })
+        if (res.success) {
+          setMockSession(prev => prev ? {
+            ...prev,
+            conversation: [...prev.conversation, res.interviewer_message]
+          } : null)
+          setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+          // Always play TTS in mock interview (voice is always on)
+          if (res.interviewer_message?.text) {
+            playInterviewerAudio(res.interviewer_message.text)
+          }
         }
+      } finally {
+        clearTimeout(textTimeout)
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to send response')
+      if (err.name === 'AbortError') {
+        setVoiceError('AI is taking too long. Please try sending your response again.')
+      } else {
+        alert(err.message || 'Failed to send response')
+      }
     } finally {
       setMockSending(false)
     }
@@ -1602,13 +1615,24 @@ export function AiCoachingPage() {
           }
 
           const token = getToken()
-          const res = await fetch(`/api/interviews/mock/${mockSession.id}/voice-respond`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            },
-            body: formData
-          })
+          // BUG FIX: Add 28s AbortController timeout — prevents hanging when backend is slow.
+          // Backend has 20s AI timeout + TTS, so 28s gives it time to respond with scripted fallback.
+          const abortController = new AbortController()
+          const fetchTimeout = setTimeout(() => abortController.abort(), 28000)
+
+          let res: Response
+          try {
+            res = await fetch(`/api/interviews/mock/${mockSession.id}/voice-respond`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`
+              },
+              body: formData,
+              signal: abortController.signal
+            })
+          } finally {
+            clearTimeout(fetchTimeout)
+          }
 
           const data = await res.json()
 
@@ -1692,8 +1716,14 @@ export function AiCoachingPage() {
             }
           }
         } catch (err: any) {
-          setVoiceError(err.message || 'Voice processing failed')
-          console.error('Voice response error:', err)
+          // BUG FIX: Better error messages so the interview doesn't appear "frozen"
+          if (err.name === 'AbortError') {
+            console.warn('[voice] Request timed out after 28s')
+            setVoiceError('The AI is taking too long to respond. Tap the mic to try again, or type your answer below.')
+          } else {
+            setVoiceError(err.message || 'Voice processing failed. Tap the mic to try again.')
+            console.error('Voice response error:', err)
+          }
         } finally {
           setVoiceProcessing(false)
         }
@@ -1768,10 +1798,10 @@ export function AiCoachingPage() {
     }
   }, [voiceMode, mockSession?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-dismiss voice errors after 5 seconds
+  // Auto-dismiss voice errors after 10 seconds (extended from 5s to give user time to read retry instructions)
   useEffect(() => {
     if (voiceError) {
-      const t = setTimeout(() => setVoiceError(null), 5000)
+      const t = setTimeout(() => setVoiceError(null), 10000)
       return () => clearTimeout(t)
     }
   }, [voiceError])
