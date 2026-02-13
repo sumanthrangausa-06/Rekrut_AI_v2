@@ -23,6 +23,7 @@ import { RecruiterApplicationsPage } from '@/pages/recruiter/applications'
 // Assessments
 import { CandidateAssessmentsPage } from '@/pages/candidate/assessments'
 import { AssessmentTakePage } from '@/pages/candidate/assessment-take'
+import { JobAssessmentTakePage } from '@/pages/candidate/job-assessment-take'
 
 // Offers
 import { CandidateOffersPage } from '@/pages/candidate/offers'
@@ -30,6 +31,7 @@ import { RecruiterOffersPage } from '@/pages/recruiter/offers'
 
 // Recruiter Assessments
 import { RecruiterAssessmentsPage } from '@/pages/recruiter/assessments'
+import { RecruiterJobAssessmentPage } from '@/pages/recruiter/job-assessment'
 
 // Profiles
 import { CandidateProfilePage } from '@/pages/candidate/profile'
@@ -95,6 +97,7 @@ function AppRoutes() {
         <Route path="profile" element={<CandidateProfilePage />} />
         <Route path="assessments" element={<CandidateAssessmentsPage />} />
         <Route path="assessments/:id/take" element={<AssessmentTakePage />} />
+        <Route path="job-assessment/:id" element={<JobAssessmentTakePage />} />
         <Route path="interviews" element={<CandidateInterviewsPage />} />
         <Route path="ai-coaching" element={<AiCoachingPage />} />
         <Route path="omniscore" element={<CandidateOmniScorePage />} />
@@ -112,6 +115,7 @@ function AppRoutes() {
         <Route path="jobs/:id/applicants" element={<RecruiterJobApplicantsPage />} />
         <Route path="jobs/:id/edit" element={<RecruiterJobFormPage />} />
         <Route path="jobs/:id" element={<RecruiterJobApplicantsPage />} />
+        <Route path="jobs/:id/assessment" element={<RecruiterJobAssessmentPage />} />
         <Route path="applications" element={<RecruiterApplicationsPage />} />
         <Route path="assessments" element={<RecruiterAssessmentsPage />} />
         <Route path="candidates" element={<PlaceholderPage />} />
