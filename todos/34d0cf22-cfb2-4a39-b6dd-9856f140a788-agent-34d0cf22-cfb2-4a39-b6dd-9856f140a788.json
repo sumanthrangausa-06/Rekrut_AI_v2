@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate existing AI agent code and understand what previous attempts built",
+    "status": "completed",
+    "activeForm": "Investigating existing AI agent code"
+  },
+  {
+    "content": "Phase A: Backend — Event-driven OmniScore hooks + screening pipeline wiring",
+    "status": "completed",
+    "activeForm": "Adding event-driven OmniScore recalculation hooks"
+  },
+  {
+    "content": "Phase B: Frontend — Smart search, application review, candidate comparison, pipeline automation",
+    "status": "completed",
+    "activeForm": "Building missing frontend AI features"
+  },
+  {
+    "content": "Phase C: Deploy + E2E Verification",
+    "status": "in_progress",
+    "activeForm": "Deploying and running E2E verification"
+  }
+]
