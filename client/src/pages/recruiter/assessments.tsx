@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { apiCall } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,6 +10,7 @@ import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   GraduationCap, Users, Trophy, TrendingUp, Search, ChevronDown,
   CheckCircle, XCircle, Clock, Shield, Eye, BarChart3, AlertTriangle,
+  Sparkles, Briefcase,
 } from 'lucide-react'
 
 interface AssessmentResult {
@@ -89,9 +91,37 @@ interface CatalogSkill {
   difficulty: string
 }
 
+interface JobAssessmentResult {
+  id: number
+  composite_score: number
+  category_scores: Record<string, { score: number; earned: number; total: number }>
+  ai_summary: { recommendation: string; summary: string; strengths: string[]; weaknesses: string[] } | null
+  anti_cheat_score: number
+  status: string
+  completed_at: string
+  scored_at: string
+  time_spent_seconds: number
+  assessment_title: string
+  job_id: number
+  job_title: string
+  company: string
+  candidate_name: string
+  candidate_email: string
+  candidate_id: number
+}
+
+const recColors: Record<string, string> = {
+  strong_hire: 'bg-green-100 text-green-800 border-green-300',
+  hire: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  maybe: 'bg-amber-100 text-amber-800 border-amber-300',
+  no_hire: 'bg-red-100 text-red-800 border-red-300',
+}
+
 export function RecruiterAssessmentsPage() {
-  const [tab, setTab] = useState('results')
+  const navigate = useNavigate()
+  const [tab, setTab] = useState('job_assessments')
   const [assessments, setAssessments] = useState<AssessmentResult[]>([])
+  const [jobAssessmentResults, setJobAssessmentResults] = useState<JobAssessmentResult[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [skillBreakdown, setSkillBreakdown] = useState<SkillBreakdown[]>([])
   const [catalog, setCatalog] = useState<CatalogSkill[]>([])
@@ -115,11 +145,12 @@ export function RecruiterAssessmentsPage() {
       if (filterStatus) params.set('status', filterStatus)
       if (sortBy) params.set('sort', sortBy)
 
-      const [resultsRes, catalogRes] = await Promise.allSettled([
+      const [resultsRes, catalogRes, jobAssessRes] = await Promise.allSettled([
         apiCall<{ assessments: AssessmentResult[]; stats: Stats; skillBreakdown: SkillBreakdown[] }>(
           `/assessments/recruiter/all?${params.toString()}`
         ),
         apiCall<{ catalog: CatalogSkill[] }>('/assessments/recruiter/catalog'),
+        apiCall<{ results: JobAssessmentResult[] }>('/assessments/job-assessments/all'),
       ])
 
       if (resultsRes.status === 'fulfilled') {
@@ -129,6 +160,9 @@ export function RecruiterAssessmentsPage() {
       }
       if (catalogRes.status === 'fulfilled') {
         setCatalog(catalogRes.value.catalog || [])
+      }
+      if (jobAssessRes.status === 'fulfilled') {
+        setJobAssessmentResults(jobAssessRes.value.results || [])
       }
     } catch {
       // silent
@@ -214,10 +248,117 @@ export function RecruiterAssessmentsPage() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="results">Candidate Results</TabsTrigger>
+          <TabsTrigger value="job_assessments">Job Assessments</TabsTrigger>
+          <TabsTrigger value="results">Skill Tests</TabsTrigger>
           <TabsTrigger value="skills">Skill Breakdown</TabsTrigger>
           <TabsTrigger value="catalog">Test Catalog</TabsTrigger>
         </TabsList>
+
+        {/* ===== JOB ASSESSMENTS TAB ===== */}
+        <TabsContent value="job_assessments">
+          <div className="space-y-3 mt-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-16">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            ) : jobAssessmentResults.length === 0 ? (
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <Sparkles className="mx-auto mb-3 h-10 w-10 opacity-30" />
+                  <p className="font-medium">No job assessment results yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Generate AI assessments from your job postings. Go to any job → ✨ Assessment.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">{jobAssessmentResults.length} scored results</p>
+                {jobAssessmentResults.map(r => {
+                  const categoryScores = typeof r.category_scores === 'string' ? JSON.parse(r.category_scores as any) : (r.category_scores || {})
+                  const summary = typeof r.ai_summary === 'string' ? JSON.parse(r.ai_summary as any) : r.ai_summary
+                  const rec = summary?.recommendation || 'unknown'
+
+                  return (
+                    <Card key={r.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="pt-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{r.candidate_name || 'Unknown'}</p>
+                            <p className="text-xs text-muted-foreground">{r.candidate_email}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="secondary" className="text-[10px] gap-1">
+                                <Briefcase className="h-2.5 w-2.5" /> {r.job_title || 'Job'}
+                              </Badge>
+                              <span className="text-[10px] text-muted-foreground">{r.assessment_title}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="text-right">
+                              <p className={`text-2xl font-bold ${(r.composite_score || 0) >= 70 ? 'text-green-600' : (r.composite_score || 0) >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                                {Math.round(r.composite_score || 0)}%
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">Composite</p>
+                            </div>
+                            {summary && (
+                              <Badge className={`border ${recColors[rec] || 'bg-gray-100'}`}>
+                                {rec.replace('_', ' ')}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Category breakdown */}
+                        {Object.keys(categoryScores).length > 0 && (
+                          <div className="grid grid-cols-4 gap-2">
+                            {Object.entries(categoryScores).map(([cat, data]: [string, any]) => (
+                              <div key={cat} className="rounded-lg bg-muted/50 p-2 text-center">
+                                <p className="text-sm font-bold">{Math.round(data.score)}%</p>
+                                <p className="text-[10px] text-muted-foreground capitalize">{cat.replace('_', ' ')}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* AI Summary */}
+                        {summary && (
+                          <div className="rounded-lg border bg-violet-50/50 p-3 space-y-2">
+                            <div className="flex items-center gap-1.5 text-sm font-medium text-violet-700">
+                              <Sparkles className="h-4 w-4" /> AI Assessment Summary
+                            </div>
+                            <p className="text-sm">{summary.summary}</p>
+                            {summary.strengths?.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {summary.strengths.map((s: string, si: number) => (
+                                  <span key={si} className="text-[10px] bg-green-100 text-green-700 rounded px-1.5 py-0.5">{s}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Meta */}
+                        <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+                          <span><Clock className="h-3 w-3 inline" /> {Math.round((r.time_spent_seconds || 0) / 60)} min</span>
+                          <span><Shield className="h-3 w-3 inline" /> Integrity: {r.anti_cheat_score}%</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="ml-auto text-xs h-6 px-2 text-violet-600"
+                            onClick={() => navigate(`/recruiter/jobs/${r.job_id}/assessment`)}
+                          >
+                            View Job Assessment →
+                          </Button>
+                          <span>{r.scored_at ? new Date(r.scored_at).toLocaleDateString() : ''}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </>
+            )}
+          </div>
+        </TabsContent>
 
         {/* ===== RESULTS TAB ===== */}
         <TabsContent value="results">
