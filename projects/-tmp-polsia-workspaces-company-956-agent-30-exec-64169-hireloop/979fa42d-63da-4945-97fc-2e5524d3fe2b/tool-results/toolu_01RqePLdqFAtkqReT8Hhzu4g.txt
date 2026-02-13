@@ -1,0 +1,5 @@
+migrations/010_video_analysis.js:6:      CREATE TABLE IF NOT EXISTS interview_analysis (
+migrations/031_question_bank.js:30:      CREATE TABLE IF NOT EXISTS mock_interview_sessions (
+migrations/002_add_trustscore.js:113:      CREATE TABLE IF NOT EXISTS scheduled_interviews (
+migrations/002_add_trustscore.js:166:      CREATE INDEX IF NOT EXISTS idx_scheduled_interviews_company ON scheduled_interviews(company_id);
+migrations/002_add_trustscore.js:167:      CREATE INDEX IF NOT EXISTS idx_scheduled_interviews_date ON scheduled_interviews(scheduled_at);

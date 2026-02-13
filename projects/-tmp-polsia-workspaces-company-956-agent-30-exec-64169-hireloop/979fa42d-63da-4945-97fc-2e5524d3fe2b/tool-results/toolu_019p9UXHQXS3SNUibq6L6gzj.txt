@@ -1,0 +1,154 @@
+   100→      FROM jobs j
+   101→      LEFT JOIN job_analytics ja ON j.id = ja.job_id
+   102→      WHERE (j.company_id = $1 OR j.user_id = $2)
+   103→    `;
+   104→    const params = [req.user.company_id, req.user.id];
+   105→
+   106→    if (status) {
+   107→      query += ` AND j.status = $${params.length + 1}`;
+   108→      params.push(status);
+   109→    }
+   110→
+   111→    query += ` ORDER BY j.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+   112→    params.push(limit, offset);
+   113→
+   114→    const result = await pool.query(query, params);
+   115→
+   116→    res.json({ jobs: result.rows });
+   117→  } catch (err) {
+   118→    console.error('Get jobs error:', err);
+   119→    res.status(500).json({ error: 'Failed to fetch jobs' });
+   120→  }
+   121→});
+   122→
+   123→// Create job with optional AI optimization
+   124→router.post('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
+   125→  try {
+   126→    const {
+   127→      title, description, requirements, location, salary_range, job_type,
+   128→      screening_questions,
+   129→      optimize = false // Flag to run AI optimization
+   130→    } = req.body;
+   131→
+   132→    if (!title) {
+   133→      return res.status(400).json({ error: 'Job title is required' });
+   134→    }
+   135→
+   136→    let finalDescription = description;
+   137→    let finalRequirements = requirements;
+   138→    let optimizationResult = null;
+   139→
+   140→    // Run AI optimization if requested
+   141→    if (optimize) {
+   142→      try {
+   143→        optimizationResult = await jobOptimizer.optimizeJobDescription({
+   144→          title, description, requirements, location, salary_range, job_type,
+   145→          company: req.user.company_name
+   146→        });
+   147→        finalDescription = optimizationResult.optimized_description || description;
+   148→        finalRequirements = optimizationResult.optimized_requirements || requirements;
+   149→      } catch (e) {
+   150→        console.error('Job optimization error:', e);
+   151→        // Continue without optimization
+   152→      }
+   153→    }
+   154→
+   155→    // Create job
+   156→    const result = await pool.query(
+   157→      `INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions)
+   158→       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+   159→       RETURNING *`,
+   160→      [req.user.id, req.user.company_id, title, req.user.company_name,
+   161→       finalDescription, finalRequirements, location, salary_range, job_type || 'full-time',
+   162→       screening_questions ? JSON.stringify(screening_questions) : null]
+   163→    );
+   164→
+   165→    const job = result.rows[0];
+   166→
+   167→    // Create analytics entry
+   168→    await pool.query(
+   169→      'INSERT INTO job_analytics (job_id) VALUES ($1)',
+   170→      [job.id]
+   171→    );
+   172→
+   173→    // Analyze and add authenticity score
+   174→    try {
+   175→      const analysis = await jobOptimizer.analyzeJobPosting({
+   176→        title, description: finalDescription, requirements: finalRequirements,
+   177→        location, salary_range, job_type, company: req.user.company_name
+   178→      });
+   179→
+   180→      await trustscoreService.addJobAuthenticityComponent(
+   181→        req.user.company_id,
+   182→        job.id,
+   183→        analysis.overall_score
+   184→      );
+   185→
+   186→      res.json({
+   187→        success: true,
+   188→        job,
+   189→        optimization: optimizationResult,
+   190→        analysis,
+   191→        message: optimize ? 'Job created with AI optimization!' : 'Job created successfully'
+   192→      });
+   193→    } catch (e) {
+   194→      // Return job without analysis
+   195→      res.json({ success: true, job });
+   196→    }
+   197→
+   198→  } catch (err) {
+   199→    console.error('Create job error:', err);
+   200→    res.status(500).json({ error: 'Failed to create job' });
+   201→  }
+   202→});
+   203→
+   204→// Analyze job posting
+   205→router.post('/jobs/analyze', authMiddleware, requireRecruiter, async (req, res) => {
+   206→  try {
+   207→    const analysis = await jobOptimizer.analyzeJobPosting(req.body);
+   208→    res.json({ success: true, analysis });
+   209→  } catch (err) {
+   210→    console.error('Analyze job error:', err);
+   211→    res.status(500).json({ error: 'Failed to analyze job' });
+   212→  }
+   213→});
+   214→
+   215→// Optimize job description with AI
+   216→router.post('/jobs/optimize', authMiddleware, requireRecruiter, async (req, res) => {
+   217→  try {
+   218→    const optimized = await jobOptimizer.optimizeJobDescription(req.body);
+   219→    res.json({ success: true, optimized });
+   220→  } catch (err) {
+   221→    console.error('Optimize job error:', err);
+   222→    res.status(500).json({ error: 'Failed to optimize job' });
+   223→  }
+   224→});
+   225→
+   226→// Get salary insights
+   227→router.get('/salary-insights', authMiddleware, requireRecruiter, async (req, res) => {
+   228→  try {
+   229→    const { title, location, experience_level } = req.query;
+   230→
+   231→    if (!title) {
+   232→      return res.status(400).json({ error: 'Job title is required' });
+   233→    }
+   234→
+   235→    const insights = await jobOptimizer.getSalaryInsights(title, location, experience_level);
+   236→    res.json({ success: true, insights });
+   237→  } catch (err) {
+   238→    console.error('Salary insights error:', err);
+   239→    res.status(500).json({ error: 'Failed to get salary insights' });
+   240→  }
+   241→});
+   242→
+   243→// Generate complete job description from title + optional notes
+   244→router.post('/jobs/generate', authMiddleware, requireRecruiter, async (req, res) => {
+   245→  try {
+   246→    const { title, brief_notes, location, job_type } = req.body;
+   247→
+   248→    if (!title) {
+   249→      return res.status(400).json({ error: 'Job title is required' });
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

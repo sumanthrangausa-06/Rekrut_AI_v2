@@ -1,0 +1,84 @@
+     1→// OmniScore Service - Candidate Credit Score Calculation
+     2→const pool = require('../lib/db');
+     3→
+     4→// Score ranges and tiers
+     5→const SCORE_RANGES = {
+     6→  MIN: 300,
+     7→  MAX: 850,
+     8→  TIERS: {
+     9→    exceptional: { min: 800, max: 850, label: 'Exceptional' },
+    10→    excellent: { min: 740, max: 799, label: 'Excellent' },
+    11→    good: { min: 670, max: 739, label: 'Good' },
+    12→    fair: { min: 580, max: 669, label: 'Fair' },
+    13→    needs_work: { min: 300, max: 579, label: 'Needs Work' }
+    14→  }
+    15→};
+    16→
+    17→// Score component weights (total = 850 max)
+    18→const COMPONENT_WEIGHTS = {
+    19→  interview: { max: 200, weight: 0.24 },    // Interview performance
+    20→  technical: { max: 200, weight: 0.24 },    // Technical assessments
+    21→  resume: { max: 200, weight: 0.24 },       // Resume quality
+    22→  behavior: { max: 250, weight: 0.29 }      // Platform behavior & consistency
+    23→};
+    24→
+    25→// Get or create OmniScore for a user
+    26→async function getOrCreateScore(userId) {
+    27→  const existing = await pool.query(
+    28→    'SELECT * FROM omni_scores WHERE user_id = $1',
+    29→    [userId]
+    30→  );
+    31→
+    32→  if (existing.rows.length > 0) {
+    33→    return existing.rows[0];
+    34→  }
+    35→
+    36→  // Create new score entry
+    37→  const result = await pool.query(
+    38→    `INSERT INTO omni_scores (user_id, total_score, score_tier)
+    39→     VALUES ($1, $2, 'new')
+    40→     RETURNING *`,
+    41→    [userId, SCORE_RANGES.MIN]
+    42→  );
+    43→
+    44→  return result.rows[0];
+    45→}
+    46→
+    47→// Calculate total OmniScore from components
+    48→async function calculateScore(userId) {
+    49→  // Get all non-expired components with time decay applied
+    50→  const components = await pool.query(`
+    51→    SELECT component_type,
+    52→           SUM(points * POWER(decay_rate, EXTRACT(DAYS FROM NOW() - created_at) / 30)) as decayed_points,
+    53→           SUM(max_points) as max_points
+    54→    FROM score_components
+    55→    WHERE user_id = $1
+    56→      AND (expires_at IS NULL OR expires_at > NOW())
+    57→    GROUP BY component_type
+    58→  `, [userId]);
+    59→
+    60→  const scores = {
+    61→    interview: 0,
+    62→    technical: 0,
+    63→    resume: 0,
+    64→    behavior: 0
+    65→  };
+    66→
+    67→  // Calculate each component score
+    68→  for (const comp of components.rows) {
+    69→    const type = comp.component_type;
+    70→    if (scores.hasOwnProperty(type)) {
+    71→      const maxForType = COMPONENT_WEIGHTS[type].max;
+    72→      const ratio = Math.min(1, comp.decayed_points / (comp.max_points || 1));
+    73→      scores[type] = Math.round(ratio * maxForType);
+    74→    }
+    75→  }
+    76→
+    77→  // Calculate total (base 300 + components up to 550 more = 850 max)
+    78→  const componentTotal = scores.interview + scores.technical + scores.resume + scores.behavior;
+    79→  const total = Math.min(SCORE_RANGES.MAX, SCORE_RANGES.MIN + componentTotal);
+    80→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

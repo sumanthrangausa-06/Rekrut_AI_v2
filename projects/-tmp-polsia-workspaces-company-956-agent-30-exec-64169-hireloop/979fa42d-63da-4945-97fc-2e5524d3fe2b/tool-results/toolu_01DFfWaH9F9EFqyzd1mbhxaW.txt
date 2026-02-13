@@ -1,0 +1,64 @@
+     1→---
+     2→name: agent-sdk
+     3→description: "Build autonomous AI features using the Polsia Agent API only; never call model providers directly for product AI."
+     4→---
+     5→
+     6→# Agent SDK
+     7→
+     8→Build AI agents that work autonomously for end users. Every Polsia company can be an AI company.
+     9→
+    10→**Default:** Opus 4.6 with extended thinking. Polsia handles model selection and turn limits.
+    11→
+    12→## MANDATORY: All AI Features Must Use Polsia API
+    13→
+    14→**NEVER implement AI directly in company apps. Not now, not later.**
+    15→
+    16→This means:
+    17→- NO `anthropic.messages.create()`
+    18→- NO `openai.chat.completions.create()` for AI features (only allowed for OCR/embeddings)
+    19→- NO direct Claude API calls
+    20→- ONLY use Polsia API endpoints
+    21→
+    22→**Why?** Company apps are autonomous. Polsia MUST have visibility into all AI usage for:
+    23→- Debugging when things go wrong
+    24→- Cost tracking and billing
+    25→- Prompt injection for bug reporting
+    26→- Monitoring and rate limiting
+    27→
+    28→## Setup
+    29→
+    30→Create `lib/polsia-ai.js` in the company's codebase:
+    31→
+    32→```javascript
+    33→const Anthropic = require('@anthropic-ai/sdk');
+    34→
+    35→const anthropic = new Anthropic({
+    36→  baseURL: process.env.POLSIA_API_URL || 'https://polsia.com/api/proxy/ai',
+    37→  apiKey: process.env.POLSIA_API_KEY,
+    38→});
+    39→
+    40→// Simple chat - Polsia handles model selection
+    41→// Pass subscriptionId to track usage per end-user subscription
+    42→async function chat(message, options = {}) {
+    43→  const response = await anthropic.messages.create({
+    44→    max_tokens: options.maxTokens || 8192,
+    45→    messages: [{ role: 'user', content: message }],
+    46→    system: options.system,
+    47→  }, {
+    48→    headers: options.subscriptionId ? { 'X-Subscription-ID': options.subscriptionId } : {}
+    49→  });
+    50→  return response.content[0].text;
+    51→}
+    52→
+    53→// Agent with tools - Polsia handles model and turn limits
+    54→// Pass subscriptionId to track usage per end-user subscription
+    55→async function runAgent(prompt, options = {}) {
+    56→  const headers = {
+    57→    'Content-Type': 'application/json',
+    58→    'Authorization': `Bearer ${process.env.POLSIA_API_KEY}`,
+    59→  };
+    60→  // Track which end-user's subscription is being used
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

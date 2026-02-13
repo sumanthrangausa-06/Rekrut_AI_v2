@@ -1,0 +1,13 @@
+ai-coaching.tsx
+applications.tsx
+assessment-take.tsx
+assessments.tsx
+dashboard.tsx
+interviews.tsx
+job-detail.tsx
+jobs.tsx
+offers.tsx
+omniscore.tsx
+onboarding.tsx
+payroll.tsx
+profile.tsx

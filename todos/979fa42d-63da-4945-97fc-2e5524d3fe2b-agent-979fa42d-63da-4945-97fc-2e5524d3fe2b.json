@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Explore existing codebase — interview system, routes, services, DB schema",
+    "status": "completed",
+    "activeForm": "Exploring existing codebase"
+  },
+  {
+    "content": "Phase 1: Migration + Smart Scheduling API",
+    "status": "completed",
+    "activeForm": "Building Smart Scheduling migration + API"
+  },
+  {
+    "content": "Phase 2: Screening Templates + Pipeline API",
+    "status": "completed",
+    "activeForm": "Building Screening Pipeline API"
+  },
+  {
+    "content": "Phase 3: Multi-Agent Evaluation + OmniScore",
+    "status": "completed",
+    "activeForm": "Building Multi-Agent Evaluation"
+  },
+  {
+    "content": "Phase 4: Frontend — Recruiter + Candidate Interview Features",
+    "status": "completed",
+    "activeForm": "Building Frontend Interview Features"
+  },
+  {
+    "content": "Phase 5: Deploy + E2E Verification",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying"
+  }
+]
