@@ -197,6 +197,17 @@ app.post('/api/ai-health/reset', requireAdmin, (req, res) => {
   }
 });
 
+// POST /api/ai-health/verify — run real API calls to verify NIM models respond
+app.post('/api/ai-health/verify', requireAdmin, async (req, res) => {
+  try {
+    const { aiProvider } = require('./lib/polsia-ai');
+    const result = await aiProvider.verifyModels();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Model verification failed', message: err.message });
+  }
+});
+
 // ─── AI Health Monitoring Endpoints ──────────────────────────────────────────
 // Comprehensive AI call logs, model metrics, budget predictions, prompt management
 

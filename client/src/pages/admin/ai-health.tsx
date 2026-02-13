@@ -60,6 +60,7 @@ interface ModalityInfo {
   active: string
   chain_depth: number
   providers: ProviderInfo[]
+  graceful_degradation?: string | null
 }
 
 interface ModuleChainInfo {
@@ -370,7 +371,9 @@ function getOverallStatus(data: HealthData): 'operational' | 'degraded' | 'down'
   return 'operational'
 }
 
-function getModalityStatus(modality: ModalityInfo): 'healthy' | 'degraded' | 'down' {
+function getModalityStatus(modality: ModalityInfo): 'healthy' | 'degraded' | 'down' | 'passthrough' {
+  // Modalities with graceful degradation and no providers = passthrough (not "down")
+  if (modality.chain_depth === 0 && modality.graceful_degradation) return 'passthrough'
   const available = modality.providers.filter(p => p.available && !p.circuitOpen)
   if (available.length === 0) return 'down'
   if (available.length < modality.providers.length) return 'degraded'
@@ -997,6 +1000,7 @@ function ModalityCard({ name, modality }: { name: string; modality: ModalityInfo
       'relative overflow-hidden transition-all hover:shadow-md',
       status === 'down' && 'border-red-300 bg-red-50/50',
       status === 'degraded' && 'border-amber-300 bg-amber-50/30',
+      status === 'passthrough' && 'border-slate-300 bg-slate-50/30',
     )}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
@@ -1007,19 +1011,24 @@ function ModalityCard({ name, modality }: { name: string; modality: ModalityInfo
             <div>
               <CardTitle className="text-base">{meta.label}</CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {availableCount}/{modality.chain_depth} providers
+                {status === 'passthrough' ? 'Passthrough mode' : `${availableCount}/${modality.chain_depth} providers`}
               </p>
             </div>
           </div>
           <Badge
-            variant={status === 'healthy' ? 'success' : status === 'degraded' ? 'warning' : 'destructive'}
+            variant={status === 'healthy' ? 'success' : status === 'degraded' ? 'warning' : status === 'passthrough' ? 'secondary' : 'destructive'}
             className="text-[10px] uppercase tracking-wider"
           >
-            {status}
+            {status === 'passthrough' ? 'PASSTHROUGH' : status}
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
+        {status === 'passthrough' && modality.graceful_degradation && (
+          <div className="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600">
+            {modality.graceful_degradation}
+          </div>
+        )}
         {modality.providers.map((provider, i) => {
           const isActive = modality.active === provider.key
           const isAvailable = provider.available && !provider.circuitOpen
