@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate current audio fallback code in ai-provider.js",
+    "status": "completed",
+    "activeForm": "Investigating current audio fallback code"
+  },
+  {
+    "content": "Phase 1: Create self-hosted audio module + wire into fallback chain",
+    "status": "completed",
+    "activeForm": "Creating self-hosted audio module + wiring into chain"
+  },
+  {
+    "content": "Phase 2: Deploy Phase 1 + verify",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying Phase 1"
+  },
+  {
+    "content": "Phase 3: Update AI Health Dashboard for 3-layer status",
+    "status": "pending",
+    "activeForm": "Updating AI Health Dashboard"
+  },
+  {
+    "content": "Phase 4: Final deploy + end-to-end verification",
+    "status": "pending",
+    "activeForm": "Final deploy and verification"
+  }
+]
