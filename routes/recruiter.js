@@ -1190,7 +1190,8 @@ Return JSON:
 Only return JSON.`;
 
     const result = await chat(prompt, {
-      system: 'You are a senior recruiter providing candidate assessments. Be objective, data-driven, and concise. Always return valid JSON.'
+      system: 'You are a senior recruiter providing candidate assessments. Be objective, data-driven, and concise. Always return valid JSON.',
+      module: 'recruiter_tools', feature: 'candidate_assessment'
     });
 
     let parsed;
@@ -1242,7 +1243,8 @@ Return JSON array:
 Only return JSON array.`;
 
     const result = await chat(prompt, {
-      system: 'You are an expert recruiter designing screening questions. Make them practical and relevant. Always return valid JSON.'
+      system: 'You are an expert recruiter designing screening questions. Make them practical and relevant. Always return valid JSON.',
+      module: 'recruiter_tools', feature: 'screening_questions'
     });
 
     let parsed;
@@ -1602,7 +1604,8 @@ Return JSON:
 Only return JSON.`;
 
     const result = await chat(prompt, {
-      system: 'You are a senior talent acquisition specialist comparing candidates. Be objective and data-driven. Always return valid JSON.'
+      system: 'You are a senior talent acquisition specialist comparing candidates. Be objective and data-driven. Always return valid JSON.',
+      module: 'recruiter_tools', feature: 'candidate_comparison'
     });
 
     let parsed;

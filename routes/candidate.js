@@ -1543,7 +1543,8 @@ Return JSON:
 Only return JSON.`;
 
     const result = await chat(prompt, {
-      system: 'You are an expert resume coach and ATS optimization specialist. Be specific and actionable. Always return valid JSON.'
+      system: 'You are an expert resume coach and ATS optimization specialist. Be specific and actionable. Always return valid JSON.',
+      module: 'resume_tools', feature: 'resume_optimization'
     });
 
     let parsed;
@@ -1593,7 +1594,8 @@ Return JSON:
 Only return JSON.`;
 
     const result = await chat(prompt, {
-      system: 'You are an expert career coach writing compelling cover letters. Be authentic, specific, and persuasive. Never use generic filler. Always return valid JSON.'
+      system: 'You are an expert career coach writing compelling cover letters. Be authentic, specific, and persuasive. Never use generic filler. Always return valid JSON.',
+      module: 'resume_tools', feature: 'cover_letter'
     });
 
     let parsed;
@@ -1653,7 +1655,8 @@ Return JSON array:
 Only return JSON array.`;
 
     const result = await chat(prompt, {
-      system: 'You are a career assistant helping candidates fill out screening questions. Use their actual profile data. Be truthful - never fabricate information. Always return valid JSON.'
+      system: 'You are a career assistant helping candidates fill out screening questions. Use their actual profile data. Be truthful - never fabricate information. Always return valid JSON.',
+      module: 'screening', feature: 'auto_fill'
     });
 
     let parsed;
@@ -1943,7 +1946,8 @@ Return JSON:
 Only return JSON.`;
 
     const result = await chat(prompt, {
-      system: 'You are a career advisor providing personalized, actionable job match explanations. Be encouraging but honest. Always return valid JSON.'
+      system: 'You are a career advisor providing personalized, actionable job match explanations. Be encouraging but honest. Always return valid JSON.',
+      module: 'matching', feature: 'match_explanation'
     });
 
     let parsed;
@@ -1980,7 +1984,8 @@ Return JSON:
 Only return JSON.`;
 
     const parseResult = await chat(parsePrompt, {
-      system: 'You are a search query parser. Extract structured filters from natural language job search queries. Always return valid JSON.'
+      system: 'You are a search query parser. Extract structured filters from natural language job search queries. Always return valid JSON.',
+      module: 'smart_search', feature: 'query_parsing'
     });
 
     let filters;
@@ -2108,7 +2113,8 @@ Return JSON:
 Only return JSON.`;
 
     const result = await chat(prompt, {
-      system: 'You are an application review assistant. Be thorough but encouraging. Flag real issues, not nitpicks. Always return valid JSON.'
+      system: 'You are an application review assistant. Be thorough but encouraging. Flag real issues, not nitpicks. Always return valid JSON.',
+      module: 'application_review', feature: 'review'
     });
 
     let parsed;
@@ -2171,7 +2177,8 @@ Return JSON:
 Only return JSON.`;
 
     const result = await chat(prompt, {
-      system: 'You are a resume quality scoring engine. Be objective and data-driven. Score based on real criteria used by ATS systems and hiring managers. Always return valid JSON.'
+      system: 'You are a resume quality scoring engine. Be objective and data-driven. Score based on real criteria used by ATS systems and hiring managers. Always return valid JSON.',
+      module: 'omniscore', feature: 'resume_score'
     });
 
     let parsed;

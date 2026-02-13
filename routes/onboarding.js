@@ -115,7 +115,8 @@ FORMAT RULES:
 - The signature block should have clear lines for name, signature, and date`;
 
     const letterHtml = await polsiaAI.chat(prompt, {
-      system: 'You are an expert HR document writer. Generate professional, legally appropriate employment offer letters. Return ONLY clean HTML with inline styles. No markdown, no code blocks, no explanations.'
+      system: 'You are an expert HR document writer. Generate professional, legally appropriate employment offer letters. Return ONLY clean HTML with inline styles. No markdown, no code blocks, no explanations.',
+      module: 'onboarding', feature: 'offer_letter'
     });
 
     // Clean up any accidental code fences
@@ -1474,7 +1475,8 @@ router.post('/wizard/generate-documents', authMiddleware, async (req, res) => {
     try {
       const handbookPrompt = `Generate a professional Employee Handbook Acknowledgment for ${cl.company_name}, employee: ${fullName}. Include: at-will employment, equal opportunity, anti-harassment, confidentiality, code of conduct, tech use policy, attendance, safety, grievance procedures, and acknowledgment statement. Return ONLY HTML with inline styles. Professional format with navy (#1e3a5f) headers.`;
       handbookHtml = await polsiaAI.chat(handbookPrompt, {
-        system: 'You are an expert HR document writer. Generate professional, legally appropriate documents. Return ONLY clean HTML with inline styles. No markdown, no code blocks.'
+        system: 'You are an expert HR document writer. Generate professional, legally appropriate documents. Return ONLY clean HTML with inline styles. No markdown, no code blocks.',
+        module: 'onboarding', feature: 'handbook'
       });
       if (handbookHtml.startsWith('```')) {
         handbookHtml = handbookHtml.trim().replace(/^```(?:html)?\n?/, '').replace(/\n?```$/, '');
@@ -2055,7 +2057,8 @@ EXACT LAYOUT REQUIREMENTS:
   }
 
   const html = await polsiaAI.chat(prompt, {
-    system: 'You are an expert at generating government-compliant form documents in HTML. Generate clean, professional HTML with inline styles that closely matches the official form layout. Return ONLY HTML, no markdown, no code blocks, no explanations.'
+    system: 'You are an expert at generating government-compliant form documents in HTML. Generate clean, professional HTML with inline styles that closely matches the official form layout. Return ONLY HTML, no markdown, no code blocks, no explanations.',
+    module: 'onboarding', feature: 'gov_forms'
   });
 
   let cleanHtml = html.trim();
@@ -2168,7 +2171,7 @@ router.get('/wizard/ai-prefill', authMiddleware, async (req, res) => {
       if (salary > 0) {
         const aiResponse = await polsiaAI.chat(
           `Based on a new employee starting at $${salary.toLocaleString()} annual salary, provide brief W-4 guidance. Return JSON only: { "suggested_filing_status": "single|married|head_of_household", "filing_tip": "1 sentence tip", "withholding_note": "1 sentence about expected withholding" }`,
-          { system: 'You are a tax advisor assistant. Return ONLY valid JSON, no markdown, no code blocks.' }
+          { system: 'You are a tax advisor assistant. Return ONLY valid JSON, no markdown, no code blocks.', module: 'onboarding', feature: 'w4_guidance' }
         );
         let cleaned = aiResponse.trim();
         if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
@@ -2212,7 +2215,8 @@ Return JSON: {
 }`;
 
     const aiResponse = await polsiaAI.chat(prompt, {
-      system: 'You are a helpful HR/tax assistant. Explain W-4 concepts in simple language anyone can understand. Always return valid JSON only, no markdown or code blocks.'
+      system: 'You are a helpful HR/tax assistant. Explain W-4 concepts in simple language anyone can understand. Always return valid JSON only, no markdown or code blocks.',
+      module: 'onboarding', feature: 'w4_guidance'
     });
 
     let cleaned = aiResponse.trim();
@@ -2295,7 +2299,8 @@ Return ONLY clean HTML with inline styles. Format it as a professional document.
 Make it look like a real corporate handbook acknowledgment form.`;
 
     const handbookHtml = await polsiaAI.chat(prompt, {
-      system: 'You are an expert HR document writer. Generate professional, legally appropriate employee handbook acknowledgments. Return ONLY clean HTML with inline styles. No markdown, no code blocks, no explanations.'
+      system: 'You are an expert HR document writer. Generate professional, legally appropriate employee handbook acknowledgments. Return ONLY clean HTML with inline styles. No markdown, no code blocks, no explanations.',
+      module: 'onboarding', feature: 'handbook'
     });
 
     let cleanHtml = handbookHtml.trim();
@@ -2329,7 +2334,7 @@ Provide:
 
     const analysis = await polsiaAI.chat([
       { role: 'user', content: prompt }
-    ], { max_tokens: 1024 });
+    ], { max_tokens: 1024, module: 'onboarding', feature: 'compliance_analysis' });
 
     return { analysis: analysis, analyzed_at: new Date().toISOString() };
   } catch (err) {
@@ -2352,7 +2357,7 @@ Be friendly, helpful, and direct. If you don't know something, say so and sugges
     const response = await polsiaAI.chat([
       { role: 'system', content: systemPrompt },
       ...messages.map(m => ({ role: m.role, content: m.content }))
-    ], { max_tokens: 512 });
+    ], { max_tokens: 512, module: 'onboarding', feature: 'hr_chatbot' });
 
     return response;
   } catch (err) {
