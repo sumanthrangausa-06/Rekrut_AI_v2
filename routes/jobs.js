@@ -93,15 +93,26 @@ router.get('/', optionalAuth, async (req, res) => {
   }
 });
 
+// Search jobs (must be before /:id to avoid route collision)
+router.get('/search', optionalAuth, async (req, res) => {
+  // Redirect search to list endpoint with query params
+  const queryString = new URLSearchParams(req.query).toString();
+  return res.redirect(`/api/jobs?${queryString}`);
+});
+
 // Get single job
 router.get('/:id', optionalAuth, async (req, res) => {
   try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid job ID' });
+    }
     const result = await pool.query(
       `SELECT j.*, u.company_name as poster_company, u.name as poster_name
        FROM jobs j
        LEFT JOIN users u ON j.user_id = u.id
        WHERE j.id = $1`,
-      [req.params.id]
+      [id]
     );
 
     if (result.rows.length === 0) {

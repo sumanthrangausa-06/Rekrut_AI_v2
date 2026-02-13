@@ -2126,7 +2126,7 @@ router.get('/wizard/ai-prefill', authMiddleware, async (req, res) => {
        FROM job_applications a
        LEFT JOIN jobs j ON a.job_id = j.id
        WHERE a.candidate_id = $1
-       ORDER BY a.created_at DESC LIMIT 1`,
+       ORDER BY a.applied_at DESC LIMIT 1`,
       [req.user.id]
     );
 

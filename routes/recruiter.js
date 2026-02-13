@@ -1211,7 +1211,7 @@ router.post('/ai/suggest-questions', authMiddleware, requireRecruiter, async (re
 
     // Get recruiter's past screening questions from question_bank
     const pastQuestions = await pool.query(`
-      SELECT DISTINCT question_text, category FROM question_bank
+      SELECT DISTINCT question_text, category, usage_count FROM question_bank
       WHERE recruiter_id = $1
       ORDER BY usage_count DESC LIMIT 20
     `, [req.user.id]);
@@ -1265,7 +1265,8 @@ router.post('/question-bank', authMiddleware, requireRecruiter, async (req, res)
       const result = await pool.query(`
         INSERT INTO question_bank (recruiter_id, question_text, category, question_type, options)
         VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (recruiter_id, question_text) DO UPDATE SET usage_count = question_bank.usage_count + 1
+        ON CONFLICT (recruiter_id, question_text) WHERE recruiter_id IS NOT NULL
+        DO UPDATE SET usage_count = question_bank.usage_count + 1
         RETURNING *
       `, [req.user.id, q.question || q.question_text, q.category || 'general', q.type || 'text', JSON.stringify(q.options || [])]);
       saved.push(result.rows[0]);

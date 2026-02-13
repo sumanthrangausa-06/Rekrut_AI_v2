@@ -286,8 +286,8 @@ app.get('/api/admin/modules', requireAdmin, async (req, res) => {
           COUNT(*) FILTER (WHERE status = 'completed') as completed,
           COUNT(*) FILTER (WHERE status IN ('in-progress', 'pending')) as active,
           COUNT(*) FILTER (WHERE status IN ('abandoned', 'cancelled')) as abandoned,
-          COUNT(*) FILTER (WHERE type = 'practice') as practice,
-          COUNT(*) FILTER (WHERE type = 'mock') as mock,
+          COUNT(*) FILTER (WHERE interview_type = 'practice') as practice,
+          COUNT(*) FILTER (WHERE interview_type = 'mock') as mock,
           COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') as today,
           COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as this_week
         FROM interviews

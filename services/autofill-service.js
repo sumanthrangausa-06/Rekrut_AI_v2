@@ -108,7 +108,7 @@ async function getRecruiterAutoFill(userId) {
     // 2. Get most recent job postings as templates
     const recentJobs = await pool.query(`
       SELECT title, description, requirements, location, salary_range, salary_min, salary_max,
-             job_type, experience_level, department, benefits, company, status,
+             job_type, company, status,
              created_at
       FROM jobs
       WHERE user_id = $1

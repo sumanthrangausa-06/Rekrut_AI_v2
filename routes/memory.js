@@ -358,11 +358,11 @@ router.get('/match-breakdown/:candidateId/:jobId', authMiddleware, async (req, r
     );
     const omni = omniResult.rows[0] || {};
 
-    // Get interview scores if any
+    // Get interview scores if any (from interviews table, not interview_analysis)
     const interviewResult = await pool.query(`
-      SELECT AVG(ia.overall_score) as avg_interview_score, COUNT(*) as interview_count
-      FROM interview_analysis ia
-      WHERE ia.user_id = $1
+      SELECT AVG(i.overall_score) as avg_interview_score, COUNT(*) as interview_count
+      FROM interviews i
+      WHERE i.user_id = $1 AND i.overall_score IS NOT NULL
     `, [candidateId]);
 
     // Get assessment scores if any
