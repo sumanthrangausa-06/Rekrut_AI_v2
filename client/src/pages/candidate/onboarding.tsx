@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { AiOnboardingDashboard } from '@/components/ai-onboarding-dashboard'
 import {
   CheckCircle, Circle, ArrowRight, ArrowLeft, Shield, FileText,
   User, Phone, Building2, CreditCard, PenTool, Loader2, Lock,
@@ -584,6 +586,7 @@ export function CandidateOnboardingPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [error, setError] = useState('')
   const [stepErrors, setStepErrors] = useState<Record<string, string>>({})
+  const [activeView, setActiveView] = useState<'paperwork' | 'ai-plan'>('paperwork')
   const [prefillLoaded, setPrefillLoaded] = useState(false)
 
   // Country-aware state
@@ -1026,18 +1029,51 @@ export function CandidateOnboardingPage() {
     )
   }
 
+  // ─── View Toggle (Paperwork vs AI Plan) ──────────────────────────
+  const viewTabs = (
+    <div className="mb-6">
+      <Tabs value={activeView} onValueChange={(v) => setActiveView(v as 'paperwork' | 'ai-plan')}>
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="paperwork" className="gap-1.5">
+            <ClipboardCheck className="h-4 w-4" /> Paperwork
+          </TabsTrigger>
+          <TabsTrigger value="ai-plan" className="gap-1.5">
+            <Sparkles className="h-4 w-4" /> AI Plan & Assistant
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+    </div>
+  )
+
+  // ─── AI Plan View ────────────────────────────────────────────────
+  if (activeView === 'ai-plan') {
+    return (
+      <div>
+        {viewTabs}
+        <AiOnboardingDashboard />
+      </div>
+    )
+  }
+
+  // ─── Paperwork View ──────────────────────────────────────────────
   if (!progress?.has_onboarding) {
     return (
-      <div className="max-w-2xl mx-auto py-12 text-center">
-        <div className="flex justify-center mb-6">
-          <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
-            <ClipboardCheck className="h-8 w-8 text-muted-foreground" />
+      <div>
+        {viewTabs}
+        <div className="max-w-2xl mx-auto py-12 text-center">
+          <div className="flex justify-center mb-6">
+            <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+              <ClipboardCheck className="h-8 w-8 text-muted-foreground" />
+            </div>
           </div>
+          <h1 className="text-2xl font-bold mb-2">No Onboarding Available</h1>
+          <p className="text-muted-foreground">
+            Onboarding begins after you accept an offer. Check your <strong>Offers</strong> page for pending offers.
+          </p>
+          <p className="text-sm text-muted-foreground mt-4">
+            Switch to the <button onClick={() => setActiveView('ai-plan')} className="text-primary underline font-medium">AI Plan & Assistant</button> tab to see if your employer has set up an AI onboarding plan.
+          </p>
         </div>
-        <h1 className="text-2xl font-bold mb-2">No Onboarding Available</h1>
-        <p className="text-muted-foreground">
-          Onboarding begins after you accept an offer. Check your <strong>Offers</strong> page for pending offers.
-        </p>
       </div>
     )
   }
@@ -1048,7 +1084,9 @@ export function CandidateOnboardingPage() {
   // ─── Completed ────────────────────────────────────────────────────
   if (currentStep === 6 || wizard?.wizard_status === 'completed') {
     return (
-      <div className="max-w-2xl mx-auto py-12">
+      <div>
+        {viewTabs}
+        <div className="max-w-2xl mx-auto py-12">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
             <div className="h-20 w-20 rounded-full bg-green-100 flex items-center justify-center">
@@ -1097,6 +1135,7 @@ export function CandidateOnboardingPage() {
           </CardContent>
         </Card>
       </div>
+      </div>
     )
   }
 
@@ -1111,7 +1150,9 @@ export function CandidateOnboardingPage() {
   const totalCredits = childCredits + otherDepCredits
 
   return (
-    <div className="max-w-3xl mx-auto pb-12">
+    <div>
+      {viewTabs}
+      <div className="max-w-3xl mx-auto pb-12">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
@@ -1814,6 +1855,7 @@ export function CandidateOnboardingPage() {
         <Shield className="h-3 w-3" />
         All personal data is encrypted at rest. Your information is only shared with authorized HR personnel.
       </p>
+    </div>
     </div>
   )
 }
