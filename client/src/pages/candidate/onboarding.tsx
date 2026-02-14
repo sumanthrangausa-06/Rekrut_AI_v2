@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { apiCall } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -138,7 +138,7 @@ function NonUSWizardStep({ step, stepDef, countryCode, countryInfo, countryField
   const StepIcon = stepDef?.icon || FileText
 
   // ─── Country-specific form fields ───────────────────────────
-  const COUNTRY_FORMS: Record<string, Record<number, JSX.Element>> = {
+  const COUNTRY_FORMS: Record<string, Record<number, React.ReactNode>> = {
     IN: {
       1: (
         <div className="space-y-6">

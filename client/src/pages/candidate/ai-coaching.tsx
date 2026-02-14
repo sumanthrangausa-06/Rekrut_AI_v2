@@ -4006,17 +4006,19 @@ export function AiCoachingPage() {
                       </div>
 
                       {/* Pace feedback */}
+                      {coaching.communication?.pace && (
                       <div className={`p-3 rounded-lg ${
                         coaching.communication.pace.assessment === 'good' ? 'bg-green-50 border border-green-100' :
-                        coaching.communication.pace.assessment.includes('slight') ? 'bg-amber-50 border border-amber-100' :
+                        coaching.communication.pace.assessment?.includes('slight') ? 'bg-amber-50 border border-amber-100' :
                         'bg-red-50 border border-red-100'
                       }`}>
                         <h5 className="text-xs font-semibold mb-1">🎙️ Speaking Pace</h5>
                         <p className="text-xs">{coaching.communication.pace.feedback}</p>
                       </div>
+                      )}
 
                       {/* Filler words breakdown */}
-                      {coaching.communication.total_fillers > 0 && (
+                      {coaching.communication?.total_fillers > 0 && coaching.communication?.filler_words && (
                         <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
                           <h5 className="text-xs font-semibold text-amber-800 mb-1.5">
                             Filler Words ({coaching.communication.filler_rate}% of speech)
@@ -4032,7 +4034,7 @@ export function AiCoachingPage() {
                       )}
 
                       {/* Tips */}
-                      {coaching.communication.tips.length > 0 && (
+                      {coaching.communication?.tips?.length > 0 && (
                         <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
                           <h5 className="text-xs font-semibold text-blue-800 mb-1.5">💡 Speech Tips</h5>
                           <ul className="space-y-1">

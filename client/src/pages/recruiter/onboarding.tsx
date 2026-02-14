@@ -318,6 +318,7 @@ export function RecruiterOnboardingPage() {
         </TabsContent>
 
         <TabsContent value="employees">
+          <div />
         </TabsContent>
       </Tabs>
 
