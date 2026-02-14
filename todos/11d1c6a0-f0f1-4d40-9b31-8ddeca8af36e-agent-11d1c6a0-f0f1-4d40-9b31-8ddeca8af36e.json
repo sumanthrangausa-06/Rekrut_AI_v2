@@ -21,12 +21,37 @@
   },
   {
     "content": "Build and deploy Phase 1 fixes",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Building and deploying Phase 1"
   },
   {
-    "content": "Verify all three bugs are resolved",
-    "status": "pending",
-    "activeForm": "Verifying all bugs are resolved"
+    "content": "Verify Phase 1 deploy - Anthropic provider active",
+    "status": "completed",
+    "activeForm": "Verifying Phase 1 deploy"
+  },
+  {
+    "content": "Add per-question data collection to mock respond endpoint",
+    "status": "completed",
+    "activeForm": "Adding per-question data to mock respond"
+  },
+  {
+    "content": "Send per-question frames from frontend mock interview",
+    "status": "completed",
+    "activeForm": "Sending per-question frames from frontend"
+  },
+  {
+    "content": "Add per-question analysis API endpoint",
+    "status": "completed",
+    "activeForm": "Adding per-question analysis endpoint"
+  },
+  {
+    "content": "Build mock interview debug page at /debug/mock-interview",
+    "status": "completed",
+    "activeForm": "Building mock interview debug page"
+  },
+  {
+    "content": "Build, deploy, and complete task",
+    "status": "in_progress",
+    "activeForm": "Building and deploying final changes"
   }
 ]
