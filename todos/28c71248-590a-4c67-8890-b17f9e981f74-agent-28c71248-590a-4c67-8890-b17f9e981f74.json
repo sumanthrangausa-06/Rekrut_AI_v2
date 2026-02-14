@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Phase 1: Fix RETRYABLE_STATUS + proxy_error in ai-provider.js",
+    "status": "completed",
+    "activeForm": "Fixing fallback chain — 400 errors kill the chain"
+  },
+  {
+    "content": "Phase 2: Fix module name mismatch (mock_interview vs mock-interview)",
+    "status": "completed",
+    "activeForm": "Fixing module name mismatch"
+  },
+  {
+    "content": "Phase 3: Build, commit, deploy, verify",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying fixes"
+  }
+]
