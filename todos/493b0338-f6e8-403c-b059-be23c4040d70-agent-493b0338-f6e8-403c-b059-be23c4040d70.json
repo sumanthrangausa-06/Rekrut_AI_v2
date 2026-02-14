@@ -1,0 +1,37 @@
+[
+  {
+    "content": "Audit frontend pages/routes against ARCHITECTURE_CURRENT.md",
+    "status": "completed",
+    "activeForm": "Auditing frontend pages/routes"
+  },
+  {
+    "content": "Audit backend routes/services/libs against ARCHITECTURE_CURRENT.md",
+    "status": "completed",
+    "activeForm": "Auditing backend routes/services/libs"
+  },
+  {
+    "content": "Audit database tables/migrations against ARCHITECTURE_CURRENT.md",
+    "status": "completed",
+    "activeForm": "Auditing database tables/migrations"
+  },
+  {
+    "content": "Audit ARCHITECTURE_TARGET.md for realism",
+    "status": "completed",
+    "activeForm": "Auditing ARCHITECTURE_TARGET.md"
+  },
+  {
+    "content": "Fix all mismatches in both docs",
+    "status": "completed",
+    "activeForm": "Fixing mismatches in docs"
+  },
+  {
+    "content": "Final spot-check verification",
+    "status": "completed",
+    "activeForm": "Spot-checking documentation accuracy"
+  },
+  {
+    "content": "Commit, deploy, notify owner",
+    "status": "in_progress",
+    "activeForm": "Committing and deploying"
+  }
+]
