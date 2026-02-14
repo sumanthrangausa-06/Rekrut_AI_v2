@@ -1,0 +1,194 @@
+client/src/lib/api.ts:64:export async function apiCall<T = unknown>(
+client/src/components/ai-onboarding-recruiter.tsx:2:import { apiCall } from '@/lib/api'
+client/src/components/ai-onboarding-recruiter.tsx:117:      const data = await apiCall<OnboardingPlan[]>('/onboarding/plans/list')
+client/src/components/ai-onboarding-recruiter.tsx:129:        apiCall<Candidate[]>('/candidate/list').catch(() => []),
+client/src/components/ai-onboarding-recruiter.tsx:130:        apiCall<Job[]>('/jobs').catch(() => []),
+client/src/components/ai-onboarding-recruiter.tsx:145:      await apiCall('/onboarding/generate-plan', {
+client/src/components/ai-onboarding-recruiter.tsx:170:      const data = await apiCall<ProgressData>(`/onboarding/${planId}/progress`)
+client/src/components/ai-onboarding-dashboard.tsx:2:import { apiCall } from '@/lib/api'
+client/src/components/ai-onboarding-dashboard.tsx:124:      const data = await apiCall<OnboardingPlan[]>('/onboarding/plans/mine')
+client/src/components/ai-onboarding-dashboard.tsx:141:      const data = await apiCall<ProgressData>(`/onboarding/${planId}/progress`)
+client/src/components/ai-onboarding-dashboard.tsx:158:      await apiCall(`/onboarding/tasks/${taskId}/complete`, {
+client/src/components/ai-onboarding-dashboard.tsx:181:      const data = await apiCall<{ response: string }>('/onboarding/chat', {
+client/src/contexts/auth-context.tsx:3:  apiCall,
+client/src/contexts/auth-context.tsx:45:      const data = await apiCall<{ user: User }>('/auth/me')
+client/src/contexts/auth-context.tsx:60:    const data = await apiCall<{
+client/src/contexts/auth-context.tsx:76:    const data = await apiCall<{
+client/src/pages/recruiter/interviews.tsx:2:import { apiCall } from '@/lib/api'
+client/src/pages/recruiter/interviews.tsx:172:        apiCall<{ interviews: Interview[] }>('/recruiter/interviews?upcoming_only=false'),
+client/src/pages/recruiter/interviews.tsx:173:        apiCall<{ applications: Application[] }>('/recruiter/applications'),
+client/src/pages/recruiter/interviews.tsx:174:        apiCall<{ success: boolean; templates: ScreeningTemplate[] }>('/interviews/screening/templates').catch(() => ({ success: false, templates: [] })),
+client/src/pages/recruiter/interviews.tsx:175:        apiCall<{ jobs: any[] }>('/recruiter/jobs').catch(() => ({ jobs: [] })),
+client/src/pages/recruiter/interviews.tsx:193:      const res = await apiCall<{ success: boolean; slots: SlotSuggestion[] }>('/interviews/suggest-slots', {
+client/src/pages/recruiter/interviews.tsx:217:      await apiCall('/recruiter/interviews', {
+client/src/pages/recruiter/interviews.tsx:252:      await apiCall('/interviews/screening/create-template', {
+client/src/pages/recruiter/interviews.tsx:273:      await apiCall('/interviews/screening/send', {
+client/src/pages/recruiter/interviews.tsx:286:      const res = await apiCall<any>(`/interviews/screening/${sessionId}/report`)
+client/src/pages/recruiter/interviews.tsx:297:      const res = await apiCall<any>('/interviews/evaluate', {
+client/src/pages/recruiter/interviews.tsx:314:      await apiCall(`/recruiter/interviews/${showFeedback.id}`, {
+client/src/pages/recruiter/interviews.tsx:339:      await apiCall(`/recruiter/interviews/${id}`, { method: 'DELETE' })
+client/src/pages/recruiter/interviews.tsx:348:      await apiCall(`/recruiter/interviews/${id}`, {
+client/src/pages/recruiter/jobs.tsx:3:import { apiCall } from '@/lib/api'
+client/src/pages/recruiter/jobs.tsx:50:      const data = await apiCall<{ jobs: Job[] }>('/recruiter/jobs')
+client/src/pages/recruiter/jobs.tsx:62:      await apiCall(`/recruiter/jobs/${job.id}`, {
+client/src/pages/recruiter/jobs.tsx:76:      await apiCall(`/jobs/${id}`, { method: 'DELETE' })
+client/src/pages/recruiter/job-applicants.tsx:3:import { apiCall } from '@/lib/api'
+client/src/pages/recruiter/job-applicants.tsx:117:      const data = await apiCall<{ success: boolean; breakdown: any }>(`/memory/match-breakdown/${candidateId}/${jobId}`)
+client/src/pages/recruiter/job-applicants.tsx:126:      await apiCall('/memory/recruiter-feedback', {
+client/src/pages/recruiter/job-applicants.tsx:135:      const data = await apiCall<{ job: JobInfo; applications: Applicant[] }>(
+client/src/pages/recruiter/job-applicants.tsx:150:      await apiCall(`/recruiter/applications/${appId}`, {
+client/src/pages/recruiter/job-applicants.tsx:169:      await apiCall('/recruiter/applications/batch-status', {
+client/src/pages/recruiter/job-applicants.tsx:186:      const data = await apiCall<{ success: boolean; summary: { overall_assessment: string; strengths: string[]; concerns: string[]; recommendation: string; fit_score: number } }>('/recruiter/ai/candidate-summary', {
+client/src/pages/recruiter/job-applicants.tsx:215:      const data = await apiCall<{ success: boolean; comparison: any }>('/recruiter/ai/compare-candidates', {
+client/src/pages/recruiter/job-applicants.tsx:229:      const data = await apiCall<{ success: boolean; rules: any }>(`/recruiter/pipeline/automation/${id}`)
+client/src/pages/recruiter/job-applicants.tsx:239:      await apiCall(`/recruiter/pipeline/automation/${id}`, {
+client/src/pages/recruiter/job-applicants.tsx:248:      const data = await apiCall<{ success: boolean; actions: any[] }>(`/recruiter/pipeline/auto-check/${id}`, { method: 'POST' })
+client/src/pages/recruiter/offers.tsx:3:import { apiCall } from '@/lib/api'
+client/src/pages/recruiter/offers.tsx:118:        apiCall<Offer[]>('/onboarding/offers'),
+client/src/pages/recruiter/offers.tsx:119:        apiCall<{ candidates: Candidate[] }>('/recruiter/candidates'),
+client/src/pages/recruiter/offers.tsx:120:        apiCall<{ jobs: Job[] }>('/recruiter/jobs'),
+client/src/pages/recruiter/offers.tsx:139:      const newOffer = await apiCall<Offer>('/onboarding/offers', {
+client/src/pages/recruiter/offers.tsx:171:      const result = await apiCall<{ success: boolean; offer_letter_html: string }>(`/onboarding/offers/${offerId}/generate-letter`, {
+client/src/pages/recruiter/offers.tsx:193:      const result = await apiCall<{ offer_letter_html: string }>(`/onboarding/offers/${offerId}/letter`)
+client/src/pages/recruiter/offers.tsx:208:      await apiCall(`/onboarding/offers/${id}/send`, { method: 'POST' })
+client/src/pages/recruiter/offers.tsx:224:      await apiCall(`/onboarding/offers/${id}/withdraw`, { method: 'POST' })
+client/src/pages/candidate/interviews.tsx:3:import { apiCall } from '@/lib/api'
+client/src/pages/candidate/interviews.tsx:109:      const res = await apiCall<{ success: boolean; interviews: Interview[] }>('/candidate/interviews/scheduled')
+client/src/pages/candidate/interviews.tsx:120:      await apiCall(`/candidate/interviews/${id}/accept`, { method: 'PUT' })
+client/src/pages/candidate/interviews.tsx:131:      await apiCall(`/candidate/interviews/${showDecline.id}/decline`, {
+client/src/pages/candidate/interviews.tsx:149:      await apiCall(`/candidate/interviews/${showReschedule.id}/reschedule`, {
+client/src/pages/recruiter/dashboard.tsx:4:import { apiCall } from '@/lib/api'
+client/src/pages/recruiter/dashboard.tsx:66:        const res = await apiCall<RecruiterDashboardData>('/recruiter/dashboard')
+client/src/pages/recruiter/payroll.tsx:2:import { apiCall } from '@/lib/api'
+client/src/pages/recruiter/payroll.tsx:159:        apiCall<DashboardData>('/payroll/dashboard'),
+client/src/pages/recruiter/payroll.tsx:160:        apiCall<{ employees: Employee[] }>('/payroll/employees'),
+client/src/pages/recruiter/payroll.tsx:173:      await apiCall('/payroll/runs', {
+client/src/pages/recruiter/payroll.tsx:195:      const res = await apiCall<{ payrollRun: PayrollRun; paychecks: Paycheck[] }>(`/payroll/runs/${run.id}`)
+client/src/pages/recruiter/payroll.tsx:206:      await apiCall(`/payroll/runs/${runId}/process`, { method: 'POST' })
+client/src/pages/recruiter/payroll.tsx:232:      await apiCall(`/payroll/employees/${selectedEmployee.id}/onboard`, {
+client/src/pages/candidate/offers.tsx:2:import { apiCall } from '@/lib/api'
+client/src/pages/candidate/offers.tsx:64:      const data = await apiCall<Offer[]>('/onboarding/offers/me')
+client/src/pages/candidate/offers.tsx:76:        await apiCall(`/onboarding/offers/${offer.id}/view`, { method: 'POST' })
+client/src/pages/candidate/offers.tsx:87:      const result = await apiCall<{ offer_letter_html: string }>(`/onboarding/offers/${offerId}/letter`)
+client/src/pages/candidate/offers.tsx:114:      await apiCall(`/onboarding/offers/${selectedOffer.id}/accept`, {
+client/src/pages/candidate/offers.tsx:133:      await apiCall(`/onboarding/offers/${selectedOffer.id}/decline`, {
+client/src/pages/recruiter/job-form.tsx:3:import { apiCall } from '@/lib/api'
+client/src/pages/recruiter/job-form.tsx:104:      const data = await apiCall<{ countries: any[] }>('/countries')
+client/src/pages/recruiter/job-form.tsx:112:      const data = await apiCall<{ success: boolean; autofill: { recent_postings: any[] } }>('/memory/autofill/recruiter')
+client/src/pages/recruiter/job-form.tsx:143:      const data = await apiCall<{ job: { title: string; company: string; description: string; requirements: string; location: string; salary_range: string; job_type: string; screening_questions: string | ScreeningQuestion[] } }>(`/jobs/${id}`)
+client/src/pages/recruiter/job-form.tsx:183:      const data = await apiCall<{ generated: { description: string; requirements: string; suggested_skills: string[]; suggested_title: string } }>('/recruiter/jobs/generate', {
+client/src/pages/recruiter/job-form.tsx:206:      const data = await apiCall<{ suggestions: { required_skills: SkillSuggestion[]; suggested_requirements: string[] } }>('/recruiter/jobs/suggest-skills', {
+client/src/pages/recruiter/job-form.tsx:229:      const data = await apiCall<{ suggestions: { suggestions: TitleSuggestion[] } }>('/recruiter/jobs/suggest-title', {
+client/src/pages/recruiter/job-form.tsx:276:        await apiCall(`/recruiter/jobs/${id}`, {
+client/src/pages/recruiter/job-form.tsx:281:        await apiCall('/recruiter/jobs', {
+client/src/pages/recruiter/job-form.tsx:301:      const data = await apiCall<{ success: boolean; suggestions: Array<{ question: string; type: string; category: string; options?: string[] }> }>('/recruiter/ai/suggest-questions', {
+client/src/pages/recruiter/job-form.tsx:327:      const data = await apiCall<{ success: boolean; questions: Array<{ id: number; question_text: string; question_type: string; category: string; options: string[] }> }>('/recruiter/question-bank')
+client/src/pages/recruiter/job-form.tsx:351:        await apiCall('/recruiter/question-bank', {
+client/src/pages/candidate/payroll.tsx:2:import { apiCall } from '@/lib/api'
+client/src/pages/candidate/payroll.tsx:105:        apiCall<{ profile: PayrollProfile }>('/payroll/employee/profile'),
+client/src/pages/candidate/payroll.tsx:106:        apiCall<{ paychecks: Paycheck[] }>('/payroll/employee/paychecks'),
+client/src/pages/candidate/payroll.tsx:125:      await apiCall('/payroll/employee/bank-account', {
+client/src/pages/recruiter/applications.tsx:3:import { apiCall } from '@/lib/api'
+client/src/pages/recruiter/applications.tsx:94:          return apiCall<{ applications: Application[] }>(url)
+client/src/pages/recruiter/applications.tsx:96:        apiCall<{ jobs: Job[] }>('/recruiter/jobs'),
+client/src/pages/recruiter/applications.tsx:115:      await apiCall(`/recruiter/applications/${appId}`, {
+client/src/pages/recruiter/applications.tsx:136:      await apiCall(`/recruiter/applications/${selected.id}`, {
+client/src/pages/recruiter/applications.tsx:626:    apiCall<any>(`/recruiter/candidates/${candidateId}/coaching`)
+client/src/pages/candidate/applications.tsx:3:import { apiCall } from '@/lib/api'
+client/src/pages/candidate/applications.tsx:66:      const data = await apiCall<{ success: boolean; applications: Application[] }>('/candidate/applications')
+client/src/pages/candidate/applications.tsx:79:      await apiCall(`/candidate/applications/${withdrawTarget.id}/withdraw`, {
+client/src/pages/recruiter/assessments.tsx:3:import { apiCall } from '@/lib/api'
+client/src/pages/recruiter/assessments.tsx:149:        apiCall<{ assessments: AssessmentResult[]; stats: Stats; skillBreakdown: SkillBreakdown[] }>(
+client/src/pages/recruiter/assessments.tsx:152:        apiCall<{ catalog: CatalogSkill[] }>('/assessments/recruiter/catalog'),
+client/src/pages/recruiter/assessments.tsx:153:        apiCall<{ results: JobAssessmentResult[] }>('/assessments/job-assessments/all'),
+client/src/pages/recruiter/assessments.tsx:178:      const data = await apiCall<{ assessment: AssessmentDetail }>(
+client/src/pages/recruiter/onboarding.tsx:2:import { apiCall } from '@/lib/api'
+client/src/pages/recruiter/onboarding.tsx:83:      const data = await apiCall<OnboardingCandidate[]>('/onboarding/recruiter/summary')
+client/src/pages/recruiter/onboarding.tsx:96:      const docs = await apiCall<CandidateDocument[]>(`/onboarding/recruiter/candidate/${c.candidate_id}/documents`)
+client/src/pages/recruiter/job-assessment.tsx:3:import { apiCall } from '@/lib/api'
+client/src/pages/recruiter/job-assessment.tsx:80:      const data = await apiCall<{ assessment: Assessment | null }>(`/assessments/job/${jobId}`)
+client/src/pages/recruiter/job-assessment.tsx:91:      const data = await apiCall<{ attempts: AttemptResult[] }>(`/assessments/job-assessment/${assessmentId}/results`)
+client/src/pages/recruiter/job-assessment.tsx:99:      const data = await apiCall<{ assessment: Assessment }>('/assessments/generate', {
+client/src/pages/recruiter/job-assessment.tsx:115:      await apiCall(`/assessments/job-assessment/${assessment.id}/publish`, { method: 'POST' })
+client/src/pages/recruiter/omniscore.tsx:2:import { apiCall } from '@/lib/api'
+client/src/pages/recruiter/omniscore.tsx:157:      const data = await apiCall<any>('/omniscore/company-dashboard')
+client/src/pages/recruiter/omniscore.tsx:173:      const data = await apiCall<any>('/omniscore/leaderboard?limit=50')
+client/src/pages/candidate/ai-coaching.tsx:2:import { apiCall, getToken } from '@/lib/api'
+client/src/pages/candidate/ai-coaching.tsx:378:      const res = await apiCall<{ success: boolean; stats: PracticeStats }>('/interviews/practice/stats')
+client/src/pages/candidate/ai-coaching.tsx:387:      const res = await apiCall<{ success: boolean; questions: PracticeQuestion[] }>('/interviews/practice/library')
+client/src/pages/candidate/ai-coaching.tsx:396:      const res = await apiCall<{
+client/src/pages/candidate/ai-coaching.tsx:413:      const res = await apiCall<{
+client/src/pages/candidate/ai-coaching.tsx:431:      const res = await apiCall<{ success: boolean; sessions: MockSessionSummary[]; total: number }>('/interviews/mock/sessions?limit=10')
+client/src/pages/candidate/ai-coaching.tsx:843:      const res = await apiCall<{ success: boolean; coaching: VideoCoaching }>('/interviews/practice/submit-video', {
+client/src/pages/candidate/ai-coaching.tsx:881:      const res = await apiCall<{ success: boolean; coaching: TextCoaching }>('/interviews/practice/submit', {
+client/src/pages/candidate/ai-coaching.tsx:943:      const res = await apiCall<{ success: boolean; session: MockSession; first_message: MockConversationTurn }>('/interviews/mock/start', {
+client/src/pages/candidate/ai-coaching.tsx:1001:        const res = await apiCall<{
+client/src/pages/candidate/ai-coaching.tsx:1089:      const res = await apiCall<{ success: boolean; feedback: SessionFeedback; no_feedback?: boolean }>(`/interviews/mock/${mockSession.id}/end`, {
+client/src/pages/candidate/ai-coaching.tsx:1117:                const pollRes = await apiCall<{ success: boolean; feedback: SessionFeedback }>(`/interviews/mock/sessions/${sessionIdForPolling}/feedback`)
+client/src/pages/recruiter/company.tsx:2:import { apiCall } from '@/lib/api'
+client/src/pages/recruiter/company.tsx:78:        apiCall<{ company: Company }>('/company/profile'),
+client/src/pages/recruiter/company.tsx:79:        apiCall<{ members: TeamMember[] }>('/company/team/members').catch(() => ({ members: [] })),
+client/src/pages/recruiter/company.tsx:287:      const data = await apiCall<{ success: boolean; company: Company }>('/company/profile', {
+client/src/pages/recruiter/company.tsx:475:      const data = await apiCall<{ success: boolean; company: Company }>('/company/profile', {
+client/src/pages/recruiter/company.tsx:606:      const data = await apiCall<{ success: boolean; member: TeamMember; temp_password: string }>('/company/team/invite', {
+client/src/pages/candidate/job-assessment-take.tsx:3:import { apiCall } from '@/lib/api'
+client/src/pages/candidate/job-assessment-take.tsx:76:        apiCall(`/assessments/job-assessment/${assessmentId}/event`, {
+client/src/pages/candidate/job-assessment-take.tsx:89:      const data = await apiCall<{
+client/src/pages/candidate/job-assessment-take.tsx:122:      const data = await apiCall<{
+client/src/pages/candidate/job-assessment-take.tsx:173:      const data = await apiCall<{ reply: string; done: boolean; followUpCount: number }>(
+client/src/pages/candidate/assessment-take.tsx:3:import { apiCall } from '@/lib/api'
+client/src/pages/candidate/assessment-take.tsx:80:      const result = await apiCall<SessionCurrentResponse>(`/assessments/session/${sessionId}/current`)
+client/src/pages/candidate/assessment-take.tsx:126:        apiCall('/assessments/event', {
+client/src/pages/candidate/assessment-take.tsx:140:        apiCall('/assessments/event', {
+client/src/pages/candidate/assessment-take.tsx:166:      const result = await apiCall<AnswerResult>('/assessments/answer', {
+client/src/pages/candidate/assessment-take.tsx:179:          const fullResult = await apiCall<SessionCurrentResponse>(`/assessments/session/${sessionId}/current`)
+client/src/pages/candidate/job-detail.tsx:3:import { apiCall } from '@/lib/api'
+client/src/pages/candidate/job-detail.tsx:70:      const data = await apiCall<{ assessment: any }>(`/assessments/job/${id}`)
+client/src/pages/candidate/job-detail.tsx:79:      const data = await apiCall<{ job: Job }>(`/jobs/${id}`)
+client/src/pages/candidate/job-detail.tsx:86:      const data = await apiCall<{ success: boolean; applications: { job_id: number }[] }>('/candidate/applications')
+client/src/pages/candidate/job-detail.tsx:95:      const data = await apiCall<{ success: boolean; breakdown: any }>(`/memory/match-breakdown/${user.id}/${id}`)
+client/src/pages/candidate/job-detail.tsx:104:      const data = await apiCall<{ success: boolean; auto_fill: AutoFillData }>(`/candidate/auto-fill/${id}`)
+client/src/pages/candidate/job-detail.tsx:154:      await apiCall(`/candidate/jobs/${job.id}/apply`, {
+client/src/pages/candidate/job-detail.tsx:170:      const data = await apiCall<{ success: boolean; cover_letter: string }>('/candidate/ai/cover-letter', {
+client/src/pages/candidate/job-detail.tsx:184:      const data = await apiCall<{ success: boolean; suggestions: Array<{ question_id: string; suggested_answer: string; source: string; confidence: string }> }>(
+client/src/pages/candidate/job-detail.tsx:502:                  const data = await apiCall<{ success: boolean; review: any }>('/candidate/ai/application-review', {
+client/src/pages/candidate/onboarding.tsx:2:import { apiCall } from '@/lib/api'
+client/src/pages/candidate/onboarding.tsx:665:      const data = await apiCall<ProgressResponse>('/onboarding/wizard/progress')
+client/src/pages/candidate/onboarding.tsx:745:      const res = await apiCall<{ prefill: any; ai_suggestions: any }>('/onboarding/wizard/ai-prefill')
+client/src/pages/candidate/onboarding.tsx:764:      const res = await apiCall<{ guidance: W4Guidance }>('/onboarding/wizard/w4-guidance', {
+client/src/pages/candidate/onboarding.tsx:905:      await apiCall('/onboarding/wizard/save-step', {
+client/src/pages/candidate/onboarding.tsx:941:      const res = await apiCall<{ documents: OnboardingDoc[] }>('/onboarding/wizard/generate-documents', {
+client/src/pages/candidate/onboarding.tsx:967:      await apiCall('/onboarding/wizard/sign-all', {
+client/src/pages/candidate/profile.tsx:2:import { apiCall } from '@/lib/api'
+client/src/pages/candidate/profile.tsx:105:      const data = await apiCall<{
+client/src/pages/candidate/profile.tsx:132:      const data = await apiCall<{ success: boolean; suggestions: { summary: string; improvements: string[]; missing_sections: string[]; keyword_suggestions: string[] } }>('/candidate/ai/resume-optimizer', { method: 'POST' })
+client/src/pages/candidate/profile.tsx:376:      const data = await apiCall<{ success: boolean; photo_url: string }>('/candidate/profile/photo', {
+client/src/pages/candidate/profile.tsx:432:      await apiCall('/candidate/profile', {
+client/src/pages/candidate/profile.tsx:579:        const data = await apiCall<{ success: boolean; experience: Experience }>('/candidate/experience', {
+client/src/pages/candidate/profile.tsx:585:        const data = await apiCall<{ success: boolean; experience: Experience }>(`/candidate/experience/${editing.id}`, {
+client/src/pages/candidate/profile.tsx:600:      await apiCall(`/candidate/experience/${id}`, { method: 'DELETE' })
+client/src/pages/candidate/profile.tsx:748:        const data = await apiCall<{ success: boolean; education: Education }>('/candidate/education', {
+client/src/pages/candidate/profile.tsx:754:        const data = await apiCall<{ success: boolean; education: Education }>(`/candidate/education/${editing.id}`, {
+client/src/pages/candidate/profile.tsx:769:      await apiCall(`/candidate/education/${id}`, { method: 'DELETE' })
+client/src/pages/candidate/profile.tsx:883:      const data = await apiCall<{ success: boolean; skill: Skill }>('/candidate/skills', {
+client/src/pages/candidate/profile.tsx:900:      await apiCall(`/candidate/skills/${skill.id}`, {
+client/src/pages/candidate/profile.tsx:912:      await apiCall(`/candidate/skills/${id}`, { method: 'DELETE' })
+client/src/pages/candidate/profile.tsx:1071:      const data = await apiCall<{ success: boolean; resume_url: string; parsed_data?: ParsedData }>('/candidate/resume/upload', {
+client/src/pages/candidate/omniscore.tsx:2:import { apiCall } from '@/lib/api'
+client/src/pages/candidate/omniscore.tsx:197:      await apiCall('/omniscore/checkin', { method: 'POST' }).catch(() => {})
+client/src/pages/candidate/omniscore.tsx:199:        apiCall<any>('/omniscore/breakdown'),
+client/src/pages/candidate/omniscore.tsx:200:        apiCall<any>('/memory/omniscore-trend?days=30').catch(() => ({ history: [] }))
+client/src/pages/candidate/omniscore.tsx:214:      const data = await apiCall<any>('/omniscore/mutual-matches')
+client/src/pages/candidate/omniscore.tsx:223:      const data = await apiCall<any>('/omniscore/ratable-companies')
+client/src/pages/candidate/omniscore.tsx:233:      await apiCall('/omniscore/rate-company', {
+client/src/pages/candidate/assessments.tsx:3:import { apiCall } from '@/lib/api'
+client/src/pages/candidate/assessments.tsx:57:        apiCall<{ skills: SkillCatalog[] }>('/assessments/available'),
+client/src/pages/candidate/assessments.tsx:58:        apiCall<{ results: AssessmentResult[] }>('/assessments/results'),
+client/src/pages/candidate/assessments.tsx:72:      const data = await apiCall<{ sessionId: number; skillName: string; question: unknown }>('/assessments/start', {
+client/src/pages/candidate/jobs.tsx:3:import { apiCall } from '@/lib/api'
+client/src/pages/candidate/jobs.tsx:77:        apiCall<{ jobs: Job[] }>('/jobs?status=active&limit=100'),
+client/src/pages/candidate/jobs.tsx:78:        apiCall<{ recommended_jobs: Job[] }>('/candidate/jobs/recommended'),
+client/src/pages/candidate/jobs.tsx:130:      const data = await apiCall<{ success: boolean; results: any[] }>('/candidate/ai/smart-search', {
+client/src/pages/candidate/dashboard.tsx:4:import { apiCall } from '@/lib/api'
+client/src/pages/candidate/dashboard.tsx:48:          apiCall<{ success: boolean; stats: DashboardStats }>('/candidate/dashboard/stats'),
+client/src/pages/candidate/dashboard.tsx:49:          apiCall<{ jobs: Array<{ id: number; title: string; company: string; location: string; created_at: string }> }>('/jobs?limit=5'),
