@@ -1,0 +1,42 @@
+[
+  {
+    "content": "Investigate recent commits and identify root cause of broken pages",
+    "status": "completed",
+    "activeForm": "Investigating recent commits and root cause"
+  },
+  {
+    "content": "Fix chat import in routes/interviews.js",
+    "status": "completed",
+    "activeForm": "Fixing chat import in routes/interviews.js"
+  },
+  {
+    "content": "Fix sidebar Home link to go to dashboard instead of landing",
+    "status": "completed",
+    "activeForm": "Fixing sidebar Home link"
+  },
+  {
+    "content": "Add per-route ErrorBoundary so one page crash doesn't kill whole app",
+    "status": "completed",
+    "activeForm": "Adding per-route error boundaries"
+  },
+  {
+    "content": "Rebuild client and deploy with fresh bundle",
+    "status": "in_progress",
+    "activeForm": "Rebuilding client and deploying"
+  },
+  {
+    "content": "Create CURRENT_ARCHITECTURE.md",
+    "status": "pending",
+    "activeForm": "Creating current architecture doc"
+  },
+  {
+    "content": "Create IDEAL_ARCHITECTURE.md",
+    "status": "pending",
+    "activeForm": "Creating ideal architecture doc"
+  },
+  {
+    "content": "Verify all fixes work on live app",
+    "status": "pending",
+    "activeForm": "Verifying all fixes on live app"
+  }
+]
