@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate codebase structure and previous failed attempt",
+    "status": "completed",
+    "activeForm": "Investigating codebase structure"
+  },
+  {
+    "content": "Phase 1: Add AI onboarding dashboard to candidate TSX page",
+    "status": "completed",
+    "activeForm": "Building candidate AI onboarding dashboard"
+  },
+  {
+    "content": "Phase 2: Add AI plan generation to recruiter TSX page",
+    "status": "completed",
+    "activeForm": "Building recruiter AI plan generation"
+  },
+  {
+    "content": "Phase 3: Deploy + E2E Verification",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying"
+  }
+]
