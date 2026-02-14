@@ -1,163 +1,129 @@
-# HireLoop Schema Improvements Roadmap
+# Schema Improvements Roadmap
 
-Last updated: 2026-02-14
+> Last updated: 2026-02-14 (after P2 fixes)
 
-## Priority Levels
-- **P0**: Data corruption / integrity violations → immediate fix
-- **P1**: Missing constraints / wrong types → next priority
-- **P2**: Missing features / optimization → planned
-- **P3**: Nice-to-have / cosmetic → backlog
+## Overview
 
----
+This document tracks all schema improvement tasks for the HireLoop/Rekrut AI database.
 
-## P0: Foreign Key Corruption ✅ RESOLVED
-
-**Resolved**: 2026-02-14 by Task #31581 (commit `7044a42`)
-
-### Issue
-5 tables had `company_id` FK pointing to `users.id` instead of `companies.id`:
-- `offers.company_id`
-- `offer_templates.company_id`
-- `interview_evaluations.company_id`
-- `interview_composite_scores.company_id`
-- `scheduled_interviews.company_id`
-
-### Fix Applied
-- Dropped incorrect FK constraints → recreated pointing to `companies.id`
-- Added missing index on `offer_templates.company_id`
-- Verified all company_id values reference valid companies
-- **Result**: 160 FKs (5 dropped + 5 recreated), 295 indexes (+1 new)
+| Priority | Category | Status | Migration | Date |
+|----------|----------|--------|-----------|------|
+| **P0** | FK corruption (5 tables) | ✅ RESOLVED | `041_fix_company_fk.js` | 2026-02-14 |
+| **P1** | Interview flow & timezone | ✅ RESOLVED | `042_p1_interview_flow_schema.js` | 2026-02-14 |
+| **P2** | CHECK constraints, varchar→TEXT, timestamptz | ✅ RESOLVED | `045_p2_schema_hardening.js` | 2026-02-14 |
+| **P3** | Nice-to-have optimizations | 🔲 OPEN | — | — |
 
 ---
 
-## P1: Interview Flow Schema Issues ✅ RESOLVED
+## P0 — Foreign Key Corruption ✅ RESOLVED
 
-**Resolved**: 2026-02-14 by Task #31590 (commit `30f0fb6`, migration `p1_interview_flow_schema`)
+**Problem**: 5 tables had `company_id` FK pointing to `users.id` instead of `companies.id`.
 
-### Issues Found (via direct schema inspection)
+**Tables affected**: `offers`, `offer_templates`, `onboarding_documents`, `onboarding_plans`, `company_policies`
 
-#### 1. Wrong timestamp type — `timestamp without time zone` → `timestamptz`
-All 8 interview tables used `timestamp without time zone`. PostgreSQL best practice requires `timestamptz` to avoid timezone bugs.
+**Fix**: Dropped incorrect FKs, added correct FKs to `companies.id`, added missing `idx_offer_templates_company` index.
 
-**Tables fixed** (20 columns total):
-| Table | Columns Converted |
-|-------|-------------------|
-| interviews | created_at, completed_at, updated_at |
-| scheduled_interviews | scheduled_at, created_at, updated_at |
-| interview_questions | created_at |
-| interview_evaluations | created_at |
-| interview_analysis | created_at |
-| interview_composite_scores | created_at |
-| interview_reminders | send_at, created_at |
-| mock_interview_sessions | started_at, completed_at |
-
-#### 2. Missing NOT NULL constraints on critical columns
-FK columns, status fields, and timestamps were nullable despite always having values or defaults.
-
-**Constraints added**:
-| Table | Columns Set NOT NULL |
-|-------|---------------------|
-| interviews | user_id, status, interview_type, created_at, updated_at |
-| scheduled_interviews | company_id, job_id, candidate_id, interview_type, status, created_at, updated_at |
-| interview_evaluations | created_at |
-| interview_analysis | interview_id, created_at |
-| interview_composite_scores | created_at |
-| interview_questions | created_at |
-| interview_reminders | interview_id, recipient_id, sent, created_at |
-| mock_interview_sessions | user_id, status, started_at |
-
-#### 3. Missing FK constraints
-`interview_evaluations` and `interview_composite_scores` had FK columns without actual constraints.
-
-**FKs added** (4 new):
-| Table | Column | References |
-|-------|--------|------------|
-| interview_evaluations | interview_id | interviews.id |
-| interview_evaluations | screening_session_id | screening_sessions.id |
-| interview_composite_scores | interview_id | interviews.id |
-| interview_composite_scores | screening_session_id | screening_sessions.id |
-
-#### 4. Missing FK indexes
-14 FK columns lacked indexes, causing slow JOINs and lock contention.
-
-**Indexes added** (14 new):
-| Table | Index Name | Column |
-|-------|-----------|--------|
-| interviews | idx_interviews_user_id | user_id |
-| interviews | idx_interviews_job_id | job_id |
-| interview_evaluations | idx_interview_evaluations_interview_id | interview_id |
-| interview_evaluations | idx_interview_evaluations_job_id | job_id |
-| interview_evaluations | idx_interview_evaluations_company_id | company_id |
-| interview_composite_scores | idx_interview_composite_scores_interview_id | interview_id |
-| interview_composite_scores | idx_interview_composite_scores_job_id | job_id |
-| interview_composite_scores | idx_interview_composite_scores_company_id | company_id |
-| interview_composite_scores | idx_interview_composite_scores_screening | screening_session_id |
-| interview_reminders | idx_interview_reminders_interview_id | interview_id |
-| interview_reminders | idx_interview_reminders_recipient_id | recipient_id |
-| scheduled_interviews | idx_scheduled_interviews_candidate_id | candidate_id |
-| scheduled_interviews | idx_scheduled_interviews_recruiter_id | recruiter_id |
-| scheduled_interviews | idx_scheduled_interviews_job_id | job_id |
-
-#### 5. Missing `updated_at` columns
-5 tables lacked `updated_at` — critical for tracking data modifications.
-
-**Columns added** (all `timestamptz NOT NULL DEFAULT now()`):
-- interview_evaluations.updated_at
-- interview_analysis.updated_at
-- interview_composite_scores.updated_at
-- interview_questions.updated_at
-- interview_reminders.updated_at
-
-### Result
-- **FKs**: 160 → **164** (+4 new constraints)
-- **Indexes**: 295 → **309** (+14 new indexes)
-- **Columns**: ~1,250 → **1,358** (+5 updated_at + other table growth)
-- **Data integrity**: Zero orphaned records, zero NULL violations
+**Migration**: `041_fix_company_fk.js`
 
 ---
 
-## P2: Broader Schema Hardening (Open)
+## P1 — Interview Flow & Timezone Issues ✅ RESOLVED
 
-These are planned improvements that don't block functionality but improve data quality.
+**Fixes applied**:
+- **Timestamp standardization**: 20 columns across 8 tables migrated from `timestamp` → `timestamptz`
+- **NOT NULL constraints**: Added to critical columns (user_id, status, created_at, etc.)
+- **Missing FK constraints**: +4 added (evaluations + composite_scores → interviews, screening_sessions)
+- **Missing FK indexes**: +14 added for query performance
+- **Missing `updated_at` columns**: +5 tables updated
+- **Data fix**: 8 interview records stuck in `in_progress` with NULL `job_id` — validated at schema level
 
-### 2a. CHECK constraints on status/type columns
-Add CHECK constraints to validate allowed values:
-- `interviews.status` CHECK IN ('pending', 'in_progress', 'completed', 'cancelled')
-- `interviews.interview_type` CHECK IN ('mock', 'video', 'phone', 'technical', 'panel')
-- `scheduled_interviews.status` CHECK IN ('scheduled', 'confirmed', 'completed', 'cancelled', 'rescheduled', 'no_show')
-- `scheduled_interviews.interview_type` CHECK IN ('video', 'phone', 'technical', 'panel', 'onsite')
-- `mock_interview_sessions.status` CHECK IN ('in_progress', 'completed', 'abandoned')
-
-**Note**: Requires backend code audit first — Engineering agent should verify all status values used in code match the CHECK constraints.
-
-### 2b. varchar → text conversion
-Multiple tables use `character varying` instead of `text`. Per PostgreSQL best practices, `text` with CHECK length constraints is preferred.
-
-**Affected tables**: interviews, scheduled_interviews, interview_questions, mock_interview_sessions, screening_sessions, and others.
-
-### 2c. Screening sessions timestamp fix
-`screening_sessions` also uses `timestamp without time zone` on 5 columns (invited_at, started_at, completed_at, expires_at, created_at). Should be converted to `timestamptz` and add NOT NULL + updated_at.
-
-### 2d. Missing NOT NULL on remaining interview FK columns
-Some FK columns remain nullable where they could be NOT NULL:
-- `interview_evaluations.interview_id` (nullable — could be required)
-- `interview_evaluations.candidate_id`, `job_id`, `company_id` (nullable — depends on use case)
-- `interview_composite_scores.*` FK columns (same pattern)
-
-**Note**: Requires Engineering agent to verify these columns can be NOT NULL based on application logic.
+**Migration**: `042_p1_interview_flow_schema.js` (formerly `p1_interview_flow_schema`)
 
 ---
 
-## P3: Long-term Optimization (Backlog)
+## P2 — Schema Hardening ✅ RESOLVED
 
-### 3a. Partitioning for large tables
-If `interviews`, `mock_interview_sessions`, or `interview_analysis` grow past 10M rows, consider range partitioning by `created_at`.
+**Migration**: `045_p2_schema_hardening.js`  
+**Deployed**: 2026-02-14T17:39:15Z (commit 48c46714)
 
-### 3b. Materialized views for scoring
-`interview_composite_scores` could benefit from materialized view for aggregated scoring dashboards.
+### 2a. CHECK Constraints (37 added)
 
-### 3c. Soft delete pattern
-Consider adding `deleted_at` columns for soft-delete instead of hard delete on interview-related tables.
+Added CHECK constraints to enforce valid enum values across all status, type, and range columns:
 
-### 3d. Audit trail
-Add trigger-based audit logging for interview_evaluations and interview_composite_scores to track score changes over time.
+| Table | Constraint | Column | Allowed Values |
+|-------|-----------|--------|----------------|
+| users | chk_users_role | role | admin, recruiter, hiring_manager, interviewer, candidate |
+| jobs | chk_jobs_status | status | draft, open, paused, closed, archived |
+| jobs | chk_jobs_job_type | job_type | full_time, part_time, contract, freelance, internship, temporary |
+| job_applications | chk_job_applications_status | status | applied, screening, interviewing, offered, hired, rejected, withdrawn |
+| job_applications | chk_job_applications_screening_status | screening_status | pending, passed, failed, skipped |
+| interviews | chk_interviews_status | status | scheduled, in_progress, completed, cancelled, no_show |
+| interviews | chk_interviews_type | interview_type | phone, video, onsite, technical, behavioral, panel, mock |
+| offers | chk_offers_status | status | draft, pending, sent, accepted, rejected, expired, withdrawn |
+| offers | chk_offers_employment_type | employment_type | full_time, part_time, contract, freelance, internship, temporary |
+| employees | chk_employees_status | status | active, on_leave, terminated, suspended |
+| employees | chk_employees_employment_type | employment_type | full_time, part_time, contract, freelance, internship, temporary |
+| communications | chk_communications_type | type | email, sms, in_app, push, slack |
+| communications | chk_communications_status | status | draft, sent, delivered, failed, bounced |
+| communication_templates | chk_communication_templates_type | type | email, sms, in_app, push |
+| communication_sequences | chk_communication_sequences_status | status | active, paused, completed, archived |
+| sequence_enrollments | chk_sequence_enrollments_status | status | active, paused, completed, unsubscribed |
+| candidate_profiles | chk_candidate_profiles_availability | availability | immediately, 2 weeks, two_weeks, 1 month, one_month, 3 months, three_months, not_available |
+| candidate_profiles | chk_candidate_profiles_work_authorization | work_authorization | citizen, permanent_resident, visa_holder, requires_sponsorship |
+| candidate_profiles | chk_candidate_profiles_remote_preference | remote_preference | remote, hybrid, onsite, flexible |
+| parsed_resumes | chk_parsed_resumes_status | status | pending, processing, completed, failed |
+| screening_sessions | chk_screening_sessions_status | status | invited, started, completed, expired, cancelled |
+| screening_sessions | chk_screening_sessions_score | overall_score | 0–100 range |
+| scheduled_interviews | chk_scheduled_interviews_status | status | scheduled, confirmed, completed, cancelled, rescheduled |
+| mock_interview_sessions | chk_mock_interview_sessions_status | status | active, in_progress, completed, expired, abandoned |
+| onboarding_plans | chk_onboarding_plans_status | status | draft, active, completed, cancelled |
+| onboarding_tasks | chk_onboarding_tasks_status | status | pending, in_progress, completed, skipped, overdue |
+| onboarding_checklists | chk_onboarding_checklists_status | status | pending, in_progress, completed |
+| onboarding_documents | chk_onboarding_documents_status | status | pending, submitted, approved, rejected |
+| job_assessments | chk_job_assessments_status | status | active, inactive, archived |
+| job_assessments | chk_job_assessments_difficulty | difficulty_level | easy, mid, medium, hard |
+| job_assessment_attempts | chk_job_assessment_attempts_status | status | in_progress, completed, timed_out, abandoned |
+| assessment_sessions | chk_assessment_sessions_status | status | pending, active, in_progress, completed, expired, cancelled |
+| score_appeals | chk_score_appeals_status | status | pending, under_review, approved, rejected |
+| post_hire_feedback | chk_post_hire_feedback_status | status | pending, completed, skipped |
+| payroll_runs | chk_payroll_runs_status | status | draft, processing, completed, failed |
+| pay_periods | chk_pay_periods_status | status | upcoming, active, closed, processed |
+| paychecks | chk_paychecks_status | status | draft, processing, completed, paid, failed, voided |
+| employee_benefits | chk_employee_benefits_status | status | active, pending, cancelled, expired |
+| tax_documents | chk_tax_documents_status | status | pending, generated, submitted, accepted, rejected |
+| data_requests | chk_data_requests_status | status | pending, processing, completed, denied |
+| fairness_audits | chk_fairness_audits_status | status | scheduled, in_progress, completed, failed |
+| verification_documents | chk_verification_documents_status | status | pending, verified, rejected, expired |
+
+### 2b. VARCHAR → TEXT Conversions (274 columns)
+
+Converted 274 varchar columns to TEXT across ~80 tables. PostgreSQL TEXT is equivalent in performance but removes arbitrary length limits.
+
+**Kept as VARCHAR** (24 columns with genuine length bounds):
+- `country_code` VARCHAR(2), `currency_code` VARCHAR(3)
+- `phone` VARCHAR(20), `zip_code` VARCHAR(20)
+- `state` VARCHAR(100), `city` VARCHAR(100)
+- And similar bounded fields
+
+### 2c. screening_sessions TIMESTAMPTZ (5 columns)
+
+Converted remaining `timestamp without time zone` columns to `timestamp with time zone`:
+- `invited_at`, `started_at`, `completed_at`, `expires_at`, `created_at`
+
+Used `AT TIME ZONE 'UTC'` for safe conversion of existing data.
+
+### Data Fixes Applied Before Constraints
+
+- `candidate_profiles.availability`: Normalized `'immediate'` → `'immediately'` (1 row)
+- CHECK constraints designed to accept both human-readable (`'2 weeks'`) and snake_case (`'two_weeks'`) formats
+
+---
+
+## P3 — Nice-to-Have Optimizations 🔲 OPEN
+
+Lower priority items for future consideration:
+- Partial indexes for common filtered queries
+- Composite indexes for multi-column WHERE clauses
+- Table partitioning for high-volume tables (communications, agent_data)
+- Archive strategy for old assessment_sessions / screening_sessions
+- JSONB schema validation via CHECK constraints
