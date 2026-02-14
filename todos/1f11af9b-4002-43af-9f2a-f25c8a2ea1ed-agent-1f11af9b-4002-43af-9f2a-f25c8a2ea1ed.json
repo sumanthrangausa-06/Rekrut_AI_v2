@@ -1,27 +1,17 @@
 [
   {
-    "content": "Audit existing onboarding code (routes, migrations, frontend)",
+    "content": "Audit existing onboarding code",
     "status": "completed",
     "activeForm": "Auditing existing onboarding code"
   },
   {
-    "content": "Phase 1: Backend — AI Onboarding Plan Generator + DB migration",
-    "status": "in_progress",
-    "activeForm": "Building AI onboarding plan generator"
-  },
-  {
-    "content": "Phase 2: Backend — AI Chatbot + Progress Tracking",
-    "status": "pending",
-    "activeForm": "Building AI chatbot + progress tracking"
-  },
-  {
-    "content": "Phase 3: Backend — Document Intelligence",
-    "status": "pending",
-    "activeForm": "Building document intelligence"
+    "content": "Phase 1-3: Backend APIs (Plan Generator + Chatbot + Docs)",
+    "status": "completed",
+    "activeForm": "Building backend APIs"
   },
   {
     "content": "Phase 4: Frontend — Onboarding AI Dashboard",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Building onboarding AI frontend"
   },
   {
