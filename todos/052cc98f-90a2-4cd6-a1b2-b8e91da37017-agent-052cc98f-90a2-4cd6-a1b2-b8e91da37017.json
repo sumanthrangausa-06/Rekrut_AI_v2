@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate NOT NULL violations in work_experience, portfolio_projects, offers, practice_sessions",
+    "status": "completed",
+    "activeForm": "Investigating NOT NULL violations across tables"
+  },
+  {
+    "content": "Phase 1: Fix NOT NULL violations in candidate.js, interviews.js, recruiter.js, onboarding.js",
+    "status": "completed",
+    "activeForm": "Fixing NOT NULL violations across routes"
+  },
+  {
+    "content": "Phase 2: Fix skills type coercion in PUT /skills and assessment start",
+    "status": "completed",
+    "activeForm": "Fixing skills type coercion"
+  },
+  {
+    "content": "Deploy and verify zero 500s",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying fixes"
+  }
+]
