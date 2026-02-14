@@ -38,7 +38,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
       SELECT
         COUNT(*) as total_applications,
         COUNT(*) FILTER (WHERE status = 'applied') as new_applications,
-        COUNT(*) FILTER (WHERE status = 'reviewing') as reviewing,
+        COUNT(*) FILTER (WHERE status = 'screening') as screening,
         COUNT(*) FILTER (WHERE status = 'interviewed') as interviewed,
         COUNT(*) FILTER (WHERE status = 'offered') as offered,
         COUNT(*) FILTER (WHERE status = 'hired') as hired
@@ -381,6 +381,12 @@ router.get('/applications', authMiddleware, requireRecruiter, async (req, res) =
 router.put('/applications/:id/status', authMiddleware, requireRecruiter, async (req, res) => {
   try {
     const { status } = req.body;
+
+    // Validate status against CHECK constraint (chk_job_applications_status)
+    const VALID_APP_STATUSES = ['applied', 'screening', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn'];
+    if (!VALID_APP_STATUSES.includes(status)) {
+      return res.status(400).json({ error: `Invalid status: '${status}'. Must be one of: ${VALID_APP_STATUSES.join(', ')}` });
+    }
 
     // Verify application belongs to company
     const existing = await pool.query(
@@ -934,7 +940,8 @@ router.get('/candidates/:id/coaching', authMiddleware, requireRecruiter, async (
 
 // Valid pipeline stages in order (canonical)
 // Based on industry research: LinkedIn, Greenhouse, Lever, Ashby, SmartRecruiters
-const PIPELINE_STAGES = ['applied', 'screening', 'shortlisted', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn'];
+// Valid pipeline stages — must match chk_job_applications_status CHECK constraint
+const PIPELINE_STAGES = ['applied', 'screening', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn'];
 
 // GET pipeline stages (so frontend stays in sync)
 router.get('/pipeline-stages', authMiddleware, requireRecruiter, (req, res) => {
@@ -948,11 +955,9 @@ router.get('/pipeline-stages', authMiddleware, requireRecruiter, (req, res) => {
     stage_config: {
       applied: { label: 'Applied', color: 'blue', order: 0 },
       screening: { label: 'Screening', color: 'purple', order: 1 },
-      shortlisted: { label: 'Shortlisted', color: 'indigo', order: 2 },
-      reviewing: { label: 'Reviewing', color: 'amber', order: 3 },
-      interviewed: { label: 'Interviewed', color: 'cyan', order: 4 },
-      offered: { label: 'Offered', color: 'emerald', order: 5 },
-      hired: { label: 'Hired', color: 'green', order: 6 },
+      interviewed: { label: 'Interviewed', color: 'cyan', order: 2 },
+      offered: { label: 'Offered', color: 'emerald', order: 3 },
+      hired: { label: 'Hired', color: 'green', order: 4 },
       rejected: { label: 'Rejected', color: 'red', order: -1 },
       withdrawn: { label: 'Withdrawn', color: 'gray', order: -1 },
     }
@@ -1524,9 +1529,9 @@ router.put('/offers/:id/withdraw', authMiddleware, requireRecruiter, async (req,
     }
 
     const result = await pool.query(
-      `UPDATE offers SET status = 'withdrawn', decline_reason = $2, updated_at = NOW()
+      `UPDATE offers SET status = 'rescinded', decline_reason = $2, updated_at = NOW()
        WHERE id = $1 RETURNING *`,
-      [req.params.id, reason || 'Withdrawn by recruiter']
+      [req.params.id, reason || 'Rescinded by recruiter']
     );
 
     res.json({ success: true, offer: result.rows[0] });

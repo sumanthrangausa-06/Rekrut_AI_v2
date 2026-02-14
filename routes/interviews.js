@@ -2212,7 +2212,7 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
 
     // BUG FIX: Whisper hallucinates known phrases on silent/near-silent audio
     const WHISPER_HALLUCINATIONS = [
-      'ご視聴ありがとうございました', '視聴ありがとうございました', 'ありがとうございました',
+      'ご視聴ありがとうございました', '視聴ありがとうございました', 'あ���がとうございました',
       'ご視聴ありがとうございます', '字幕', 'サブスクライブ', 'チャンネル登録',
       '谢谢观看', '感谢观看', 'Sous-titres', 'Sottotitoli', 'Untertitel',
       'Thanks for watching', 'Thank you for watching', 'Please subscribe', 'Like and subscribe',
@@ -2800,7 +2800,7 @@ router.post('/screening/send', authMiddleware, async (req, res) => {
     // Update application screening status
     if (application_id) {
       await pool.query(
-        `UPDATE job_applications SET screening_status = 'sent', updated_at = NOW() WHERE id = $1`,
+        `UPDATE job_applications SET screening_status = 'invited', updated_at = NOW() WHERE id = $1`,
         [application_id]
       );
     }
