@@ -159,7 +159,7 @@ router.post('/', authMiddleware, requireRole('hiring_manager', 'admin', 'recruit
       `INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions, country_code, currency_code, salary_min, salary_max)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
-      [req.user.id, req.user.company_id || null, title, company || req.user.company_name, description, requirements, location, salary_range, job_type, JSON.stringify(screening_questions || []),
+      [req.user.id, req.user.company_id || null, title, company || req.user.company_name || 'Company', description, requirements, location, salary_range, job_type, JSON.stringify(screening_questions || []),
        jobCountry, jobCurrency, salary_min || null, salary_max || null]
     );
 

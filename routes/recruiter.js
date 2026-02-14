@@ -1336,7 +1336,7 @@ router.post('/offers', authMiddleware, requireRecruiter, async (req, res) => {
       RETURNING *`,
       [
         candidate_id, job_id, req.user.id, req.user.company_id,
-        title || job.rows[0].title, req.user.company_name || job.rows[0].company,
+        title || job.rows[0].title, req.user.company_name || job.rows[0].company || 'Company',
         parseFloat(salary) || 0, start_date || null,
         benefits || null, location || null,
         employment_type || 'full-time', reporting_to || null
