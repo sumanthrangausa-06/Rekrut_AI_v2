@@ -142,11 +142,24 @@ lib/
 └── ai-circuit-breaker.js   # Circuit breaker logic (extracted)
 ```
 
-### Database Schema Organization (Future)
-- Fix 5 tables with incorrect company_id FK
-- Clean up 43% zombie mock_interview_sessions
-- Add indexes for common query patterns
+### Database Schema Organization
+
+**✅ Completed (P0–P3, Feb 14 2026):**
+- ~~Fix 5 tables with incorrect company_id FK~~ → P0: corrected to companies.id
+- ~~Add indexes for common query patterns~~ → P1+P3: 78 FK indexes + 10 partial indexes added
+- ~~Standardize timestamp types~~ → P1+P2+P3: 227 timestamptz columns, only 2 system timestamps remain
+- ~~Add CHECK constraints for enum columns~~ → P2: 42 custom CHECK constraints
+- ~~Remove arbitrary VARCHAR limits~~ → P2: 274 varchar→TEXT, only 25 genuinely bounded remain
+- ~~Add unique constraints for data integrity~~ → P3: 36 unique constraints total (7 added in P3)
+
+**Current baseline:** 105 tables, 1,358 columns, 164 FKs, 386 indexes, 56 CHECK constraints, 36 unique constraints
+
+**Remaining (Future):**
+- Clean up 43% zombie mock_interview_sessions (in_progress with no activity)
 - Standardize `role` values (employer → recruiter)
+- Table partitioning for high-volume tables (communications, agent_data)
+- Archive strategy for old assessment_sessions / screening_sessions
+- JSONB schema validation via CHECK constraints
 
 ---
 
@@ -190,3 +203,4 @@ lib/
 | Date | Change |
 |------|--------|
 | Feb 14, 2026 | **Audit & corrections:** Updated null-safety status to completed. Added missing files (job-assessment-take.tsx, job-assessment.tsx, screening.tsx, debug/, test-camera, placeholder). Fixed all line counts to match reality. Added ai-provider.js split plan (was undocumented despite being largest backend file at 2287 lines). Added backend route splitting priorities with actual line counts. Updated Phase 1 with completion status for steps 1-3. Added Phase 4 for ai-provider.js split. Updated legacy page count (39→42). Added target for replacing placeholder routes. |
+| Feb 14, 2026 | **Schema baseline updated (P0–P3 complete):** Marked all schema hardening work as done. Updated Database Schema Organization section with completed items (FK fixes, indexes, timestamptz, CHECK constraints, varchar→TEXT, unique constraints) and remaining targets (zombie sessions, role standardization, partitioning, archiving). Added current schema baseline metrics. |

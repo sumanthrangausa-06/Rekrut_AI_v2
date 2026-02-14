@@ -4,7 +4,7 @@
 
 ## Overview
 
-HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy HTML), Express.js backend, and Neon PostgreSQL. 351 API endpoints, 75+ tables, 47 migrations. Deployed on Render.
+HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy HTML), Express.js backend, and Neon PostgreSQL. 351 API endpoints, 105 tables, 50 migrations. Deployed on Render.
 
 **Live URL:** https://hireloop-vzvw.polsia.app
 
@@ -161,23 +161,207 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 
 ---
 
-## Database (75+ tables, 47 migrations)
+## Database (105 tables, 50 migrations)
 
-### Core Domains
-- **Users & Auth:** users, oauth_refresh_tokens, sessions
-- **Candidates:** candidate_profiles, candidate_skills, candidate_experience, candidate_education
-- **Jobs:** jobs, applications, screening_questions
-- **Interviews:** interviews, interview_questions, mock_interview_sessions, mock_conversation_turns
-- **Assessments:** assessments, assessment_questions, assessment_responses, job_assessments
-- **Practice:** practice_sessions (video + text practice data)
-- **Scoring:** omniscores, trustscores
-- **Onboarding:** onboarding_documents, onboarding_plans, company_policies, i9_forms, w4_forms
-- **Payroll:** payroll_runs, paychecks, tax_configs
-- **Compliance:** bias_audit_logs, consent_records, data_access_requests
-- **AI:** ai_call_log, ai_health_snapshots, prompt_registry, ab_tests
-- **Matching:** candidate_embeddings, job_embeddings
-- **Communication:** message_templates, communication_logs
-- **Memory:** smart_profile_memory, data_reuse_suggestions
+### Schema Health Summary
+
+| Metric | Count |
+|--------|-------|
+| Tables | 105 |
+| Columns | 1,358 |
+| Foreign Keys | 164 |
+| Indexes | 386 (105 PKs + 242 custom + 39 other) |
+| Partial Indexes | 10 (status-filtered queries) |
+| CHECK Constraints | 56 (42 custom `chk_*` + 14 system) |
+| Unique Constraints | 36 |
+| TEXT columns | 373 |
+| VARCHAR columns | 25 (genuinely bounded: country_code, currency_code, phone, zip, etc.) |
+| timestamptz columns | 227 |
+| timestamp w/o tz | 2 (only `_migrations.applied_at` + `user_sessions.expire` — system tables) |
+
+**Schema pattern:** Normalized Relational (3NF) with JSONB extensions
+**Vector indexes:** 2 IVFFlat (candidate_embeddings, job_embeddings)
+**Schema hardening:** P0–P3 complete ✅ (Feb 14, 2026)
+
+### Schema Hardening History (P0–P3) ✅ ALL COMPLETE
+
+| Phase | Migration | Changes |
+|-------|-----------|---------|
+| **P0** | `041_fix_company_fk.js` | 5 company_id FK corrections (users.id → companies.id) |
+| **P1** | `042_p1_interview_flow_schema.js` | 20 timestamp→timestamptz, NOT NULL constraints, 4 FKs, 14 indexes, 5 updated_at columns |
+| **P2** | `045_p2_schema_hardening.js` | 37 CHECK constraints, 274 varchar→TEXT, 5 timestamp→timestamptz |
+| **P3** | `046_p3_schema_optimizations.js` | 64 FK indexes, 182 timestamptz conversions, 6 partial indexes, 7 unique constraints |
+
+### Domain Groups (16 groups, 105 tables)
+
+#### 1. Users & Auth (4 tables)
+| Table | Purpose | Key FKs |
+|-------|---------|---------|
+| users | Core user accounts | — |
+| refresh_tokens | JWT refresh tokens | users.id |
+| user_sessions | Active sessions | users.id |
+| oauth_connections | OAuth provider links | users.id |
+
+#### 2. Companies & Employees (4 tables)
+| Table | Purpose | Key FKs |
+|-------|---------|---------|
+| companies | Company profiles | — |
+| employees | Company employees | users.id, companies.id |
+| company_policies | HR policies | companies.id |
+| company_ratings | Company reviews | companies.id, users.id |
+
+#### 3. Jobs & Applications (6 tables)
+| Table | Purpose | Key FKs |
+|-------|---------|---------|
+| jobs | Job postings | companies.id |
+| job_applications | Applications | jobs.id, users.id |
+| job_analytics | Job performance metrics | jobs.id |
+| job_recommendations | AI job matches | users.id, jobs.id |
+| saved_jobs | User bookmarks | users.id, jobs.id |
+| job_embeddings | Vector embeddings (IVFFlat) | jobs.id |
+
+#### 4. Candidate Profiles (9 tables)
+| Table | Purpose | Key FKs |
+|-------|---------|---------|
+| candidate_profiles | Extended profiles | users.id |
+| candidate_skills | Skill tags | users.id |
+| candidate_feedback | Feedback received | users.id |
+| candidate_onboarding_data | Onboarding info | users.id |
+| candidate_embeddings | Vector embeddings (IVFFlat) | users.id |
+| education | Education history | users.id |
+| work_experience | Work history | users.id |
+| portfolio_projects | Portfolio items | users.id |
+| parsed_resumes | Resume parsing results | users.id |
+
+#### 5. Interview Flow (8 tables) — P0+P1 hardened ⭐
+| Table | Purpose | Key FKs |
+|-------|---------|---------|
+| interviews | Mock/video interviews | users.id, jobs.id |
+| scheduled_interviews | Recruiter-scheduled | companies.id, jobs.id, users.id |
+| interview_questions | Question bank | — |
+| interview_evaluations | AI/human evaluations | interviews.id, screening_sessions.id, users.id, jobs.id, companies.id |
+| interview_analysis | Per-question analysis | interviews.id |
+| interview_composite_scores | Composite scoring | interviews.id, screening_sessions.id, users.id, jobs.id, companies.id |
+| interview_reminders | Reminder scheduling | scheduled_interviews.id, users.id |
+| mock_interview_sessions | Conversational mock | users.id |
+
+#### 6. Screening & Assessment (13 tables)
+| Table | Purpose | Key FKs |
+|-------|---------|---------|
+| screening_templates | Screening question sets | companies.id |
+| screening_sessions | Active screenings | companies.id, jobs.id, users.id |
+| screening_answers | Candidate responses | screening_sessions.id |
+| assessment_sessions | Assessment sessions | — |
+| assessment_questions | Assessment questions | — |
+| assessment_conversations | Assessment chat logs | — |
+| assessment_events | Assessment events | — |
+| job_assessments | Job-specific assessments | jobs.id |
+| job_assessment_questions | Assessment question bank | job_assessments.id |
+| job_assessment_attempts | Candidate attempts | job_assessments.id, users.id |
+| skill_assessments | Skill evaluations | users.id |
+| practice_sessions | Practice sessions | users.id |
+| question_bank | Global question bank | — |
+
+#### 7. Scoring & Trust (10 tables)
+| Table | Purpose | Key FKs |
+|-------|---------|---------|
+| omni_scores | Primary scoring | users.id |
+| omniscore_results | Detailed results | users.id |
+| score_components | Score breakdowns | — |
+| score_history | Score changes | users.id |
+| score_appeals | Score appeal requests | users.id |
+| role_scores | Role-specific scores | users.id |
+| trust_scores | Trust metrics | users.id |
+| trust_score_components | Trust breakdowns | trust_scores.id |
+| trust_score_history | Trust changes | users.id |
+| document_score_impacts | Doc effect on score | — |
+
+#### 8. Offers & Onboarding (7 tables)
+| Table | Purpose | Key FKs |
+|-------|---------|---------|
+| offers | Job offers | users.id, jobs.id, companies.id |
+| offer_templates | Offer templates | companies.id |
+| onboarding_plans | Onboarding plans | users.id, companies.id |
+| onboarding_tasks | Onboarding tasks | onboarding_plans.id |
+| onboarding_checklists | Checklists | users.id |
+| onboarding_documents | Required docs | — |
+| onboarding_chats | Onboarding chat | users.id |
+
+#### 9. Communication (4 tables)
+| Table | Purpose | Key FKs |
+|-------|---------|---------|
+| communications | Message log | users.id |
+| communication_templates | Message templates | companies.id |
+| communication_sequences | Drip sequences | companies.id |
+| sequence_enrollments | Sequence tracking | users.id |
+
+#### 10. Documents & Verification (4 tables)
+| Table | Purpose | Key FKs |
+|-------|---------|---------|
+| verification_documents | ID verification | users.id |
+| verified_credentials | Credential verification | users.id |
+| document_verifications | Verification results | users.id |
+| document_access_logs | Access audit trail | users.id |
+
+#### 11. Compliance & Privacy (8 tables)
+| Table | Purpose | Key FKs |
+|-------|---------|---------|
+| consent_records | GDPR consent | users.id |
+| data_requests | Data export/delete | users.id |
+| data_retention_policies | Retention rules | companies.id |
+| country_configs | Country regulations | — |
+| country_document_types | Required docs by country | — |
+| bias_reports | Bias detection | — |
+| fairness_audits | Fairness monitoring | — |
+| audit_logs | System audit trail | — |
+
+#### 12. Payroll (6 tables)
+| Table | Purpose | Key FKs |
+|-------|---------|---------|
+| payroll_configs | Payroll settings | companies.id |
+| payroll_runs | Payroll cycles | companies.id |
+| pay_periods | Pay periods | payroll_configs.id |
+| paychecks | Individual paychecks | employees.id |
+| tax_documents | Tax forms | users.id |
+| employee_benefits | Benefits | employees.id |
+
+#### 13. AI Infrastructure (9 tables)
+| Table | Purpose | Key FKs |
+|-------|---------|---------|
+| ai_prompts | Prompt storage | — |
+| ai_prompt_versions | Prompt versioning | ai_prompts.id |
+| ai_call_log | API call tracking | — |
+| ai_token_budget_daily | Token budgets | — |
+| ai_ab_tests | A/B test configs | — |
+| ai_agent_actions | Agent action log | — |
+| ai_provider_stats | Provider metrics | — |
+| ai_provider_verification | Provider health | — |
+| ai_verification_meta | Verification metadata | — |
+
+#### 14. Matching & Recommendations (7 tables)
+| Table | Purpose | Key FKs |
+|-------|---------|---------|
+| match_results | Match scores | users.id, jobs.id |
+| mutual_matches | Mutual interest | users.id, jobs.id |
+| recruiter_preferences | Recruiter criteria | users.id |
+| recruiter_feedback | Recruiter feedback | users.id |
+| pipeline_automation_rules | Pipeline rules | companies.id |
+| scheduling_preferences | Scheduling prefs | users.id |
+| post_hire_feedback | Post-hire reviews | users.id |
+
+#### 15. Memory & Context (2 tables)
+| Table | Purpose | Key FKs |
+|-------|---------|---------|
+| user_memory | User memory/context | users.id |
+| tts_cache | TTS audio cache | — |
+
+#### 16. System (4 tables)
+| Table | Purpose |
+|-------|---------|
+| _migrations | Migration tracking |
+| activity_log | User activity |
+| events | System events |
+| agent_data | Agent SDK data storage |
 
 ---
 
@@ -213,7 +397,11 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 - 42 legacy HTML pages still served alongside React SPA
 - ~~`JSON.parse()` of AI responses can return null~~ **FIXED Feb 14** — `generateInterviewCoaching` and `analyzeInterviewResponse` now validate parsed results are objects
 - 43% of mock_interview_sessions stuck in_progress (zombie records)
-- 5 tables have company_id FK pointing to users instead of companies
+- ~~5 tables have company_id FK pointing to users instead of companies~~ **FIXED Feb 14 (P0)** — corrected to companies.id
+- ~~Missing FK indexes for common queries~~ **FIXED Feb 14 (P1+P3)** — 78 FK indexes added
+- ~~274 arbitrary VARCHAR limits~~ **FIXED Feb 14 (P2)** — converted to TEXT, only 25 genuinely bounded VARCHARs remain
+- ~~Mixed timestamp/timestamptz~~ **FIXED Feb 14 (P1+P2+P3)** — 227 timestamptz columns, only 2 system-table timestamps remain
+- ~~Missing CHECK constraints on enums~~ **FIXED Feb 14 (P2)** — 42 custom CHECK constraints enforcing valid enum values
 - 3 placeholder routes (candidate/documents, recruiter/candidates, recruiter/analytics) with no real implementation
 - No E2E test suite
 - No TypeScript on backend (pure JS)
@@ -225,3 +413,4 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 | Date | Change |
 |------|--------|
 | Feb 14, 2026 | **Audit & corrections:** Fixed page count (23→36 files/42 routes), added 8 missing candidate routes, 5 missing recruiter routes, 6 missing utility/debug routes. Fixed endpoint count (322→351). Verified migration count (47 correct — 44 numbered sequences with 3 duplicates at 003, 005, 040). Fixed HTML page count (39→42). Corrected all service/lib line counts (many were dramatically wrong — e.g. ai-provider.js was listed as 930 lines but is actually 2287). Added missing services (auditLogger.js, memory-service.js). Moved memory-service.js from lib/ to services/ where it actually lives. Added missing lib (self-hosted-audio.js). Added missing feature component (ai-onboarding-recruiter.tsx). Added route line counts. Identified additional monolith files (interviews.js, onboarding.js, polsia-ai.js). |
+| Feb 14, 2026 | **Schema hardening (P0–P3 complete):** Merged detailed schema reference from DATABASE_SCHEMA.md into this doc. Updated table count (75+→105), migration count (47→50), added full schema health metrics. Documented all 16 domain groups with 105 tables, 164 FKs, 386 indexes, 56 CHECK constraints, 36 unique constraints. Marked P0–P3 schema hardening as complete: P0 (5 FK corrections), P1 (interview flow: 20 timestamptz + NOT NULL + 4 FKs + 14 indexes), P2 (37 CHECK constraints + 274 varchar→TEXT + 5 timestamptz), P3 (64 FK indexes + 182 timestamptz + 6 partial indexes + 7 unique constraints). Updated tech debt section. |

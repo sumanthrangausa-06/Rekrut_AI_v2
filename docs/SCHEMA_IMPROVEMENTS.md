@@ -1,6 +1,6 @@
 # Schema Improvements Roadmap
 
-> Last updated: 2026-02-14 (after P2 fixes)
+> Last updated: 2026-02-14 (after P0–P3 complete)
 
 ## Overview
 
@@ -11,7 +11,7 @@ This document tracks all schema improvement tasks for the HireLoop/Rekrut AI dat
 | **P0** | FK corruption (5 tables) | ✅ RESOLVED | `041_fix_company_fk.js` | 2026-02-14 |
 | **P1** | Interview flow & timezone | ✅ RESOLVED | `042_p1_interview_flow_schema.js` | 2026-02-14 |
 | **P2** | CHECK constraints, varchar→TEXT, timestamptz | ✅ RESOLVED | `045_p2_schema_hardening.js` | 2026-02-14 |
-| **P3** | Nice-to-have optimizations | 🔲 OPEN | — | — |
+| **P3** | Performance optimizations | ✅ RESOLVED | `046_p3_schema_optimizations.js` | 2026-02-14 |
 
 ---
 
@@ -119,11 +119,25 @@ Used `AT TIME ZONE 'UTC'` for safe conversion of existing data.
 
 ---
 
-## P3 — Nice-to-Have Optimizations 🔲 OPEN
+## P3 — Performance Optimizations ✅ RESOLVED
 
-Lower priority items for future consideration:
-- Partial indexes for common filtered queries
-- Composite indexes for multi-column WHERE clauses
+**Migration**: `046_p3_schema_optimizations.js`
+**Deployed**: 2026-02-14 (commit 7b01987)
+
+**Fixes applied**:
+- **FK Indexes**: +64 indexes on foreign key columns for join performance
+- **Timestamp standardization**: 182 columns migrated from `timestamp` → `timestamptz` (only 2 system-table timestamps remain: `_migrations.applied_at`, `user_sessions.expire`)
+- **Partial indexes**: +6 for status-filtered queries (active jobs, pending interviews, active screening sessions, pending offers, active refresh tokens, unsent interview reminders)
+- **Unique constraints**: +7 for data integrity (composite uniqueness on match_results, mutual_matches, recruiter_feedback, etc.)
+
+**Post-P3 schema totals**: 105 tables, 1,358 columns, 164 FKs, 386 indexes (incl. 10 partial), 56 CHECK constraints, 36 unique constraints
+
+---
+
+## Future Considerations (Post-P3)
+
+Lower priority items not addressed by P0–P3:
 - Table partitioning for high-volume tables (communications, agent_data)
 - Archive strategy for old assessment_sessions / screening_sessions
 - JSONB schema validation via CHECK constraints
+- Zombie mock_interview_sessions cleanup (43% stuck in_progress)
