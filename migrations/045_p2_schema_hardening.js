@@ -9,9 +9,9 @@ module.exports = {
   name: 'p2_schema_hardening',
   up: async (client) => {
 
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
     // SECTION 1: screening_sessions timestamp → timestamptz
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
     await client.query(`
       ALTER TABLE screening_sessions
         ALTER COLUMN invited_at TYPE timestamptz USING invited_at AT TIME ZONE 'UTC',
@@ -21,9 +21,9 @@ module.exports = {
         ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC'
     `);
 
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
     // SECTION 2: varchar → TEXT conversions (274 columns)
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
     const textConversions = {
       activity_log: ['category','event_type','ip_address','severity','user_email'],
       agent_data: ['type'],
@@ -123,10 +123,10 @@ module.exports = {
       await client.query(`ALTER TABLE "${table}" ${alterClauses}`);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
     // SECTION 3: CHECK constraints
     // All values verified against live data 2026-02-14
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
 
     // --- Core domain ---
     await client.query(`
@@ -196,7 +196,7 @@ module.exports = {
     // --- Candidate & profiles ---
     await client.query(`
       ALTER TABLE candidate_profiles ADD CONSTRAINT chk_candidate_profiles_availability
-        CHECK (availability IS NULL OR availability IN ('immediately','two_weeks','one_month','three_months','not_available'));
+        CHECK (availability IS NULL OR availability IN ('immediately','2 weeks','two_weeks','1 month','one_month','3 months','three_months','not_available'));
       ALTER TABLE candidate_profiles ADD CONSTRAINT chk_candidate_profiles_remote_preference
         CHECK (remote_preference IS NULL OR remote_preference IN ('remote','hybrid','onsite','flexible'));
       ALTER TABLE candidate_profiles ADD CONSTRAINT chk_candidate_profiles_work_authorization
