@@ -6,9 +6,10 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { AiOnboardingRecruiter } from '@/components/ai-onboarding-recruiter'
 import {
   Users, FileText, CheckCircle, Clock, AlertCircle, Search,
-  Download, Eye, ChevronRight, BarChart3, Loader2,
+  Download, Eye, ChevronRight, BarChart3, Loader2, Sparkles,
   User, Building2, Mail, RefreshCw, XCircle, ArrowLeft,
   ClipboardCheck, TrendingUp, Timer, UserCheck,
 } from 'lucide-react'
@@ -65,6 +66,7 @@ export function RecruiterOnboardingPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [error, setError] = useState('')
+  const [activeTab, setActiveTab] = useState('employees')
 
   // Detail view
   const [selectedCandidate, setSelectedCandidate] = useState<OnboardingCandidate | null>(null)
@@ -300,6 +302,27 @@ export function RecruiterOnboardingPage() {
         </p>
       </div>
 
+      {/* Tab Navigation */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="employees" className="gap-1.5">
+            <ClipboardCheck className="h-4 w-4" /> Employees
+          </TabsTrigger>
+          <TabsTrigger value="ai-plans" className="gap-1.5">
+            <Sparkles className="h-4 w-4" /> AI Plans
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="ai-plans">
+          <AiOnboardingRecruiter />
+        </TabsContent>
+
+        <TabsContent value="employees">
+        </TabsContent>
+      </Tabs>
+
+      {activeTab !== 'employees' ? null : (
+      <>
       {/* Analytics cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
@@ -488,6 +511,8 @@ export function RecruiterOnboardingPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+      </>
       )}
     </div>
   )
