@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate AI Coaching page - find root cause",
+    "status": "completed",
+    "activeForm": "Investigating AI Coaching page bug"
+  },
+  {
+    "content": "Fix TDZ bug: move loadMockSessions before its useEffect",
+    "status": "completed",
+    "activeForm": "Fixing loadMockSessions TDZ ordering bug"
+  },
+  {
+    "content": "Rebuild client and deploy",
+    "status": "in_progress",
+    "activeForm": "Rebuilding and deploying"
+  },
+  {
+    "content": "Verify fix is working in production",
+    "status": "pending",
+    "activeForm": "Verifying fix in production"
+  }
+]
