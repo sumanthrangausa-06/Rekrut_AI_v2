@@ -1577,7 +1577,30 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
     })();
   } catch (err) {
     console.error('End mock interview error:', err);
-    res.status(500).json({ error: 'Failed to generate feedback' });
+    // SAFETY NET: Always mark session completed even if everything else fails
+    try {
+      const sessionId = req.params.sessionId;
+      const safetyFeedback = {
+        overall_score: 5,
+        interview_readiness: 'almost_ready',
+        summary: 'Your interview feedback could not be fully generated due to a temporary issue. Please try another interview — your practice still counts!',
+        strengths: ['You showed up and practiced'],
+        improvements: ['Try again for detailed AI feedback'],
+        question_scores: [],
+        star_method_usage: { score: 5, feedback: 'Unavailable' },
+        communication_quality: { score: 5, feedback: 'Unavailable' },
+        technical_depth: { score: 5, feedback: 'Unavailable' },
+        top_tip: 'Keep practicing — consistency is key!'
+      };
+      await pool.query(
+        `UPDATE mock_interview_sessions SET status = 'completed', overall_score = 5, overall_feedback = $1, completed_at = NOW() WHERE id = $2 AND status = 'in_progress'`,
+        [JSON.stringify(safetyFeedback), sessionId]
+      );
+      return res.json({ success: true, feedback: safetyFeedback, session: { id: parseInt(sessionId) } });
+    } catch (safetyErr) {
+      console.error('Safety net also failed:', safetyErr.message);
+    }
+    res.status(500).json({ error: 'Failed to generate feedback. Please try again.' });
   }
 });
 

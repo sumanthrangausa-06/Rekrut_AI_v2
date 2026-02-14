@@ -645,13 +645,13 @@ export function AiCoachingPage() {
   useEffect(() => {
     async function init() {
       setLoading(true)
-      await Promise.all([loadStats(), loadQuestions(), loadProgress()])
+      await Promise.all([loadStats(), loadQuestions(), loadProgress(), loadHistory(), loadMockSessions()])
       setLoading(false)
     }
     init()
-  }, [loadStats, loadQuestions, loadProgress])
+  }, [loadStats, loadQuestions, loadProgress, loadHistory, loadMockSessions])
 
-  // Load history when switching to history tab
+  // Refresh history when switching to history tab
   useEffect(() => {
     if (tab === 'history') loadHistory()
   }, [tab, loadHistory])
