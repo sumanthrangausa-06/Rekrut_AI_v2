@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Fix Anthropic provider init + set POLSIA_API_URL",
+    "status": "completed",
+    "activeForm": "Fixing Anthropic provider initialization"
+  },
+  {
+    "content": "Add resilient error handling to video analysis pipeline",
+    "status": "completed",
+    "activeForm": "Adding resilient error handling to video analysis"
+  },
+  {
+    "content": "Fix frontend error display and session history loading",
+    "status": "completed",
+    "activeForm": "Fixing frontend error display and history loading"
+  },
+  {
+    "content": "Fix mock interview end safety + add status guard",
+    "status": "completed",
+    "activeForm": "Fixing mock interview end safety"
+  },
+  {
+    "content": "Build and deploy Phase 1 fixes",
+    "status": "in_progress",
+    "activeForm": "Building and deploying Phase 1"
+  },
+  {
+    "content": "Verify all three bugs are resolved",
+    "status": "pending",
+    "activeForm": "Verifying all bugs are resolved"
+  }
+]
