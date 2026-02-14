@@ -2366,4 +2366,754 @@ Be friendly, helpful, and direct. If you don't know something, say so and sugges
   }
 }
 
+// ============================================
+// AI ONBOARDING PLAN GENERATOR (Phase 1)
+// ============================================
+
+// Generate an AI onboarding plan for a new hire
+router.post('/generate-plan', authMiddleware, async (req, res) => {
+  try {
+    const { candidate_id, job_id, role_title, department, offer_id } = req.body;
+
+    if (!role_title) {
+      return res.status(400).json({ error: 'role_title is required' });
+    }
+
+    // Get job details if provided
+    let jobContext = '';
+    if (job_id) {
+      const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [job_id]);
+      if (job.rows.length > 0) {
+        const j = job.rows[0];
+        jobContext = `\nJob Title: ${j.title}\nDescription: ${(j.description || '').substring(0, 500)}\nLocation: ${j.location || 'Not specified'}\nRequirements: ${(j.requirements || '').substring(0, 300)}`;
+      }
+    }
+
+    // Get candidate info if provided
+    let candidateContext = '';
+    if (candidate_id) {
+      const cand = await pool.query('SELECT name, email FROM users WHERE id = $1', [candidate_id]);
+      if (cand.rows.length > 0) {
+        candidateContext = `\nNew Hire Name: ${cand.rows[0].name}\nEmail: ${cand.rows[0].email}`;
+      }
+    }
+
+    const prompt = `Generate a comprehensive onboarding plan for a new "${role_title}" hire${department ? ` in the ${department} department` : ''}.
+${jobContext}${candidateContext}
+
+Create a structured onboarding plan with tasks organized into 3 phases:
+
+PHASE 1 - DAY 1 (First Day):
+- Paperwork and compliance (tax forms, ID verification, NDA signing)
+- Account and tool setup (email, Slack, VPN, development environment if technical)
+- Welcome introductions (team meet & greet, buddy assignment)
+- Office tour / remote workspace setup
+
+PHASE 2 - WEEK 1 (Days 2-5):
+- Training modules specific to the role
+- Team meetings and 1:1 with manager
+- Tool access and permissions setup
+- Initial project orientation
+- Company culture and values walkthrough
+
+PHASE 3 - MONTH 1 (Weeks 2-4):
+- First project assignment or contribution
+- Mentor check-ins (weekly)
+- Cross-team introductions
+- Performance expectations review
+- 30-day feedback session
+
+IMPORTANT: Customize tasks based on the role. A Software Engineer needs dev environment setup, code review intro, CI/CD orientation. A Sales rep needs CRM training, product demos, territory assignment. An HR person needs HRIS training, policy review, compliance certification.
+
+Return a JSON object:
+{
+  "plan_summary": "2-3 sentence overview of the plan",
+  "total_tasks": number,
+  "phases": [
+    {
+      "name": "day_1",
+      "label": "Day 1 — Welcome & Setup",
+      "tasks": [
+        {
+          "title": "Task title",
+          "description": "1-2 sentence description",
+          "category": "paperwork|setup|introductions|training|project|review",
+          "assigned_to": "new_hire|hr|manager|it|buddy",
+          "is_required": true,
+          "sort_order": 1,
+          "depends_on_indices": []
+        }
+      ]
+    },
+    {
+      "name": "week_1",
+      "label": "Week 1 — Learning & Integration",
+      "tasks": [...]
+    },
+    {
+      "name": "month_1",
+      "label": "Month 1 — Contribution & Growth",
+      "tasks": [...]
+    }
+  ],
+  "milestones": [
+    { "day": 1, "title": "First day complete", "description": "..." },
+    { "day": 5, "title": "Week 1 complete", "description": "..." },
+    { "day": 30, "title": "Onboarding complete", "description": "..." }
+  ]
+}
+
+Generate 8-12 tasks for Day 1, 8-10 for Week 1, and 6-8 for Month 1.
+Only return the JSON object, no other text.`;
+
+    const result = await polsiaAI.chat(prompt, {
+      system: 'You are an expert HR onboarding specialist. Generate role-specific, practical onboarding plans. Always return valid JSON.',
+      module: 'onboarding', feature: 'plan_generation'
+    });
+
+    const planData = polsiaAI.safeParseJSON(result);
+    if (!planData || !planData.phases) {
+      return res.status(500).json({ error: 'Failed to generate plan — AI returned invalid format' });
+    }
+
+    // Calculate target completion (30 days from now)
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + 30);
+
+    // Insert the plan
+    const planResult = await pool.query(
+      `INSERT INTO onboarding_plans
+       (company_id, candidate_id, offer_id, job_id, role_title, department,
+        plan_data, total_tasks, target_completion, created_by, started_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+       RETURNING *`,
+      [
+        req.user.company_id || req.user.id,
+        candidate_id || null,
+        offer_id || null,
+        job_id || null,
+        role_title,
+        department || null,
+        JSON.stringify(planData),
+        planData.total_tasks || 0,
+        targetDate,
+        req.user.id
+      ]
+    );
+
+    const plan = planResult.rows[0];
+
+    // Insert individual tasks
+    let totalInserted = 0;
+    for (const phase of planData.phases) {
+      for (const task of (phase.tasks || [])) {
+        await pool.query(
+          `INSERT INTO onboarding_tasks
+           (plan_id, title, description, phase, day_range, category, assigned_to,
+            is_required, sort_order, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')`,
+          [
+            plan.id,
+            task.title,
+            task.description || '',
+            phase.name,
+            phase.name === 'day_1' ? 'Day 1' : phase.name === 'week_1' ? 'Days 2-5' : 'Weeks 2-4',
+            task.category || 'general',
+            task.assigned_to || 'new_hire',
+            task.is_required !== false,
+            task.sort_order || totalInserted
+          ]
+        );
+        totalInserted++;
+      }
+    }
+
+    // Update total tasks count
+    await pool.query(
+      'UPDATE onboarding_plans SET total_tasks = $1 WHERE id = $2',
+      [totalInserted, plan.id]
+    );
+
+    res.json({
+      success: true,
+      plan: { ...plan, total_tasks: totalInserted },
+      plan_data: planData
+    });
+  } catch (err) {
+    console.error('Error generating onboarding plan:', err);
+    res.status(500).json({ error: 'Failed to generate onboarding plan' });
+  }
+});
+
+// Get an onboarding plan with tasks
+router.get('/:id/plan', authMiddleware, async (req, res) => {
+  try {
+    const planId = parseInt(req.params.id);
+    const plan = await pool.query(
+      `SELECT op.*, u.name as candidate_name, u.email as candidate_email
+       FROM onboarding_plans op
+       LEFT JOIN users u ON op.candidate_id = u.id
+       WHERE op.id = $1 AND (op.company_id = $2 OR op.candidate_id = $3)`,
+      [planId, req.user.company_id || req.user.id, req.user.id]
+    );
+
+    if (plan.rows.length === 0) {
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+
+    // Get all tasks for this plan
+    const tasks = await pool.query(
+      `SELECT * FROM onboarding_tasks WHERE plan_id = $1 ORDER BY sort_order, created_at`,
+      [planId]
+    );
+
+    // Group tasks by phase
+    const tasksByPhase = {};
+    for (const task of tasks.rows) {
+      if (!tasksByPhase[task.phase]) tasksByPhase[task.phase] = [];
+      tasksByPhase[task.phase].push(task);
+    }
+
+    // Calculate progress
+    const total = tasks.rows.length;
+    const completed = tasks.rows.filter(t => t.status === 'completed').length;
+    const progressPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    res.json({
+      ...plan.rows[0],
+      progress_pct: progressPct,
+      completed_tasks: completed,
+      total_tasks: total,
+      tasks_by_phase: tasksByPhase,
+      tasks: tasks.rows
+    });
+  } catch (err) {
+    console.error('Error fetching plan:', err);
+    res.status(500).json({ error: 'Failed to fetch onboarding plan' });
+  }
+});
+
+// List all plans (for recruiter/HR view)
+router.get('/plans/list', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT op.*,
+        u.name as candidate_name,
+        u.email as candidate_email,
+        (SELECT COUNT(*) FROM onboarding_tasks WHERE plan_id = op.id AND status = 'completed') as completed_count,
+        (SELECT COUNT(*) FROM onboarding_tasks WHERE plan_id = op.id) as total_count
+       FROM onboarding_plans op
+       LEFT JOIN users u ON op.candidate_id = u.id
+       WHERE op.company_id = $1
+       ORDER BY op.created_at DESC`,
+      [req.user.company_id || req.user.id]
+    );
+
+    const plans = result.rows.map(p => ({
+      ...p,
+      progress_pct: p.total_count > 0 ? Math.round((p.completed_count / p.total_count) * 100) : 0
+    }));
+
+    res.json(plans);
+  } catch (err) {
+    console.error('Error listing plans:', err);
+    res.status(500).json({ error: 'Failed to list onboarding plans' });
+  }
+});
+
+// Complete a task in a plan
+router.post('/tasks/:taskId/complete', authMiddleware, async (req, res) => {
+  try {
+    const taskId = parseInt(req.params.taskId);
+    const { notes } = req.body;
+
+    // Check dependencies
+    const task = await pool.query('SELECT * FROM onboarding_tasks WHERE id = $1', [taskId]);
+    if (task.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    const t = task.rows[0];
+    if (t.depends_on && t.depends_on.length > 0) {
+      const deps = await pool.query(
+        'SELECT id, status FROM onboarding_tasks WHERE id = ANY($1)',
+        [t.depends_on]
+      );
+      const incomplete = deps.rows.filter(d => d.status !== 'completed');
+      if (incomplete.length > 0) {
+        return res.status(400).json({
+          error: 'Cannot complete — dependent tasks not finished',
+          blocking_tasks: incomplete.map(d => d.id)
+        });
+      }
+    }
+
+    // Mark complete
+    await pool.query(
+      `UPDATE onboarding_tasks
+       SET status = 'completed', completed_at = NOW(), completed_by = $1, notes = $2, updated_at = NOW()
+       WHERE id = $3`,
+      [req.user.id, notes || null, taskId]
+    );
+
+    // Update plan progress
+    const planTasks = await pool.query(
+      `SELECT status FROM onboarding_tasks WHERE plan_id = $1`,
+      [t.plan_id]
+    );
+    const total = planTasks.rows.length;
+    const completed = planTasks.rows.filter(pt => pt.status === 'completed').length;
+    const pct = total > 0 ? Math.round((completed / total) * 100 * 100) / 100 : 0;
+
+    await pool.query(
+      `UPDATE onboarding_plans
+       SET progress_pct = $1, completed_tasks = $2, updated_at = NOW()
+       ${pct >= 100 ? ", completed_at = NOW(), status = 'completed'" : ''}
+       WHERE id = $3`,
+      [pct, completed, t.plan_id]
+    );
+
+    res.json({ success: true, task_id: taskId, plan_progress: pct });
+  } catch (err) {
+    console.error('Error completing task:', err);
+    res.status(500).json({ error: 'Failed to complete task' });
+  }
+});
+
+// ============================================
+// AI ONBOARDING CHATBOT + PROGRESS (Phase 2)
+// ============================================
+
+// Enhanced chatbot with plan awareness + memory
+router.post('/chat', authMiddleware, async (req, res) => {
+  try {
+    const { message, plan_id } = req.body;
+    if (!message) return res.status(400).json({ error: 'message is required' });
+
+    // Get or create chat session for this plan
+    let session = await pool.query(
+      `SELECT * FROM onboarding_chats
+       WHERE candidate_id = $1 AND ${plan_id ? 'plan_id = $2' : 'plan_id IS NULL'} AND is_active = true
+       ORDER BY session_started DESC LIMIT 1`,
+      plan_id ? [req.user.id, plan_id] : [req.user.id]
+    );
+
+    let sessionId, messages = [], contextMemory = {};
+
+    if (session.rows.length === 0) {
+      const newSession = await pool.query(
+        `INSERT INTO onboarding_chats (candidate_id, plan_id, messages, context_memory, total_messages)
+         VALUES ($1, $2, '[]', '{}', 0) RETURNING *`,
+        [req.user.id, plan_id || null]
+      );
+      sessionId = newSession.rows[0].id;
+    } else {
+      sessionId = session.rows[0].id;
+      messages = session.rows[0].messages || [];
+      contextMemory = session.rows[0].context_memory || {};
+    }
+
+    // Gather context: plan progress, pending tasks, company policies
+    let planContext = '';
+    if (plan_id) {
+      const plan = await pool.query('SELECT * FROM onboarding_plans WHERE id = $1', [plan_id]);
+      if (plan.rows.length > 0) {
+        const p = plan.rows[0];
+        planContext += `\nOnboarding Plan: ${p.role_title} (${p.progress_pct}% complete)`;
+
+        const tasks = await pool.query(
+          `SELECT title, phase, status, category, assigned_to FROM onboarding_tasks
+           WHERE plan_id = $1 ORDER BY sort_order`,
+          [plan_id]
+        );
+
+        const pending = tasks.rows.filter(t => t.status === 'pending');
+        const completed = tasks.rows.filter(t => t.status === 'completed');
+        const inProgress = tasks.rows.filter(t => t.status === 'in_progress');
+
+        planContext += `\nTotal tasks: ${tasks.rows.length}, Completed: ${completed.length}, In Progress: ${inProgress.length}, Pending: ${pending.length}`;
+        planContext += `\n\nPENDING TASKS (what the new hire needs to do next):`;
+        pending.slice(0, 8).forEach((t, i) => {
+          planContext += `\n${i + 1}. [${t.phase}] ${t.title} (assigned to: ${t.assigned_to})`;
+        });
+
+        if (completed.length > 0) {
+          planContext += `\n\nRECENTLY COMPLETED:`;
+          completed.slice(-3).forEach(t => {
+            planContext += `\n✓ ${t.title}`;
+          });
+        }
+      }
+    }
+
+    // Get company policies
+    let policyContext = '';
+    try {
+      const policies = await pool.query(
+        'SELECT category, title, content FROM company_policies WHERE is_active = true ORDER BY category LIMIT 10'
+      );
+      if (policies.rows.length > 0) {
+        policyContext = '\n\nCOMPANY POLICIES:\n' + policies.rows.map(p =>
+          `${p.category}: ${p.title} — ${(p.content || '').substring(0, 200)}`
+        ).join('\n');
+      }
+    } catch (e) { /* table may not exist */ }
+
+    // Get user/org info
+    let orgContext = '';
+    try {
+      const user = await pool.query('SELECT name, email, role FROM users WHERE id = $1', [req.user.id]);
+      if (user.rows.length > 0) {
+        orgContext = `\nEmployee: ${user.rows[0].name} (${user.rows[0].email})`;
+      }
+      // Get manager info from the plan's offer
+      if (plan_id) {
+        const offerInfo = await pool.query(
+          `SELECT o.reporting_to, o.company_name, j.title as job_title
+           FROM onboarding_plans op
+           LEFT JOIN offers o ON op.offer_id = o.id
+           LEFT JOIN jobs j ON op.job_id = j.id
+           WHERE op.id = $1`,
+          [plan_id]
+        );
+        if (offerInfo.rows.length > 0 && offerInfo.rows[0].reporting_to) {
+          orgContext += `\nManager: ${offerInfo.rows[0].reporting_to}`;
+          orgContext += `\nCompany: ${offerInfo.rows[0].company_name || 'The Company'}`;
+        }
+      }
+    } catch (e) { /* non-fatal */ }
+
+    // Memory context — what we remember from past conversations
+    const memoryStr = Object.keys(contextMemory).length > 0
+      ? `\n\nMEMORY FROM PREVIOUS CONVERSATIONS:\n${JSON.stringify(contextMemory)}`
+      : '';
+
+    // Build messages for AI
+    const recentMessages = messages.slice(-10); // Keep last 10 for context window
+    recentMessages.push({ role: 'user', content: message, timestamp: new Date().toISOString() });
+
+    const systemPrompt = `You are an AI onboarding assistant helping a new employee through their onboarding process. You are friendly, knowledgeable, and proactive.
+${orgContext}${planContext}${policyContext}${memoryStr}
+
+YOUR CAPABILITIES:
+- Answer questions about onboarding tasks, company policies, who to contact
+- Show what tasks are pending and what to do next
+- Guide through document submission, tool setup, and introductions
+- Remember context from previous conversations
+- Proactively suggest next steps based on progress
+
+GUIDELINES:
+- Be conversational and encouraging, not robotic
+- If asked "what do I need to do today?", list pending tasks with clear next actions
+- If asked about a person (manager, buddy, HR), provide context from org data
+- If you don't know something specific, say so and suggest contacting HR
+- Keep responses concise (2-4 paragraphs max)
+- Use markdown for formatting (bold for emphasis, bullet lists for tasks)`;
+
+    const aiMessages = [
+      { role: 'system', content: systemPrompt },
+      ...recentMessages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }))
+    ];
+
+    const aiResponse = await polsiaAI.chat(aiMessages, {
+      max_tokens: 1024,
+      module: 'onboarding', feature: 'smart_chatbot'
+    });
+
+    // Update memory — extract key facts from conversation
+    const updatedMemory = { ...contextMemory };
+    if (message.toLowerCase().includes('prefer') || message.toLowerCase().includes('style')) {
+      updatedMemory.preferences = (updatedMemory.preferences || '') + ' ' + message.substring(0, 200);
+    }
+    updatedMemory.last_topic = message.substring(0, 100);
+    updatedMemory.last_active = new Date().toISOString();
+    updatedMemory.message_count = (updatedMemory.message_count || 0) + 1;
+
+    // Save to session
+    recentMessages.push({ role: 'assistant', content: aiResponse, timestamp: new Date().toISOString() });
+    const allMessages = [...messages.slice(0, -10), ...recentMessages]; // Keep full history
+
+    await pool.query(
+      `UPDATE onboarding_chats
+       SET messages = $1, context_memory = $2, last_activity = NOW(),
+           total_messages = $3
+       WHERE id = $4`,
+      [JSON.stringify(allMessages.slice(-50)), JSON.stringify(updatedMemory), allMessages.length, sessionId]
+    );
+
+    res.json({
+      response: aiResponse,
+      session_id: sessionId,
+      plan_progress: plan_id ? undefined : null
+    });
+  } catch (err) {
+    console.error('Error in AI onboarding chat:', err);
+    res.status(500).json({ error: 'Failed to process chat message' });
+  }
+});
+
+// Get onboarding progress for a plan
+router.get('/:id/progress', authMiddleware, async (req, res) => {
+  try {
+    const planId = parseInt(req.params.id);
+
+    const plan = await pool.query(
+      `SELECT op.*, u.name as candidate_name
+       FROM onboarding_plans op
+       LEFT JOIN users u ON op.candidate_id = u.id
+       WHERE op.id = $1 AND (op.company_id = $2 OR op.candidate_id = $3)`,
+      [planId, req.user.company_id || req.user.id, req.user.id]
+    );
+
+    if (plan.rows.length === 0) {
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+
+    // Get tasks grouped by phase
+    const tasks = await pool.query(
+      `SELECT * FROM onboarding_tasks WHERE plan_id = $1 ORDER BY sort_order`,
+      [planId]
+    );
+
+    const phases = {};
+    for (const t of tasks.rows) {
+      if (!phases[t.phase]) {
+        phases[t.phase] = { total: 0, completed: 0, tasks: [] };
+      }
+      phases[t.phase].total++;
+      if (t.status === 'completed') phases[t.phase].completed++;
+      phases[t.phase].tasks.push(t);
+    }
+
+    // Phase progress
+    const phaseProgress = Object.entries(phases).map(([name, data]) => ({
+      phase: name,
+      total: data.total,
+      completed: data.completed,
+      progress_pct: data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0,
+      tasks: data.tasks
+    }));
+
+    // Find next action items
+    const nextActions = tasks.rows
+      .filter(t => t.status === 'pending' && t.assigned_to === 'new_hire')
+      .slice(0, 5);
+
+    // Overdue check
+    const today = new Date();
+    const startDate = new Date(plan.rows[0].started_at || plan.rows[0].created_at);
+    const daysSinceStart = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
+
+    const overdueTasks = tasks.rows.filter(t => {
+      if (t.status === 'completed') return false;
+      if (t.phase === 'day_1' && daysSinceStart > 1) return true;
+      if (t.phase === 'week_1' && daysSinceStart > 7) return true;
+      return false;
+    });
+
+    const total = tasks.rows.length;
+    const completed = tasks.rows.filter(t => t.status === 'completed').length;
+
+    res.json({
+      plan: plan.rows[0],
+      overall_progress: total > 0 ? Math.round((completed / total) * 100) : 0,
+      total_tasks: total,
+      completed_tasks: completed,
+      days_since_start: daysSinceStart,
+      phase_progress: phaseProgress,
+      next_actions: nextActions,
+      overdue_tasks: overdueTasks,
+      is_on_track: overdueTasks.length === 0
+    });
+  } catch (err) {
+    console.error('Error fetching progress:', err);
+    res.status(500).json({ error: 'Failed to fetch progress' });
+  }
+});
+
+// ============================================
+// DOCUMENT INTELLIGENCE (Phase 3)
+// ============================================
+
+// Process an uploaded document with AI
+router.post('/documents/process', authMiddleware, async (req, res) => {
+  try {
+    const { document_id, document_url, document_type, plan_id } = req.body;
+
+    if (!document_url && !document_id) {
+      return res.status(400).json({ error: 'document_url or document_id required' });
+    }
+
+    // If document_id provided, get existing document
+    let docUrl = document_url;
+    let docType = document_type;
+    let docId = document_id;
+
+    if (document_id) {
+      const doc = await pool.query('SELECT * FROM onboarding_documents WHERE id = $1', [document_id]);
+      if (doc.rows.length === 0) return res.status(404).json({ error: 'Document not found' });
+      docUrl = doc.rows[0].document_url;
+      docType = doc.rows[0].document_type;
+    }
+
+    // AI analysis prompt based on document type
+    const typeInstructions = {
+      'id_document': 'Extract: full name, date of birth, document number, expiration date, issuing authority. Flag if expired.',
+      'tax_form': 'Extract: filing status, exemptions, additional withholding, SSN last 4 (mask rest). Validate completeness of W-4 fields.',
+      'contract': 'Extract: parties involved, start date, compensation, key terms, termination clauses. Flag missing signatures.',
+      'nda': 'Extract: parties, effective date, confidentiality scope, duration, penalties. Check for signature.',
+      'direct_deposit': 'Extract: bank name, routing number (partial), account type. Validate form completeness.',
+      'emergency_contact': 'Extract: contact name, relationship, phone numbers. Flag if incomplete.',
+      'benefits_enrollment': 'Extract: selected plans, dependents, effective date. Note any elections.',
+      'default': 'Extract key information, identify document type, and flag any issues or missing fields.'
+    };
+
+    const instruction = typeInstructions[docType] || typeInstructions['default'];
+
+    const prompt = `Analyze this onboarding document.
+Document Type: ${docType || 'unknown'}
+Document URL: ${docUrl}
+
+${instruction}
+
+Return a JSON object:
+{
+  "document_type_detected": "what type of document this appears to be",
+  "extracted_data": {
+    "key fields extracted from the document"
+  },
+  "validation": {
+    "is_complete": true/false,
+    "missing_fields": ["list of missing required fields"],
+    "issues": ["any problems found"],
+    "recommendations": ["what the employee should do to fix issues"]
+  },
+  "completeness_score": 0-100,
+  "summary": "1-2 sentence summary of the document and its status"
+}
+
+Only return the JSON object.`;
+
+    const result = await polsiaAI.chat(prompt, {
+      system: 'You are an expert HR document processor. Analyze onboarding documents accurately. Flag any compliance issues. Always return valid JSON. If you cannot see the actual document content (just a URL), provide guidance on what should be verified manually.',
+      module: 'onboarding', feature: 'document_intelligence'
+    });
+
+    const analysis = polsiaAI.safeParseJSON(result);
+    if (!analysis) {
+      return res.status(500).json({ error: 'Failed to analyze document' });
+    }
+
+    // Update document record with AI analysis
+    if (docId) {
+      await pool.query(
+        `UPDATE onboarding_documents
+         SET ai_extraction = $1, ai_validation = $2, ai_processed_at = NOW(),
+             completeness_score = $3, plan_id = $4, updated_at = NOW()
+         WHERE id = $5`,
+        [
+          JSON.stringify(analysis.extracted_data || {}),
+          JSON.stringify(analysis.validation || {}),
+          analysis.completeness_score || 0,
+          plan_id || null,
+          docId
+        ]
+      );
+    }
+
+    // Auto-flag missing documents for the plan
+    if (plan_id) {
+      const flagResult = analysis.validation?.missing_fields || [];
+      if (flagResult.length > 0) {
+        // Update the plan's AI memory with document status
+        await pool.query(
+          `UPDATE onboarding_plans
+           SET ai_memory = jsonb_set(
+             COALESCE(ai_memory, '{}'),
+             '{document_flags}',
+             $1::jsonb
+           ), updated_at = NOW()
+           WHERE id = $2`,
+          [JSON.stringify({ [docType || 'unknown']: flagResult }), plan_id]
+        );
+      }
+    }
+
+    res.json({
+      success: true,
+      document_id: docId,
+      analysis
+    });
+  } catch (err) {
+    console.error('Error processing document:', err);
+    res.status(500).json({ error: 'Failed to process document' });
+  }
+});
+
+// Get documents for a plan with AI analysis
+router.get('/:id/documents', authMiddleware, async (req, res) => {
+  try {
+    const planId = parseInt(req.params.id);
+
+    const docs = await pool.query(
+      `SELECT od.*, u.name as candidate_name
+       FROM onboarding_documents od
+       LEFT JOIN users u ON od.candidate_id = u.id
+       WHERE od.plan_id = $1
+       ORDER BY od.created_at DESC`,
+      [planId]
+    );
+
+    // Calculate overall document status
+    const total = docs.rows.length;
+    const processed = docs.rows.filter(d => d.ai_processed_at).length;
+    const complete = docs.rows.filter(d => d.completeness_score >= 80).length;
+    const flagged = docs.rows.filter(d => d.ai_validation && d.ai_validation.issues && d.ai_validation.issues.length > 0).length;
+
+    // Required document types for typical onboarding
+    const requiredTypes = ['id_document', 'tax_form', 'direct_deposit', 'emergency_contact', 'nda'];
+    const submittedTypes = docs.rows.map(d => d.document_type);
+    const missingTypes = requiredTypes.filter(t => !submittedTypes.includes(t));
+
+    res.json({
+      documents: docs.rows,
+      stats: {
+        total,
+        processed,
+        complete,
+        flagged,
+        missing_required: missingTypes
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching plan documents:', err);
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+// My plans - for candidate view
+router.get('/plans/mine', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT op.*,
+        (SELECT COUNT(*) FROM onboarding_tasks WHERE plan_id = op.id AND status = 'completed') as completed_count,
+        (SELECT COUNT(*) FROM onboarding_tasks WHERE plan_id = op.id) as total_count
+       FROM onboarding_plans op
+       WHERE op.candidate_id = $1
+       ORDER BY op.created_at DESC`,
+      [req.user.id]
+    );
+
+    const plans = result.rows.map(p => ({
+      ...p,
+      progress_pct: p.total_count > 0 ? Math.round((p.completed_count / p.total_count) * 100) : 0
+    }));
+
+    res.json(plans);
+  } catch (err) {
+    console.error('Error listing my plans:', err);
+    res.status(500).json({ error: 'Failed to list plans' });
+  }
+});
+
 module.exports = router;
