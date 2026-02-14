@@ -1,12 +1,12 @@
 [
   {
     "content": "Phase 0A: Create ARCHITECTURE_CURRENT.md and ARCHITECTURE_TARGET.md",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Creating architecture documentation"
   },
   {
     "content": "Phase 0B: Split ai-coaching.tsx into separate files",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Splitting ai-coaching.tsx into separate files"
   },
   {
