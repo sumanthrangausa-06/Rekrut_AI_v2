@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate Quick Practice analysis flow and check logs",
+    "status": "completed",
+    "activeForm": "Investigating Quick Practice analysis flow and checking logs"
+  },
+  {
+    "content": "Identify root cause of 'Load failed' error",
+    "status": "completed",
+    "activeForm": "Identifying root cause of Load failed error"
+  },
+  {
+    "content": "Fix backend: crash-proof analyzeVideoInterviewResponse + add overall timeout",
+    "status": "completed",
+    "activeForm": "Fixing backend crash protection and adding timeout"
+  },
+  {
+    "content": "Fix frontend: add AbortController timeout + better error handling",
+    "status": "completed",
+    "activeForm": "Adding frontend timeout and better error handling"
+  },
+  {
+    "content": "Build, commit, deploy, and verify end-to-end",
+    "status": "in_progress",
+    "activeForm": "Building, committing, deploying, and verifying"
+  }
+]
