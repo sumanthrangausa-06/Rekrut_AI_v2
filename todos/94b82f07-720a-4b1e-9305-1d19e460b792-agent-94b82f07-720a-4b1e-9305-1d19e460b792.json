@@ -5,13 +5,13 @@
     "activeForm": "Creating architecture documentation"
   },
   {
-    "content": "Phase 0B: Split ai-coaching.tsx into separate files",
-    "status": "in_progress",
-    "activeForm": "Splitting ai-coaching.tsx into separate files"
+    "content": "Phase 0B: Extract coaching types + utils from ai-coaching.tsx",
+    "status": "completed",
+    "activeForm": "Extracting types and utilities"
   },
   {
     "content": "Phase 1: Fix Quick Practice video analysis bug (null-safety in polsia-ai.js)",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Fixing Quick Practice video analysis bug"
   },
   {
