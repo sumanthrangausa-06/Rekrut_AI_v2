@@ -653,6 +653,15 @@ export function AiCoachingPage() {
     }
   }, [historyFilter])
 
+  // BUG FIX: loadMockSessions MUST be declared before the useEffect that depends on it.
+  // Previously at line ~1139 (after the useEffect), causing a TDZ ReferenceError crash.
+  const loadMockSessions = useCallback(async () => {
+    try {
+      const res = await apiCall<{ success: boolean; sessions: MockSessionSummary[]; total: number }>('/interviews/mock/sessions?limit=10')
+      if (res.success) setMockPastSessions(res.sessions)
+    } catch (err) { console.error('Failed to load mock sessions:', err) }
+  }, [])
+
   useEffect(() => {
     async function init() {
       setLoading(true)
@@ -1136,12 +1145,6 @@ export function AiCoachingPage() {
   }
 
   // ===== MOCK INTERVIEW FUNCTIONS =====
-  const loadMockSessions = useCallback(async () => {
-    try {
-      const res = await apiCall<{ success: boolean; sessions: MockSessionSummary[]; total: number }>('/interviews/mock/sessions?limit=10')
-      if (res.success) setMockPastSessions(res.sessions)
-    } catch (err) { console.error('Failed to load mock sessions:', err) }
-  }, [])
 
   async function startMockInterview() {
     if (!mockTargetRole.trim()) return
