@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Phase 1: Trace all candidate E2E flows through code",
+    "status": "completed",
+    "activeForm": "Tracing candidate E2E flows through code"
+  },
+  {
+    "content": "Phase 2: Fix edge-case NOT NULL violations in offer/job creation",
+    "status": "completed",
+    "activeForm": "Fixing edge-case NOT NULL violations"
+  },
+  {
+    "content": "Phase 3: Deploy + smoke test key endpoints",
+    "status": "in_progress",
+    "activeForm": "Deploying and smoke testing"
+  },
+  {
+    "content": "Notify owner with results",
+    "status": "pending",
+    "activeForm": "Notifying owner with results"
+  }
+]
