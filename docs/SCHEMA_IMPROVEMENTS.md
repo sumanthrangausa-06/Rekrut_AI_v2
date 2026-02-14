@@ -43,7 +43,7 @@ This document tracks all schema improvement tasks for the HireLoop/Rekrut AI dat
 
 ## P2 — Schema Hardening ✅ RESOLVED
 
-**Migration**: `045_p2_schema_hardening.js`  
+**Migration**: `045_p2_schema_hardening.js`
 **Deployed**: 2026-02-14T17:39:15Z (commit 48c46714)
 
 ### 2a. CHECK Constraints (37 added)
@@ -52,47 +52,47 @@ Added CHECK constraints to enforce valid enum values across all status, type, an
 
 | Table | Constraint | Column | Allowed Values |
 |-------|-----------|--------|----------------|
-| users | chk_users_role | role | admin, recruiter, hiring_manager, interviewer, candidate |
-| jobs | chk_jobs_status | status | draft, open, paused, closed, archived |
-| jobs | chk_jobs_job_type | job_type | full_time, part_time, contract, freelance, internship, temporary |
-| job_applications | chk_job_applications_status | status | applied, screening, interviewing, offered, hired, rejected, withdrawn |
-| job_applications | chk_job_applications_screening_status | screening_status | pending, passed, failed, skipped |
-| interviews | chk_interviews_status | status | scheduled, in_progress, completed, cancelled, no_show |
+| users | chk_users_role | role | candidate, recruiter, employer, admin, hiring_manager |
+| jobs | chk_jobs_status | status | draft, active, paused, closed, archived |
+| jobs | chk_jobs_job_type | job_type | full-time, part-time, contract, internship, freelance |
+| job_applications | chk_job_applications_status | status | applied, screening, interviewed, offered, hired, rejected, withdrawn |
+| job_applications | chk_job_applications_screening_status | screening_status | NULL OR pending, invited, in_progress, completed, expired, failed |
+| interviews | chk_interviews_status | status | pending, in_progress, completed, cancelled |
 | interviews | chk_interviews_type | interview_type | phone, video, onsite, technical, behavioral, panel, mock |
-| offers | chk_offers_status | status | draft, pending, sent, accepted, rejected, expired, withdrawn |
-| offers | chk_offers_employment_type | employment_type | full_time, part_time, contract, freelance, internship, temporary |
-| employees | chk_employees_status | status | active, on_leave, terminated, suspended |
-| employees | chk_employees_employment_type | employment_type | full_time, part_time, contract, freelance, internship, temporary |
-| communications | chk_communications_type | type | email, sms, in_app, push, slack |
-| communications | chk_communications_status | status | draft, sent, delivered, failed, bounced |
+| offers | chk_offers_status | status | draft, sent, accepted, declined, expired, rescinded, negotiating |
+| offers | chk_offers_employment_type | employment_type | NULL OR full-time, part-time, contract, internship, freelance |
+| employees | chk_employees_status | status | active, inactive, terminated, on_leave, probation |
+| employees | chk_employees_employment_type | employment_type | NULL OR full-time, part-time, contract, intern, freelance |
+| communications | chk_communications_type | type | email, sms, in_app, push |
+| communications | chk_communications_status | status | draft, queued, sent, delivered, failed, bounced |
 | communication_templates | chk_communication_templates_type | type | email, sms, in_app, push |
-| communication_sequences | chk_communication_sequences_status | status | active, paused, completed, archived |
-| sequence_enrollments | chk_sequence_enrollments_status | status | active, paused, completed, unsubscribed |
-| candidate_profiles | chk_candidate_profiles_availability | availability | immediately, 2 weeks, two_weeks, 1 month, one_month, 3 months, three_months, not_available |
-| candidate_profiles | chk_candidate_profiles_work_authorization | work_authorization | citizen, permanent_resident, visa_holder, requires_sponsorship |
-| candidate_profiles | chk_candidate_profiles_remote_preference | remote_preference | remote, hybrid, onsite, flexible |
-| parsed_resumes | chk_parsed_resumes_status | status | pending, processing, completed, failed |
-| screening_sessions | chk_screening_sessions_status | status | invited, started, completed, expired, cancelled |
-| screening_sessions | chk_screening_sessions_score | overall_score | 0–100 range |
-| scheduled_interviews | chk_scheduled_interviews_status | status | scheduled, confirmed, completed, cancelled, rescheduled |
+| communication_sequences | chk_communication_sequences_status | status | active, paused, archived, draft |
+| sequence_enrollments | chk_sequence_enrollments_status | status | active, completed, paused, cancelled |
+| candidate_profiles | chk_candidate_profiles_availability | availability | NULL OR immediately, 2 weeks, two_weeks, 1 month, one_month, 3 months, three_months, not_available |
+| candidate_profiles | chk_candidate_profiles_work_authorization | work_authorization | NULL OR citizen, permanent_resident, visa_holder, requires_sponsorship |
+| candidate_profiles | chk_candidate_profiles_remote_preference | remote_preference | NULL OR remote, hybrid, onsite, flexible |
+| parsed_resumes | chk_parsed_resumes_status | parsing_status | pending, processing, completed, failed |
+| screening_sessions | chk_screening_sessions_status | status | invited, started, in_progress, completed, expired, cancelled |
+| screening_sessions | chk_screening_sessions_score | overall_score | NULL OR 0–100 range |
+| scheduled_interviews | chk_scheduled_interviews_status | status | scheduled, confirmed, in_progress, completed, cancelled, no_show |
 | mock_interview_sessions | chk_mock_interview_sessions_status | status | active, in_progress, completed, expired, abandoned |
-| onboarding_plans | chk_onboarding_plans_status | status | draft, active, completed, cancelled |
+| onboarding_plans | chk_onboarding_plans_status | status | draft, active, completed, archived |
 | onboarding_tasks | chk_onboarding_tasks_status | status | pending, in_progress, completed, skipped, overdue |
-| onboarding_checklists | chk_onboarding_checklists_status | status | pending, in_progress, completed |
-| onboarding_documents | chk_onboarding_documents_status | status | pending, submitted, approved, rejected |
-| job_assessments | chk_job_assessments_status | status | active, inactive, archived |
-| job_assessments | chk_job_assessments_difficulty | difficulty_level | easy, mid, medium, hard |
-| job_assessment_attempts | chk_job_assessment_attempts_status | status | in_progress, completed, timed_out, abandoned |
+| onboarding_checklists | chk_onboarding_checklists_status | status | pending, in_progress, completed, skipped |
+| onboarding_documents | chk_onboarding_documents_status | status | pending, sent, signed, completed, expired |
+| job_assessments | chk_job_assessments_status | status | draft, active, archived |
+| job_assessments | chk_job_assessments_difficulty | difficulty_level | easy, medium, mid, hard |
+| job_assessment_attempts | chk_job_assessment_attempts_status | status | in_progress, completed, expired, abandoned |
 | assessment_sessions | chk_assessment_sessions_status | status | pending, active, in_progress, completed, expired, cancelled |
 | score_appeals | chk_score_appeals_status | status | pending, under_review, approved, rejected |
-| post_hire_feedback | chk_post_hire_feedback_status | status | pending, completed, skipped |
+| post_hire_feedback | chk_post_hire_feedback_status | status | pending, submitted, reviewed |
 | payroll_runs | chk_payroll_runs_status | status | draft, processing, completed, failed |
-| pay_periods | chk_pay_periods_status | status | upcoming, active, closed, processed |
-| paychecks | chk_paychecks_status | status | draft, processing, completed, paid, failed, voided |
+| pay_periods | chk_pay_periods_status | status | open, closed, processing |
+| paychecks | chk_paychecks_status | status | draft, processing, completed, failed, voided, paid |
 | employee_benefits | chk_employee_benefits_status | status | active, pending, cancelled, expired |
-| tax_documents | chk_tax_documents_status | status | pending, generated, submitted, accepted, rejected |
-| data_requests | chk_data_requests_status | status | pending, processing, completed, denied |
-| fairness_audits | chk_fairness_audits_status | status | scheduled, in_progress, completed, failed |
+| tax_documents | chk_tax_documents_status | status | pending, generated, filed, accepted, rejected |
+| data_requests | chk_data_requests_status | status | pending, in_progress, completed, rejected |
+| fairness_audits | chk_fairness_audits_status | status | pending, in_progress, completed, failed |
 | verification_documents | chk_verification_documents_status | status | pending, verified, rejected, expired |
 
 ### 2b. VARCHAR → TEXT Conversions (274 columns)

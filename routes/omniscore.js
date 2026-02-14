@@ -534,7 +534,7 @@ router.get('/company-dashboard', authMiddleware, async (req, res) => {
     const funnelResult = await pool.query(`
       SELECT
         COUNT(*) as total_applications,
-        COUNT(*) FILTER (WHERE status = 'reviewing') as reviewing,
+        COUNT(*) FILTER (WHERE status = 'screening') as screening,
         COUNT(*) FILTER (WHERE status = 'interviewed') as interviewed,
         COUNT(*) FILTER (WHERE status = 'offered') as offered,
         COUNT(*) FILTER (WHERE status = 'hired') as hired,

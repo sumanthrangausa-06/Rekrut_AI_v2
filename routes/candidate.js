@@ -1470,7 +1470,7 @@ router.put('/interviews/:id/decline', authMiddleware, async (req, res) => {
 
     const result = await pool.query(
       `UPDATE scheduled_interviews
-       SET status = 'declined', outcome = $3, updated_at = NOW()
+       SET status = 'cancelled', outcome = $3, updated_at = NOW()
        WHERE id = $1 AND candidate_id = $2 AND status IN ('scheduled', 'confirmed')
        RETURNING *`,
       [req.params.id, req.user.id, reason || 'Candidate declined']
