@@ -9,9 +9,9 @@ module.exports = {
   name: 'p2_schema_hardening',
   up: async (client) => {
 
-    // ═══════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
     // SECTION 1: screening_sessions timestamp → timestamptz
-    // ═══════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
     await client.query(`
       ALTER TABLE screening_sessions
         ALTER COLUMN invited_at TYPE timestamptz USING invited_at AT TIME ZONE 'UTC',
@@ -21,12 +21,9 @@ module.exports = {
         ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC'
     `);
 
-    // ═══════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
     // SECTION 2: varchar → TEXT conversions (274 columns)
-    // Keeps varchar for truly bounded fields: country_code(2),
-    // currency_code(3), currency_symbol(5), bank_account_last4(4),
-    // date(10), winner(10), sid(unlimited)
-    // ═══════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
     const textConversions = {
       activity_log: ['category','event_type','ip_address','severity','user_email'],
       agent_data: ['type'],
@@ -126,11 +123,12 @@ module.exports = {
       await client.query(`ALTER TABLE "${table}" ${alterClauses}`);
     }
 
-    // ═══════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
     // SECTION 3: CHECK constraints
-    // ═══════════════════════════════════════════════════════
+    // All values verified against live data 2026-02-14
+    // ═══════════════════════════════════════════════════════════════
 
-    // --- Core domain status/type enums ---
+    // --- Core domain ---
     await client.query(`
       ALTER TABLE users ADD CONSTRAINT chk_users_role
         CHECK (role IN ('candidate','recruiter','employer','admin','hiring_manager'));
@@ -148,7 +146,7 @@ module.exports = {
       ALTER TABLE interviews ADD CONSTRAINT chk_interviews_status
         CHECK (status IN ('pending','in_progress','completed','cancelled'));
       ALTER TABLE interviews ADD CONSTRAINT chk_interviews_type
-        CHECK (interview_type IN ('phone','video','onsite','technical','behavioral','panel'));
+        CHECK (interview_type IN ('phone','video','onsite','technical','behavioral','panel','mock'));
 
       ALTER TABLE screening_sessions ADD CONSTRAINT chk_screening_sessions_status
         CHECK (status IN ('invited','started','in_progress','completed','expired','cancelled'));
@@ -174,7 +172,7 @@ module.exports = {
       ALTER TABLE payroll_runs ADD CONSTRAINT chk_payroll_runs_status
         CHECK (status IN ('draft','processing','completed','failed'));
       ALTER TABLE paychecks ADD CONSTRAINT chk_paychecks_status
-        CHECK (status IN ('draft','processing','completed','failed','voided'));
+        CHECK (status IN ('draft','processing','completed','failed','voided','paid'));
       ALTER TABLE pay_periods ADD CONSTRAINT chk_pay_periods_status
         CHECK (status IN ('open','closed','processing'));
       ALTER TABLE tax_documents ADD CONSTRAINT chk_tax_documents_status
@@ -222,13 +220,13 @@ module.exports = {
       ALTER TABLE job_assessments ADD CONSTRAINT chk_job_assessments_status
         CHECK (status IN ('draft','active','archived'));
       ALTER TABLE job_assessments ADD CONSTRAINT chk_job_assessments_difficulty
-        CHECK (difficulty_level IN ('easy','medium','hard'));
+        CHECK (difficulty_level IN ('easy','medium','mid','hard'));
       ALTER TABLE job_assessment_attempts ADD CONSTRAINT chk_job_assessment_attempts_status
         CHECK (status IN ('in_progress','completed','expired','abandoned'));
       ALTER TABLE assessment_sessions ADD CONSTRAINT chk_assessment_sessions_status
-        CHECK (status IN ('pending','active','completed','expired','cancelled'));
+        CHECK (status IN ('pending','active','in_progress','completed','expired','cancelled'));
       ALTER TABLE mock_interview_sessions ADD CONSTRAINT chk_mock_interview_sessions_status
-        CHECK (status IN ('active','completed','expired','abandoned'));
+        CHECK (status IN ('active','in_progress','completed','expired','abandoned'));
     `);
 
     // --- Verification, compliance, misc ---
@@ -249,7 +247,6 @@ module.exports = {
         CHECK (status IN ('scheduled','confirmed','in_progress','completed','cancelled','no_show'));
     `);
 
-    // --- Record in _migrations so we know it applied ---
     console.log('[migration] P2 schema hardening applied: 5 timestamptz, 274 varchar→TEXT, 37 CHECK constraints');
   }
 };
