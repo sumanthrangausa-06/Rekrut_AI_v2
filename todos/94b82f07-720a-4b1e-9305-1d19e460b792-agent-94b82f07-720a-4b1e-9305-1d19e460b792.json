@@ -11,12 +11,12 @@
   },
   {
     "content": "Phase 1: Fix Quick Practice video analysis bug (null-safety in polsia-ai.js)",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Fixing Quick Practice video analysis bug"
   },
   {
     "content": "Phase 2: Verify fix & update docs",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Verifying fix & updating docs"
   }
 ]
