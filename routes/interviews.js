@@ -1,7 +1,7 @@
 const express = require('express');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
-const { generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching, analyzeVideoInterviewResponse, analyzeVideoPresentation, analyzeVoiceQuality, generateQuestionBank, conductInterviewTurn, generateSessionFeedback, textToSpeech, transcribeAudioWithWhisper, aiProvider } = require('../lib/polsia-ai');
+const { chat, generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching, analyzeVideoInterviewResponse, analyzeVideoPresentation, analyzeVoiceQuality, generateQuestionBank, conductInterviewTurn, generateSessionFeedback, textToSpeech, transcribeAudioWithWhisper, aiProvider } = require('../lib/polsia-ai');
 const crypto = require('crypto');
 const omniscoreService = require('../services/omniscore');
 const multer = require('multer');
