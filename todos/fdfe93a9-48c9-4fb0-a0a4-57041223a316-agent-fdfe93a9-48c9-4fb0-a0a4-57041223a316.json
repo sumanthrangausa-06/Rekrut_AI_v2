@@ -1,0 +1,42 @@
+[
+  {
+    "content": "Scan docs/ for all .md files and identify duplicates",
+    "status": "completed",
+    "activeForm": "Scanning docs/ for architecture files"
+  },
+  {
+    "content": "Read all architecture-related .md files",
+    "status": "completed",
+    "activeForm": "Reading architecture docs"
+  },
+  {
+    "content": "Query DB for current schema stats (post P0-P3)",
+    "status": "completed",
+    "activeForm": "Querying database for schema stats"
+  },
+  {
+    "content": "Update ARCHITECTURE_CURRENT.md with accurate post-P3 state",
+    "status": "completed",
+    "activeForm": "Updating ARCHITECTURE_CURRENT.md"
+  },
+  {
+    "content": "Update ARCHITECTURE_TARGET.md reflecting improved baseline",
+    "status": "completed",
+    "activeForm": "Updating ARCHITECTURE_TARGET.md"
+  },
+  {
+    "content": "Update SCHEMA_IMPROVEMENTS.md marking P3 resolved",
+    "status": "completed",
+    "activeForm": "Updating SCHEMA_IMPROVEMENTS.md"
+  },
+  {
+    "content": "Delete duplicate architecture files (DATABASE_SCHEMA.md)",
+    "status": "in_progress",
+    "activeForm": "Deleting duplicate files"
+  },
+  {
+    "content": "Commit and push all changes",
+    "status": "pending",
+    "activeForm": "Committing and pushing changes"
+  }
+]
