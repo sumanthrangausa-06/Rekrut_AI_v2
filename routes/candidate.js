@@ -771,7 +771,17 @@ router.post('/skills', authMiddleware, async (req, res) => {
 
 router.put('/skills/:id', authMiddleware, async (req, res) => {
   try {
-    const { level, category, years_experience } = req.body;
+    const { category, years_experience } = req.body;
+    let { level } = req.body;
+
+    // Coerce string level names to integers (DB expects integer 1-5)
+    if (level !== undefined && level !== null) {
+      if (typeof level === 'string') {
+        const levelMap = { 'beginner': 1, 'basic': 2, 'intermediate': 3, 'advanced': 4, 'expert': 5 };
+        level = levelMap[level.toLowerCase()] || parseInt(level, 10) || null;
+      }
+      if (level !== null) level = Math.max(1, Math.min(5, parseInt(level, 10) || 3));
+    }
 
     const result = await pool.query(`
       UPDATE candidate_skills SET
@@ -780,7 +790,7 @@ router.put('/skills/:id', authMiddleware, async (req, res) => {
         years_experience = COALESCE($5, years_experience)
       WHERE id = $1 AND user_id = $2
       RETURNING *
-    `, [req.params.id, req.user.id, level, category, years_experience]);
+    `, [parseInt(req.params.id, 10), req.user.id, level, category, years_experience]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Skill not found' });
@@ -797,7 +807,7 @@ router.put('/skills/:id', authMiddleware, async (req, res) => {
 router.delete('/skills/:id', authMiddleware, async (req, res) => {
   try {
     await pool.query('DELETE FROM candidate_skills WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]);
+      [parseInt(req.params.id, 10), req.user.id]);
     res.json({ success: true });
   } catch (err) {
     console.error('Delete skill error:', err);
@@ -827,7 +837,15 @@ router.get('/assessments', authMiddleware, async (req, res) => {
 // Start a new skill assessment
 router.post('/assessments/start', authMiddleware, async (req, res) => {
   try {
-    const { skill_id, skill_name, skill_level, category } = req.body;
+    const { skill_name, category } = req.body;
+    // Coerce skill_id to integer (FK to candidate_skills.id)
+    const skill_id = req.body.skill_id ? parseInt(req.body.skill_id, 10) : null;
+    // Coerce skill_level to integer
+    let skill_level = req.body.skill_level || 3;
+    if (typeof skill_level === 'string') {
+      const lvlMap = { 'beginner': 1, 'basic': 2, 'intermediate': 3, 'advanced': 4, 'expert': 5 };
+      skill_level = lvlMap[skill_level.toLowerCase()] || parseInt(skill_level, 10) || 3;
+    }
 
     // Get user's subscription
     const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [req.user.id]);
@@ -836,7 +854,7 @@ router.post('/assessments/start', authMiddleware, async (req, res) => {
     // Generate assessment questions
     const questions = await generateSkillAssessment(
       skill_name,
-      skill_level || 3,
+      skill_level,
       category || 'technical',
       { subscriptionId }
     );
@@ -846,7 +864,7 @@ router.post('/assessments/start', authMiddleware, async (req, res) => {
       INSERT INTO skill_assessments (user_id, skill_id, assessment_type, title, questions, started_at)
       VALUES ($1, $2, $3, $4, $5, NOW())
       RETURNING *
-    `, [req.user.id, skill_id, 'skill_verification', `${skill_name} Assessment`, JSON.stringify(questions)]);
+    `, [req.user.id, skill_id, 'skill_verification', `${skill_name || 'Skill'} Assessment`, JSON.stringify(questions)]);
 
     res.json({
       success: true,
