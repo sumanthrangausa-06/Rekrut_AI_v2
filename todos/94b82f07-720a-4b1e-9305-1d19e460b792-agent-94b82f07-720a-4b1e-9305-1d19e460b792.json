@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Phase 0A: Create ARCHITECTURE_CURRENT.md and ARCHITECTURE_TARGET.md",
+    "status": "in_progress",
+    "activeForm": "Creating architecture documentation"
+  },
+  {
+    "content": "Phase 0B: Split ai-coaching.tsx into separate files",
+    "status": "pending",
+    "activeForm": "Splitting ai-coaching.tsx into separate files"
+  },
+  {
+    "content": "Phase 1: Fix Quick Practice video analysis bug (null-safety in polsia-ai.js)",
+    "status": "pending",
+    "activeForm": "Fixing Quick Practice video analysis bug"
+  },
+  {
+    "content": "Phase 2: Verify fix & update docs",
+    "status": "pending",
+    "activeForm": "Verifying fix & updating docs"
+  }
+]
