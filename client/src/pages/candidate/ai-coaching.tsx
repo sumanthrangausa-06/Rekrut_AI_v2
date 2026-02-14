@@ -824,6 +824,8 @@ export function AiCoachingPage() {
   }
 
   // Submit video response
+  // BUG FIX (Feb 14, 2026): Added 35s AbortController timeout to prevent Safari "Load failed" on iOS.
+  // Backend now has 25s overall timeout, so 35s client-side gives it breathing room.
   async function submitVideoResponse() {
     if (!practiceQuestion) return
 
@@ -839,9 +841,12 @@ export function AiCoachingPage() {
     }
 
     setSubmitting(true)
+    const abortController = new AbortController()
+    const fetchTimeout = setTimeout(() => abortController.abort(), 35000)
     try {
       const res = await apiCall<{ success: boolean; coaching: VideoCoaching }>('/interviews/practice/submit-video', {
         method: 'POST',
+        signal: abortController.signal,
         body: {
           question_id: practiceQuestion.id,
           question: practiceQuestion.question,
@@ -862,8 +867,13 @@ export function AiCoachingPage() {
         loadHistory()
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to get AI coaching. Please try again.')
+      if (err.name === 'AbortError' || abortController.signal.aborted) {
+        alert('Analysis is taking longer than expected. Please try again — the AI may need a moment.')
+      } else {
+        alert(err.message || 'Failed to get AI coaching. Please try again.')
+      }
     } finally {
+      clearTimeout(fetchTimeout)
       setSubmitting(false)
     }
   }
@@ -877,9 +887,12 @@ export function AiCoachingPage() {
     }
 
     setSubmitting(true)
+    const abortController = new AbortController()
+    const fetchTimeout = setTimeout(() => abortController.abort(), 35000)
     try {
       const res = await apiCall<{ success: boolean; coaching: TextCoaching }>('/interviews/practice/submit', {
         method: 'POST',
+        signal: abortController.signal,
         body: {
           question_id: practiceQuestion.id,
           question: practiceQuestion.question,
@@ -896,8 +909,13 @@ export function AiCoachingPage() {
         loadHistory()
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to get AI coaching. Please try again.')
+      if (err.name === 'AbortError' || abortController.signal.aborted) {
+        alert('Analysis is taking longer than expected. Please try again.')
+      } else {
+        alert(err.message || 'Failed to get AI coaching. Please try again.')
+      }
     } finally {
+      clearTimeout(fetchTimeout)
       setSubmitting(false)
     }
   }
