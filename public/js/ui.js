@@ -44,6 +44,7 @@ const UI = (() => {
     ]},
     { section: 'Post-Hire', items: [
       { label: 'Onboarding', icon: 'onboarding', href: '/recruiter-onboarding-docs.html' },
+      { label: 'AI Onboarding', icon: 'coach', href: '/recruiter-onboarding-ai.html', badge: 'AI' },
       { label: 'Payroll', icon: 'payroll', href: '/payroll-dashboard.html' },
       { label: 'Compliance', icon: 'shield', href: '/compliance-dashboard.html' },
     ]},
@@ -71,6 +72,7 @@ const UI = (() => {
       { label: 'My Profile', icon: 'profile', href: '/candidate-profile.html' },
       { label: 'Documents', icon: 'documents', href: '/documents.html' },
       { label: 'Onboarding', icon: 'onboarding', href: '/onboarding.html' },
+      { label: 'AI Onboarding', icon: 'coach', href: '/candidate-onboarding-ai.html', badge: 'AI' },
     ]},
   ];
 
