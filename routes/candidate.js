@@ -515,13 +515,15 @@ router.post('/resume/apply', authMiddleware, async (req, res) => {
     if (sections.includes('experience') && parsed_data.experience) {
       for (let i = 0; i < parsed_data.experience.length; i++) {
         const exp = parsed_data.experience[i];
+        // Skip entries missing required NOT NULL fields (company_name, title)
+        if (!exp.company || !String(exp.company).trim() || !exp.title || !String(exp.title).trim()) continue;
         await pool.query(`
           INSERT INTO work_experience (user_id, company_name, title, location, start_date, end_date, is_current, description, achievements, skills_used, order_index)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         `, [
           req.user.id,
-          exp.company,
-          exp.title,
+          String(exp.company).trim(),
+          String(exp.title).trim(),
           exp.location,
           exp.start_date ? new Date(exp.start_date + '-01') : null,
           exp.end_date && exp.end_date !== 'Present' ? new Date(exp.end_date + '-01') : null,

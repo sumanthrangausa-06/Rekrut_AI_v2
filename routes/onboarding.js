@@ -39,7 +39,7 @@ router.post('/offers', authMiddleware, async (req, res) => {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *`,
       [candidate_id, job_id, req.user.id, req.user.company_id, title, job.rows[0].company || 'Rekrut AI',
-       salary, start_date, benefits, JSON.stringify(template_data || {}),
+       parseFloat(salary) || 0, start_date, benefits, JSON.stringify(template_data || {}),
        reporting_to || null, location || job.rows[0].location || null,
        employment_type || 'full-time', 'draft']
     );

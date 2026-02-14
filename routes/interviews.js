@@ -559,7 +559,10 @@ router.get('/practice/library', authMiddleware, async (req, res) => {
 // Submit practice response and get AI coaching
 router.post('/practice/submit', authMiddleware, async (req, res) => {
   try {
-    const { question_id, category, response_text } = req.body;
+    const { response_text } = req.body;
+    // Ensure NOT NULL fields have safe defaults
+    const question_id = req.body.question_id || 'general';
+    const category = req.body.category || 'behavioral';
     // Default question text from library if not provided
     const libraryQ = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
     const question = req.body.question || (libraryQ && libraryQ.question) || `Practice question ${question_id || 'unknown'}`;
@@ -625,7 +628,10 @@ router.post('/practice/submit', authMiddleware, async (req, res) => {
 // Submit video practice response and get comprehensive AI coaching
 router.post('/practice/submit-video', authMiddleware, async (req, res) => {
   try {
-    const { question_id, category, transcription, frames, duration_seconds, audio_data } = req.body;
+    const { transcription, frames, duration_seconds, audio_data } = req.body;
+    // Ensure NOT NULL fields have safe defaults
+    const question_id = req.body.question_id || 'general';
+    const category = req.body.category || 'behavioral';
     // Default question text from library if not provided
     const libQ = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
     const question = req.body.question || (libQ && libQ.question) || `Practice question ${question_id || 'unknown'}`;

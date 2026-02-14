@@ -1337,7 +1337,7 @@ router.post('/offers', authMiddleware, requireRecruiter, async (req, res) => {
       [
         candidate_id, job_id, req.user.id, req.user.company_id,
         title || job.rows[0].title, req.user.company_name || job.rows[0].company,
-        salary || null, start_date || null,
+        parseFloat(salary) || 0, start_date || null,
         benefits || null, location || null,
         employment_type || 'full-time', reporting_to || null
       ]
