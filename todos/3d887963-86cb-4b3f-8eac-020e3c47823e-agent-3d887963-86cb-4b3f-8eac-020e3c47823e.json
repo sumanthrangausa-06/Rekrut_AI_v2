@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Investigate codebase: router, imports, broken pages",
+    "status": "completed",
+    "activeForm": "Investigating codebase and broken pages"
+  },
+  {
+    "content": "Fix runtime crashes in ai-coaching.tsx",
+    "status": "completed",
+    "activeForm": "Fixing runtime crashes in ai-coaching.tsx"
+  },
+  {
+    "content": "Fix recruiter/onboarding.tsx TabsContent error",
+    "status": "completed",
+    "activeForm": "Fixing recruiter onboarding TabsContent"
+  },
+  {
+    "content": "Fix candidate/onboarding.tsx JSX namespace error",
+    "status": "completed",
+    "activeForm": "Fixing candidate onboarding JSX error"
+  },
+  {
+    "content": "Rebuild client and deploy",
+    "status": "in_progress",
+    "activeForm": "Rebuilding client and deploying"
+  },
+  {
+    "content": "Generate CURRENT_ARCHITECTURE.md",
+    "status": "pending",
+    "activeForm": "Generating current architecture docs"
+  }
+]
