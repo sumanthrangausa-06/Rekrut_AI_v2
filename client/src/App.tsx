@@ -62,6 +62,9 @@ import { TestCameraPage } from '@/pages/test-camera'
 // AI Screening (public - candidate completes via invite link)
 import { CandidateScreeningPage } from '@/pages/candidate/screening'
 
+// Debug Pages
+import { MockInterviewDebugPage } from '@/pages/debug/mock-interview'
+
 // Admin
 import { AdminLoginPage } from '@/pages/admin/login'
 import { AdminAuthGuard } from '@/components/admin-auth-guard'
@@ -132,6 +135,9 @@ function AppRoutes() {
       <Route path="/settings" element={<DashboardLayout />}>
         <Route index element={<PlaceholderPage />} />
       </Route>
+
+      {/* Debug routes */}
+      <Route path="/debug/mock-interview" element={<MockInterviewDebugPage />} />
 
       {/* Admin routes — login is public, everything else requires auth */}
       <Route path="/admin/login" element={<AdminLoginPage />} />

@@ -353,6 +353,8 @@ export function AiCoachingPage() {
   const audioCtxRef = useRef<AudioContext | null>(null)
   const mockCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const mockFramesRef = useRef<string[]>([])
+  const mockPerQuestionFramesRef = useRef<string[]>([])  // FEATURE PARITY: per-question frames for analysis
+  const mockQuestionStartTimeRef = useRef<number>(Date.now())  // Track when current question started
   const mockFrameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [mockLiveTranscript, setMockLiveTranscript] = useState('')
   const mockLiveTranscriptRef = useRef('')  // BUG FIX: ref mirrors state so recorder.onstop closure reads fresh value
@@ -464,21 +466,30 @@ export function AiCoachingPage() {
   // Start capturing frames throughout mock interview
   function startMockFrameCapture() {
     mockFramesRef.current = []
+    mockPerQuestionFramesRef.current = []
+    mockQuestionStartTimeRef.current = Date.now()
     // Capture first frame immediately
     setTimeout(() => {
       const frame = captureMockFrame()
-      if (frame) mockFramesRef.current.push(frame)
+      if (frame) {
+        mockFramesRef.current.push(frame)
+        mockPerQuestionFramesRef.current.push(frame)
+      }
     }, 500)
-    // Then every 5 seconds
+    // Then every 4 seconds (matching quick practice interval)
     mockFrameIntervalRef.current = setInterval(() => {
       const frame = captureMockFrame()
       if (frame) {
-        // Keep max 20 frames to limit payload
+        // Keep max 20 frames for end-of-interview analysis
         if (mockFramesRef.current.length < 20) {
           mockFramesRef.current.push(frame)
         }
+        // Keep max 8 per-question frames (enough for body language analysis per answer)
+        if (mockPerQuestionFramesRef.current.length < 8) {
+          mockPerQuestionFramesRef.current.push(frame)
+        }
       }
-    }, 5000)
+    }, 4000)
   }
 
   function stopMockFrameCapture() {
@@ -1195,6 +1206,13 @@ export function AiCoachingPage() {
     setMockResponseText('')
     setMockSending(true)
 
+    // FEATURE PARITY: Capture per-question frames and duration before sending
+    const perQuestionFrames = [...mockPerQuestionFramesRef.current]
+    const questionDuration = Math.round((Date.now() - mockQuestionStartTimeRef.current) / 1000)
+    // Reset per-question accumulators for next question
+    mockPerQuestionFramesRef.current = []
+    mockQuestionStartTimeRef.current = Date.now()
+
     // Optimistically add candidate message
     const candidateMsg: MockConversationTurn = { role: 'candidate', text, timestamp: new Date().toISOString() }
     setMockSession(prev => prev ? { ...prev, conversation: [...prev.conversation, candidateMsg] } : null)
@@ -1210,7 +1228,11 @@ export function AiCoachingPage() {
           success: boolean; interviewer_message: MockConversationTurn; action: string; is_wrapping_up: boolean
         }>(`/interviews/mock/${mockSession.id}/respond`, {
           method: 'POST',
-          body: { response_text: text },
+          body: {
+            response_text: text,
+            frames: perQuestionFrames.length > 0 ? perQuestionFrames : undefined,
+            duration_seconds: questionDuration
+          },
           signal: textAbort.signal
         })
         if (res.success) {
@@ -1660,6 +1682,12 @@ export function AiCoachingPage() {
 
           const audioBlob = new Blob(voiceChunksRef.current, { type: mimeType })
 
+          // FEATURE PARITY: Capture per-question frames and duration before sending
+          const voicePerQuestionFrames = [...mockPerQuestionFramesRef.current]
+          const voiceQuestionDuration = Math.round((Date.now() - mockQuestionStartTimeRef.current) / 1000)
+          mockPerQuestionFramesRef.current = []
+          mockQuestionStartTimeRef.current = Date.now()
+
           // Send as multipart FormData with client-side transcript as Whisper fallback
           const formData = new FormData()
           const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm'
@@ -1670,6 +1698,11 @@ export function AiCoachingPage() {
           if (liveTranscript.length >= 5) {
             formData.append('response_text', liveTranscript)
           }
+          // FEATURE PARITY: Include per-question frames and duration
+          if (voicePerQuestionFrames.length > 0) {
+            formData.append('frames_json', JSON.stringify(voicePerQuestionFrames))
+          }
+          formData.append('duration_seconds', String(voiceQuestionDuration))
 
           const token = getToken()
           // BUG FIX: Add 28s AbortController timeout — prevents hanging when backend is slow.

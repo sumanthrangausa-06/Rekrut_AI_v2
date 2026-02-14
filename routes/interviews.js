@@ -1190,7 +1190,7 @@ router.post('/mock/start', authMiddleware, async (req, res) => {
 // Submit a response in a mock interview — AI responds conversationally
 router.post('/mock/:sessionId/respond', authMiddleware, async (req, res) => {
   try {
-    const { response_text } = req.body;
+    const { response_text, frames, audio_data, duration_seconds } = req.body;
     const sessionId = req.params.sessionId;
 
     if (!response_text || response_text.trim().length < 10) {
@@ -1221,11 +1221,22 @@ router.post('/mock/:sessionId/respond', authMiddleware, async (req, res) => {
     questionsResult.rows.forEach(q => { questionMap[q.id] = q; });
     const baseQuestions = questionIds.map(id => questionMap[id]).filter(Boolean);
 
-    // Add candidate response to conversation
+    // FEATURE PARITY: Collect per-question metadata (same data as quick practice)
+    const wordCount = response_text.trim().split(/\s+/).length;
+    const frameCount = (frames && Array.isArray(frames)) ? frames.length : 0;
+    const hasAudio = !!(audio_data && audio_data.length > 0);
+
+    // Add candidate response to conversation with per-question metadata
     const candidateMessage = {
       role: 'candidate',
       text: response_text.trim(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      metadata: {
+        word_count: wordCount,
+        frame_count: frameCount,
+        duration_seconds: duration_seconds || 0,
+        has_audio: hasAudio
+      }
     };
     conversation.push(candidateMessage);
 
@@ -1377,6 +1388,52 @@ router.post('/mock/:sessionId/respond', authMiddleware, async (req, res) => {
       questions_asked: isTransition ? (session.questions_asked || 0) + 1 : session.questions_asked || 0,
       is_wrapping_up: isWrappingUp
     });
+
+    // FEATURE PARITY: Per-question background analysis (same as quick practice submit-video)
+    // Fire-and-forget: runs content + video + voice analysis per question, stores in per_question_analysis JSONB
+    if (frameCount > 0 || wordCount > 20) {
+      const bgQuestionIndex = session.current_question_index;
+      const bgQuestion = baseQuestions[bgQuestionIndex];
+      const bgOptions = { subscriptionId: req.user.stripe_subscription_id };
+      (async () => {
+        try {
+          const questionText = bgQuestion ? bgQuestion.question_text : 'Interview question';
+          const keyPoints = bgQuestion ? (bgQuestion.key_points || ['Content quality', 'Structure', 'Clarity']) : ['Content quality', 'Structure', 'Clarity'];
+
+          // Run per-question multi-modal analysis (same pipeline as quick practice)
+          const perQuestionResult = await analyzeVideoInterviewResponse(
+            questionText,
+            response_text.trim(),
+            frames && frames.length > 0 ? frames : [],
+            duration_seconds || 60,
+            keyPoints,
+            { ...bgOptions, audioData: hasAudio ? audio_data : null }
+          );
+
+          // Store per-question analysis in session
+          const freshSession = await pool.query('SELECT per_question_analysis FROM mock_interview_sessions WHERE id = $1', [sessionId]);
+          const existingAnalysis = freshSession.rows[0]?.per_question_analysis || {};
+          existingAnalysis[`q${candidateTurnCount}`] = {
+            question_index: bgQuestionIndex,
+            question_text: questionText,
+            response_text: response_text.trim().substring(0, 500),
+            word_count: wordCount,
+            frame_count: frameCount,
+            duration_seconds: duration_seconds || 0,
+            analysis: perQuestionResult,
+            analyzed_at: new Date().toISOString()
+          };
+
+          await pool.query(
+            'UPDATE mock_interview_sessions SET per_question_analysis = $1 WHERE id = $2',
+            [JSON.stringify(existingAnalysis), sessionId]
+          );
+          console.log(`[mock-bg] Per-question analysis complete for session ${sessionId} Q${candidateTurnCount}`);
+        } catch (bgErr) {
+          console.warn(`[mock-bg] Per-question analysis failed for Q${candidateTurnCount}:`, bgErr.message);
+        }
+      })();
+    }
   } catch (err) {
     console.error('Mock interview respond error:', err);
     res.status(500).json({ error: 'Failed to process response. Please try again.' });
@@ -1805,6 +1862,199 @@ router.get('/mock/sessions/:id/feedback', authMiddleware, async (req, res) => {
   }
 });
 
+// FEATURE PARITY: Get per-question analysis for a mock interview session
+router.get('/mock/sessions/:id/per-question', authMiddleware, async (req, res) => {
+  try {
+    const session = await pool.query(
+      'SELECT per_question_analysis, conversation, overall_feedback, overall_score, status, target_role, questions_asked FROM mock_interview_sessions WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (session.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    const row = session.rows[0];
+    const perQuestion = row.per_question_analysis || {};
+    const conversation = row.conversation || [];
+    const candidateTurns = conversation.filter(t => t.role === 'candidate');
+
+    // Build a summary of each question with analysis status
+    const questionSummaries = candidateTurns.map((turn, idx) => {
+      const qKey = `q${idx + 1}`;
+      const analysis = perQuestion[qKey];
+      return {
+        question_number: idx + 1,
+        response_preview: turn.text ? turn.text.substring(0, 200) : '',
+        metadata: turn.metadata || { word_count: turn.text ? turn.text.split(/\s+/).length : 0 },
+        has_analysis: !!analysis,
+        analysis: analysis || null
+      };
+    });
+
+    res.json({
+      success: true,
+      session_id: parseInt(req.params.id),
+      target_role: row.target_role,
+      status: row.status,
+      overall_score: row.overall_score,
+      questions_asked: row.questions_asked,
+      total_candidate_turns: candidateTurns.length,
+      per_question: questionSummaries
+    });
+  } catch (err) {
+    console.error('Get per-question analysis error:', err);
+    res.status(500).json({ error: 'Failed to fetch per-question analysis' });
+  }
+});
+
+// =============== MOCK INTERVIEW DEBUG ===============
+
+// Debug endpoint: L1→L5 progressive tests for mock interview pipeline
+router.get('/mock/debug', authMiddleware, async (req, res) => {
+  const results = { tests: [], summary: {} };
+  const startTime = Date.now();
+
+  // L1: Database connectivity + schema check
+  try {
+    const schemaCheck = await pool.query(`
+      SELECT column_name, data_type FROM information_schema.columns
+      WHERE table_name = 'mock_interview_sessions' ORDER BY ordinal_position
+    `);
+    const columns = schemaCheck.rows.map(r => r.column_name);
+    const hasPerQuestion = columns.includes('per_question_analysis');
+    const hasCachedFeedback = columns.includes('cached_feedback');
+    results.tests.push({
+      level: 'L1', name: 'Database Schema',
+      status: hasPerQuestion && hasCachedFeedback ? 'pass' : 'warn',
+      details: { columns, has_per_question_analysis: hasPerQuestion, has_cached_feedback: hasCachedFeedback }
+    });
+  } catch (err) {
+    results.tests.push({ level: 'L1', name: 'Database Schema', status: 'fail', error: err.message });
+  }
+
+  // L1: Question bank populated
+  try {
+    const qb = await pool.query('SELECT COUNT(*) as total, COUNT(DISTINCT role) as roles FROM question_bank');
+    const total = parseInt(qb.rows[0].total);
+    results.tests.push({
+      level: 'L1', name: 'Question Bank',
+      status: total > 0 ? 'pass' : 'fail',
+      details: { total_questions: total, distinct_roles: parseInt(qb.rows[0].roles) }
+    });
+  } catch (err) {
+    results.tests.push({ level: 'L1', name: 'Question Bank', status: 'fail', error: err.message });
+  }
+
+  // L2: AI provider health
+  try {
+    const providerStatus = aiProvider.getProviderStatus ? aiProvider.getProviderStatus() : { providers: Object.keys(aiProvider.clients || {}) };
+    const hasAnthropic = providerStatus.providers ? providerStatus.providers.includes('anthropic') : !!aiProvider.clients?.anthropic;
+    results.tests.push({
+      level: 'L2', name: 'AI Provider Chain',
+      status: hasAnthropic ? 'pass' : 'warn',
+      details: { has_anthropic: hasAnthropic, providers: providerStatus.providers || Object.keys(aiProvider.clients || {}) }
+    });
+  } catch (err) {
+    results.tests.push({ level: 'L2', name: 'AI Provider Chain', status: 'fail', error: err.message });
+  }
+
+  // L2: TTS availability
+  try {
+    const ttsAvailable = !!(aiProvider.clients?.deepgram || aiProvider.selfHostedAudio);
+    results.tests.push({
+      level: 'L2', name: 'TTS Availability',
+      status: ttsAvailable ? 'pass' : 'warn',
+      details: { deepgram: !!aiProvider.clients?.deepgram, self_hosted: !!aiProvider.selfHostedAudio }
+    });
+  } catch (err) {
+    results.tests.push({ level: 'L2', name: 'TTS Availability', status: 'fail', error: err.message });
+  }
+
+  // L3: User session history
+  try {
+    const sessions = await pool.query(
+      `SELECT id, status, overall_score, questions_asked,
+              (per_question_analysis IS NOT NULL AND per_question_analysis != '{}') as has_per_q,
+              jsonb_array_length(conversation) as turns
+       FROM mock_interview_sessions WHERE user_id = $1 ORDER BY id DESC LIMIT 5`,
+      [req.user.id]
+    );
+    results.tests.push({
+      level: 'L3', name: 'Session History',
+      status: sessions.rows.length > 0 ? 'pass' : 'info',
+      details: { recent_sessions: sessions.rows }
+    });
+  } catch (err) {
+    results.tests.push({ level: 'L3', name: 'Session History', status: 'fail', error: err.message });
+  }
+
+  // L4: Quick LLM test (5s timeout — just verify the chain works)
+  try {
+    const llmStart = Date.now();
+    const testResult = await withTimeout(
+      chat([{ role: 'user', content: 'Reply with exactly: MOCK_DEBUG_OK' }], {
+        module: 'mock_interview',
+        feature: 'debug_test',
+        subscriptionId: req.user.stripe_subscription_id,
+        maxTokens: 20
+      }),
+      8000,
+      'LLM debug test'
+    );
+    const llmTime = Date.now() - llmStart;
+    results.tests.push({
+      level: 'L4', name: 'LLM Chain (mock_interview quality)',
+      status: testResult ? 'pass' : 'fail',
+      details: { response_preview: (testResult || '').substring(0, 100), latency_ms: llmTime }
+    });
+  } catch (err) {
+    results.tests.push({ level: 'L4', name: 'LLM Chain', status: 'fail', error: err.message });
+  }
+
+  // L5: End-to-end mock session simulation check
+  try {
+    // Check if the most recent completed session has all expected data
+    const latest = await pool.query(
+      `SELECT id, status, overall_score, overall_feedback IS NOT NULL as has_feedback,
+              (per_question_analysis IS NOT NULL AND per_question_analysis != '{}') as has_per_q,
+              questions_asked, jsonb_array_length(conversation) as turns
+       FROM mock_interview_sessions WHERE user_id = $1 AND status = 'completed'
+       ORDER BY completed_at DESC LIMIT 1`,
+      [req.user.id]
+    );
+    if (latest.rows.length > 0) {
+      const s = latest.rows[0];
+      const isComplete = s.has_feedback && s.overall_score > 0;
+      results.tests.push({
+        level: 'L5', name: 'E2E Completed Session Check',
+        status: isComplete ? 'pass' : 'warn',
+        details: { session_id: s.id, has_feedback: s.has_feedback, has_per_question: s.has_per_q, overall_score: s.overall_score, questions_asked: s.questions_asked, turns: s.turns }
+      });
+    } else {
+      results.tests.push({
+        level: 'L5', name: 'E2E Completed Session Check',
+        status: 'info',
+        details: { message: 'No completed sessions found for this user' }
+      });
+    }
+  } catch (err) {
+    results.tests.push({ level: 'L5', name: 'E2E Check', status: 'fail', error: err.message });
+  }
+
+  // Summary
+  const passed = results.tests.filter(t => t.status === 'pass').length;
+  const failed = results.tests.filter(t => t.status === 'fail').length;
+  const warns = results.tests.filter(t => t.status === 'warn').length;
+  results.summary = {
+    total: results.tests.length,
+    passed,
+    failed,
+    warnings: warns,
+    overall: failed === 0 ? (warns === 0 ? 'healthy' : 'degraded') : 'broken',
+    duration_ms: Date.now() - startTime
+  };
+  res.json(results);
+});
+
 // =============== VOICE INTERVIEW (TTS + STT) ===============
 
 // Text-to-Speech endpoint — converts interviewer text to spoken audio
@@ -1985,11 +2235,29 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
       return res.status(400).json({ error: 'Could not transcribe your response. Please try speaking louder and more clearly.' });
     }
 
-    // Step 2: Add candidate response to conversation
+    // FEATURE PARITY: Parse per-question frames from FormData
+    let voiceFrames = [];
+    const voiceDurationSeconds = parseInt(req.body.duration_seconds) || 0;
+    try {
+      if (req.body.frames_json) {
+        voiceFrames = JSON.parse(req.body.frames_json);
+        if (!Array.isArray(voiceFrames)) voiceFrames = [];
+      }
+    } catch { voiceFrames = []; }
+
+    // Step 2: Add candidate response to conversation with per-question metadata
+    const voiceWordCount = transcribedText.split(/\s+/).length;
     const candidateMessage = {
       role: 'candidate',
       text: transcribedText,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      metadata: {
+        word_count: voiceWordCount,
+        frame_count: voiceFrames.length,
+        duration_seconds: voiceDurationSeconds,
+        has_audio: true,
+        used_fallback_transcript: usedFallback
+      }
     };
     conversation.push(candidateMessage);
 
@@ -2165,6 +2433,46 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
       questions_asked: isTransition ? (session.questions_asked || 0) + 1 : session.questions_asked || 0,
       is_wrapping_up: isWrappingUp
     });
+
+    // FEATURE PARITY: Per-question background analysis (same as text respond)
+    if (voiceFrames.length > 0 || voiceWordCount > 20) {
+      const bgQuestionIndex = session.current_question_index;
+      const bgQuestion = baseQuestions[bgQuestionIndex];
+      const bgOptions = { subscriptionId: req.user.stripe_subscription_id };
+      (async () => {
+        try {
+          const questionText = bgQuestion ? bgQuestion.question_text : 'Interview question';
+          const keyPoints = bgQuestion ? (bgQuestion.key_points || ['Content quality', 'Structure', 'Clarity']) : ['Content quality', 'Structure', 'Clarity'];
+          const perQuestionResult = await analyzeVideoInterviewResponse(
+            questionText,
+            transcribedText,
+            voiceFrames.length > 0 ? voiceFrames : [],
+            voiceDurationSeconds || 60,
+            keyPoints,
+            { ...bgOptions, audioData: null }
+          );
+          const freshSession = await pool.query('SELECT per_question_analysis FROM mock_interview_sessions WHERE id = $1', [sessionId]);
+          const existingAnalysis = freshSession.rows[0]?.per_question_analysis || {};
+          existingAnalysis[`q${voiceCandidateCount}`] = {
+            question_index: bgQuestionIndex,
+            question_text: questionText,
+            response_text: transcribedText.substring(0, 500),
+            word_count: voiceWordCount,
+            frame_count: voiceFrames.length,
+            duration_seconds: voiceDurationSeconds || 0,
+            analysis: perQuestionResult,
+            analyzed_at: new Date().toISOString()
+          };
+          await pool.query(
+            'UPDATE mock_interview_sessions SET per_question_analysis = $1 WHERE id = $2',
+            [JSON.stringify(existingAnalysis), sessionId]
+          );
+          console.log(`[voice-respond-bg] Per-question analysis complete for session ${sessionId} Q${voiceCandidateCount}`);
+        } catch (bgErr) {
+          console.warn(`[voice-respond-bg] Per-question analysis failed for Q${voiceCandidateCount}:`, bgErr.message);
+        }
+      })();
+    }
   } catch (err) {
     console.error('Voice respond error:', err);
     res.status(500).json({ error: 'Failed to process voice response. Please try again.' });
