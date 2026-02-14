@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Onboarding - Rekrut AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <style>
+    .welcome-banner {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+      border-radius: 16px; padding: 32px; margin-bottom: 28px; color: white; position: relative; overflow: hidden;
+    }
+    .welcome-banner::before {
+      content: ''; position: absolute; top: -50%; right: -20%; width: 300px; height: 300px;
+      background: rgba(255,255,255,0.08); border-radius: 50%;
+    }
+    .welcome-banner h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; position: relative; }
+    .welcome-banner p { font-size: 14px; opacity: 0.9; position: relative; }
+
+    .progress-hero {
+      background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 14px;
+      padding: 24px; margin-bottom: 28px; text-align: center;
+    }
+    .progress-circle-wrap { display: inline-block; position: relative; width: 120px; height: 120px; margin-bottom: 12px; }
+    .progress-circle-wrap svg { transform: rotate(-90deg); }
+    .progress-circle-wrap .pct-text {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      font-size: 28px; font-weight: 700; color: var(--text-primary);
+    }
+    .progress-hero .label { font-size: 14px; color: var(--text-muted); }
+    .progress-hero .sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    .next-up { margin-bottom: 28px; }
+    .next-up h2 { font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .next-task {
+      background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px;
+      padding: 16px 20px; display: flex; align-items: center; gap: 14px; margin-bottom: 10px;
+      transition: all 0.2s; cursor: pointer;
+    }
+    .next-task:hover { border-color: #6366f1; box-shadow: 0 2px 8px rgba(99,102,241,0.15); }
+    .next-task .nt-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .next-task .nt-icon.paperwork { background: rgba(245,158,11,0.1); }
+    .next-task .nt-icon.setup { background: rgba(59,130,246,0.1); }
+    .next-task .nt-icon.introductions { background: rgba(16,185,129,0.1); }
+    .next-task .nt-icon.training { background: rgba(168,85,247,0.1); }
+    .next-task .nt-icon.project { background: rgba(239,68,68,0.1); }
+    .next-task .nt-icon.review { background: rgba(99,102,241,0.1); }
+    .next-task .nt-info { flex: 1; }
+    .next-task .nt-info h4 { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .next-task .nt-info p { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .complete-btn {
+      padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    .complete-btn:hover { background: #059669; }
+
+    .phase-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+    .phase-tab {
+      padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+      background: var(--bg-elevated); color: var(--text-secondary); cursor: pointer; border: 1px solid transparent;
+    }
+    .phase-tab.active { background: rgba(99,102,241,0.1); color: #6366f1; border-color: #6366f1; }
+
+    .task-checklist { display: flex; flex-direction: column; gap: 8px; margin-bottom: 32px; }
+    .task-row {
+      display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+      background: var(--bg-elevated); border-radius: 10px;
+    }
+    .task-cb { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--border-color); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .task-cb.done { background: #10b981; border-color: #10b981; }
+    .task-cb.done::after { content: '✓'; color: white; font-size: 12px; font-weight: 700; }
+    .task-row .t-title { font-size: 14px; color: var(--text-primary); flex: 1; }
+    .task-row .t-title.done { text-decoration: line-through; opacity: 0.5; }
+    .task-row .t-assign { font-size: 11px; padding: 3px 8px; border-radius: 4px; background: var(--bg-secondary); color: var(--text-muted); }
+
+    /* Chat */
+    .chat-section { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 14px; overflow: hidden; }
+    .chat-section h2 { padding: 20px 24px 0; font-size: 18px; font-weight: 600; color: var(--text-primary); }
+    .chat-msgs { padding: 16px 24px; max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    .cmsg { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; }
+    .cmsg.user { background: #6366f1; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .cmsg.bot { background: var(--bg-elevated); color: var(--text-primary); align-self: flex-start; border-bottom-left-radius: 4px; }
+    .chat-bar { padding: 12px 24px; border-top: 1px solid var(--border-color); display: flex; gap: 8px; }
+    .chat-bar input { flex: 1; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-elevated); color: var(--text-primary); font-size: 13px; }
+    .chat-bar button { padding: 10px 18px; background: #6366f1; color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 13px; }
+    .chat-bar button:disabled { opacity: 0.5; }
+
+    .empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); }
+    .empty-state .emoji { font-size: 48px; margin-bottom: 12px; }
+    .spinner-sm { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <div id="sidebar-root"></div>
+    <main class="main-content" style="margin-left: 260px; padding: 32px;">
+      <div id="topbar-root"></div>
+
+      <div id="noPlan" style="display:none;">
+        <div class="empty-state">
+          <div class="emoji">📋</div>
+          <h3>No onboarding plan yet</h3>
+          <p>Once your employer generates your onboarding plan, it will appear here.</p>
+        </div>
+      </div>
+
+      <div id="hasPlan" style="display:none;">
+        <div class="welcome-banner">
+          <h1 id="welcomeTitle">Welcome aboard! 🎉</h1>
+          <p id="welcomeSubtitle">Your personalized onboarding journey starts here</p>
+        </div>
+
+        <div class="progress-hero">
+          <div class="progress-circle-wrap">
+            <svg width="120" height="120">
+              <circle cx="60" cy="60" r="52" fill="none" stroke="var(--border-color)" stroke-width="8"/>
+              <circle id="progCircle" cx="60" cy="60" r="52" fill="none" stroke="#6366f1" stroke-width="8"
+                stroke-linecap="round" stroke-dasharray="327" stroke-dashoffset="327"/>
+            </svg>
+            <div class="pct-text" id="pctText">0%</div>
+          </div>
+          <div class="label" id="progLabel">0 of 0 tasks completed</div>
+          <div class="sub" id="progSub"></div>
+        </div>
+
+        <div class="next-up">
+          <h2>⚡ Next Up</h2>
+          <div id="nextTasks"></div>
+        </div>
+
+        <div class="phase-tabs" id="phaseTabs"></div>
+        <div class="task-checklist" id="taskChecklist"></div>
+
+        <div class="chat-section">
+          <h2>🤖 Ask the Onboarding Assistant</h2>
+          <div class="chat-msgs" id="chatMsgs">
+            <div class="cmsg bot">Hi! I'm here to help you through onboarding. Ask me anything — what to do next, where to find forms, company policies, etc.</div>
+          </div>
+          <div class="chat-bar">
+            <input id="chatIn" placeholder="e.g. What should I do today?" onkeydown="if(event.key==='Enter')sendMsg()">
+            <button id="sendBtn" onclick="sendMsg()">Send</button>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="/js/ui.js"></script>
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login.html';
+    UI.init('candidate');
+
+    let planId = null;
+    let planData = null;
+    let currentPhase = 'all';
+
+    async function init() {
+      try {
+        const res = await fetch('/api/onboarding/plans/mine', { headers: { 'Authorization': `Bearer ${token}` } });
+        const plans = await res.json();
+        if (!plans.length) {
+          document.getElementById('noPlan').style.display = 'block';
+          return;
+        }
+        planId = plans[0].id;
+        await loadPlan();
+      } catch (e) {
+        document.getElementById('noPlan').style.display = 'block';
+      }
+    }
+
+    async function loadPlan() {
+      const res = await fetch(`/api/onboarding/${planId}/plan`, { headers: { 'Authorization': `Bearer ${token}` } });
+      planData = await res.json();
+      document.getElementById('hasPlan').style.display = 'block';
+      render();
+    }
+
+    function render() {
+      const d = planData;
+      document.getElementById('welcomeTitle').textContent = `Welcome aboard, ${(d.candidate_name || '').split(' ')[0] || 'there'}! 🎉`;
+      document.getElementById('welcomeSubtitle').textContent = `Your ${d.role_title} onboarding plan • ${d.total_tasks} tasks across 3 phases`;
+
+      const pct = d.progress_pct || 0;
+      const offset = 327 - (327 * pct / 100);
+      document.getElementById('progCircle').style.strokeDashoffset = offset;
+      document.getElementById('pctText').textContent = pct + '%';
+      document.getElementById('progLabel').textContent = `${d.completed_tasks} of ${d.total_tasks} tasks completed`;
+
+      // Next up (pending tasks assigned to new_hire)
+      const pending = (d.tasks || []).filter(t => t.status === 'pending').slice(0, 4);
+      const icons = { paperwork: '📝', setup: '🔧', introductions: '👋', training: '📚', project: '🚀', review: '📊', general: '📌' };
+      document.getElementById('nextTasks').innerHTML = pending.length ? pending.map(t => `
+        <div class="next-task">
+          <div class="nt-icon ${t.category || 'general'}">${icons[t.category] || '📌'}</div>
+          <div class="nt-info">
+            <h4>${esc(t.title)}</h4>
+            <p>${esc(t.description || t.phase)}</p>
+          </div>
+          <button class="complete-btn" onclick="completeTask(${t.id})">✓ Done</button>
+        </div>
+      `).join('') : '<p style="color:var(--text-muted);font-size:14px;">All caught up! 🎉</p>';
+
+      // Phase tabs
+      const phases = [...new Set((d.tasks || []).map(t => t.phase))];
+      document.getElementById('phaseTabs').innerHTML =
+        `<div class="phase-tab ${currentPhase === 'all' ? 'active' : ''}" onclick="setPhase('all')">All</div>` +
+        phases.map(p => {
+          const labels = { day_1: '🌅 Day 1', week_1: '📚 Week 1', month_1: '🚀 Month 1' };
+          return `<div class="phase-tab ${currentPhase === p ? 'active' : ''}" onclick="setPhase('${p}')">${labels[p] || p}</div>`;
+        }).join('');
+
+      // Task checklist
+      const tasks = currentPhase === 'all' ? (d.tasks || []) : (d.tasks || []).filter(t => t.phase === currentPhase);
+      document.getElementById('taskChecklist').innerHTML = tasks.map(t => `
+        <div class="task-row">
+          <div class="task-cb ${t.status === 'completed' ? 'done' : ''}" onclick="completeTask(${t.id})"></div>
+          <span class="t-title ${t.status === 'completed' ? 'done' : ''}">${esc(t.title)}</span>
+          <span class="t-assign">${formatAssigned(t.assigned_to)}</span>
+        </div>
+      `).join('');
+    }
+
+    function setPhase(p) { currentPhase = p; render(); }
+
+    function formatAssigned(a) {
+      return { new_hire: '👤 You', hr: '🏢 HR', manager: '👔 Manager', it: '💻 IT', buddy: '🤝 Buddy' }[a] || a;
+    }
+
+    async function completeTask(taskId) {
+      try {
+        await fetch(`/api/onboarding/tasks/${taskId}/complete`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        await loadPlan();
+      } catch (e) { console.error(e); }
+    }
+
+    async function sendMsg() {
+      const input = document.getElementById('chatIn');
+      const msg = input.value.trim();
+      if (!msg) return;
+      const msgs = document.getElementById('chatMsgs');
+      msgs.innerHTML += `<div class="cmsg user">${esc(msg)}</div>`;
+      input.value = '';
+      input.disabled = true;
+      document.getElementById('sendBtn').disabled = true;
+      msgs.innerHTML += `<div class="cmsg bot" id="typing">⏳ Thinking...</div>`;
+      msgs.scrollTop = msgs.scrollHeight;
+      try {
+        const res = await fetch('/api/onboarding/chat', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg, plan_id: planId })
+        });
+        const data = await res.json();
+        document.getElementById('typing')?.remove();
+        let html = esc(data.response || 'Sorry, something went wrong.');
+        html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\n- /g, '<br>• ');
+        html = html.replace(/\n/g, '<br>');
+        msgs.innerHTML += `<div class="cmsg bot">${html}</div>`;
+      } catch (e) {
+        document.getElementById('typing')?.remove();
+        msgs.innerHTML += `<div class="cmsg bot">⚠️ ${e.message}</div>`;
+      } finally {
+        input.disabled = false;
+        document.getElementById('sendBtn').disabled = false;
+        msgs.scrollTop = msgs.scrollHeight;
+        input.focus();
+      }
+    }
+
+    function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+    init();
+  </script>
+</body>
+</html>

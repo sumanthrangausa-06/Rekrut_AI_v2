@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Onboarding - Rekrut AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/responsive.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <style>
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; flex-wrap: wrap; gap: 16px; }
+    .page-header h1 { font-size: 24px; font-weight: 700; color: var(--text-primary); }
+    .page-header .subtitle { color: var(--text-muted); font-size: 14px; margin-top: 4px; }
+
+    .generate-btn {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      color: white; border: none; padding: 12px 24px; border-radius: 10px;
+      font-weight: 600; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+      transition: all 0.2s; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+    }
+    .generate-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4); }
+    .generate-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    /* Stats cards */
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .stat-card {
+      background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px;
+      padding: 20px; text-align: center;
+    }
+    .stat-card .stat-value { font-size: 28px; font-weight: 700; color: var(--text-primary); }
+    .stat-card .stat-label { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+    .stat-card.success .stat-value { color: #10b981; }
+    .stat-card.warning .stat-value { color: #f59e0b; }
+    .stat-card.info .stat-value { color: #6366f1; }
+
+    /* Plans grid */
+    .plans-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr)); gap: 20px; margin-bottom: 32px; }
+    .plan-card {
+      background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 14px;
+      padding: 24px; transition: all 0.2s; cursor: pointer;
+    }
+    .plan-card:hover { border-color: #6366f1; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .plan-card-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px; }
+    .plan-card-header h3 { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+    .plan-card-header .badge {
+      padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+    }
+    .badge-active { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+    .badge-completed { background: rgba(99, 102, 241, 0.15); color: #6366f1; }
+
+    .plan-meta { display: flex; gap: 16px; margin-bottom: 16px; font-size: 13px; color: var(--text-muted); }
+    .plan-meta span { display: flex; align-items: center; gap: 4px; }
+
+    /* Progress bar */
+    .progress-bar { background: var(--bg-elevated); border-radius: 8px; height: 8px; overflow: hidden; margin-bottom: 8px; }
+    .progress-fill { height: 100%; border-radius: 8px; transition: width 0.5s ease; }
+    .progress-fill.low { background: #f59e0b; }
+    .progress-fill.mid { background: #6366f1; }
+    .progress-fill.high { background: #10b981; }
+    .progress-text { font-size: 12px; color: var(--text-muted); display: flex; justify-content: space-between; }
+
+    /* Phase breakdown */
+    .phase-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .phase-pill {
+      padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500;
+      background: var(--bg-elevated); color: var(--text-secondary);
+    }
+    .phase-pill.done { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+
+    /* Generate modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: var(--card-bg); border-radius: 16px; width: 100%; max-width: 520px;
+      padding: 32px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .modal h2 { font-size: 20px; font-weight: 700; margin-bottom: 24px; color: var(--text-primary); }
+    .modal label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+    .modal input, .modal select {
+      width: 100%; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px;
+      background: var(--bg-elevated); color: var(--text-primary); font-size: 14px; margin-bottom: 16px;
+    }
+    .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 8px; }
+    .btn-cancel { padding: 10px 20px; border: 1px solid var(--border-color); border-radius: 8px; background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 14px; }
+    .btn-cancel:hover { background: var(--bg-elevated); }
+
+    /* Plan detail view */
+    .plan-detail { display: none; }
+    .plan-detail.active { display: block; }
+    .back-btn { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 14px; cursor: pointer; margin-bottom: 20px; }
+    .back-btn:hover { color: var(--text-primary); }
+
+    .phase-section { margin-bottom: 28px; }
+    .phase-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .phase-header h3 { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+    .phase-header .phase-badge { font-size: 12px; color: var(--text-muted); }
+
+    .task-list { display: flex; flex-direction: column; gap: 8px; }
+    .task-item {
+      display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+      background: var(--bg-elevated); border-radius: 10px; transition: all 0.2s;
+    }
+    .task-item:hover { background: var(--bg-secondary); }
+    .task-check {
+      width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--border-color);
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+      transition: all 0.2s; flex-shrink: 0;
+    }
+    .task-check:hover { border-color: #10b981; }
+    .task-check.completed { background: #10b981; border-color: #10b981; }
+    .task-check.completed::after { content: '✓'; color: white; font-size: 12px; font-weight: 700; }
+    .task-info { flex: 1; min-width: 0; }
+    .task-info .task-title { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+    .task-info .task-title.done { text-decoration: line-through; opacity: 0.6; }
+    .task-info .task-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .task-assigned {
+      font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 500;
+      background: var(--bg-secondary); color: var(--text-muted); white-space: nowrap;
+    }
+    .task-assigned.new_hire { background: rgba(99, 102, 241, 0.1); color: #6366f1; }
+    .task-assigned.hr { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+    .task-assigned.manager { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+    .task-assigned.it { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+
+    /* Chat widget */
+    .chat-widget {
+      position: fixed; bottom: 24px; right: 24px; z-index: 500;
+    }
+    .chat-toggle {
+      width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border: none; color: white; font-size: 24px; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4); transition: all 0.2s;
+    }
+    .chat-toggle:hover { transform: scale(1.05); }
+    .chat-panel {
+      display: none; position: absolute; bottom: 70px; right: 0; width: 380px; max-height: 500px;
+      background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.2); overflow: hidden; flex-direction: column;
+    }
+    .chat-panel.open { display: flex; }
+    .chat-header {
+      padding: 16px 20px; border-bottom: 1px solid var(--border-color);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .chat-header h4 { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 16px; max-height: 320px; display: flex; flex-direction: column; gap: 12px; }
+    .chat-msg { max-width: 85%; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; }
+    .chat-msg.user { background: #6366f1; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .chat-msg.assistant { background: var(--bg-elevated); color: var(--text-primary); align-self: flex-start; border-bottom-left-radius: 4px; }
+    .chat-input-row { padding: 12px 16px; border-top: 1px solid var(--border-color); display: flex; gap: 8px; }
+    .chat-input {
+      flex: 1; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 10px;
+      background: var(--bg-elevated); color: var(--text-primary); font-size: 13px;
+    }
+    .chat-send {
+      padding: 10px 16px; background: #6366f1; color: white; border: none; border-radius: 10px;
+      font-weight: 600; cursor: pointer; font-size: 13px;
+    }
+    .chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Loading */
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+    .empty-state .emoji { font-size: 48px; margin-bottom: 16px; }
+    .empty-state h3 { font-size: 18px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <div id="sidebar-root"></div>
+    <main class="main-content" style="margin-left: 260px; padding: 32px;">
+      <div id="topbar-root"></div>
+
+      <!-- LIST VIEW -->
+      <div id="listView">
+        <div class="page-header">
+          <div>
+            <h1>✨ AI Onboarding</h1>
+            <p class="subtitle">Auto-generate onboarding plans, track progress, and manage new hires with AI</p>
+          </div>
+          <button class="generate-btn" onclick="openGenerateModal()">
+            ✨ Generate Onboarding Plan
+          </button>
+        </div>
+
+        <div class="stats-row" id="statsRow">
+          <div class="stat-card info"><div class="stat-value" id="statTotal">—</div><div class="stat-label">Total Plans</div></div>
+          <div class="stat-card success"><div class="stat-value" id="statActive">—</div><div class="stat-label">Active</div></div>
+          <div class="stat-card"><div class="stat-value" id="statCompleted">—</div><div class="stat-label">Completed</div></div>
+          <div class="stat-card warning"><div class="stat-value" id="statAvgProgress">—</div><div class="stat-label">Avg Progress</div></div>
+        </div>
+
+        <div class="plans-grid" id="plansGrid">
+          <div class="empty-state">
+            <div class="emoji">🚀</div>
+            <h3>No onboarding plans yet</h3>
+            <p>Click "Generate Onboarding Plan" to create an AI-powered plan for a new hire</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- DETAIL VIEW -->
+      <div id="detailView" class="plan-detail">
+        <div class="back-btn" onclick="showListView()">← Back to plans</div>
+        <div class="page-header">
+          <div>
+            <h1 id="detailTitle">—</h1>
+            <p class="subtitle" id="detailSubtitle">—</p>
+          </div>
+        </div>
+        <div class="stats-row" id="detailStats"></div>
+        <div id="phaseSections"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Generate Modal -->
+  <div class="modal-overlay" id="generateModal">
+    <div class="modal">
+      <h2>✨ Generate AI Onboarding Plan</h2>
+      <label for="genRole">Role / Job Title *</label>
+      <input type="text" id="genRole" placeholder="e.g. Software Engineer, Sales Manager">
+      <label for="genDept">Department</label>
+      <input type="text" id="genDept" placeholder="e.g. Engineering, Sales, HR">
+      <label for="genCandidate">Candidate (optional)</label>
+      <select id="genCandidate"><option value="">— Select candidate —</option></select>
+      <label for="genJob">Linked Job (optional)</label>
+      <select id="genJob"><option value="">— Select job —</option></select>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeGenerateModal()">Cancel</button>
+        <button class="generate-btn" id="genSubmit" onclick="generatePlan()">
+          ✨ Generate Plan
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat Widget -->
+  <div class="chat-widget">
+    <div class="chat-panel" id="chatPanel">
+      <div class="chat-header">
+        <h4>🤖 Onboarding Assistant</h4>
+        <button onclick="toggleChat()" style="background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer;">✕</button>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-msg assistant">Hi! I'm your AI onboarding assistant. Ask me anything about onboarding plans, tasks, or company policies.</div>
+      </div>
+      <div class="chat-input-row">
+        <input class="chat-input" id="chatInput" placeholder="Ask about onboarding..." onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="chat-send" id="chatSendBtn" onclick="sendChat()">Send</button>
+      </div>
+    </div>
+    <button class="chat-toggle" onclick="toggleChat()" title="AI Onboarding Assistant">💬</button>
+  </div>
+
+  <script src="/js/ui.js"></script>
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login.html';
+
+    UI.init('recruiter');
+
+    let currentPlanId = null;
+    let plans = [];
+
+    // Fetch plans on load
+    async function loadPlans() {
+      try {
+        const res = await fetch('/api/onboarding/plans/list', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        plans = await res.json();
+        renderPlans();
+        renderStats();
+      } catch (e) {
+        console.error('Failed to load plans:', e);
+      }
+    }
+
+    function renderStats() {
+      const total = plans.length;
+      const active = plans.filter(p => p.status === 'active').length;
+      const completed = plans.filter(p => p.status === 'completed').length;
+      const avgProg = total > 0
+        ? Math.round(plans.reduce((s, p) => s + (p.progress_pct || 0), 0) / total)
+        : 0;
+      document.getElementById('statTotal').textContent = total;
+      document.getElementById('statActive').textContent = active;
+      document.getElementById('statCompleted').textContent = completed;
+      document.getElementById('statAvgProgress').textContent = avgProg + '%';
+    }
+
+    function renderPlans() {
+      const grid = document.getElementById('plansGrid');
+      if (!plans.length) {
+        grid.innerHTML = `<div class="empty-state"><div class="emoji">🚀</div><h3>No onboarding plans yet</h3><p>Click "Generate Onboarding Plan" to create an AI-powered plan for a new hire</p></div>`;
+        return;
+      }
+      grid.innerHTML = plans.map(p => {
+        const pct = p.progress_pct || 0;
+        const fillClass = pct < 33 ? 'low' : pct < 66 ? 'mid' : 'high';
+        const badgeClass = p.status === 'completed' ? 'badge-completed' : 'badge-active';
+        return `
+          <div class="plan-card" onclick="openPlan(${p.id})">
+            <div class="plan-card-header">
+              <h3>${esc(p.role_title)}</h3>
+              <span class="badge ${badgeClass}">${p.status}</span>
+            </div>
+            <div class="plan-meta">
+              <span>👤 ${esc(p.candidate_name || 'Unassigned')}</span>
+              <span>📅 ${new Date(p.created_at).toLocaleDateString()}</span>
+              ${p.department ? `<span>🏢 ${esc(p.department)}</span>` : ''}
+            </div>
+            <div class="progress-bar"><div class="progress-fill ${fillClass}" style="width:${pct}%"></div></div>
+            <div class="progress-text">
+              <span>${p.completed_count || 0} of ${p.total_count || 0} tasks</span>
+              <span>${pct}%</span>
+            </div>
+            <div class="phase-pills">
+              <span class="phase-pill">Day 1</span>
+              <span class="phase-pill">Week 1</span>
+              <span class="phase-pill">Month 1</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    async function openPlan(planId) {
+      currentPlanId = planId;
+      try {
+        const res = await fetch(`/api/onboarding/${planId}/plan`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        renderPlanDetail(data);
+        document.getElementById('listView').style.display = 'none';
+        document.getElementById('detailView').classList.add('active');
+      } catch (e) {
+        console.error('Failed to load plan:', e);
+      }
+    }
+
+    function renderPlanDetail(data) {
+      document.getElementById('detailTitle').textContent = `📋 ${data.role_title}`;
+      document.getElementById('detailSubtitle').textContent =
+        `${data.candidate_name || 'Unassigned'} • ${data.department || ''} • ${data.progress_pct}% complete`;
+
+      const pct = data.progress_pct || 0;
+      document.getElementById('detailStats').innerHTML = `
+        <div class="stat-card info"><div class="stat-value">${data.total_tasks}</div><div class="stat-label">Total Tasks</div></div>
+        <div class="stat-card success"><div class="stat-value">${data.completed_tasks}</div><div class="stat-label">Completed</div></div>
+        <div class="stat-card warning"><div class="stat-value">${data.total_tasks - data.completed_tasks}</div><div class="stat-label">Remaining</div></div>
+        <div class="stat-card"><div class="stat-value">${pct}%</div><div class="stat-label">Progress</div></div>
+      `;
+
+      const phaseLabels = { day_1: '🌅 Day 1 — Welcome & Setup', week_1: '📚 Week 1 — Learning & Integration', month_1: '🚀 Month 1 — Contribution & Growth' };
+      const phaseOrder = ['day_1', 'week_1', 'month_1'];
+
+      let html = '';
+      for (const phase of phaseOrder) {
+        const tasks = (data.tasks_by_phase || {})[phase] || [];
+        if (!tasks.length) continue;
+        const done = tasks.filter(t => t.status === 'completed').length;
+        html += `
+          <div class="phase-section">
+            <div class="phase-header">
+              <h3>${phaseLabels[phase] || phase}</h3>
+              <span class="phase-badge">${done}/${tasks.length} done</span>
+            </div>
+            <div class="task-list">
+              ${tasks.map(t => `
+                <div class="task-item">
+                  <div class="task-check ${t.status === 'completed' ? 'completed' : ''}"
+                       onclick="toggleTask(${t.id}, '${t.status}')" title="Mark complete"></div>
+                  <div class="task-info">
+                    <div class="task-title ${t.status === 'completed' ? 'done' : ''}">${esc(t.title)}</div>
+                    ${t.description ? `<div class="task-desc">${esc(t.description)}</div>` : ''}
+                  </div>
+                  <span class="task-assigned ${t.assigned_to}">${formatAssigned(t.assigned_to)}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>`;
+      }
+      document.getElementById('phaseSections').innerHTML = html;
+    }
+
+    function formatAssigned(a) {
+      const map = { new_hire: '👤 New Hire', hr: '🏢 HR', manager: '👔 Manager', it: '💻 IT', buddy: '🤝 Buddy' };
+      return map[a] || a;
+    }
+
+    async function toggleTask(taskId, currentStatus) {
+      if (currentStatus === 'completed') return; // No uncomplete for now
+      try {
+        await fetch(`/api/onboarding/tasks/${taskId}/complete`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        // Refresh
+        openPlan(currentPlanId);
+        loadPlans();
+      } catch (e) {
+        console.error('Failed to complete task:', e);
+      }
+    }
+
+    function showListView() {
+      document.getElementById('detailView').classList.remove('active');
+      document.getElementById('listView').style.display = 'block';
+      currentPlanId = null;
+    }
+
+    // Generate Modal
+    function openGenerateModal() {
+      document.getElementById('generateModal').classList.add('active');
+      loadCandidatesAndJobs();
+    }
+    function closeGenerateModal() {
+      document.getElementById('generateModal').classList.remove('active');
+    }
+
+    async function loadCandidatesAndJobs() {
+      try {
+        const [candRes, jobRes] = await Promise.all([
+          fetch('/api/candidates', { headers: { 'Authorization': `Bearer ${token}` } }),
+          fetch('/api/jobs', { headers: { 'Authorization': `Bearer ${token}` } })
+        ]);
+        const candidates = await candRes.json();
+        const jobs = await jobRes.json();
+        const candSelect = document.getElementById('genCandidate');
+        candSelect.innerHTML = '<option value="">— Select candidate —</option>';
+        (Array.isArray(candidates) ? candidates : (candidates.candidates || [])).forEach(c => {
+          candSelect.innerHTML += `<option value="${c.id}">${esc(c.name || c.email)}</option>`;
+        });
+        const jobSelect = document.getElementById('genJob');
+        jobSelect.innerHTML = '<option value="">— Select job —</option>';
+        (Array.isArray(jobs) ? jobs : (jobs.jobs || [])).forEach(j => {
+          jobSelect.innerHTML += `<option value="${j.id}">${esc(j.title)}</option>`;
+        });
+      } catch (e) {
+        // Non-fatal
+      }
+    }
+
+    async function generatePlan() {
+      const role = document.getElementById('genRole').value.trim();
+      if (!role) return alert('Role / Job Title is required');
+
+      const btn = document.getElementById('genSubmit');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Generating...';
+
+      try {
+        const body = {
+          role_title: role,
+          department: document.getElementById('genDept').value.trim() || undefined,
+          candidate_id: document.getElementById('genCandidate').value || undefined,
+          job_id: document.getElementById('genJob').value || undefined,
+        };
+        const res = await fetch('/api/onboarding/generate-plan', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        closeGenerateModal();
+        loadPlans();
+        if (data.plan) openPlan(data.plan.id);
+      } catch (e) {
+        alert('Failed to generate plan: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '✨ Generate Plan';
+      }
+    }
+
+    // Chat
+    function toggleChat() {
+      document.getElementById('chatPanel').classList.toggle('open');
+      document.getElementById('chatInput').focus();
+    }
+
+    async function sendChat() {
+      const input = document.getElementById('chatInput');
+      const msg = input.value.trim();
+      if (!msg) return;
+
+      const messagesDiv = document.getElementById('chatMessages');
+      messagesDiv.innerHTML += `<div class="chat-msg user">${esc(msg)}</div>`;
+      input.value = '';
+      input.disabled = true;
+      document.getElementById('chatSendBtn').disabled = true;
+
+      // Show typing indicator
+      messagesDiv.innerHTML += `<div class="chat-msg assistant" id="typing">⏳ Thinking...</div>`;
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+      try {
+        const res = await fetch('/api/onboarding/chat', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg, plan_id: currentPlanId || undefined })
+        });
+        const data = await res.json();
+        document.getElementById('typing')?.remove();
+
+        // Render markdown-lite (bold, bullets)
+        let html = esc(data.response || 'Sorry, I couldn\'t process that.');
+        html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\n- /g, '<br>• ');
+        html = html.replace(/\n/g, '<br>');
+        messagesDiv.innerHTML += `<div class="chat-msg assistant">${html}</div>`;
+      } catch (e) {
+        document.getElementById('typing')?.remove();
+        messagesDiv.innerHTML += `<div class="chat-msg assistant">⚠️ Error: ${e.message}</div>`;
+      } finally {
+        input.disabled = false;
+        document.getElementById('chatSendBtn').disabled = false;
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        input.focus();
+      }
+    }
+
+    function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+    // Init
+    loadPlans();
+  </script>
+</body>
+</html>
