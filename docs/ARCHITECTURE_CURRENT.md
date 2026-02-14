@@ -175,18 +175,18 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 ## Problem Areas
 
 ### 1. Monolith Files
-- **`ai-coaching.tsx` (3000+ lines):** Quick Practice AND Mock Interview crammed together. Fixes in one break the other. 60+ state variables, 20+ refs, 10+ effects.
+- **`ai-coaching.tsx` (4000+ lines):** Quick Practice AND Mock Interview crammed together. Types + utilities extracted to `coaching-types.ts` and `coaching-utils.tsx` (Feb 14). Full component split pending.
 - **`server.js` (989 lines):** Express setup + 26 AI health endpoints + admin metrics all in one file.
 - **`ai-provider.js` (930 lines):** Provider abstraction + 15+ provider implementations + circuit breaker logic.
 
 ### 2. Tight Coupling
 - Quick Practice and Mock Interview share state variables in the same component
-- AI provider errors (e.g., Gemini location blocks) cascade into null-safety crashes because `Promise.allSettled` fallbacks don't handle fulfilled-but-null values
+- ~~AI provider errors cascade into null-safety crashes~~ **FIXED Feb 14** — allSettled checks now validate `value != null`
 - Legacy HTML pages and React SPA co-exist, causing route conflicts
 
 ### 3. Known Tech Debt
 - 39 legacy HTML pages still served alongside React SPA
-- `JSON.parse()` of AI responses can return `null` on edge cases, bypassing null-safety fallbacks
+- ~~`JSON.parse()` of AI responses can return null~~ **FIXED Feb 14** — `generateInterviewCoaching` and `analyzeInterviewResponse` now validate parsed results are objects
 - 43% of mock_interview_sessions stuck in_progress (zombie records)
 - 5 tables have company_id FK pointing to users instead of companies
 - No E2E test suite
