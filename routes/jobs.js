@@ -136,6 +136,13 @@ router.post('/', authMiddleware, requireRole('hiring_manager', 'admin', 'recruit
       return res.status(400).json({ error: 'Job title is required' });
     }
 
+    // Normalize job_type to lowercase to match CHECK constraint
+    const validJobTypes = ['full-time', 'part-time', 'contract', 'internship', 'freelance'];
+    const normalizedJobType = job_type ? job_type.toLowerCase().trim() : 'full-time';
+    if (!validJobTypes.includes(normalizedJobType)) {
+      return res.status(400).json({ error: `Invalid job type. Must be one of: ${validJobTypes.join(', ')}` });
+    }
+
     // Default country from company if not specified
     let jobCountry = country_code || 'US';
     let jobCurrency = currency_code || 'USD';
@@ -159,7 +166,7 @@ router.post('/', authMiddleware, requireRole('hiring_manager', 'admin', 'recruit
       `INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions, country_code, currency_code, salary_min, salary_max)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
-      [req.user.id, req.user.company_id || null, title, company || req.user.company_name || 'Company', description, requirements, location, salary_range, job_type, JSON.stringify(screening_questions || []),
+      [req.user.id, req.user.company_id || null, title, company || req.user.company_name || 'Company', description, requirements, location, salary_range, normalizedJobType, JSON.stringify(screening_questions || []),
        jobCountry, jobCurrency, salary_min || null, salary_max || null]
     );
 
@@ -185,6 +192,15 @@ router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const { title, description, requirements, location, salary_range, job_type, status, screening_questions } = req.body;
 
+    // Normalize job_type to lowercase if provided
+    const normalizedUpdateJobType = job_type ? job_type.toLowerCase().trim() : null;
+    if (normalizedUpdateJobType) {
+      const validJobTypes = ['full-time', 'part-time', 'contract', 'internship', 'freelance'];
+      if (!validJobTypes.includes(normalizedUpdateJobType)) {
+        return res.status(400).json({ error: `Invalid job type. Must be one of: ${validJobTypes.join(', ')}` });
+      }
+    }
+
     // Check ownership
     const existing = await pool.query('SELECT user_id FROM jobs WHERE id = $1', [req.params.id]);
     if (existing.rows.length === 0) {
@@ -207,7 +223,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
         updated_at = NOW()
        WHERE id = $9
        RETURNING *`,
-      [title, description, requirements, location, salary_range, job_type, status, screening_questions ? JSON.stringify(screening_questions) : null, req.params.id]
+      [title, description, requirements, location, salary_range, normalizedUpdateJobType, status, screening_questions ? JSON.stringify(screening_questions) : null, req.params.id]
     );
 
     res.json({ success: true, job: result.rows[0] });
