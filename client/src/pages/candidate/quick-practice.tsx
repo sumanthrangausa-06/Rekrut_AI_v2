@@ -601,10 +601,10 @@ export function QuickPractice({ questions, categoryFilter, setCategoryFilter, on
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-primary" />
-                  Mock Interview
+                  Quick Practice
                 </DialogTitle>
                 <DialogDescription>
-                  Answer as if you're in a real interview — AI analyzes everything
+                  Answer a single question — AI analyzes everything
                 </DialogDescription>
               </DialogHeader>
 
@@ -981,7 +981,7 @@ export function QuickPractice({ questions, categoryFilter, setCategoryFilter, on
                         <div className="text-center py-6 space-y-3">
                           <div className="animate-spin rounded-full h-10 w-10 border-3 border-primary border-t-transparent mx-auto" />
                           <div>
-                            <p className="font-medium text-sm">Analyzing your interview...</p>
+                            <p className="font-medium text-sm">Analyzing your practice...</p>
                             <p className="text-xs text-muted-foreground mt-1">
                               AI is reviewing your body language, speech patterns, and answer content
                             </p>
@@ -1058,7 +1058,7 @@ export function QuickPractice({ questions, categoryFilter, setCategoryFilter, on
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Trophy className="h-5 w-5 text-primary" />
-                  Interview Analysis
+                  Practice Analysis
                 </DialogTitle>
               </DialogHeader>
 
@@ -1067,7 +1067,7 @@ export function QuickPractice({ questions, categoryFilter, setCategoryFilter, on
                   {coaching.overall_score}/10
                 </div>
                 <div className="text-sm text-muted-foreground mt-1">
-                  {scoreLabel(coaching.overall_score)} — Overall Interview Score
+                  {scoreLabel(coaching.overall_score)} — Overall Practice Score
                 </div>
               </div>
 

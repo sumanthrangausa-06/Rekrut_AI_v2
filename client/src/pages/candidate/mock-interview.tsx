@@ -1503,7 +1503,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                 <div className="inline-flex p-4 rounded-2xl bg-primary/10 mb-4">
                   <Video className="h-8 w-8 text-primary" />
                 </div>
-                <h3 className="text-lg font-bold mb-2">AI Video Interview</h3>
+                <h3 className="text-lg font-bold mb-2">Mock Interview</h3>
                 <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
                   Practice with a <strong>real video call experience</strong>. Your AI interviewer speaks out loud while you answer on camera — just like Zoom. Get scored and get feedback after.
                 </p>
@@ -1587,7 +1587,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                     ) : (
                       <>
                         <Video className="h-4 w-4 mr-2" />
-                        Start Video Interview
+                        Start Mock Interview
                       </>
                     )}
                   </Button>
