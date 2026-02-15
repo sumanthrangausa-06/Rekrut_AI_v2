@@ -47,7 +47,7 @@ export function RegisterPage() {
   const isRecruiterRole = role === 'employer'
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+    <div className="flex min-h-dvh-safe items-center justify-center bg-muted/30 p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="mb-8 text-center">

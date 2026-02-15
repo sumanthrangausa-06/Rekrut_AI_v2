@@ -30,8 +30,39 @@
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+    /* Prevent iOS overscroll bounce on the whole page */
+    overscroll-behavior: none;
+  }
+
   body {
     @apply bg-background text-foreground;
+    /* Prevent iOS rubber-banding on body */
+    overscroll-behavior-y: none;
+  }
+}
+
+/* ─── Dynamic Viewport Height (mobile browser chrome fix) ────────────── */
+/* 100vh on mobile includes the browser address bar area, clipping content.
+   100dvh (dynamic viewport height) accounts for browser chrome correctly.
+   We use a CSS variable so we can apply it consistently everywhere. */
+.h-dvh-safe {
+  height: 100vh; /* fallback for older browsers */
+  height: -webkit-fill-available; /* iOS Safari fallback */
+  height: 100dvh; /* modern browsers — accounts for browser chrome */
+}
+.min-h-dvh-safe {
+  min-height: 100vh; /* fallback for older browsers */
+  min-height: -webkit-fill-available; /* iOS Safari fallback */
+  min-height: 100dvh; /* modern browsers — accounts for browser chrome */
+}
+
+/* Ensure scrollable content areas have bottom safe area for notched devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .overflow-y-auto,
+  .overflow-auto {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
 

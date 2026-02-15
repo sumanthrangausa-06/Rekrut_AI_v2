@@ -147,7 +147,7 @@ export function CandidateScreeningPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+      <div className="min-h-dvh-safe bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <div className="text-center space-y-4">
           <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
           <p className="text-slate-600">Loading screening interview...</p>
@@ -158,7 +158,7 @@ export function CandidateScreeningPage() {
 
   if (error && !screening) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-red-50 flex items-center justify-center p-4">
+      <div className="min-h-dvh-safe bg-gradient-to-br from-slate-50 to-red-50 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardContent className="p-8 text-center space-y-4">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
@@ -178,7 +178,7 @@ export function CandidateScreeningPage() {
   // Completed state
   if (completed) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-green-50 flex items-center justify-center p-4">
+      <div className="min-h-dvh-safe bg-gradient-to-br from-slate-50 to-green-50 flex items-center justify-center p-4">
         <Card className="max-w-lg w-full">
           <CardContent className="p-8 text-center space-y-6">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
@@ -216,7 +216,7 @@ export function CandidateScreeningPage() {
   // Invited - not started yet
   if (screening.status === 'invited') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+      <div className="min-h-dvh-safe bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
         <Card className="max-w-lg w-full">
           <CardContent className="p-8 space-y-6">
             <div className="text-center space-y-2">
@@ -277,7 +277,7 @@ export function CandidateScreeningPage() {
   const isLastQuestion = currentQuestion === questions.length - 1
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-dvh-safe bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Top bar */}
       <div className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">

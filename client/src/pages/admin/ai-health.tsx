@@ -2287,7 +2287,7 @@ export function AiHealthPage() {
 
   if (loading && !data) {
     return (
-      <div className="min-h-screen bg-muted/30 flex items-center justify-center">
+      <div className="min-h-dvh-safe bg-muted/30 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           <p className="text-sm text-muted-foreground">Loading Admin Dashboard...</p>
@@ -2298,7 +2298,7 @@ export function AiHealthPage() {
 
   if (error && !data) {
     return (
-      <div className="min-h-screen bg-muted/30 flex items-center justify-center">
+      <div className="min-h-dvh-safe bg-muted/30 flex items-center justify-center">
         <Card className="max-w-md w-full mx-4">
           <CardContent className="p-8 text-center">
             <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
@@ -2328,7 +2328,7 @@ export function AiHealthPage() {
   const moduleEntries = Object.entries(data.module_chains)
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-dvh-safe bg-muted/30">
       {/* Header bar */}
       <div className="sticky top-0 z-10 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between gap-2">

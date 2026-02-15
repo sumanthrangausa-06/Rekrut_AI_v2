@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate root cause of mobile scroll cutoff",
+    "status": "completed",
+    "activeForm": "Investigating root cause of mobile scroll cutoff"
+  },
+  {
+    "content": "Fix root layout/viewport for full scrolling on all devices",
+    "status": "completed",
+    "activeForm": "Fixing root layout/viewport for full scrolling"
+  },
+  {
+    "content": "Fix all layout wrappers (DashboardLayout, AuthLayout, etc.)",
+    "status": "completed",
+    "activeForm": "Fixing layout wrappers"
+  },
+  {
+    "content": "Deploy and verify fix",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying fix"
+  }
+]

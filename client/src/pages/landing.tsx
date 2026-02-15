@@ -58,7 +58,7 @@ export function LandingPage() {
   const dashboardPath = user ? getDashboardPath(user.role) : '/login'
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh-safe bg-background">
       {/* Header */}
       <header className="border-b">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">

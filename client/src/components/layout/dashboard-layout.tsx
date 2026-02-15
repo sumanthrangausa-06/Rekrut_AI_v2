@@ -10,7 +10,7 @@ export function DashboardLayout() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-dvh-safe items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           <p className="text-sm text-muted-foreground">Loading...</p>
@@ -24,11 +24,11 @@ export function DashboardLayout() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-dvh-safe overflow-hidden">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
-        <main className="flex-1 overflow-y-auto bg-muted/30 p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto bg-muted/30 p-4 pb-8 lg:p-6 lg:pb-6 overscroll-contain">
           <Outlet />
         </main>
       </div>
