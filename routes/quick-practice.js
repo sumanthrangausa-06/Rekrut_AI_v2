@@ -123,11 +123,61 @@ const PRACTICE_QUESTION_LIBRARY = [
   }
 ];
 
+// ─── Question type → category mapping ────────────────────────────
+const TYPE_TO_CATEGORY = {
+  behavioral: 'behavioral',
+  technical: 'technical',
+  situational: 'situational',
+  competency: 'technical',
+  role_specific: 'technical',
+};
+
+function capitalizeDifficulty(d) {
+  if (!d) return 'Medium';
+  const s = d.toLowerCase();
+  if (s === 'easy') return 'Easy';
+  if (s === 'hard') return 'Hard';
+  return 'Medium';
+}
+
 // ─── GET /practice/library ──────────────────────────────────────
+// Pulls from question_bank (DB) first; falls back to hardcoded if DB is empty
 router.get('/practice/library', authMiddleware, async (req, res) => {
   try {
-    const questionLibrary = PRACTICE_QUESTION_LIBRARY;
+    // 1. Try to load questions from question_bank
+    let questionLibrary = [];
+    try {
+      const dbQuestions = await pool.query(
+        `SELECT id, question_text, question_type, difficulty, key_points, role
+         FROM question_bank
+         ORDER BY times_used DESC, created_at DESC
+         LIMIT 200`
+      );
 
+      if (dbQuestions.rows.length > 0) {
+        questionLibrary = dbQuestions.rows.map(row => ({
+          id: `qb-${row.id}`,
+          category: TYPE_TO_CATEGORY[row.question_type] || 'behavioral',
+          difficulty: capitalizeDifficulty(row.difficulty),
+          question: row.question_text,
+          key_points: Array.isArray(row.key_points) && row.key_points.length > 0
+            ? row.key_points
+            : ['Content quality', 'Structure', 'Clarity', 'Relevance'],
+          role: row.role || null,
+        }));
+        console.log(`[QP] Loaded ${questionLibrary.length} questions from question_bank`);
+      }
+    } catch (dbErr) {
+      console.warn('[QP] Failed to query question_bank, falling back to hardcoded:', dbErr.message);
+    }
+
+    // 2. Fall back to hardcoded if DB returned nothing
+    if (questionLibrary.length === 0) {
+      questionLibrary = PRACTICE_QUESTION_LIBRARY;
+      console.log('[QP] Using hardcoded fallback question library');
+    }
+
+    // 3. Enrich with user's practice history
     const practiceHistory = await pool.query(
       `SELECT question_id, COUNT(*) as times_practiced,
               MAX(score) as best_score,
@@ -167,21 +217,54 @@ router.get('/practice/library', authMiddleware, async (req, res) => {
   }
 });
 
+// ─── Helper: resolve question from DB or hardcoded library ──────
+async function resolveQuestion(questionId) {
+  // Try question_bank first (IDs like "qb-123")
+  if (questionId && questionId.startsWith('qb-')) {
+    const dbId = parseInt(questionId.replace('qb-', ''));
+    if (!isNaN(dbId)) {
+      try {
+        const result = await pool.query(
+          'SELECT question_text, question_type, difficulty, key_points FROM question_bank WHERE id = $1',
+          [dbId]
+        );
+        if (result.rows.length > 0) {
+          const row = result.rows[0];
+          return {
+            question: row.question_text,
+            key_points: Array.isArray(row.key_points) && row.key_points.length > 0
+              ? row.key_points
+              : ['Content quality', 'Structure', 'Clarity', 'Relevance'],
+            category: TYPE_TO_CATEGORY[row.question_type] || 'behavioral',
+          };
+        }
+      } catch (err) {
+        console.warn('[QP] Failed to resolve question from DB:', err.message);
+      }
+    }
+  }
+  // Fall back to hardcoded library
+  const libraryQ = PRACTICE_QUESTION_LIBRARY.find(q => q.id === questionId);
+  if (libraryQ) {
+    return { question: libraryQ.question, key_points: libraryQ.key_points, category: libraryQ.category };
+  }
+  return null;
+}
+
 // ─── POST /practice/submit ──────────────────────────────────────
 router.post('/practice/submit', authMiddleware, async (req, res) => {
   try {
     const { response_text } = req.body;
     const question_id = req.body.question_id || 'general';
     const category = req.body.category || 'behavioral';
-    const libraryQ = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
-    const question = req.body.question || (libraryQ && libraryQ.question) || `Practice question ${question_id || 'unknown'}`;
+    const resolved = await resolveQuestion(question_id);
+    const question = req.body.question || (resolved && resolved.question) || `Practice question ${question_id || 'unknown'}`;
 
     if (!response_text || response_text.trim().length < 50) {
       return res.status(400).json({ error: 'Response must be at least 50 characters' });
     }
 
-    const libraryQuestion = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
-    const keyPoints = libraryQuestion ? libraryQuestion.key_points : ['Content quality', 'Structure', 'Clarity', 'Relevance'];
+    const keyPoints = resolved ? resolved.key_points : ['Content quality', 'Structure', 'Clarity', 'Relevance'];
 
     const analysis = await analyzeInterviewResponse(
       question,
@@ -244,8 +327,8 @@ router.post('/practice/submit-video', authMiddleware, async (req, res) => {
     const { transcription, frames, duration_seconds, audio_data } = req.body;
     const question_id = req.body.question_id || 'general';
     const category = req.body.category || 'behavioral';
-    const libQ = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
-    const question = req.body.question || (libQ && libQ.question) || `Practice question ${question_id || 'unknown'}`;
+    const resolved = await resolveQuestion(question_id);
+    const question = req.body.question || (resolved && resolved.question) || `Practice question ${question_id || 'unknown'}`;
 
     if (!transcription || transcription.trim().length < 20) {
       return res.status(400).json({ error: 'Transcription too short. Please speak for at least 15-20 seconds.' });
@@ -255,8 +338,7 @@ router.post('/practice/submit-video', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'No video frames captured. Please allow camera access.' });
     }
 
-    const libraryQuestion = PRACTICE_QUESTION_LIBRARY.find(q => q.id === question_id);
-    const keyPoints = libraryQuestion ? libraryQuestion.key_points : ['Content quality', 'Structure', 'Clarity', 'Relevance'];
+    const keyPoints = resolved ? resolved.key_points : ['Content quality', 'Structure', 'Clarity', 'Relevance'];
 
     // Route-level 38s safety timeout (internal analysis has 25s master timeout)
     const ROUTE_TIMEOUT_MS = 38000;
