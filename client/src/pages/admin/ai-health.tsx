@@ -379,8 +379,13 @@ function formatModuleName(key: string): string {
 
 function getOverallStatus(data: HealthData): 'operational' | 'degraded' | 'down' {
   const modalities = Object.values(data.modalities)
-  const allDown = modalities.every(m => m.providers.every(p => !p.available || p.circuitOpen))
-  const someDown = modalities.some(m => m.providers.some(p => !p.available || p.circuitOpen))
+  // FIX (Feb 15, 2026 — Task #32795): Also check verifyFailed status
+  // The banner showed "All Systems Operational" even when 5 providers were returning 429 errors
+  // because it only checked API key availability and circuit breaker state.
+  // Now it also checks whether the provider's last verification failed.
+  const isProviderDown = (p: any) => !p.available || p.circuitOpen || p.verifyFailed
+  const allDown = modalities.every(m => m.providers.length > 0 && m.providers.every(isProviderDown))
+  const someDown = modalities.some(m => m.providers.some(isProviderDown))
   if (allDown) return 'down'
   if (someDown) return 'degraded'
   return 'operational'
@@ -389,7 +394,8 @@ function getOverallStatus(data: HealthData): 'operational' | 'degraded' | 'down'
 function getModalityStatus(modality: ModalityInfo): 'healthy' | 'degraded' | 'down' | 'passthrough' {
   // Modalities with graceful degradation and no providers = passthrough (not "down")
   if (modality.chain_depth === 0 && modality.graceful_degradation) return 'passthrough'
-  const available = modality.providers.filter(p => p.available && !p.circuitOpen)
+  // FIX (Feb 15, 2026 — Task #32795): Include verifyFailed in availability check
+  const available = modality.providers.filter(p => p.available && !p.circuitOpen && !p.verifyFailed)
   if (available.length === 0) return 'down'
   if (available.length < modality.providers.length) return 'degraded'
   return 'healthy'
@@ -1706,17 +1712,28 @@ function DailyTokenBreakdown() {
 
 function HourlyUsageChart({ hourly }: { hourly: AiUsageData['hourly'] }) {
   if (!hourly || hourly.length === 0) return null
-  const maxTokens = Math.max(...hourly.map(h => h.tokens), 1)
+
+  // FIX (Feb 15, 2026 — Task #32795): Show call counts as fallback when all tokens are 0
+  // NIM providers were logging 0 tokens, making the chart appear completely empty.
+  // Fall back to showing call volume when token data is unavailable.
+  const totalTokens = hourly.reduce((s, h) => s + h.tokens, 0)
+  const totalCalls = hourly.reduce((s, h) => s + h.calls, 0)
+  const useCallsFallback = totalTokens === 0 && totalCalls > 0
+  const metric = useCallsFallback ? 'calls' : 'tokens'
+  const maxVal = Math.max(...hourly.map(h => h[metric]), 1)
 
   return (
     <div>
-      <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Token Usage (Last 24h)</p>
+      <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
+        {useCallsFallback ? 'API Calls (Last 24h)' : 'Token Usage (Last 24h)'}
+      </p>
       <div className="flex items-end gap-0.5 h-24">
         {hourly.map((h, i) => {
-          const height = Math.max(2, (h.tokens / maxTokens) * 100)
+          const val = h[metric]
+          const height = Math.max(2, (val / maxVal) * 100)
           return (
             <div key={i} className="flex-1 flex flex-col items-center" title={`${h.label}: ${h.tokens.toLocaleString()} tokens, ${h.calls} calls`}>
-              <div className={cn('w-full rounded-t-sm', h.tokens > 0 ? 'bg-primary/60 hover:bg-primary/80' : 'bg-muted/30')} style={{ height: `${height}%` }} />
+              <div className={cn('w-full rounded-t-sm', val > 0 ? 'bg-primary/60 hover:bg-primary/80' : 'bg-muted/30')} style={{ height: `${height}%` }} />
             </div>
           )
         })}
