@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate current codebase — read quick-practice.tsx and trace data flow",
+    "status": "completed",
+    "activeForm": "Investigating current codebase"
+  },
+  {
+    "content": "Check git history for what #32651 removed",
+    "status": "completed",
+    "activeForm": "Checking git history"
+  },
+  {
+    "content": "Fix backend: always run voice analysis + include transcript in response",
+    "status": "completed",
+    "activeForm": "Fixing backend voice analysis and transcript"
+  },
+  {
+    "content": "Fix frontend: use backend transcript fallback + verify voice_analysis rendering",
+    "status": "completed",
+    "activeForm": "Fixing frontend transcript fallback"
+  },
+  {
+    "content": "Build, commit, deploy, and verify",
+    "status": "in_progress",
+    "activeForm": "Building and deploying"
+  }
+]
