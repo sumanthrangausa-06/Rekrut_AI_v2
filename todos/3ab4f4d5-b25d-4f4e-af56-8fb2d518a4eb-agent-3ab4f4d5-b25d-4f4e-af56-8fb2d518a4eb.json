@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate CHECK constraint definition and AI-generated values",
+    "status": "completed",
+    "activeForm": "Investigating CHECK constraint and AI output mismatch"
+  },
+  {
+    "content": "Fix the constraint or normalize AI output before INSERT",
+    "status": "completed",
+    "activeForm": "Fixing the constraint/normalization"
+  },
+  {
+    "content": "Add frontend error toast for assessment generation failures",
+    "status": "completed",
+    "activeForm": "Adding frontend error handling"
+  },
+  {
+    "content": "Deploy and verify fix works end-to-end",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying the fix"
+  }
+]
