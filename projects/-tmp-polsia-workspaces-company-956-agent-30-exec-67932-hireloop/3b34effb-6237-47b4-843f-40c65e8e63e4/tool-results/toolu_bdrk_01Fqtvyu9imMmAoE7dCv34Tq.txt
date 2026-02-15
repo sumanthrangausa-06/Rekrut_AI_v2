@@ -1,0 +1,1575 @@
+     1→const Anthropic = require('@anthropic-ai/sdk');
+     2→const OpenAI = require('openai');
+     3→const fetch = require('node-fetch');
+     4→const FormData = require('form-data');
+     5→
+     6→// AI Provider Fallback Service — auto-switches providers on failure
+     7→const aiProvider = require('./ai-provider');
+     8→
+     9→const anthropic = new Anthropic({
+    10→  baseURL: process.env.POLSIA_API_URL || 'https://polsia.com/api/proxy/ai',
+    11→  apiKey: process.env.POLSIA_API_KEY,
+    12→});
+    13→
+    14→// OpenAI client for vision tasks (Polsia AI proxy supports multimodal via OpenAI format)
+    15→const openai = new OpenAI(); // Uses OPENAI_BASE_URL and OPENAI_API_KEY from env
+    16→
+    17→// Robust JSON parser — handles malformed LLM output (markdown fences, trailing commas, unescaped chars)
+    18→function safeParseJSON(text) {
+    19→  if (!text || typeof text !== 'string') return null;
+    20→
+    21→  // Step 1: Strip markdown code fences
+    22→  let cleaned = text.replace(/```(?:json)?\s*/gi, '').replace(/```\s*/g, '');
+    23→
+    24→  // Step 2: Extract the outermost JSON object or array
+    25→  const match = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+    26→  if (!match) return null;
+    27→  cleaned = match[0];
+    28→
+    29→  // Step 3: Try direct parse first
+    30→  try { return JSON.parse(cleaned); } catch (e) { /* continue to repair */ }
+    31→
+    32→  // Step 4: Remove trailing commas before } or ]
+    33→  let repaired = cleaned.replace(/,\s*([}\]])/g, '$1');
+    34→
+    35→  // Step 5: Strip control characters (except \n \r \t) within strings
+    36→  repaired = repaired.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+    37→
+    38→  try { return JSON.parse(repaired); } catch (e) { /* continue */ }
+    39→
+    40→  // Step 6: Fix unescaped newlines inside JSON strings (replace literal newlines with \n)
+    41→  repaired = repaired.replace(/"([^"]*?)"/g, (match, content) => {
+    42→    return '"' + content.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') + '"';
+    43→  });
+    44→
+    45→  try { return JSON.parse(repaired); } catch (e) { /* continue */ }
+    46→
+    47→  // Step 7: Last resort — try to fix common quote escaping issues
+    48→  // Replace curly/smart quotes with straight quotes
+    49→  repaired = repaired.replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"');
+    50→  repaired = repaired.replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
+    51→
+    52→  try { return JSON.parse(repaired); } catch (e) {
+    53→    console.warn('[safeParseJSON] All repair attempts failed:', e.message);
+    54→    return null;
+    55→  }
+    56→}
+    57→
+    58→// Upload a base64 image frame to R2 and return the CDN URL
+    59→// The Polsia OpenAI proxy only supports HTTP URLs for vision, NOT base64 data URIs
+    60→async function uploadFrameToR2(base64Data, index) {
+    61→  try {
+    62→    // Strip data URI prefix if present
+    63→    const raw = base64Data.replace(/^data:image\/\w+;base64,/, '');
+    64→    const buffer = Buffer.from(raw, 'base64');
+    65→
+    66→    const formData = new FormData();
+    67→    formData.append('file', buffer, {
+    68→      filename: `video-frame-${Date.now()}-${index}.jpg`,
+    69→      contentType: 'image/jpeg'
+    70→    });
+    71→
+    72→    const res = await fetch('https://polsia.com/api/proxy/r2/upload', {
+    73→      method: 'POST',
+    74→      headers: {
+    75→        'Authorization': `Bearer ${process.env.POLSIA_API_KEY}`,
+    76→        ...formData.getHeaders()
+    77→      },
+    78→      body: formData
+    79→    });
+    80→
+    81→    const result = await res.json();
+    82→    if (!result.success) {
+    83→      console.error(`R2 frame upload failed (frame ${index}):`, result.error);
+    84→      return null;
+    85→    }
+    86→    return result.file.url;
+    87→  } catch (err) {
+    88→    console.error(`R2 frame upload error (frame ${index}):`, err.message);
+    89→    return null;
+    90→  }
+    91→}
+    92→
+    93→// ─── CORE CHAT: Now with automatic multi-provider fallback ─────
+    94→// Fallback chain: Anthropic → OpenAI → NIM Nemotron → NIM Kimi → NIM DeepSeek
+    95→async function chat(message, options = {}) {
+    96→  // Handle both string messages and arrays of message objects
+    97→  let messages;
+    98→  if (Array.isArray(message)) {
+    99→    // Filter out system messages and extract them
+   100→    const systemMessages = message.filter(m => m.role === 'system');
+   101→    const nonSystemMessages = message.filter(m => m.role !== 'system');
+   102→
+   103→    // Use the first system message content as the system prompt if not already set
+   104→    if (systemMessages.length > 0 && !options.system) {
+   105→      options.system = systemMessages[0].content;
+   106→    }
+   107→
+   108→    // Ensure messages have proper format (content must be string or array)
+   109→    messages = nonSystemMessages.map(m => ({
+   110→      role: m.role,
+   111→      content: typeof m.content === 'string' ? m.content : String(m.content)
+   112→    }));
+   113→  } else {
+   114→    // Simple string message
+   115→    messages = [{ role: 'user', content: String(message) }];
+   116→  }
+   117→
+   118→  // Ensure we have at least one message
+   119→  if (messages.length === 0) {
+   120→    messages = [{ role: 'user', content: 'Hello' }];
+   121→  }
+   122→
+   123→  // Use the provider service with automatic fallback
+   124→  return aiProvider.chatCompletion(messages, options);
+   125→}
+   126→
+   127→async function generateInterviewQuestions(jobTitle, jobDescription, count = 5) {
+   128→  const prompt = `Generate ${count} interview questions for a ${jobTitle} position.
+   129→
+   130→Job Description:
+   131→${jobDescription || 'General ' + jobTitle + ' role'}
+   132→
+   133→Return a JSON array with objects containing:
+   134→- question: The interview question
+   135→- category: behavioral/technical/situational
+   136→- difficulty: easy/medium/hard
+   137→- key_points: Array of 3-5 key points to look for in a good answer
+   138→
+   139→Only return the JSON array, no other text.`;
+   140→
+   141→  const response = await chat(prompt, {
+   142→    system: 'You are an expert interviewer. Generate thoughtful, role-specific interview questions. Always return valid JSON.',
+   143→    module: 'mock_interview', feature: 'question_generation'
+   144→  });
+   145→
+   146→  try {
+   147→    return JSON.parse(response);
+   148→  } catch (e) {
+   149→    const match = response.match(/\[.*\]/s);
+   150→    if (match) {
+   151→      return JSON.parse(match[0]);
+   152→    }
+   153→    throw new Error('Failed to parse interview questions');
+   154→  }
+   155→}
+   156→
+   157→async function analyzeInterviewResponse(question, response, keyPoints, options = {}) {
+   158→  const prompt = `Analyze this interview response:
+   159→
+   160→Question: ${question}
+   161→
+   162→Candidate's Response:
+   163→${response}
+   164→
+   165→Key points to evaluate:
+   166→${keyPoints.map((p, i) => `${i + 1}. ${p}`).join('\n')}
+   167→
+   168→Provide a JSON object with:
+   169→- score: 1-10 rating
+   170→- strengths: Array of 2-3 strengths
+   171→- improvements: Array of 2-3 areas for improvement
+   172→- covered_points: Array of which key points were addressed
+   173→- missed_points: Array of key points that were missed
+   174→- detailed_feedback: A 2-3 sentence constructive feedback paragraph
+   175→
+   176→Only return the JSON object, no other text.`;
+   177→
+   178→  const result = await chat(prompt, {
+   179→    system: 'You are an expert interview coach providing constructive, actionable feedback. Be encouraging but honest. Always return valid JSON.',
+   180→    subscriptionId: options.subscriptionId,
+   181→    module: 'mock_interview', feature: 'response_analysis',
+   182→    response_format: { type: 'json_object' },
+   183→  });
+   184→
+   185→  // Use safeParseJSON (7 repair strategies) instead of raw JSON.parse — handles markdown
+   186→  // fences, trailing commas, control chars, smart quotes that LLMs sometimes emit
+   187→  const parsed = safeParseJSON(result);
+   188→  if (parsed && typeof parsed === 'object' && parsed.score !== undefined) {
+   189→    return parsed;
+   190→  }
+   191→
+   192→  // Log the raw response for debugging when parsing fails
+   193→  console.error('[analysis] Content analysis parse failed. Raw LLM response:', typeof result, result ? String(result).substring(0, 500) : '(empty/null)');
+   194→  throw new Error('Failed to parse analysis');
+   195→}
+   196→
+   197→async function generateOverallFeedback(questionResults, options = {}) {
+   198→  const avgScore = questionResults.reduce((sum, r) => sum + r.score, 0) / questionResults.length;
+   199→
+   200→  const prompt = `Based on these interview question results, provide overall feedback:
+   201→
+   202→Results:
+   203→${questionResults.map((r, i) => `Q${i + 1}: Score ${r.score}/10 - ${r.detailed_feedback}`).join('\n\n')}
+   204→
+   205→Average Score: ${avgScore.toFixed(1)}/10
+   206→
+   207→Provide a JSON object with:
+   208→- overall_score: Rounded average (1-10)
+   209→- summary: 2-3 sentence overall assessment
+   210→- top_strengths: Array of 3 key strengths demonstrated
+   211→- priority_improvements: Array of 3 highest priority areas to work on
+   212→- recommended_practice: Array of 3 specific practice recommendations
+   213→- interview_readiness: "ready"/"almost_ready"/"needs_work" based on score
+   214→
+   215→Only return the JSON object.`;
+   216→
+   217→  const result = await chat(prompt, {
+   218→    system: 'You are a supportive career coach. Provide actionable, encouraging feedback. Always return valid JSON.',
+   219→    subscriptionId: options.subscriptionId,
+   220→    module: 'mock_interview', feature: 'overall_feedback'
+   221→  });
+   222→
+   223→  try {
+   224→    return JSON.parse(result);
+   225→  } catch (e) {
+   226→    const match = result.match(/\{.*\}/s);
+   227→    if (match) {
+   228→      return JSON.parse(match[0]);
+   229→    }
+   230→    return {
+   231→      overall_score: Math.round(avgScore),
+   232→      summary: 'Your interview performance has been evaluated.',
+   233→      interview_readiness: avgScore >= 7 ? 'ready' : avgScore >= 5 ? 'almost_ready' : 'needs_work'
+   234→    };
+   235→  }
+   236→}
+   237→
+   238→async function parseResume(resumeText, options = {}) {
+   239→  const prompt = `Parse this resume and extract structured information:
+   240→
+   241→${resumeText}
+   242→
+   243→Return a JSON object with:
+   244→{
+   245→  "contact": {
+   246→    "name": "Full name",
+   247→    "email": "Email if found",
+   248→    "phone": "Phone if found",
+   249→    "location": "Location if found",
+   250→    "linkedin": "LinkedIn URL if found",
+   251→    "github": "GitHub URL if found",
+   252→    "portfolio": "Portfolio URL if found"
+   253→  },
+   254→  "headline": "A professional headline/title (max 100 chars)",
+   255→  "bio": "A professional summary (2-3 sentences, max 300 chars)",
+   256→  "experience": [
+   257→    {
+   258→      "company": "Company name",
+   259→      "title": "Job title",
+   260→      "location": "Location",
+   261→      "start_date": "YYYY-MM or YYYY",
+   262→      "end_date": "YYYY-MM or 'Present'",
+   263→      "is_current": boolean,
+   264→      "description": "Role description",
+   265→      "achievements": ["Achievement 1", "Achievement 2"],
+   266→      "skills_used": ["Skill 1", "Skill 2"]
+   267→    }
+   268→  ],
+   269→  "education": [
+   270→    {
+   271→      "institution": "School name",
+   272→      "degree": "Degree type",
+   273→      "field": "Field of study",
+   274→      "start_date": "YYYY",
+   275→      "end_date": "YYYY or 'Present'",
+   276→      "gpa": number or null,
+   277→      "achievements": ["Honor 1", "Activity 1"]
+   278→    }
+   279→  ],
+   280→  "skills": [
+   281→    {
+   282→      "name": "Skill name",
+   283→      "category": "technical|soft_skill|tool|language",
+   284→      "level": 1-5 (inferred from context, 3 is intermediate)
+   285→    }
+   286→  ],
+   287→  "certifications": ["Cert 1", "Cert 2"],
+   288→  "years_experience": total years of work experience
+   289→}
+   290→
+   291→Only return the JSON object, no other text.`;
+   292→
+   293→  const result = await chat(prompt, {
+   294→    system: 'You are an expert resume parser. Extract accurate, structured data from resumes. Always return valid JSON. Be thorough but do not fabricate information.',
+   295→    subscriptionId: options.subscriptionId,
+   296→    module: 'resume_parsing', feature: 'parse'
+   297→  });
+   298→
+   299→  try {
+   300→    return JSON.parse(result);
+   301→  } catch (e) {
+   302→    const match = result.match(/\{[\s\S]*\}/);
+   303→    if (match) {
+   304→      return JSON.parse(match[0]);
+   305→    }
+   306→    throw new Error('Failed to parse resume data');
+   307→  }
+   308→}
+   309→
+   310→async function generateSkillAssessment(skillName, skillLevel, category, options = {}) {
+   311→  const difficultyMap = { 1: 'beginner', 2: 'intermediate', 3: 'intermediate', 4: 'advanced', 5: 'expert' };
+   312→  const difficulty = difficultyMap[skillLevel] || 'intermediate';
+   313→
+   314→  const prompt = `Generate a skill assessment for ${skillName} at ${difficulty} level.
+   315→
+   316→Category: ${category}
+   317→
+   318→Create 5 multiple-choice questions that test practical knowledge.
+   319→
+   320→Return a JSON array:
+   321→[
+   322→  {
+   323→    "question": "The question text",
+   324→    "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
+   325→    "correct_answer": "A",
+   326→    "explanation": "Brief explanation of why this is correct",
+   327→    "difficulty": "easy|medium|hard"
+   328→  }
+   329→]
+   330→
+   331→Make questions progressively harder. Include at least one scenario-based question.
+   332→Only return the JSON array, no other text.`;
+   333→
+   334→  const result = await chat(prompt, {
+   335→    system: 'You are an expert technical interviewer. Create fair, practical assessment questions that test real-world knowledge. Always return valid JSON.',
+   336→    subscriptionId: options.subscriptionId,
+   337→    module: 'assessments', feature: 'question_generation'
+   338→  });
+   339→
+   340→  try {
+   341→    return JSON.parse(result);
+   342→  } catch (e) {
+   343→    const match = result.match(/\[[\s\S]*\]/);
+   344→    if (match) {
+   345→      return JSON.parse(match[0]);
+   346→    }
+   347→    throw new Error('Failed to generate assessment');
+   348→  }
+   349→}
+   350→
+   351→async function evaluateSkillAssessment(questions, responses, skillName, options = {}) {
+   352→  const prompt = `Evaluate these skill assessment responses for ${skillName}:
+   353→
+   354→Questions and Responses:
+   355→${questions.map((q, i) => `
+   356→Q${i + 1}: ${q.question}
+   357→Options: ${q.options.join(', ')}
+   358→Correct Answer: ${q.correct_answer}
+   359→User Answer: ${responses[i] || 'No answer'}
+   360→Explanation: ${q.explanation}
+   361→`).join('\n')}
+   362→
+   363→Calculate the score and provide feedback.
+   364→
+   365→Return a JSON object:
+   366→{
+   367→  "score": percentage correct (0-100),
+   368→  "passed": boolean (70+ is passing),
+   369→  "correct_count": number of correct answers,
+   370→  "total_questions": total number of questions,
+   371→  "question_results": [
+   372→    {
+   373→      "question_index": 0,
+   374→      "is_correct": boolean,
+   375→      "user_answer": "A",
+   376→      "correct_answer": "B",
+   377→      "explanation": "Why the correct answer is right"
+   378→    }
+   379→  ],
+   380→  "strengths": ["Strength 1", "Strength 2"],
+   381→  "areas_to_improve": ["Area 1", "Area 2"],
+   382→  "recommended_level": 1-5 skill level based on performance,
+   383→  "feedback_summary": "2-3 sentence overall feedback"
+   384→}
+   385→
+   386→Only return the JSON object.`;
+   387→
+   388→  const result = await chat(prompt, {
+   389→    system: 'You are an expert assessor. Provide fair, constructive evaluation. Always return valid JSON.',
+   390→    subscriptionId: options.subscriptionId,
+   391→    module: 'assessments', feature: 'evaluation'
+   392→  });
+   393→
+   394→  try {
+   395→    return JSON.parse(result);
+   396→  } catch (e) {
+   397→    const match = result.match(/\{[\s\S]*\}/);
+   398→    if (match) {
+   399→      return JSON.parse(match[0]);
+   400→    }
+   401→    throw new Error('Failed to evaluate assessment');
+   402→  }
+   403→}
+   404→
+   405→async function generateJobMatchScore(candidateProfile, job, options = {}) {
+   406→  const prompt = `Calculate how well this candidate matches this job:
+   407→
+   408→CANDIDATE PROFILE:
+   409→- Skills: ${candidateProfile.skills?.map(s => s.skill_name).join(', ') || 'None listed'}
+   410→- Experience: ${candidateProfile.years_experience || 0} years
+   411→- Location: ${candidateProfile.location || 'Not specified'}
+   412→- OmniScore: ${candidateProfile.omniscore || 300}
+   413→- Recent titles: ${candidateProfile.titles?.join(', ') || 'Not specified'}
+   414→
+   415→JOB POSTING:
+   416→- Title: ${job.title}
+   417→- Company: ${job.company}
+   418→- Requirements: ${job.requirements || 'Not specified'}
+   419→- Location: ${job.location || 'Not specified'}
+   420→- Description: ${job.description?.substring(0, 500) || 'Not specified'}
+   421→
+   422→Calculate a match score and explain why.
+   423→
+   424→Return a JSON object:
+   425→{
+   426→  "match_score": 0-100,
+   427→  "match_level": "excellent|good|fair|poor",
+   428→  "matching_skills": ["skill1", "skill2"],
+   429→  "missing_skills": ["skill1", "skill2"],
+   430→  "strengths": ["Why this candidate is a good fit"],
+   431→  "gaps": ["Potential concerns"],
+   432→  "recommendation": "1-2 sentence recommendation"
+   433→}
+   434→
+   435→Only return the JSON object.`;
+   436→
+   437→  const result = await chat(prompt, {
+   438→    system: 'You are an expert recruiter matching candidates to jobs. Be fair and accurate. Always return valid JSON.',
+   439→    subscriptionId: options.subscriptionId,
+   440→    module: 'matching', feature: 'job_match_score'
+   441→  });
+   442→
+   443→  try {
+   444→    return JSON.parse(result);
+   445→  } catch (e) {
+   446→    const match = result.match(/\{[\s\S]*\}/);
+   447→    if (match) {
+   448→      return JSON.parse(match[0]);
+   449→    }
+   450→    return { match_score: 50, match_level: 'fair', recommendation: 'Unable to calculate detailed match' };
+   451→  }
+   452→}
+   453→
+   454→async function generateInterviewCoaching(question, response, feedback, options = {}) {
+   455→  const prompt = `Provide personalized coaching for this interview response:
+   456→
+   457→QUESTION: ${question}
+   458→
+   459→CANDIDATE'S RESPONSE: ${response}
+   460→
+   461→INITIAL FEEDBACK: ${JSON.stringify(feedback)}
+   462→
+   463→Provide detailed coaching:
+   464→
+   465→Return a JSON object:
+   466→{
+   467→  "improved_response": "A better version of their response using the STAR method if applicable",
+   468→  "specific_tips": [
+   469→    "Specific tip 1 for this response",
+   470→    "Specific tip 2"
+   471→  ],
+   472→  "body_language_tips": ["Tip about delivery"],
+   473→  "common_mistake": "What mistake they made and how to avoid it",
+   474→  "practice_prompt": "A follow-up question they should practice"
+   475→}
+   476→
+   477→Only return the JSON object.`;
+   478→
+   479→  const result = await chat(prompt, {
+   480→    system: 'You are an expert interview coach. Be supportive, specific, and actionable. Always return valid JSON.',
+   481→    subscriptionId: options.subscriptionId,
+   482→    module: 'mock_interview', feature: 'coaching',
+   483→    response_format: { type: 'json_object' },
+   484→  });
+   485→
+   486→  // Use safeParseJSON (7 repair strategies) instead of raw JSON.parse
+   487→  const parsed = safeParseJSON(result);
+   488→  if (parsed && typeof parsed === 'object') {
+   489→    return parsed;
+   490→  }
+   491→
+   492→  // Log the raw response for debugging when parsing fails
+   493→  console.error('[coaching] Coaching parse failed. Raw LLM response:', typeof result, result ? String(result).substring(0, 500) : '(empty/null)');
+   494→  throw new Error('Failed to generate coaching');
+   495→}
+   496→
+   497→// Normalize vision analysis result — different AI models use different field names
+   498→// Maps common variations to the expected field names
+   499→function normalizeVisionResult(parsed) {
+   500→  if (!parsed || typeof parsed !== 'object') return parsed;
+   501→  const result = { ...parsed };
+   502→
+   503→  // Normalize field name variations
+   504→  const fieldMappings = {
+   505→    eye_contact: ['eye_contact', 'eyeContact', 'eye_contact_score', 'gaze'],
+   506→    facial_expressions: ['facial_expressions', 'facialExpressions', 'expressions', 'facial_expression'],
+   507→    body_language: ['body_language', 'bodyLanguage', 'body_language_score', 'posture'],
+   508→    professional_appearance: ['professional_appearance', 'professionalAppearance', 'appearance', 'camera_setup'],
+   509→    overall_presentation: ['overall_presentation', 'overallPresentation', 'overall_score', 'overall'],
+   510→  };
+   511→
+   512→  for (const [target, alternatives] of Object.entries(fieldMappings)) {
+   513→    if (!result[target]) {
+   514→      for (const alt of alternatives) {
+   515→        if (result[alt] !== undefined) {
+   516→          result[target] = result[alt];
+   517→          break;
+   518→        }
+   519→      }
+   520→    }
+   521→    // Normalize score-only values into {score, feedback} objects
+   522→    if (target !== 'overall_presentation' && result[target] !== undefined) {
+   523→      if (typeof result[target] === 'number') {
+   524→        result[target] = { score: result[target], feedback: '' };
+   525→      } else if (typeof result[target] === 'object' && result[target] !== null) {
+   526→        // Ensure score is a number
+   527→        if (result[target].score === undefined && result[target].rating !== undefined) {
+   528→          result[target].score = result[target].rating;
+   529→        }
+   530→        if (typeof result[target].score !== 'number') {
+   531→          result[target].score = parseInt(result[target].score) || 5;
+   532→        }
+   533→        result[target].feedback = result[target].feedback || result[target].assessment || result[target].comment || '';
+   534→      }
+   535→    }
+   536→  }
+   537→
+   538→  // Normalize overall_presentation to a number
+   539→  if (typeof result.overall_presentation === 'object' && result.overall_presentation !== null) {
+   540→    result.overall_presentation = result.overall_presentation.score || result.overall_presentation.rating || 5;
+   541→  }
+   542→  if (typeof result.overall_presentation !== 'number') {
+   543→    result.overall_presentation = parseInt(result.overall_presentation) || 5;
+   544→  }
+   545→
+   546→  // Ensure timestamped_notes is an array
+   547→  if (!Array.isArray(result.timestamped_notes)) {
+   548→    result.timestamped_notes = result.timestamped_notes ? [result.timestamped_notes] : [];
+   549→  }
+   550→
+   551→  return result;
+   552→}
+   553→
+   554→// ─── VISION ANALYSIS: Real video frame analysis with text fallback ─────
+   555→// Primary: Upload frames to R2 → GPT-4o vision via Polsia proxy → NIM vision fallbacks
+   556→// Fallback: Text-based LLM coaching from speech metrics (if ALL vision providers fail)
+   557→async function analyzeVideoPresentation(frames, options = {}) {
+   558→  const defaultResult = {
+   559→    eye_contact: { score: 5, feedback: 'No video frames available for analysis' },
+   560→    facial_expressions: { score: 5, feedback: 'No video frames available for analysis' },
+   561→    body_language: { score: 5, feedback: 'No video frames available for analysis' },
+   562→    professional_appearance: { score: 5, feedback: 'No video frames available for analysis' },
+   563→    overall_presentation: 5,
+   564→    summary: 'Video analysis not available — submit with video for detailed presentation feedback.',
+   565→    timestamped_notes: []
+   566→  };
+   567→
+   568→  if (!frames || frames.length === 0) return defaultResult;
+   569→
+   570→  const transcription = options.transcription || '';
+   571→  const durationSeconds = options.durationSeconds || 60;
+   572→  const question = options.question || 'a practice interview question';
+   573→  const frameCount = frames.length;
+   574→
+   575→  // ── Step 1: Try REAL vision analysis using actual video frames ──────
+   576→  try {
+   577→    // Select key frames (max 4 to control token costs — 320×240 JPEG each)
+   578→    const keyFrames = frames.length > 4 ? selectKeyFrames(frames, 4) : frames;
+   579→
+   580→    // Upload frames to R2 in parallel (vision APIs need HTTP URLs, not base64)
+   581→    console.log(`[video-analysis] Uploading ${keyFrames.length} frames to R2 for vision analysis...`);
+   582→    const uploadResults = await Promise.all(
+   583→      keyFrames.map((frame, i) => uploadFrameToR2(frame, i))
+   584→    );
+   585→    const imageUrls = uploadResults.filter(url => url !== null);
+   586→
+   587→    if (imageUrls.length > 0) {
+   588→      console.log(`[video-analysis] ${imageUrls.length}/${keyFrames.length} frames uploaded to R2. Calling vision API...`);
+   589→
+   590→      const visionPrompt = `You are an expert interview presentation coach. Analyze these ${imageUrls.length} video frames captured during an interview practice recording.
+   591→
+   592→**Interview Question:** "${question}"
+   593→**Response Duration:** ${durationSeconds} seconds
+   594→**Transcription excerpt:** "${transcription.substring(0, 500)}"
+   595→
+   596→Look at the ACTUAL video frames and analyze:
+   597→1. **Eye Contact** — Is the candidate looking at the camera? Looking away? Consistent or sporadic?
+   598→2. **Facial Expressions** — Are they engaged, confident, nervous? Smiling appropriately? Tense jaw/brow?
+   599→3. **Body Language** — Posture (leaning in/slouching), hand gestures (natural/fidgeting/stiff), shoulder position
+   600→4. **Professional Appearance** — Camera framing, lighting, background, clothing visibility, camera angle
+   601→
+   602→Be SPECIFIC about what you SEE in the frames. Reference actual visual details — don't guess from speech patterns.
+   603→
+   604→Return a JSON object with this EXACT structure:
+   605→{
+   606→  "eye_contact": { "score": 1-10, "feedback": "specific feedback based on what you SEE in the frames" },
+   607→  "facial_expressions": { "score": 1-10, "feedback": "specific feedback about visible facial expressions" },
+   608→  "body_language": { "score": 1-10, "feedback": "specific feedback about visible posture, gestures" },
+   609→  "professional_appearance": { "score": 1-10, "feedback": "feedback about camera setup, lighting, background you can SEE" },
+   610→  "overall_presentation": 1-10,
+   611→  "summary": "2-3 sentence overall visual presentation assessment referencing what you observed",
+   612→  "timestamped_notes": [
+   613→    { "frame": 1, "note": "what you observe in the opening frame" },
+   614→    { "frame": ${Math.max(1, Math.ceil(imageUrls.length / 2))}, "note": "what you observe in the middle frame" },
+   615→    { "frame": ${imageUrls.length}, "note": "what you observe in the closing frame" }
+   616→  ]
+   617→}
+   618→
+   619→Only return the JSON object, no other text.`;
+   620→
+   621→      // 15s timeout for vision — leaves room for text fallback within the 25s overall budget
+   622→      const visionResult = await Promise.race([
+   623→        aiProvider.visionAnalysis(imageUrls, visionPrompt, {
+   624→          system: 'You are an expert interview coach specializing in body language, eye contact, and video interview presentation. Analyze the ACTUAL video frames provided. Be specific about what you see. Always return valid JSON.',
+   625→          maxTokens: 1024,
+   626→          response_format: { type: 'json_object' },
+   627→          module: 'quick_practice',
+   628→          feature: 'video_presentation',
+   629→          task: 'image-analysis',
+   630→        }),
+   631→        new Promise((_, reject) => setTimeout(() => reject(new Error('Vision analysis 15s timeout')), 15000))
+   632→      ]);
+   633→
+   634→      const rawVision = typeof visionResult === 'string' ? visionResult : String(visionResult);
+   635→      const parsed = safeParseJSON(rawVision);
+   636→      if (parsed && typeof parsed === 'object') {
+   637→        // Normalize common field name variations from different vision models
+   638→        const normalized = normalizeVisionResult(parsed);
+   639→        if (normalized.eye_contact && normalized.body_language) {
+   640→          console.log('[video-analysis] ✅ REAL vision analysis successful — actual video frames analyzed!');
+   641→          return normalized;
+   642→        }
+   643→        console.warn('[video-analysis] Vision result missing expected fields after normalization. Keys:', Object.keys(parsed).join(', '));
+   644→      } else {
+   645→        console.warn('[video-analysis] Vision result could not be parsed. Raw (first 300 chars):', rawVision.substring(0, 300));
+   646→      }
+   647→      console.warn('[video-analysis] Falling back to text-based analysis');
+   648→    } else {
+   649→      console.warn('[video-analysis] All R2 uploads failed, falling back to text-based analysis');
+   650→    }
+   651→  } catch (visionErr) {
+   652→    console.warn(`[video-analysis] Vision analysis failed (${visionErr.message}), falling back to text-based coaching`);
+   653→  }
+   654→
+   655→  // ── Step 2: Fallback — text-based LLM coaching from speech metrics ──────
+   656→  // (Working fallback from #32567 — gives personalized coaching when vision is unavailable)
+   657→  const words = transcription.trim().split(/\s+/).filter(w => w.length > 0);
+   658→  const wordCount = words.length;
+   659→  const wpm = durationSeconds > 0 ? Math.round((wordCount / durationSeconds) * 60) : 0;
+   660→
+   661→  const fillerList = ['um', 'uh', 'like', 'you know', 'so', 'basically', 'actually', 'literally', 'right', 'i mean'];
+   662→  const lowerText = transcription.toLowerCase();
+   663→  let totalFillers = 0;
+   664→  const fillerDetails = [];
+   665→  for (const filler of fillerList) {
+   666→    const regex = new RegExp(`\\b${filler}\\b`, 'gi');
+   667→    const matches = lowerText.match(regex);
+   668→    if (matches && matches.length > 0) {
+   669→      totalFillers += matches.length;
+   670→      fillerDetails.push(`"${filler}" (${matches.length}x)`);
+   671→    }
+   672→  }
+   673→
+   674→  const fillerRate = wordCount > 0 ? ((totalFillers / wordCount) * 100).toFixed(1) : '0';
+   675→  const paceDesc = wpm < 100 ? 'very slow' : wpm < 120 ? 'slightly slow' : wpm <= 160 ? 'natural and well-paced' : wpm <= 180 ? 'slightly fast' : 'very fast';
+   676→
+   677→  const textPrompt = `You are an expert interview presentation coach. A candidate just recorded a video response to a practice interview question. The video analysis system was unable to process the frames, so analyze their presentation based on speech patterns which correlate with non-verbal behavior.
+   678→
+   679→**Interview Question:** "${question}"
+   680→**Response Duration:** ${durationSeconds} seconds
+   681→**Word Count:** ${wordCount} words
+   682→**Speaking Pace:** ${wpm} WPM (${paceDesc})
+   683→**Filler Words:** ${totalFillers} total (${fillerDetails.join(', ') || 'none detected'}) — filler rate: ${fillerRate}%
+   684→**Camera Active:** Yes (${frameCount} frames captured during recording)
+   685→**Transcription:** "${transcription.substring(0, 800)}"
+   686→
+   687→Based on these speech patterns, infer likely presentation behaviors:
+   688→- A ${paceDesc} pace ${wpm < 120 ? 'often indicates uncertainty — candidates may appear hesitant' : wpm > 170 ? 'can signal nervousness — candidates tend to rush and fidget' : 'suggests confidence — candidates typically maintain better eye contact'}
+   689→- ${totalFillers > 5 ? 'High filler word usage suggests the candidate may appear distracted and show nervous micro-expressions' : totalFillers > 2 ? 'Moderate filler usage is normal but may coincide with brief breaks in eye contact' : 'Low filler usage indicates composure and likely steady eye contact'}
+   690→
+   691→Return a JSON object with this EXACT structure:
+   692→{
+   693→  "eye_contact": { "score": 1-10, "feedback": "specific actionable feedback about eye contact during video interviews" },
+   694→  "facial_expressions": { "score": 1-10, "feedback": "specific feedback about facial engagement, confidence signals" },
+   695→  "body_language": { "score": 1-10, "feedback": "specific feedback about posture, gestures, and physical presence" },
+   696→  "professional_appearance": { "score": 1-10, "feedback": "tips about camera setup, lighting, background for video interviews" },
+   697→  "overall_presentation": 1-10,
+   698→  "summary": "2-3 sentence overall presentation assessment with key improvement area",
+   699→  "timestamped_notes": [
+   700→    { "frame": 1, "note": "coaching tip for the opening of the response" },
+   701→    { "frame": ${Math.max(1, Math.floor(frameCount / 2))}, "note": "coaching tip for the middle section" },
+   702→    { "frame": ${frameCount}, "note": "coaching tip for the closing" }
+   703→  ]
+   704→}
+   705→
+   706→Only return the JSON object, no other text.`;
+   707→
+   708→  try {
+   709→    console.log(`[video-analysis] Using text-based LLM fallback for presentation coaching (${frameCount} frames, ${wpm} WPM, ${totalFillers} fillers)`);
+   710→
+   711→    const result = await aiProvider.chatCompletion([
+   712→      { role: 'system', content: 'You are an expert interview coach specializing in non-verbal communication, body language, and video interview presentation. Provide specific, actionable coaching. Always return valid JSON.' },
+   713→      { role: 'user', content: textPrompt }
+   714→    ], {
+   715→      module: 'quick_practice',
+   716→      feature: 'video_presentation',
+   717→      response_format: { type: 'json_object' },
+   718→      maxTokens: 1024,
+   719→      task: 'interview-coaching',
+   720→    });
+   721→
+   722→    console.log('[video-analysis] Text-based presentation coaching received successfully (fallback)');
+   723→    const parsed = safeParseJSON(result);
+   724→    if (parsed && typeof parsed === 'object') {
+   725→      const normalized = normalizeVisionResult(parsed);
+   726→      if (normalized.eye_contact && normalized.body_language) return normalized;
+   727→      console.warn('[video-analysis] Text fallback missing expected fields after normalization. Keys:', Object.keys(parsed).join(', '));
+   728→    } else {
+   729→      console.warn('[video-analysis] Text fallback could not be parsed');
+   730→    }
+   731→    return defaultResult;
+   732→  } catch (err) {
+   733→    console.error('[video-analysis] Text-based fallback also failed:', err.message);
+   734→    return defaultResult;
+   735→  }
+   736→}
+   737→
+   738→// Select evenly-spaced key frames from a larger set
+   739→function selectKeyFrames(frames, count) {
+   740→  const result = [];
+   741→  const step = (frames.length - 1) / (count - 1);
+   742→  for (let i = 0; i < count; i++) {
+   743→    result.push(frames[Math.round(i * step)]);
+   744→  }
+   745→  return result;
+   746→}
+   747→
+   748→// Analyze speech transcription for communication quality
+   749→function analyzeSpeechPatterns(transcription, durationSeconds) {
+   750→  const words = transcription.trim().split(/\s+/).filter(w => w.length > 0);
+   751→  const wordCount = words.length;
+   752→  const wpm = durationSeconds > 0 ? Math.round((wordCount / durationSeconds) * 60) : 0;
+   753→
+   754→  // Filler word detection
+   755→  const fillerWords = ['um', 'uh', 'like', 'you know', 'so', 'basically', 'actually', 'literally', 'right', 'okay so', 'i mean'];
+   756→  const fillerCounts = {};
+   757→  let totalFillers = 0;
+   758→  const lowerTranscription = transcription.toLowerCase();
+   759→
+   760→  for (const filler of fillerWords) {
+   761→    const regex = new RegExp(`\\b${filler}\\b`, 'gi');
+   762→    const matches = lowerTranscription.match(regex);
+   763→    if (matches && matches.length > 0) {
+   764→      fillerCounts[filler] = matches.length;
+   765→      totalFillers += matches.length;
+   766→    }
+   767→  }
+   768→
+   769→  const fillerRate = wordCount > 0 ? (totalFillers / wordCount) * 100 : 0;
+   770→
+   771→  // Pace analysis
+   772→  let paceAssessment = 'good';
+   773→  let paceFeedback = '';
+   774→  if (wpm < 100) {
+   775→    paceAssessment = 'too_slow';
+   776→    paceFeedback = 'Your speaking pace is quite slow. Try to speak more naturally and with more energy. Aim for 120-150 words per minute.';
+   777→  } else if (wpm < 120) {
+   778→    paceAssessment = 'slightly_slow';
+   779→    paceFeedback = 'Your pace is a bit slow. Try to increase your speaking speed slightly for more engaging delivery.';
+   780→  } else if (wpm <= 160) {
+   781→    paceAssessment = 'good';
+   782→    paceFeedback = 'Your speaking pace is natural and easy to follow. Well done!';
+   783→  } else if (wpm <= 180) {
+   784→    paceAssessment = 'slightly_fast';
+   785→    paceFeedback = 'You\'re speaking a bit quickly. Try to slow down slightly and pause between key points.';
+   786→  } else {
+   787→    paceAssessment = 'too_fast';
+   788→    paceFeedback = 'You\'re speaking too fast — this can signal nervousness. Take deliberate pauses between sentences and breathe.';
+   789→  }
+   790→
+   791→  // Sentence structure analysis
+   792→  const sentences = transcription.split(/[.!?]+/).filter(s => s.trim().length > 0);
+   793→  const avgSentenceLength = sentences.length > 0 ? Math.round(wordCount / sentences.length) : 0;
+   794→
+   795→  // Communication score (1-10)
+   796→  let communicationScore = 7;
+   797→  // Penalize for filler words
+   798→  if (fillerRate > 5) communicationScore -= 2;
+   799→  else if (fillerRate > 3) communicationScore -= 1;
+   800→  // Penalize for bad pace
+   801→  if (paceAssessment === 'too_slow' || paceAssessment === 'too_fast') communicationScore -= 1.5;
+   802→  else if (paceAssessment === 'slightly_slow' || paceAssessment === 'slightly_fast') communicationScore -= 0.5;
+   803→  // Reward for good sentence structure
+   804→  if (avgSentenceLength >= 10 && avgSentenceLength <= 25) communicationScore += 0.5;
+   805→  // Penalize for very short responses
+   806→  if (wordCount < 50) communicationScore -= 2;
+   807→  else if (wordCount < 100) communicationScore -= 1;
+   808→  // Reward for substantial responses
+   809→  if (wordCount >= 150 && wordCount <= 400) communicationScore += 0.5;
+   810→
+   811→  communicationScore = Math.max(1, Math.min(10, Math.round(communicationScore * 10) / 10));
+   812→
+   813→  return {
+   814→    word_count: wordCount,
+   815→    duration_seconds: durationSeconds,
+   816→    words_per_minute: wpm,
+   817→    filler_words: fillerCounts,
+   818→    total_fillers: totalFillers,
+   819→    filler_rate: Math.round(fillerRate * 10) / 10,
+   820→    pace: {
+   821→      assessment: paceAssessment,
+   822→      wpm,
+   823→      feedback: paceFeedback
+   824→    },
+   825→    sentence_count: sentences.length,
+   826→    avg_sentence_length: avgSentenceLength,
+   827→    communication_score: communicationScore,
+   828→    tips: generateSpeechTips(fillerRate, wpm, wordCount, totalFillers, fillerCounts)
+   829→  };
+   830→}
+   831→
+   832→function generateSpeechTips(fillerRate, wpm, wordCount, totalFillers, fillerCounts) {
+   833→  const tips = [];
+   834→
+   835→  if (fillerRate > 3) {
+   836→    const topFillers = Object.entries(fillerCounts)
+   837→      .sort((a, b) => b[1] - a[1])
+   838→      .slice(0, 3)
+   839→      .map(([word, count]) => `"${word}" (${count}x)`);
+   840→    tips.push(`Reduce filler words — you used ${totalFillers} fillers: ${topFillers.join(', ')}. Try pausing silently instead.`);
+   841→  }
+   842→
+   843→  if (wpm > 160) {
+   844→    tips.push('Slow down your pace. Take a breath between key points to let your message land.');
+   845→  } else if (wpm < 110) {
+   846→    tips.push('Pick up the pace slightly. A faster tempo projects confidence and engagement.');
+   847→  }
+   848→
+   849→  if (wordCount < 80) {
+   850→    tips.push('Your response was quite short. Aim for 1-2 minutes of speaking time to give a comprehensive answer.');
+   851→  }
+   852→
+   853→  if (tips.length === 0) {
+   854→    tips.push('Strong verbal delivery! Your pace and clarity are good. Keep practicing to maintain consistency.');
+   855→  }
+   856→
+   857→  return tips;
+   858→}
+   859→
+   860→// ─── ASR/WHISPER: Now with automatic multi-provider fallback ─────
+   861→// Fallback chain: OpenAI Whisper → NIM Parakeet TDT
+   862→async function transcribeAudioWithWhisper(audioBase64, options = {}) {
+   863→  try {
+   864→    // Strip full data URL prefix including codec params (e.g., data:audio/webm;codecs=opus;base64,)
+   865→    const base64Data = audioBase64.replace(/^data:audio\/[^;]+(?:;[^;]*)*;base64,/, '');
+   866→    const buffer = Buffer.from(base64Data, 'base64');
+   867→
+   868→    // Extract MIME type (e.g., audio/webm from data:audio/webm;codecs=opus;base64,)
+   869→    const mimeMatch = audioBase64.match(/^data:(audio\/[^;]+)/);
+   870→    const mimeType = mimeMatch ? mimeMatch[1] : 'audio/webm';
+   871→    const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+   872→    console.log(`[whisper] Audio format: ${mimeType}, ext: ${ext}, buffer size: ${buffer.length} bytes`);
+   873→
+   874→    // Use provider service with automatic fallback (Whisper → Parakeet)
+   875→    return await aiProvider.transcribeAudio(buffer, `recording.${ext}`, mimeType, {
+   876→      subscriptionId: options.subscriptionId,
+   877→      module: 'mock_interview', feature: 'transcription',
+   878→    });
+   879→  } catch (err) {
+   880→    console.error('Whisper transcription error:', err.message || err);
+   881→    return null;
+   882→  }
+   883→}
+   884→
+   885→// AI-powered voice quality analysis (tone, confidence, energy)
+   886→async function analyzeVoiceQuality(transcription, durationSeconds, options = {}) {
+   887→  try {
+   888→    const words = transcription.trim().split(/\s+/);
+   889→    const wpm = durationSeconds > 0 ? Math.round((words.length / durationSeconds) * 60) : 0;
+   890→
+   891→    const prompt = `You are an expert interview speech coach. Analyze this candidate's vocal delivery based on their interview response transcription.
+   892→
+   893→TRANSCRIPTION:
+   894→"${transcription.substring(0, 3000)}"
+   895→
+   896→METRICS:
+   897→- Duration: ${durationSeconds} seconds
+   898→- Word count: ${words.length}
+   899→- Speaking pace: ${wpm} words per minute
+   900→
+   901→Analyze the following vocal delivery dimensions based on the transcription patterns, language choice, and speech structure. Score each 1-10:
+   902→
+   903→1. **Voice Confidence**: Look for hedging ("I think maybe", "sort of"), weak openers, qualifiers vs. decisive language
+   904→2. **Vocal Variety**: Sentence length variation, question marks, exclamations, rhetorical devices suggesting tonal changes
+   905→3. **Pacing & Rhythm**: Natural pauses (commas, periods), run-on sentences, appropriate breath points
+   906→4. **Articulation**: Word choice clarity, specificity, precise language vs. vague terms
+   907→5. **Energy & Enthusiasm**: Active voice, strong verbs, passion indicators, engagement level
+   908→
+   909→Return ONLY valid JSON:
+   910→{
+   911→  "voice_confidence": { "score": 7, "feedback": "One sentence assessment" },
+   912→  "vocal_variety": { "score": 6, "feedback": "One sentence assessment" },
+   913→  "pacing_rhythm": { "score": 7, "feedback": "One sentence assessment" },
+   914→  "articulation": { "score": 8, "feedback": "One sentence assessment" },
+   915→  "energy": { "score": 7, "feedback": "One sentence assessment" },
+   916→  "overall_voice_score": 7,
+   917→  "voice_summary": "2-3 sentence overall vocal delivery assessment",
+   918→  "voice_tips": ["Specific actionable tip 1", "Specific actionable tip 2", "Specific actionable tip 3"]
+   919→}`;
+   920→
+   921→    const result = await chat(prompt, {
+   922→      system: 'You are an expert interview coach specializing in vocal delivery and speech analysis. Return valid JSON only, no markdown.',
+   923→      maxTokens: 1024,
+   924→      subscriptionId: options.subscriptionId,
+   925→      module: 'mock_interview', feature: 'voice_analysis',
+   926→    });
+   927→
+   928→    const parsed = safeParseJSON(result);
+   929→    if (parsed) {
+   930→      // Clamp all scores to 1-10
+   931→      for (const key of ['voice_confidence', 'vocal_variety', 'pacing_rhythm', 'articulation', 'energy']) {
+   932→        if (parsed[key]) parsed[key].score = Math.max(1, Math.min(10, parsed[key].score));
+   933→      }
+   934→      if (parsed.overall_voice_score) parsed.overall_voice_score = Math.max(1, Math.min(10, parsed.overall_voice_score));
+   935→      return parsed;
+   936→    }
+   937→    console.warn('[voice-quality] Failed to parse LLM response, returning null');
+   938→    return null;
+   939→  } catch (err) {
+   940→    console.error('Voice quality analysis error:', err.message || err);
+   941→    return null;
+   942→  }
+   943→}
+   944→
+   945→// Comprehensive video interview analysis combining all signals
+   946→async function analyzeVideoInterviewResponse(question, transcription, frames, durationSeconds, keyPoints, options = {}) {
+   947→  const audioData = options.audioData || null;
+   948→  let finalTranscription = transcription;
+   949→
+   950→  // Step 1: If audio data available, try Whisper for more accurate transcription
+   951→  // FIX (Feb 15, 2026): Cap Whisper at 5s — ASR cascade can take 20s, eating into
+   952→  // the analysis time budget and causing frontend timeout (35s). Browser transcription
+   953→  // is good enough as fallback.
+   954→  let whisperResult = null;
+   955→  if (audioData) {
+   956→    try {
+   957→      console.log('[ai] Transcribing audio with Whisper (5s cap)...');
+   958→      whisperResult = await Promise.race([
+   959→        transcribeAudioWithWhisper(audioData, options),
+   960→        new Promise((resolve) => setTimeout(() => {
+   961→          console.warn('[ai] Whisper 5s cap hit — using browser transcription');
+   962→          resolve(null);
+   963→        }, 5000))
+   964→      ]);
+   965→      if (whisperResult && whisperResult.text && whisperResult.text.trim().length > 20) {
+   966→        finalTranscription = whisperResult.text;
+   967→        console.log(`[ai] Whisper transcription: ${finalTranscription.length} chars (replaced browser transcription)`);
+   968→      } else {
+   969→        console.log('[ai] Whisper result too short or timed out, keeping browser transcription');
+   970→      }
+   971→    } catch (err) {
+   972→      console.warn('[ai] Whisper failed, using browser transcription:', err.message);
+   973→    }
+   974→  }
+   975→
+   976→  // Step 2: Run all analyses in parallel with PER-PROMISE timeouts + MASTER timeout
+   977→  // BUG FIX (Feb 15, 2026 — Task #32681): Promise.allSettled was hanging forever when provider
+   978→  // API calls never settled (HTTP response streaming but never completing). With 4 parallel calls
+   979→  // each racing 3 providers (12 concurrent API requests from #32666), some providers become
+   980→  // unresponsive. Fix: (1) Lower per-promise timeout to 18s, (2) Add a 25s master timeout on
+   981→  // Promise.allSettled that force-resolves with partial results if any promise hangs.
+   982→  const PER_PROMISE_TIMEOUT_MS = 18000;
+   983→  const MASTER_TIMEOUT_MS = 25000;
+   984→
+   985→  function withTimeout(promise, ms, label) {
+   986→    return new Promise((resolve, reject) => {
+   987→      const timer = setTimeout(() => {
+   988→        console.warn(`[video-analysis] ${label} timed out after ${ms}ms`);
+   989→        reject(new Error(`${label} timeout after ${ms}ms`));
+   990→      }, ms);
+   991→      promise.then(
+   992→        val => { clearTimeout(timer); resolve(val); },
+   993→        err => { clearTimeout(timer); reject(err); }
+   994→      );
+   995→    });
+   996→  }
+   997→
+   998→  // FIX (Feb 15, 2026): Pass transcription context to video presentation analysis
+   999→  // so the text-based LLM can generate personalized coaching from speech patterns
+  1000→  const presentationOptions = {
+  1001→    ...options,
+  1002→    transcription: finalTranscription,
+  1003→    durationSeconds,
+  1004→    question,
+  1005→  };
+  1006→
+  1007→  const analysisPromises = [
+  1008→    withTimeout(analyzeInterviewResponse(question, finalTranscription, keyPoints, options), PER_PROMISE_TIMEOUT_MS, 'contentAnalysis'),
+  1009→    withTimeout(generateInterviewCoaching(question, finalTranscription, { score: 5, strengths: [], improvements: [] }, options), PER_PROMISE_TIMEOUT_MS, 'contentCoaching'),
+  1010→    withTimeout(analyzeVideoPresentation(frames, presentationOptions), PER_PROMISE_TIMEOUT_MS, 'videoPresentation'),
+  1011→    // FIX (Feb 15, 2026 — Task #32666): ALWAYS run voice quality analysis.
+  1012→    // analyzeVoiceQuality() only analyzes transcription TEXT (not audio) — gating it behind
+  1013→    // audioData was wrong because it skipped voice analysis entirely when MediaRecorder failed
+  1014→    // (common on iOS). This caused the Voice & Tone Analysis section to disappear from the UI.
+  1015→    withTimeout(analyzeVoiceQuality(finalTranscription, durationSeconds, options), PER_PROMISE_TIMEOUT_MS, 'voiceAnalysis')
+  1016→  ];
+  1017→
+  1018→  // FIX (Feb 15, 2026 — Task #32681): Track settlements individually so master timeout
+  1019→  // can force-resolve with partial results instead of hanging forever.
+  1020→  const partialResults = new Array(analysisPromises.length).fill(null);
+  1021→  analysisPromises.forEach((p, i) => {
+  1022→    p.then(
+  1023→      val => { partialResults[i] = { status: 'fulfilled', value: val }; },
+  1024→      err => { partialResults[i] = { status: 'rejected', reason: err }; }
+  1025→    );
+  1026→  });
+  1027→
+  1028→  let settled;
+  1029→  try {
+  1030→    settled = await Promise.race([
+  1031→      Promise.allSettled(analysisPromises),
+  1032→      new Promise(resolve => setTimeout(() => {
+  1033→        const settledCount = partialResults.filter(r => r !== null).length;
+  1034→        console.warn(`[video-analysis] ⏱️ Master timeout (${MASTER_TIMEOUT_MS}ms) — ${settledCount}/${partialResults.length} settled, forcing response`);
+  1035→        // Use whatever has settled so far; fill unsettled with rejections
+  1036→        resolve(partialResults.map(r => r || { status: 'rejected', reason: new Error('Master timeout — analysis took too long') }));
+  1037→      }, MASTER_TIMEOUT_MS))
+  1038→    ]);
+  1039→  } catch (err) {
+  1040→    console.error('[video-analysis] Promise.allSettled unexpected error:', err.message);
+  1041→    settled = partialResults.map(r => r || { status: 'rejected', reason: err });
+  1042→  }
+  1043→
+  1044→  // Extract results with fallbacks for any failed analyses
+  1045→  // BUG FIX: Use helper function with multiple safety layers to prevent null crashes.
+  1046→  // Previous null checks still let through edge cases where AI returned non-null truthy values
+  1047→  // that were missing expected fields, causing TypeError: Cannot read properties of null.
+  1048→  function safeExtract(index, fallback) {
+  1049→    try {
+  1050→      const s = settled[index];
+  1051→      if (s && s.status === 'fulfilled' && s.value != null && typeof s.value === 'object') {
+  1052→        return s.value;
+  1053→      }
+  1054→    } catch (e) {
+  1055→      console.error(`[video-analysis] safeExtract(${index}) error:`, e.message);
+  1056→    }
+  1057→    return fallback;
+  1058→  }
+  1059→
+  1060→  const contentAnalysis = safeExtract(0, {
+  1061→    score: 0, _failed: true, strengths: [], improvements: ['Content analysis failed — please try again'],
+  1062→    covered_points: [], missed_points: [], detailed_feedback: 'AI content analysis could not be completed. Please record another answer to get detailed feedback on your response.'
+  1063→  });
+  1064→  const contentCoaching = safeExtract(1, {
+  1065→    _failed: true, improved_response: '', specific_tips: ['Record another answer for personalized coaching tips'], body_language_tips: [],
+  1066→    common_mistake: '', practice_prompt: ''
+  1067→  });
+  1068→  const videoAnalysis = safeExtract(2, {
+  1069→    eye_contact: { score: 5, feedback: 'Video analysis unavailable' },
+  1070→    facial_expressions: { score: 5, feedback: 'Video analysis unavailable' },
+  1071→    body_language: { score: 5, feedback: 'Video analysis unavailable' },
+  1072→    professional_appearance: { score: 5, feedback: 'Video analysis unavailable' },
+  1073→    overall_presentation: 5, summary: 'Video analysis temporarily unavailable.', timestamped_notes: []
+  1074→  });
+  1075→  // FIX (Feb 15, 2026 — Task #32666): Always extract voice analysis (index 3).
+  1076→  // Previously gated behind audioData which caused Voice & Tone section to vanish.
+  1077→  const voiceAnalysis = safeExtract(3, null);
+  1078→
+  1079→  // Log any failures for debugging
+  1080→  settled.forEach((s, i) => {
+  1081→    if (s.status === 'rejected') {
+  1082→      const names = ['contentAnalysis', 'contentCoaching', 'videoAnalysis', 'voiceAnalysis'];
+  1083→      console.error(`[video-analysis] ${names[i]} failed:`, s.reason?.message || s.reason);
+  1084→    }
+  1085→  });
+  1086→
+  1087→  // Algorithmic speech analysis (always works — no AI calls)
+  1088→  const speechAnalysis = analyzeSpeechPatterns(finalTranscription, durationSeconds);
+  1089→
+  1090→  // BUG FIX: Wrap result assembly in try/catch — if ANY field access crashes, return a safe default
+  1091→  try {
+  1092→    // Calculate category scores — use 0 for failed analysis (don't inflate with default 5)
+  1093→    const contentScore = contentAnalysis.score || 0;
+  1094→    const contentFailed = contentAnalysis._failed === true;
+  1095→    let communicationScore = speechAnalysis.communication_score || 5;
+  1096→    const presentationScore = videoAnalysis.overall_presentation || 5;
+  1097→
+  1098→    // If voice analysis available, blend its score into communication
+  1099→    if (voiceAnalysis && voiceAnalysis.overall_voice_score) {
+  1100→      communicationScore = Math.round(
+  1101→        (communicationScore * 0.6 + voiceAnalysis.overall_voice_score * 0.4) * 10
+  1102→      ) / 10;
+  1103→      communicationScore = Math.max(1, Math.min(10, communicationScore));
+  1104→    }
+  1105→
+  1106→    // Weighted overall score — if content failed, only use communication + presentation
+  1107→    let overallScore;
+  1108→    if (contentFailed) {
+  1109→      // Content analysis failed — compute from available scores only, don't let 0 drag down
+  1110→      overallScore = Math.round(
+  1111→        (communicationScore * 0.45 + presentationScore * 0.55) * 10
+  1112→      ) / 10;
+  1113→    } else {
+  1114→      overallScore = Math.round(
+  1115→        (contentScore * 0.45 + communicationScore * 0.25 + presentationScore * 0.30) * 10
+  1116→      ) / 10;
+  1117→    }
+  1118→
+  1119→    return {
+  1120→      overall_score: overallScore,
+  1121→      _content_failed: contentFailed,
+  1122→      // FIX (Feb 15, 2026 — Task #32666): Include transcription in response so frontend
+  1123→      // has a fallback when browser SpeechRecognition state is lost
+  1124→      transcription: finalTranscription,
+  1125→      duration_seconds: durationSeconds,
+  1126→
+  1127→      // Category breakdowns — use optional chaining (?) as final safety net
+  1128→      content: {
+  1129→        score: contentScore,
+  1130→        _failed: contentFailed,
+  1131→        strengths: contentAnalysis?.strengths || [],
+  1132→        improvements: contentAnalysis?.improvements || [],
+  1133→        covered_points: contentAnalysis?.covered_points || [],
+  1134→        missed_points: contentAnalysis?.missed_points || [],
+  1135→        detailed_feedback: contentAnalysis?.detailed_feedback || '',
+  1136→        improved_response: contentCoaching?.improved_response || '',
+  1137→        specific_tips: contentCoaching?.specific_tips || [],
+  1138→        common_mistake: contentCoaching?.common_mistake || '',
+  1139→        practice_prompt: contentCoaching?.practice_prompt || ''
+  1140→      },
+  1141→
+  1142→      communication: {
+  1143→        score: communicationScore,
+  1144→        word_count: speechAnalysis.word_count,
+  1145→        words_per_minute: speechAnalysis.words_per_minute,
+  1146→        duration_seconds: speechAnalysis.duration_seconds,
+  1147→        filler_words: speechAnalysis.filler_words,
+  1148→        total_fillers: speechAnalysis.total_fillers,
+  1149→        filler_rate: speechAnalysis.filler_rate,
+  1150→        pace: speechAnalysis.pace,
+  1151→        tips: speechAnalysis.tips,
+  1152→        // Voice analysis (only present when audio was recorded)
+  1153→        ...(voiceAnalysis ? { voice_analysis: voiceAnalysis } : {})
+  1154→      },
+  1155→
+  1156→      presentation: {
+  1157→        score: presentationScore,
+  1158→        eye_contact: videoAnalysis?.eye_contact || { score: 5, feedback: '' },
+  1159→        facial_expressions: videoAnalysis?.facial_expressions || { score: 5, feedback: '' },
+  1160→        body_language: videoAnalysis?.body_language || { score: 5, feedback: '' },
+  1161→        professional_appearance: videoAnalysis?.professional_appearance || { score: 5, feedback: '' },
+  1162→        summary: videoAnalysis?.summary || '',
+  1163→        timestamped_notes: videoAnalysis?.timestamped_notes || []
+  1164→      }
+  1165→    };
+  1166→  } catch (assemblyErr) {
+  1167→    // LAST RESORT: If result assembly itself crashes, return a complete safe default
+  1168→    console.error('[video-analysis] Result assembly crashed — returning safe default:', assemblyErr.message);
+  1169→    const speechFallback = analyzeSpeechPatterns(finalTranscription, durationSeconds);
+  1170→    return {
+  1171→      overall_score: 0,
+  1172→      _content_failed: true,
+  1173→      content: {
+  1174→        score: 0, _failed: true, strengths: [], improvements: ['AI analysis encountered an error — please try again'],
+  1175→        covered_points: [], missed_points: [], detailed_feedback: 'Analysis could not be completed due to a temporary error. Please record another answer.',
+  1176→        improved_response: '', specific_tips: ['Record another answer for personalized coaching'],
+  1177→        common_mistake: '', practice_prompt: ''
+  1178→      },
+  1179→      communication: {
+  1180→        score: speechFallback.communication_score || 5,
+  1181→        word_count: speechFallback.word_count, words_per_minute: speechFallback.words_per_minute,
+  1182→        duration_seconds: speechFallback.duration_seconds, filler_words: speechFallback.filler_words,
+  1183→        total_fillers: speechFallback.total_fillers, filler_rate: speechFallback.filler_rate,
+  1184→        pace: speechFallback.pace, tips: speechFallback.tips
+  1185→      },
+  1186→      presentation: {
+  1187→        score: 5, eye_contact: { score: 5, feedback: 'Analysis unavailable' },
+  1188→        facial_expressions: { score: 5, feedback: 'Analysis unavailable' },
+  1189→        body_language: { score: 5, feedback: 'Analysis unavailable' },
+  1190→        professional_appearance: { score: 5, feedback: 'Analysis unavailable' },
+  1191→        summary: 'Video analysis could not be completed. Your speech analysis is still available.',
+  1192→        timestamped_notes: []
+  1193→      }
+  1194→    };
+  1195→  }
+  1196→}
+  1197→
+  1198→// Generate a question bank for a specific role/JD combination
+  1199→async function generateQuestionBank(role, jobDescription, options = {}) {
+  1200→  const jdContext = jobDescription
+  1201→    ? `\n\nJob Description:\n${jobDescription.substring(0, 2000)}`
+  1202→    : '';
+  1203→
+  1204→  const prompt = `Generate 25 diverse, high-quality interview questions for a "${role}" position.${jdContext}
+  1205→
+  1206→Create a mix of question types:
+  1207→- 8 behavioral (STAR method) — past experiences, teamwork, leadership, conflict
+  1208→- 6 technical — role-specific technical knowledge and problem-solving
+  1209→- 6 situational — hypothetical scenarios relevant to the role
+  1210→- 3 competency-based — core competencies for this specific role
+  1211→- 2 role-specific — unique questions that only apply to this exact position
+  1212→
+  1213→For each question, vary difficulty: roughly 30% easy, 50% medium, 20% hard.
+  1214→
+  1215→Return a JSON array where each item has:
+  1216→{
+  1217→  "question_text": "The interview question",
+  1218→  "question_type": "behavioral|technical|situational|competency|role_specific",
+  1219→  "difficulty": "easy|medium|hard",
+  1220→  "key_points": ["Point 1", "Point 2", "Point 3"],
+  1221→  "skills_tested": ["skill1", "skill2"]
+  1222→}
+  1223→
+  1224→Make questions specific to the "${role}" role — NOT generic. Reference actual responsibilities, tools, and challenges someone in this role would face.
+  1225→
+  1226→Only return the JSON array, no other text.`;
+  1227→
+  1228→  const result = await chat(prompt, {
+  1229→    system: 'You are a senior hiring manager who has conducted thousands of interviews. Generate realistic, probing questions that distinguish great candidates from average ones. Always return valid JSON.',
+  1230→    maxTokens: 8192,
+  1231→    subscriptionId: options.subscriptionId,
+  1232→    module: 'mock_interview', feature: 'question_bank'
+  1233→  });
+  1234→
+  1235→  try {
+  1236→    return JSON.parse(result);
+  1237→  } catch (e) {
+  1238→    const match = result.match(/\[[\s\S]*\]/);
+  1239→    if (match) return JSON.parse(match[0]);
+  1240→    throw new Error('Failed to generate question bank');
+  1241→  }
+  1242→}
+  1243→
+  1244→// AI interviewer conducts a conversational interview turn
+  1245→async function conductInterviewTurn(conversation, baseQuestions, currentQuestionIndex, targetRole, options = {}) {
+  1246→  // Send last 12 turns for better context on follow-ups
+  1247→  const recentConvo = conversation.slice(-12);
+  1248→  const convoText = recentConvo.map(turn => {
+  1249→    if (turn.role === 'interviewer') return `INTERVIEWER: ${turn.text}`;
+  1250→    return `CANDIDATE: ${turn.text}`;
+  1251→  }).join('\n\n');
+  1252→
+  1253→  const candidateTurnCount = conversation.filter(t => t.role === 'candidate').length;
+  1254→  const followUpCount = conversation.filter(t => t.role === 'interviewer' && (t.action === 'follow_up' || t.action === 'challenge')).length;
+  1255→  const remainingQuestions = baseQuestions.slice(currentQuestionIndex);
+  1256→  const nextPlannedQuestion = remainingQuestions.length > 0
+  1257→    ? remainingQuestions[0].question_text
+  1258→    : null;
+  1259→
+  1260→  // Count consecutive follow-ups on the current topic
+  1261→  let consecutiveFollowUps = 0;
+  1262→  for (let i = conversation.length - 1; i >= 0; i--) {
+  1263→    const t = conversation[i];
+  1264→    if (t.role === 'interviewer' && (t.action === 'follow_up' || t.action === 'challenge')) {
+  1265→      consecutiveFollowUps++;
+  1266→    } else if (t.role === 'interviewer' && t.action === 'transition') {
+  1267→      break;
+  1268→    } else if (t.role === 'candidate') {
+  1269→      continue; // skip candidate turns when counting
+  1270→    }
+  1271→  }
+  1272→
+  1273→  const prompt = `You are conducting a mock interview for a "${targetRole}" position. You have ${remainingQuestions.length} planned questions remaining.
+  1274→
+  1275→CONVERSATION SO FAR:
+  1276→${convoText}
+  1277→
+  1278→${nextPlannedQuestion ? `NEXT PLANNED QUESTION (use when ready to move on): "${nextPlannedQuestion}"` : 'All planned questions covered.'}
+  1279→
+  1280→FOLLOW-UP COUNT on current topic: ${consecutiveFollowUps}
+  1281→
+  1282→YOUR TASK: Act like a real interviewer. After the candidate answers:
+  1283→
+  1284→1. **FOLLOW UP** if the answer is:
+  1285→   - Vague or surface-level ("I worked on a project" → ask WHAT project, what was the challenge)
+  1286→   - Missing specifics (no metrics, no concrete examples, no details about their role)
+  1287→   - Interesting but unexplored (they mentioned something worth digging into)
+  1288→   - Missing the "so what" (they described what happened but not the impact/result)
+  1289→   You can ask MULTIPLE follow-ups on the same topic. Keep probing until you have real depth.
+  1290→
+  1291→2. **TRANSITION** to the next planned question when:
+  1292→   - The candidate gave a thorough, specific answer with concrete examples
+  1293→   - You've already asked 2-3 follow-ups and have sufficient depth
+  1294→   - The candidate clearly has nothing more to add on this topic
+  1295→
+  1296→3. **WRAP UP** when: ${candidateTurnCount >= 6 ? 'You feel you have enough data (6+ exchanges completed)' : 'NOT YET — keep interviewing, only ' + candidateTurnCount + ' exchanges so far'}
+  1297→
+  1298→React to their answer specifically (1-2 sentences — reference something concrete they said, NOT generic filler like "Thank you for that response" or "That's helpful"). Show you actually listened. Example good reactions: "That 40% improvement in pipeline throughput is impressive — how did you measure that?" or "Interesting that you chose to refactor first rather than ship the feature." Example bad reactions: "Thank you for sharing that." or "That's great, thanks."
+  1299→
+  1300→Return JSON: {"reaction":"1-2 sentences referencing SPECIFIC details from their answer","action":"follow_up|challenge|transition|wrap_up","question":"your next question","score_hint":1-10,"notes":"brief note on answer quality"}`;
+  1301→
+  1302→  const result = await chat(prompt, {
+  1303→    system: `You are Alex, an experienced ${targetRole} interviewer. You conduct interviews like a real person — curious, attentive, and thorough. You don't just read from a script. When a candidate gives a vague answer, you probe deeper. When they mention something interesting, you explore it. You ask follow-up questions naturally, like "Tell me more about that" or "What specifically was your role in that?" or "How did you measure success?" You only move to the next planned question when you're genuinely satisfied with the depth of their answer. Always return valid JSON only.`,
+  1304→    maxTokens: 1024,
+  1305→    subscriptionId: options.subscriptionId,
+  1306→    module: 'mock_interview', feature: 'interview_turn'
+  1307→  });
+  1308→
+  1309→  const parsed = safeParseJSON(result);
+  1310→  if (parsed) return parsed;
+  1311→  throw new Error('Failed to generate interview turn — could not parse LLM response');
+  1312→}
+  1313→
+  1314→// Generate session-end feedback for a mock interview
+  1315→// Returns structured format matching practice interview: content + communication + presentation
+  1316→async function generateSessionFeedback(conversation, targetRole, options = {}) {
+  1317→  const convoText = conversation.map(turn => {
+  1318→    if (turn.role === 'interviewer') return `INTERVIEWER: ${turn.text}`;
+  1319→    return `CANDIDATE: ${turn.text}`;
+  1320→  }).join('\n\n');
+  1321→
+  1322→  // Calculate basic metrics from the text
+  1323→  const candidateTurns = conversation.filter(t => t.role === 'candidate');
+  1324→  const allCandidateText = candidateTurns.map(t => t.text).join(' ');
+  1325→  const wordCount = allCandidateText.split(/\s+/).filter(w => w).length;
+  1326→  const questionCount = conversation.filter(t => t.role === 'interviewer').length;
+  1327→
+  1328→  // Estimate duration from timestamps
+  1329→  let durationSeconds = 0;
+  1330→  if (conversation.length >= 2) {
+  1331→    const first = new Date(conversation[0].timestamp || Date.now());
+  1332→    const last = new Date(conversation[conversation.length - 1].timestamp || Date.now());
+  1333→    durationSeconds = Math.max(60, Math.round((last - first) / 1000));
+  1334→  }
+  1335→  const wpm = durationSeconds > 0 ? Math.round(wordCount / (durationSeconds / 60)) : 120;
+  1336→
+  1337→  const prompt = `You just completed a mock interview for a "${targetRole}" position. Review the full conversation and provide structured feedback in THREE sections matching our coaching format.
+  1338→
+  1339→FULL INTERVIEW TRANSCRIPT:
+  1340→${convoText}
+  1341→
+  1342→SPEECH METRICS (from recording):
+  1343→- Total words: ${wordCount}
+  1344→- Questions answered: ${candidateTurns.length}
+  1345→- Estimated duration: ${Math.round(durationSeconds / 60)} minutes
+  1346→- Estimated WPM: ${wpm}
+  1347→
+  1348→Analyze the entire interview and return a JSON object with this EXACT structure:
+  1349→
+  1350→{
+  1351→  "overall_score": 1-10,
+  1352→  "interview_readiness": "ready|almost_ready|needs_work",
+  1353→  "summary": "3-4 sentence overall assessment referencing specific answers",
+  1354→
+  1355→  "content": {
+  1356→    "score": 1-10,
+  1357→    "strengths": ["Specific strength with example from their answers — quote them", "Another strength"],
+  1358→    "improvements": ["Specific improvement area with example", "Another improvement"],
+  1359→    "covered_points": ["Key competency they demonstrated well"],
+  1360→    "missed_points": ["Important area they didn't address or was weak"],
+  1361→    "detailed_feedback": "2-3 paragraph deep analysis of their answer quality across ALL questions. Reference patterns: did they improve? Were some topics stronger? Did follow-ups reveal depth or gaps?",
+  1362→    "specific_tips": ["Actionable tip 1", "Actionable tip 2", "Actionable tip 3"],
+  1363→    "common_mistake": "The most common interview mistake they exhibited",
+  1364→    "star_method_usage": { "score": 1-10, "feedback": "How well they structured answers with Situation-Task-Action-Result" },
+  1365→    "technical_depth": { "score": 1-10, "feedback": "Depth of technical knowledge and specificity" }
+  1366→  },
+  1367→
+  1368→  "communication": {
+  1369→    "score": 1-10,
+  1370→    "word_count": ${wordCount},
+  1371→    "words_per_minute": ${wpm},
+  1372→    "duration_seconds": ${durationSeconds},
+  1373→    "filler_words": {"um": 0, "uh": 0, "like": 0, "you know": 0, "so": 0, "basically": 0},
+  1374→    "total_fillers": 0,
+  1375→    "filler_rate": 0.0,
+  1376→    "pace": {
+  1377→      "assessment": "good|slightly_fast|slightly_slow|too_fast|too_slow",
+  1378→      "wpm": ${wpm},
+  1379→      "feedback": "Assessment of their speaking pace and rhythm across the interview"
+  1380→    },
+  1381→    "tips": ["Speech improvement tip 1", "Tip 2"],
+  1382→    "trends": "Did their communication improve/decline over the interview? More confident later? More filler words when nervous?"
+  1383→  },
+  1384→
+  1385→  "question_scores": [
+  1386→    { "question_summary": "Brief topic", "score": 1-10, "feedback": "1-2 sentences referencing their actual answer" }
+  1387→  ],
+  1388→
+  1389→  "interview_arc": "How did the interview flow? Did the candidate warm up? Were they stronger on certain topic types? 2-3 sentences about the overall arc.",
+  1390→  "top_tip": "Single most impactful thing to work on"
+  1391→}
+  1392→
+  1393→IMPORTANT RULES:
+  1394→- Be SPECIFIC. Quote their actual words. Reference real answers, not generic advice.
+  1395→- For filler_words: estimate counts based on patterns you see in their text (hedge words, qualifiers like "I think", "kind of", "sort of", "you know", etc.)
+  1396→- For communication.score: evaluate clarity, conciseness, structure, confidence across ALL answers
+  1397→- For content.score: evaluate depth, specificity, relevance of their actual answer content
+  1398→- Score honestly — 5 is average, 7 is good, only 8+ for genuinely impressive performance
+  1399→- The "trends" field should note if they improved or worsened across the interview
+  1400→- The "interview_arc" should describe the narrative of the full interview
+  1401→
+  1402→Only return the JSON object.`;
+  1403→
+  1404→  const result = await chat(prompt, {
+  1405→    system: 'You are an expert career coach providing structured post-interview feedback. Analyze the ENTIRE interview conversation. Be specific — reference exact quotes and answers. Return valid JSON matching the exact schema requested.',
+  1406→    maxTokens: 4096,
+  1407→    subscriptionId: options.subscriptionId,
+  1408→    module: 'mock_interview', feature: 'session_feedback'
+  1409→  });
+  1410→
+  1411→  const parsed = safeParseJSON(result);
+  1412→  if (parsed) {
+  1413→    // Ensure backward compatibility — keep legacy fields for any UI that still reads them
+  1414→    if (parsed.content) {
+  1415→      parsed.strengths = parsed.strengths || parsed.content.strengths;
+  1416→      parsed.improvements = parsed.improvements || parsed.content.improvements;
+  1417→      if (parsed.content.star_method_usage) parsed.star_method_usage = parsed.content.star_method_usage;
+  1418→      if (parsed.content.technical_depth) parsed.technical_depth = parsed.content.technical_depth;
+  1419→      if (!parsed.communication_quality && parsed.communication) {
+  1420→        parsed.communication_quality = { score: parsed.communication.score, feedback: parsed.communication.trends || '' };
+  1421→      }
+  1422→      if (!parsed.confidence_score && parsed.communication) {
+  1423→        parsed.confidence_score = { score: parsed.communication.score, feedback: 'See communication analysis for details.' };
+  1424→      }
+  1425→    }
+  1426→    return parsed;
+  1427→  }
+  1428→  // BUG FIX #4: Improved fallback with conversation-based analysis instead of "Detailed feedback unavailable"
+  1429→  console.warn('[session-feedback] Failed to parse LLM response, computing basic feedback from conversation');
+  1430→  const avgResponseLength = candidateTurns.length > 0
+  1431→    ? Math.round(allCandidateText.split(/\s+/).length / candidateTurns.length)
+  1432→    : 0;
+  1433→  const depthScore = avgResponseLength > 100 ? 7 : avgResponseLength > 50 ? 5 : 3;
+  1434→  const basicScore = Math.min(8, Math.max(3, Math.round((depthScore + (candidateTurns.length > 4 ? 2 : 0)) / 1.2)));
+  1435→
+  1436→  return {
+  1437→    overall_score: basicScore,
+  1438→    interview_readiness: basicScore >= 6 ? 'almost_ready' : 'needs_work',
+  1439→    summary: `You completed a ${targetRole} mock interview answering ${candidateTurns.length} question(s) with an average of ${avgResponseLength} words per answer. ${avgResponseLength > 80 ? 'Your responses showed good detail.' : 'Try to expand your answers with more specific examples.'} AI-powered detailed analysis was temporarily unavailable — try another interview for full feedback.`,
+  1440→    strengths: candidateTurns.length >= 3
+  1441→      ? ['Completed multiple questions — consistency matters', 'Showed willingness to engage with the interviewer']
+  1442→      : ['Started the interview process — practice builds confidence'],
+  1443→    improvements: avgResponseLength < 60
+  1444→      ? ['Expand your answers with specific examples and metrics', 'Use the STAR method: Situation, Task, Action, Result']
+  1445→      : ['Try to include quantifiable results in your answers', 'Practice structuring answers with clear beginning, middle, and end'],
+  1446→    question_scores: [],
+  1447→    content: { score: depthScore, strengths: [], improvements: [], covered_points: [], missed_points: [], detailed_feedback: '', specific_tips: [], common_mistake: '', star_method_usage: { score: depthScore, feedback: 'Detailed STAR analysis unavailable' }, technical_depth: { score: depthScore, feedback: 'Detailed technical analysis unavailable' } },
+  1448→    communication: { score: depthScore, word_count: wordCount, words_per_minute: wpm, duration_seconds: durationSeconds, filler_words: {}, total_fillers: 0, filler_rate: 0, pace: { assessment: 'average', wpm, feedback: '' }, tips: [] },
+  1449→    star_method_usage: { score: depthScore, feedback: 'Detailed STAR analysis unavailable' },
+  1450→    communication_quality: { score: depthScore, feedback: '' },
+  1451→    technical_depth: { score: depthScore, feedback: '' },
+  1452→    top_tip: 'The best interview tip: practice regularly. Each session makes you more confident.'
+  1453→  };
+  1454→}
+  1455→
+  1456→// ─── TTS: Now with automatic fallback + database caching ─────
+  1457→// Fallback chain: Cache → OpenAI TTS → null (browser Web Speech API fallback)
+  1458→async function textToSpeech(text, options = {}) {
+  1459→  const pool = require('./db');
+  1460→  const crypto = require('crypto');
+  1461→
+  1462→  try {
+  1463→    const voice = options.voice || 'nova';
+  1464→    const speed = options.speed || 1.0;
+  1465→
+  1466→    // Truncate text to ~4000 chars (TTS API limit is 4096)
+  1467→    const truncatedText = text.length > 4000 ? text.substring(0, 4000) : text;
+  1468→
+  1469→    // Generate cache key from text + voice
+  1470→    const cacheKey = crypto.createHash('sha256').update(`${voice}:${truncatedText}`).digest('hex');
+  1471→
+  1472→    // Check cache first — serves audio even when daily token limit is exhausted
+  1473→    try {
+  1474→      const cached = await pool.query(
+  1475→        'SELECT audio_data FROM tts_cache WHERE text_hash = $1',
+  1476→        [cacheKey]
+  1477→      );
+  1478→      if (cached.rows.length > 0 && cached.rows[0].audio_data) {
+  1479→        const buf = Buffer.from(cached.rows[0].audio_data);
+  1480→        console.log(`[tts] Cache HIT: ${truncatedText.length} chars, ${buf.length} bytes (voice: ${voice})`);
+  1481→        return buf;
+  1482→      }
+  1483→    } catch (cacheErr) {
+  1484→      // Cache miss or table doesn't exist yet — continue to API
+  1485→      console.log(`[tts] Cache check failed (${cacheErr.message}), proceeding to API`);
+  1486→    }
+  1487→
+  1488→    console.log(`[tts] Cache MISS — generating speech: ${truncatedText.length} chars, voice: ${voice}`);
+  1489→
+  1490→    // Use provider service with automatic fallback
+  1491→    const buf = await aiProvider.textToSpeech(truncatedText, {
+  1492→      voice,
+  1493→      speed,
+  1494→      subscriptionId: options.subscriptionId,
+  1495→      module: 'mock_interview', feature: 'tts',
+  1496→    });
+  1497→
+  1498→    if (!buf) {
+  1499→      console.log('[tts] All providers failed, returning null for browser fallback');
+  1500→      return null;
+  1501→    }
+  1502→
+  1503→    console.log(`[tts] Generated ${buf.length} bytes of MP3 audio`);
+  1504→
+  1505→    // Cache the audio for future use (non-blocking)
+  1506→    if (buf.length > 100) {
+  1507→      pool.query(
+  1508→        `INSERT INTO tts_cache (text_hash, voice, audio_data, text_preview)
+  1509→         VALUES ($1, $2, $3, $4)
+  1510→         ON CONFLICT (text_hash) DO NOTHING`,
+  1511→        [cacheKey, voice, buf, truncatedText.substring(0, 100)]
+  1512→      ).then(() => {
+  1513→        console.log(`[tts] Cached audio for: "${truncatedText.substring(0, 50)}..."`);
+  1514→      }).catch(err => {
+  1515→        // Non-fatal — caching failure doesn't break TTS
+  1516→        console.warn(`[tts] Cache write failed: ${err.message}`);
+  1517→      });
+  1518→    }
+  1519→
+  1520→    return buf;
+  1521→  } catch (err) {
+  1522→    console.error('[tts] Error:', err.message || err);
+  1523→    return null;
+  1524→  }
+  1525→}
+  1526→
+  1527→/**
+  1528→ * Helper for route handlers to return clear errors when AI providers fail.
+  1529→ * Returns 503 (retryable) for provider cascade failures, 500 for other errors.
+  1530→ */
+  1531→function handleAIError(res, err, featureName = 'AI feature') {
+  1532→  if (err.allProvidersFailed) {
+  1533→    return res.status(503).json({
+  1534→      error: `${featureName} temporarily unavailable`,
+  1535→      message: 'AI providers are experiencing issues. Please try again in a moment.',
+  1536→      retryable: true,
+  1537→      retryAfterMs: 5000,
+  1538→      totalElapsedMs: err.totalElapsedMs || 0,
+  1539→    });
+  1540→  }
+  1541→  console.error(`[${featureName}] Error:`, err.message || err);
+  1542→  return res.status(500).json({ error: `Failed: ${featureName}` });
+  1543→}
+  1544→
+  1545→module.exports = {
+  1546→  anthropic,
+  1547→  chat,
+  1548→  generateInterviewQuestions,
+  1549→  analyzeInterviewResponse,
+  1550→  generateOverallFeedback,
+  1551→  parseResume,
+  1552→  generateSkillAssessment,
+  1553→  evaluateSkillAssessment,
+  1554→  generateJobMatchScore,
+  1555→  generateInterviewCoaching,
+  1556→  analyzeVideoPresentation,
+  1557→  analyzeSpeechPatterns,
+  1558→  transcribeAudioWithWhisper,
+  1559→  analyzeVoiceQuality,
+  1560→  analyzeVideoInterviewResponse,
+  1561→  generateQuestionBank,
+  1562→  conductInterviewTurn,
+  1563→  generateSessionFeedback,
+  1564→  textToSpeech,
+  1565→  uploadFrameToR2,
+  1566→  safeParseJSON,
+  1567→  handleAIError,
+  1568→  // Expose the provider service for direct use and health checks
+  1569→  aiProvider,
+  1570→};
+  1571→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

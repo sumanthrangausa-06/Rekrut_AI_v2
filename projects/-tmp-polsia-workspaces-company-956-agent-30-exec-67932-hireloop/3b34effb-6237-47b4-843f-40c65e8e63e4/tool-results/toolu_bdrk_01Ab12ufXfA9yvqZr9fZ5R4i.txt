@@ -1,0 +1,2 @@
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/client/src/pages/candidate/mock-interview.tsx
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/client/src/pages/debug/mock-interview.tsx

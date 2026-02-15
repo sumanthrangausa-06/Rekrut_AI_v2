@@ -1,0 +1,14 @@
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/services/biasDetection.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/services/auditLogger.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/services/autofill-service.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/services/communication-generator.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/services/country-config.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/services/interview-ai.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/services/job-optimizer.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/services/document-verification.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/services/omniscore.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/services/trustscore.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/services/scoreExplainer.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/services/payroll-calculator.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/services/memory-service.js
+/tmp/polsia-workspaces/company-956/agent-30/exec-67932/hireloop/services/matching-engine.js
