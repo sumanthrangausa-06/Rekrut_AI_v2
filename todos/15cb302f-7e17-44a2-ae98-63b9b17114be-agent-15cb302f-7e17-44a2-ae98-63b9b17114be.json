@@ -1,0 +1,37 @@
+[
+  {
+    "content": "Check memory & skills, start task",
+    "status": "completed",
+    "activeForm": "Checking memory & skills, starting task"
+  },
+  {
+    "content": "Investigate git history and diff #32578 vs #32582",
+    "status": "completed",
+    "activeForm": "Investigating git history and diffs"
+  },
+  {
+    "content": "Identify root cause of vision analysis regression",
+    "status": "completed",
+    "activeForm": "Identifying root cause of vision regression"
+  },
+  {
+    "content": "Fix vision analysis while keeping content analysis fix",
+    "status": "completed",
+    "activeForm": "Fixing vision analysis"
+  },
+  {
+    "content": "Add transcript display in feedback results",
+    "status": "completed",
+    "activeForm": "Adding transcript display in feedback"
+  },
+  {
+    "content": "Build, deploy, and verify end-to-end",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying"
+  },
+  {
+    "content": "Complete task and notify owner",
+    "status": "pending",
+    "activeForm": "Completing task and notifying owner"
+  }
+]
