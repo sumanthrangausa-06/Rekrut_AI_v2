@@ -99,7 +99,8 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 
 | Route File | Lines | Count | Domain |
 |-----------|-------|-------|--------|
-| `routes/interviews.js` | 3190 | 44 | Interview scheduling, AI coaching, mock interviews, video analysis |
+| `routes/quick-practice.js` | 465 | 7 | **ISOLATED** Quick Practice routes — uses qp-ai.js, NOT polsia-ai.js |
+| `routes/interviews.js` | 2691 | 37 | Mock interviews, video analysis (practice routes REMOVED — now in quick-practice.js) |
 | `routes/onboarding.js` | 3119 | 43 | Document generation, I-9, W-4, policies, benefits |
 | `routes/candidate.js` | 2230 | 46 | Candidate profile, resume, skills, experience, education |
 | `routes/assessments.js` | 1898 | 22 | Skill assessments, grading, AI feedback |
@@ -143,8 +144,10 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 
 | Library | Lines | Purpose |
 |---------|-------|---------|
-| `lib/ai-provider.js` | 2287 | Multi-provider LLM with circuit breaker, fallback chains |
-| `lib/polsia-ai.js` | 1304 | AI function wrappers (chat, vision, TTS, ASR, analysis) |
+| `lib/ai-provider.js` | 2493 | Multi-provider LLM with circuit breaker, fallback chains (used by Mock Interview + other features) |
+| `lib/polsia-ai.js` | 1571 | AI function wrappers (Mock Interview, assessments, matching, resume parsing) |
+| `lib/qp-provider.js` | 2493 | **ISOLATED** Quick Practice AI provider (forked from ai-provider.js) |
+| `lib/qp-ai.js` | 967 | **ISOLATED** Quick Practice AI analysis pipeline (forked from polsia-ai.js) |
 | `lib/ai-call-logger.js` | 545 | AI call logging, usage summary |
 | `lib/activity-logger.js` | 399 | Request tracking for admin feed |
 | `lib/metrics-collector.js` | 361 | Request/latency/error tracking |
@@ -381,18 +384,47 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 
 ---
 
+## Quick Practice Isolation Architecture (Feb 15, 2026 — #32717)
+
+Quick Practice was breaking every time Mock Interview code changed because they shared the same analysis pipeline. They are now **fully decoupled**:
+
+```
+QUICK PRACTICE (isolated)          MOCK INTERVIEW (shared modules)
+─────────────────────────          ──────────────────────────────
+quick-practice.tsx (frontend)      mock-interview.tsx (frontend)
+        │                                  │
+        ▼                                  ▼
+routes/quick-practice.js           routes/interviews.js
+        │                                  │
+        ▼                                  ▼
+lib/qp-ai.js                      lib/polsia-ai.js
+        │                                  │
+        ▼                                  ▼
+lib/qp-provider.js                 lib/ai-provider.js
+```
+
+**Rules:**
+- Changes to `polsia-ai.js`, `ai-provider.js`, or `interviews.js` → affect Mock Interview ONLY
+- Changes to `qp-ai.js`, `qp-provider.js`, or `quick-practice.js` → affect Quick Practice ONLY
+- Shared utilities (auth, DB, etc.) remain common — they're stable and rarely change
+- If Quick Practice needs a fix, edit `qp-ai.js` and `routes/quick-practice.js`
+- If Mock Interview needs a fix, edit `polsia-ai.js` and `routes/interviews.js`
+
+---
+
 ## Problem Areas
 
 ### 1. Monolith Files
 - **~~`ai-coaching.tsx` (4044 lines)~~** **SPLIT Feb 15** — now a thin router/shell (291 lines) managing shared state and tab structure. Split into: `quick-practice.tsx` (~1442 lines), `mock-interview.tsx` (~1665 lines), `ai-coaching-progress.tsx` (~370 lines), plus pre-existing `coaching-types.ts` (185 lines) and `coaching-utils.tsx` (68 lines).
 - **`ai-provider.js` (2287 lines):** Provider abstraction + 15+ provider implementations + circuit breaker logic. Largest backend file.
-- **`interviews.js` (3190 lines):** Interview scheduling, AI coaching, mock interviews, video analysis — 44 endpoints in a single route file.
+- **~~`interviews.js` (3190 lines)~~** **SPLIT Feb 15 (#32717)** — now 2691 lines (Mock Interview + video analysis only, 37 endpoints). Quick Practice routes (7 endpoints) moved to `routes/quick-practice.js` (465 lines) with isolated AI pipeline.
 - **`onboarding.js` (3119 lines):** Document generation, I-9, W-4, policies, benefits — 43 endpoints.
 - **`polsia-ai.js` (1304 lines):** AI function wrappers growing with each new feature.
 - **`server.js` (988 lines):** Express setup + 26 AI health endpoints + admin metrics all in one file.
 
 ### 2. Tight Coupling
 - ~~Quick Practice and Mock Interview share state variables in the same component~~ **SPLIT Feb 15** — separated into `quick-practice.tsx`, `mock-interview.tsx`, and `ai-coaching-progress.tsx`; shared state managed by parent shell `ai-coaching.tsx`
+- ~~Quick Practice and Mock Interview share backend analysis pipeline~~ **DECOUPLED Feb 15 (#32717)** — Quick Practice now has its own isolated code path: `routes/quick-practice.js` → `lib/qp-ai.js` → `lib/qp-provider.js`. Changes to Mock Interview code (polsia-ai.js, ai-provider.js, interviews.js) have ZERO effect on Quick Practice.
 - ~~AI provider errors cascade into null-safety crashes~~ **FIXED Feb 14** — allSettled checks now validate `value != null`
 - Legacy HTML pages and React SPA co-exist, causing route conflicts
 
