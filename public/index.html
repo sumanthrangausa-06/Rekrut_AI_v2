@@ -20,13 +20,16 @@
       <a href="/" class="flex items-center gap-2">
         <span style="font-size:1.375rem;font-weight:800;color:#0f172a;">Hire<span style="color:#4f46e5;">Loop</span></span>
       </a>
-      <div class="hidden md:flex items-center gap-8">
+      <div id="navLinks" class="hidden md:flex items-center gap-8">
         <a href="#features" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition">Features</a>
         <a href="#how-it-works" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition">How It Works</a>
         <a href="#pricing" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition">Pricing</a>
       </div>
       <div class="flex items-center gap-3">
-        <a href="/login.html" class="btn btn-ghost text-sm">Sign In</a>
+        <button id="mobileMenuBtn" class="md:hidden p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50" style="min-width:44px;min-height:44px;" aria-label="Open menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <a href="/login.html" class="btn btn-ghost text-sm hidden sm:inline-flex">Sign In</a>
         <a href="/register.html" class="btn btn-primary text-sm">Get Started</a>
       </div>
     </div>
@@ -233,6 +236,34 @@
       </div>
     </div>
   </footer>
+
+  <!-- Mobile nav menu for landing page -->
+  <div id="mobileMenu" class="fixed inset-0 z-40 hidden">
+    <div id="mobileMenuOverlay" class="absolute inset-0 bg-black/40"></div>
+    <div class="absolute top-16 left-0 right-0 bg-white border-b border-slate-200 shadow-lg p-6 flex flex-col gap-4 animate-slideDown">
+      <a href="#features" class="text-base font-medium text-slate-700 py-2">Features</a>
+      <a href="#how-it-works" class="text-base font-medium text-slate-700 py-2">How It Works</a>
+      <a href="#pricing" class="text-base font-medium text-slate-700 py-2">Pricing</a>
+      <hr class="border-slate-100">
+      <a href="/login.html" class="text-base font-medium text-indigo-600 py-2">Sign In</a>
+      <a href="/register.html" class="btn btn-primary text-center">Get Started Free</a>
+    </div>
+  </div>
+  <style>
+    @keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+    .animate-slideDown { animation: slideDown 0.2s ease; }
+  </style>
+  <script>
+    (function() {
+      var btn = document.getElementById('mobileMenuBtn');
+      var menu = document.getElementById('mobileMenu');
+      var overlay = document.getElementById('mobileMenuOverlay');
+      if (!btn || !menu) return;
+      btn.addEventListener('click', function() { menu.classList.toggle('hidden'); });
+      overlay.addEventListener('click', function() { menu.classList.add('hidden'); });
+      menu.querySelectorAll('a').forEach(function(a) { a.addEventListener('click', function() { menu.classList.add('hidden'); }); });
+    })();
+  </script>
 
   <script src="/js/core.js"></script>
   <script defer src="https://polsia.com/analytics.js" data-slug="hireloop"></script>

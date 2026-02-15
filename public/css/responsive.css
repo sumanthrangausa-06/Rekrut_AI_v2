@@ -573,3 +573,297 @@
 .section-padding {
   padding: clamp(40px, 8vw, 100px) clamp(16px, 4vw, 24px);
 }
+
+/* ===================================
+   ADDITIONAL DASHBOARD MOBILE FIXES
+   Global fixes for all sidebar-based pages
+   =================================== */
+
+/* iOS zoom prevention — font-size 16px on all inputs */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  input[type="date"],
+  input[type="time"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* ── Profile / Form pages ── */
+@media (max-width: 768px) {
+  .profile-header,
+  .profile-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .profile-avatar {
+    width: 80px;
+    height: 80px;
+  }
+
+  .profile-grid,
+  .form-grid,
+  .settings-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+
+  .profile-section,
+  .settings-section {
+    padding: 20px;
+  }
+}
+
+/* ── Compliance / Offer / Payroll pages ── */
+@media (max-width: 768px) {
+  .compliance-grid,
+  .payroll-grid,
+  .offer-grid,
+  .onboarding-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+
+  .tab-nav,
+  .tabs,
+  .tab-bar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    gap: 0;
+    flex-wrap: nowrap;
+  }
+
+  .tab-nav button,
+  .tab-btn,
+  .tab-bar button {
+    min-height: 44px;
+    padding: 10px 16px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
+
+/* ── Analytics / Charts ── */
+@media (max-width: 768px) {
+  .analytics-grid,
+  .chart-grid,
+  .metrics-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+
+  .chart-container {
+    min-height: 200px;
+    overflow-x: auto;
+  }
+
+  canvas {
+    max-width: 100%;
+    height: auto !important;
+  }
+}
+
+/* ── Communication / Messaging pages ── */
+@media (max-width: 768px) {
+  .message-layout,
+  .comm-layout {
+    flex-direction: column;
+  }
+
+  .message-sidebar,
+  .comm-sidebar {
+    width: 100% !important;
+    max-height: 200px;
+    overflow-y: auto;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+  }
+
+  .message-content,
+  .comm-content {
+    margin-left: 0 !important;
+    padding: 16px;
+  }
+}
+
+/* ── Assessment / Skill pages ── */
+@media (max-width: 768px) {
+  .assessment-grid,
+  .skill-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+
+  .assessment-card,
+  .skill-card {
+    padding: 20px;
+  }
+
+  .assessment-header,
+  .skill-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
+
+/* ── Document pages ── */
+@media (max-width: 768px) {
+  .document-grid,
+  .doc-list {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  .document-card,
+  .doc-item {
+    padding: 16px;
+  }
+
+  .document-actions,
+  .doc-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .document-actions .btn,
+  .doc-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ── Recruiter specific ── */
+@media (max-width: 768px) {
+  .candidate-grid,
+  .application-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+
+  .candidate-card,
+  .application-card {
+    padding: 20px;
+  }
+
+  .candidate-card-header,
+  .application-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .pipeline-stages {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+  }
+
+  .pipeline-stage {
+    flex-shrink: 0;
+    min-width: 120px;
+  }
+}
+
+/* ── Generic flex-to-stack helpers ── */
+@media (max-width: 768px) {
+  /* Any flex row with space-between should stack on mobile */
+  .flex-between,
+  [style*="display:flex"][style*="justify-content:space-between"],
+  [style*="display: flex"][style*="justify-content: space-between"] {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px;
+  }
+
+  /* Wrap flex containers */
+  [style*="display:flex"][style*="gap"],
+  [style*="display: flex"][style*="gap"] {
+    flex-wrap: wrap;
+  }
+
+  /* Ensure no horizontal overflow anywhere */
+  .main-content,
+  .page-content,
+  main {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  /* Fix inline-style grids that don't have classes */
+  [style*="grid-template-columns: repeat(2"],
+  [style*="grid-template-columns: repeat(3"],
+  [style*="grid-template-columns: repeat(4"],
+  [style*="grid-template-columns:repeat(2"],
+  [style*="grid-template-columns:repeat(3"],
+  [style*="grid-template-columns:repeat(4"],
+  [style*="grid-template-columns: 1fr 1fr"],
+  [style*="grid-template-columns:1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Table wrapper for horizontal scroll */
+  .table-wrapper,
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -16px;
+    padding: 0 16px;
+  }
+
+  /* Modal full-width on mobile */
+  .modal-content,
+  .modal {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    margin: 10px auto;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* Section/container padding normalization */
+  .section,
+  .content-section {
+    padding: 20px 16px;
+  }
+}
+
+/* ── 320px ultra-small screens ── */
+@media (max-width: 360px) {
+  .mobile-sidebar-toggle {
+    top: 12px;
+    left: 12px;
+    padding: 8px 10px;
+  }
+
+  .main-content {
+    padding: 60px 12px 16px !important;
+  }
+
+  .page-header h1 {
+    font-size: 18px !important;
+  }
+
+  .stat-card .stat-value {
+    font-size: 20px;
+  }
+
+  .btn {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+
+  .section h2 {
+    font-size: 16px;
+  }
+}
