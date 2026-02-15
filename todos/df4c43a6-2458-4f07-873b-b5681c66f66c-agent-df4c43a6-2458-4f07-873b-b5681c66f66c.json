@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate where Quick Practice gets its questions (frontend + backend)",
+    "status": "completed",
+    "activeForm": "Investigating Quick Practice question source"
+  },
+  {
+    "content": "Check existing question_bank table and available questions",
+    "status": "completed",
+    "activeForm": "Checking question bank database"
+  },
+  {
+    "content": "Switch Quick Practice to pull from question_bank",
+    "status": "in_progress",
+    "activeForm": "Switching to question bank"
+  },
+  {
+    "content": "Verify fix and deploy",
+    "status": "pending",
+    "activeForm": "Verifying fix and deploying"
+  }
+]
