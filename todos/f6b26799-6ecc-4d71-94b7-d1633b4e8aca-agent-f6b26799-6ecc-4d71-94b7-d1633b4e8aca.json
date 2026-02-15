@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate Bug 1: chk_jobs_job_type CHECK constraint mismatch",
+    "status": "completed",
+    "activeForm": "Investigating job_type CHECK constraint mismatch"
+  },
+  {
+    "content": "Investigate Bug 2: Recruiter company_id null blocking all /api/recruiter/* endpoints",
+    "status": "completed",
+    "activeForm": "Investigating recruiter company_id null issue"
+  },
+  {
+    "content": "Fix Bug 1: Normalize job_type to lowercase in both routes",
+    "status": "completed",
+    "activeForm": "Fixing job_type normalization in routes/jobs.js and routes/recruiter.js"
+  },
+  {
+    "content": "Fix Bug 2: Auto-provision company for recruiters + backfill data",
+    "status": "completed",
+    "activeForm": "Fixing recruiter company_id auto-provisioning"
+  },
+  {
+    "content": "Deploy and verify both fixes",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying fixes"
+  }
+]
