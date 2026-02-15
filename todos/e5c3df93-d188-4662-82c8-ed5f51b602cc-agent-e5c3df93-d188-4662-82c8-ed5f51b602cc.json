@@ -1,0 +1,37 @@
+[
+  {
+    "content": "Read qp-ai.js to understand voice analysis pipeline",
+    "status": "completed",
+    "activeForm": "Reading qp-ai.js voice analysis pipeline"
+  },
+  {
+    "content": "Read qp-provider.js to understand provider cascade",
+    "status": "completed",
+    "activeForm": "Reading qp-provider.js provider cascade"
+  },
+  {
+    "content": "Read quick-practice.js routes for fallback logic",
+    "status": "completed",
+    "activeForm": "Reading quick-practice.js routes"
+  },
+  {
+    "content": "Check Render logs for actual voice analysis errors",
+    "status": "completed",
+    "activeForm": "Checking Render logs for errors"
+  },
+  {
+    "content": "Fix root cause - make voice analysis actually work",
+    "status": "completed",
+    "activeForm": "Fixing voice analysis root cause"
+  },
+  {
+    "content": "Remove fake 5/10 fallback scores",
+    "status": "completed",
+    "activeForm": "Removing fake fallback scores"
+  },
+  {
+    "content": "Deploy and verify real scores appear",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying fix"
+  }
+]
