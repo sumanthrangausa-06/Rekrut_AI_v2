@@ -52,7 +52,7 @@ setInterval(() => {
 }, 30 * 60 * 1000);
 
 // ─── Admin Credentials ─────────────────────────────────────────────────────
-// Generate a default password if not set in env
+// Uses ADMIN_PASSWORD env var; generates random default if not set
 let ADMIN_PASSWORD_HASH = null;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 
