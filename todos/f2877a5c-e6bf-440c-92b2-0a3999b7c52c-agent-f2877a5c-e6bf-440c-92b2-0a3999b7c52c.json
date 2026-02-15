@@ -1,0 +1,37 @@
+[
+  {
+    "content": "Trace the Quick Practice analysis flow: frontend → API → AI model call",
+    "status": "completed",
+    "activeForm": "Tracing the Quick Practice analysis flow end-to-end"
+  },
+  {
+    "content": "Check Render logs for actual API errors during analysis",
+    "status": "completed",
+    "activeForm": "Checking Render logs for actual errors"
+  },
+  {
+    "content": "Identify root cause with evidence (not just error messages)",
+    "status": "completed",
+    "activeForm": "Identifying the root cause with evidence"
+  },
+  {
+    "content": "Fix analyzeVideoPresentation to use text LLM instead of broken vision API",
+    "status": "completed",
+    "activeForm": "Fixing analyzeVideoPresentation to use working text LLM"
+  },
+  {
+    "content": "Fix Whisper timeout eating into analysis time budget",
+    "status": "completed",
+    "activeForm": "Fixing Whisper timeout eating into time budget"
+  },
+  {
+    "content": "Build, deploy, and verify end-to-end",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying the fix"
+  },
+  {
+    "content": "Notify owner with results",
+    "status": "pending",
+    "activeForm": "Notifying the owner with results"
+  }
+]
