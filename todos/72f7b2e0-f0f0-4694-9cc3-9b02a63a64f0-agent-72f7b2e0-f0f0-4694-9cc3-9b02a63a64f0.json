@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate where mock interview category is set",
+    "status": "completed",
+    "activeForm": "Investigating mock interview categorization"
+  },
+  {
+    "content": "Identify root cause for hardcoded 'Behavioral' tag",
+    "status": "completed",
+    "activeForm": "Identifying root cause"
+  },
+  {
+    "content": "Implement fix for auto-categorization",
+    "status": "completed",
+    "activeForm": "Implementing categorization fix"
+  },
+  {
+    "content": "Backfill existing session categories",
+    "status": "completed",
+    "activeForm": "Backfilling existing session categories"
+  },
+  {
+    "content": "Push and verify deployment",
+    "status": "in_progress",
+    "activeForm": "Pushing and verifying deployment"
+  }
+]
