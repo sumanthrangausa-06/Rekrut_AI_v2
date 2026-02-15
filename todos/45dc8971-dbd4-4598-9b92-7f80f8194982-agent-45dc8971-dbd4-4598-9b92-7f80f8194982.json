@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Read Render logs to see what's failing in production",
+    "status": "completed",
+    "activeForm": "Reading Render logs for production errors"
+  },
+  {
+    "content": "Review git history and recent changes from #32666",
+    "status": "completed",
+    "activeForm": "Reviewing git history and #32666 changes"
+  },
+  {
+    "content": "Identify root cause with evidence",
+    "status": "completed",
+    "activeForm": "Identifying root cause with evidence"
+  },
+  {
+    "content": "Implement fix without removing features",
+    "status": "completed",
+    "activeForm": "Implementing fix without removing features"
+  },
+  {
+    "content": "Build, deploy, and verify fix works",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying fix"
+  }
+]
