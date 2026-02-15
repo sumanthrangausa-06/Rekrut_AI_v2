@@ -58,6 +58,8 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
   const [mockEnding, setMockEnding] = useState(false)
   const [mockFeedback, setMockFeedback] = useState<SessionFeedback | null>(null)
   const [mockShowSetup, setMockShowSetup] = useState(false)
+  const [viewingHistorySession, setViewingHistorySession] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState<number | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   // Voice interview state
@@ -951,6 +953,50 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
     }
   }
 
+  async function viewPastSession(sessionId: number) {
+    setHistoryLoading(sessionId)
+    try {
+      // Fetch full session (includes conversation, overall_feedback, etc.)
+      const sessionRes = await apiCall<{ success: boolean; session: MockSession }>(`/interviews/mock/sessions/${sessionId}`)
+      if (!sessionRes.success || !sessionRes.session) return
+
+      const session = sessionRes.session
+      // Parse overall_feedback if it's a string
+      let feedback: SessionFeedback | null = null
+      if (session.overall_feedback) {
+        feedback = typeof session.overall_feedback === 'string'
+          ? JSON.parse(session.overall_feedback)
+          : session.overall_feedback
+      }
+
+      if (!feedback) {
+        // Try the dedicated feedback endpoint
+        try {
+          const fbRes = await apiCall<{ success: boolean; feedback: SessionFeedback }>(`/interviews/mock/sessions/${sessionId}/feedback`)
+          if (fbRes.success && fbRes.feedback) feedback = fbRes.feedback
+        } catch { /* no feedback available */ }
+      }
+
+      if (feedback) {
+        setMockSession({ ...session, status: 'completed' })
+        setMockFeedback(feedback)
+        setViewingHistorySession(true)
+        setMockShowSetup(false)
+      }
+    } catch (err) {
+      console.error('Failed to load past session:', err)
+    } finally {
+      setHistoryLoading(null)
+    }
+  }
+
+  function backToSetup() {
+    setMockSession(null)
+    setMockFeedback(null)
+    setViewingHistorySession(false)
+    setMockShowSetup(false)
+  }
+
   function resetMockInterview() {
     stopVoiceMode()
     stopMockCamera()
@@ -967,6 +1013,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
     setVoiceMode(false)
     voiceModeRef.current = false
     setBodyLanguageIndicators(null)
+    setViewingHistorySession(false)
   }
 
   // ==================== RENDER ====================
@@ -1173,11 +1220,18 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
           <div className="flex items-center justify-between">
             <h3 className="font-semibold flex items-center gap-2">
               <Trophy className="h-5 w-5 text-amber-500" />
-              Interview Complete — {mockSession?.target_role}
+              {viewingHistorySession ? 'Past Interview' : 'Interview Complete'} — {mockSession?.target_role}
             </h3>
-            <Button size="sm" variant="outline" onClick={resetMockInterview}>
-              <Plus className="h-3.5 w-3.5 mr-1.5" /> New Interview
-            </Button>
+            <div className="flex items-center gap-2">
+              {viewingHistorySession && (
+                <Button size="sm" variant="ghost" onClick={backToSetup}>
+                  ← Back
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={resetMockInterview}>
+                <Plus className="h-3.5 w-3.5 mr-1.5" /> New Interview
+              </Button>
+            </div>
           </div>
 
           {/* Overall score */}
@@ -1666,11 +1720,15 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                 {mockPastSessions.map(s => {
                   const tags = s.category_tags || ['behavioral']
                   return (
-                    <Card key={s.id} className="hover:border-primary/30 transition-colors">
+                    <Card key={s.id} className={`hover:border-primary/30 transition-colors ${s.status === 'completed' ? 'cursor-pointer' : ''} ${historyLoading === s.id ? 'opacity-60' : ''}`} onClick={() => s.status === 'completed' && viewPastSession(s.id)}>
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            {s.overall_score ? (
+                            {historyLoading === s.id ? (
+                              <div className="h-10 w-10 rounded-lg flex items-center justify-center bg-muted">
+                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                              </div>
+                            ) : s.overall_score ? (
                               <div className={`h-10 w-10 rounded-lg flex items-center justify-center border ${scoreBg(s.overall_score)}`}>
                                 <span className={`font-bold ${scoreColor(s.overall_score)}`}>{s.overall_score}</span>
                               </div>
@@ -1711,6 +1769,9 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                             <p className="text-[10px] text-muted-foreground mt-1">
                               {new Date(s.started_at).toLocaleDateString()}
                             </p>
+                            {s.status === 'completed' && (
+                              <p className="text-[10px] text-primary mt-0.5 font-medium">View feedback →</p>
+                            )}
                           </div>
                         </div>
                       </CardContent>
