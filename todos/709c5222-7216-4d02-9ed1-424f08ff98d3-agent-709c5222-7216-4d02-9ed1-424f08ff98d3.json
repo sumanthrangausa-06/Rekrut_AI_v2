@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate current codebase: polsia-ai.js and quick-practice.tsx",
+    "status": "completed",
+    "activeForm": "Investigating current codebase"
+  },
+  {
+    "content": "Research working vision API approach (Gemini workaround or OpenAI GPT-4o)",
+    "status": "completed",
+    "activeForm": "Researching working vision API approach"
+  },
+  {
+    "content": "Implement vision-based video analysis with text fallback",
+    "status": "completed",
+    "activeForm": "Implementing vision-based video analysis"
+  },
+  {
+    "content": "Build, test, and deploy",
+    "status": "in_progress",
+    "activeForm": "Building, testing, and deploying"
+  },
+  {
+    "content": "Verify end-to-end video analysis works in production",
+    "status": "pending",
+    "activeForm": "Verifying end-to-end video analysis"
+  }
+]
