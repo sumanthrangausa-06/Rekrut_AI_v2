@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate admin auth route — how does login work?",
+    "status": "completed",
+    "activeForm": "Investigating admin auth route"
+  },
+  {
+    "content": "Test login endpoint with current env var credentials",
+    "status": "completed",
+    "activeForm": "Testing login endpoint with current credentials"
+  },
+  {
+    "content": "Reset admin password to owner-friendly value",
+    "status": "in_progress",
+    "activeForm": "Resetting admin password"
+  },
+  {
+    "content": "Verify fix — admin login works on live app",
+    "status": "pending",
+    "activeForm": "Verifying admin login works"
+  },
+  {
+    "content": "Notify owner with new credentials",
+    "status": "pending",
+    "activeForm": "Notifying owner with new credentials"
+  }
+]
