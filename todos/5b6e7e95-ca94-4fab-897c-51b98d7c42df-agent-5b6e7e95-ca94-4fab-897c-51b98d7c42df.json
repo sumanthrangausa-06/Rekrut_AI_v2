@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Investigate mock-interview.tsx recording mechanism across questions",
+    "status": "completed",
+    "activeForm": "Investigating mock-interview.tsx recording mechanism"
+  },
+  {
+    "content": "Compare with quick-practice.tsx recording feedback UI",
+    "status": "completed",
+    "activeForm": "Comparing with quick-practice.tsx recording feedback"
+  },
+  {
+    "content": "Fix Part 1: Recording reliability across questions (MediaRecorder/stream lifecycle)",
+    "status": "completed",
+    "activeForm": "Fixing recording reliability across questions"
+  },
+  {
+    "content": "Fix Part 2: Add auto-stop / silence detection",
+    "status": "completed",
+    "activeForm": "Adding auto-stop / silence detection"
+  },
+  {
+    "content": "Fix Part 3: Add live recording feedback (transcription, word count, stats)",
+    "status": "completed",
+    "activeForm": "Adding live recording feedback UI"
+  },
+  {
+    "content": "Build, push, and verify deployment",
+    "status": "in_progress",
+    "activeForm": "Building, pushing, and verifying deployment"
+  }
+]
