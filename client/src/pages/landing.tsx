@@ -92,13 +92,13 @@ export function LandingPage() {
 
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="mx-auto max-w-6xl px-4 py-20 lg:py-32">
+        <div className="mx-auto max-w-6xl px-4 py-12 sm:py-20 lg:py-32">
           <div className="mx-auto max-w-3xl text-center">
-            <div className="mb-4 inline-flex items-center rounded-full border bg-muted px-4 py-1.5 text-sm text-muted-foreground">
-              <Zap className="mr-1.5 h-3.5 w-3.5 text-primary" />
+            <div className="mb-4 inline-flex items-center rounded-full border bg-muted px-3 sm:px-4 py-1.5 text-xs sm:text-sm text-muted-foreground">
+              <Zap className="mr-1.5 h-3.5 w-3.5 text-primary shrink-0" />
               AI-Powered Recruitment Platform
             </div>
-            <h1 className="font-heading text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
+            <h1 className="font-heading text-3xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
               Hire smarter.{' '}
               <span className="text-primary">Grow faster.</span>
             </h1>
@@ -133,11 +133,11 @@ export function LandingPage() {
           </div>
 
           {/* Stats */}
-          <div className="mx-auto mt-16 grid max-w-lg grid-cols-3 gap-8 lg:max-w-2xl">
+          <div className="mx-auto mt-12 sm:mt-16 grid max-w-lg grid-cols-3 gap-4 sm:gap-8 lg:max-w-2xl">
             {stats.map((stat) => (
               <div key={stat.label} className="text-center">
-                <p className="font-heading text-3xl font-bold text-primary">{stat.value}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{stat.label}</p>
+                <p className="font-heading text-2xl sm:text-3xl font-bold text-primary">{stat.value}</p>
+                <p className="mt-1 text-xs sm:text-sm text-muted-foreground">{stat.label}</p>
               </div>
             ))}
           </div>
@@ -173,8 +173,8 @@ export function LandingPage() {
       {/* CTA */}
       <section className="py-20">
         <div className="mx-auto max-w-6xl px-4">
-          <div className="rounded-2xl bg-primary p-8 text-center text-primary-foreground lg:p-16">
-            <h2 className="font-heading text-3xl font-bold lg:text-4xl">
+          <div className="rounded-2xl bg-primary p-6 sm:p-8 text-center text-primary-foreground lg:p-16">
+            <h2 className="font-heading text-2xl sm:text-3xl font-bold lg:text-4xl">
               Ready to transform your hiring?
             </h2>
             <p className="mt-3 text-primary-foreground/80 lg:text-lg">

@@ -51,3 +51,42 @@
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-muted-foreground/40;
 }
+
+/* ─── Mobile / Responsive Utilities ──────────────────────────────────── */
+
+/* Hide scrollbar but keep scroll behavior (for tab bars, horizontal nav) */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe area support for notched devices (iPhone X+) */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Prevent text size adjustment on orientation change (iOS) */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Smooth momentum scrolling on iOS */
+@layer utilities {
+  .touch-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Prevent pull-to-refresh on overscroll in app views */
+@media (max-width: 768px) {
+  .overflow-y-auto,
+  .overflow-auto {
+    overscroll-behavior-y: contain;
+  }
+}
