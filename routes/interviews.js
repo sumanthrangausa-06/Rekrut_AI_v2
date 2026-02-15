@@ -584,19 +584,28 @@ router.post('/practice/submit', authMiddleware, async (req, res) => {
     );
 
     // Then, generate detailed coaching
-    const coaching = await generateInterviewCoaching(
-      question,
-      response_text,
-      analysis,
-      { subscriptionId: req.user.stripe_subscription_id }
-    );
+    let coaching;
+    try {
+      coaching = await generateInterviewCoaching(
+        question,
+        response_text,
+        analysis,
+        { subscriptionId: req.user.stripe_subscription_id }
+      );
+    } catch (coachErr) {
+      console.warn('[practice-submit] Coaching generation failed, using analysis only:', coachErr.message);
+      coaching = null;
+    }
 
-    // Combine analysis and coaching
+    // Combine analysis and coaching (guard against null coaching)
     const fullCoaching = {
       score: analysis.score,
-      strengths: analysis.strengths,
-      improvements: analysis.improvements,
-      ...coaching
+      strengths: analysis.strengths || [],
+      improvements: analysis.improvements || [],
+      ...(coaching && typeof coaching === 'object' ? coaching : {
+        improved_response: '', specific_tips: [], body_language_tips: [],
+        common_mistake: '', practice_prompt: ''
+      })
     };
 
     // Save practice session
@@ -658,6 +667,31 @@ router.post('/practice/submit-video', authMiddleware, async (req, res) => {
       { subscriptionId: req.user.stripe_subscription_id, audioData: audio_data || null }
     );
 
+    // BUG FIX: Guard against null coaching response — if AI analysis completely fails,
+    // return a graceful error instead of crashing with "Cannot read properties of null"
+    if (!coaching || typeof coaching !== 'object') {
+      console.warn('[video-practice] AI analysis returned null/invalid — returning graceful error');
+      return res.status(200).json({
+        success: true,
+        coaching: {
+          overall_score: 5,
+          content: {
+            score: 5, strengths: ['Response provided'], improvements: ['AI analysis temporarily unavailable — please try again'],
+            covered_points: [], missed_points: [], detailed_feedback: 'Analysis could not be completed. Please try again.',
+            improved_response: '', specific_tips: ['Try again for detailed coaching tips'],
+            common_mistake: '', practice_prompt: ''
+          },
+          communication: { score: 5, word_count: 0, words_per_minute: 0, duration_seconds: duration_seconds || 60,
+            filler_words: {}, total_fillers: 0, filler_rate: 0, pace: 'unknown', tips: [] },
+          presentation: { score: 5, eye_contact: { score: 5, feedback: 'Analysis unavailable' },
+            facial_expressions: { score: 5, feedback: 'Analysis unavailable' },
+            body_language: { score: 5, feedback: 'Analysis unavailable' },
+            professional_appearance: { score: 5, feedback: 'Analysis unavailable' },
+            summary: 'Video analysis could not be completed.', timestamped_notes: [] }
+        }
+      });
+    }
+
     // Save practice session with video data
     await pool.query(
       `INSERT INTO practice_sessions
@@ -669,11 +703,11 @@ router.post('/practice/submit-video', authMiddleware, async (req, res) => {
         question,
         category,
         transcription,
-        Math.round(coaching.overall_score),
+        Math.round(coaching.overall_score || 5),
         JSON.stringify(coaching),
         transcription,
-        JSON.stringify(coaching.communication),
-        JSON.stringify(coaching.presentation),
+        JSON.stringify(coaching.communication || {}),
+        JSON.stringify(coaching.presentation || {}),
         duration_seconds || 60
       ]
     );

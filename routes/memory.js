@@ -365,10 +365,10 @@ router.get('/match-breakdown/:candidateId/:jobId', authMiddleware, async (req, r
       WHERE i.user_id = $1 AND i.overall_score IS NOT NULL
     `, [candidateId]);
 
-    // Get assessment scores if any
+    // Get assessment scores if any (table is assessment_sessions, not dynamic_assessments)
     const assessmentResult = await pool.query(`
       SELECT AVG(score) as avg_assessment_score, COUNT(*) as assessment_count
-      FROM dynamic_assessments
+      FROM assessment_sessions
       WHERE user_id = $1 AND status = 'completed'
     `, [candidateId]);
 
