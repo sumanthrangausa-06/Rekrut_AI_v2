@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Audit shared code between Quick Practice and Mock Interview",
+    "status": "completed",
+    "activeForm": "Auditing shared code between Quick Practice and Mock Interview"
+  },
+  {
+    "content": "Fork analysis pipeline — create Quick Practice-specific backend libraries",
+    "status": "completed",
+    "activeForm": "Creating Quick Practice-specific backend libraries"
+  },
+  {
+    "content": "Create isolated Quick Practice route file and remove from interviews.js",
+    "status": "completed",
+    "activeForm": "Creating isolated Quick Practice route file"
+  },
+  {
+    "content": "Wire new routes in server.js and verify builds",
+    "status": "completed",
+    "activeForm": "Wiring new routes and verifying builds"
+  },
+  {
+    "content": "Update ARCHITECTURE_CURRENT.md, commit, and deploy",
+    "status": "in_progress",
+    "activeForm": "Updating architecture docs and deploying"
+  }
+]
