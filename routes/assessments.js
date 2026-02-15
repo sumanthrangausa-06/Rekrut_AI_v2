@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
-const { chat } = require('../lib/polsia-ai');
+const { chat, handleAIError } = require('../lib/polsia-ai');
 const omniscoreService = require('../services/omniscore');
 
 // Skill catalog - available to all candidates without pre-existing skills
@@ -220,6 +220,9 @@ router.post('/start', authMiddleware, async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error starting assessment:', error);
+    if (error.allProvidersFailed) {
+      return handleAIError(res, error, 'Assessment generation');
+    }
     res.status(500).json({ error: 'Failed to start assessment' });
   } finally {
     client.release();
@@ -394,6 +397,9 @@ router.post('/answer', authMiddleware, async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error submitting answer:', error);
+    if (error.allProvidersFailed) {
+      return handleAIError(res, error, 'Answer evaluation');
+    }
     res.status(500).json({ error: 'Failed to submit answer' });
   } finally {
     client.release();
