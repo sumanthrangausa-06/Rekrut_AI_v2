@@ -401,11 +401,10 @@ export function QuickPractice({ questions, categoryFilter, setCategoryFilter, on
     setRecordingDone(true)
   }
 
-  // Submit video response
-  // FIX (Feb 15, 2026 — Task #32651): Increased timeout from 35s to 45s.
-  // Backend analysis runs 3-4 AI calls in parallel (content, coaching, video, voice)
-  // each with 22s per-promise timeout. Total backend time typically 10-25s, but
-  // needs headroom for legitimate vision API latency + frame uploads.
+  // Submit video response with auto-retry on 503 (temporary AI slowness)
+  // FIX (Feb 15, 2026 — Task #32681): Backend now has 25s master timeout + 38s route timeout.
+  // Total worst case: ~5s Whisper + 25s analysis + network = ~35s.
+  // Frontend timeout 45s gives 10s headroom. Auto-retries once on 503.
   async function submitVideoResponse() {
     if (!practiceQuestion) return
 
@@ -421,38 +420,58 @@ export function QuickPractice({ questions, categoryFilter, setCategoryFilter, on
     }
 
     setSubmitting(true)
-    const abortController = new AbortController()
-    const fetchTimeout = setTimeout(() => abortController.abort(), 45000)
-    try {
-      const res = await apiCall<{ success: boolean; coaching: VideoCoaching }>('/interviews/practice/submit-video', {
-        method: 'POST',
-        signal: abortController.signal,
-        body: {
-          question_id: practiceQuestion.id,
-          question: practiceQuestion.question,
-          category: practiceQuestion.category,
-          transcription: finalTranscription,
-          frames: capturedFrames,
-          duration_seconds: recordingTime,
-          audio_data: audioDataRef.current || undefined,
-        },
-      })
 
-      if (res.success) {
-        setCoaching(res.coaching)
-        stopCamera()
-        onSessionComplete()
+    // Inner function for the actual API call (allows retry)
+    const doSubmit = async (attempt: number): Promise<boolean> => {
+      const abortController = new AbortController()
+      const fetchTimeout = setTimeout(() => abortController.abort(), 45000)
+      try {
+        const res = await apiCall<{ success: boolean; coaching: VideoCoaching; retryable?: boolean }>('/interviews/practice/submit-video', {
+          method: 'POST',
+          signal: abortController.signal,
+          body: {
+            question_id: practiceQuestion.id,
+            question: practiceQuestion.question,
+            category: practiceQuestion.category,
+            transcription: finalTranscription,
+            frames: capturedFrames,
+            duration_seconds: recordingTime,
+            audio_data: audioDataRef.current || undefined,
+          },
+        })
+
+        if (res.success) {
+          setCoaching(res.coaching)
+          stopCamera()
+          onSessionComplete()
+          return true
+        }
+        // 503 with retryable flag — auto-retry once
+        if ((res as any).retryable && attempt === 1) {
+          return false // signal retry needed
+        }
+        return true // don't retry on other responses
+      } catch (err: any) {
+        if (err.name === 'AbortError' || abortController.signal.aborted) {
+          if (attempt === 1) return false // retry on timeout
+          alert('Analysis is taking longer than expected. Please try again — the AI may need a moment.')
+        } else {
+          alert(err.message || 'Failed to get AI coaching. Please try again.')
+        }
+        return true // don't retry after showing error
+      } finally {
+        clearTimeout(fetchTimeout)
       }
-    } catch (err: any) {
-      if (err.name === 'AbortError' || abortController.signal.aborted) {
-        alert('Analysis is taking longer than expected. Please try again — the AI may need a moment.')
-      } else {
-        alert(err.message || 'Failed to get AI coaching. Please try again.')
-      }
-    } finally {
-      clearTimeout(fetchTimeout)
-      setSubmitting(false)
     }
+
+    // Attempt 1
+    const done = await doSubmit(1)
+    if (!done) {
+      // Auto-retry once after a brief pause
+      await new Promise(r => setTimeout(r, 2000))
+      await doSubmit(2)
+    }
+    setSubmitting(false)
   }
 
   async function submitTextResponse() {

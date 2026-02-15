@@ -661,14 +661,25 @@ router.post('/practice/submit-video', authMiddleware, async (req, res) => {
     const keyPoints = libraryQuestion ? libraryQuestion.key_points : ['Content quality', 'Structure', 'Clarity', 'Relevance'];
 
     // Run comprehensive multi-modal analysis (now with optional audio)
-    const coaching = await analyzeVideoInterviewResponse(
-      question,
-      transcription,
-      frames,
-      duration_seconds || 60,
-      keyPoints,
-      { subscriptionId: req.user.stripe_subscription_id, audioData: audio_data || null }
-    );
+    // FIX (Feb 15, 2026 — Task #32681): Route-level 38s safety timeout.
+    // analyzeVideoInterviewResponse has internal 25s master timeout, but if the function
+    // itself hangs (e.g., Whisper + master timeout = 30s), this backstop ensures we
+    // ALWAYS respond before the frontend's 45s abort.
+    const ROUTE_TIMEOUT_MS = 38000;
+    const coaching = await Promise.race([
+      analyzeVideoInterviewResponse(
+        question,
+        transcription,
+        frames,
+        duration_seconds || 60,
+        keyPoints,
+        { subscriptionId: req.user.stripe_subscription_id, audioData: audio_data || null }
+      ),
+      new Promise((_, reject) => setTimeout(() => {
+        console.error('[video-practice] ⏱️ Route-level safety timeout (38s) — analysis hung');
+        reject(new Error('Analysis timeout'));
+      }, ROUTE_TIMEOUT_MS))
+    ]);
 
     // BUG FIX: Guard against null coaching response — if AI analysis completely fails,
     // return a graceful error instead of crashing with "Cannot read properties of null"
@@ -720,7 +731,16 @@ router.post('/practice/submit-video', authMiddleware, async (req, res) => {
       coaching
     });
   } catch (err) {
-    console.error('Submit video practice response error:', err);
+    console.error('Submit video practice response error:', err.message || err);
+    // FIX (Feb 15, 2026 — Task #32681): Return 503 (retryable) for timeout errors
+    // so frontend knows it's temporary and can retry automatically
+    if (err.message === 'Analysis timeout' || err.allProvidersFailed) {
+      return res.status(503).json({
+        error: 'AI analysis is temporarily slow. Please try again in a moment.',
+        retryable: true,
+        retryAfterMs: 3000,
+      });
+    }
     res.status(500).json({ error: 'Failed to analyze video response. Please try again.' });
   }
 });
