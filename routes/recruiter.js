@@ -8,11 +8,37 @@ const { AuditLogger } = require('../services/auditLogger');
 
 const router = express.Router();
 
-// Middleware to require recruiter role
-function requireRecruiter(req, res, next) {
-  if (!req.user.company_id || !['recruiter', 'hiring_manager', 'employer', 'admin'].includes(req.user.role)) {
+// Middleware to require recruiter role — auto-provisions company if recruiter has company_name but no company_id
+async function requireRecruiter(req, res, next) {
+  const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+  if (!recruiterRoles.includes(req.user.role)) {
     return res.status(403).json({ error: 'Recruiter access required' });
   }
+
+  // Auto-provision company for recruiters with company_name but no company_id
+  if (!req.user.company_id && req.user.company_name) {
+    try {
+      const slug = req.user.company_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').substring(0, 50);
+      const companyResult = await pool.query(
+        `INSERT INTO companies (owner_id, name, slug) VALUES ($1, $2, $3)
+         ON CONFLICT (slug) DO UPDATE SET slug = companies.slug
+         RETURNING id`,
+        [req.user.id, req.user.company_name, slug + '-' + req.user.id]
+      );
+      const companyId = companyResult.rows[0].id;
+      await pool.query('UPDATE users SET company_id = $1 WHERE id = $2', [companyId, req.user.id]);
+      req.user.company_id = companyId;
+      console.log(`Auto-provisioned company "${req.user.company_name}" (id=${companyId}) for user ${req.user.id}`);
+    } catch (e) {
+      console.error('Failed to auto-provision company for recruiter:', e.message);
+      return res.status(403).json({ error: 'Recruiter access required — company setup failed' });
+    }
+  }
+
+  if (!req.user.company_id) {
+    return res.status(403).json({ error: 'Recruiter access required — no company associated' });
+  }
+
   next();
 }
 
@@ -133,6 +159,13 @@ router.post('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
       return res.status(400).json({ error: 'Job title is required' });
     }
 
+    // Normalize job_type to lowercase to match CHECK constraint
+    const validJobTypes = ['full-time', 'part-time', 'contract', 'internship', 'freelance'];
+    const normalizedJobType = job_type ? job_type.toLowerCase().trim() : 'full-time';
+    if (!validJobTypes.includes(normalizedJobType)) {
+      return res.status(400).json({ error: `Invalid job type. Must be one of: ${validJobTypes.join(', ')}` });
+    }
+
     let finalDescription = description;
     let finalRequirements = requirements;
     let optimizationResult = null;
@@ -158,7 +191,7 @@ router.post('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [req.user.id, req.user.company_id, title, req.user.company_name,
-       finalDescription, finalRequirements, location, salary_range, job_type || 'full-time',
+       finalDescription, finalRequirements, location, salary_range, normalizedJobType,
        screening_questions ? JSON.stringify(screening_questions) : null]
     );
 
@@ -300,6 +333,15 @@ router.put('/jobs/:id', authMiddleware, requireRecruiter, async (req, res) => {
   try {
     const { title, description, requirements, location, salary_range, job_type, status, screening_questions } = req.body;
 
+    // Normalize job_type to lowercase if provided
+    const normalizedUpdateJobType = job_type ? job_type.toLowerCase().trim() : null;
+    if (normalizedUpdateJobType) {
+      const validJobTypes = ['full-time', 'part-time', 'contract', 'internship', 'freelance'];
+      if (!validJobTypes.includes(normalizedUpdateJobType)) {
+        return res.status(400).json({ error: `Invalid job type. Must be one of: ${validJobTypes.join(', ')}` });
+      }
+    }
+
     // Verify ownership (company_id or user_id)
     const existing = await pool.query(
       'SELECT id FROM jobs WHERE id = $1 AND (company_id = $2 OR user_id = $3)',
@@ -323,7 +365,7 @@ router.put('/jobs/:id', authMiddleware, requireRecruiter, async (req, res) => {
         updated_at = NOW()
        WHERE id = $9
        RETURNING *`,
-      [title, description, requirements, location, salary_range, job_type, status, screening_questions || null, req.params.id]
+      [title, description, requirements, location, salary_range, normalizedUpdateJobType, status, screening_questions || null, req.params.id]
     );
 
     res.json({ success: true, job: result.rows[0] });
