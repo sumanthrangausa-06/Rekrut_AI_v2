@@ -894,17 +894,19 @@ router.post('/mock/:sessionId/respond', authMiddleware, async (req, res) => {
     if (frameCount > 0 || wordCount > 20) {
       const bgQuestionIndex = session.current_question_index;
       const bgQuestion = baseQuestions[bgQuestionIndex];
-      const bgOptions = { subscriptionId: req.user.stripe_subscription_id };
+      // BUG FIX (Feb 15, 2026 — Task #33076): Use mock_interview module and skip per-question
+      // video analysis to preserve vision budget for end-of-interview comprehensive analysis.
+      const bgOptions = { subscriptionId: req.user.stripe_subscription_id, module: 'mock_interview' };
       (async () => {
         try {
           const questionText = bgQuestion ? bgQuestion.question_text : 'Interview question';
           const keyPoints = bgQuestion ? (bgQuestion.key_points || ['Content quality', 'Structure', 'Clarity']) : ['Content quality', 'Structure', 'Clarity'];
 
-          // Run per-question multi-modal analysis (same pipeline as quick practice)
+          // Run per-question analysis — skip video frames (preserved for end-of-interview body language)
           const perQuestionResult = await analyzeVideoInterviewResponse(
             questionText,
             response_text.trim(),
-            frames && frames.length > 0 ? frames : [],
+            [], // Empty frames — video analysis happens once at end-of-interview with all frames
             duration_seconds || 60,
             keyPoints,
             { ...bgOptions, audioData: hasAudio ? audio_data : null }
@@ -1086,13 +1088,15 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
         const bgPromises = [];
         if (frames && Array.isArray(frames) && frames.length > 0) {
           console.log(`[mock-end-bg] Running background body language analysis with ${frames.length} frames`);
-          bgPromises.push(analyzeVideoPresentation(frames, options).catch(e => { console.warn('[mock-end-bg] Video analysis failed:', e.message); return null; }));
+          const videoOptions = { ...options, module: 'mock_interview', transcription: candidateText, durationSeconds };
+          bgPromises.push(analyzeVideoPresentation(frames, videoOptions).catch(e => { console.warn('[mock-end-bg] Video analysis failed:', e.message); return null; }));
         } else {
           bgPromises.push(Promise.resolve(null));
         }
         if (candidateText.length > 20) {
           console.log(`[mock-end-bg] Running background voice quality analysis`);
-          bgPromises.push(analyzeVoiceQuality(candidateText, durationSeconds, options).catch(e => { console.warn('[mock-end-bg] Voice analysis failed:', e.message); return null; }));
+          const voiceOptions = { ...options, module: 'mock_interview' };
+          bgPromises.push(analyzeVoiceQuality(candidateText, durationSeconds, voiceOptions).catch(e => { console.warn('[mock-end-bg] Voice analysis failed:', e.message); return null; }));
         } else {
           bgPromises.push(Promise.resolve(null));
         }
@@ -1100,6 +1104,12 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
         const [videoAnalysis, voiceAnalysis] = await Promise.all(bgPromises);
 
         // Merge into feedback
+        // BUG FIX (Feb 15, 2026 — Task #33076): Always set presentation data.
+        // Previously, when videoAnalysis was null (all providers failed), feedback.presentation
+        // was never set → UI showed "No video frames available" defaults (5/10 everywhere).
+        // Now we always save presentation data — real scores when vision works, meaningful
+        // fallback when it doesn't.
+        const hasFrames = frames && Array.isArray(frames) && frames.length > 0;
         if (videoAnalysis) {
           feedback.presentation = {
             score: videoAnalysis.overall_presentation || 5,
@@ -1108,6 +1118,21 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
             body_language: videoAnalysis.body_language || { score: 5, feedback: '' },
             professional_appearance: videoAnalysis.professional_appearance || { score: 5, feedback: '' },
             summary: videoAnalysis.summary || ''
+          };
+        } else if (hasFrames) {
+          // Video frames were captured but analysis failed — provide text-inferred feedback
+          // instead of empty defaults, so the UI shows something useful
+          const turnCount = candidateTurns.length;
+          const wordCount = candidateText.split(/\s+/).filter(w => w).length;
+          const avgWordsPerAnswer = turnCount > 0 ? Math.round(wordCount / turnCount) : 0;
+          const paceNote = avgWordsPerAnswer > 80 ? 'Good detail in responses' : avgWordsPerAnswer > 40 ? 'Moderate response length' : 'Responses could be more detailed';
+          feedback.presentation = {
+            score: 5,
+            eye_contact: { score: 5, feedback: `Video was recorded (${frames.length} frames captured). Vision analysis temporarily unavailable — practice maintaining steady eye contact with the camera.` },
+            facial_expressions: { score: 5, feedback: `Based on ${turnCount} responses: ${paceNote}. Aim for engaged, confident expressions throughout.` },
+            body_language: { score: 5, feedback: 'Sit upright with shoulders back. Use natural hand gestures to emphasize key points.' },
+            professional_appearance: { score: 5, feedback: 'Ensure good lighting, a clean background, and professional framing for your next session.' },
+            summary: `Video analysis was temporarily unavailable for this session. ${frames.length} frames were captured across ${turnCount} questions. Try again — body language scoring is usually available and will give you specific, visual feedback.`
           };
         }
         if (voiceAnalysis) {
@@ -1935,10 +1960,14 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
     });
 
     // FEATURE PARITY: Per-question background analysis (same as text respond)
+    // BUG FIX (Feb 15, 2026 — Task #33076): Skip per-question VIDEO analysis to preserve
+    // vision provider budget for the end-of-interview comprehensive body language analysis.
+    // Per-question calls were exhausting circuit breakers (8 questions × vision call each),
+    // causing the important end analysis to fail with "No available providers".
     if (voiceFrames.length > 0 || voiceWordCount > 20) {
       const bgQuestionIndex = session.current_question_index;
       const bgQuestion = baseQuestions[bgQuestionIndex];
-      const bgOptions = { subscriptionId: req.user.stripe_subscription_id };
+      const bgOptions = { subscriptionId: req.user.stripe_subscription_id, module: 'mock_interview' };
       (async () => {
         try {
           const questionText = bgQuestion ? bgQuestion.question_text : 'Interview question';
@@ -1946,7 +1975,7 @@ router.post('/mock/:sessionId/voice-respond', authMiddleware, upload.single('aud
           const perQuestionResult = await analyzeVideoInterviewResponse(
             questionText,
             transcribedText,
-            voiceFrames.length > 0 ? voiceFrames : [],
+            [], // Empty frames — video analysis happens once at end-of-interview with all frames
             voiceDurationSeconds || 60,
             keyPoints,
             { ...bgOptions, audioData: null }
