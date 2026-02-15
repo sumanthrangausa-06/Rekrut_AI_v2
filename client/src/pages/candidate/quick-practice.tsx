@@ -402,7 +402,10 @@ export function QuickPractice({ questions, categoryFilter, setCategoryFilter, on
   }
 
   // Submit video response
-  // BUG FIX (Feb 14, 2026): Added 35s AbortController timeout
+  // FIX (Feb 15, 2026 — Task #32651): Increased timeout from 35s to 45s.
+  // Backend analysis runs 3-4 AI calls in parallel (content, coaching, video, voice)
+  // each with 22s per-promise timeout. Total backend time typically 10-25s, but
+  // needs headroom for legitimate vision API latency + frame uploads.
   async function submitVideoResponse() {
     if (!practiceQuestion) return
 
@@ -419,7 +422,7 @@ export function QuickPractice({ questions, categoryFilter, setCategoryFilter, on
 
     setSubmitting(true)
     const abortController = new AbortController()
-    const fetchTimeout = setTimeout(() => abortController.abort(), 35000)
+    const fetchTimeout = setTimeout(() => abortController.abort(), 45000)
     try {
       const res = await apiCall<{ success: boolean; coaching: VideoCoaching }>('/interviews/practice/submit-video', {
         method: 'POST',
