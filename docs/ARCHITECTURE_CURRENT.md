@@ -1,6 +1,6 @@
 # HireLoop — Current Architecture
 
-**Last Audited:** Feb 14, 2026
+**Last Audited:** Feb 15, 2026
 
 ## Overview
 
@@ -62,11 +62,19 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 | `/recruiter/payroll` | `pages/recruiter/payroll.tsx` | `/api/payroll` |
 | `/recruiter/omniscore` | `pages/recruiter/omniscore.tsx` | `/api/omniscore` |
 
-#### Admin (2 pages)
+#### Admin (2 pages, 6 tabs)
 | Route | File |
 |-------|------|
 | `/admin/login` | `pages/admin/login.tsx` |
 | `/admin/ai-health` | `pages/admin/ai-health.tsx` |
+
+**Admin Dashboard Tabs (ai-health.tsx):**
+- **Overview** — 16 module cards (all architecture domain groups), token budget, system metrics, provider call distribution, failover events
+- **AI Monitoring** — budget predictions, NL query, usage summary, hourly chart, module cost breakdown, daily token breakdown, model performance, AI call log
+- **AI Providers** — real-time verification, modality status cards, module chain health
+- **Routes** — 351-endpoint monitoring, route files breakdown, per-endpoint performance (requests, errors, p50/p95/p99)
+- **Prompts** — prompt registry with versioning, A/B testing
+- **Activity Feed** — real-time + historical event log with category filtering
 
 #### Auth, Utility & Debug Routes
 | Route | File | Notes |
@@ -119,7 +127,7 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 | `routes/admin.js` | 160 | 3 | Admin auth |
 | `routes/analytics.js` | 124 | 2 | Event logging |
 | `routes/countries.js` | 109 | 4 | Country config, tax/labor laws |
-| `server.js` | 988 | 26 | Health, AI health dashboard (14), admin metrics |
+| `server.js` | ~1130 | 28 | Health, AI health dashboard (14), admin metrics (modules + routes) |
 
 ### Services (14 files)
 
@@ -447,5 +455,6 @@ lib/qp-provider.js                 lib/ai-provider.js
 
 | Date | Change |
 |------|--------|
+| Feb 15, 2026 | **Admin dashboard full coverage (#32837):** Added 6 missing domain group module cards (Users & Auth, Scoring & Trust, Communications, Matching, Screening, Memory & System) — dashboard now covers all 16 architecture domain groups. Added new "Routes" tab with full 351-endpoint monitoring including route files breakdown, per-endpoint performance metrics (requests, errors, p50/p95/p99 latency), and API latency percentiles. Backend `/api/admin/modules` now queries all domain group tables; new `/api/admin/routes` endpoint for route metrics. Updated admin section documentation with all 6 tabs. |
 | Feb 14, 2026 | **Audit & corrections:** Fixed page count (23→36 files/42 routes), added 8 missing candidate routes, 5 missing recruiter routes, 6 missing utility/debug routes. Fixed endpoint count (322→351). Verified migration count (47 correct — 44 numbered sequences with 3 duplicates at 003, 005, 040). Fixed HTML page count (39→42). Corrected all service/lib line counts (many were dramatically wrong — e.g. ai-provider.js was listed as 930 lines but is actually 2287). Added missing services (auditLogger.js, memory-service.js). Moved memory-service.js from lib/ to services/ where it actually lives. Added missing lib (self-hosted-audio.js). Added missing feature component (ai-onboarding-recruiter.tsx). Added route line counts. Identified additional monolith files (interviews.js, onboarding.js, polsia-ai.js). |
 | Feb 14, 2026 | **Schema hardening (P0–P3 complete):** Merged detailed schema reference from DATABASE_SCHEMA.md into this doc. Updated table count (75+→105), migration count (47→50), added full schema health metrics. Documented all 16 domain groups with 105 tables, 164 FKs, 386 indexes, 56 CHECK constraints, 36 unique constraints. Marked P0–P3 schema hardening as complete: P0 (5 FK corrections), P1 (interview flow: 20 timestamptz + NOT NULL + 4 FKs + 14 indexes), P2 (37 CHECK constraints + 274 varchar→TEXT + 5 timestamptz), P3 (64 FK indexes + 182 timestamptz + 6 partial indexes + 7 unique constraints). Updated tech debt section. |
