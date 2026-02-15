@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import {
   Brain, BarChart3, Clock, Eye, Volume2, History, ArrowRight,
   Video, FileText, Calendar, Star, Zap, MessageSquare, Mic,
-  ChevronUp, ChevronDown, User, Monitor,
+  ChevronUp, ChevronDown, User, Monitor, Trophy, Sparkles, TrendingUp,
 } from 'lucide-react'
 
 import type {
@@ -219,26 +219,29 @@ export function HistoryTab({ historySessions, historyTotal, historyLoading, hist
         <div className="max-h-[85vh] overflow-y-auto">
           {reviewSession && (() => {
             const cd = reviewSession.coaching_data
-            const isVideo = reviewSession.response_type === 'video' && cd?.content && cd?.communication && cd?.presentation
+            const isMockInterview = reviewSession.question_id?.startsWith('mock-') || cd?.interview_readiness
+            const isVideo = !isMockInterview && reviewSession.response_type === 'video' && cd?.content && cd?.communication && cd?.presentation
             const catCfg = categoryConfig[reviewSession.category] || categoryConfig.behavioral
 
             return (
               <>
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
-                    <History className="h-5 w-5 text-primary" />
-                    Session Review
+                    {isMockInterview
+                      ? <><Trophy className="h-5 w-5 text-amber-500" /> Mock Interview Review</>
+                      : <><History className="h-5 w-5 text-primary" /> Session Review</>
+                    }
                   </DialogTitle>
                 </DialogHeader>
 
-                {/* Question */}
+                {/* Question / Session info */}
                 <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
                   <div className="flex items-center gap-2 mb-1.5">
                     <Badge variant="secondary" className={`${catCfg.bg} ${catCfg.color} text-xs border-0`}>
                       {catCfg.label}
                     </Badge>
                     <Badge variant="outline" className="text-xs">
-                      {reviewSession.response_type === 'video' ? 'Video' : 'Text'}
+                      {isMockInterview ? 'Voice' : reviewSession.response_type === 'video' ? 'Video' : 'Text'}
                     </Badge>
                     <span className="text-xs text-muted-foreground ml-auto">
                       <Calendar className="h-3 w-3 inline mr-1" />
@@ -249,16 +252,370 @@ export function HistoryTab({ historySessions, historyTotal, historyLoading, hist
                 </div>
 
                 {/* Overall Score */}
-                <div className={`mt-3 text-center p-4 rounded-xl border ${scoreBg(reviewSession.score)}`}>
+                <div className={`mt-3 text-center p-4 rounded-xl border-2 ${scoreBg(reviewSession.score)}`}>
                   <div className={`text-4xl font-bold ${scoreColor(reviewSession.score)}`}>
                     {reviewSession.score}/10
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
                     {scoreLabel(reviewSession.score)} — Overall Score
                   </div>
+                  {isMockInterview && cd?.interview_readiness && (
+                    <Badge className={`mt-2 ${
+                      cd.interview_readiness === 'ready' ? 'bg-green-100 text-green-700' :
+                      cd.interview_readiness === 'almost_ready' ? 'bg-amber-100 text-amber-700' :
+                      'bg-red-100 text-red-700'
+                    } border-0`}>
+                      {cd.interview_readiness === 'ready' ? 'Interview Ready' :
+                       cd.interview_readiness === 'almost_ready' ? 'Almost Ready' : 'Needs Work'}
+                    </Badge>
+                  )}
                 </div>
 
-                {/* Video coaching: show full breakdown */}
+                {/* ==================== Mock Interview Full Feedback ==================== */}
+                {isMockInterview && cd && (
+                  <>
+                    {/* Summary */}
+                    {cd.summary && (
+                      <div className="mt-3 p-3 rounded-lg bg-muted/30 border">
+                        <p className="text-xs leading-relaxed">{cd.summary}</p>
+                      </div>
+                    )}
+
+                    {/* Score bars for content/communication/presentation if available */}
+                    {cd.content && cd.communication && (
+                      <div className="mt-3 flex items-center justify-center gap-6 py-2">
+                        <ScoreBar score={cd.content?._failed ? null : cd.content?.score} label="Answer Content" icon={Brain} />
+                        <ScoreBar score={cd.communication?.score} label="Communication" icon={Volume2} />
+                        <ScoreBar score={cd.presentation?.score || 5} label="Presentation" icon={Eye} />
+                      </div>
+                    )}
+
+                    <div className="mt-3 space-y-2">
+                      {/* Answer Content Section */}
+                      {cd.content && (
+                        <div className="border rounded-lg overflow-hidden">
+                          <button onClick={() => setReviewExpanded(reviewExpanded === 'content' ? null : 'content')}
+                            className="w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors">
+                            <span className="flex items-center gap-2 font-medium text-sm">
+                              <Brain className="h-4 w-4 text-violet-600" /> Answer Content
+                              {cd.content._failed ? (
+                                <span className="text-xs font-bold text-muted-foreground">Analysis failed</span>
+                              ) : (
+                                <span className={`text-xs font-bold ${scoreColor(cd.content.score)}`}>{cd.content.score}/10</span>
+                              )}
+                            </span>
+                            {reviewExpanded === 'content' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </button>
+                          {reviewExpanded === 'content' && (
+                            <div className="p-3 pt-0 space-y-2.5">
+                              {cd.content.detailed_feedback && (
+                                <p className="text-xs leading-relaxed text-muted-foreground">{cd.content.detailed_feedback}</p>
+                              )}
+                              {cd.content.strengths?.length > 0 && (
+                                <div className="p-3 rounded-lg bg-green-50 border border-green-100">
+                                  <h5 className="text-xs font-semibold text-green-800 mb-1.5">✓ Strengths</h5>
+                                  <ul className="space-y-1">{cd.content.strengths.map((s: string, i: number) => <li key={i} className="text-xs text-green-700">{s}</li>)}</ul>
+                                </div>
+                              )}
+                              {cd.content.improvements?.length > 0 && (
+                                <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
+                                  <h5 className="text-xs font-semibold text-amber-800 mb-1.5">↑ Improve</h5>
+                                  <ul className="space-y-1">{cd.content.improvements.map((s: string, i: number) => <li key={i} className="text-xs text-amber-700">{s}</li>)}</ul>
+                                </div>
+                              )}
+                              {cd.content.specific_tips?.length > 0 && (
+                                <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
+                                  <h5 className="text-xs font-semibold text-blue-800 mb-1.5">💡 Tips</h5>
+                                  <ul className="space-y-1">{cd.content.specific_tips.map((s: string, i: number) => <li key={i} className="text-xs text-blue-700">{s}</li>)}</ul>
+                                </div>
+                              )}
+                              {cd.content.common_mistake && (
+                                <div className="p-3 rounded-lg bg-red-50 border border-red-100">
+                                  <h5 className="text-xs font-semibold text-red-800 mb-1.5">⚠️ Common Mistake</h5>
+                                  <p className="text-xs text-red-700">{cd.content.common_mistake}</p>
+                                </div>
+                              )}
+                              <div className="grid grid-cols-2 gap-2">
+                                {cd.content.star_method_usage && (
+                                  <div className={`p-2.5 rounded-lg border ${scoreBg(cd.content.star_method_usage.score)}`}>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="text-[10px] font-medium text-muted-foreground">STAR Method</span>
+                                      <span className={`text-sm font-bold ${scoreColor(cd.content.star_method_usage.score)}`}>{cd.content.star_method_usage.score}/10</span>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground leading-relaxed">{cd.content.star_method_usage.feedback}</p>
+                                  </div>
+                                )}
+                                {cd.content.technical_depth && (
+                                  <div className={`p-2.5 rounded-lg border ${scoreBg(cd.content.technical_depth.score)}`}>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="text-[10px] font-medium text-muted-foreground">Technical Depth</span>
+                                      <span className={`text-sm font-bold ${scoreColor(cd.content.technical_depth.score)}`}>{cd.content.technical_depth.score}/10</span>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground leading-relaxed">{cd.content.technical_depth.feedback}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Communication & Speech Section */}
+                      {cd.communication && (
+                        <div className="border rounded-lg overflow-hidden">
+                          <button onClick={() => setReviewExpanded(reviewExpanded === 'communication' ? null : 'communication')}
+                            className="w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors">
+                            <span className="flex items-center gap-2 font-medium text-sm">
+                              <Volume2 className="h-4 w-4 text-sky-600" /> Communication & Speech
+                              <span className={`text-xs font-bold ${scoreColor(cd.communication.score)}`}>{cd.communication.score}/10</span>
+                            </span>
+                            {reviewExpanded === 'communication' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </button>
+                          {reviewExpanded === 'communication' && (
+                            <div className="p-3 pt-0 space-y-2.5">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                <div className="p-2 rounded bg-muted/50 text-center">
+                                  <div className="text-lg font-bold">{cd.communication.words_per_minute || '\u2014'}</div>
+                                  <div className="text-[10px] text-muted-foreground">Words/min</div>
+                                </div>
+                                <div className="p-2 rounded bg-muted/50 text-center">
+                                  <div className="text-lg font-bold">{cd.communication.word_count || '\u2014'}</div>
+                                  <div className="text-[10px] text-muted-foreground">Total Words</div>
+                                </div>
+                                <div className="p-2 rounded bg-muted/50 text-center">
+                                  <div className="text-lg font-bold">{cd.communication.total_fillers || 0}</div>
+                                  <div className="text-[10px] text-muted-foreground">Filler Words</div>
+                                </div>
+                                <div className="p-2 rounded bg-muted/50 text-center">
+                                  <div className="text-lg font-bold">{cd.communication.duration_seconds ? `${Math.round(cd.communication.duration_seconds / 60)}:${String(cd.communication.duration_seconds % 60).padStart(2, '0')}` : '\u2014'}</div>
+                                  <div className="text-[10px] text-muted-foreground">Duration</div>
+                                </div>
+                              </div>
+                              {cd.communication.pace && (
+                                <div className={`p-3 rounded-lg ${
+                                  cd.communication.pace.assessment === 'good' ? 'bg-green-50 border border-green-100' :
+                                  cd.communication.pace.assessment?.includes('slight') ? 'bg-amber-50 border border-amber-100' :
+                                  'bg-red-50 border border-red-100'
+                                }`}>
+                                  <h5 className="text-xs font-semibold mb-1">🎙️ Speaking Pace</h5>
+                                  <p className="text-xs">{cd.communication.pace.feedback}</p>
+                                </div>
+                              )}
+                              {cd.communication.total_fillers > 0 && cd.communication.filler_words && (
+                                <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
+                                  <h5 className="text-xs font-semibold text-amber-800 mb-1.5">
+                                    Filler Words ({cd.communication.filler_rate || 0}% of speech)
+                                  </h5>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {Object.entries(cd.communication.filler_words).filter(([, count]) => (count as number) > 0).map(([word, count]) => (
+                                      <Badge key={word} variant="outline" className="text-[10px] bg-white">
+                                        "{word}" x {count as number}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {cd.communication.trends && (
+                                <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-100">
+                                  <h5 className="text-xs font-semibold text-indigo-800 mb-1">📈 Communication Trends</h5>
+                                  <p className="text-xs text-indigo-700">{cd.communication.trends}</p>
+                                </div>
+                              )}
+                              {cd.communication.tips?.length > 0 && (
+                                <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
+                                  <h5 className="text-xs font-semibold text-blue-800 mb-1.5">💡 Speech Tips</h5>
+                                  <ul className="space-y-1">{cd.communication.tips.map((t: string, i: number) => <li key={i} className="text-xs text-blue-700">{t}</li>)}</ul>
+                                </div>
+                              )}
+                              {/* Voice Analysis */}
+                              {cd.voice_analysis && (
+                                <div className="space-y-2 pt-1">
+                                  <h5 className="text-xs font-semibold flex items-center gap-1.5">
+                                    <Mic className="h-3.5 w-3.5 text-indigo-600" /> Voice & Tone Analysis
+                                  </h5>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                      { key: 'voice_confidence', label: 'Confidence', icon: Star },
+                                      { key: 'vocal_variety', label: 'Vocal Variety', icon: Volume2 },
+                                      { key: 'energy', label: 'Energy', icon: Zap },
+                                      { key: 'articulation', label: 'Articulation', icon: MessageSquare },
+                                    ].map(item => {
+                                      const data = cd.voice_analysis?.[item.key]
+                                      if (!data) return null
+                                      const ItemIcon = item.icon
+                                      return (
+                                        <div key={item.key} className={`p-2.5 rounded-lg border ${scoreBg(data.score)}`}>
+                                          <div className="flex items-center justify-between mb-1">
+                                            <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+                                              <ItemIcon className="h-3 w-3" /> {item.label}
+                                            </span>
+                                            <span className={`text-sm font-bold ${scoreColor(data.score)}`}>{data.score}/10</span>
+                                          </div>
+                                          <p className="text-[10px] text-muted-foreground leading-relaxed">{data.feedback}</p>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                  {cd.voice_analysis.voice_summary && (
+                                    <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-100">
+                                      <p className="text-xs text-indigo-700">{cd.voice_analysis.voice_summary}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Body Language & Presentation */}
+                      <div className="border rounded-lg overflow-hidden">
+                        <button onClick={() => setReviewExpanded(reviewExpanded === 'presentation' ? null : 'presentation')}
+                          className="w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors">
+                          <span className="flex items-center gap-2 font-medium text-sm">
+                            <Eye className="h-4 w-4 text-emerald-600" /> Body Language & Presentation
+                            {cd.presentation ? (
+                              <span className={`text-xs font-bold ${scoreColor(cd.presentation.score)}`}>{cd.presentation.score}/10</span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Not available</span>
+                            )}
+                          </span>
+                          {reviewExpanded === 'presentation' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
+                        {reviewExpanded === 'presentation' && (
+                          <div className="p-3 pt-0 space-y-2.5">
+                            {cd.presentation ? (
+                              <>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {[
+                                    { key: 'eye_contact', label: 'Eye Contact' },
+                                    { key: 'facial_expressions', label: 'Expressions' },
+                                    { key: 'body_language', label: 'Body Language' },
+                                    { key: 'professional_appearance', label: 'Appearance' },
+                                  ].map(item => {
+                                    const data = cd.presentation?.[item.key]
+                                    if (!data) return null
+                                    return (
+                                      <div key={item.key} className={`p-2.5 rounded-lg border ${scoreBg(data.score)}`}>
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="text-[10px] font-medium text-muted-foreground">{item.label}</span>
+                                          <span className={`text-sm font-bold ${scoreColor(data.score)}`}>{data.score}/10</span>
+                                        </div>
+                                        <p className="text-[10px] text-muted-foreground leading-relaxed">{data.feedback}</p>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                                {cd.presentation.summary && (
+                                  <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+                                    <h5 className="text-xs font-semibold text-emerald-800 mb-1">📊 Overall Assessment</h5>
+                                    <p className="text-xs text-emerald-700">{cd.presentation.summary}</p>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">
+                                Body language analysis requires camera access during the interview. Enable your camera next time for presentation feedback.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Interview Arc */}
+                    {cd.interview_arc && (
+                      <div className="mt-3 p-3 rounded-lg bg-muted/30 border">
+                        <h4 className="text-xs font-semibold mb-1.5 flex items-center gap-1.5">
+                          <TrendingUp className="h-3.5 w-3.5 text-primary" /> Overall Interview Arc
+                        </h4>
+                        <p className="text-xs leading-relaxed text-muted-foreground">{cd.interview_arc}</p>
+                      </div>
+                    )}
+
+                    {/* Question-by-question scores */}
+                    {cd.question_scores?.length > 0 && (
+                      <div className="mt-3 border rounded-lg p-3">
+                        <h4 className="text-xs font-semibold mb-2">Question-by-Question Scores</h4>
+                        <div className="space-y-2">
+                          {cd.question_scores.map((qs: any, i: number) => (
+                            <div key={i} className="flex items-start gap-3 p-2 rounded-lg bg-muted/30">
+                              <div className={`text-sm font-bold shrink-0 w-10 text-center ${scoreColor(qs.score)}`}>
+                                {qs.score}/10
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium">{qs.question_summary}</p>
+                                <p className="text-[10px] text-muted-foreground mt-0.5">{qs.feedback}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Fallback: show strengths/improvements if no structured content/communication sections */}
+                    {!cd.content && !cd.communication && (
+                      <div className="mt-3 space-y-2.5">
+                        {cd.strengths?.length > 0 && (
+                          <div className="p-3 rounded-lg bg-green-50 border border-green-100">
+                            <h5 className="text-xs font-semibold text-green-800 mb-1.5">✓ Strengths</h5>
+                            <ul className="space-y-1">{cd.strengths.map((s: string, i: number) => <li key={i} className="text-xs text-green-700">{s}</li>)}</ul>
+                          </div>
+                        )}
+                        {cd.improvements?.length > 0 && (
+                          <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
+                            <h5 className="text-xs font-semibold text-amber-800 mb-1.5">↑ Areas for Improvement</h5>
+                            <ul className="space-y-1">{cd.improvements.map((s: string, i: number) => <li key={i} className="text-xs text-amber-700">{s}</li>)}</ul>
+                          </div>
+                        )}
+                        {/* Sub-scores from top-level SessionFeedback */}
+                        {(cd.star_method_usage || cd.communication_quality || cd.technical_depth) && (
+                          <div className="grid grid-cols-2 gap-2">
+                            {cd.star_method_usage && cd.star_method_usage.score > 0 && (
+                              <div className={`p-2.5 rounded-lg border ${scoreBg(cd.star_method_usage.score)}`}>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-[10px] font-medium text-muted-foreground">STAR Method</span>
+                                  <span className={`text-sm font-bold ${scoreColor(cd.star_method_usage.score)}`}>{cd.star_method_usage.score}/10</span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground leading-relaxed">{cd.star_method_usage.feedback}</p>
+                              </div>
+                            )}
+                            {cd.communication_quality && cd.communication_quality.score > 0 && (
+                              <div className={`p-2.5 rounded-lg border ${scoreBg(cd.communication_quality.score)}`}>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-[10px] font-medium text-muted-foreground">Communication</span>
+                                  <span className={`text-sm font-bold ${scoreColor(cd.communication_quality.score)}`}>{cd.communication_quality.score}/10</span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground leading-relaxed">{cd.communication_quality.feedback}</p>
+                              </div>
+                            )}
+                            {cd.technical_depth && cd.technical_depth.score > 0 && (
+                              <div className={`p-2.5 rounded-lg border ${scoreBg(cd.technical_depth.score)}`}>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-[10px] font-medium text-muted-foreground">Technical Depth</span>
+                                  <span className={`text-sm font-bold ${scoreColor(cd.technical_depth.score)}`}>{cd.technical_depth.score}/10</span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground leading-relaxed">{cd.technical_depth.feedback}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Top tip */}
+                    {cd.top_tip && (
+                      <div className="mt-3 p-3 rounded-xl bg-primary/5 border border-primary/10">
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5 mb-1">
+                          <Sparkles className="h-3.5 w-3.5 text-primary" /> #1 Tip to Improve
+                        </h4>
+                        <p className="text-xs text-muted-foreground">{cd.top_tip}</p>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* ==================== Video Coaching (Quick Practice) ==================== */}
                 {isVideo && (
                   <>
                     <div className="mt-3 p-3 rounded-lg bg-muted/30 space-y-2.5">
@@ -445,7 +802,7 @@ export function HistoryTab({ historySessions, historyTotal, historyLoading, hist
                 )}
 
                 {/* Text coaching: show simplified feedback */}
-                {!isVideo && cd && (
+                {!isVideo && !isMockInterview && cd && (
                   <div className="mt-3 space-y-2.5">
                     {cd.strengths?.length > 0 && (
                       <div className="p-3 rounded-lg bg-green-50 border border-green-100">

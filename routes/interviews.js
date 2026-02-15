@@ -1152,6 +1152,15 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
           `UPDATE mock_interview_sessions SET overall_score = $1, overall_feedback = $2 WHERE id = $3`,
           [feedback.overall_score, JSON.stringify(feedback), bgSessionId]
         );
+        // Also update the practice_sessions record so history view shows enriched data
+        try {
+          await pool.query(
+            `UPDATE practice_sessions SET coaching_data = $1, score = $2 WHERE question_id = $3 AND user_id = $4`,
+            [JSON.stringify(feedback), Math.round(feedback.overall_score || 5), `mock-${bgSessionId}`, bgUserId]
+          );
+        } catch (psUpdateErr) {
+          console.warn('[mock-end-bg] Failed to update practice_sessions:', psUpdateErr.message);
+        }
         console.log(`[mock-end-bg] Background analysis complete for session ${bgSessionId}`);
       } catch (bgErr) {
         console.error('[mock-end-bg] Background analysis error:', bgErr.message);
