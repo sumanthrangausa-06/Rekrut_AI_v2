@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate: Check git log, existing AI logs, and Render logs for root cause",
+    "status": "completed",
+    "activeForm": "Investigating root cause via logs and code analysis"
+  },
+  {
+    "content": "Identify the content analysis failure in polsia-ai.js",
+    "status": "completed",
+    "activeForm": "Identifying content analysis failure path"
+  },
+  {
+    "content": "Fix the content analysis API call and fallback scoring",
+    "status": "completed",
+    "activeForm": "Fixing content analysis and fallback behavior"
+  },
+  {
+    "content": "Build, commit, deploy, and verify fix",
+    "status": "in_progress",
+    "activeForm": "Building, deploying, and verifying the fix"
+  }
+]
