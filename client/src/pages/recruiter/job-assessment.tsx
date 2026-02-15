@@ -70,6 +70,7 @@ export function RecruiterJobAssessmentPage() {
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [publishing, setPublishing] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
   const [tab, setTab] = useState<'questions' | 'results'>('questions')
   const [expandedQ, setExpandedQ] = useState<number | null>(null)
 
@@ -95,6 +96,7 @@ export function RecruiterJobAssessmentPage() {
 
   async function generateAssessment() {
     setGenerating(true)
+    setGenError(null)
     try {
       const data = await apiCall<{ assessment: Assessment }>('/assessments/generate', {
         method: 'POST',
@@ -104,6 +106,8 @@ export function RecruiterJobAssessmentPage() {
     } catch (e: any) {
       if (e.message?.includes('already exists')) {
         loadAssessment()
+      } else {
+        setGenError(e.message || 'Failed to generate assessment. Please try again.')
       }
     } finally { setGenerating(false) }
   }
@@ -155,6 +159,12 @@ export function RecruiterJobAssessmentPage() {
               <p className="text-sm text-muted-foreground animate-pulse">
                 AI is analyzing job requirements and creating questions... This takes 10-20 seconds.
               </p>
+            )}
+            {genError && (
+              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3 max-w-md mx-auto">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>{genError}</span>
+              </div>
             )}
           </CardContent>
         </Card>
