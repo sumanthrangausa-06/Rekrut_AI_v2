@@ -25,7 +25,7 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 | `/candidate/assessments/:id/take` | `pages/candidate/assessment-take.tsx` | `/api/assessments/:id` |
 | `/candidate/job-assessment/:id` | `pages/candidate/job-assessment-take.tsx` | `/api/assessments/:id` |
 | `/candidate/interviews` | `pages/candidate/interviews.tsx` | `/api/interviews` |
-| `/candidate/ai-coaching` | `pages/candidate/ai-coaching.tsx` | `/api/interviews/practice/*`, `/api/interviews/mock/*` |
+| `/candidate/ai-coaching` | `pages/candidate/ai-coaching.tsx` (shell) | `/api/interviews/practice/*`, `/api/interviews/mock/*` |
 | `/candidate/applications` | `pages/candidate/applications.tsx` | `/api/candidate/applications` |
 | `/candidate/offers` | `pages/candidate/offers.tsx` | `/api/candidate/offers` |
 | `/candidate/omniscore` | `pages/candidate/omniscore.tsx` | `/api/omniscore` |
@@ -34,8 +34,11 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 | `/candidate/payroll` | `pages/candidate/payroll.tsx` | `/api/payroll` |
 
 **Support files (not routed pages):**
-- `pages/candidate/coaching-types.ts` — TypeScript types extracted from ai-coaching.tsx
-- `pages/candidate/coaching-utils.tsx` — Utility functions extracted from ai-coaching.tsx
+- `pages/candidate/quick-practice.tsx` — Quick Practice tab (~1442 lines) — practice modal, camera/recording, video+text response submission, AI coaching results display
+- `pages/candidate/mock-interview.tsx` — Mock Interview tab (~1665 lines) — voice interview with TTS, camera, frame capture, speech recognition, silence detection, real-time body language analysis
+- `pages/candidate/ai-coaching-progress.tsx` — Progress + History tabs (~370 lines) — category progress bars, recent sessions, history with filter/review dialog
+- `pages/candidate/coaching-types.ts` — Shared TypeScript types (185 lines)
+- `pages/candidate/coaching-utils.tsx` — Shared utility components (68 lines)
 - `pages/candidate/screening.tsx` — Routed at `/screening/:token` (top-level, not under /candidate)
 
 #### Recruiter (13 page files, 17 routes)
@@ -381,7 +384,7 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 ## Problem Areas
 
 ### 1. Monolith Files
-- **`ai-coaching.tsx` (4044 lines):** Quick Practice AND Mock Interview crammed together. Types + utilities extracted to `coaching-types.ts` (184 lines) and `coaching-utils.tsx` (67 lines) on Feb 14. Full component split pending.
+- **~~`ai-coaching.tsx` (4044 lines)~~** **SPLIT Feb 15** — now a thin router/shell (291 lines) managing shared state and tab structure. Split into: `quick-practice.tsx` (~1442 lines), `mock-interview.tsx` (~1665 lines), `ai-coaching-progress.tsx` (~370 lines), plus pre-existing `coaching-types.ts` (185 lines) and `coaching-utils.tsx` (68 lines).
 - **`ai-provider.js` (2287 lines):** Provider abstraction + 15+ provider implementations + circuit breaker logic. Largest backend file.
 - **`interviews.js` (3190 lines):** Interview scheduling, AI coaching, mock interviews, video analysis — 44 endpoints in a single route file.
 - **`onboarding.js` (3119 lines):** Document generation, I-9, W-4, policies, benefits — 43 endpoints.
@@ -389,7 +392,7 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 - **`server.js` (988 lines):** Express setup + 26 AI health endpoints + admin metrics all in one file.
 
 ### 2. Tight Coupling
-- Quick Practice and Mock Interview share state variables in the same component
+- ~~Quick Practice and Mock Interview share state variables in the same component~~ **SPLIT Feb 15** — separated into `quick-practice.tsx`, `mock-interview.tsx`, and `ai-coaching-progress.tsx`; shared state managed by parent shell `ai-coaching.tsx`
 - ~~AI provider errors cascade into null-safety crashes~~ **FIXED Feb 14** — allSettled checks now validate `value != null`
 - Legacy HTML pages and React SPA co-exist, causing route conflicts
 
