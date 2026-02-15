@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate qp-ai.js voice analysis code path",
+    "status": "completed",
+    "activeForm": "Investigating qp-ai.js voice analysis code path"
+  },
+  {
+    "content": "Check quick-practice.js route handler for voice data passthrough",
+    "status": "completed",
+    "activeForm": "Checking route handler for voice data passthrough"
+  },
+  {
+    "content": "Check quick-practice.tsx frontend conditional rendering",
+    "status": "completed",
+    "activeForm": "Checking frontend conditional rendering"
+  },
+  {
+    "content": "Fix: provide voice analysis fallback so section always appears",
+    "status": "completed",
+    "activeForm": "Fixing voice analysis fallback in qp-ai.js"
+  },
+  {
+    "content": "Deploy and verify fix",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying fix"
+  }
+]
