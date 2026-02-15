@@ -24,6 +24,23 @@ import {
 } from './coaching-utils'
 
 
+/** Remove duplicate question text from interviewer messages.
+ *  The AI sometimes embeds the question in its reaction AND returns it separately,
+ *  causing the backend to concatenate both → question appears twice. */
+function deduplicateInterviewerText(text: string): string {
+  if (!text) return text
+  const idx = text.lastIndexOf('\n\n')
+  if (idx === -1) return text
+  const before = text.substring(0, idx).trim()
+  const after = text.substring(idx + 2).trim()
+  if (!after || !before) return text
+  const normalize = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim()
+  if (normalize(before).includes(normalize(after))) {
+    return before
+  }
+  return text
+}
+
 interface MockInterviewProps {
   mockPastSessions: MockSessionSummary[]
   onSessionComplete: () => void
@@ -462,16 +479,19 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
       source.connect(analyser)
       analyserRef.current = analyser
       silenceCountRef.current = 0
+      const recordingStartedAt = Date.now()
 
       silenceIntervalRef.current = setInterval(() => {
         if (!analyserRef.current) return
+        // Grace period: don't count silence for first 2.5s to let user start speaking
+        if (Date.now() - recordingStartedAt < 2500) return
         const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount)
         analyserRef.current.getByteFrequencyData(dataArray)
         const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
         if (avg < 8) {
           silenceCountRef.current++
           setSilenceTimer(Math.round(silenceCountRef.current * 0.2))
-          if (silenceCountRef.current >= 18) stopVoiceRecording()
+          if (silenceCountRef.current >= 25) stopVoiceRecording()
         } else {
           silenceCountRef.current = 0
           setSilenceTimer(0)
@@ -501,7 +521,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 
         const totalSilenceChecks = silenceCountRef.current
         const currentTranscript = mockLiveTranscriptRef.current
-        if (totalSilenceChecks >= 16 && !currentTranscript.trim()) {
+        if (totalSilenceChecks >= 23 && !currentTranscript.trim()) {
           console.log('[voice] Skipping — recording was mostly silence')
           setMockLiveTranscript('')
           setVoiceError('No speech detected. Tap the mic button when ready to speak.')
@@ -539,7 +559,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
           }
           formData.append('duration_seconds', String(voiceQuestionDuration))
 
-          const token = getToken()
+          let token = getToken()
           const abortController = new AbortController()
           const fetchTimeout = setTimeout(() => abortController.abort(), 28000)
 
@@ -551,6 +571,36 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
               body: formData,
               signal: abortController.signal
             })
+            // Handle expired token — refresh and retry once
+            if (res.status === 401) {
+              try {
+                const rt = localStorage.getItem('refresh_token')
+                if (rt) {
+                  const rr = await fetch('/api/auth/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refreshToken: rt })
+                  })
+                  const rd = await rr.json()
+                  if (rd.accessToken) {
+                    localStorage.setItem('token', rd.accessToken)
+                    if (rd.refreshToken) localStorage.setItem('refresh_token', rd.refreshToken)
+                    token = rd.accessToken
+                    const retryFD = new FormData()
+                    retryFD.append('audio', audioBlob, `recording.${ext}`)
+                    if (liveTranscript.length >= 5) retryFD.append('response_text', liveTranscript)
+                    if (voicePerQuestionFrames.length > 0) retryFD.append('frames_json', JSON.stringify(voicePerQuestionFrames))
+                    retryFD.append('duration_seconds', String(voiceQuestionDuration))
+                    res = await fetch(`/api/interviews/mock/${currentSession.id}/voice-respond`, {
+                      method: 'POST',
+                      headers: { 'Authorization': `Bearer ${token}` },
+                      body: retryFD,
+                      signal: abortController.signal
+                    })
+                  }
+                }
+              } catch (refreshErr) { console.warn('[voice] Token refresh failed:', refreshErr) }
+            }
           } finally {
             clearTimeout(fetchTimeout)
           }
@@ -565,13 +615,15 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
               text: data.transcribed_text,
               timestamp: new Date().toISOString()
             }
+            const cleanedInterviewerMsg = { ...data.interviewer_message, text: deduplicateInterviewerText(data.interviewer_message.text) }
+            const textWasDeduped = cleanedInterviewerMsg.text !== data.interviewer_message.text
             setMockSession(prev => prev ? {
               ...prev,
-              conversation: [...prev.conversation, candidateMsg, data.interviewer_message]
+              conversation: [...prev.conversation, candidateMsg, cleanedInterviewerMsg]
             } : null)
             setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
 
-            if (data.interviewer_audio_base64) {
+            if (data.interviewer_audio_base64 && !textWasDeduped) {
               setAiSpeaking(true)
               const audioData = Uint8Array.from(atob(data.interviewer_audio_base64), c => c.charCodeAt(0))
               const ctx = ensureAudioContext()
@@ -615,7 +667,8 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                 await audio.play()
               }
             } else {
-              await playInterviewerAudio(data.interviewer_message.text)
+              // No backend audio or text was deduped (backend audio has question twice) — use frontend TTS
+              await playInterviewerAudio(cleanedInterviewerMsg.text)
             }
           } else {
             const errorMsg = data.error || 'Failed to process your response'
@@ -772,13 +825,14 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
           signal: textAbort.signal
         })
         if (res.success) {
+          const cleanedResMsg = { ...res.interviewer_message, text: deduplicateInterviewerText(res.interviewer_message.text) }
           setMockSession(prev => prev ? {
             ...prev,
-            conversation: [...prev.conversation, res.interviewer_message]
+            conversation: [...prev.conversation, cleanedResMsg]
           } : null)
           setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
-          if (res.interviewer_message?.text) {
-            playInterviewerAudio(res.interviewer_message.text)
+          if (cleanedResMsg?.text) {
+            playInterviewerAudio(cleanedResMsg.text)
           }
           if (res.is_wrapping_up) {
             setTimeout(() => {
@@ -938,10 +992,10 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
             {bodyLanguageIndicators && (
               <div className="absolute top-2 left-2 z-10 flex flex-wrap gap-1.5 max-w-[60%]">
                 {[
-                  { emoji: '👁️', label: 'Eyes', value: bodyLanguageIndicators.eye_contact },
-                  { emoji: '🧍', label: 'Posture', value: bodyLanguageIndicators.posture },
-                  { emoji: '💪', label: 'Confidence', value: bodyLanguageIndicators.confidence },
-                  { emoji: '😊', label: 'Expression', value: bodyLanguageIndicators.expression },
+                  { emoji: '\uD83D\uDC41\uFE0F', label: 'Eyes', value: bodyLanguageIndicators.eye_contact },
+                  { emoji: '\uD83E\uDDCD', label: 'Posture', value: bodyLanguageIndicators.posture },
+                  { emoji: '\uD83D\uDCAA', label: 'Confidence', value: bodyLanguageIndicators.confidence },
+                  { emoji: '\uD83D\uDE0A', label: 'Expression', value: bodyLanguageIndicators.expression },
                 ].map(item => (
                   <div key={item.label} className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                     item.value === 'good' || item.value === 'confident' || item.value === 'engaged' || item.value === 'positive'
@@ -1073,12 +1127,12 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-900/50 border border-red-700/50 text-red-300 text-xs animate-in fade-in">
                 <AlertCircle className="h-3.5 w-3.5" />
                 {voiceError}
-                <button onClick={() => setVoiceError(null)} className="text-red-400 hover:text-red-200 ml-1">✕</button>
+                <button onClick={() => setVoiceError(null)} className="text-red-400 hover:text-red-200 ml-1">\u2715</button>
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
                 {aiSpeaking ? 'Listening to interviewer... mic will auto-activate when they finish' :
-                 candidateRecording ? `Speaking... ${silenceTimer > 0 ? `paused ${silenceTimer}s (auto-sends at 3.5s)` : 'auto-sends when you stop talking'}` :
+                 candidateRecording ? `Speaking... ${silenceTimer > 0 ? `paused ${silenceTimer}s (auto-sends at 5s)` : 'auto-sends when you stop talking'}` :
                  voiceProcessing ? 'Processing your answer...' :
                  'Mic will activate automatically — or tap the green button to start'}
               </p>
@@ -1189,25 +1243,25 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                     )}
                     {(mockFeedback as any).content.strengths?.length > 0 && (
                       <div className="p-3 rounded-lg bg-green-50 border border-green-100">
-                        <h5 className="text-xs font-semibold text-green-800 mb-1.5">✓ Strengths</h5>
+                        <h5 className="text-xs font-semibold text-green-800 mb-1.5">\u2713 Strengths</h5>
                         <ul className="space-y-1">{(mockFeedback as any).content.strengths.map((s: string, i: number) => <li key={i} className="text-xs text-green-700">{s}</li>)}</ul>
                       </div>
                     )}
                     {(mockFeedback as any).content.improvements?.length > 0 && (
                       <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
-                        <h5 className="text-xs font-semibold text-amber-800 mb-1.5">↑ Improve</h5>
+                        <h5 className="text-xs font-semibold text-amber-800 mb-1.5">\u2191 Improve</h5>
                         <ul className="space-y-1">{(mockFeedback as any).content.improvements.map((s: string, i: number) => <li key={i} className="text-xs text-amber-700">{s}</li>)}</ul>
                       </div>
                     )}
                     {(mockFeedback as any).content.specific_tips?.length > 0 && (
                       <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
-                        <h5 className="text-xs font-semibold text-blue-800 mb-1.5">💡 Tips</h5>
+                        <h5 className="text-xs font-semibold text-blue-800 mb-1.5">\uD83D\uDCA1 Tips</h5>
                         <ul className="space-y-1">{(mockFeedback as any).content.specific_tips.map((s: string, i: number) => <li key={i} className="text-xs text-blue-700">{s}</li>)}</ul>
                       </div>
                     )}
                     {(mockFeedback as any).content.common_mistake && (
                       <div className="p-3 rounded-lg bg-red-50 border border-red-100">
-                        <h5 className="text-xs font-semibold text-red-800 mb-1.5">⚠️ Common Mistake</h5>
+                        <h5 className="text-xs font-semibold text-red-800 mb-1.5">\u26A0\uFE0F Common Mistake</h5>
                         <p className="text-xs text-red-700">{(mockFeedback as any).content.common_mistake}</p>
                       </div>
                     )}
@@ -1255,11 +1309,11 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                   <div className="p-3 pt-0 space-y-3">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <div className="p-2 rounded bg-muted/50 text-center">
-                        <div className="text-lg font-bold">{(mockFeedback as any).communication.words_per_minute || '—'}</div>
+                        <div className="text-lg font-bold">{(mockFeedback as any).communication.words_per_minute || '\u2014'}</div>
                         <div className="text-[10px] text-muted-foreground">Words/min</div>
                       </div>
                       <div className="p-2 rounded bg-muted/50 text-center">
-                        <div className="text-lg font-bold">{(mockFeedback as any).communication.word_count || '—'}</div>
+                        <div className="text-lg font-bold">{(mockFeedback as any).communication.word_count || '\u2014'}</div>
                         <div className="text-[10px] text-muted-foreground">Total Words</div>
                       </div>
                       <div className="p-2 rounded bg-muted/50 text-center">
@@ -1267,7 +1321,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                         <div className="text-[10px] text-muted-foreground">Filler Words</div>
                       </div>
                       <div className="p-2 rounded bg-muted/50 text-center">
-                        <div className="text-lg font-bold">{(mockFeedback as any).communication.duration_seconds ? `${Math.round((mockFeedback as any).communication.duration_seconds / 60)}:${String((mockFeedback as any).communication.duration_seconds % 60).padStart(2, '0')}` : '—'}</div>
+                        <div className="text-lg font-bold">{(mockFeedback as any).communication.duration_seconds ? `${Math.round((mockFeedback as any).communication.duration_seconds / 60)}:${String((mockFeedback as any).communication.duration_seconds % 60).padStart(2, '0')}` : '\u2014'}</div>
                         <div className="text-[10px] text-muted-foreground">Duration</div>
                       </div>
                     </div>
@@ -1278,7 +1332,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                         (mockFeedback as any).communication.pace.assessment?.includes('slight') ? 'bg-amber-50 border border-amber-100' :
                         'bg-red-50 border border-red-100'
                       }`}>
-                        <h5 className="text-xs font-semibold mb-1">🎙️ Speaking Pace</h5>
+                        <h5 className="text-xs font-semibold mb-1">\uD83C\uDF99\uFE0F Speaking Pace</h5>
                         <p className="text-xs">{(mockFeedback as any).communication.pace.feedback}</p>
                       </div>
                     )}
@@ -1291,7 +1345,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                         <div className="flex flex-wrap gap-1.5">
                           {Object.entries((mockFeedback as any).communication.filler_words).filter(([, count]) => (count as number) > 0).map(([word, count]) => (
                             <Badge key={word} variant="outline" className="text-[10px] bg-white">
-                              "{word}" × {count as number}
+                              "{word}" \u00D7 {count as number}
                             </Badge>
                           ))}
                         </div>
@@ -1300,14 +1354,14 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 
                     {(mockFeedback as any).communication.trends && (
                       <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-100">
-                        <h5 className="text-xs font-semibold text-indigo-800 mb-1">📈 Communication Trends</h5>
+                        <h5 className="text-xs font-semibold text-indigo-800 mb-1">\uD83D\uDCC8 Communication Trends</h5>
                         <p className="text-xs text-indigo-700">{(mockFeedback as any).communication.trends}</p>
                       </div>
                     )}
 
                     {(mockFeedback as any).communication.tips?.length > 0 && (
                       <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
-                        <h5 className="text-xs font-semibold text-blue-800 mb-1.5">💡 Speech Tips</h5>
+                        <h5 className="text-xs font-semibold text-blue-800 mb-1.5">\uD83D\uDCA1 Speech Tips</h5>
                         <ul className="space-y-1">{(mockFeedback as any).communication.tips.map((tip: string, i: number) => <li key={i} className="text-xs text-blue-700">{tip}</li>)}</ul>
                       </div>
                     )}
@@ -1396,14 +1450,14 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                       </div>
                       {mockFeedback.presentation.summary && (
                         <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
-                          <h5 className="text-xs font-semibold text-emerald-800 mb-1">📊 Overall Assessment</h5>
+                          <h5 className="text-xs font-semibold text-emerald-800 mb-1">\uD83D\uDCCA Overall Assessment</h5>
                           <p className="text-xs text-emerald-700">{mockFeedback.presentation.summary}</p>
                         </div>
                       )}
                     </>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      📹 Body language analysis requires camera access during the interview. Enable your camera next time for presentation feedback.
+                      \uD83D\uDCF9 Body language analysis requires camera access during the interview. Enable your camera next time for presentation feedback.
                     </p>
                   )}
                 </div>
@@ -1480,7 +1534,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                           {turn.role === 'interviewer' ? 'Alex (Interviewer)' : 'You'}
                           {turn.action && turn.action !== 'transition' && (
                             <span className="ml-1.5 text-muted-foreground font-normal">
-                              · {turn.action === 'follow_up' ? 'Follow-up' : turn.action === 'challenge' ? 'Probing deeper' : turn.action === 'introduction' ? 'Introduction' : turn.action === 'wrap_up' ? 'Wrapping up' : ''}
+                              \u00B7 {turn.action === 'follow_up' ? 'Follow-up' : turn.action === 'challenge' ? 'Probing deeper' : turn.action === 'introduction' ? 'Introduction' : turn.action === 'wrap_up' ? 'Wrapping up' : ''}
                             </span>
                           )}
                         </p>
@@ -1622,7 +1676,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                               </div>
                             ) : (
                               <div className="h-10 w-10 rounded-lg flex items-center justify-center bg-muted">
-                                <span className="text-xs text-muted-foreground">—</span>
+                                <span className="text-xs text-muted-foreground">\u2014</span>
                               </div>
                             )}
                             <div>
@@ -1643,9 +1697,9 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                               </div>
                               <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
                                 <span>{s.questions_asked} questions</span>
-                                <span>·</span>
+                                <span>\u00B7</span>
                                 <span>{s.follow_ups_asked} follow-ups</span>
-                                <span>·</span>
+                                <span>\u00B7</span>
                                 <span>{Math.round(s.duration_minutes)} min</span>
                               </div>
                             </div>
