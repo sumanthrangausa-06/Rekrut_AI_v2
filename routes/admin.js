@@ -10,6 +10,14 @@ try {
   logAuthEvent = () => {}; // Fallback no-op
 }
 
+// Import JWT verification to bridge main-app admin users into admin panel
+let verifyToken;
+try {
+  verifyToken = require('../lib/auth').verifyToken;
+} catch (e) {
+  verifyToken = () => null;
+}
+
 // ─── Rate Limiting (in-memory) ──────────────────────────────────────────────
 const loginAttempts = new Map(); // ip -> { count, firstAttempt }
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
@@ -76,9 +84,24 @@ initAdminCredentials();
 
 // ─── Middleware ──────────────────────────────────────────────────────────────
 function requireAdmin(req, res, next) {
+  // Path 1: Already authenticated via admin login
   if (req.session && req.session.isAdmin) {
     return next();
   }
+
+  // Path 2: Bridge — JWT-authenticated user with admin role gets auto-elevated
+  const token = req.headers.authorization?.split(' ')[1] || (req.session && req.session.token);
+  if (token && verifyToken) {
+    const decoded = verifyToken(token);
+    if (decoded && decoded.role === 'admin') {
+      // Bridge: set admin session so subsequent requests don't re-verify
+      req.session.isAdmin = true;
+      req.session.adminLoginAt = new Date().toISOString();
+      req.session.adminBridgedFrom = decoded.email;
+      return next();
+    }
+  }
+
   return res.status(401).json({ error: 'Admin authentication required' });
 }
 
@@ -134,17 +157,71 @@ router.post('/login', async (req, res) => {
 
 // GET /api/admin/me
 router.get('/me', (req, res) => {
+  // Check direct admin session first
   if (req.session && req.session.isAdmin) {
     return res.json({
       authenticated: true,
       user: {
-        username: ADMIN_USERNAME,
+        username: req.session.adminBridgedFrom || ADMIN_USERNAME,
         role: 'admin',
         loginAt: req.session.adminLoginAt,
+        bridged: !!req.session.adminBridgedFrom,
       },
     });
   }
+
+  // Check JWT bridge: if user has admin role, auto-elevate
+  const token = req.headers.authorization?.split(' ')[1] || (req.session && req.session.token);
+  if (token && verifyToken) {
+    const decoded = verifyToken(token);
+    if (decoded && decoded.role === 'admin') {
+      req.session.isAdmin = true;
+      req.session.adminLoginAt = new Date().toISOString();
+      req.session.adminBridgedFrom = decoded.email;
+      return res.json({
+        authenticated: true,
+        user: {
+          username: decoded.email,
+          role: 'admin',
+          loginAt: req.session.adminLoginAt,
+          bridged: true,
+        },
+      });
+    }
+  }
+
   return res.status(401).json({ authenticated: false });
+});
+
+// POST /api/admin/bridge — auto-elevate JWT admin users without separate login
+router.post('/bridge', (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1] || (req.session && req.session.token);
+  if (!token) {
+    return res.status(401).json({ error: 'No authentication token found' });
+  }
+
+  if (!verifyToken) {
+    return res.status(503).json({ error: 'Token verification unavailable' });
+  }
+
+  const decoded = verifyToken(token);
+  if (!decoded || decoded.role !== 'admin') {
+    return res.status(403).json({ error: 'Only users with admin role can access the admin panel' });
+  }
+
+  // Bridge the session
+  req.session.isAdmin = true;
+  req.session.adminLoginAt = new Date().toISOString();
+  req.session.adminBridgedFrom = decoded.email;
+
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  logAuthEvent('admin_bridge_success', decoded.id, decoded.email, ip);
+
+  return res.json({
+    success: true,
+    message: 'Admin access granted via role bridge',
+    user: { username: decoded.email, role: 'admin', bridged: true },
+  });
 });
 
 // POST /api/admin/logout

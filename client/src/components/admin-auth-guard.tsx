@@ -14,18 +14,47 @@ export function AdminAuthGuard({ children }: AdminAuthGuardProps) {
 
     async function checkAdmin() {
       try {
-        const res = await fetch('/api/admin/me', {
+        // Step 1: Check if already admin-authenticated (session cookie)
+        const meRes = await fetch('/api/admin/me', {
           credentials: 'include',
+          headers: getAuthHeaders(),
         })
 
         if (cancelled) return
 
-        if (res.ok) {
-          const data = await res.json()
-          setStatus(data.authenticated ? 'authenticated' : 'unauthenticated')
-        } else {
-          setStatus('unauthenticated')
+        if (meRes.ok) {
+          const data = await meRes.json()
+          if (data.authenticated) {
+            setStatus('authenticated')
+            return
+          }
         }
+
+        // Step 2: Try to bridge — if user is logged into main app with admin role
+        const token = getStoredToken()
+        if (token) {
+          const bridgeRes = await fetch('/api/admin/bridge', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+          })
+
+          if (cancelled) return
+
+          if (bridgeRes.ok) {
+            const bridgeData = await bridgeRes.json()
+            if (bridgeData.success) {
+              setStatus('authenticated')
+              return
+            }
+          }
+        }
+
+        // Step 3: Not authenticated — redirect to admin login
+        if (!cancelled) setStatus('unauthenticated')
       } catch {
         if (!cancelled) setStatus('unauthenticated')
       }
@@ -52,4 +81,22 @@ export function AdminAuthGuard({ children }: AdminAuthGuardProps) {
   }
 
   return <>{children}</>
+}
+
+// Helper: get stored JWT token from localStorage
+function getStoredToken(): string | null {
+  try {
+    return localStorage.getItem('rekrutai_token') || localStorage.getItem('hireloop_token') || null
+  } catch {
+    return null
+  }
+}
+
+// Helper: build auth headers with stored token
+function getAuthHeaders(): Record<string, string> {
+  const token = getStoredToken()
+  if (token) {
+    return { Authorization: `Bearer ${token}` }
+  }
+  return {}
 }
