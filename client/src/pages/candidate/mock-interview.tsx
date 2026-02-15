@@ -13,14 +13,14 @@ import {
   Volume2, AlertCircle, ChevronDown, ChevronUp, Square,
   User, Monitor, MessageSquare, Star, Zap,
   Send, Briefcase, StopCircle, Loader2, Plus,
-  History, FileText,
+  History, FileText, Timer,
 } from 'lucide-react'
 
 import type {
   MockConversationTurn, MockSession, MockSessionSummary, SessionFeedback,
 } from './coaching-types'
 import {
-  categoryConfig, scoreColor, scoreBg, scoreLabel, ScoreBar,
+  categoryConfig, scoreColor, scoreBg, scoreLabel, ScoreBar, formatTime,
 } from './coaching-utils'
 
 
@@ -99,6 +99,8 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
   const mockRecognitionRef = useRef<any>(null)
   const mockAudioSourceRef = useRef<AudioBufferSourceNode | null>(null)
   const voiceRetryCountRef = useRef<number>(0)
+  const mockRecordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [mockRecordingTime, setMockRecordingTime] = useState(0)
 
   // Real-time body language indicators
   const [bodyLanguageIndicators, setBodyLanguageIndicators] = useState<{
@@ -151,6 +153,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
       stopMockCamera()
       stopMockFrameCapture()
       stopMockSpeechRecognition()
+      if (mockRecordingTimerRef.current) clearInterval(mockRecordingTimerRef.current)
       if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
         try { audioCtxRef.current.close() } catch (_) {}
       }
@@ -463,11 +466,20 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
     setMockLiveTranscript('')
     mockLiveTranscriptRef.current = ''
     try {
-      if (!voiceStreamRef.current) {
-        if (mockStreamRef.current && mockStreamRef.current.getAudioTracks().length > 0) {
-          const audioTrack = mockStreamRef.current.getAudioTracks()[0]
-          voiceStreamRef.current = new MediaStream([audioTrack])
+      // Always verify audio track is still alive — tracks can die between questions
+      const existingTracks = voiceStreamRef.current?.getAudioTracks() || []
+      const hasLiveTrack = existingTracks.some(t => t.readyState === 'live' && t.enabled)
+      if (!voiceStreamRef.current || !hasLiveTrack) {
+        if (voiceStreamRef.current) {
+          console.log('[voice] Audio track died between questions — re-acquiring fresh stream')
+          voiceStreamRef.current = null
+        }
+        const cameraLiveTrack = mockStreamRef.current?.getAudioTracks().find(t => t.readyState === 'live')
+        if (cameraLiveTrack) {
+          voiceStreamRef.current = new MediaStream([cameraLiveTrack])
+          console.log('[voice] Re-acquired audio from camera stream')
         } else {
+          console.log('[voice] Camera has no live audio — requesting fresh mic')
           voiceStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true })
         }
       }
@@ -475,6 +487,11 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
       voiceChunksRef.current = []
 
       const audioContext = ensureAudioContext()
+      // Disconnect old analyser to prevent orphaned audio graph nodes
+      if (analyserRef.current) {
+        try { analyserRef.current.disconnect() } catch (_) {}
+        analyserRef.current = null
+      }
       const source = audioContext.createMediaStreamSource(voiceStreamRef.current)
       const analyser = audioContext.createAnalyser()
       analyser.fftSize = 512
@@ -493,7 +510,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
         if (avg < 8) {
           silenceCountRef.current++
           setSilenceTimer(Math.round(silenceCountRef.current * 0.2))
-          if (silenceCountRef.current >= 25) stopVoiceRecording()
+          if (silenceCountRef.current >= 15) stopVoiceRecording()
         } else {
           silenceCountRef.current = 0
           setSilenceTimer(0)
@@ -701,6 +718,13 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
       setCandidateRecording(true)
       candidateRecordingRef.current = true
 
+      // Start recording timer for stats display
+      setMockRecordingTime(0)
+      if (mockRecordingTimerRef.current) clearInterval(mockRecordingTimerRef.current)
+      mockRecordingTimerRef.current = setInterval(() => {
+        setMockRecordingTime(prev => prev + 1)
+      }, 1000)
+
       setMockLiveTranscript('')
       mockLiveTranscriptRef.current = ''
       startMockSpeechRecognition()
@@ -723,6 +747,10 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
     setSilenceTimer(0)
     silenceCountRef.current = 0
     stopMockSpeechRecognition()
+    if (mockRecordingTimerRef.current) {
+      clearInterval(mockRecordingTimerRef.current)
+      mockRecordingTimerRef.current = null
+    }
   }
 
   function stopVoiceMode() {
@@ -1003,6 +1031,8 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
     stopMockFrameCapture()
     mockFramesRef.current = []
     setMockLiveTranscript('')
+    setMockRecordingTime(0)
+    if (mockRecordingTimerRef.current) { clearInterval(mockRecordingTimerRef.current); mockRecordingTimerRef.current = null }
     setMockSession(null)
     setMockFeedback(null)
     setMockResponseText('')
@@ -1054,6 +1084,39 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                     {item.emoji} {item.value || '?'}
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Recording indicator — REC badge with timer (top-left) */}
+            {candidateRecording && (
+              <div className="absolute top-3 left-3 z-10 flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 rounded-full text-sm font-medium">
+                <div className="h-2.5 w-2.5 rounded-full bg-white animate-pulse" />
+                REC {formatTime(mockRecordingTime)}
+              </div>
+            )}
+
+            {/* Recording stats — frames, word count, mic (top-right) */}
+            {candidateRecording && (
+              <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5 items-end">
+                <div className="bg-black/60 text-white px-2 py-1 rounded text-xs">
+                  {mockPerQuestionFramesRef.current.length} frames
+                </div>
+                <div className="bg-black/60 text-white px-2 py-1 rounded text-xs">
+                  {mockLiveTranscript.split(/\s+/).filter(w => w).length} words
+                </div>
+                <div className="bg-black/60 text-green-400 px-2 py-1 rounded text-xs flex items-center gap-1">
+                  <Mic className="h-3 w-3" /> Mic on
+                </div>
+              </div>
+            )}
+
+            {/* Live transcription overlay on video (bottom) */}
+            {candidateRecording && (
+              <div className="absolute bottom-3 left-3 right-3 z-10">
+                <div className="bg-black/70 rounded-lg p-2 text-white text-xs max-h-16 overflow-y-auto">
+                  <Mic className="h-3 w-3 inline mr-1 text-green-400" />
+                  {mockLiveTranscript || 'Listening...'}
+                </div>
               </div>
             )}
 
@@ -1179,7 +1242,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
             ) : (
               <p className="text-xs text-muted-foreground">
                 {aiSpeaking ? 'Listening to interviewer... mic will auto-activate when they finish' :
-                 candidateRecording ? `Speaking... ${silenceTimer > 0 ? `paused ${silenceTimer}s (auto-sends at 5s)` : 'auto-sends when you stop talking'}` :
+                 candidateRecording ? `Speaking... ${silenceTimer > 0 ? `paused ${silenceTimer}s (auto-sends at 3s)` : 'auto-sends when you stop talking'}` :
                  voiceProcessing ? 'Processing your answer...' :
                  'Mic will activate automatically — or tap the green button to start'}
               </p>
