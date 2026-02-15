@@ -12,29 +12,44 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 
 ## UI Framework & CSS Architecture (Decision: Feb 15, 2026)
 
-### Chosen Approach: Hybrid — Tailwind CDN + Custom CSS Design System
+### Chosen Approach: Hybrid — Tailwind (React SPA) + CDN + Custom CSS (Legacy HTML)
 
-**Decision:** Keep the current hybrid approach. Not worth migrating 40+ HTML pages to a single framework.
+**Decision:** The React SPA in `client/` is the primary frontend. Responsive design uses **Tailwind utility classes** exclusively — no separate responsive CSS files. Legacy HTML pages in `public/` retain their own CSS system.
 
-### Two CSS Systems
+**Rationale:** Tailwind's responsive utilities (`sm:`, `md:`, `lg:`, `xl:`) provide everything needed without custom media queries. This is the correct approach for a React SPA built with Vite. The previous responsive fix attempt (#32829) incorrectly patched `public/` CSS files — those only affect legacy HTML, not the React app.
 
-| System | Files | Pages | Theme |
-|--------|-------|-------|-------|
-| **Light theme** | `globals.css` + Tailwind CDN | ~8 pages (landing, auth, dashboards via ui.js) | Light, Inter font, indigo accent |
-| **Dark theme** | `styles.css` + `dashboard.css` + `responsive.css` | ~25+ pages (all sidebar-based app pages) | Dark, Space Grotesk + Inter, green accent |
+### Two Frontend Systems
 
-### CSS Files
+| System | Location | Framework | Responsive Approach |
+|--------|----------|-----------|-------------------|
+| **React SPA** (primary) | `client/src/` | Vite + Tailwind + shadcn/ui | Tailwind responsive classes (`sm:`, `lg:`) in components |
+| **Legacy HTML** | `public/` | Vanilla JS + Custom CSS | `responsive.css` + `mobile-nav.js` + page-level CSS |
+
+### React SPA Responsive Architecture (client/)
+
+| Component | Mobile Strategy |
+|-----------|----------------|
+| `DashboardLayout` | Sidebar slides in/out via overlay on mobile, static on `lg:` |
+| `Header` | Hamburger button visible `lg:hidden`, triggers sidebar |
+| `Sidebar` | Fixed overlay with z-50 on mobile, static `lg:static` |
+| `Input/Textarea/Select` | `text-base` (16px) on mobile prevents iOS Safari zoom |
+| `Button` | Min h-10 default, h-11 large — 44px+ touch targets |
+| `Dialog` | Bottom sheet on mobile (rounded-t-2xl), centered on `sm:` |
+| `Tabs` | TabsList has `overflow-x-auto scrollbar-hide` for mobile scroll |
+| Admin Dashboard | Scrollable tab nav, responsive stat cards (grid-cols-2 base) |
+
+### Legacy CSS Files (public/ — for HTML pages only)
 
 | File | Purpose | Responsive? |
 |------|---------|-------------|
 | `public/css/globals.css` | Light theme design system (buttons, cards, forms, sidebar, topbar, auth) | ✅ 768px breakpoint |
 | `public/css/styles.css` | Dark theme design system (landing page, nav, hero, features, pricing, footer, omniscore) | ✅ 768px + 1024px |
 | `public/css/dashboard.css` | Dark theme dashboard layout (sidebar, stats grid, action grid, interviews, upgrade banner, user dropdown) | ✅ 480px + 768px + 1024px + 1200px |
-| `public/css/responsive.css` | Comprehensive responsive overrides for ALL pages (mobile nav, hero, grids, forms, tables, modals, touch, iOS zoom, inline-style grid collapse) | ✅ 360px + 480px + 768px + 1024px |
+| `public/css/responsive.css` | Comprehensive responsive overrides for ALL legacy HTML pages | ✅ 360px + 480px + 768px + 1024px |
 | `public/css/auth.css` | Dark theme auth pages (login/register split layout) | ✅ 480px + 768px + 1024px |
 | `public/css/interview.css` | Interview flow (setup, question, response, feedback, results) | ✅ 480px + 768px + 1024px |
 
-### JS Components
+### Legacy JS Components (public/ — for HTML pages only)
 
 | File | Purpose |
 |------|---------|
@@ -42,26 +57,31 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 | `public/js/mobile-nav.js` | Auto-injects hamburger menu + overlay for dark-theme sidebar pages. Detects if ui.js already handled mobile and skips double-injection. |
 | `public/js/core.js` | Auth, Utils, API helpers |
 
-### Responsive Breakpoints
+### Responsive Breakpoints (Tailwind defaults)
 
-- **360px** — Ultra-small phones (320px-360px)
-- **480px** — Small phones
-- **768px** — Tablets / primary mobile breakpoint
-- **1024px** — Small laptops / tablets in landscape
-- **1200px** — Standard desktop
+- **`sm:` (640px)** — Large phones / small tablets
+- **`md:` (768px)** — Tablets
+- **`lg:` (1024px)** — Small laptops / primary sidebar breakpoint
+- **`xl:` (1280px)** — Standard desktop
+- **`2xl:` (1536px)** — Large desktop
 
-### Why Not Full Migration?
+### Mobile UX Standards
 
-1. **40+ HTML pages** with hardcoded dark-theme CSS — too risky to migrate mid-sprint
-2. **Two distinct design languages** (dark app vs light marketing) — intentional, not accidental
-3. **Tailwind CDN + custom CSS** covers all needs without a build step for HTML pages
-4. **React SPA (`client/`)** exists but is secondary — most users hit the HTML pages
+1. **Touch targets:** Min 44px × 44px on all interactive elements (buttons, nav items, close buttons)
+2. **iOS zoom prevention:** All form inputs use `text-base` (16px) on mobile, `sm:text-sm` on desktop
+3. **Bottom sheet dialogs:** Modals render as bottom sheets on mobile (full-width, rounded top corners)
+4. **Scrollable tabs:** Any horizontal tab bar uses `overflow-x-auto scrollbar-hide`
+5. **Grid collapse:** All grids start at 1 or 2 columns, expand via `sm:grid-cols-N`, `lg:grid-cols-N`
+6. **Table overflow:** All tables wrapped in `overflow-x-auto` for horizontal scroll
+7. **Safe areas:** `viewport-fit=cover` in HTML meta, CSS safe area padding available
 
 ### Mobile Navigation Strategy
 
-- **Dark-theme pages** → `mobile-nav.js` auto-injects hamburger (☰) button at top-left, overlay behind sidebar
-- **Light-theme pages** → `ui.js` renders topbar with built-in mobile toggle
-- **Landing page** → Inline hamburger + slide-down menu panel
+- **React SPA pages** → `DashboardLayout` provides hamburger (☰) → sidebar overlay on mobile
+- **Admin dashboard** → Standalone header with scrollable tab navigation
+- **Landing page** → Compact header with responsive buttons
+- **Legacy dark-theme pages** → `mobile-nav.js` auto-injects hamburger + overlay
+- **Legacy light-theme pages** → `ui.js` renders topbar with built-in mobile toggle
 - **Standalone pages** (compliance, offer mgmt, post-hire) → Already use Tailwind responsive classes
 
 ---
@@ -511,6 +531,7 @@ lib/qp-provider.js                 lib/ai-provider.js
 
 | Date | Change |
 |------|--------|
+| Feb 15, 2026 | **Mobile responsive fix for React SPA (#32856):** Fixed mobile layout across entire React app in `client/`. Root cause: previous fix (#32829) patched legacy `public/` files instead of the React SPA. Fixes: (1) DashboardLayout sidebar/header — 44px touch targets, accessible hamburger menu; (2) Admin dashboard — scrollable tab navigation, responsive stat cards, compact header/banner for mobile; (3) UI components — Input/Textarea/Select use 16px font on mobile (prevents iOS zoom), Button sizes bumped to 44px+ touch targets, Dialog renders as bottom sheet on mobile, TabsList scrolls horizontally; (4) Landing page — responsive hero text/stats; (5) Global CSS — scrollbar-hide utility, safe area support, overscroll containment. Updated architecture docs with responsive framework decision. |
 | Feb 15, 2026 | **Admin dashboard full coverage (#32837):** Added 6 missing domain group module cards (Users & Auth, Scoring & Trust, Communications, Matching, Screening, Memory & System) — dashboard now covers all 16 architecture domain groups. Added new "Routes" tab with full 351-endpoint monitoring including route files breakdown, per-endpoint performance metrics (requests, errors, p50/p95/p99 latency), and API latency percentiles. Backend `/api/admin/modules` now queries all domain group tables; new `/api/admin/routes` endpoint for route metrics. Updated admin section documentation with all 6 tabs. |
 | Feb 14, 2026 | **Audit & corrections:** Fixed page count (23→36 files/42 routes), added 8 missing candidate routes, 5 missing recruiter routes, 6 missing utility/debug routes. Fixed endpoint count (322→351). Verified migration count (47 correct — 44 numbered sequences with 3 duplicates at 003, 005, 040). Fixed HTML page count (39→42). Corrected all service/lib line counts (many were dramatically wrong — e.g. ai-provider.js was listed as 930 lines but is actually 2287). Added missing services (auditLogger.js, memory-service.js). Moved memory-service.js from lib/ to services/ where it actually lives. Added missing lib (self-hosted-audio.js). Added missing feature component (ai-onboarding-recruiter.tsx). Added route line counts. Identified additional monolith files (interviews.js, onboarding.js, polsia-ai.js). |
 | Feb 14, 2026 | **Schema hardening (P0–P3 complete):** Merged detailed schema reference from DATABASE_SCHEMA.md into this doc. Updated table count (75+→105), migration count (47→50), added full schema health metrics. Documented all 16 domain groups with 105 tables, 164 FKs, 386 indexes, 56 CHECK constraints, 36 unique constraints. Marked P0–P3 schema hardening as complete: P0 (5 FK corrections), P1 (interview flow: 20 timestamptz + NOT NULL + 4 FKs + 14 indexes), P2 (37 CHECK constraints + 274 varchar→TEXT + 5 timestamptz), P3 (64 FK indexes + 182 timestamptz + 6 partial indexes + 7 unique constraints). Updated tech debt section. |
