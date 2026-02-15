@@ -92,7 +92,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           </NavLink>
           <button
             onClick={onClose}
-            className="rounded-md p-1 hover:bg-muted lg:hidden"
+            className="rounded-md p-2 hover:bg-muted lg:hidden min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             <X className="h-5 w-5" />
           </button>
@@ -108,7 +108,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               onClick={onClose}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors min-h-[44px]',
                   isActive
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -127,7 +127,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             to="/settings"
             onClick={onClose}
             className={cn(
-              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+              'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors min-h-[44px]',
               location.pathname === '/settings'
                 ? 'bg-primary/10 text-primary'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'

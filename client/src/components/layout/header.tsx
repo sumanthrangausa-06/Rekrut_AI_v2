@@ -33,21 +33,20 @@ export function Header({ onMenuToggle }: HeaderProps) {
       <div className="flex items-center gap-3">
         <button
           onClick={onMenuToggle}
-          className="rounded-md p-2 hover:bg-muted lg:hidden"
+          className="rounded-md p-2 hover:bg-muted lg:hidden min-h-[44px] min-w-[44px] flex items-center justify-center"
+          aria-label="Toggle navigation menu"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <div className="hidden lg:block">
-          <Badge variant={isRecruiter ? 'default' : 'secondary'}>
-            {isRecruiter ? 'Recruiter' : 'Candidate'}
-          </Badge>
-        </div>
+        <Badge variant={isRecruiter ? 'default' : 'secondary'} className="hidden sm:inline-flex">
+          {isRecruiter ? 'Recruiter' : 'Candidate'}
+        </Badge>
       </div>
 
       {/* Right side */}
       <div className="flex items-center gap-2">
         {/* Notifications */}
-        <button className="relative rounded-md p-2 hover:bg-muted">
+        <button className="relative rounded-md p-2 hover:bg-muted min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Notifications">
           <Bell className="h-5 w-5 text-muted-foreground" />
         </button>
 

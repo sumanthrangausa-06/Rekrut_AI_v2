@@ -504,10 +504,10 @@ function TokenBudgetPanel({ budget }: { budget: TokenBudgetData }) {
         {budget.providerBreakdown && Object.values(budget.providerBreakdown).some(v => v > 0) && (
           <div>
             <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">By Provider</p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {Object.entries(budget.providerBreakdown).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([prov, tokens]) => (
                 <div key={prov} className={cn(
-                  'flex-1 rounded-lg px-3 py-2 text-center',
+                  'flex-1 min-w-[80px] rounded-lg px-3 py-2 text-center',
                   prov === 'openai' ? 'bg-emerald-50 border border-emerald-200' :
                   prov === 'nim' ? 'bg-purple-50 border border-purple-200' : 'bg-muted/50',
                 )}>
@@ -1000,20 +1000,20 @@ function StatusBanner({ data }: { data: HealthData }) {
   const Icon = config.icon
 
   return (
-    <div className={cn('relative overflow-hidden rounded-2xl bg-gradient-to-r p-6 text-white shadow-lg', config.bg)}>
+    <div className={cn('relative overflow-hidden rounded-2xl bg-gradient-to-r p-4 sm:p-6 text-white shadow-lg', config.bg)}>
       <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10" />
       <div className="absolute -right-4 bottom-0 h-20 w-20 rounded-full bg-white/5" />
-      <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="relative">
+      <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="relative shrink-0">
             <div className={cn('absolute inset-0 animate-ping rounded-full opacity-75', config.pulse)} />
-            <div className="relative rounded-full bg-white/20 p-3">
-              <Icon className="h-8 w-8" />
+            <div className="relative rounded-full bg-white/20 p-2 sm:p-3">
+              <Icon className="h-6 w-6 sm:h-8 sm:w-8" />
             </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold font-heading">{config.label}</h1>
-            <p className="text-sm text-white/80 mt-1">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold font-heading">{config.label}</h1>
+            <p className="text-xs sm:text-sm text-white/80 mt-1 leading-relaxed">
               {data.total_models_registered} models &middot; NIM {data.nim_configured ? 'on' : 'off'} &middot; Groq {data.groq_configured ? 'on' : 'off'} &middot; Cerebras {data.cerebras_configured ? 'on' : 'off'} &middot; Deepgram {data.deepgram_configured ? 'on' : 'off'}
               {budget && (
                 <> &middot; OpenAI: {budget.budgetExhausted ? (
@@ -1025,15 +1025,15 @@ function StatusBanner({ data }: { data: HealthData }) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           <div className="flex flex-col items-end text-right">
-            <span className="text-2xl font-bold tabular-nums">{data.stats.totalCalls.toLocaleString()}</span>
-            <span className="text-xs text-white/70">API Calls</span>
+            <span className="text-xl sm:text-2xl font-bold tabular-nums">{data.stats.totalCalls.toLocaleString()}</span>
+            <span className="text-[10px] sm:text-xs text-white/70">API Calls</span>
           </div>
-          <div className="h-10 w-px bg-white/20" />
+          <div className="h-8 sm:h-10 w-px bg-white/20" />
           <div className="flex flex-col items-end text-right">
-            <span className="text-2xl font-bold tabular-nums">{data.stats.totalFailovers}</span>
-            <span className="text-xs text-white/70">Failovers</span>
+            <span className="text-xl sm:text-2xl font-bold tabular-nums">{data.stats.totalFailovers}</span>
+            <span className="text-[10px] sm:text-xs text-white/70">Failovers</span>
           </div>
         </div>
       </div>
@@ -2319,33 +2319,33 @@ export function AiHealthPage() {
     <div className="min-h-screen bg-muted/30">
       {/* Header bar */}
       <div className="sticky top-0 z-10 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-primary p-1.5">
-              <Activity className="h-5 w-5 text-primary-foreground" />
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="rounded-lg bg-primary p-1.5 shrink-0">
+              <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
             </div>
-            <div>
-              <h1 className="font-heading text-lg font-bold">Admin Dashboard</h1>
+            <div className="min-w-0">
+              <h1 className="font-heading text-base sm:text-lg font-bold truncate">Admin Dashboard</h1>
               <p className="text-xs text-muted-foreground hidden sm:block">HireLoop Monitoring & Control</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
             <span className="text-xs text-muted-foreground tabular-nums hidden sm:inline">
               {countdown}s
             </span>
-            <Button variant="outline" size="sm" onClick={() => { fetchHealth(); fetchMetrics(); fetchModules(); fetchRoutes(); fetchActivity(); fetchAiUsage(); fetchBudget(); fetchAiLogs(); fetchPrompts() }} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => { fetchHealth(); fetchMetrics(); fetchModules(); fetchRoutes(); fetchActivity(); fetchAiUsage(); fetchBudget(); fetchAiLogs(); fetchPrompts() }} className="gap-1.5 min-h-[44px] px-2 sm:px-3">
               <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-foreground gap-1.5">
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-foreground gap-1.5 min-h-[44px] px-2 sm:px-3">
               <Shield className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
         </div>
-        {/* Tab navigation */}
+        {/* Tab navigation — scrollable on mobile */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex gap-1 -mb-px">
+          <div className="flex gap-1 -mb-px overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
             {tabs.map(tab => {
               const TabIcon = tab.icon
               return (
@@ -2353,14 +2353,15 @@ export function AiHealthPage() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    'flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors',
+                    'flex items-center gap-1.5 px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap min-h-[44px] shrink-0',
                     activeTab === tab.id
                       ? 'border-primary text-primary'
                       : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/20',
                   )}
                 >
-                  <TabIcon className="h-4 w-4" />
-                  {tab.label}
+                  <TabIcon className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
                 </button>
               )
             })}
@@ -2368,7 +2369,7 @@ export function AiHealthPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* Status Banner (always visible) */}
         <StatusBanner data={data} />
 
@@ -2552,35 +2553,35 @@ export function AiHealthPage() {
 
             {/* Usage Summary Cards */}
             {aiUsage && (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                 <Card>
-                  <CardContent className="p-4 text-center">
-                    <p className="text-xs text-muted-foreground uppercase">Total Calls</p>
-                    <p className="text-2xl font-bold tabular-nums">{aiUsage.summary.totalCalls.toLocaleString()}</p>
+                  <CardContent className="p-3 sm:p-4 text-center">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground uppercase">Total Calls</p>
+                    <p className="text-lg sm:text-2xl font-bold tabular-nums">{aiUsage.summary.totalCalls.toLocaleString()}</p>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardContent className="p-4 text-center">
-                    <p className="text-xs text-muted-foreground uppercase">Total Tokens</p>
-                    <p className="text-2xl font-bold tabular-nums">{aiUsage.summary.totalTokens.toLocaleString()}</p>
+                  <CardContent className="p-3 sm:p-4 text-center">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground uppercase">Total Tokens</p>
+                    <p className="text-lg sm:text-2xl font-bold tabular-nums">{aiUsage.summary.totalTokens.toLocaleString()}</p>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardContent className="p-4 text-center">
-                    <p className="text-xs text-muted-foreground uppercase">Avg Latency</p>
-                    <p className="text-2xl font-bold tabular-nums">{aiUsage.summary.avgLatency}ms</p>
+                  <CardContent className="p-3 sm:p-4 text-center">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground uppercase">Avg Latency</p>
+                    <p className="text-lg sm:text-2xl font-bold tabular-nums">{aiUsage.summary.avgLatency}ms</p>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardContent className="p-4 text-center">
-                    <p className="text-xs text-muted-foreground uppercase">Success Rate</p>
-                    <p className={cn('text-2xl font-bold tabular-nums', aiUsage.summary.successRate < 95 ? 'text-amber-600' : 'text-emerald-600')}>{aiUsage.summary.successRate}%</p>
+                  <CardContent className="p-3 sm:p-4 text-center">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground uppercase">Success Rate</p>
+                    <p className={cn('text-lg sm:text-2xl font-bold tabular-nums', aiUsage.summary.successRate < 95 ? 'text-amber-600' : 'text-emerald-600')}>{aiUsage.summary.successRate}%</p>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardContent className="p-4 text-center">
-                    <p className="text-xs text-muted-foreground uppercase">Est. Cost</p>
-                    <p className="text-2xl font-bold tabular-nums">${aiUsage.summary.totalCost.toFixed(4)}</p>
+                  <CardContent className="p-3 sm:p-4 text-center">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground uppercase">Est. Cost</p>
+                    <p className="text-lg sm:text-2xl font-bold tabular-nums">${aiUsage.summary.totalCost.toFixed(4)}</p>
                   </CardContent>
                 </Card>
               </div>
@@ -2681,29 +2682,29 @@ export function AiHealthPage() {
             {routesData ? (
               <>
                 {/* Route Summary Cards */}
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                   <Card>
-                    <CardContent className="p-4 text-center">
-                      <p className="text-xs text-muted-foreground uppercase">Architecture Endpoints</p>
-                      <p className="text-2xl font-bold tabular-nums">{routesData.summary.totalArchEndpoints}</p>
+                    <CardContent className="p-3 sm:p-4 text-center">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground uppercase">Arch Endpoints</p>
+                      <p className="text-lg sm:text-2xl font-bold tabular-nums">{routesData.summary.totalArchEndpoints}</p>
                     </CardContent>
                   </Card>
                   <Card>
-                    <CardContent className="p-4 text-center">
-                      <p className="text-xs text-muted-foreground uppercase">Tracked Endpoints</p>
-                      <p className="text-2xl font-bold tabular-nums">{routesData.summary.totalTrackedEndpoints}</p>
+                    <CardContent className="p-3 sm:p-4 text-center">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground uppercase">Tracked</p>
+                      <p className="text-lg sm:text-2xl font-bold tabular-nums">{routesData.summary.totalTrackedEndpoints}</p>
                     </CardContent>
                   </Card>
                   <Card>
-                    <CardContent className="p-4 text-center">
-                      <p className="text-xs text-muted-foreground uppercase">Route Files</p>
-                      <p className="text-2xl font-bold tabular-nums">{routesData.summary.routeFiles}</p>
+                    <CardContent className="p-3 sm:p-4 text-center">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground uppercase">Route Files</p>
+                      <p className="text-lg sm:text-2xl font-bold tabular-nums">{routesData.summary.routeFiles}</p>
                     </CardContent>
                   </Card>
                   <Card>
-                    <CardContent className="p-4 text-center">
-                      <p className="text-xs text-muted-foreground uppercase">Req/min</p>
-                      <p className="text-2xl font-bold tabular-nums">{routesData.summary.api?.requestsPerMinute || 0}</p>
+                    <CardContent className="p-3 sm:p-4 text-center">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground uppercase">Req/min</p>
+                      <p className="text-lg sm:text-2xl font-bold tabular-nums">{routesData.summary.api?.requestsPerMinute || 0}</p>
                     </CardContent>
                   </Card>
                 </div>
@@ -2718,7 +2719,7 @@ export function AiHealthPage() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid gap-3 sm:grid-cols-4">
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                         {[
                           { label: 'p50', value: routesData.summary.api.latency.p50 },
                           { label: 'p95', value: routesData.summary.api.latency.p95 },
@@ -2727,7 +2728,7 @@ export function AiHealthPage() {
                         ].map(item => (
                           <div key={item.label} className="rounded-lg bg-muted/50 p-3 text-center">
                             <p className="text-xs font-semibold text-muted-foreground uppercase">{item.label}</p>
-                            <p className={cn('text-xl font-bold tabular-nums', item.value > 2000 ? 'text-red-600' : item.value > 500 ? 'text-amber-600' : 'text-emerald-600')}>
+                            <p className={cn('text-lg sm:text-xl font-bold tabular-nums', item.value > 2000 ? 'text-red-600' : item.value > 500 ? 'text-amber-600' : 'text-emerald-600')}>
                               {item.value}ms
                             </p>
                           </div>
