@@ -9,6 +9,7 @@ const pool = require('./lib/db');
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
+const quickPracticeRoutes = require('./routes/quick-practice'); // ISOLATED from Mock Interview (#32717)
 const omniscoreRoutes = require('./routes/omniscore');
 const companyRoutes = require('./routes/company');
 const trustscoreRoutes = require('./routes/trustscore');
@@ -92,7 +93,8 @@ app.use('/api/admin', adminRoutes);
 // API Routes - Candidate side
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
-app.use('/api/interviews', interviewRoutes);
+app.use('/api/interviews', quickPracticeRoutes);  // ISOLATED Quick Practice — must be BEFORE interview routes (#32717)
+app.use('/api/interviews', interviewRoutes);       // Mock Interview + video analysis (no practice routes)
 app.use('/api/omniscore', omniscoreRoutes);
 app.use('/api/candidate', candidateRoutes);
 app.use('/api/assessments', assessmentRoutes);
