@@ -288,7 +288,17 @@ router.post('/practice/submit-video', authMiddleware, async (req, res) => {
             common_mistake: '', practice_prompt: ''
           },
           communication: { score: 5, word_count: 0, words_per_minute: 0, duration_seconds: duration_seconds || 60,
-            filler_words: {}, total_fillers: 0, filler_rate: 0, pace: 'unknown', tips: [] },
+            filler_words: {}, total_fillers: 0, filler_rate: 0, pace: 'unknown', tips: [],
+            voice_analysis: {
+              voice_confidence: { score: 5, feedback: 'Voice analysis could not be completed — try again for detailed feedback.' },
+              vocal_variety: { score: 5, feedback: 'Voice analysis could not be completed — try again for detailed feedback.' },
+              pacing_rhythm: { score: 5, feedback: 'Voice analysis could not be completed — try again for detailed feedback.' },
+              articulation: { score: 5, feedback: 'Voice analysis could not be completed — try again for detailed feedback.' },
+              energy: { score: 5, feedback: 'Voice analysis could not be completed — try again for detailed feedback.' },
+              overall_voice_score: 5,
+              voice_summary: 'Voice analysis was temporarily unavailable. Try again for full voice & tone feedback.',
+              voice_tips: ['Record another answer to get personalized voice coaching tips.'],
+            } },
           presentation: { score: 5, eye_contact: { score: 5, feedback: 'Analysis unavailable' },
             facial_expressions: { score: 5, feedback: 'Analysis unavailable' },
             body_language: { score: 5, feedback: 'Analysis unavailable' },
