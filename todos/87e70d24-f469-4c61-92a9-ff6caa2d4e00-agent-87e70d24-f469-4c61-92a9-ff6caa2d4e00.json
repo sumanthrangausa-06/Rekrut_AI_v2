@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Phase 1: Fix token budget tracker (budget shows 0, hourly chart empty)",
+    "status": "completed",
+    "activeForm": "Investigating token budget tracker bugs"
+  },
+  {
+    "content": "Phase 2: Fix provider health status banner (shows operational when providers are down)",
+    "status": "completed",
+    "activeForm": "Fixing provider health status banner"
+  },
+  {
+    "content": "Phase 3: Fix NIM token logging (NIM calls show 0 tokens)",
+    "status": "completed",
+    "activeForm": "Fixing NIM token logging"
+  },
+  {
+    "content": "Phase 4: Fix selfhosted_stt and OpenAI 429 handling",
+    "status": "completed",
+    "activeForm": "Fixing provider error handling"
+  },
+  {
+    "content": "Phase 5: Fix 'Insufficient data' threshold and /me error rate",
+    "status": "completed",
+    "activeForm": "Fixing prediction threshold and auth errors"
+  },
+  {
+    "content": "Build frontend and deploy",
+    "status": "in_progress",
+    "activeForm": "Building frontend and deploying"
+  }
+]
