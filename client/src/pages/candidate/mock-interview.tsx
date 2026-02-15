@@ -1174,7 +1174,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-900/50 border border-red-700/50 text-red-300 text-xs animate-in fade-in">
                 <AlertCircle className="h-3.5 w-3.5" />
                 {voiceError}
-                <button onClick={() => setVoiceError(null)} className="text-red-400 hover:text-red-200 ml-1">\u2715</button>
+                <button onClick={() => setVoiceError(null)} className="text-red-400 hover:text-red-200 ml-1">✕</button>
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
@@ -1297,25 +1297,25 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                     )}
                     {(mockFeedback as any).content.strengths?.length > 0 && (
                       <div className="p-3 rounded-lg bg-green-50 border border-green-100">
-                        <h5 className="text-xs font-semibold text-green-800 mb-1.5">\u2713 Strengths</h5>
+                        <h5 className="text-xs font-semibold text-green-800 mb-1.5">✓ Strengths</h5>
                         <ul className="space-y-1">{(mockFeedback as any).content.strengths.map((s: string, i: number) => <li key={i} className="text-xs text-green-700">{s}</li>)}</ul>
                       </div>
                     )}
                     {(mockFeedback as any).content.improvements?.length > 0 && (
                       <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
-                        <h5 className="text-xs font-semibold text-amber-800 mb-1.5">\u2191 Improve</h5>
+                        <h5 className="text-xs font-semibold text-amber-800 mb-1.5">↑ Improve</h5>
                         <ul className="space-y-1">{(mockFeedback as any).content.improvements.map((s: string, i: number) => <li key={i} className="text-xs text-amber-700">{s}</li>)}</ul>
                       </div>
                     )}
                     {(mockFeedback as any).content.specific_tips?.length > 0 && (
                       <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
-                        <h5 className="text-xs font-semibold text-blue-800 mb-1.5">\uD83D\uDCA1 Tips</h5>
+                        <h5 className="text-xs font-semibold text-blue-800 mb-1.5">💡 Tips</h5>
                         <ul className="space-y-1">{(mockFeedback as any).content.specific_tips.map((s: string, i: number) => <li key={i} className="text-xs text-blue-700">{s}</li>)}</ul>
                       </div>
                     )}
                     {(mockFeedback as any).content.common_mistake && (
                       <div className="p-3 rounded-lg bg-red-50 border border-red-100">
-                        <h5 className="text-xs font-semibold text-red-800 mb-1.5">\u26A0\uFE0F Common Mistake</h5>
+                        <h5 className="text-xs font-semibold text-red-800 mb-1.5">⚠️ Common Mistake</h5>
                         <p className="text-xs text-red-700">{(mockFeedback as any).content.common_mistake}</p>
                       </div>
                     )}
@@ -1386,7 +1386,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                         (mockFeedback as any).communication.pace.assessment?.includes('slight') ? 'bg-amber-50 border border-amber-100' :
                         'bg-red-50 border border-red-100'
                       }`}>
-                        <h5 className="text-xs font-semibold mb-1">\uD83C\uDF99\uFE0F Speaking Pace</h5>
+                        <h5 className="text-xs font-semibold mb-1">🎙️ Speaking Pace</h5>
                         <p className="text-xs">{(mockFeedback as any).communication.pace.feedback}</p>
                       </div>
                     )}
@@ -1399,7 +1399,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                         <div className="flex flex-wrap gap-1.5">
                           {Object.entries((mockFeedback as any).communication.filler_words).filter(([, count]) => (count as number) > 0).map(([word, count]) => (
                             <Badge key={word} variant="outline" className="text-[10px] bg-white">
-                              "{word}" \u00D7 {count as number}
+                              "{word}" × {count as number}
                             </Badge>
                           ))}
                         </div>
@@ -1408,14 +1408,14 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 
                     {(mockFeedback as any).communication.trends && (
                       <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-100">
-                        <h5 className="text-xs font-semibold text-indigo-800 mb-1">\uD83D\uDCC8 Communication Trends</h5>
+                        <h5 className="text-xs font-semibold text-indigo-800 mb-1">📈 Communication Trends</h5>
                         <p className="text-xs text-indigo-700">{(mockFeedback as any).communication.trends}</p>
                       </div>
                     )}
 
                     {(mockFeedback as any).communication.tips?.length > 0 && (
                       <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
-                        <h5 className="text-xs font-semibold text-blue-800 mb-1.5">\uD83D\uDCA1 Speech Tips</h5>
+                        <h5 className="text-xs font-semibold text-blue-800 mb-1.5">💡 Speech Tips</h5>
                         <ul className="space-y-1">{(mockFeedback as any).communication.tips.map((tip: string, i: number) => <li key={i} className="text-xs text-blue-700">{tip}</li>)}</ul>
                       </div>
                     )}
@@ -1504,14 +1504,14 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                       </div>
                       {mockFeedback.presentation.summary && (
                         <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
-                          <h5 className="text-xs font-semibold text-emerald-800 mb-1">\uD83D\uDCCA Overall Assessment</h5>
+                          <h5 className="text-xs font-semibold text-emerald-800 mb-1">📊 Overall Assessment</h5>
                           <p className="text-xs text-emerald-700">{mockFeedback.presentation.summary}</p>
                         </div>
                       )}
                     </>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      \uD83D\uDCF9 Body language analysis requires camera access during the interview. Enable your camera next time for presentation feedback.
+                      📹 Body language analysis requires camera access during the interview. Enable your camera next time for presentation feedback.
                     </p>
                   )}
                 </div>
@@ -1588,7 +1588,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                           {turn.role === 'interviewer' ? 'Alex (Interviewer)' : 'You'}
                           {turn.action && turn.action !== 'transition' && (
                             <span className="ml-1.5 text-muted-foreground font-normal">
-                              \u00B7 {turn.action === 'follow_up' ? 'Follow-up' : turn.action === 'challenge' ? 'Probing deeper' : turn.action === 'introduction' ? 'Introduction' : turn.action === 'wrap_up' ? 'Wrapping up' : ''}
+                              · {turn.action === 'follow_up' ? 'Follow-up' : turn.action === 'challenge' ? 'Probing deeper' : turn.action === 'introduction' ? 'Introduction' : turn.action === 'wrap_up' ? 'Wrapping up' : ''}
                             </span>
                           )}
                         </p>
@@ -1734,7 +1734,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                               </div>
                             ) : (
                               <div className="h-10 w-10 rounded-lg flex items-center justify-center bg-muted">
-                                <span className="text-xs text-muted-foreground">\u2014</span>
+                                <span className="text-xs text-muted-foreground">—</span>
                               </div>
                             )}
                             <div>
@@ -1755,9 +1755,9 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                               </div>
                               <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
                                 <span>{s.questions_asked} questions</span>
-                                <span>\u00B7</span>
+                                <span>·</span>
                                 <span>{s.follow_ups_asked} follow-ups</span>
-                                <span>\u00B7</span>
+                                <span>·</span>
                                 <span>{Math.round(s.duration_minutes)} min</span>
                               </div>
                             </div>
