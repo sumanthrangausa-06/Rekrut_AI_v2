@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate chart data flow — endpoints, frontend rendering, previous fix attempts",
+    "status": "completed",
+    "activeForm": "Investigating chart data flow"
+  },
+  {
+    "content": "Identify root cause with evidence",
+    "status": "completed",
+    "activeForm": "Identifying root cause"
+  },
+  {
+    "content": "Implement fix for Last 7 Days and Hourly Usage charts",
+    "status": "completed",
+    "activeForm": "Implementing chart fix"
+  },
+  {
+    "content": "Deploy and verify charts render data",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying fix"
+  },
+  {
+    "content": "Notify owner with results",
+    "status": "pending",
+    "activeForm": "Notifying owner"
+  }
+]
