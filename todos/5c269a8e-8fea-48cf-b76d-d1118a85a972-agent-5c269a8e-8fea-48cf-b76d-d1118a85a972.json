@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate admin auth code and find credential validation",
+    "status": "completed",
+    "activeForm": "Investigating admin auth code"
+  },
+  {
+    "content": "Bridge JWT admin auth into admin panel requireAdmin middleware",
+    "status": "completed",
+    "activeForm": "Bridging JWT admin auth into admin panel"
+  },
+  {
+    "content": "Update frontend AdminAuthGuard to auto-bridge JWT admin users",
+    "status": "completed",
+    "activeForm": "Updating frontend AdminAuthGuard"
+  },
+  {
+    "content": "Update ADMIN_PASSWORD env var so direct login also works for QA",
+    "status": "completed",
+    "activeForm": "Updating ADMIN_PASSWORD env var"
+  },
+  {
+    "content": "Build client, verify no errors, deploy",
+    "status": "in_progress",
+    "activeForm": "Building client and deploying"
+  }
+]
