@@ -560,9 +560,32 @@ router.post('/mock/start', authMiddleware, async (req, res) => {
     );
 
     if (existing.rows.length >= 8) {
-      // Use existing bank — pick random 8-10
-      bankQuestions = existing.rows.slice(0, Math.min(10, existing.rows.length));
-      console.log(`[mock] Found ${existing.rows.length} existing questions for "${role}", using ${bankQuestions.length}`);
+      // BUG FIX #29: Stratified sampling — ensure diverse question types instead of pure random
+      // Group by type, pick proportionally to ensure technical/situational/behavioral mix
+      const byType = {};
+      for (const q of existing.rows) {
+        const t = q.question_type || 'behavioral';
+        if (!byType[t]) byType[t] = [];
+        byType[t].push(q);
+      }
+      const targetCount = Math.min(10, existing.rows.length);
+      const types = Object.keys(byType);
+      const perType = Math.max(2, Math.floor(targetCount / types.length));
+      const selected = [];
+      // First pass: pick perType from each type
+      for (const t of types) {
+        const available = byType[t].sort(() => Math.random() - 0.5);
+        selected.push(...available.slice(0, perType));
+      }
+      // Fill remaining slots randomly from leftovers
+      if (selected.length < targetCount) {
+        const selectedIds = new Set(selected.map(q => q.id));
+        const remaining = existing.rows.filter(q => !selectedIds.has(q.id)).sort(() => Math.random() - 0.5);
+        selected.push(...remaining.slice(0, targetCount - selected.length));
+      }
+      // Shuffle final selection
+      bankQuestions = selected.sort(() => Math.random() - 0.5).slice(0, targetCount);
+      console.log(`[mock] Found ${existing.rows.length} existing questions for "${role}", stratified ${bankQuestions.length} (types: ${types.join(', ')})`);
     } else {
       // Try to generate new question bank
       console.log(`[mock] Generating new question bank for "${role}"...`);
@@ -1027,18 +1050,37 @@ router.post('/mock/:sessionId/end', authMiddleware, async (req, res) => {
       [feedback.overall_score || 5, JSON.stringify(feedback), sessionId]
     );
 
-    // BUG FIX #7: Compute dominant category from actual questions asked (not hardcoded 'mock_interview')
+    // BUG FIX #29: Compute dominant category from ACTUALLY ASKED questions with correct type mapping
+    // Maps 5 AI types → 3 UI categories: behavioral, technical, situational
+    // competency/role_specific → technical (they test role-specific skills, not past behavior)
     let dominantCategory = 'behavioral'; // default fallback
     try {
-      const questionIds = session.question_ids || [];
+      const allQuestionIds = session.question_ids || [];
+      // Only count questions actually asked (not pre-loaded bank), fall back to all if 0
+      const askedCount = session.questions_asked || session.current_question_index || 0;
+      const questionIds = askedCount > 0 ? allQuestionIds.slice(0, askedCount) : allQuestionIds;
       if (questionIds.length > 0) {
         const qTypesResult = await pool.query(
-          'SELECT question_type, COUNT(*) as cnt FROM question_bank WHERE id = ANY($1) GROUP BY question_type ORDER BY cnt DESC LIMIT 1',
+          'SELECT question_type, COUNT(*) as cnt FROM question_bank WHERE id = ANY($1) GROUP BY question_type ORDER BY cnt DESC',
           [questionIds]
         );
         if (qTypesResult.rows.length > 0) {
-          const rawType = qTypesResult.rows[0].question_type;
-          dominantCategory = rawType === 'competency' ? 'behavioral' : rawType;
+          // Map to 3 UI categories: behavioral, technical, situational
+          const categoryCounts = { behavioral: 0, technical: 0, situational: 0 };
+          for (const row of qTypesResult.rows) {
+            const cnt = parseInt(row.cnt);
+            switch (row.question_type) {
+              case 'behavioral': categoryCounts.behavioral += cnt; break;
+              case 'technical': categoryCounts.technical += cnt; break;
+              case 'situational': categoryCounts.situational += cnt; break;
+              case 'competency': categoryCounts.technical += cnt; break;     // competency → technical
+              case 'role_specific': categoryCounts.technical += cnt; break;  // role_specific → technical
+              default: categoryCounts.behavioral += cnt;
+            }
+          }
+          // Pick dominant category
+          const sorted = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
+          if (sorted[0][1] > 0) dominantCategory = sorted[0][0];
         }
       }
     } catch (catErr) {
@@ -1222,15 +1264,14 @@ router.get('/mock/sessions', authMiddleware, async (req, res) => {
       qTypes.rows.forEach(q => { questionTypeMap[q.id] = q.question_type; });
     }
 
-    // Enrich sessions with category tags
+    // Enrich sessions with category tags — map 5 AI types → 3 UI categories
+    const typeToCategory = { behavioral: 'behavioral', technical: 'technical', situational: 'situational', competency: 'technical', role_specific: 'technical' };
     const enrichedSessions = sessions.rows.map(s => {
-      const categories = [...new Set((s.question_ids || []).map(id => questionTypeMap[id]).filter(Boolean))];
-      // Normalize category names: 'competency' → 'behavioral' for display
-      const normalizedCategories = [...new Set(categories.map(c => c === 'competency' ? 'behavioral' : c))];
+      const categories = [...new Set((s.question_ids || []).map(id => questionTypeMap[id]).filter(Boolean).map(t => typeToCategory[t] || 'behavioral'))];
       return {
         ...s,
         question_ids: undefined, // Don't leak raw IDs to client
-        category_tags: normalizedCategories.length > 0 ? normalizedCategories : ['behavioral'],
+        category_tags: categories.length > 0 ? categories : ['behavioral'],
         interview_type: 'voice', // Mock interviews are always voice-based
       };
     });

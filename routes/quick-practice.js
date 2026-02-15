@@ -503,12 +503,52 @@ router.get('/practice/sessions', authMiddleware, async (req, res) => {
       params
     );
 
-    const parsed = sessions.rows.map(row => ({
-      ...row,
-      coaching_data: typeof row.coaching_data === 'string' ? JSON.parse(row.coaching_data) : row.coaching_data,
-      audio_analysis: typeof row.audio_analysis === 'string' ? JSON.parse(row.audio_analysis) : row.audio_analysis,
-      video_analysis: typeof row.video_analysis === 'string' ? JSON.parse(row.video_analysis) : row.video_analysis,
-    }));
+    // BUG FIX #29: For mock interview sessions, compute real category from question_bank
+    const mockSessionIds = sessions.rows
+      .filter(r => r.question_id && r.question_id.startsWith('mock-'))
+      .map(r => parseInt(r.question_id.replace('mock-', '')));
+    let mockCategoryMap = {};
+    if (mockSessionIds.length > 0) {
+      try {
+        const mockSessions = await pool.query(
+          'SELECT id, question_ids FROM mock_interview_sessions WHERE id = ANY($1)',
+          [mockSessionIds]
+        );
+        const allQIds = [...new Set(mockSessions.rows.flatMap(s => s.question_ids || []))];
+        if (allQIds.length > 0) {
+          const qTypes = await pool.query('SELECT id, question_type FROM question_bank WHERE id = ANY($1)', [allQIds]);
+          const typeMap = {};
+          qTypes.rows.forEach(q => { typeMap[q.id] = q.question_type; });
+          const typeToCategory = { behavioral: 'behavioral', technical: 'technical', situational: 'situational', competency: 'technical', role_specific: 'technical' };
+          for (const ms of mockSessions.rows) {
+            const counts = { behavioral: 0, technical: 0, situational: 0 };
+            (ms.question_ids || []).forEach(id => {
+              const raw = typeMap[id];
+              const cat = typeToCategory[raw] || 'behavioral';
+              counts[cat]++;
+            });
+            const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+            mockCategoryMap[ms.id] = dominant[1] > 0 ? dominant[0] : 'behavioral';
+          }
+        }
+      } catch (mcErr) { console.error('[QP] Mock category enrichment failed:', mcErr.message); }
+    }
+
+    const parsed = sessions.rows.map(row => {
+      let category = row.category;
+      // Override mock_interview or behavioral for mock sessions with computed category
+      if (row.question_id && row.question_id.startsWith('mock-')) {
+        const mockId = parseInt(row.question_id.replace('mock-', ''));
+        if (mockCategoryMap[mockId]) category = mockCategoryMap[mockId];
+      }
+      return {
+        ...row,
+        category,
+        coaching_data: typeof row.coaching_data === 'string' ? JSON.parse(row.coaching_data) : row.coaching_data,
+        audio_analysis: typeof row.audio_analysis === 'string' ? JSON.parse(row.audio_analysis) : row.audio_analysis,
+        video_analysis: typeof row.video_analysis === 'string' ? JSON.parse(row.video_analysis) : row.video_analysis,
+      };
+    });
 
     res.json({
       success: true,
