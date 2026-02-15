@@ -11,17 +11,17 @@
   },
   {
     "content": "Fix admin dashboard mobile layout (tabs, nav, content)",
-    "status": "in_progress",
+    "status": "completed",
     "activeForm": "Fixing admin dashboard mobile layout"
   },
   {
     "content": "Fix landing page mobile nav + audit all pages",
-    "status": "pending",
+    "status": "completed",
     "activeForm": "Fixing landing page and auditing all pages"
   },
   {
     "content": "Add global responsive CSS + deploy and verify",
-    "status": "pending",
+    "status": "in_progress",
     "activeForm": "Adding global responsive CSS and deploying"
   }
 ]
