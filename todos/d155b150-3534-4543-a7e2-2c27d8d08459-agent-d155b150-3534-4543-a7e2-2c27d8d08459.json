@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Audit current frontend CSS/framework approach",
+    "status": "completed",
+    "activeForm": "Auditing current frontend CSS/framework approach"
+  },
+  {
+    "content": "Create universal mobile-nav.js auto-inject script",
+    "status": "completed",
+    "activeForm": "Creating universal mobile-nav.js auto-inject script"
+  },
+  {
+    "content": "Enhance responsive.css with comprehensive mobile fixes",
+    "status": "completed",
+    "activeForm": "Enhancing responsive CSS"
+  },
+  {
+    "content": "Add mobile-nav.js to all dark-theme HTML pages",
+    "status": "completed",
+    "activeForm": "Adding mobile-nav.js to HTML pages"
+  },
+  {
+    "content": "Fix page-specific layout issues (forms, grids, tables)",
+    "status": "in_progress",
+    "activeForm": "Fixing page-specific layout issues"
+  },
+  {
+    "content": "Deploy and verify",
+    "status": "pending",
+    "activeForm": "Deploying and verifying"
+  }
+]
