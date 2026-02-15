@@ -38,10 +38,12 @@ export function scoreLabel(score: number): string {
   return 'Needs Work'
 }
 
-// Score bar component
-export function ScoreBar({ score, label, icon: Icon }: { score: number; label: string; icon: React.ElementType }) {
-  const pct = (score / 10) * 100
-  const barColor = score >= 8 ? 'bg-green-500' : score >= 6 ? 'bg-amber-500' : 'bg-red-500'
+// Score bar component — handles null score (analysis failed)
+export function ScoreBar({ score, label, icon: Icon }: { score: number | null; label: string; icon: React.ElementType }) {
+  const failed = score === null || score === undefined
+  const displayScore = failed ? 0 : score
+  const pct = (displayScore / 10) * 100
+  const barColor = failed ? 'bg-muted-foreground/30' : displayScore >= 8 ? 'bg-green-500' : displayScore >= 6 ? 'bg-amber-500' : 'bg-red-500'
 
   return (
     <div className="space-y-1">
@@ -50,10 +52,14 @@ export function ScoreBar({ score, label, icon: Icon }: { score: number; label: s
           <Icon className="h-3.5 w-3.5 text-muted-foreground" />
           {label}
         </span>
-        <span className={`font-bold ${scoreColor(score)}`}>{score}/10</span>
+        {failed ? (
+          <span className="font-bold text-muted-foreground text-xs">Failed</span>
+        ) : (
+          <span className={`font-bold ${scoreColor(displayScore)}`}>{displayScore}/10</span>
+        )}
       </div>
       <div className="h-2 bg-muted rounded-full overflow-hidden">
-        <div className={`h-full ${barColor} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
+        <div className={`h-full ${barColor} rounded-full transition-all duration-700`} style={{ width: failed ? '0%' : `${pct}%` }} />
       </div>
     </div>
   )

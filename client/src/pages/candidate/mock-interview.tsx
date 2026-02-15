@@ -1131,7 +1131,11 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
             <div className={`text-5xl font-bold ${scoreColor(mockFeedback.overall_score)}`}>
               {mockFeedback.overall_score}/10
             </div>
-            <div className="text-sm text-muted-foreground mt-1">{scoreLabel(mockFeedback.overall_score)}</div>
+            <div className="text-sm text-muted-foreground mt-1">
+              {(mockFeedback as any)._content_failed
+                ? 'Based on Communication & Presentation only'
+                : scoreLabel(mockFeedback.overall_score)}
+            </div>
             <Badge className={`mt-2 ${
               mockFeedback.interview_readiness === 'ready' ? 'bg-green-100 text-green-700' :
               mockFeedback.interview_readiness === 'almost_ready' ? 'bg-amber-100 text-amber-700' :
@@ -1152,7 +1156,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
           {/* Score bars */}
           {(mockFeedback as any).content && (mockFeedback as any).communication && (
             <div className="flex items-center justify-center gap-6 py-2">
-              <ScoreBar score={(mockFeedback as any).content?.score} label="Answer Content" icon={Brain} />
+              <ScoreBar score={(mockFeedback as any).content?._failed ? null : (mockFeedback as any).content?.score} label="Answer Content" icon={Brain} />
               <ScoreBar score={(mockFeedback as any).communication?.score} label="Communication" icon={Volume2} />
               <ScoreBar score={(mockFeedback as any).presentation?.score || 5} label="Presentation" icon={Eye} />
             </div>
@@ -1170,7 +1174,11 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                   <span className="flex items-center gap-2 font-medium text-sm">
                     <Brain className="h-4 w-4 text-violet-600" />
                     Answer Content
-                    <span className={`text-xs font-bold ${scoreColor((mockFeedback as any).content.score)}`}>{(mockFeedback as any).content.score}/10</span>
+                    {(mockFeedback as any).content._failed ? (
+                      <span className="text-xs font-bold text-muted-foreground">Analysis failed</span>
+                    ) : (
+                      <span className={`text-xs font-bold ${scoreColor((mockFeedback as any).content.score)}`}>{(mockFeedback as any).content.score}/10</span>
+                    )}
                   </span>
                   {expandedSection === 'mock-content' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </button>
