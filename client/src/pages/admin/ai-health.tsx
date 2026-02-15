@@ -548,28 +548,37 @@ function TokenBudgetPanel({ budget }: { budget: TokenBudgetData }) {
           )}
         </div>
 
-        {/* History sparkline */}
-        {budget.history && budget.history.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Last 7 Days</p>
-            <div className="flex items-end gap-1 h-12">
-              {budget.history.map((day, i) => {
-                const h = Math.max(4, (day.tokensUsed / day.budget) * 100)
-                return (
-                  <div
-                    key={i}
-                    className={cn(
-                      'flex-1 rounded-t-sm transition-all',
-                      day.tokensUsed >= day.budget ? 'bg-red-400' : 'bg-primary/60',
-                    )}
-                    style={{ height: `${Math.min(100, h)}%` }}
-                    title={`${day.date}: ${day.tokensUsed.toLocaleString()} tokens`}
-                  />
-                )
-              })}
+        {/* History sparkline — includes today + uses relative scaling */}
+        {(() => {
+          const allDays = [
+            ...(budget.history || []),
+            { date: budget.currentDay || 'Today', tokensUsed: budget.tokensUsed, budget: budget.dailyBudget },
+          ]
+          if (allDays.length === 0 || allDays.every(d => d.tokensUsed === 0)) return null
+          const maxTokens = Math.max(...allDays.map(d => d.tokensUsed), 1)
+          return (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Last 7 Days</p>
+              <div className="flex items-end gap-1 h-12">
+                {allDays.map((day, i) => {
+                  const h = day.tokensUsed > 0 ? Math.max(8, (day.tokensUsed / maxTokens) * 100) : 4
+                  return (
+                    <div
+                      key={i}
+                      className={cn(
+                        'flex-1 rounded-t-sm transition-all',
+                        i === allDays.length - 1 ? 'bg-primary' :
+                        day.tokensUsed >= day.budget ? 'bg-red-400' : 'bg-primary/60',
+                      )}
+                      style={{ height: `${Math.min(100, h)}%` }}
+                      title={`${day.date}: ${day.tokensUsed.toLocaleString()} / ${(day.budget || budget.dailyBudget).toLocaleString()} tokens`}
+                    />
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
       </CardContent>
     </Card>
   )
@@ -1868,9 +1877,12 @@ function HourlyUsageChart({ hourly }: { hourly: AiUsageData['hourly'] }) {
           const val = h[metric]
           const height = Math.max(2, (val / maxVal) * 100)
           return (
-            <div key={i} className="flex-1 flex flex-col items-center" title={`${h.label}: ${h.tokens.toLocaleString()} tokens, ${h.calls} calls`}>
-              <div className={cn('w-full rounded-t-sm', val > 0 ? 'bg-primary/60 hover:bg-primary/80' : 'bg-muted/30')} style={{ height: `${height}%` }} />
-            </div>
+            <div
+              key={i}
+              className={cn('flex-1 rounded-t-sm', val > 0 ? 'bg-primary/60 hover:bg-primary/80' : 'bg-muted/30')}
+              style={{ height: `${height}%` }}
+              title={`${h.label}: ${h.tokens.toLocaleString()} tokens, ${h.calls} calls`}
+            />
           )
         })}
       </div>
