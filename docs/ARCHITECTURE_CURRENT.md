@@ -10,6 +10,62 @@ HireLoop is an AI-native hiring platform with dual frontend (React SPA + legacy 
 
 ---
 
+## UI Framework & CSS Architecture (Decision: Feb 15, 2026)
+
+### Chosen Approach: Hybrid — Tailwind CDN + Custom CSS Design System
+
+**Decision:** Keep the current hybrid approach. Not worth migrating 40+ HTML pages to a single framework.
+
+### Two CSS Systems
+
+| System | Files | Pages | Theme |
+|--------|-------|-------|-------|
+| **Light theme** | `globals.css` + Tailwind CDN | ~8 pages (landing, auth, dashboards via ui.js) | Light, Inter font, indigo accent |
+| **Dark theme** | `styles.css` + `dashboard.css` + `responsive.css` | ~25+ pages (all sidebar-based app pages) | Dark, Space Grotesk + Inter, green accent |
+
+### CSS Files
+
+| File | Purpose | Responsive? |
+|------|---------|-------------|
+| `public/css/globals.css` | Light theme design system (buttons, cards, forms, sidebar, topbar, auth) | ✅ 768px breakpoint |
+| `public/css/styles.css` | Dark theme design system (landing page, nav, hero, features, pricing, footer, omniscore) | ✅ 768px + 1024px |
+| `public/css/dashboard.css` | Dark theme dashboard layout (sidebar, stats grid, action grid, interviews, upgrade banner, user dropdown) | ✅ 480px + 768px + 1024px + 1200px |
+| `public/css/responsive.css` | Comprehensive responsive overrides for ALL pages (mobile nav, hero, grids, forms, tables, modals, touch, iOS zoom, inline-style grid collapse) | ✅ 360px + 480px + 768px + 1024px |
+| `public/css/auth.css` | Dark theme auth pages (login/register split layout) | ✅ 480px + 768px + 1024px |
+| `public/css/interview.css` | Interview flow (setup, question, response, feedback, results) | ✅ 480px + 768px + 1024px |
+
+### JS Components
+
+| File | Purpose |
+|------|---------|
+| `public/js/ui.js` | Renders sidebar + topbar for light-theme pages (recruiter/candidate nav, mobile toggle, dropdown) |
+| `public/js/mobile-nav.js` | Auto-injects hamburger menu + overlay for dark-theme sidebar pages. Detects if ui.js already handled mobile and skips double-injection. |
+| `public/js/core.js` | Auth, Utils, API helpers |
+
+### Responsive Breakpoints
+
+- **360px** — Ultra-small phones (320px-360px)
+- **480px** — Small phones
+- **768px** — Tablets / primary mobile breakpoint
+- **1024px** — Small laptops / tablets in landscape
+- **1200px** — Standard desktop
+
+### Why Not Full Migration?
+
+1. **40+ HTML pages** with hardcoded dark-theme CSS — too risky to migrate mid-sprint
+2. **Two distinct design languages** (dark app vs light marketing) — intentional, not accidental
+3. **Tailwind CDN + custom CSS** covers all needs without a build step for HTML pages
+4. **React SPA (`client/`)** exists but is secondary — most users hit the HTML pages
+
+### Mobile Navigation Strategy
+
+- **Dark-theme pages** → `mobile-nav.js` auto-injects hamburger (☰) button at top-left, overlay behind sidebar
+- **Light-theme pages** → `ui.js` renders topbar with built-in mobile toggle
+- **Landing page** → Inline hamburger + slide-down menu panel
+- **Standalone pages** (compliance, offer mgmt, post-hire) → Already use Tailwind responsive classes
+
+---
+
 ## Frontend (client/src/)
 
 ### React Pages (36 page files, 42 routes)
