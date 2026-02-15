@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Read ARCHITECTURE_CURRENT.md and identify all admin-relevant features",
+    "status": "completed",
+    "activeForm": "Reading architecture docs"
+  },
+  {
+    "content": "Audit current admin dashboard code against architecture docs",
+    "status": "completed",
+    "activeForm": "Auditing admin dashboard coverage"
+  },
+  {
+    "content": "Phase 1: Add missing backend queries for 6 domain groups (Users/Auth, Scoring, Communications, Matching, Screening, Memory/System)",
+    "status": "completed",
+    "activeForm": "Adding missing backend queries"
+  },
+  {
+    "content": "Phase 2: Add 6 missing module cards + route monitoring to frontend",
+    "status": "completed",
+    "activeForm": "Building missing frontend UI"
+  },
+  {
+    "content": "Phase 3: Deploy and verify all sections working",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying"
+  },
+  {
+    "content": "Update architecture docs",
+    "status": "pending",
+    "activeForm": "Updating architecture docs"
+  }
+]
