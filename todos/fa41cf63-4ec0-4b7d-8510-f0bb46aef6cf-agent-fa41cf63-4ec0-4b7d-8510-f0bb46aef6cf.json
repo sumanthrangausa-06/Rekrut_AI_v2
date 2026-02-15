@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate current fallback chain in ai-provider.js execute() method",
+    "status": "completed",
+    "activeForm": "Investigating current fallback chain implementation"
+  },
+  {
+    "content": "Implement parallel racing + total timeout cap + geo-block detection",
+    "status": "completed",
+    "activeForm": "Implementing parallel racing and timeout cap"
+  },
+  {
+    "content": "Return clear error to frontend on all-provider failure",
+    "status": "completed",
+    "activeForm": "Adding clear error responses to frontend"
+  },
+  {
+    "content": "Deploy and verify fix",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying the fix"
+  }
+]
