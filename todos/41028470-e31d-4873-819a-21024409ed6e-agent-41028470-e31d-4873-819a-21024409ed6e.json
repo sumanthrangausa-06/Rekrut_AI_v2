@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate previous fix #33064 and current code",
+    "status": "completed",
+    "activeForm": "Investigating previous fix and current code"
+  },
+  {
+    "content": "Identify root cause of partial history feedback",
+    "status": "completed",
+    "activeForm": "Identifying root cause"
+  },
+  {
+    "content": "Implement fix for full feedback in history view",
+    "status": "completed",
+    "activeForm": "Implementing fix"
+  },
+  {
+    "content": "Build, deploy, and verify fix",
+    "status": "in_progress",
+    "activeForm": "Building and deploying fix"
+  }
+]
