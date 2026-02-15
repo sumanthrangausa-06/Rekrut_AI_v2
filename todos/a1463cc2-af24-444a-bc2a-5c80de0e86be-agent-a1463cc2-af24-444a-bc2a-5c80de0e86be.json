@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate React SPA structure and current responsive state",
+    "status": "completed",
+    "activeForm": "Investigating React SPA structure"
+  },
+  {
+    "content": "Fix DashboardLayout — touch targets, sidebar polish",
+    "status": "completed",
+    "activeForm": "Fixing DashboardLayout touch targets and sidebar"
+  },
+  {
+    "content": "Fix admin dashboard mobile layout (tabs, nav, content)",
+    "status": "in_progress",
+    "activeForm": "Fixing admin dashboard mobile layout"
+  },
+  {
+    "content": "Fix landing page mobile nav + audit all pages",
+    "status": "pending",
+    "activeForm": "Fixing landing page and auditing all pages"
+  },
+  {
+    "content": "Add global responsive CSS + deploy and verify",
+    "status": "pending",
+    "activeForm": "Adding global responsive CSS and deploying"
+  }
+]
