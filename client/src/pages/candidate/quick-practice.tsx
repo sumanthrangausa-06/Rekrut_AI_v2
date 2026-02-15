@@ -1074,23 +1074,30 @@ export function QuickPractice({ questions, categoryFilter, setCategoryFilter, on
                 </div>
               </div>
 
-              {/* Your Answer transcript */}
-              {transcription && transcription.trim().length > 0 && (
-                <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
-                  <h4 className="font-semibold text-sm flex items-center gap-1.5 text-slate-700 mb-2">
-                    <MessageSquare className="h-4 w-4" />
-                    Your Answer
-                  </h4>
-                  <p className="text-sm text-slate-600 leading-relaxed italic">
-                    "{transcription.trim()}"
-                  </p>
-                  <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
-                    <span>{transcription.trim().split(/\s+/).filter(w => w).length} words</span>
-                    <span>•</span>
-                    <span>{formatTime(recordingTime)} recording</span>
+              {/* Your Answer transcript — use backend transcript as fallback if local state lost */}
+              {(() => {
+                const displayTranscript = (transcription && transcription.trim().length > 0)
+                  ? transcription.trim()
+                  : ((coaching as any)?.transcription || '').trim()
+                const displayDuration = recordingTime || (coaching as any)?.duration_seconds || coaching.communication?.duration_seconds || 0
+                if (!displayTranscript) return null
+                return (
+                  <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
+                    <h4 className="font-semibold text-sm flex items-center gap-1.5 text-slate-700 mb-2">
+                      <MessageSquare className="h-4 w-4" />
+                      Your Answer
+                    </h4>
+                    <p className="text-sm text-slate-600 leading-relaxed italic">
+                      "{displayTranscript}"
+                    </p>
+                    <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
+                      <span>{displayTranscript.split(/\s+/).filter(w => w).length} words</span>
+                      <span>•</span>
+                      <span>{formatTime(displayDuration)} recording</span>
+                    </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
               <div className="mt-4 p-4 rounded-lg bg-muted/30 space-y-3">
                 <ScoreBar score={coaching.content.score} label="Answer Content" icon={Brain} />
