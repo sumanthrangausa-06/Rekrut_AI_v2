@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate mock interview history view vs live feedback rendering",
+    "status": "completed",
+    "activeForm": "Investigating mock interview history vs live feedback rendering"
+  },
+  {
+    "content": "Identify root cause with evidence",
+    "status": "completed",
+    "activeForm": "Identifying root cause with evidence"
+  },
+  {
+    "content": "Implement fix — add click handler on history cards to load and display full feedback",
+    "status": "completed",
+    "activeForm": "Implementing fix for history card click and feedback display"
+  },
+  {
+    "content": "Deploy and verify",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying"
+  }
+]
