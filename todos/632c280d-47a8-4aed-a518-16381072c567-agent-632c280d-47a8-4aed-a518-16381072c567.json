@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate current labels in quick-practice.tsx and mock-interview.tsx",
+    "status": "completed",
+    "activeForm": "Investigating current labels in both files"
+  },
+  {
+    "content": "Fix labels in quick-practice.tsx: Mock Interview → Quick Practice",
+    "status": "completed",
+    "activeForm": "Fixing labels in quick-practice.tsx"
+  },
+  {
+    "content": "Fix labels in mock-interview.tsx: AI Video Interview → Mock Interview",
+    "status": "completed",
+    "activeForm": "Fixing labels in mock-interview.tsx"
+  },
+  {
+    "content": "Build, commit, and deploy",
+    "status": "in_progress",
+    "activeForm": "Building, committing, and deploying"
+  }
+]
