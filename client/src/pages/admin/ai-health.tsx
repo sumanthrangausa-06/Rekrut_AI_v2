@@ -224,6 +224,30 @@ interface ModulesData {
     docsVerified: number; docsPending: number; credentials: number
     credentialsVerified: number; credentialsPending: number
   }
+  // ─── Architecture-documented domain groups ───
+  usersAuth?: {
+    totalUsers: number; candidates: number; recruiters: number; admins: number
+    registeredToday: number; registeredThisWeek: number; activeToday: number
+    activeSessions: number; oauthConnections: number
+  }
+  scoring?: {
+    omniScoreTotal: number; omniScoreAvg: number | null; omniScoreThisWeek: number
+    trustScoreTotal: number; trustScoreAvg: number | null; trustScoreThisWeek: number
+    appealsTotal: number; appealsPending: number; appealsApproved: number; appealsRejected: number
+  }
+  communications?: {
+    totalMessages: number; sent: number; pending: number; thisWeek: number
+    templates: number; sequenceEnrollments: number; activeSequences: number; completedSequences: number
+  }
+  matching?: {
+    totalMatches: number; avgMatchScore: number | null; matchesThisWeek: number; mutualMatches: number
+  }
+  screening?: {
+    templates: number; totalSessions: number; completed: number; active: number; thisWeek: number
+  }
+  system?: {
+    userMemoryEntries: number; ttsCacheEntries: number; systemEvents: number; agentDataEntries: number
+  }
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -288,7 +312,15 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string
   error:      { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200' },
 }
 
-type TabId = 'overview' | 'ai' | 'monitoring' | 'prompts' | 'activity'
+type TabId = 'overview' | 'ai' | 'monitoring' | 'prompts' | 'activity' | 'routes'
+
+interface RouteFileInfo { file: string; domain: string; endpoints: number }
+interface TrackedEndpoint { path: string; total: number; errors: number; errorRate: string; p50: number; p95: number; p99: number }
+interface RoutesData {
+  summary: { totalArchEndpoints: number; totalTrackedEndpoints: number; routeFiles: number; api: MetricsData['api'] }
+  routeFiles: RouteFileInfo[]
+  trackedEndpoints: TrackedEndpoint[]
+}
 
 // ─── AI Monitoring Types ────────────────────────────────────────────────────
 
@@ -1335,15 +1367,39 @@ function ModuleCards({ modules }: { modules: ModulesData }) {
   const pr = modules.profiles
   const co = modules.compliance
   const dv = modules.docVerification
+  const ua = modules.usersAuth
+  const sc = modules.scoring
+  const cm = modules.communications
+  const mt = modules.matching
+  const sr = modules.screening
+  const sy = modules.system
+
+  const moduleCount = 10 + (ua ? 1 : 0) + (sc ? 1 : 0) + (cm ? 1 : 0) + (mt ? 1 : 0) + (sr ? 1 : 0) + (sy ? 1 : 0)
 
   return (
     <div>
       <div className="flex items-center gap-2 mb-4">
         <LayoutGrid className="h-5 w-5 text-muted-foreground" />
         <h2 className="font-heading text-lg font-semibold">Platform Modules</h2>
-        <span className="text-xs text-muted-foreground">(10 modules)</span>
+        <span className="text-xs text-muted-foreground">({moduleCount} modules — all 16 architecture domain groups)</span>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {/* ─── Users & Auth (Domain Group 1) ─── */}
+        {ua && (
+          <ModuleMetricCard
+            icon={Users}
+            title="Users & Auth"
+            color="blue"
+            metrics={[
+              { label: 'Total Users', value: ua.totalUsers },
+              { label: 'Candidates', value: ua.candidates },
+              { label: 'Recruiters', value: ua.recruiters },
+              { label: 'Active Today', value: ua.activeToday, highlight: true },
+              { label: 'Sessions', value: ua.activeSessions },
+              { label: 'New /wk', value: ua.registeredThisWeek },
+            ]}
+          />
+        )}
         <ModuleMetricCard
           icon={FileText}
           title="Applications"
@@ -1409,6 +1465,22 @@ function ModuleCards({ modules }: { modules: ModulesData }) {
             { label: 'Mock', value: iv.mock },
           ]}
         />
+        {/* ─── Screening (Domain Group 6 — separate from assessments) ─── */}
+        {sr && (
+          <ModuleMetricCard
+            icon={Filter}
+            title="Screening"
+            color="teal"
+            metrics={[
+              { label: 'Templates', value: sr.templates },
+              { label: 'Sessions', value: sr.totalSessions },
+              { label: 'Completed', value: sr.completed },
+              { label: 'Active', value: sr.active, highlight: true },
+              { label: 'This Week', value: sr.thisWeek },
+              { label: '', value: '' },
+            ]}
+          />
+        )}
         <ModuleMetricCard
           icon={ClipboardCheck}
           title="AI Onboarding"
@@ -1435,6 +1507,22 @@ function ModuleCards({ modules }: { modules: ModulesData }) {
             { label: 'This Week', value: as_.thisWeek },
           ]}
         />
+        {/* ─── Scoring & Trust (Domain Group 7) ─── */}
+        {sc && (
+          <ModuleMetricCard
+            icon={TrendingUp}
+            title="Scoring & Trust"
+            color="amber"
+            metrics={[
+              { label: 'OmniScores', value: sc.omniScoreTotal },
+              { label: 'Avg Omni', value: sc.omniScoreAvg !== null ? `${sc.omniScoreAvg}` : 'N/A' },
+              { label: 'TrustScores', value: sc.trustScoreTotal },
+              { label: 'Avg Trust', value: sc.trustScoreAvg !== null ? `${sc.trustScoreAvg}` : 'N/A' },
+              { label: 'Appeals', value: sc.appealsTotal },
+              { label: 'Pending', value: sc.appealsPending, highlight: true },
+            ]}
+          />
+        )}
         <ModuleMetricCard
           icon={UserCircle}
           title="Profiles"
@@ -1448,6 +1536,38 @@ function ModuleCards({ modules }: { modules: ModulesData }) {
             { label: '', value: '' },
           ]}
         />
+        {/* ─── Communications (Domain Group 9) ─── */}
+        {cm && (
+          <ModuleMetricCard
+            icon={Send}
+            title="Communications"
+            color="cyan"
+            metrics={[
+              { label: 'Messages', value: cm.totalMessages },
+              { label: 'Sent', value: cm.sent },
+              { label: 'Pending', value: cm.pending, highlight: true },
+              { label: 'Templates', value: cm.templates },
+              { label: 'Sequences', value: cm.sequenceEnrollments },
+              { label: 'This Week', value: cm.thisWeek },
+            ]}
+          />
+        )}
+        {/* ─── Matching (Domain Group 14) ─── */}
+        {mt && (
+          <ModuleMetricCard
+            icon={ArrowUpDown}
+            title="Matching"
+            color="indigo"
+            metrics={[
+              { label: 'Total', value: mt.totalMatches },
+              { label: 'Avg Score', value: mt.avgMatchScore !== null ? `${mt.avgMatchScore}%` : 'N/A' },
+              { label: 'Mutual', value: mt.mutualMatches },
+              { label: 'This Week', value: mt.matchesThisWeek },
+              { label: '', value: '' },
+              { label: '', value: '' },
+            ]}
+          />
+        )}
         <ModuleMetricCard
           icon={ShieldCheck}
           title="Compliance"
@@ -1474,6 +1594,22 @@ function ModuleCards({ modules }: { modules: ModulesData }) {
             { label: 'Pending', value: dv.docsPending, highlight: true },
           ]}
         />
+        {/* ─── Memory & System (Domain Groups 15+16) ─── */}
+        {sy && (
+          <ModuleMetricCard
+            icon={HardDrive}
+            title="System & Memory"
+            color="slate"
+            metrics={[
+              { label: 'Memory', value: sy.userMemoryEntries },
+              { label: 'TTS Cache', value: sy.ttsCacheEntries },
+              { label: 'Events', value: sy.systemEvents },
+              { label: 'Agent Data', value: sy.agentDataEntries },
+              { label: '', value: '' },
+              { label: '', value: '' },
+            ]}
+          />
+        )}
       </div>
     </div>
   )
@@ -1931,6 +2067,8 @@ export function AiHealthPage() {
   const [budgetData, setBudgetData] = useState<BudgetData | null>(null)
   const [aiLogs, setAiLogs] = useState<AiCallLog[]>([])
   const [prompts, setPrompts] = useState<PromptData[]>([])
+  // Routes monitoring state
+  const [routesData, setRoutesData] = useState<RoutesData | null>(null)
   // Verification state
   const [verifyStatus, setVerifyStatus] = useState<{
     verified: boolean
@@ -2001,6 +2139,18 @@ export function AiHealthPage() {
       }
     } catch {
       // Modules are optional — don't block the dashboard
+    }
+  }, [])
+
+  const fetchRoutes = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/routes', { credentials: 'include' })
+      if (res.ok) {
+        const json = await res.json()
+        setRoutesData(json)
+      }
+    } catch {
+      // Routes are optional
     }
   }, [])
 
@@ -2086,6 +2236,7 @@ export function AiHealthPage() {
     fetchHealth()
     fetchMetrics()
     fetchModules()
+    fetchRoutes()
     fetchActivity()
     fetchAiUsage()
     fetchBudget()
@@ -2098,6 +2249,7 @@ export function AiHealthPage() {
       fetchHealth()
       fetchMetrics()
       fetchModules()
+      fetchRoutes()
     }, 30000)
     const aiInterval = setInterval(() => {
       fetchAiUsage()
@@ -2111,7 +2263,7 @@ export function AiHealthPage() {
       clearInterval(aiInterval)
       clearInterval(activityInterval)
     }
-  }, [fetchHealth, fetchMetrics, fetchModules, fetchActivity, fetchAiUsage, fetchBudget, fetchAiLogs, fetchPrompts, fetchVerifyStatus])
+  }, [fetchHealth, fetchMetrics, fetchModules, fetchRoutes, fetchActivity, fetchAiUsage, fetchBudget, fetchAiLogs, fetchPrompts, fetchVerifyStatus])
 
   // Countdown timer
   useEffect(() => {
@@ -2155,6 +2307,7 @@ export function AiHealthPage() {
     { id: 'overview', label: 'Overview', icon: Server },
     { id: 'monitoring', label: 'AI Monitoring', icon: TrendingUp },
     { id: 'ai', label: 'AI Providers', icon: Brain },
+    { id: 'routes', label: 'Routes', icon: Globe },
     { id: 'prompts', label: 'Prompts', icon: FileText },
     { id: 'activity', label: 'Activity Feed', icon: Activity },
   ]
@@ -2180,7 +2333,7 @@ export function AiHealthPage() {
             <span className="text-xs text-muted-foreground tabular-nums hidden sm:inline">
               {countdown}s
             </span>
-            <Button variant="outline" size="sm" onClick={() => { fetchHealth(); fetchMetrics(); fetchModules(); fetchActivity(); fetchAiUsage(); fetchBudget(); fetchAiLogs(); fetchPrompts() }} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={() => { fetchHealth(); fetchMetrics(); fetchModules(); fetchRoutes(); fetchActivity(); fetchAiUsage(); fetchBudget(); fetchAiLogs(); fetchPrompts() }} className="gap-1.5">
               <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
@@ -2519,6 +2672,172 @@ export function AiHealthPage() {
               </Button>
             </div>
             <PromptsPanel prompts={prompts} />
+          </>
+        )}
+
+        {/* ─── ROUTES TAB ─── */}
+        {activeTab === 'routes' && (
+          <>
+            {routesData ? (
+              <>
+                {/* Route Summary Cards */}
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <p className="text-xs text-muted-foreground uppercase">Architecture Endpoints</p>
+                      <p className="text-2xl font-bold tabular-nums">{routesData.summary.totalArchEndpoints}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <p className="text-xs text-muted-foreground uppercase">Tracked Endpoints</p>
+                      <p className="text-2xl font-bold tabular-nums">{routesData.summary.totalTrackedEndpoints}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <p className="text-xs text-muted-foreground uppercase">Route Files</p>
+                      <p className="text-2xl font-bold tabular-nums">{routesData.summary.routeFiles}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4 text-center">
+                      <p className="text-xs text-muted-foreground uppercase">Req/min</p>
+                      <p className="text-2xl font-bold tabular-nums">{routesData.summary.api?.requestsPerMinute || 0}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* API Latency Overview */}
+                {routesData.summary.api?.latency && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center gap-2">
+                        <Timer className="h-5 w-5 text-muted-foreground" />
+                        <CardTitle className="text-base">API Latency Percentiles</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid gap-3 sm:grid-cols-4">
+                        {[
+                          { label: 'p50', value: routesData.summary.api.latency.p50 },
+                          { label: 'p95', value: routesData.summary.api.latency.p95 },
+                          { label: 'p99', value: routesData.summary.api.latency.p99 },
+                          { label: 'avg', value: routesData.summary.api.latency.avg },
+                        ].map(item => (
+                          <div key={item.label} className="rounded-lg bg-muted/50 p-3 text-center">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase">{item.label}</p>
+                            <p className={cn('text-xl font-bold tabular-nums', item.value > 2000 ? 'text-red-600' : item.value > 500 ? 'text-amber-600' : 'text-emerald-600')}>
+                              {item.value}ms
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Route Files Breakdown */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-2">
+                      <Globe className="h-5 w-5 text-muted-foreground" />
+                      <CardTitle className="text-base">Route Files ({routesData.routeFiles.length} files, {routesData.summary.totalArchEndpoints} endpoints)</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-left">
+                            <th className="pb-2 font-medium text-muted-foreground">File</th>
+                            <th className="pb-2 font-medium text-muted-foreground">Domain</th>
+                            <th className="pb-2 font-medium text-muted-foreground text-right">Endpoints</th>
+                            <th className="pb-2 font-medium text-muted-foreground text-right">% of Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {routesData.routeFiles.sort((a, b) => b.endpoints - a.endpoints).map((rf) => (
+                            <tr key={rf.file} className="border-b border-muted/50 hover:bg-muted/30">
+                              <td className="py-2 font-mono text-xs">{rf.file}</td>
+                              <td className="py-2">{rf.domain}</td>
+                              <td className="py-2 text-right tabular-nums font-medium">{rf.endpoints}</td>
+                              <td className="py-2 text-right tabular-nums text-muted-foreground">
+                                {((rf.endpoints / routesData.summary.totalArchEndpoints) * 100).toFixed(1)}%
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Tracked Endpoint Performance */}
+                {routesData.trackedEndpoints.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-muted-foreground" />
+                        <CardTitle className="text-base">Endpoint Performance ({routesData.trackedEndpoints.length} tracked)</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b text-left">
+                              <th className="pb-2 font-medium text-muted-foreground">Endpoint</th>
+                              <th className="pb-2 font-medium text-muted-foreground text-right">Requests</th>
+                              <th className="pb-2 font-medium text-muted-foreground text-right">Errors</th>
+                              <th className="pb-2 font-medium text-muted-foreground text-right">Error %</th>
+                              <th className="pb-2 font-medium text-muted-foreground text-right">p50</th>
+                              <th className="pb-2 font-medium text-muted-foreground text-right">p95</th>
+                              <th className="pb-2 font-medium text-muted-foreground text-right">p99</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {routesData.trackedEndpoints.map((ep) => (
+                              <tr key={ep.path} className="border-b border-muted/50 hover:bg-muted/30">
+                                <td className="py-2 font-mono text-xs max-w-[300px] truncate" title={ep.path}>{ep.path}</td>
+                                <td className="py-2 text-right tabular-nums">{ep.total}</td>
+                                <td className="py-2 text-right tabular-nums">{ep.errors}</td>
+                                <td className="py-2 text-right tabular-nums">
+                                  <span className={cn(
+                                    parseFloat(ep.errorRate) > 10 ? 'text-red-600 font-semibold' :
+                                    parseFloat(ep.errorRate) > 1 ? 'text-amber-600' : 'text-muted-foreground'
+                                  )}>
+                                    {ep.errorRate}
+                                  </span>
+                                </td>
+                                <td className="py-2 text-right tabular-nums">{ep.p50}ms</td>
+                                <td className="py-2 text-right tabular-nums">
+                                  <span className={cn(ep.p95 > 2000 ? 'text-red-600' : ep.p95 > 500 ? 'text-amber-600' : '')}>
+                                    {ep.p95}ms
+                                  </span>
+                                </td>
+                                <td className="py-2 text-right tabular-nums">
+                                  <span className={cn(ep.p99 > 5000 ? 'text-red-600' : ep.p99 > 2000 ? 'text-amber-600' : '')}>
+                                    {ep.p99}ms
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            ) : (
+              <Card>
+                <CardContent className="p-8 text-center text-muted-foreground">
+                  <Globe className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>Loading route metrics...</p>
+                </CardContent>
+              </Card>
+            )}
           </>
         )}
 

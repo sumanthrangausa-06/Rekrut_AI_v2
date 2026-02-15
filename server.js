@@ -668,6 +668,13 @@ app.get('/api/admin/modules', requireAdmin, async (req, res) => {
       companies,
       consentRecords, dataRequests, fairnessAudits, auditLogs,
       docVerifications, verificationDocs, verifiedCreds,
+      // ─── NEW: Missing domain groups from architecture docs ───
+      usersAuth, activeSessions, oauthConns,
+      omniScores, trustScores, scoreAppeals,
+      communications, commTemplates, sequenceEnroll,
+      matchResults, mutualMatches,
+      screeningTemplates, screeningSessions,
+      userMemory, ttsCache, systemEvents, agentData,
     ] = await Promise.all([
       // ─── Applications ───
       safeQuery(`
@@ -835,6 +842,90 @@ app.get('/api/admin/modules', requireAdmin, async (req, res) => {
           COUNT(*) FILTER (WHERE verification_status = 'pending') as pending
         FROM verified_credentials
       `),
+
+      // ─── Users & Auth (architecture domain group 1) ───
+      safeQuery(`
+        SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE role = 'candidate') as candidates,
+          COUNT(*) FILTER (WHERE role = 'recruiter') as recruiters,
+          COUNT(*) FILTER (WHERE role = 'admin') as admins,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') as today,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as this_week,
+          COUNT(*) FILTER (WHERE last_login >= NOW() - INTERVAL '24 hours') as active_today
+        FROM users
+      `),
+      safeQuery(`SELECT COUNT(*) as total FROM user_sessions`),
+      safeQuery(`SELECT COUNT(*) as total FROM oauth_connections`),
+
+      // ─── Scoring & Trust (architecture domain group 7) ───
+      safeQuery(`
+        SELECT
+          COUNT(*) as total,
+          ROUND(AVG(overall_score) FILTER (WHERE overall_score IS NOT NULL), 1) as avg_score,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as this_week
+        FROM omni_scores
+      `),
+      safeQuery(`
+        SELECT
+          COUNT(*) as total,
+          ROUND(AVG(overall_score) FILTER (WHERE overall_score IS NOT NULL), 1) as avg_score,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as this_week
+        FROM trust_scores
+      `),
+      safeQuery(`
+        SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE status = 'pending') as pending,
+          COUNT(*) FILTER (WHERE status = 'approved') as approved,
+          COUNT(*) FILTER (WHERE status = 'rejected' OR status = 'denied') as rejected
+        FROM score_appeals
+      `),
+
+      // ─── Communications (architecture domain group 9) ───
+      safeQuery(`
+        SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE status = 'sent' OR status = 'delivered') as sent,
+          COUNT(*) FILTER (WHERE status = 'pending' OR status = 'draft') as pending,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as this_week
+        FROM communications
+      `),
+      safeQuery(`SELECT COUNT(*) as total FROM communication_templates`),
+      safeQuery(`
+        SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE status = 'active') as active,
+          COUNT(*) FILTER (WHERE status = 'completed') as completed
+        FROM sequence_enrollments
+      `),
+
+      // ─── Matching & Recommendations (architecture domain group 14) ───
+      safeQuery(`
+        SELECT
+          COUNT(*) as total,
+          ROUND(AVG(match_score) FILTER (WHERE match_score IS NOT NULL), 1) as avg_score,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as this_week
+        FROM match_results
+      `),
+      safeQuery(`SELECT COUNT(*) as total FROM mutual_matches`),
+
+      // ─── Screening (architecture domain group 6 — separate from assessments) ───
+      safeQuery(`SELECT COUNT(*) as total FROM screening_templates`),
+      safeQuery(`
+        SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE status = 'completed') as completed,
+          COUNT(*) FILTER (WHERE status = 'in_progress' OR status = 'pending') as active,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as this_week
+        FROM screening_sessions
+      `),
+
+      // ─── Memory & System (architecture domain groups 15+16) ───
+      safeQuery(`SELECT COUNT(*) as total FROM user_memory`),
+      safeQuery(`SELECT COUNT(*) as total FROM tts_cache`),
+      safeQuery(`SELECT COUNT(*) as total FROM events`),
+      safeQuery(`SELECT COUNT(*) as total FROM agent_data`),
     ]);
 
     res.json({
@@ -941,10 +1032,110 @@ app.get('/api/admin/modules', requireAdmin, async (req, res) => {
         credentialsVerified: parseInt(verifiedCreds.verified || 0),
         credentialsPending: parseInt(verifiedCreds.pending || 0),
       },
+      // ─── NEW: Architecture-documented domain groups ───
+      usersAuth: {
+        totalUsers: parseInt(usersAuth.total || 0),
+        candidates: parseInt(usersAuth.candidates || 0),
+        recruiters: parseInt(usersAuth.recruiters || 0),
+        admins: parseInt(usersAuth.admins || 0),
+        registeredToday: parseInt(usersAuth.today || 0),
+        registeredThisWeek: parseInt(usersAuth.this_week || 0),
+        activeToday: parseInt(usersAuth.active_today || 0),
+        activeSessions: parseInt(activeSessions.total || 0),
+        oauthConnections: parseInt(oauthConns.total || 0),
+      },
+      scoring: {
+        omniScoreTotal: parseInt(omniScores.total || 0),
+        omniScoreAvg: omniScores.avg_score ? parseFloat(omniScores.avg_score) : null,
+        omniScoreThisWeek: parseInt(omniScores.this_week || 0),
+        trustScoreTotal: parseInt(trustScores.total || 0),
+        trustScoreAvg: trustScores.avg_score ? parseFloat(trustScores.avg_score) : null,
+        trustScoreThisWeek: parseInt(trustScores.this_week || 0),
+        appealsTotal: parseInt(scoreAppeals.total || 0),
+        appealsPending: parseInt(scoreAppeals.pending || 0),
+        appealsApproved: parseInt(scoreAppeals.approved || 0),
+        appealsRejected: parseInt(scoreAppeals.rejected || 0),
+      },
+      communications: {
+        totalMessages: parseInt(communications.total || 0),
+        sent: parseInt(communications.sent || 0),
+        pending: parseInt(communications.pending || 0),
+        thisWeek: parseInt(communications.this_week || 0),
+        templates: parseInt(commTemplates.total || 0),
+        sequenceEnrollments: parseInt(sequenceEnroll.total || 0),
+        activeSequences: parseInt(sequenceEnroll.active || 0),
+        completedSequences: parseInt(sequenceEnroll.completed || 0),
+      },
+      matching: {
+        totalMatches: parseInt(matchResults.total || 0),
+        avgMatchScore: matchResults.avg_score ? parseFloat(matchResults.avg_score) : null,
+        matchesThisWeek: parseInt(matchResults.this_week || 0),
+        mutualMatches: parseInt(mutualMatches.total || 0),
+      },
+      screening: {
+        templates: parseInt(screeningTemplates.total || 0),
+        totalSessions: parseInt(screeningSessions.total || 0),
+        completed: parseInt(screeningSessions.completed || 0),
+        active: parseInt(screeningSessions.active || 0),
+        thisWeek: parseInt(screeningSessions.this_week || 0),
+      },
+      system: {
+        userMemoryEntries: parseInt(userMemory.total || 0),
+        ttsCacheEntries: parseInt(ttsCache.total || 0),
+        systemEvents: parseInt(systemEvents.total || 0),
+        agentDataEntries: parseInt(agentData.total || 0),
+      },
     });
   } catch (err) {
     console.error('[admin/modules] Error:', err.message);
     res.status(500).json({ error: 'Failed to get module metrics', message: err.message });
+  }
+});
+
+// ─── Route Metrics — Full 351-endpoint monitoring ────────────────────────
+app.get('/api/admin/routes', requireAdmin, (req, res) => {
+  try {
+    const { getAllMetrics } = require('./lib/metrics-collector');
+    const metricsData = getAllMetrics();
+    // Return all endpoints from metrics collector with full performance data
+    const endpoints = metricsData?.api?.topEndpoints || [];
+    // Also build a summary of route files from architecture
+    const routeFiles = [
+      { file: 'routes/quick-practice.js', domain: 'Quick Practice', endpoints: 7 },
+      { file: 'routes/interviews.js', domain: 'Mock Interviews', endpoints: 37 },
+      { file: 'routes/onboarding.js', domain: 'Onboarding', endpoints: 43 },
+      { file: 'routes/candidate.js', domain: 'Candidate', endpoints: 46 },
+      { file: 'routes/assessments.js', domain: 'Assessments', endpoints: 22 },
+      { file: 'routes/recruiter.js', domain: 'Recruiter', endpoints: 43 },
+      { file: 'routes/payroll.js', domain: 'Payroll', endpoints: 16 },
+      { file: 'routes/communications.js', domain: 'Communications', endpoints: 13 },
+      { file: 'routes/memory.js', domain: 'Memory', endpoints: 14 },
+      { file: 'routes/omniscore.js', domain: 'OmniScore', endpoints: 13 },
+      { file: 'routes/compliance.js', domain: 'Compliance', endpoints: 16 },
+      { file: 'routes/auth.js', domain: 'Auth', endpoints: 13 },
+      { file: 'routes/documents.js', domain: 'Documents', endpoints: 8 },
+      { file: 'routes/company.js', domain: 'Company', endpoints: 7 },
+      { file: 'routes/jobs.js', domain: 'Jobs', endpoints: 6 },
+      { file: 'routes/matching.js', domain: 'Matching', endpoints: 6 },
+      { file: 'routes/trustscore.js', domain: 'TrustScore', endpoints: 6 },
+      { file: 'routes/admin.js', domain: 'Admin', endpoints: 3 },
+      { file: 'routes/analytics.js', domain: 'Analytics', endpoints: 2 },
+      { file: 'routes/countries.js', domain: 'Countries', endpoints: 4 },
+      { file: 'server.js', domain: 'Server (Health/AI)', endpoints: 26 },
+    ];
+    const totalArchEndpoints = routeFiles.reduce((s, r) => s + r.endpoints, 0);
+    res.json({
+      summary: {
+        totalArchEndpoints,
+        totalTrackedEndpoints: endpoints.length,
+        routeFiles: routeFiles.length,
+        api: metricsData?.api || {},
+      },
+      routeFiles,
+      trackedEndpoints: endpoints,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get route metrics', message: err.message });
   }
 });
 
