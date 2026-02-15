@@ -1,0 +1,304 @@
+  1400→      source.connect(analyser)
+  1401→      analyserRef.current = analyser
+  1402→      silenceCountRef.current = 0
+  1403→
+  1404→      // Check for silence every 200ms — auto-stop after 3.5s of silence
+  1405→      silenceIntervalRef.current = setInterval(() => {
+  1406→        if (!analyserRef.current) return
+  1407→        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount)
+  1408→        analyserRef.current.getByteFrequencyData(dataArray)
+  1409→        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
+  1410→        if (avg < 8) {
+  1411→          silenceCountRef.current++
+  1412→          setSilenceTimer(Math.round(silenceCountRef.current * 0.2))
+  1413→          if (silenceCountRef.current >= 18) { // ~3.6 seconds of silence
+  1414→            stopVoiceRecording()
+  1415→          }
+  1416→        } else {
+  1417→          silenceCountRef.current = 0
+  1418→          setSilenceTimer(0)
+  1419→        }
+  1420→      }, 200)
+  1421→
+  1422→      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+  1423→        ? 'audio/webm;codecs=opus'
+  1424→        : MediaRecorder.isTypeSupported('audio/mp4')
+  1425→          ? 'audio/mp4'
+  1426→          : 'audio/webm'
+  1427→
+  1428→      const recorder = new MediaRecorder(voiceStreamRef.current, { mimeType })
+  1429→      voiceRecorderRef.current = recorder
+  1430→
+  1431→      recorder.ondataavailable = (e) => {
+  1432→        if (e.data.size > 0) voiceChunksRef.current.push(e.data)
+  1433→      }
+  1434→
+  1435→      recorder.onstop = async () => {
+  1436→        setCandidateRecording(false)
+  1437→        candidateRecordingRef.current = false
+  1438→        if (silenceIntervalRef.current) clearInterval(silenceIntervalRef.current)
+  1439→        setSilenceTimer(0)
+  1440→
+  1441→        if (voiceChunksRef.current.length === 0) return
+  1442→
+  1443→        // BUG FIX: Check if the entire recording was silence before sending to backend.
+  1444→        // Whisper hallucinates Japanese/Chinese text when given silent audio.
+  1445→        // If silence count was high (meaning mostly silent), skip sending.
+  1446→        const totalSilenceChecks = silenceCountRef.current
+  1447→        // BUG FIX: Read from REF not state — state is stale in this closure (captured at startVoiceRecording time).
+  1448→        // The old code always saw empty string, causing every answer to be treated as silence.
+  1449→        const currentTranscript = mockLiveTranscriptRef.current
+  1450→        // If we got here from the auto-silence stop (>=18 checks of silence),
+  1451→        // AND the live transcript is empty, the user likely didn't say anything.
+  1452→        if (totalSilenceChecks >= 16 && !currentTranscript.trim()) {
+  1453→          console.log('[voice] Skipping — recording was mostly silence')
+  1454→          setMockLiveTranscript('')
+  1455→          // BUG FIX: Do NOT auto-restart recording here — this caused infinite mic loop.
+  1456→          // Show a message so user knows to tap the mic button manually.
+  1457→          setVoiceError('No speech detected. Tap the mic button when ready to speak.')
+  1458→          return
+  1459→        }
+  1460→
+  1461→        setVoiceProcessing(true)
+  1462→        voiceProcessingRef.current = true
+  1463→        try {
+  1464→          // BUG FIX: Read session from REF not state — state is stale in this closure
+  1465→          // (captured when startVoiceRecording was called, before setMockSession updated)
+  1466→          const currentSession = mockSessionRef.current
+  1467→          if (!currentSession?.id) {
+  1468→            console.error('[voice] No active session — cannot send voice response')
+  1469→            setVoiceError('No active interview session. Please restart.')
+  1470→            setVoiceProcessing(false)
+  1471→            voiceProcessingRef.current = false
+  1472→            return
+  1473→          }
+  1474→
+  1475→          const audioBlob = new Blob(voiceChunksRef.current, { type: mimeType })
+  1476→
+  1477→          // FEATURE PARITY: Capture per-question frames and duration before sending
+  1478→          const voicePerQuestionFrames = [...mockPerQuestionFramesRef.current]
+  1479→          const voiceQuestionDuration = Math.round((Date.now() - mockQuestionStartTimeRef.current) / 1000)
+  1480→          mockPerQuestionFramesRef.current = []
+  1481→          mockQuestionStartTimeRef.current = Date.now()
+  1482→
+  1483→          // Send as multipart FormData with client-side transcript as Whisper fallback
+  1484→          const formData = new FormData()
+  1485→          const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm'
+  1486→          formData.append('audio', audioBlob, `recording.${ext}`)
+  1487→          // BUG FIX: Send SpeechRecognition transcript so backend can use it if Whisper fails (429 etc)
+  1488→          // Read from REF not state — state is stale in this closure
+  1489→          const liveTranscript = mockLiveTranscriptRef.current.trim()
+  1490→          if (liveTranscript.length >= 5) {
+  1491→            formData.append('response_text', liveTranscript)
+  1492→          }
+  1493→          // FEATURE PARITY: Include per-question frames and duration
+  1494→          if (voicePerQuestionFrames.length > 0) {
+  1495→            formData.append('frames_json', JSON.stringify(voicePerQuestionFrames))
+  1496→          }
+  1497→          formData.append('duration_seconds', String(voiceQuestionDuration))
+  1498→
+  1499→          const token = getToken()
+  1500→          // BUG FIX: Add 28s AbortController timeout — prevents hanging when backend is slow.
+  1501→          // Backend has 20s AI timeout + TTS, so 28s gives it time to respond with scripted fallback.
+  1502→          const abortController = new AbortController()
+  1503→          const fetchTimeout = setTimeout(() => abortController.abort(), 28000)
+  1504→
+  1505→          let res: Response
+  1506→          try {
+  1507→            res = await fetch(`/api/interviews/mock/${currentSession.id}/voice-respond`, {
+  1508→              method: 'POST',
+  1509→              headers: {
+  1510→                'Authorization': `Bearer ${token}`
+  1511→              },
+  1512→              body: formData,
+  1513→              signal: abortController.signal
+  1514→            })
+  1515→          } finally {
+  1516→            clearTimeout(fetchTimeout)
+  1517→          }
+  1518→
+  1519→          const data = await res.json()
+  1520→
+  1521→          if (data.success) {
+  1522→            // Reset retry counter on success
+  1523→            voiceRetryCountRef.current = 0
+  1524→
+  1525→            // Add candidate message with transcription
+  1526→            const candidateMsg: MockConversationTurn = {
+  1527→              role: 'candidate',
+  1528→              text: data.transcribed_text,
+  1529→              timestamp: new Date().toISOString()
+  1530→            }
+  1531→            setMockSession(prev => prev ? {
+  1532→              ...prev,
+  1533→              conversation: [...prev.conversation, candidateMsg, data.interviewer_message]
+  1534→            } : null)
+  1535→            setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+  1536→
+  1537→            // Play AI response audio via Web Audio API (reliable on iOS)
+  1538→            if (data.interviewer_audio_base64) {
+  1539→              setAiSpeaking(true)
+  1540→              const audioData = Uint8Array.from(atob(data.interviewer_audio_base64), c => c.charCodeAt(0))
+  1541→              const ctx = ensureAudioContext()
+  1542→
+  1543→              try {
+  1544→                const audioBuffer = await ctx.decodeAudioData(audioData.buffer.slice(0))
+  1545→                if (mockAudioSourceRef.current) {
+  1546→                  try { mockAudioSourceRef.current.stop() } catch (_) {}
+  1547→                }
+  1548→                const source = ctx.createBufferSource()
+  1549→                source.buffer = audioBuffer
+  1550→                source.connect(ctx.destination)
+  1551→                mockAudioSourceRef.current = source
+  1552→                source.onended = () => {
+  1553→                  setAiSpeaking(false)
+  1554→                  mockAudioSourceRef.current = null
+  1555→                  if (voiceModeRef.current && !data.is_wrapping_up) startVoiceRecording()
+  1556→                }
+  1557→                source.start()
+  1558→                console.log('[voice-respond] Playing AI audio via Web Audio API')
+  1559→              } catch (decodeErr) {
+  1560→                // Fallback to Audio element
+  1561→                console.warn('[voice-respond] Web Audio decode failed, fallback:', decodeErr)
+  1562→                const blob = new Blob([audioData], { type: 'audio/mpeg' })
+  1563→                const url = URL.createObjectURL(blob)
+  1564→                if (aiAudioRef.current) {
+  1565→                  aiAudioRef.current.pause()
+  1566→                  URL.revokeObjectURL(aiAudioRef.current.src)
+  1567→                }
+  1568→                const audio = new Audio(url)
+  1569→                aiAudioRef.current = audio
+  1570→                audio.onended = () => {
+  1571→                  setAiSpeaking(false)
+  1572→                  URL.revokeObjectURL(url)
+  1573→                  if (voiceModeRef.current && !data.is_wrapping_up) startVoiceRecording()
+  1574→                }
+  1575→                audio.onerror = () => {
+  1576→                  setAiSpeaking(false)
+  1577→                  URL.revokeObjectURL(url)
+  1578→                  if (voiceModeRef.current && !data.is_wrapping_up) setTimeout(() => startVoiceRecording(), 1000)
+  1579→                }
+  1580→                await audio.play()
+  1581→              }
+  1582→            } else {
+  1583→              // No audio — try separate TTS call, then auto-start recording
+  1584→              await playInterviewerAudio(data.interviewer_message.text)
+  1585→            }
+  1586→          } else {
+  1587→            // BUG FIX: Do NOT auto-retry on transcription failure — this caused infinite mic loop.
+  1588→            // When all ASR providers fail (429 etc), the mic would restart endlessly.
+  1589→            // Instead, show clear error and let user manually retry.
+  1590→            const errorMsg = data.error || 'Failed to process your response'
+  1591→            console.warn('[voice] Transcription failed:', errorMsg)
+  1592→            voiceRetryCountRef.current = 0
+  1593→            setMockLiveTranscript('')
+  1594→            if (errorMsg.includes("didn't catch") || errorMsg.includes('Could not transcribe')) {
+  1595→              setVoiceError('Could not understand your response. Tap the mic button to try again, or type your answer below.')
+  1596→            } else {
+  1597→              setVoiceError(errorMsg)
+  1598→            }
+  1599→          }
+  1600→        } catch (err: any) {
+  1601→          // BUG FIX: Better error messages so the interview doesn't appear "frozen"
+  1602→          if (err.name === 'AbortError') {
+  1603→            console.warn('[voice] Request timed out after 28s')
+  1604→            setVoiceError('The AI is taking too long to respond. Tap the mic to try again, or type your answer below.')
+  1605→          } else {
+  1606→            setVoiceError(err.message || 'Voice processing failed. Tap the mic to try again.')
+  1607→            console.error('Voice response error:', err)
+  1608→          }
+  1609→        } finally {
+  1610→          setVoiceProcessing(false)
+  1611→          voiceProcessingRef.current = false
+  1612→        }
+  1613→      }
+  1614→
+  1615→      recorder.start(250)
+  1616→      setCandidateRecording(true)
+  1617→      candidateRecordingRef.current = true
+  1618→
+  1619→      // Start live speech recognition for real-time transcript
+  1620→      setMockLiveTranscript('')
+  1621→      mockLiveTranscriptRef.current = ''
+  1622→      startMockSpeechRecognition()
+  1623→    } catch (err: any) {
+  1624→      console.error('Mic access error:', err)
+  1625→      setVoiceError('Microphone access denied. Please allow microphone access to use voice mode.')
+  1626→      setCandidateRecording(false)
+  1627→      candidateRecordingRef.current = false
+  1628→    }
+  1629→  }
+  1630→
+  1631→  function stopVoiceRecording() {
+  1632→    if (voiceRecorderRef.current && voiceRecorderRef.current.state !== 'inactive') {
+  1633→      voiceRecorderRef.current.stop()
+  1634→    }
+  1635→    if (silenceIntervalRef.current) {
+  1636→      clearInterval(silenceIntervalRef.current)
+  1637→      silenceIntervalRef.current = null
+  1638→    }
+  1639→    setSilenceTimer(0)
+  1640→    silenceCountRef.current = 0
+  1641→    stopMockSpeechRecognition()
+  1642→  }
+  1643→
+  1644→  function stopVoiceMode() {
+  1645→    // Stop Web Audio API source
+  1646→    if (mockAudioSourceRef.current) {
+  1647→      try { mockAudioSourceRef.current.stop() } catch (_) {}
+  1648→      mockAudioSourceRef.current = null
+  1649→    }
+  1650→    if (aiAudioRef.current) {
+  1651→      aiAudioRef.current.pause()
+  1652→      aiAudioRef.current = null
+  1653→    }
+  1654→    stopVoiceRecording()
+  1655→    stopMockSpeechRecognition()
+  1656→    // Only stop tracks if they're NOT from the camera stream (avoid killing camera audio)
+  1657→    if (voiceStreamRef.current && voiceStreamRef.current !== mockStreamRef.current) {
+  1658→      const cameraAudioIds = mockStreamRef.current?.getAudioTracks().map(t => t.id) || []
+  1659→      voiceStreamRef.current.getTracks().forEach(t => {
+  1660→        if (!cameraAudioIds.includes(t.id)) t.stop()
+  1661→      })
+  1662→    }
+  1663→    voiceStreamRef.current = null
+  1664→    setAiSpeaking(false)
+  1665→    setCandidateRecording(false)
+  1666→    candidateRecordingRef.current = false
+  1667→    setVoiceProcessing(false)
+  1668→    voiceProcessingRef.current = false
+  1669→    setSilenceTimer(0)
+  1670→  }
+  1671→
+  1672→  // When voice mode is enabled and a new session starts, play the first message
+  1673→  useEffect(() => {
+  1674→    if (voiceMode && mockSession && mockSession.status === 'in_progress' && mockSession.conversation.length > 0) {
+  1675→      const lastMsg = mockSession.conversation[mockSession.conversation.length - 1]
+  1676→      if (lastMsg.role === 'interviewer' && !aiSpeaking && !candidateRecording && !voiceProcessing) {
+  1677→        // Only auto-play the opening message when session just started
+  1678→        if (mockSession.conversation.length === 1) {
+  1679→          playInterviewerAudio(lastMsg.text)
+  1680→        }
+  1681→      }
+  1682→    }
+  1683→  }, [voiceMode, mockSession?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  1684→
+  1685→  // Auto-dismiss voice errors after 10 seconds (extended from 5s to give user time to read retry instructions)
+  1686→  useEffect(() => {
+  1687→    if (voiceError) {
+  1688→      const t = setTimeout(() => setVoiceError(null), 10000)
+  1689→      return () => clearTimeout(t)
+  1690→    }
+  1691→  }, [voiceError])
+  1692→
+  1693→  // Cleanup voice, camera, frames, and audio context on unmount
+  1694→  useEffect(() => {
+  1695→    return () => {
+  1696→      stopVoiceMode()
+  1697→      stopMockCamera()
+  1698→      stopMockFrameCapture()
+  1699→      stopMockSpeechRecognition()
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

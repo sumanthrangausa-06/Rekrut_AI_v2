@@ -1,0 +1,204 @@
+     1→import { useEffect, useState, useCallback, useRef } from 'react'
+     2→import { apiCall, getToken } from '@/lib/api'
+     3→import { Card, CardContent } from '@/components/ui/card'
+     4→import { Button } from '@/components/ui/button'
+     5→import { Badge } from '@/components/ui/badge'
+     6→import { Textarea } from '@/components/ui/textarea'
+     7→import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+     8→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+     9→import {
+    10→  Brain, Target, Lightbulb, MessageSquare, Trophy, TrendingUp,
+    11→  Flame, BookOpen, CheckCircle, ArrowRight, Sparkles, BarChart3,
+    12→  Clock, Star, Zap, Video, VideoOff, Mic, MicOff, Camera, Eye,
+    13→  Volume2, AlertCircle, ChevronDown, ChevronUp, Play, Square,
+    14→  Timer, User, Monitor, History, FileText, Calendar, Send, Briefcase,
+    15→  MessageCircle, Award, StopCircle, Loader2, Plus,
+    16→} from 'lucide-react'
+    17→
+    18→// Types and utilities extracted to separate files for maintainability
+    19→import type {
+    20→  PracticeQuestion, PracticeStats, VideoCoaching, TextCoaching,
+    21→  CategoryProgress, RecentSession, HistorySession,
+    22→  MockConversationTurn, MockSession, MockSessionSummary, SessionFeedback,
+    23→} from './coaching-types'
+    24→import {
+    25→  categoryConfig, difficultyColors,
+    26→  scoreColor, scoreBg, scoreLabel,
+    27→  ScoreBar, formatTime,
+    28→} from './coaching-utils'
+    29→
+    30→export function AiCoachingPage() {
+    31→  const [tab, setTab] = useState('practice')
+    32→  const [stats, setStats] = useState<PracticeStats | null>(null)
+    33→  const [questions, setQuestions] = useState<PracticeQuestion[]>([])
+    34→  const [categoryFilter, setCategoryFilter] = useState('all')
+    35→  const [loading, setLoading] = useState(true)
+    36→
+    37→  // Practice modal state
+    38→  const [practiceQuestion, setPracticeQuestion] = useState<PracticeQuestion | null>(null)
+    39→  const [responseMode, setResponseMode] = useState<'select' | 'video' | 'text'>('select')
+    40→  const [responseText, setResponseText] = useState('')
+    41→  const [submitting, setSubmitting] = useState(false)
+    42→  const [coaching, setCoaching] = useState<VideoCoaching | null>(null)
+    43→  const [textCoaching, setTextCoaching] = useState<TextCoaching | null>(null)
+    44→
+    45→  // Video recording state
+    46→  const [isRecording, setIsRecording] = useState(false)
+    47→  const [recordingTime, setRecordingTime] = useState(0)
+    48→  const [cameraReady, setCameraReady] = useState(false)
+    49→  const [cameraError, setCameraError] = useState<string | null>(null)
+    50→  const [transcription, setTranscription] = useState('')
+    51→  const [isTranscribing, setIsTranscribing] = useState(false)
+    52→  const [capturedFrames, setCapturedFrames] = useState<string[]>([])
+    53→  const [recordingDone, setRecordingDone] = useState(false)
+    54→  const [countdown, setCountdown] = useState<number | null>(null)
+    55→  const [cameraStatus, setCameraStatus] = useState('')
+    56→  const [micActive, setMicActive] = useState(false)
+    57→
+    58→  // Refs
+    59→  const videoRef = useRef<HTMLVideoElement>(null)
+    60→  const streamRef = useRef<MediaStream | null>(null)
+    61→  const canvasRef = useRef<HTMLCanvasElement>(null)
+    62→  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    63→  const frameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    64→  const recognitionRef = useRef<any>(null)
+    65→  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+    66→  const audioChunksRef = useRef<Blob[]>([])
+    67→  const audioDataRef = useRef<string | null>(null)
+    68→
+    69→  // Feedback detail sections
+    70→  const [expandedSection, setExpandedSection] = useState<string | null>('content')
+    71→
+    72→  // Progress state
+    73→  const [categoryProgress, setCategoryProgress] = useState<CategoryProgress[]>([])
+    74→  const [recentSessions, setRecentSessions] = useState<RecentSession[]>([])
+    75→
+    76→  // History state
+    77→  const [historySessions, setHistorySessions] = useState<HistorySession[]>([])
+    78→  const [historyTotal, setHistoryTotal] = useState(0)
+    79→  const [historyLoading, setHistoryLoading] = useState(false)
+    80→  const [historyFilter, setHistoryFilter] = useState('all')
+    81→  const [reviewSession, setReviewSession] = useState<HistorySession | null>(null)
+    82→  const [reviewExpanded, setReviewExpanded] = useState<string | null>('content')
+    83→
+    84→  // Mock Interview state
+    85→  const [mockTargetRole, setMockTargetRole] = useState('')
+    86→  const [mockJobDescription, setMockJobDescription] = useState('')
+    87→  const [mockStarting, setMockStarting] = useState(false)
+    88→  const [mockSession, setMockSession] = useState<MockSession | null>(null)
+    89→  const mockSessionRef = useRef<MockSession | null>(null) // BUG FIX: ref mirrors state — stale closures in voice callbacks read this
+    90→  const [mockResponseText, setMockResponseText] = useState('')
+    91→  const [mockSending, setMockSending] = useState(false)
+    92→  const [mockEnding, setMockEnding] = useState(false)
+    93→  const [mockFeedback, setMockFeedback] = useState<SessionFeedback | null>(null)
+    94→  const [mockPastSessions, setMockPastSessions] = useState<MockSessionSummary[]>([])
+    95→  const [mockShowSetup, setMockShowSetup] = useState(false)
+    96→  const chatEndRef = useRef<HTMLDivElement>(null)
+    97→
+    98→  // Voice interview state
+    99→  const [voiceMode, setVoiceMode] = useState(false)
+   100→  const voiceModeRef = useRef(false)  // BUG FIX: ref mirrors state for callbacks that capture stale closures
+   101→  const [aiSpeaking, setAiSpeaking] = useState(false)
+   102→  const [candidateRecording, setCandidateRecording] = useState(false)
+   103→  const candidateRecordingRef = useRef(false)  // BUG FIX: ref for stale closures
+   104→  const [voiceProcessing, setVoiceProcessing] = useState(false)
+   105→  const voiceProcessingRef = useRef(false) // BUG FIX: ref for endMockInterview to await in-flight voice
+   106→  const [silenceTimer, setSilenceTimer] = useState<number>(0)
+   107→  const [voiceError, setVoiceError] = useState<string | null>(null)
+   108→  const aiAudioRef = useRef<HTMLAudioElement | null>(null)
+   109→  const voiceRecorderRef = useRef<MediaRecorder | null>(null)
+   110→  const voiceChunksRef = useRef<Blob[]>([])
+   111→  const voiceStreamRef = useRef<MediaStream | null>(null)
+   112→  const silenceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+   113→  const analyserRef = useRef<AnalyserNode | null>(null)
+   114→  const silenceCountRef = useRef<number>(0)
+   115→
+   116→  // Mock interview camera state
+   117→  const [mockCameraReady, setMockCameraReady] = useState(false)
+   118→  const [mockCameraError, setMockCameraError] = useState<string | null>(null)
+   119→  const mockVideoRef = useRef<HTMLVideoElement>(null)
+   120→  const mockStreamRef = useRef<MediaStream | null>(null)
+   121→  const [showTranscript, setShowTranscript] = useState(false)
+   122→
+   123→  // Enhanced mock interview: AudioContext for reliable iOS playback, frame capture, live transcript
+   124→  const audioCtxRef = useRef<AudioContext | null>(null)
+   125→  const mockCanvasRef = useRef<HTMLCanvasElement | null>(null)
+   126→  const mockFramesRef = useRef<string[]>([])
+   127→  const mockPerQuestionFramesRef = useRef<string[]>([])  // FEATURE PARITY: per-question frames for analysis
+   128→  const mockQuestionStartTimeRef = useRef<number>(Date.now())  // Track when current question started
+   129→  const mockFrameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+   130→  const [mockLiveTranscript, setMockLiveTranscript] = useState('')
+   131→  const mockLiveTranscriptRef = useRef('')  // BUG FIX: ref mirrors state so recorder.onstop closure reads fresh value
+   132→  const mockRecognitionRef = useRef<any>(null)
+   133→  const mockAudioSourceRef = useRef<AudioBufferSourceNode | null>(null)
+   134→  const voiceRetryCountRef = useRef<number>(0)
+   135→
+   136→  // Real-time body language indicators (updated periodically during interview)
+   137→  const [bodyLanguageIndicators, setBodyLanguageIndicators] = useState<{
+   138→    eye_contact: string
+   139→    posture: string
+   140→    confidence: string
+   141→    expression: string
+   142→    last_updated: string
+   143→  } | null>(null)
+   144→  const bodyLanguageIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+   145→
+   146→  // Start camera for mock interview
+   147→  // BUG FIX: The video element only renders when mockSession is set (in_progress).
+   148→  // So when called from startMockInterview(), mockVideoRef.current is often NULL.
+   149→  // We obtain the stream here and store it in mockStreamRef.current.
+   150→  // A separate useEffect (below) attaches it to the video element once it renders.
+   151→  async function startMockCamera() {
+   152→    try {
+   153→      setMockCameraError(null)
+   154→      if (!navigator.mediaDevices?.getUserMedia) {
+   155→        setMockCameraError('Camera not supported in this browser')
+   156→        return
+   157→      }
+   158→      const constraints = [
+   159→        { video: { facingMode: 'user' }, audio: true },
+   160→        { video: true, audio: true },
+   161→        { video: { facingMode: 'user' }, audio: false },
+   162→        { video: true, audio: false },
+   163→      ]
+   164→      let stream: MediaStream | null = null
+   165→      for (const c of constraints) {
+   166→        try {
+   167→          stream = await navigator.mediaDevices.getUserMedia(c)
+   168→          const vt = stream.getVideoTracks()[0]
+   169→          if (vt?.readyState === 'live') break
+   170→          stream.getTracks().forEach(t => t.stop())
+   171→          stream = null
+   172→        } catch { stream = null }
+   173→      }
+   174→      if (!stream) {
+   175→        setMockCameraError('Could not access camera')
+   176→        return
+   177→      }
+   178→      mockStreamRef.current = stream
+   179→      // Try to attach immediately if video element already exists
+   180→      const v = mockVideoRef.current
+   181→      if (v) {
+   182→        v.srcObject = stream
+   183→        try { await v.play() } catch { try { await v.play() } catch {} }
+   184→      }
+   185→      // Note: if v is null (element not yet rendered), the useEffect below will handle attachment
+   186→      setMockCameraReady(true)
+   187→    } catch (err: any) {
+   188→      setMockCameraError(err.message || 'Camera error')
+   189→    }
+   190→  }
+   191→
+   192→  function stopMockCamera() {
+   193→    if (mockStreamRef.current) {
+   194→      mockStreamRef.current.getTracks().forEach(t => t.stop())
+   195→      mockStreamRef.current = null
+   196→    }
+   197→    setMockCameraReady(false)
+   198→  }
+   199→
+   200→  // BUG FIX: Attach camera stream to video element after it renders.
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

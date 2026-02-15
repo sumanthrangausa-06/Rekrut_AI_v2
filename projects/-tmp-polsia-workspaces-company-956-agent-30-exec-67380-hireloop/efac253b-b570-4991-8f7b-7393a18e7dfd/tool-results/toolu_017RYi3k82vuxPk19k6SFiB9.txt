@@ -1,0 +1,304 @@
+   200→  // BUG FIX: Attach camera stream to video element after it renders.
+   201→  // When startMockCamera() is called from startMockInterview(), the video element
+   202→  // doesn't exist yet (it renders inside the mockSession && in_progress condition).
+   203→  // This useEffect fires once mockSession is set AND mockCameraReady is true,
+   204→  // and attaches the already-obtained stream to the now-rendered video element.
+   205→  useEffect(() => {
+   206→    if (mockCameraReady && mockStreamRef.current && mockSession && mockSession.status === 'in_progress') {
+   207→      const v = mockVideoRef.current
+   208→      if (v && !v.srcObject) {
+   209→        console.log('[camera] Attaching stream to video element (deferred)')
+   210→        v.srcObject = mockStreamRef.current
+   211→        v.play().catch(() => { v.play().catch(() => {}) })
+   212→      }
+   213→    }
+   214→  }, [mockCameraReady, mockSession])
+   215→
+   216→  // BUG FIX: Keep mockSessionRef in sync so voice callbacks always read fresh session
+   217→  useEffect(() => {
+   218→    mockSessionRef.current = mockSession
+   219→  }, [mockSession])
+   220→
+   221→  // Capture a frame from mock interview camera
+   222→  function captureMockFrame(): string | null {
+   223→    if (!mockVideoRef.current) return null
+   224→    if (!mockCanvasRef.current) {
+   225→      mockCanvasRef.current = document.createElement('canvas')
+   226→    }
+   227→    const canvas = mockCanvasRef.current
+   228→    const video = mockVideoRef.current
+   229→    canvas.width = 320
+   230→    canvas.height = 240
+   231→    const ctx = canvas.getContext('2d')
+   232→    if (!ctx) return null
+   233→    ctx.drawImage(video, 0, 0, 320, 240)
+   234→    return canvas.toDataURL('image/jpeg', 0.7)
+   235→  }
+   236→
+   237→  // Start capturing frames throughout mock interview
+   238→  function startMockFrameCapture() {
+   239→    mockFramesRef.current = []
+   240→    mockPerQuestionFramesRef.current = []
+   241→    mockQuestionStartTimeRef.current = Date.now()
+   242→    // Capture first frame immediately
+   243→    setTimeout(() => {
+   244→      const frame = captureMockFrame()
+   245→      if (frame) {
+   246→        mockFramesRef.current.push(frame)
+   247→        mockPerQuestionFramesRef.current.push(frame)
+   248→      }
+   249→    }, 500)
+   250→    // Then every 4 seconds (matching quick practice interval)
+   251→    mockFrameIntervalRef.current = setInterval(() => {
+   252→      const frame = captureMockFrame()
+   253→      if (frame) {
+   254→        // Keep max 20 frames for end-of-interview analysis
+   255→        if (mockFramesRef.current.length < 20) {
+   256→          mockFramesRef.current.push(frame)
+   257→        }
+   258→        // Keep max 8 per-question frames (enough for body language analysis per answer)
+   259→        if (mockPerQuestionFramesRef.current.length < 8) {
+   260→          mockPerQuestionFramesRef.current.push(frame)
+   261→        }
+   262→      }
+   263→    }, 4000)
+   264→  }
+   265→
+   266→  function stopMockFrameCapture() {
+   267→    if (mockFrameIntervalRef.current) {
+   268→      clearInterval(mockFrameIntervalRef.current)
+   269→      mockFrameIntervalRef.current = null
+   270→    }
+   271→    if (bodyLanguageIntervalRef.current) {
+   272→      clearInterval(bodyLanguageIntervalRef.current)
+   273→      bodyLanguageIntervalRef.current = null
+   274→    }
+   275→  }
+   276→
+   277→  // Periodically analyze a frame for real-time body language feedback
+   278→  async function analyzeRealtimeBodyLanguage() {
+   279→    const frame = captureMockFrame()
+   280→    if (!frame) return
+   281→    try {
+   282→      const token = getToken()
+   283→      const res = await fetch('/api/interviews/mock/analyze-frame', {
+   284→        method: 'POST',
+   285→        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+   286→        body: JSON.stringify({ frame })
+   287→      })
+   288→      if (res.ok) {
+   289→        const data = await res.json()
+   290→        if (data.success && data.indicators) {
+   291→          setBodyLanguageIndicators({
+   292→            ...data.indicators,
+   293→            last_updated: new Date().toISOString()
+   294→          })
+   295→        }
+   296→      }
+   297→    } catch (err) {
+   298→      console.warn('[body-language] Real-time analysis error:', err)
+   299→    }
+   300→  }
+   301→
+   302→  // Start periodic body language analysis (every 20 seconds)
+   303→  function startBodyLanguageAnalysis() {
+   304→    // First analysis after 5 seconds
+   305→    setTimeout(() => analyzeRealtimeBodyLanguage(), 5000)
+   306→    // Then every 20 seconds
+   307→    bodyLanguageIntervalRef.current = setInterval(() => {
+   308→      analyzeRealtimeBodyLanguage()
+   309→    }, 20000)
+   310→  }
+   311→
+   312→  // Start live speech recognition during mock interview recording
+   313→  function startMockSpeechRecognition() {
+   314→    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+   315→    if (!SpeechRecognition) return
+   316→
+   317→    const recognition = new SpeechRecognition()
+   318→    recognition.continuous = true
+   319→    recognition.interimResults = true
+   320→    recognition.lang = 'en-US'
+   321→
+   322→    let finalTranscript = ''
+   323→
+   324→    recognition.onresult = (event: any) => {
+   325→      let interim = ''
+   326→      for (let i = event.resultIndex; i < event.results.length; i++) {
+   327→        const result = event.results[i]
+   328→        if (result.isFinal) {
+   329→          finalTranscript += result[0].transcript + ' '
+   330→        } else {
+   331→          interim = result[0].transcript
+   332→        }
+   333→      }
+   334→      const combined = finalTranscript + interim
+   335→      setMockLiveTranscript(combined)
+   336→      mockLiveTranscriptRef.current = combined  // Keep ref in sync for onstop closure
+   337→    }
+   338→
+   339→    recognition.onerror = (event: any) => {
+   340→      if (event.error === 'no-speech') {
+   341→        try { recognition.start() } catch (_) {}
+   342→      }
+   343→    }
+   344→
+   345→    recognition.onend = () => {
+   346→      // BUG FIX: Read from ref — state is stale in this closure (captured at startMockSpeechRecognition time)
+   347→      if (candidateRecordingRef.current) {
+   348→        try { recognition.start() } catch (_) {}
+   349→      }
+   350→    }
+   351→
+   352→    try {
+   353→      recognition.start()
+   354→      mockRecognitionRef.current = recognition
+   355→    } catch (_) {}
+   356→  }
+   357→
+   358→  function stopMockSpeechRecognition() {
+   359→    if (mockRecognitionRef.current) {
+   360→      try { mockRecognitionRef.current.stop() } catch (_) {}
+   361→      mockRecognitionRef.current = null
+   362→    }
+   363→  }
+   364→
+   365→  // Ensure AudioContext is created and unlocked (call from user gesture)
+   366→  function ensureAudioContext(): AudioContext {
+   367→    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+   368→      audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
+   369→    }
+   370→    if (audioCtxRef.current.state === 'suspended') {
+   371→      audioCtxRef.current.resume()
+   372→    }
+   373→    return audioCtxRef.current
+   374→  }
+   375→
+   376→  const loadStats = useCallback(async () => {
+   377→    try {
+   378→      const res = await apiCall<{ success: boolean; stats: PracticeStats }>('/interviews/practice/stats')
+   379→      if (res.success) setStats(res.stats)
+   380→    } catch (err) {
+   381→      console.error('Failed to load stats:', err)
+   382→    }
+   383→  }, [])
+   384→
+   385→  const loadQuestions = useCallback(async () => {
+   386→    try {
+   387→      const res = await apiCall<{ success: boolean; questions: PracticeQuestion[] }>('/interviews/practice/library')
+   388→      if (res.success) setQuestions(res.questions)
+   389→    } catch (err) {
+   390→      console.error('Failed to load questions:', err)
+   391→    }
+   392→  }, [])
+   393→
+   394→  const loadProgress = useCallback(async () => {
+   395→    try {
+   396→      const res = await apiCall<{
+   397→        success: boolean
+   398→        progress: { by_category: CategoryProgress[]; recent_sessions: RecentSession[] }
+   399→      }>('/interviews/practice/progress')
+   400→      if (res.success) {
+   401→        setCategoryProgress(res.progress.by_category)
+   402→        setRecentSessions(res.progress.recent_sessions)
+   403→      }
+   404→    } catch (err) {
+   405→      console.error('Failed to load progress:', err)
+   406→    }
+   407→  }, [])
+   408→
+   409→  const loadHistory = useCallback(async (category?: string) => {
+   410→    setHistoryLoading(true)
+   411→    try {
+   412→      const cat = category || historyFilter
+   413→      const res = await apiCall<{
+   414→        success: boolean; sessions: HistorySession[]; total: number; has_more: boolean
+   415→      }>(`/interviews/practice/sessions?limit=50&category=${cat}`)
+   416→      if (res.success) {
+   417→        setHistorySessions(res.sessions)
+   418→        setHistoryTotal(res.total)
+   419→      }
+   420→    } catch (err) {
+   421→      console.error('Failed to load history:', err)
+   422→    } finally {
+   423→      setHistoryLoading(false)
+   424→    }
+   425→  }, [historyFilter])
+   426→
+   427→  // BUG FIX: loadMockSessions MUST be declared before the useEffect that depends on it.
+   428→  // Previously at line ~1139 (after the useEffect), causing a TDZ ReferenceError crash.
+   429→  const loadMockSessions = useCallback(async () => {
+   430→    try {
+   431→      const res = await apiCall<{ success: boolean; sessions: MockSessionSummary[]; total: number }>('/interviews/mock/sessions?limit=10')
+   432→      if (res.success) setMockPastSessions(res.sessions)
+   433→    } catch (err) { console.error('Failed to load mock sessions:', err) }
+   434→  }, [])
+   435→
+   436→  useEffect(() => {
+   437→    async function init() {
+   438→      setLoading(true)
+   439→      await Promise.all([loadStats(), loadQuestions(), loadProgress(), loadHistory(), loadMockSessions()])
+   440→      setLoading(false)
+   441→    }
+   442→    init()
+   443→  }, [loadStats, loadQuestions, loadProgress, loadHistory, loadMockSessions])
+   444→
+   445→  // Refresh history when switching to history tab
+   446→  useEffect(() => {
+   447→    if (tab === 'history') loadHistory()
+   448→  }, [tab, loadHistory])
+   449→
+   450→  // Cleanup on unmount
+   451→  useEffect(() => {
+   452→    return () => {
+   453→      stopCamera()
+   454→      if (timerRef.current) clearInterval(timerRef.current)
+   455→      if (frameIntervalRef.current) clearInterval(frameIntervalRef.current)
+   456→    }
+   457→  }, [])
+   458→
+   459→  // NO deferred useEffect for stream attachment.
+   460→  // 13TH FIX: The key prop swap + deferred useEffect was the root cause of black screen.
+   461→  // Stream is now attached DIRECTLY in startCamera() — like the original working code.
+   462→
+   463→  function openPractice(q: PracticeQuestion) {
+   464→    setPracticeQuestion(q)
+   465→    setResponseMode('select')
+   466→    setResponseText('')
+   467→    setCoaching(null)
+   468→    setTextCoaching(null)
+   469→    setSubmitting(false)
+   470→    setRecordingDone(false)
+   471→    setTranscription('')
+   472→    setCapturedFrames([])
+   473→    setRecordingTime(0)
+   474→    setCameraError(null)
+   475→    setExpandedSection('content')
+   476→    audioDataRef.current = null
+   477→    audioChunksRef.current = []
+   478→    setMicActive(false)
+   479→  }
+   480→
+   481→  function closePractice() {
+   482→    stopCamera()
+   483→    stopRecording()
+   484→    setPracticeQuestion(null)
+   485→    setResponseMode('select')
+   486→    setResponseText('')
+   487→    setCoaching(null)
+   488→    setTextCoaching(null)
+   489→    setSubmitting(false)
+   490→    setRecordingDone(false)
+   491→    setTranscription('')
+   492→    setCapturedFrames([])
+   493→    setRecordingTime(0)
+   494→    setCameraError(null)
+   495→    setCountdown(null)
+   496→  }
+   497→
+   498→  // Detect iOS (all browsers on iOS use WebKit)
+   499→  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

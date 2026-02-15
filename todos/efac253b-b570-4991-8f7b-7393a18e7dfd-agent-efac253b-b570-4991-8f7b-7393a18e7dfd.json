@@ -1,0 +1,37 @@
+[
+  {
+    "content": "Read and analyze full ai-coaching.tsx structure",
+    "status": "completed",
+    "activeForm": "Reading and analyzing ai-coaching.tsx structure"
+  },
+  {
+    "content": "Create ai-coaching-progress.tsx with Progress + History tabs",
+    "status": "completed",
+    "activeForm": "Creating ai-coaching-progress.tsx"
+  },
+  {
+    "content": "Create quick-practice.tsx with Quick Practice logic",
+    "status": "completed",
+    "activeForm": "Creating quick-practice.tsx"
+  },
+  {
+    "content": "Create mock-interview.tsx with Mock Interview logic",
+    "status": "completed",
+    "activeForm": "Creating mock-interview.tsx"
+  },
+  {
+    "content": "Refactor ai-coaching.tsx into thin router",
+    "status": "completed",
+    "activeForm": "Refactoring ai-coaching.tsx into thin router"
+  },
+  {
+    "content": "Build, commit, deploy, and verify",
+    "status": "in_progress",
+    "activeForm": "Building, committing, deploying, and verifying"
+  },
+  {
+    "content": "Update ARCHITECTURE_CURRENT.md",
+    "status": "in_progress",
+    "activeForm": "Updating architecture docs"
+  }
+]

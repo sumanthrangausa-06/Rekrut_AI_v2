@@ -1,0 +1,304 @@
+   800→    setIsRecording(false)
+   801→
+   802→    if (timerRef.current) {
+   803→      clearInterval(timerRef.current)
+   804→      timerRef.current = null
+   805→    }
+   806→
+   807→    if (frameIntervalRef.current) {
+   808→      clearInterval(frameIntervalRef.current)
+   809→      frameIntervalRef.current = null
+   810→    }
+   811→
+   812→    // Capture final frame
+   813→    const frame = captureFrame()
+   814→    if (frame) setCapturedFrames(prev => [...prev, frame])
+   815→
+   816→    // Stop audio recording
+   817→    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+   818→      mediaRecorderRef.current.stop()
+   819→      mediaRecorderRef.current = null
+   820→    }
+   821→
+   822→    stopSpeechRecognition()
+   823→    setRecordingDone(true)
+   824→  }
+   825→
+   826→  // Submit video response
+   827→  // BUG FIX (Feb 14, 2026): Added 35s AbortController timeout to prevent Safari "Load failed" on iOS.
+   828→  // Backend now has 25s overall timeout, so 35s client-side gives it breathing room.
+   829→  async function submitVideoResponse() {
+   830→    if (!practiceQuestion) return
+   831→
+   832→    const finalTranscription = transcription.trim()
+   833→    if (finalTranscription.length < 20) {
+   834→      alert('Your response was too short. Please try recording again and speak for at least 15-20 seconds.')
+   835→      return
+   836→    }
+   837→
+   838→    if (capturedFrames.length === 0) {
+   839→      alert('No video frames were captured. Please try again with camera enabled.')
+   840→      return
+   841→    }
+   842→
+   843→    setSubmitting(true)
+   844→    const abortController = new AbortController()
+   845→    const fetchTimeout = setTimeout(() => abortController.abort(), 35000)
+   846→    try {
+   847→      const res = await apiCall<{ success: boolean; coaching: VideoCoaching }>('/interviews/practice/submit-video', {
+   848→        method: 'POST',
+   849→        signal: abortController.signal,
+   850→        body: {
+   851→          question_id: practiceQuestion.id,
+   852→          question: practiceQuestion.question,
+   853→          category: practiceQuestion.category,
+   854→          transcription: finalTranscription,
+   855→          frames: capturedFrames,
+   856→          duration_seconds: recordingTime,
+   857→          audio_data: audioDataRef.current || undefined,
+   858→        },
+   859→      })
+   860→
+   861→      if (res.success) {
+   862→        setCoaching(res.coaching)
+   863→        stopCamera()
+   864→        loadStats()
+   865→        loadQuestions()
+   866→        loadProgress()
+   867→        loadHistory()
+   868→      }
+   869→    } catch (err: any) {
+   870→      if (err.name === 'AbortError' || abortController.signal.aborted) {
+   871→        alert('Analysis is taking longer than expected. Please try again — the AI may need a moment.')
+   872→      } else {
+   873→        alert(err.message || 'Failed to get AI coaching. Please try again.')
+   874→      }
+   875→    } finally {
+   876→      clearTimeout(fetchTimeout)
+   877→      setSubmitting(false)
+   878→    }
+   879→  }
+   880→
+   881→  // Submit text response (fallback)
+   882→  async function submitTextResponse() {
+   883→    if (!practiceQuestion) return
+   884→    if (responseText.trim().length < 50) {
+   885→      alert('Please write at least 50 characters for a meaningful response.')
+   886→      return
+   887→    }
+   888→
+   889→    setSubmitting(true)
+   890→    const abortController = new AbortController()
+   891→    const fetchTimeout = setTimeout(() => abortController.abort(), 35000)
+   892→    try {
+   893→      const res = await apiCall<{ success: boolean; coaching: TextCoaching }>('/interviews/practice/submit', {
+   894→        method: 'POST',
+   895→        signal: abortController.signal,
+   896→        body: {
+   897→          question_id: practiceQuestion.id,
+   898→          question: practiceQuestion.question,
+   899→          category: practiceQuestion.category,
+   900→          response_text: responseText,
+   901→        },
+   902→      })
+   903→
+   904→      if (res.success) {
+   905→        setTextCoaching(res.coaching)
+   906→        loadStats()
+   907→        loadQuestions()
+   908→        loadProgress()
+   909→        loadHistory()
+   910→      }
+   911→    } catch (err: any) {
+   912→      if (err.name === 'AbortError' || abortController.signal.aborted) {
+   913→        alert('Analysis is taking longer than expected. Please try again.')
+   914→      } else {
+   915→        alert(err.message || 'Failed to get AI coaching. Please try again.')
+   916→      }
+   917→    } finally {
+   918→      clearTimeout(fetchTimeout)
+   919→      setSubmitting(false)
+   920→    }
+   921→  }
+   922→
+   923→  function practiceAnother() {
+   924→    setCoaching(null)
+   925→    setTextCoaching(null)
+   926→    setResponseText('')
+   927→    setTranscription('')
+   928→    setCapturedFrames([])
+   929→    setRecordingDone(false)
+   930→    setRecordingTime(0)
+   931→    setPracticeQuestion(null)
+   932→    setResponseMode('select')
+   933→    stopCamera()
+   934→  }
+   935→
+   936→  // ===== MOCK INTERVIEW FUNCTIONS =====
+   937→
+   938→  async function startMockInterview() {
+   939→    if (!mockTargetRole.trim()) return
+   940→    setMockStarting(true)
+   941→    try {
+   942→      // Always start in voice mode for video call experience
+   943→      setVoiceMode(true)
+   944→      voiceModeRef.current = true
+   945→
+   946→      // CRITICAL: Unlock AudioContext from user gesture context (fixes iOS audio)
+   947→      ensureAudioContext()
+   948→
+   949→      // Start camera (await to ensure permissions are granted before proceeding)
+   950→      await startMockCamera()
+   951→
+   952→      // Start frame capture for body language analysis (analyzed at end, NOT real-time)
+   953→      startMockFrameCapture()
+   954→
+   955→      // NOTE: Real-time body language analysis removed — saves API tokens and reduces rate limiting.
+   956→      // Frames are still captured and analyzed at interview end in background.
+   957→
+   958→      // Show transcript by default for live transcription
+   959→      setShowTranscript(true)
+   960→
+   961→      const res = await apiCall<{ success: boolean; session: MockSession; first_message: MockConversationTurn }>('/interviews/mock/start', {
+   962→        method: 'POST',
+   963→        body: { target_role: mockTargetRole.trim(), job_description: mockJobDescription.trim() || undefined }
+   964→      })
+   965→      if (res.success) {
+   966→        setMockSession(res.session)
+   967→        setMockShowSetup(false)
+   968→        setMockFeedback(null)
+   969→        // Directly play the AI greeting (user just clicked, so autoplay is allowed)
+   970→        if (res.first_message?.text) {
+   971→          playInterviewerAudio(res.first_message.text)
+   972→        }
+   973→      }
+   974→    } catch (err: any) {
+   975→      const msg = err.message || 'Failed to start interview'
+   976→      // Show a more helpful error if rate-limited
+   977→      if (msg.includes('429') || msg.includes('rate') || msg.includes('limit') || msg.includes('token')) {
+   978→        alert('AI service is temporarily at capacity. Please wait a moment and try again.')
+   979→      } else {
+   980→        alert(msg)
+   981→      }
+   982→      // CRITICAL: Clean up everything on failure — prevents stale session display
+   983→      stopMockCamera()
+   984→      stopMockFrameCapture()
+   985→      stopVoiceMode()
+   986→      setMockSession(null)
+   987→      setVoiceMode(false)
+   988→      voiceModeRef.current = false
+   989→      setShowTranscript(false)
+   990→    } finally {
+   991→      setMockStarting(false)
+   992→    }
+   993→  }
+   994→
+   995→  async function sendMockResponse() {
+   996→    if (!mockSession || !mockResponseText.trim() || mockSending) return
+   997→    const text = mockResponseText.trim()
+   998→    setMockResponseText('')
+   999→    setMockSending(true)
+  1000→
+  1001→    // FEATURE PARITY: Capture per-question frames and duration before sending
+  1002→    const perQuestionFrames = [...mockPerQuestionFramesRef.current]
+  1003→    const questionDuration = Math.round((Date.now() - mockQuestionStartTimeRef.current) / 1000)
+  1004→    // Reset per-question accumulators for next question
+  1005→    mockPerQuestionFramesRef.current = []
+  1006→    mockQuestionStartTimeRef.current = Date.now()
+  1007→
+  1008→    // Optimistically add candidate message
+  1009→    const candidateMsg: MockConversationTurn = { role: 'candidate', text, timestamp: new Date().toISOString() }
+  1010→    setMockSession(prev => prev ? { ...prev, conversation: [...prev.conversation, candidateMsg] } : null)
+  1011→    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+  1012→
+  1013→    try {
+  1014→      // BUG FIX: Add 28s timeout — prevents hanging when AI providers are all down
+  1015→      const textAbort = new AbortController()
+  1016→      const textTimeout = setTimeout(() => textAbort.abort(), 28000)
+  1017→
+  1018→      try {
+  1019→        const res = await apiCall<{
+  1020→          success: boolean; interviewer_message: MockConversationTurn; action: string; is_wrapping_up: boolean
+  1021→        }>(`/interviews/mock/${mockSession.id}/respond`, {
+  1022→          method: 'POST',
+  1023→          body: {
+  1024→            response_text: text,
+  1025→            frames: perQuestionFrames.length > 0 ? perQuestionFrames : undefined,
+  1026→            duration_seconds: questionDuration
+  1027→          },
+  1028→          signal: textAbort.signal
+  1029→        })
+  1030→        if (res.success) {
+  1031→          setMockSession(prev => prev ? {
+  1032→            ...prev,
+  1033→            conversation: [...prev.conversation, res.interviewer_message]
+  1034→          } : null)
+  1035→          setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+  1036→          // Always play TTS in mock interview (voice is always on)
+  1037→          if (res.interviewer_message?.text) {
+  1038→            playInterviewerAudio(res.interviewer_message.text)
+  1039→          }
+  1040→          // BUG FIX #1: Auto-end interview when wrap_up is signaled
+  1041→          if (res.is_wrapping_up) {
+  1042→            // Give time for TTS to play the wrap-up message, then auto-end
+  1043→            setTimeout(() => {
+  1044→              if (!mockEnding) endMockInterview()
+  1045→            }, 8000)
+  1046→          }
+  1047→        }
+  1048→      } finally {
+  1049→        clearTimeout(textTimeout)
+  1050→      }
+  1051→    } catch (err: any) {
+  1052→      if (err.name === 'AbortError') {
+  1053→        setVoiceError('AI is taking too long. Please try sending your response again.')
+  1054→      } else {
+  1055→        alert(err.message || 'Failed to send response')
+  1056→      }
+  1057→    } finally {
+  1058→      setMockSending(false)
+  1059→    }
+  1060→  }
+  1061→
+  1062→  async function endMockInterview() {
+  1063→    if (!mockSession) return
+  1064→    setMockEnding(true)
+  1065→
+  1066→    // BUG FIX: If voice response is in-flight, wait for it before ending
+  1067→    // Otherwise end API reads DB before voice-respond writes candidate turn → 0/10 score
+  1068→    if (voiceProcessingRef.current) {
+  1069→      console.log('[end] Waiting for in-flight voice response to complete...')
+  1070→      await new Promise<void>(resolve => {
+  1071→        const check = setInterval(() => {
+  1072→          if (!voiceProcessingRef.current) {
+  1073→            clearInterval(check)
+  1074→            resolve()
+  1075→          }
+  1076→        }, 200)
+  1077→        // Max 6 seconds — don't hang forever
+  1078→        setTimeout(() => { clearInterval(check); resolve() }, 6000)
+  1079→      })
+  1080→    }
+  1081→
+  1082→    // IMMEDIATELY stop all audio, recording, and camera — don't wait for anything
+  1083→    stopVoiceMode()
+  1084→    stopMockFrameCapture()
+  1085→    stopMockSpeechRecognition()
+  1086→
+  1087→    // Capture a final frame (quick, non-blocking)
+  1088→    const finalFrame = captureMockFrame()
+  1089→    if (finalFrame && mockFramesRef.current.length < 20) {
+  1090→      mockFramesRef.current.push(finalFrame)
+  1091→    }
+  1092→
+  1093→    // BUG FIX: Do NOT await TTS goodbye — this hung the end button when TTS was failing.
+  1094→    // Fire and forget with a very short timeout.
+  1095→    if (voiceMode) {
+  1096→      const goodbyeText = `Thank you for the interview. I'll prepare your feedback now.`
+  1097→      // Best-effort TTS, abort after 3 seconds
+  1098→      Promise.race([
+  1099→        speakWithBrowserTTS(goodbyeText),
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

@@ -1,0 +1,304 @@
+  1700→      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+  1701→        try { audioCtxRef.current.close() } catch (_) {}
+  1702→      }
+  1703→    }
+  1704→  }, [])
+  1705→
+  1706→  // Load mock sessions when switching to mock tab
+  1707→  useEffect(() => {
+  1708→    if (tab === 'mock') loadMockSessions()
+  1709→  }, [tab, loadMockSessions])
+  1710→
+  1711→  const filteredQuestions =
+  1712→    categoryFilter === 'all' ? questions : questions.filter(q => q.category === categoryFilter)
+  1713→
+  1714→  const categoryCounts = questions.reduce<Record<string, number>>((acc, q) => {
+  1715→    acc[q.category] = (acc[q.category] || 0) + 1
+  1716→    return acc
+  1717→  }, {})
+  1718→
+  1719→  if (loading) {
+  1720→    return (
+  1721→      <div className="flex items-center justify-center py-20">
+  1722→        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+  1723→      </div>
+  1724→    )
+  1725→  }
+  1726→
+  1727→  // ==================== RENDER ====================
+  1728→  return (
+  1729→    <div className="space-y-6">
+  1730→      {/* Header */}
+  1731→      <div>
+  1732→        <div className="flex items-center gap-2">
+  1733→          <div className="p-2 rounded-lg bg-primary/10">
+  1734→            <Video className="h-5 w-5 text-primary" />
+  1735→          </div>
+  1736→          <div>
+  1737→            <h1 className="text-2xl font-heading font-bold">AI Interview Coach</h1>
+  1738→            <p className="text-muted-foreground text-sm">Record video responses — get AI feedback on content, delivery, and body language</p>
+  1739→          </div>
+  1740→        </div>
+  1741→      </div>
+  1742→
+  1743→      {/* Feature Highlights */}
+  1744→      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+  1745→        <div className="flex items-center gap-3 p-3 rounded-lg bg-violet-50 border border-violet-100">
+  1746→          <Camera className="h-5 w-5 text-violet-600 shrink-0" />
+  1747→          <div>
+  1748→            <p className="text-sm font-medium text-violet-900">Video Recording</p>
+  1749→            <p className="text-xs text-violet-600">Record yourself answering like a real interview</p>
+  1750→          </div>
+  1751→        </div>
+  1752→        <div className="flex items-center gap-3 p-3 rounded-lg bg-sky-50 border border-sky-100">
+  1753→          <Eye className="h-5 w-5 text-sky-600 shrink-0" />
+  1754→          <div>
+  1755→            <p className="text-sm font-medium text-sky-900">Body Language AI</p>
+  1756→            <p className="text-xs text-sky-600">Eye contact, expressions, posture analysis</p>
+  1757→          </div>
+  1758→        </div>
+  1759→        <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+  1760→          <Volume2 className="h-5 w-5 text-emerald-600 shrink-0" />
+  1761→          <div>
+  1762→            <p className="text-sm font-medium text-emerald-900">Speech Analysis</p>
+  1763→            <p className="text-xs text-emerald-600">Pace, filler words, clarity scoring</p>
+  1764→          </div>
+  1765→        </div>
+  1766→      </div>
+  1767→
+  1768→      {/* Stats Cards */}
+  1769→      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+  1770→        <Card>
+  1771→          <CardContent className="p-4 text-center">
+  1772→            <div className="inline-flex p-2 rounded-lg bg-primary/10 mb-2">
+  1773→              <Target className="h-5 w-5 text-primary" />
+  1774→            </div>
+  1775→            <div className="text-2xl font-bold">{stats?.total_questions || 0}</div>
+  1776→            <div className="text-xs text-muted-foreground">Sessions</div>
+  1777→          </CardContent>
+  1778→        </Card>
+  1779→        <Card>
+  1780→          <CardContent className="p-4 text-center">
+  1781→            <div className="inline-flex p-2 rounded-lg bg-amber-100 mb-2">
+  1782→              <Star className="h-5 w-5 text-amber-600" />
+  1783→            </div>
+  1784→            <div className="text-2xl font-bold">
+  1785→              {stats?.average_score != null ? `${Math.round(stats.average_score * 10) / 10}/10` : '—'}
+  1786→            </div>
+  1787→            <div className="text-xs text-muted-foreground">Avg Score</div>
+  1788→          </CardContent>
+  1789→        </Card>
+  1790→        <Card>
+  1791→          <CardContent className="p-4 text-center">
+  1792→            <div className="inline-flex p-2 rounded-lg bg-green-100 mb-2">
+  1793→              <TrendingUp className="h-5 w-5 text-green-600" />
+  1794→            </div>
+  1795→            <div className="text-2xl font-bold">
+  1796→              {stats?.improvement != null ? `${stats.improvement > 0 ? '+' : ''}${Math.round(stats.improvement)}%` : '—'}
+  1797→            </div>
+  1798→            <div className="text-xs text-muted-foreground">Improvement</div>
+  1799→          </CardContent>
+  1800→        </Card>
+  1801→        <Card>
+  1802→          <CardContent className="p-4 text-center">
+  1803→            <div className="inline-flex p-2 rounded-lg bg-orange-100 mb-2">
+  1804→              <Flame className="h-5 w-5 text-orange-600" />
+  1805→            </div>
+  1806→            <div className="text-2xl font-bold">{stats?.day_streak || 0}</div>
+  1807→            <div className="text-xs text-muted-foreground">Day Streak</div>
+  1808→          </CardContent>
+  1809→        </Card>
+  1810→      </div>
+  1811→
+  1812→      {/* Tabs */}
+  1813→      <Tabs value={tab} onValueChange={setTab}>
+  1814→        <TabsList>
+  1815→          <TabsTrigger value="mock">
+  1816→            <Video className="h-4 w-4 mr-1.5" /> Mock Interview
+  1817→          </TabsTrigger>
+  1818→          <TabsTrigger value="practice">
+  1819→            <BookOpen className="h-4 w-4 mr-1.5" /> Quick Practice
+  1820→          </TabsTrigger>
+  1821→          <TabsTrigger value="progress">
+  1822→            <BarChart3 className="h-4 w-4 mr-1.5" /> Progress
+  1823→          </TabsTrigger>
+  1824→          <TabsTrigger value="history">
+  1825→            <History className="h-4 w-4 mr-1.5" /> History
+  1826→          </TabsTrigger>
+  1827→        </TabsList>
+  1828→
+  1829→        {/* Mock Interview Tab */}
+  1830→        <TabsContent value="mock">
+  1831→          {/* Active interview session — VIDEO CALL LAYOUT */}
+  1832→          {mockSession && mockSession.status === 'in_progress' && !mockFeedback ? (
+  1833→            <div className="space-y-3">
+  1834→              {/* Video call container */}
+  1835→              <div className="relative rounded-2xl overflow-hidden bg-gray-950 border-2 border-gray-800" style={{ minHeight: '60vh' }}>
+  1836→                {/* Main area: AI Interviewer (large) */}
+  1837→                <div className="absolute inset-0 flex items-center justify-center">
+  1838→                  {/* AI Avatar / Waveform area */}
+  1839→                  <div className="flex flex-col items-center gap-4">
+  1840→                    {/* AI avatar circle — professional interviewer look */}
+  1841→                    <div className={`relative h-28 w-28 sm:h-36 sm:w-36 rounded-full flex items-center justify-center transition-all duration-300 ${
+  1842→                      aiSpeaking ? 'bg-gradient-to-br from-violet-500/40 to-blue-500/40 ring-4 ring-violet-400/50 scale-105' :
+  1843→                      voiceProcessing ? 'bg-amber-500/20 ring-2 ring-amber-400/30' :
+  1844→                      'bg-gradient-to-br from-gray-700 to-gray-800 ring-2 ring-gray-600'
+  1845→                    }`}>
+  1846→                      {/* Animated waveform rings when speaking */}
+  1847→                      {aiSpeaking && (
+  1848→                        <>
+  1849→                          <div className="absolute inset-0 rounded-full bg-violet-400/20 animate-ping" style={{ animationDuration: '1.5s' }} />
+  1850→                          <div className="absolute inset-[-8px] rounded-full border-2 border-violet-400/30 animate-pulse" />
+  1851→                          <div className="absolute inset-[-16px] rounded-full border border-violet-400/15 animate-pulse" style={{ animationDelay: '300ms' }} />
+  1852→                        </>
+  1853→                      )}
+  1854→                      {/* Professional interviewer avatar with initials */}
+  1855→                      <div className="flex flex-col items-center">
+  1856→                        <User className={`h-10 w-10 sm:h-14 sm:w-14 transition-colors ${
+  1857→                          aiSpeaking ? 'text-violet-200' : 'text-gray-300'
+  1858→                        }`} />
+  1859→                        <span className={`text-[9px] sm:text-[10px] font-semibold mt-0.5 ${
+  1860→                          aiSpeaking ? 'text-violet-200' : 'text-gray-400'
+  1861→                        }`}>AI</span>
+  1862→                      </div>
+  1863→                    </div>
+  1864→
+  1865→                    {/* AI name and status */}
+  1866→                    <div className="text-center">
+  1867→                      <p className="text-white font-semibold text-sm sm:text-base">AI Interviewer</p>
+  1868→                      <p className={`text-xs mt-1 transition-colors ${
+  1869→                        aiSpeaking ? 'text-violet-300' :
+  1870→                        voiceProcessing ? 'text-amber-300 animate-pulse' :
+  1871→                        candidateRecording ? 'text-green-300' :
+  1872→                        'text-gray-500'
+  1873→                      }`}>
+  1874→                        {aiSpeaking ? 'Speaking...' :
+  1875→                         voiceProcessing ? 'AI is thinking...' :
+  1876→                         candidateRecording ? 'Listening to you...' :
+  1877→                         'Waiting for your answer'}
+  1878→                      </p>
+  1879→                    </div>
+  1880→
+  1881→                    {/* Thinking dots when processing */}
+  1882→                    {voiceProcessing && !aiSpeaking && (
+  1883→                      <div className="flex items-center gap-1.5 h-8">
+  1884→                        {[0, 1, 2].map(i => (
+  1885→                          <div
+  1886→                            key={i}
+  1887→                            className="w-2.5 h-2.5 bg-amber-400 rounded-full animate-bounce"
+  1888→                            style={{ animationDelay: `${i * 200}ms` }}
+  1889→                          />
+  1890→                        ))}
+  1891→                      </div>
+  1892→                    )}
+  1893→
+  1894→                    {/* Waveform bars when AI is speaking */}
+  1895→                    {aiSpeaking && (
+  1896→                      <div className="flex items-end gap-1 h-8">
+  1897→                        {[...Array(9)].map((_, i) => (
+  1898→                          <div
+  1899→                            key={i}
+  1900→                            className="w-1.5 bg-violet-400 rounded-full animate-pulse"
+  1901→                            style={{
+  1902→                              height: `${20 + Math.random() * 80}%`,
+  1903→                              animationDelay: `${i * 80}ms`,
+  1904→                              animationDuration: `${400 + Math.random() * 300}ms`
+  1905→                            }}
+  1906→                          />
+  1907→                        ))}
+  1908→                      </div>
+  1909→                    )}
+  1910→                  </div>
+  1911→                </div>
+  1912→
+  1913→                {/* Candidate camera (picture-in-picture, bottom-right) */}
+  1914→                <div className="absolute bottom-3 right-3 z-10">
+  1915→                  <div className={`relative w-32 h-24 sm:w-44 sm:h-32 rounded-xl overflow-hidden border-2 shadow-2xl ${
+  1916→                    candidateRecording ? 'border-green-400 ring-2 ring-green-400/30' : 'border-gray-600'
+  1917→                  }`}>
+  1918→                    <video
+  1919→                      ref={mockVideoRef}
+  1920→                      autoPlay
+  1921→                      playsInline
+  1922→                      muted
+  1923→                      className="w-full h-full object-cover bg-gray-900 scale-x-[-1]"
+  1924→                    />
+  1925→                    {!mockCameraReady && (
+  1926→                      <div className="absolute inset-0 bg-gray-900 flex items-center justify-center">
+  1927→                        <button
+  1928→                          onClick={startMockCamera}
+  1929→                          className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition-colors"
+  1930→                        >
+  1931→                          <Camera className="h-5 w-5" />
+  1932→                          <span className="text-[10px]">Enable Camera</span>
+  1933→                        </button>
+  1934→                      </div>
+  1935→                    )}
+  1936→                    {candidateRecording && (
+  1937→                      <div className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-red-600/90 text-white text-[9px] px-1.5 py-0.5 rounded-full">
+  1938→                        <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+  1939→                        REC
+  1940→                      </div>
+  1941→                    )}
+  1942→                    <div className="absolute bottom-1 left-1 text-[9px] text-white/70 bg-black/50 px-1 rounded">You</div>
+  1943→                  </div>
+  1944→                </div>
+  1945→
+  1946→                {/* Top bar: Session info */}
+  1947→                <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/60 to-transparent p-3 z-10">
+  1948→                  <div className="flex items-center justify-between">
+  1949→                    <div className="flex items-center gap-2">
+  1950→                      <Badge className="bg-green-600/80 text-white border-0 text-[10px]">
+  1951→                        <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse mr-1" />
+  1952→                        LIVE
+  1953→                      </Badge>
+  1954→                      <span className="text-white/80 text-xs font-medium">{mockSession.target_role}</span>
+  1955→                    </div>
+  1956→                    {/* Progress */}
+  1957→                    {(() => {
+  1958→                      const candidateTurns = mockSession.conversation.filter(t => t.role === 'candidate').length
+  1959→                      return (
+  1960→                        <span className="text-white/60 text-xs">
+  1961→                          Q{candidateTurns} of ~8
+  1962→                        </span>
+  1963→                      )
+  1964→                    })()}
+  1965→                  </div>
+  1966→                  {/* Progress bar */}
+  1967→                  {(() => {
+  1968→                    const candidateTurns = mockSession.conversation.filter(t => t.role === 'candidate').length
+  1969→                    const progress = Math.min(100, Math.round((candidateTurns / 8) * 100))
+  1970→                    return (
+  1971→                      <div className="mt-2 h-0.5 bg-white/10 rounded-full overflow-hidden">
+  1972→                        <div className="h-full bg-green-400/60 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+  1973→                      </div>
+  1974→                    )
+  1975→                  })()}
+  1976→                </div>
+  1977→
+  1978→                {/* Current question overlay (subtle, bottom-left) */}
+  1979→                {mockSession.conversation.length > 0 && (() => {
+  1980→                  const lastInterviewer = [...mockSession.conversation].reverse().find(t => t.role === 'interviewer')
+  1981→                  if (!lastInterviewer) return null
+  1982→                  return (
+  1983→                    <div className="absolute bottom-3 left-3 right-48 sm:right-52 z-10">
+  1984→                      <div className="bg-black/60 backdrop-blur-sm rounded-xl p-3 max-h-24 overflow-y-auto">
+  1985→                        <p className="text-white/90 text-xs sm:text-sm leading-relaxed">{lastInterviewer.text}</p>
+  1986→                      </div>
+  1987→                    </div>
+  1988→                  )
+  1989→                })()}
+  1990→
+  1991→                {/* Body language analyzed at interview end (real-time removed to save API tokens) */}
+  1992→
+  1993→                {/* Live transcript removed — STT runs in backend only, no on-screen text during interview */}
+  1994→              </div>
+  1995→
+  1996→              {/* Controls bar */}
+  1997→              <div className="flex items-center justify-center gap-3 py-2">
+  1998→                {/* Mic / Record button */}
+  1999→                {!candidateRecording && !aiSpeaking && !voiceProcessing ? (
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

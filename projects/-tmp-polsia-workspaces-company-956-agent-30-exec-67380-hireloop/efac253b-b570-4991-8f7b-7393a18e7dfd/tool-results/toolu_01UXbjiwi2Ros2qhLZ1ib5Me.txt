@@ -1,0 +1,304 @@
+  1100→        new Promise(resolve => setTimeout(resolve, 3000))
+  1101→      ]).catch(() => {})
+  1102→    }
+  1103→
+  1104→    try {
+  1105→      // Send frames for body language analysis
+  1106→      const frames = mockFramesRef.current.length > 0 ? mockFramesRef.current : undefined
+  1107→      const res = await apiCall<{ success: boolean; feedback: SessionFeedback; no_feedback?: boolean }>(`/interviews/mock/${mockSession.id}/end`, {
+  1108→        method: 'POST',
+  1109→        body: { frames }
+  1110→      })
+  1111→      if (res.success) {
+  1112→        stopMockCamera()
+  1113→        if (res.no_feedback) {
+  1114→          // No questions answered — show "no feedback" message
+  1115→          setMockFeedback({
+  1116→            overall_score: 0,
+  1117→            interview_readiness: 'needs_practice',
+  1118→            summary: 'Interview ended before any questions were answered. No feedback is available. Start a new interview to practice!',
+  1119→            strengths: [],
+  1120→            improvements: ['Complete at least one question to receive feedback'],
+  1121→            question_scores: [],
+  1122→            star_method_usage: { score: 0, feedback: 'N/A' },
+  1123→            communication_quality: { score: 0, feedback: 'N/A' },
+  1124→            technical_depth: { score: 0, feedback: 'N/A' },
+  1125→            top_tip: 'Try starting a new interview and answer at least one question to get personalized feedback.'
+  1126→          } as SessionFeedback)
+  1127→        } else {
+  1128→          setMockFeedback(res.feedback)
+  1129→          // BUG FIX #5: Poll for updated feedback (body language analysis runs in background)
+  1130→          // If presentation data is missing, poll twice at 15s and 30s to get it
+  1131→          if (res.feedback && !res.feedback.presentation) {
+  1132→            const sessionIdForPolling = mockSession.id
+  1133→            const pollFeedback = async () => {
+  1134→              try {
+  1135→                const pollRes = await apiCall<{ success: boolean; feedback: SessionFeedback }>(`/interviews/mock/sessions/${sessionIdForPolling}/feedback`)
+  1136→                if (pollRes.success && pollRes.feedback) {
+  1137→                  setMockFeedback(pollRes.feedback)
+  1138→                  return !!pollRes.feedback.presentation // stop polling if we have presentation data
+  1139→                }
+  1140→              } catch { /* ignore poll errors */ }
+  1141→              return false
+  1142→            }
+  1143→            // Poll at 15s and 30s
+  1144→            setTimeout(async () => {
+  1145→              const done = await pollFeedback()
+  1146→              if (!done) setTimeout(pollFeedback, 15000)
+  1147→            }, 15000)
+  1148→          }
+  1149→        }
+  1150→        setMockSession(prev => prev ? { ...prev, status: 'completed' } : null)
+  1151→        mockFramesRef.current = []
+  1152→        loadMockSessions()
+  1153→        loadStats()
+  1154→      }
+  1155→    } catch (err: any) {
+  1156→      // BUG FIX: Even on error, clean up and end the session visually
+  1157→      stopMockCamera()
+  1158→      setMockFeedback({
+  1159→        overall_score: 0,
+  1160→        interview_readiness: 'needs_practice',
+  1161→        summary: 'Interview ended. Feedback could not be generated — please try again.',
+  1162→        strengths: [],
+  1163→        improvements: [],
+  1164→        question_scores: [],
+  1165→        star_method_usage: { score: 0, feedback: 'N/A' },
+  1166→        communication_quality: { score: 0, feedback: 'N/A' },
+  1167→        technical_depth: { score: 0, feedback: 'N/A' },
+  1168→        top_tip: 'Start a new interview to practice.'
+  1169→      } as SessionFeedback)
+  1170→      setMockSession(prev => prev ? { ...prev, status: 'completed' } : null)
+  1171→      mockFramesRef.current = []
+  1172→    } finally {
+  1173→      setMockEnding(false)
+  1174→    }
+  1175→  }
+  1176→
+  1177→  function resetMockInterview() {
+  1178→    stopVoiceMode()
+  1179→    stopMockCamera()
+  1180→    stopMockFrameCapture()
+  1181→    mockFramesRef.current = []
+  1182→    setMockLiveTranscript('')
+  1183→    setMockSession(null)
+  1184→    setMockFeedback(null)
+  1185→    setMockResponseText('')
+  1186→    setMockTargetRole('')
+  1187→    setMockJobDescription('')
+  1188→    setMockShowSetup(false)
+  1189→    setShowTranscript(false)
+  1190→    setVoiceMode(false)
+  1191→    voiceModeRef.current = false
+  1192→    setBodyLanguageIndicators(null)
+  1193→  }
+  1194→
+  1195→  // ===== VOICE INTERVIEW FUNCTIONS =====
+  1196→
+  1197→  // Browser Speech Synthesis fallback — used when TTS API is rate-limited (429)
+  1198→  function speakWithBrowserTTS(text: string): Promise<void> {
+  1199→    return new Promise((resolve) => {
+  1200→      if (!window.speechSynthesis) {
+  1201→        console.warn('[browser-tts] speechSynthesis not available')
+  1202→        resolve()
+  1203→        return
+  1204→      }
+  1205→      // Cancel any pending speech
+  1206→      window.speechSynthesis.cancel()
+  1207→      const utterance = new SpeechSynthesisUtterance(text)
+  1208→      utterance.rate = 1.0
+  1209→      utterance.pitch = 1.0
+  1210→      utterance.volume = 1.0
+  1211→
+  1212→      // Try to use a female English voice for consistency with "Alex"
+  1213→      let voices = window.speechSynthesis.getVoices()
+  1214→      // Chrome sometimes returns empty voices on first call — try again after short delay
+  1215→      if (voices.length === 0) {
+  1216→        window.speechSynthesis.onvoiceschanged = () => {
+  1217→          voices = window.speechSynthesis.getVoices()
+  1218→          const preferred = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
+  1219→            || voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('samantha'))
+  1220→            || voices.find(v => v.lang.startsWith('en-US'))
+  1221→            || voices.find(v => v.lang.startsWith('en'))
+  1222→          if (preferred) utterance.voice = preferred
+  1223→        }
+  1224→      } else {
+  1225→        const preferred = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
+  1226→          || voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('samantha'))
+  1227→          || voices.find(v => v.lang.startsWith('en-US'))
+  1228→          || voices.find(v => v.lang.startsWith('en'))
+  1229→        if (preferred) utterance.voice = preferred
+  1230→      }
+  1231→
+  1232→      // Safety timeout — if speech doesn't complete in 30s, resolve anyway
+  1233→      const timeout = setTimeout(() => {
+  1234→        console.warn('[browser-tts] Safety timeout — resolving after 30s')
+  1235→        resolve()
+  1236→      }, 30000)
+  1237→
+  1238→      utterance.onend = () => { clearTimeout(timeout); resolve() }
+  1239→      utterance.onerror = (e) => {
+  1240→        clearTimeout(timeout)
+  1241→        console.warn('[browser-tts] Speech error:', e)
+  1242→        resolve()
+  1243→      }
+  1244→
+  1245→      window.speechSynthesis.speak(utterance)
+  1246→      console.log('[browser-tts] Speaking via browser speechSynthesis')
+  1247→
+  1248→      // Chrome bug: speechSynthesis sometimes pauses. Periodically resume it.
+  1249→      const keepAlive = setInterval(() => {
+  1250→        if (window.speechSynthesis.speaking) {
+  1251→          window.speechSynthesis.resume()
+  1252→        } else {
+  1253→          clearInterval(keepAlive)
+  1254→        }
+  1255→      }, 5000)
+  1256→      utterance.onend = () => { clearTimeout(timeout); clearInterval(keepAlive); resolve() }
+  1257→      utterance.onerror = (e) => { clearTimeout(timeout); clearInterval(keepAlive); console.warn('[browser-tts] error:', e); resolve() }
+  1258→    })
+  1259→  }
+  1260→
+  1261→  // Play TTS audio for interviewer text — uses Web Audio API with browser speech fallback
+  1262→  async function playInterviewerAudio(text: string) {
+  1263→    if (!text) return
+  1264→    setAiSpeaking(true)
+  1265→    setVoiceError(null)
+  1266→    try {
+  1267→      const token = getToken()
+  1268→      const response = await fetch('/api/interviews/mock/tts', {
+  1269→        method: 'POST',
+  1270→        headers: {
+  1271→          'Content-Type': 'application/json',
+  1272→          'Authorization': `Bearer ${token}`
+  1273→        },
+  1274→        body: JSON.stringify({ text })
+  1275→      })
+  1276→
+  1277→      // Check if response is JSON (TTS unavailable) or audio
+  1278→      const contentType = response.headers.get('content-type') || ''
+  1279→
+  1280→      if (contentType.includes('application/json')) {
+  1281→        // TTS API unavailable (rate limited) — fall back to browser speech synthesis
+  1282→        console.log('[tts-client] TTS API unavailable, falling back to browser speech synthesis')
+  1283→        await speakWithBrowserTTS(text)
+  1284→        setAiSpeaking(false)
+  1285→        // BUG FIX: Read from refs — state is stale in this closure (captured before voiceMode was set)
+  1286→        if (voiceModeRef.current && !candidateRecordingRef.current) {
+  1287→          startVoiceRecording()
+  1288→        }
+  1289→        return
+  1290→      }
+  1291→
+  1292→      if (!response.ok) {
+  1293→        console.error('[tts-client] TTS failed:', response.status)
+  1294→        // Fall back to browser TTS
+  1295→        await speakWithBrowserTTS(text)
+  1296→        setAiSpeaking(false)
+  1297→        if (voiceModeRef.current && !candidateRecordingRef.current) {
+  1298→          setTimeout(() => startVoiceRecording(), 500)
+  1299→        }
+  1300→        return
+  1301→      }
+  1302→
+  1303→      const arrayBuffer = await response.arrayBuffer()
+  1304→      if (arrayBuffer.byteLength < 100) {
+  1305→        console.error('[tts-client] Audio too small:', arrayBuffer.byteLength)
+  1306→        await speakWithBrowserTTS(text)
+  1307→        setAiSpeaking(false)
+  1308→        if (voiceModeRef.current && !candidateRecordingRef.current) {
+  1309→          setTimeout(() => startVoiceRecording(), 500)
+  1310→        }
+  1311→        return
+  1312→      }
+  1313→
+  1314→      // Use Web Audio API (AudioContext unlocked from user gesture in startMockInterview)
+  1315→      const ctx = ensureAudioContext()
+  1316→
+  1317→      try {
+  1318→        const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0))
+  1319→        // Stop any previous source
+  1320→        if (mockAudioSourceRef.current) {
+  1321→          try { mockAudioSourceRef.current.stop() } catch (_) {}
+  1322→        }
+  1323→        const source = ctx.createBufferSource()
+  1324→        source.buffer = audioBuffer
+  1325→        source.connect(ctx.destination)
+  1326→        mockAudioSourceRef.current = source
+  1327→
+  1328→        source.onended = () => {
+  1329→          setAiSpeaking(false)
+  1330→          mockAudioSourceRef.current = null
+  1331→          // Auto-start recording after AI finishes speaking
+  1332→          // BUG FIX: Read from refs — state is stale in onended closure
+  1333→          if (voiceModeRef.current && !candidateRecordingRef.current) {
+  1334→            startVoiceRecording()
+  1335→          }
+  1336→        }
+  1337→
+  1338→        source.start()
+  1339→        console.log('[tts-client] Playing via Web Audio API')
+  1340→      } catch (decodeErr) {
+  1341→        console.warn('[tts-client] Web Audio decode failed, falling back to Audio element:', decodeErr)
+  1342→        // Fallback to standard Audio element
+  1343→        const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' })
+  1344→        const audioUrl = URL.createObjectURL(blob)
+  1345→        if (aiAudioRef.current) {
+  1346→          aiAudioRef.current.pause()
+  1347→          URL.revokeObjectURL(aiAudioRef.current.src)
+  1348→        }
+  1349→        const audio = new Audio(audioUrl)
+  1350→        aiAudioRef.current = audio
+  1351→        audio.onended = () => {
+  1352→          setAiSpeaking(false)
+  1353→          URL.revokeObjectURL(audioUrl)
+  1354→          if (voiceModeRef.current && !candidateRecordingRef.current) startVoiceRecording()
+  1355→        }
+  1356→        audio.onerror = () => {
+  1357→          setAiSpeaking(false)
+  1358→          URL.revokeObjectURL(audioUrl)
+  1359→          if (voiceModeRef.current && !candidateRecordingRef.current) setTimeout(() => startVoiceRecording(), 1000)
+  1360→        }
+  1361→        await audio.play()
+  1362→      }
+  1363→    } catch (err) {
+  1364→      console.error('[tts-client] TTS playback error:', err)
+  1365→      // Final fallback: browser speech synthesis
+  1366→      try { await speakWithBrowserTTS(text) } catch (_) {}
+  1367→      setAiSpeaking(false)
+  1368→      if (voiceModeRef.current && !candidateRecordingRef.current) {
+  1369→        setTimeout(() => startVoiceRecording(), 500)
+  1370→      }
+  1371→    }
+  1372→  }
+  1373→
+  1374→  // Start recording candidate's voice
+  1375→  async function startVoiceRecording() {
+  1376→    setVoiceError(null)
+  1377→    setMockLiveTranscript('') // Clear previous transcript for fresh recognition
+  1378→    mockLiveTranscriptRef.current = '' // Reset ref too
+  1379→    try {
+  1380→      // Reuse camera stream's audio tracks if available (avoids second permission prompt)
+  1381→      if (!voiceStreamRef.current) {
+  1382→        if (mockStreamRef.current && mockStreamRef.current.getAudioTracks().length > 0) {
+  1383→          // Create audio-only stream from camera's mic track
+  1384→          const audioTrack = mockStreamRef.current.getAudioTracks()[0]
+  1385→          voiceStreamRef.current = new MediaStream([audioTrack])
+  1386→        } else {
+  1387→          voiceStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true })
+  1388→        }
+  1389→      }
+  1390→
+  1391→      voiceChunksRef.current = []
+  1392→
+  1393→      // BUG FIX: Reuse shared AudioContext instead of creating new one each recording
+  1394→      // Creating new AudioContexts each time hits browser limits after ~6 contexts,
+  1395→      // causing the interview to break after Q4
+  1396→      const audioContext = ensureAudioContext()
+  1397→      const source = audioContext.createMediaStreamSource(voiceStreamRef.current)
+  1398→      const analyser = audioContext.createAnalyser()
+  1399→      analyser.fftSize = 512
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

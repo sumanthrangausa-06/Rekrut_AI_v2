@@ -1,0 +1,304 @@
+   500→    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+   501→  const isChromeIOS = isIOS && /CriOS/.test(navigator.userAgent)
+   502→  const isSafari = isIOS && !isChromeIOS && /Safari/.test(navigator.userAgent)
+   503→
+   504→  // Camera management — 13TH FIX (Feb 11 2026)
+   505→  //
+   506→  // ROOT CAUSE OF BLACK SCREEN (attempts 1-12): The key prop swap
+   507→  // (key={cameraReady ? 'cam-active' : 'cam-pending'}) DESTROYED the video
+   508→  // DOM element every time cameraReady changed. The deferred useEffect then
+   509→  // attached srcObject to a freshly-created element via 100ms setTimeout.
+   510→  // play() resolved but the browser never rendered frames to this new element.
+   511→  //
+   512→  // FIX: Return to the original working pattern from commit 01025bc:
+   513→  // 1. No key prop on <video> — element persists across renders
+   514→  // 2. Attach srcObject DIRECTLY in startCamera(), call play() immediately
+   515→  // 3. Set cameraReady=true AFTER stream is attached (removes overlay)
+   516→  // 4. Keep "Enable Camera" button for user gesture requirement
+   517→
+   518→  async function startCamera() {
+   519→    try {
+   520→      setCameraError(null)
+   521→      setCameraReady(false)
+   522→      setCameraStatus('Requesting camera...')
+   523→
+   524→      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+   525→        setCameraError('not_supported')
+   526→        setCameraStatus('Camera not supported')
+   527→        return
+   528→      }
+   529→
+   530→      // Request BOTH video + audio in a SINGLE getUserMedia call.
+   531→      // CRITICAL: Two separate calls broke iOS (the second killed the first track).
+   532→      // Fall back to video-only if combined call fails (e.g. mic permission denied).
+   533→      let videoStream: MediaStream | null = null
+   534→      const constraintSets: Array<{ video: MediaStreamConstraints['video'], audio: boolean, label: string }> = [
+   535→        { video: { facingMode: 'user' }, audio: true, label: 'av:user' },
+   536→        { video: true, audio: true, label: 'av:true' },
+   537→        { video: { facingMode: 'user' }, audio: false, label: 'v:user' },
+   538→        { video: true, audio: false, label: 'v:true' },
+   539→      ]
+   540→
+   541→      for (const { video: vc, audio: ac, label } of constraintSets) {
+   542→        try {
+   543→          setCameraStatus(`Trying ${label}...`)
+   544→          videoStream = await navigator.mediaDevices.getUserMedia({ video: vc, ...(ac ? { audio: true } : {}) })
+   545→
+   546→          const vt = videoStream.getVideoTracks()[0]
+   547→          if (!vt || vt.readyState !== 'live') {
+   548→            console.warn(`[camera] ${label}: no live video track`)
+   549→            videoStream.getTracks().forEach(t => t.stop())
+   550→            videoStream = null
+   551→            continue
+   552→          }
+   553→
+   554→          const settings = vt.getSettings?.() || {}
+   555→          const at = videoStream.getAudioTracks()
+   556→          console.log(`[camera] ${label}: track=${vt.readyState} ${settings.width}x${settings.height} audio:${at.length}`)
+   557→          setCameraStatus(`Got ${label}: ${settings.width || '?'}x${settings.height || '?'} ${at.length > 0 ? '🎙' : ''}`)
+   558→          break // Live track — success
+   559→        } catch (err: any) {
+   560→          console.warn(`[camera] ${label} error: ${err?.name} ${err?.message}`)
+   561→          setCameraStatus(`${label}: ${err?.name}`)
+   562→          // Only give up if this is a video-only request that was denied
+   563→          if (err.name === 'NotAllowedError' && !ac) {
+   564→            setCameraError('denied')
+   565→            return
+   566→          }
+   567→          // For combined av requests or other errors, try next constraint
+   568→        }
+   569→      }
+   570→
+   571→      if (!videoStream) {
+   572→        setCameraError('not_found')
+   573→        setCameraStatus('Camera not working — tap Retry')
+   574→        return
+   575→      }
+   576→
+   577→      streamRef.current = videoStream
+   578→
+   579→      // Check for audio tracks (mic)
+   580→      const audioTracks = videoStream.getAudioTracks()
+   581→      if (audioTracks.length > 0) {
+   582→        setMicActive(true)
+   583→        console.log(`[camera] mic active: ${audioTracks[0].label}`)
+   584→      } else {
+   585→        setMicActive(false)
+   586→        console.log('[camera] no audio track — mic not available')
+   587→      }
+   588→
+   589→      // ATTACH STREAM DIRECTLY — this is what the original working code did.
+   590→      // Do NOT defer to useEffect. Do NOT use key prop swap.
+   591→      // The video element exists in the DOM (behind the overlay) and can receive the stream.
+   592→      const v = videoRef.current
+   593→      if (v) {
+   594→        v.srcObject = videoStream
+   595→        try {
+   596→          await v.play()
+   597→          console.log(`[camera] play() succeeded, readyState=${v.readyState}, videoWidth=${v.videoWidth}`)
+   598→        } catch (e: any) {
+   599→          console.warn('[camera] play() failed, retrying:', e?.message)
+   600→          // One retry for autoplay policy edge cases
+   601→          try { await v.play() } catch (_) {}
+   602→        }
+   603→      }
+   604→
+   605→      const vt = videoStream.getVideoTracks()[0]
+   606→      const at2 = videoStream.getAudioTracks()
+   607→      const settings = vt?.getSettings?.() || {}
+   608→      setCameraStatus(`OK ${settings.width || '?'}x${settings.height || '?'} ${at2.length > 0 ? '🎙' : ''} ▶`)
+   609→
+   610→      // Set cameraReady AFTER stream is attached — this removes the overlay
+   611→      // to reveal the already-playing video
+   612→      setCameraReady(true)
+   613→
+   614→      // Monitor track ending (user revokes permission)
+   615→      if (vt) {
+   616→        vt.addEventListener('ended', () => {
+   617→          console.warn('[camera] video track ended')
+   618→          setCameraReady(false)
+   619→          setCameraError('denied')
+   620→          setCameraStatus('Track ended')
+   621→        })
+   622→      }
+   623→    } catch (err: any) {
+   624→      console.error('Camera access error:', err?.name, err?.message)
+   625→      setCameraStatus(`Error: ${err?.name} ${err?.message}`)
+   626→
+   627→      if (err.name === 'NotAllowedError') {
+   628→        setCameraError('denied')
+   629→      } else if (err.name === 'NotFoundError') {
+   630→        setCameraError('not_found')
+   631→      } else {
+   632→        setCameraError('unknown')
+   633→      }
+   634→    }
+   635→  }
+   636→
+   637→  function stopCamera() {
+   638→    if (streamRef.current) {
+   639→      streamRef.current.getTracks().forEach(track => track.stop())
+   640→      streamRef.current = null
+   641→    }
+   642→    if (videoRef.current) {
+   643→      videoRef.current.srcObject = null
+   644→    }
+   645→    setCameraReady(false)
+   646→    setCameraStatus('')
+   647→    setMicActive(false)
+   648→  }
+   649→
+   650→  // Frame capture
+   651→  function captureFrame(): string | null {
+   652→    if (!videoRef.current || !canvasRef.current) return null
+   653→    const canvas = canvasRef.current
+   654→    const video = videoRef.current
+   655→    canvas.width = 320
+   656→    canvas.height = 240
+   657→    const ctx = canvas.getContext('2d')
+   658→    if (!ctx) return null
+   659→    ctx.drawImage(video, 0, 0, 320, 240)
+   660→    return canvas.toDataURL('image/jpeg', 0.7)
+   661→  }
+   662→
+   663→  // Speech Recognition
+   664→  function startSpeechRecognition() {
+   665→    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+   666→    if (!SpeechRecognition) {
+   667→      console.warn('Speech recognition not supported')
+   668→      return
+   669→    }
+   670→
+   671→    const recognition = new SpeechRecognition()
+   672→    recognition.continuous = true
+   673→    recognition.interimResults = true
+   674→    recognition.lang = 'en-US'
+   675→
+   676→    let finalTranscript = ''
+   677→
+   678→    recognition.onresult = (event: any) => {
+   679→      let interim = ''
+   680→      for (let i = event.resultIndex; i < event.results.length; i++) {
+   681→        const result = event.results[i]
+   682→        if (result.isFinal) {
+   683→          finalTranscript += result[0].transcript + ' '
+   684→        } else {
+   685→          interim = result[0].transcript
+   686→        }
+   687→      }
+   688→      setTranscription(finalTranscript + interim)
+   689→      setIsTranscribing(true)
+   690→    }
+   691→
+   692→    recognition.onerror = (event: any) => {
+   693→      console.warn('Speech recognition error:', event.error)
+   694→      if (event.error === 'no-speech') {
+   695→        // Restart
+   696→        try { recognition.start() } catch (_) {}
+   697→      }
+   698→    }
+   699→
+   700→    recognition.onend = () => {
+   701→      setIsTranscribing(false)
+   702→      // Restart if still recording
+   703→      if (isRecording) {
+   704→        try { recognition.start() } catch (_) {}
+   705→      }
+   706→    }
+   707→
+   708→    recognition.start()
+   709→    recognitionRef.current = recognition
+   710→    setIsTranscribing(true)
+   711→  }
+   712→
+   713→  function stopSpeechRecognition() {
+   714→    if (recognitionRef.current) {
+   715→      try { recognitionRef.current.stop() } catch (_) {}
+   716→      recognitionRef.current = null
+   717→    }
+   718→    setIsTranscribing(false)
+   719→  }
+   720→
+   721→  // Recording
+   722→  function startCountdownThenRecord() {
+   723→    setCountdown(3)
+   724→    let count = 3
+   725→    const interval = setInterval(() => {
+   726→      count--
+   727→      if (count <= 0) {
+   728→        clearInterval(interval)
+   729→        setCountdown(null)
+   730→        startRecording()
+   731→      } else {
+   732→        setCountdown(count)
+   733→      }
+   734→    }, 1000)
+   735→  }
+   736→
+   737→  function startRecording() {
+   738→    if (!streamRef.current) return
+   739→
+   740→    setIsRecording(true)
+   741→    setRecordingTime(0)
+   742→    setTranscription('')
+   743→    setCapturedFrames([])
+   744→    setRecordingDone(false)
+   745→
+   746→    // Start timer
+   747→    timerRef.current = setInterval(() => {
+   748→      setRecordingTime(prev => prev + 1)
+   749→    }, 1000)
+   750→
+   751→    // Start frame capture (every 4 seconds)
+   752→    frameIntervalRef.current = setInterval(() => {
+   753→      const frame = captureFrame()
+   754→      if (frame) {
+   755→        setCapturedFrames(prev => [...prev, frame])
+   756→      }
+   757→    }, 4000)
+   758→
+   759→    // Capture first frame immediately
+   760→    setTimeout(() => {
+   761→      const frame = captureFrame()
+   762→      if (frame) setCapturedFrames(prev => [...prev, frame])
+   763→    }, 500)
+   764→
+   765→    // Start speech recognition (live preview)
+   766→    startSpeechRecognition()
+   767→
+   768→    // Record audio via MediaRecorder for server-side voice analysis
+   769→    const stream = streamRef.current
+   770→    if (stream && stream.getAudioTracks().length > 0 && typeof MediaRecorder !== 'undefined') {
+   771→      try {
+   772→        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+   773→          ? 'audio/webm;codecs=opus'
+   774→          : MediaRecorder.isTypeSupported('audio/mp4')
+   775→          ? 'audio/mp4'
+   776→          : 'audio/webm'
+   777→        const recorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 64000 })
+   778→        audioChunksRef.current = []
+   779→        audioDataRef.current = null
+   780→
+   781→        recorder.ondataavailable = (e) => {
+   782→          if (e.data.size > 0) audioChunksRef.current.push(e.data)
+   783→        }
+   784→        recorder.onstop = () => {
+   785→          const blob = new Blob(audioChunksRef.current, { type: mimeType })
+   786→          const reader = new FileReader()
+   787→          reader.onloadend = () => { audioDataRef.current = reader.result as string }
+   788→          reader.readAsDataURL(blob)
+   789→        }
+   790→        recorder.start(1000)
+   791→        mediaRecorderRef.current = recorder
+   792→        console.log(`[audio] MediaRecorder started: ${mimeType}`)
+   793→      } catch (e) {
+   794→        console.warn('[audio] MediaRecorder init failed:', e)
+   795→      }
+   796→    }
+   797→  }
+   798→
+   799→  function stopRecording() {
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
