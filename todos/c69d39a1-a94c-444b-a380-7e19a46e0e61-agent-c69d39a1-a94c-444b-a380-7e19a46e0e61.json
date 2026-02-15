@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Investigate Quick Practice frame capture pipeline",
+    "status": "completed",
+    "activeForm": "Investigating Quick Practice frame capture pipeline"
+  },
+  {
+    "content": "Investigate Mock Interview video pipeline for missing frame capture",
+    "status": "completed",
+    "activeForm": "Investigating Mock Interview video pipeline"
+  },
+  {
+    "content": "Fix hardcoded module tag in analyzeVideoPresentation",
+    "status": "completed",
+    "activeForm": "Fixing hardcoded module tag in analyzeVideoPresentation"
+  },
+  {
+    "content": "Skip per-question vision to preserve budget for end analysis",
+    "status": "completed",
+    "activeForm": "Skipping per-question vision to preserve budget"
+  },
+  {
+    "content": "Add fallback presentation data when analysis fails",
+    "status": "completed",
+    "activeForm": "Adding fallback presentation data"
+  },
+  {
+    "content": "Deploy and verify fix",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying fix"
+  }
+]
