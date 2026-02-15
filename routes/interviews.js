@@ -1,7 +1,7 @@
 const express = require('express');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
-const { chat, generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching, analyzeVideoInterviewResponse, analyzeVideoPresentation, analyzeVoiceQuality, generateQuestionBank, conductInterviewTurn, generateSessionFeedback, textToSpeech, transcribeAudioWithWhisper, aiProvider } = require('../lib/polsia-ai');
+const { chat, generateInterviewQuestions, analyzeInterviewResponse, generateOverallFeedback, generateInterviewCoaching, analyzeVideoInterviewResponse, analyzeVideoPresentation, analyzeVoiceQuality, generateQuestionBank, conductInterviewTurn, generateSessionFeedback, textToSpeech, transcribeAudioWithWhisper, aiProvider, handleAIError } = require('../lib/polsia-ai');
 const crypto = require('crypto');
 const omniscoreService = require('../services/omniscore');
 const multer = require('multer');
@@ -112,6 +112,9 @@ router.post('/start', authMiddleware, async (req, res) => {
     });
   } catch (err) {
     console.error('Start interview error:', err);
+    if (err.allProvidersFailed) {
+      return handleAIError(res, err, 'Interview question generation');
+    }
     res.status(500).json({ error: 'Failed to start interview' });
   }
 });
