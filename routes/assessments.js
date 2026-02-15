@@ -1033,6 +1033,9 @@ router.post('/generate', authMiddleware, async (req, res) => {
 
     const difficultyRange = { junior: '1-2', mid: '2-3', senior: '3-5' }[targetLevel];
 
+    // Map experience level to valid difficulty_level for DB constraint (easy/medium/mid/hard)
+    const difficultyLevel = { junior: 'easy', mid: 'medium', senior: 'hard' }[targetLevel] || 'medium';
+
     // Generate assessment questions via AI
     const prompt = `You are an expert hiring manager. Generate a comprehensive skill assessment for this job posting.
 
@@ -1107,10 +1110,10 @@ Return ONLY valid JSON:
         jobId, req.user.id,
         parsed.title || `${job.title} Assessment`,
         parsed.description || `AI-generated assessment for ${job.title}`,
-        targetLevel,
+        difficultyLevel,
         parsed.questions.length,
         JSON.stringify(categories),
-        JSON.stringify({ targetLevel, generated_at: new Date() })
+        JSON.stringify({ targetLevel, difficultyLevel, generated_at: new Date() })
       ]);
 
       const assessment = assessmentResult.rows[0];
