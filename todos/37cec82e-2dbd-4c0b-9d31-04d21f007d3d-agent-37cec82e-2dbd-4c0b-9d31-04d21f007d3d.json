@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Fix dynamic_assessments missing table query in routes/memory.js",
+    "status": "completed",
+    "activeForm": "Fixing dynamic_assessments missing table query"
+  },
+  {
+    "content": "Fix video practice null pointer crash in routes/interviews.js",
+    "status": "completed",
+    "activeForm": "Fixing video practice null pointer crash"
+  },
+  {
+    "content": "Deploy and verify both fixes",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying fixes"
+  }
+]
