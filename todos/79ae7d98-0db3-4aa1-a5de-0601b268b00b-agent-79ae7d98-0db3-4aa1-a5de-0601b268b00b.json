@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Investigate root cause of raw unicode escape sequences in feedback",
+    "status": "completed",
+    "activeForm": "Investigating root cause of raw unicode escapes"
+  },
+  {
+    "content": "Fix all unicode escape sequences in mock-interview.tsx",
+    "status": "completed",
+    "activeForm": "Fixing all unicode escape sequences in mock-interview.tsx"
+  },
+  {
+    "content": "Deploy and verify the fix",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying the fix"
+  }
+]
