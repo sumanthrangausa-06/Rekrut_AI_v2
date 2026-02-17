@@ -2,6 +2,9 @@ const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
+// Load environment variables from .env file
+require('dotenv').config();
+
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 async function migrate() {
