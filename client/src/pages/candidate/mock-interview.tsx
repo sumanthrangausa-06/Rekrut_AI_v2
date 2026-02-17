@@ -466,6 +466,20 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
     setMockLiveTranscript('')
     mockLiveTranscriptRef.current = ''
     try {
+      // CRITICAL: Stop and cleanup old MediaRecorder before creating new one
+      if (voiceRecorderRef.current) {
+        const oldState = voiceRecorderRef.current.state
+        if (oldState !== 'inactive') {
+          console.log(`[voice] Stopping old recorder (state: ${oldState}) before creating new one`)
+          try {
+            voiceRecorderRef.current.stop()
+          } catch (e) {
+            console.warn('[voice] Failed to stop old recorder:', e)
+          }
+        }
+        voiceRecorderRef.current = null
+      }
+
       // Always verify audio track is still alive — tracks can die between questions
       const existingTracks = voiceStreamRef.current?.getAudioTracks() || []
       const hasLiveTrack = existingTracks.some(t => t.readyState === 'live' && t.enabled)
@@ -525,6 +539,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 
       const recorder = new MediaRecorder(voiceStreamRef.current, { mimeType })
       voiceRecorderRef.current = recorder
+      console.log('[voice] Created new MediaRecorder, ready to start')
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) voiceChunksRef.current.push(e.data)
