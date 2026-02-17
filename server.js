@@ -1139,34 +1139,39 @@ app.get('/api/admin/routes', requireAdmin, (req, res) => {
   }
 });
 
-// Determine which frontend to serve
+// Serve React SPA — this is the only frontend
 const reactBuildPath = path.join(__dirname, 'client', 'dist');
-const legacyPublicPath = path.join(__dirname, 'public');
-const useReactApp = fs.existsSync(path.join(reactBuildPath, 'index.html'));
+const publicAssetsPath = path.join(__dirname, 'public');
 
-if (useReactApp) {
-  console.log('[server] Serving React SPA from client/dist');
-  // Serve React SPA assets first
-  app.use(express.static(reactBuildPath));
-  // Also serve legacy public/ files (recruiter HTML pages, CSS, JS)
-  app.use(express.static(legacyPublicPath));
+console.log('[server] Serving React SPA from client/dist');
 
-  // SPA fallback - serve index.html for all non-API routes
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(reactBuildPath, 'index.html'));
+// Serve static assets from public/ (favicon, robots.txt, etc. — NOT HTML files)
+app.use(express.static(publicAssetsPath, {
+  // Explicitly exclude HTML files from public/
+  // All routing goes through React SPA
+  index: false,
+}));
+
+// Serve React app build
+app.use(express.static(reactBuildPath));
+
+// SPA fallback — serve React index.html for all non-API routes
+app.get('*', (req, res) => {
+  if (!req.path.startsWith('/api')) {
+    const indexPath = path.join(reactBuildPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      // Fallback message if React build doesn't exist
+      res.status(503).json({
+        error: 'Application not ready',
+        message: 'React build not found. Run: npm run build',
+      });
     }
-  });
-} else {
-  console.log('[server] React build not found, serving legacy public/');
-  app.use(express.static(legacyPublicPath));
-
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(legacyPublicPath, 'index.html'));
-    }
-  });
-}
+  } else {
+    res.status(404).json({ error: 'API endpoint not found' });
+  }
+});
 
 const server = app.listen(PORT, () => {
   console.log(`Rekrut AI running on port ${PORT}`);
