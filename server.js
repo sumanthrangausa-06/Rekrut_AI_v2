@@ -5,6 +5,10 @@ const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+
+// Load environment variables from .env file
+require('dotenv').config();
+
 const pool = require('./lib/db');
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
