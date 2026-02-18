@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "build": "node migrate.js && cd client && npm install --include=dev && npm run build",
-    "postinstall": "bash scripts/setup-audio.sh 2>&1 || echo '[postinstall] Audio setup skipped (non-fatal)'"
+    "postinstall": "echo '[postinstall] Self-hosted audio disabled — whisper.cpp/Piper need native libs unavailable on Render. Using cloud ASR/TTS chain.'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
