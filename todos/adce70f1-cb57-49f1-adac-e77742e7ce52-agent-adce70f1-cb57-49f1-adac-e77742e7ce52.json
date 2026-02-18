@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Investigate whisper-cli usage and ASR failover chain",
+    "status": "completed",
+    "activeForm": "Investigating whisper-cli usage and ASR failover chain"
+  },
+  {
+    "content": "Fix isRetryable() to not kill ASR chain on self-hosted errors",
+    "status": "completed",
+    "activeForm": "Fixing isRetryable() to not kill ASR chain"
+  },
+  {
+    "content": "Fix self-hosted-audio.initialize() false positive detection",
+    "status": "completed",
+    "activeForm": "Fixing self-hosted-audio initialization"
+  },
+  {
+    "content": "Disable wasteful setup-audio.sh binary build",
+    "status": "completed",
+    "activeForm": "Disabling setup-audio.sh binary build"
+  },
+  {
+    "content": "Write verification script for ASR chain",
+    "status": "completed",
+    "activeForm": "Writing ASR verification script"
+  },
+  {
+    "content": "Deploy and verify on production",
+    "status": "in_progress",
+    "activeForm": "Deploying and verifying on production"
+  }
+]
