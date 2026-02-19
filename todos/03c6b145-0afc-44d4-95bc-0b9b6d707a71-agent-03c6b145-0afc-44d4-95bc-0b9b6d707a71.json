@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Investigate current timeout configuration and provider chains",
+    "status": "completed",
+    "activeForm": "Investigating current timeout configuration and provider chains"
+  },
+  {
+    "content": "Check production logs for actual timeout issues",
+    "status": "completed",
+    "activeForm": "Checking production logs for actual timeout issues"
+  },
+  {
+    "content": "Identify root cause with evidence from code and logs",
+    "status": "completed",
+    "activeForm": "Identifying root cause with evidence from code and logs"
+  },
+  {
+    "content": "Implement timeout cascade fix (reduce timeouts, improve fast-fail)",
+    "status": "completed",
+    "activeForm": "Implementing timeout cascade fix"
+  },
+  {
+    "content": "Add provider selection logging for debugging",
+    "status": "completed",
+    "activeForm": "Adding provider selection logging for debugging"
+  },
+  {
+    "content": "Verify fix works and push to production",
+    "status": "in_progress",
+    "activeForm": "Verifying fix works and pushing to production"
+  }
+]
