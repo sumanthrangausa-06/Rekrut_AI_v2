@@ -5,8 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "node migrate.js && cd client && npm install --include=dev && npm run build",
-    "postinstall": "echo '[postinstall] Self-hosted audio disabled — whisper.cpp/Piper need native libs unavailable on Render. Using cloud ASR/TTS chain.'"
+    "build": "cd client && npm install --include=dev && npm run build",
+    "migrate": "node migrate.js",
+    "postinstall": "bash scripts/setup-audio.sh 2>&1 || echo '[postinstall] Audio setup skipped (non-fatal)'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
@@ -14,6 +15,7 @@
     "connect-pg-simple": "^10.0.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
     "express": "^4.18.2",
     "express-session": "^1.17.3",
     "form-data": "^4.0.0",
