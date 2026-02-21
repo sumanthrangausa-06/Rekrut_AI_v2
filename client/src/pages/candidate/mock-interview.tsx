@@ -514,6 +514,12 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
       silenceCountRef.current = 0
       const recordingStartedAt = Date.now()
 
+      // CRITICAL: Clear any existing silence detection interval before creating new one
+      if (silenceIntervalRef.current) {
+        clearInterval(silenceIntervalRef.current)
+        silenceIntervalRef.current = null
+      }
+
       silenceIntervalRef.current = setInterval(() => {
         if (!analyserRef.current) return
         // Grace period: don't count silence for first 2.5s to let user start speaking
@@ -949,7 +955,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
             star_method_usage: { score: 0, feedback: 'N/A' },
             communication_quality: { score: 0, feedback: 'N/A' },
             technical_depth: { score: 0, feedback: 'N/A' },
-            top_tip: 'Try starting a new interview and answer at least one question to get personalized feedback.'
+            top_tip: 'Start a new interview to practice.'
           } as SessionFeedback)
         } else {
           setMockFeedback(res.feedback)
@@ -1121,16 +1127,6 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                 </div>
                 <div className="bg-black/60 text-green-400 px-2 py-1 rounded text-xs flex items-center gap-1">
                   <Mic className="h-3 w-3" /> Mic on
-                </div>
-              </div>
-            )}
-
-            {/* Live transcription overlay on video (bottom) */}
-            {candidateRecording && (
-              <div className="absolute bottom-3 left-3 right-3 z-10">
-                <div className="bg-black/70 rounded-lg p-2 text-white text-xs max-h-16 overflow-y-auto">
-                  <Mic className="h-3 w-3 inline mr-1 text-green-400" />
-                  {mockLiveTranscript || 'Listening...'}
                 </div>
               </div>
             )}
