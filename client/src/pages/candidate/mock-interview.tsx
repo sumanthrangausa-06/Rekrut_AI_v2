@@ -466,6 +466,20 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
     setMockLiveTranscript('')
     mockLiveTranscriptRef.current = ''
     try {
+      // CRITICAL: Stop and cleanup old MediaRecorder before creating new one
+      if (voiceRecorderRef.current) {
+        const oldState = voiceRecorderRef.current.state
+        if (oldState !== 'inactive') {
+          console.log(`[voice] Stopping old recorder (state: ${oldState}) before creating new one`)
+          try {
+            voiceRecorderRef.current.stop()
+          } catch (e) {
+            console.warn('[voice] Failed to stop old recorder:', e)
+          }
+        }
+        voiceRecorderRef.current = null
+      }
+
       // Always verify audio track is still alive — tracks can die between questions
       const existingTracks = voiceStreamRef.current?.getAudioTracks() || []
       const hasLiveTrack = existingTracks.some(t => t.readyState === 'live' && t.enabled)
@@ -500,6 +514,12 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
       silenceCountRef.current = 0
       const recordingStartedAt = Date.now()
 
+      // CRITICAL: Clear any existing silence detection interval before creating new one
+      if (silenceIntervalRef.current) {
+        clearInterval(silenceIntervalRef.current)
+        silenceIntervalRef.current = null
+      }
+
       silenceIntervalRef.current = setInterval(() => {
         if (!analyserRef.current) return
         // Grace period: don't count silence for first 2.5s to let user start speaking
@@ -525,6 +545,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 
       const recorder = new MediaRecorder(voiceStreamRef.current, { mimeType })
       voiceRecorderRef.current = recorder
+      console.log('[voice] Created new MediaRecorder, ready to start')
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) voiceChunksRef.current.push(e.data)
@@ -934,7 +955,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
             star_method_usage: { score: 0, feedback: 'N/A' },
             communication_quality: { score: 0, feedback: 'N/A' },
             technical_depth: { score: 0, feedback: 'N/A' },
-            top_tip: 'Try starting a new interview and answer at least one question to get personalized feedback.'
+            top_tip: 'Start a new interview to practice.'
           } as SessionFeedback)
         } else {
           setMockFeedback(res.feedback)
@@ -1106,16 +1127,6 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
                 </div>
                 <div className="bg-black/60 text-green-400 px-2 py-1 rounded text-xs flex items-center gap-1">
                   <Mic className="h-3 w-3" /> Mic on
-                </div>
-              </div>
-            )}
-
-            {/* Live transcription overlay on video (bottom) */}
-            {candidateRecording && (
-              <div className="absolute bottom-3 left-3 right-3 z-10">
-                <div className="bg-black/70 rounded-lg p-2 text-white text-xs max-h-16 overflow-y-auto">
-                  <Mic className="h-3 w-3 inline mr-1 text-green-400" />
-                  {mockLiveTranscript || 'Listening...'}
                 </div>
               </div>
             )}

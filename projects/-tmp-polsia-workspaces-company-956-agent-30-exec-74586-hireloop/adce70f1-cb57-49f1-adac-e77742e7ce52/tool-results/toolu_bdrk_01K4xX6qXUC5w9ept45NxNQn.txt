@@ -1,0 +1,502 @@
+5- * When a provider fails (401, 402, 429, timeout), automatically
+6- * switches to the next provider in the chain. No manual intervention.
+7- *
+8: * Modalities: LLM, TTS, ASR, Vision, Embedding, Reranking, Safety
+9- * Providers: Polsia/Anthropic, Polsia/OpenAI, NVIDIA NIM (20+ models)
+10- *
+11- * Per-module routing: Different HireLoop modules can request specialized
+--
+62-  llm: 16000,       // 16s max (was 30s → too long with 4 concurrent Quick Practice calls)
+63-  vision: 40000,     // 40s max (was unlimited → 3×30s = 90s worst case)
+64-  tts: 20000,        // 20s
+65:  asr: 20000,        // 20s
+66-  embedding: 15000,  // 15s
+67-  reranking: 10000,  // 10s
+68-  safety: 10000,     // 10s
+--
+74-  llm: 3,       // Race top 3 LLM providers simultaneously
+75-  vision: 2,    // Race top 2 vision providers
+76-  tts: 1,       // Sequential (only 3 providers, different audio formats)
+77:  asr: 1,       // Sequential (only 4 providers)
+78-  embedding: 2, // Race top 2 embedding providers
+79-  reranking: 1,
+80-  safety: 1,
+--
+105-
+106-  // TTS Models — for speech synthesis (all use /v1/audio/synthesize REST API)
+107-  tts_magpie_multilingual: 'nvidia/magpie-tts-multilingual',  // Multi-language: en, es, fr, de, zh, vi, it
+108:  tts_magpie_flow: 'nvidia/magpie-tts-flow',                  // English voice cloning (requires audio prompt + transcript)
+109-  tts_magpie_zeroshot: 'nvidia/magpie-tts-zeroshot',          // English voice cloning (requires audio prompt, restricted access)
+110-  tts_fastpitch: 'nvidia/fastpitch-hifigan-tts',              // Basic English TTS (lightweight)
+111-
+112:  // ASR Models — for speech recognition
+113:  asr_parakeet_v2: process.env.NIM_ASR_MODEL || 'nvidia/parakeet-tdt-0.6b-v2',
+114:  asr_parakeet_v3: process.env.NIM_ASR_V3 || 'nvidia/parakeet-tdt-0.6b-v3',
+115-
+116-  // Embedding Models — for job matching, profile similarity
+117-  embed_qa: process.env.NIM_EMBED_MODEL || 'nvidia/llama-3.2-nv-embedqa-1b-v2',
+--
+147-    name: 'Magpie TTS Flow',
+148-    baseUrl: process.env.NIM_MAGPIE_FLOW_BASE_URL || null,
+149-    defaultVoice: null,
+150:    requiresAudioPrompt: true,  // Requires audio_prompt + audio_prompt_transcript
+151:    requiresTranscript: true,
+152-    languages: ['en-US'],
+153-    outputFormat: 'wav',
+154-    maxTextLength: 4000,
+--
+158-    baseUrl: process.env.NIM_MAGPIE_ZERO_BASE_URL || null,
+159-    defaultVoice: null,
+160-    requiresAudioPrompt: true,  // Requires audio_prompt for voice cloning
+161:    requiresTranscript: false,
+162-    languages: ['en-US'],
+163-    outputFormat: 'wav',
+164-    maxTextLength: 4000,
+--
+177-// ─── Module-Specific Chain Preferences ───────────────────────────
+178-// Maps HireLoop modules to their optimal provider chain preferences
+179-const MODULE_CHAINS = {
+180:  // Mock Interview — needs quality LLM + TTS + ASR + Vision
+181-  'mock_interview': {
+182-    llm: 'quality',       // Best quality for evaluation
+183-    tts: 'default',
+184:    asr: 'default',
+185-    vision: 'default',
+186-  },
+187-  // AI Coaching — needs quality LLM
+--
+250-
+251-    console.log('[ai-provider] Initialized. NIM:', this.nimAvailable, '| Groq:', this.groqAvailable, '| Cerebras:', this.cerebrasAvailable);
+252-    console.log('[ai-provider] Providers:', Object.keys(this.clients).join(', '));
+253:    console.log('[ai-provider] Modalities: llm, vision, tts, asr, embedding, reranking, safety');
+254-
+255-    // Load persisted state from DB (non-blocking)
+256-    this._loadPersistedState();
+--
+296-      });
+297-    }
+298-
+299:    // OpenAI client (Polsia proxy) — primary for vision, TTS, ASR
+300-    if (process.env.OPENAI_BASE_URL && process.env.OPENAI_API_KEY) {
+301-      this.clients.openai = new OpenAI({
+302-        baseURL: process.env.OPENAI_BASE_URL,
+--
+328-      });
+329-      this.groqApiKey = groqKey;
+330-      this.groqAvailable = true;
+331:      console.log('[ai-provider] Groq available for LLM/ASR fallback');
+332-    } else {
+333-      this.groqAvailable = false;
+334-    }
+--
+346-      this.cerebrasAvailable = false;
+347-    }
+348-
+349:    // Deepgram client — independent fallback for TTS + ASR (pure REST, no SDK)
+350-    // Provides real failover when OpenAI audio endpoints are down/rate-limited.
+351-    / Sign up at https://deepgram.com (free $200 credit) and set DEEPGRAM_API_KEY.
+352-    const dgKey = process.env.DEEPGRAM_API_KEY;
+353-    if (dgKey) {
+354-      this.deepgramApiKey = dgKey;
+355-      this.deepgramAvailable = true;
+356:      console.log('[ai-provider] Deepgram available for TTS/ASR fallback');
+357-    } else {
+358-      this.deepgramAvailable = false;
+359-    }
+360-
+361:    // Self-hosted audio — whisper.cpp (STT) + Piper (TTS), no API keys
+362-    / Layer 2 fallback: OpenAI → Self-hosted → Deepgram
+363-    this.selfHostedSTTAvailable = false;
+364-    this.selfHostedTTSAvailable = false;
+--
+377-
+378-  /**
+379-   * Get the fallback chain for a modality, optionally specialized per module.
+380:   * @param {string} modality - 'llm', 'vision', 'tts', 'asr', 'embedding', 'reranking', 'safety'
+381-   * @param {string} variant - Chain variant: 'default', 'quality', 'efficient', 'reasoning', 'document'
+382-   * @returns {string[]} Array of provider keys to try in order
+383-   */
+--
+467-        ],
+468-      },
+469-
+470:      // ─── ASR Chains (4-layer: OpenAI → Self-hosted → Groq Whisper → Deepgram) ─
+471:      asr: {
+472-        default: [
+473:          'openai_whisper',      // Layer 1: Polsia/OpenAI Whisper
+474:          'selfhosted_stt',      // Layer 2: whisper.cpp tiny.en (CPU, no API key)
+475:          'groq_whisper',        // Layer 3: Groq whisper-large-v3-turbo (FREE!)
+476-          'deepgram_stt',        / Layer 4: Deepgram Nova-2 (paid)
+477-        ],
+478-      },
+--
+525-      case 'openai':
+526-      case 'openai_vision':
+527-      case 'openai_tts':
+528:      case 'openai_whisper':
+529-      case 'openai_embed':
+530-        return !!this.clients.openai;
+531-      // All NIM providers require NIM API key
+--
+561-      case 'groq_llama_70b':
+562-      case 'groq_gpt_oss':
+563-      case 'groq_llama_8b':
+564:      case 'groq_whisper':
+565-        return this.groqAvailable;
+566-      // Cerebras providers
+567-      case 'cerebras_gpt_oss':
+--
+572-        return this.selfHostedTTSAvailable;
+573-      case 'selfhosted_stt':
+574-        return this.selfHostedSTTAvailable;
+575:      // Deepgram providers — independent TTS/ASR fallback
+576-      case 'deepgram_tts':
+577-      case 'deepgram_stt':
+578-        return this.deepgramAvailable;
+--
+708-  // Get available providers for a modality (skipping unavailable + circuit-broken + budget-exhausted OpenAI)
+709-  getAvailableChain(modality, variant = 'default') {
+710-    const budgetExhausted = tokenBudget.isOpenAIBudgetExhausted();
+711:    // TTS and ASR are exempt from budget exhaustion — they use minimal tokens
+712:    // (~50-100 per TTS call, ~30-50 per ASR call) and have NO working NIM fallbacks
+713-    // (NVIDIA cloud API doesn't host audio models). Blocking them kills interviews.
+714:    const budgetExemptModalities = new Set(['tts', 'asr']);
+715-    const skipOpenAI = budgetExhausted && !budgetExemptModalities.has(modality);
+716-
+717-    return this.getChain(modality, variant).filter(key => {
+718-      if (!this.isProviderAvailable(key)) return false;
+719-      if (this.isCircuitOpen(key, modality)) return false;
+720:      // Skip OpenAI providers when daily token budget is exhausted (except TTS/ASR)
+721-      if (skipOpenAI && this._isOpenAIProvider(key)) return false;
+722-      return true;
+723-    });
+--
+732-   * Before: Sequential through 12 providers × 15s = 180s worst case.
+733-   * After: Race top 3, cap at 30s total. First success wins.
+734-   *
+735:   * @param {string} modality - 'llm', 'vision', 'tts', 'asr', 'embedding', 'reranking', 'safety'
+736-   * @param {Function} executeFn - async (providerKey) => result
+737-   * @param {string} variant - Chain variant (default, quality, efficient, reasoning)
+738-   * @returns {*} Result from the first successful provider
+--
+768-      throw err;
+769-    }
+770-
+771:    // Per-provider timeout: 8s for TTS/ASR, 10s for LLM, 30s for vision (multi-image), 10s default
+772-    / FIX (Feb 15, 2026 — Task #32681): LLM reduced from 15s to 10s. With 4 concurrent Quick
+773-    // Practice calls each racing 3 providers, 15s per provider meant the race phase alone took
+774-    // 15s before sequential fallback even started. 10s gives faster failover to working providers.
+775:    const perProviderTimeoutMs = modality === 'tts' || modality === 'asr' ? 8000
+776-      : modality === 'llm' ? 10000
+777-      : modality === 'vision' ? 30000
+778-      : 10000;
+--
+1013-      'openai': 'gpt-4o-mini',
+1014-      'openai_vision': 'gpt-4o',
+1015-      'openai_tts': 'tts-1',
+1016:      'openai_whisper': 'whisper-1',
+1017-      'openai_embed': 'text-embedding-3-small',
+1018-      // NIM models (audited Feb 13, 2026)
+1019-      'nim_llama_8b': NIM_MODELS.llm_llama_8b,
+--
+1032-      'groq_llama_70b': 'llama-3.3-70b-versatile',
+1033-      'groq_gpt_oss': 'openai/gpt-oss-120b',
+1034-      'groq_llama_8b': 'llama-3.1-8b-instant',
+1035:      'groq_whisper': 'whisper-large-v3-turbo',
+1036-      // Cerebras models
+1037-      'cerebras_gpt_oss': 'gpt-oss-120b',
+1038-      'cerebras_llama_8b': 'llama3.1-8b',
+--
+1362-   * Chain: OpenAI TTS → NIM Riva TTS → NIM Magpie Multilingual → NIM Magpie Flow →
+1363-   *        NIM Magpie Zeroshot → NIM FastPitch → null (browser Web Speech API)
+1364-   * @param {string} text - Text to convert to speech
+1365:   * @param {Object} options - { voice, speed, subscriptionId, audioPrompt, audioPromptTranscript, language }
+1366-   * @returns {Buffer|null} Audio buffer (MP3/WAV) or null if all providers fail
+1367-   */
+1368-  async textToSpeech(text, options = {}) {
+--
+1534-   * they throw a notApplicable error and the fallback system skips them silently.
+1535-   * @param {string} configKey - Key into NIM_TTS_CONFIGS
+1536-   * @param {string} text - Text to synthesize
+1537:   * @param {Object} options - { language, nimVoice, audioPrompt, audioPromptTranscript }
+1538-   * @returns {Buffer} Audio buffer (WAV format)
+1539-   */
+1540-  async _nimMagpieTTS(configKey, text, options) {
+--
+1600-    return buffer;
+1601-  }
+1602-
+1603:  // ─── Speech-to-Text (ASR) ────────────────────────────────────
+1604-
+1605-  /**
+1606:   * Transcribe audio with automatic provider fallback.
+1607:   * Chain: OpenAI Whisper → NIM Parakeet v2 → NIM Parakeet v3
+1608-   * @param {Buffer} audioBuffer - Audio data buffer
+1609-   * @param {string} filename - Filename with extension
+1610-   * @param {string} contentType - MIME type
+1611-   * @param {Object} options - { subscriptionId }
+1612:   * @returns {Object|null} Transcription result or null
+1613-   */
+1614:  async transcribeAudio(audioBuffer, filename, contentType, options = {}) {
+1615-    try {
+1616:      return await this.execute('asr', async (providerKey) => {
+1617-        switch (providerKey) {
+1618:          case 'openai_whisper':
+1619:            return this._openaiWhisper(audioBuffer, filename, contentType, options);
+1620-          case 'selfhosted_stt':
+1621-            return this._selfHostedSTT(audioBuffer, filename, contentType, options);
+1622:          case 'groq_whisper':
+1623:            return this._groqWhisper(audioBuffer, filename, contentType, options);
+1624-          case 'deepgram_stt':
+1625-            return this._deepgramSTT(audioBuffer, filename, contentType, options);
+1626-          case 'nim_parakeet_v2':
+1627:            return this._nimASR(NIM_MODELS.asr_parakeet_v2, audioBuffer, filename, contentType, options);
+1628-          case 'nim_parakeet_v3':
+1629:            return this._nimASR(NIM_MODELS.asr_parakeet_v3, audioBuffer, filename, contentType, options);
+1630-          default:
+1631:            throw new Error(`Unknown ASR provider: ${providerKey}`);
+1632-        }
+1633:      }, 'default', { module: options.module || 'mock-interview', feature: 'asr' });
+1634-    } catch (err) {
+1635:      console.error('[ai-provider] All ASR providers failed:', err.message);
+1636-      return null;
+1637-    }
+1638-  }
+1639-
+1640:  async _openaiWhisper(audioBuffer, filename, contentType, options) {
+1641-    const formData = new FormData();
+1642-    formData.append('file', audioBuffer, { filename, contentType });
+1643:    formData.append('model', 'whisper-1');
+1644-    formData.append('response_format', 'verbose_json');
+1645-
+1646-    const baseUrl = this.openaiBaseUrl || 'https://api.openai.com/v1';
+--
+1652-    };
+1653-    if (options.subscriptionId) headers['X-Subscription-ID'] = options.subscriptionId;
+1654-
+1655:    const res = await fetch(`${baseUrl}/audio/transcriptions`, {
+1656-      method: 'POST',
+1657-      headers,
+1658-      body: formData,
+--
+1660-
+1661-    if (!res.ok) {
+1662-      const errText = await res.text();
+1663:      const err = new Error(`Whisper API error: ${res.status} ${errText.substring(0, 200)}`);
+1664-      err.status = res.status;
+1665-      throw err;
+1666-    }
+1667-
+1668-    const result = await res.json();
+1669:    // Track ASR token usage based on audio buffer size
+1670:    const asrTokens = tokenBudget.estimateASRTokens(audioBuffer.length);
+1671:    return { _result: result, _tokenCount: asrTokens };
+1672-  }
+1673-
+1674-  /**
+1675-   * Deepgram Nova-2 STT — Independent fallback for speech-to-text.
+1676:   * Simple REST API: POST audio body, receive JSON transcription.
+1677:   * Response is normalized to match OpenAI Whisper format for compatibility.
+1678-   * Nova-2 features: smart formatting, punctuation, utterance detection.
+1679-   */
+1680-  async _deepgramSTT(audioBuffer, filename, contentType, options) {
+--
+1708-
+1709-    const result = await res.json();
+1710-
+1711:    // Extract transcript from Deepgram response
+1712-    const channel = result.results?.channels?.[0];
+1713-    const alternative = channel?.alternatives?.[0];
+1714:    const transcript = alternative?.transcript || '';
+1715-    const confidence = alternative?.confidence || 0;
+1716-    const detectedLang = channel?.detected_language || 'en';
+1717-    const duration = result.metadata?.duration || 0;
+1718-
+1719:    if (!transcript || transcript.trim().length === 0) {
+1720:      throw new Error('Deepgram STT returned empty transcript');
+1721-    }
+1722-
+1723:    console.log(`[ai-provider] Deepgram STT: ${audioBuffer.length} bytes → "${transcript.substring(0, 80)}..." (confidence: ${(confidence * 100).toFixed(1)}%)`);
+1724-
+1725:    // Normalize to OpenAI Whisper verbose_json format for compatibility
+1726-    return {
+1727:      text: transcript,
+1728-      language: detectedLang,
+1729-      duration,
+1730-      segments: (result.results?.utterances || []).map((u, i) => ({
+1731-        id: i,
+1732-        start: u.start || 0,
+1733-        end: u.end || 0,
+1734:        text: u.transcript || '',
+1735-      })),
+1736-      _provider: 'deepgram',
+1737-      _confidence: confidence,
+1738-    };
+1739-  }
+1740-
+1741:  // ─── Groq Whisper ASR (Layer 3: fast, free tier available) ──
+1742-  /**
+1743:   * Groq whisper-large-v3-turbo — Fast ASR fallback via Groq.
+1744:   * Uses OpenAI-compatible /audio/transcriptions endpoint.
+1745:   * Returns Whisper-compatible JSON for seamless integration.
+1746-   */
+1747:  async _groqWhisper(audioBuffer, filename, contentType, options) {
+1748-    const formData = new FormData();
+1749-    formData.append('file', audioBuffer, { filename, contentType });
+1750:    formData.append('model', 'whisper-large-v3-turbo');
+1751-    formData.append('response_format', 'verbose_json');
+1752-
+1753:    const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+1754-      method: 'POST',
+1755-      headers: {
+1756-        'Authorization': `Bearer ${this.groqApiKey}`,
+--
+1761-
+1762-    if (!res.ok) {
+1763-      const errText = await res.text();
+1764:      const err = new Error(`Groq Whisper error: ${res.status} ${errText.substring(0, 200)}`);
+1765-      err.status = res.status;
+1766-      throw err;
+1767-    }
+1768-
+1769-    const result = await res.json();
+1770:    console.log(`[ai-provider] Groq Whisper: ${audioBuffer.length} bytes → "${(result.text || '').substring(0, 80)}..."`);
+1771-    return result;
+1772-  }
+1773-
+--
+1786-  }
+1787-
+1788-  /**
+1789:   * Self-hosted STT via whisper.cpp — CPU-only, no API key required.
+1790:   * Returns OpenAI Whisper-compatible JSON. Skips if binaries not installed.
+1791-   */
+1792-  async _selfHostedSTT(audioBuffer, filename, contentType, options) {
+1793-    if (!selfHostedAudio || !this.selfHostedSTTAvailable) {
+1794-      throw new Error('Self-hosted STT not available');
+1795-    }
+1796:    const result = await selfHostedAudio.transcribe(audioBuffer, filename, contentType);
+1797-    return result;
+1798-  }
+1799-
+1800:  async _nimASR(model, audioBuffer, filename, contentType, options) {
+1801:    // NIM Parakeet uses OpenAI-compatible transcription endpoint
+1802-    const formData = new FormData();
+1803-    formData.append('file', audioBuffer, { filename, contentType });
+1804-    formData.append('model', model);
+--
+1809-      ...formData.getHeaders(),
+1810-    };
+1811-
+1812:    const res = await fetch(`${this.nimBaseUrl}/audio/transcriptions`, {
+1813-      method: 'POST',
+1814-      headers,
+1815-      body: formData,
+--
+1817-
+1818-    if (!res.ok) {
+1819-      const errText = await res.text();
+1820:      const err = new Error(`NIM ASR (${model}) error: ${res.status} ${errText.substring(0, 200)}`);
+1821-      err.status = res.status;
+1822-      throw err;
+1823-    }
+--
+2030-  // ─── Health Status ────────────────────────────────────────────
+2031-
+2032-  getHealth() {
+2033:    const allModalities = ['llm', 'vision', 'tts', 'asr', 'embedding', 'reranking', 'safety'];
+2034-    const modalities = {};
+2035-
+2036-    // Modalities with graceful degradation when no providers available
+--
+2240-      }
+2241-    };
+2242-
+2243:    // ── Helper: test ASR provider (tiny silent WAV) ──
+2244:    const testASR = async (key, provider) => {
+2245-      const start = Date.now();
+2246-      try {
+2247-        // Generate minimal valid WAV header (44 bytes header + 1600 bytes of silence = ~0.1s mono 16kHz)
+--
+2267-        if (provider === 'openai') {
+2268-          const fd = new FormData();
+2269-          fd.append('file', headerBuf, { filename: 'test.wav', contentType: 'audio/wav' });
+2270:          fd.append('model', 'whisper-1');
+2271-          fd.append('response_format', 'json');
+2272-          const baseUrl = this.openaiBaseUrl || 'https://api.openai.com/v1';
+2273-          const res = await Promise.race([
+2274:            fetch(`${baseUrl}/audio/transcriptions`, {
+2275-              method: 'POST',
+2276-              headers: { 'Authorization': `Bearer ${this.openaiApiKey}`, ...fd.getHeaders() },
+2277-              body: fd,
+--
+2280-          ]);
+2281-          if (!res.ok) {
+2282-            const errText = await res.text();
+2283:            results.push({ modality: 'asr', key, model: 'whisper-1', status: 'dead', ms: Date.now() - start, error: `${res.status}: ${errText.substring(0, 100)}` });
+2284-            return;
+2285-          }
+2286-          await res.json();
+2287:          results.push({ modality: 'asr', key, model: 'whisper-1', status: 'working', ms: Date.now() - start, note: 'transcription OK' });
+2288-        } else if (provider === 'groq') {
+2289-          const fd = new FormData();
+2290-          fd.append('file', headerBuf, { filename: 'test.wav', contentType: 'audio/wav' });
+2291:          fd.append('model', 'whisper-large-v3-turbo');
+2292-          fd.append('response_format', 'json');
+2293-          const res = await Promise.race([
+2294:            fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+2295-              method: 'POST',
+2296-              headers: { 'Authorization': `Bearer ${this.groqApiKey}`, ...fd.getHeaders() },
+2297-              body: fd,
+--
+2300-          ]);
+2301-          if (!res.ok) {
+2302-            const errText = await res.text();
+2303:            results.push({ modality: 'asr', key, model: 'whisper-large-v3-turbo', status: 'dead', ms: Date.now() - start, error: `${res.status}: ${errText.substring(0, 100)}` });
+2304-            return;
+2305-          }
+2306-          await res.json();
+2307:          results.push({ modality: 'asr', key, model: 'whisper-large-v3-turbo', status: 'working', ms: Date.now() - start, note: 'transcription OK' });
+2308-        } else if (provider === 'deepgram') {
+2309-          const controller = new AbortController();
+2310-          const timer = setTimeout(() => controller.abort(), VERIFY_TIMEOUT);
+--
+2317-          clearTimeout(timer);
+2318-          if (!res.ok) {
+2319-            const errText = await res.text();
+2320:            results.push({ modality: 'asr', key, model: 'deepgram-nova-2', status: 'dead', ms: Date.now() - start, error: `${res.status}: ${errText.substring(0, 100)}` });
+2321-            return;
+2322-          }
+2323-          await res.json();
+2324:          results.push({ modality: 'asr', key, model: 'deepgram-nova-2', status: 'working', ms: Date.now() - start, note: 'transcription OK' });
+2325-        } else if (provider === 'selfhosted') {
+2326-          if (!selfHostedAudio || !this.selfHostedSTTAvailable) {
+2327:            results.push({ modality: 'asr', key, model: 'whisper.cpp', status: 'dead', ms: Date.now() - start, error: 'Not installed' });
+2328-            return;
+2329-          }
+2330:          const result = await Promise.race([selfHostedAudio.transcribe(headerBuf, 'test.wav', 'audio/wav'), timeoutPromise(VERIFY_TIMEOUT)]);
+2331:          results.push({ modality: 'asr', key, model: 'whisper.cpp', status: result ? 'working' : 'dead', ms: Date.now() - start, note: result?.text ? 'STT OK' : 'empty' });
+2332-        }
+2333-      } catch (err) {
+2334:        results.push({ modality: 'asr', key, model: provider, status: 'dead', ms: Date.now() - start, error: `${err.name}: ${(err.message || '').substring(0, 100)}` });
+2335-      }
+2336-    };
+2337-
+--
+2382-    }
+2383-    tasks.push(testTTS('selfhosted_tts', 'selfhosted'));
+2384-
+2385:    // ─── ASR providers ───
+2386-    if (this.clients.openai) {
+2387:      tasks.push(testASR('openai_whisper', 'openai'));
+2388-    }
+2389-    if (this.groqAvailable) {
+2390:      tasks.push(testASR('groq_whisper', 'groq'));
+2391-    }
+2392-    if (this.deepgramAvailable) {
+2393:      tasks.push(testASR('deepgram_stt', 'deepgram'));
+2394-    }
+2395:    tasks.push(testASR('selfhosted_stt', 'selfhosted'));
+2396-
+2397-    await Promise.all(tasks);
+2398-
