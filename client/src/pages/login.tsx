@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth, getDashboardPath } from '@/contexts/auth-context'
+import { clearTokens } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -25,10 +26,15 @@ export function LoginPage() {
     setLoading(true)
 
     try {
+      // Log submitted credentials for debugging (DO NOT leave this in prod)
+      console.log('[login] submitting', JSON.stringify({ email, password }))
+      // Clear any stale tokens before login
+      clearTokens()
       await login(email, password)
       // Auth context will update, redirect happens via Navigate above
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      const message = err instanceof Error ? err.message : 'Login failed'
+      setError(`${message} (submitted email: ${email})`)
     } finally {
       setLoading(false)
     }
@@ -97,12 +103,17 @@ export function LoginPage() {
                 )}
                 {loading ? 'Signing in...' : 'Sign in'}
               </Button>
-              <p className="text-center text-sm text-muted-foreground">
-                Don't have an account?{' '}
-                <Link to="/register" className="font-medium text-primary hover:underline">
-                  Sign up
+              <div className="flex flex-col gap-2 text-center text-sm">
+                <Link to="/forgot-password" className="font-medium text-primary hover:underline">
+                  Forgot your password?
                 </Link>
-              </p>
+                <p className="text-muted-foreground">
+                  Don't have an account?{' '}
+                  <Link to="/register" className="font-medium text-primary hover:underline">
+                    Sign up
+                  </Link>
+                </p>
+              </div>
             </CardFooter>
           </form>
         </Card>

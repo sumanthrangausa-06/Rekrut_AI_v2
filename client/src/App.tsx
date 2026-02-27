@@ -5,6 +5,8 @@ import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { LandingPage } from '@/pages/landing'
 import { LoginPage } from '@/pages/login'
 import { RegisterPage } from '@/pages/register'
+import { ForgotPasswordPage } from '@/pages/forgot-password'
+import { ResetPasswordPage } from '@/pages/reset-password'
 import { CandidateDashboard } from '@/pages/candidate/dashboard'
 import { RecruiterDashboard } from '@/pages/recruiter/dashboard'
 import { PlaceholderPage } from '@/pages/placeholder'
@@ -90,6 +92,8 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/test-camera" element={<TestCameraPage />} />
       <Route path="/screening/:token" element={<CandidateScreeningPage />} />
 

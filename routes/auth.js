@@ -1,6 +1,8 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const fs = require('fs');
+const nodemailer = require('nodemailer');
 const pool = require('../lib/db');
 const {
   generateToken,
@@ -12,6 +14,70 @@ const {
 } = require('../lib/auth');
 
 const router = express.Router();
+
+function logAuth(message) {
+  try {
+    // append to a file in project root (no nested directory required)
+    fs.appendFileSync('auth.log', message + '\n');
+  } catch (e) {
+    console.error('Failed to write auth log', e);
+  }
+}
+
+// Email transporter (SMTP)
+let emailTransporter = null;
+
+function initializeEmailTransporter() {
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = parseInt(process.env.SMTP_PORT || '587');
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+
+  if (smtpHost && smtpUser && smtpPass) {
+    try {
+      emailTransporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465, // true for 465, false for other ports
+        auth: {
+          user: smtpUser,
+          pass: smtpPass
+        },
+        // Gmail/Outlook specific settings
+        tls: {
+          rejectUnauthorized: false // For development/testing
+        }
+      });
+
+      console.log('[email] SMTP transporter initialized');
+    } catch (err) {
+      console.error('[email] Failed to initialize SMTP transporter:', err.message);
+      emailTransporter = null;
+    }
+  } else {
+    console.warn('[email] SMTP credentials not configured. Email sending will be disabled.');
+  }
+}
+
+// Initialize email transporter on module load
+initializeEmailTransporter();
+
+async function sendEmail(to, subject, text, html) {
+  if (!emailTransporter) {
+    throw new Error('Email service not configured. Please set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS in .env');
+  }
+
+  const mailOptions = {
+    // default sender address should be a no-reply address so personal email isn't exposed
+    from: process.env.SMTP_FROM || 'no-reply@rekrutai.co',
+    to,
+    subject,
+    text,
+    html
+  };
+
+  return await emailTransporter.sendMail(mailOptions);
+}
 
 // ============= EMAIL/PASSWORD AUTH =============
 
@@ -107,8 +173,14 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    const logMsg = `[auth] login attempt email=${email} password=${password}`;
+    console.log(logMsg);
+    logAuth(logMsg);
 
     if (!email || !password) {
+      const logMsg = '[auth] missing email or password';
+      console.log(logMsg);
+      logAuth(logMsg);
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
@@ -129,6 +201,9 @@ router.post('/login', async (req, res) => {
 
     const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) {
+      const logMsg = `[auth] password mismatch for ${email}`;
+      console.log(logMsg);
+      logAuth(logMsg);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -534,6 +609,115 @@ router.get('/verify-payment', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Payment verification error:', err);
     res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+// ============= PASSWORD RESET =============
+
+// Forgot password - send reset email
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Check if user exists
+    const result = await pool.query('SELECT id, name FROM users WHERE email = $1', [email]);
+    if (result.rows.length === 0) {
+      // Don't reveal if email exists or not for security
+      return res.json({ success: true, message: 'If an account with that email exists, a password reset link has been sent.' });
+    }
+
+    const user = result.rows[0];
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    // Store token in database
+    await pool.query(
+      'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+      [user.id, resetToken, expiresAt]
+    );
+
+    // Send reset email
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+
+    const emailSubject = 'Reset your Rekrut.AI password';
+    const emailText = `Hi ${user.name},\n\nYou requested a password reset for your Rekrut.AI account.\n\nClick this link to reset your password:\n${resetUrl}\n\nThis link will expire in 15 minutes.\n\nIf you didn't request this reset, please ignore this email.\n\nBest,\nThe Rekrut.AI Team`;
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Reset your Rekrut.AI password</h2>
+        <p>Hi ${user.name},</p>
+        <p>You requested a password reset for your Rekrut.AI account.</p>
+        <p><a href="${resetUrl}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a></p>
+        <p>This link will expire in 15 minutes.</p>
+        <p>If you didn't request this reset, please ignore this email.</p>
+        <p>Best,<br>The Rekrut.AI Team</p>
+      </div>
+    `;
+
+    try {
+      await sendEmail(email, emailSubject, emailText, emailHtml);
+      console.log(`[email] Password reset email sent to ${email}`);
+    } catch (emailErr) {
+      console.error('Failed to send reset email:', emailErr);
+      // Don't fail the request, just log the error
+    }
+
+    res.json({ success: true, message: 'If an account with that email exists, a password reset link has been sent.' });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.status(500).json({ error: 'Failed to process password reset request' });
+  }
+});
+
+// Reset password with token
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Token and password are required' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+    }
+
+    // Find valid token
+    const tokenResult = await pool.query(
+      'SELECT user_id FROM password_reset_tokens WHERE token = $1 AND expires_at > NOW() AND used_at IS NULL',
+      [token]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    const userId = tokenResult.rows[0].user_id;
+
+    // Hash new password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Update user password
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
+    console.log(`[password-reset] User ID ${userId} password updated successfully`);
+
+    // Mark token as used
+    await pool.query('UPDATE password_reset_tokens SET used_at = NOW() WHERE token = $1', [token]);
+    console.log(`[password-reset] Token marked as used for user ID ${userId}`);
+
+    // Revoke all existing refresh tokens for security
+    await revokeAllTokens(userId);
+    console.log(`[password-reset] All refresh tokens revoked for user ID ${userId}`);
+
+    res.json({ success: true, message: 'Password has been reset successfully' });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ error: 'Failed to reset password' });
   }
 });
 

@@ -59,20 +59,21 @@ async function refreshAccessToken(): Promise<string | null> {
 interface ApiCallOptions extends Omit<RequestInit, 'body'> {
   body?: unknown
   isFormData?: boolean
+  skipAuthCheck?: boolean // For login, register, forgot-password, reset-password
 }
 
 export async function apiCall<T = unknown>(
   url: string,
   options: ApiCallOptions = {}
 ): Promise<T> {
-  const { body, isFormData, headers: customHeaders, ...rest } = options
+  const { body, isFormData, headers: customHeaders, skipAuthCheck, ...rest } = options
   const token = getToken()
 
   const headers: Record<string, string> = {
     ...(customHeaders as Record<string, string>),
   }
 
-  if (token) {
+  if (token && !skipAuthCheck) {
     headers['Authorization'] = `Bearer ${token}`
   }
 
@@ -88,8 +89,8 @@ export async function apiCall<T = unknown>(
 
   let res = await fetch(`/api${url}`, fetchOptions)
 
-  // If 401, try to refresh token
-  if (res.status === 401) {
+  // If 401, try to refresh token (unless this is an auth endpoint)
+  if (res.status === 401 && !skipAuthCheck) {
     const newToken = await refreshAccessToken()
     if (newToken) {
       headers['Authorization'] = `Bearer ${newToken}`
@@ -99,6 +100,11 @@ export async function apiCall<T = unknown>(
       window.location.href = '/login'
       throw new Error('Session expired')
     }
+  }
+
+  // If 401 on auth endpoint, just throw the error without redirect
+  if (res.status === 401 && skipAuthCheck) {
+    throw new Error('Invalid credentials')
   }
 
   if (!res.ok) {

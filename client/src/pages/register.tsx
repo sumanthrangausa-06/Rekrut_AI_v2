@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth, getDashboardPath } from '@/contexts/auth-context'
+import { clearTokens } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -30,6 +31,8 @@ export function RegisterPage() {
     setLoading(true)
 
     try {
+      // Clear any stale tokens before registration
+      clearTokens()
       await register({
         email,
         password,

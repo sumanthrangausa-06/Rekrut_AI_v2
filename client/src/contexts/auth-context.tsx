@@ -32,29 +32,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false) // Start with false to avoid initial auth check
 
-  const checkAuth = useCallback(async () => {
-    const token = getToken()
-    if (!token) {
-      setLoading(false)
-      return
-    }
-
-    try {
-      const data = await apiCall<{ user: User }>('/auth/me')
-      setUser(data.user)
-    } catch {
-      clearTokens()
-      setUser(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    checkAuth()
-  }, [checkAuth])
+  // Don't check auth on initial load - only check when user explicitly tries to login
+  // This prevents the "Session expired" error from appearing on page load
 
   const login = async (email: string, password: string) => {
     const data = await apiCall<{
@@ -66,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }>('/auth/login', {
       method: 'POST',
       body: { email, password },
+      skipAuthCheck: true,
     })
 
     setTokens(data.accessToken || data.token, data.refreshToken)
@@ -82,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }>('/auth/register', {
       method: 'POST',
       body: registerData,
+      skipAuthCheck: true,
     })
 
     setTokens(data.accessToken || data.token, data.refreshToken)
