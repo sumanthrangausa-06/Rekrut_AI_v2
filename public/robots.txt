@@ -1,0 +1,24 @@
+# Rekrut AI - robots.txt
+# https://rekrutai.co
+
+User-agent: *
+Allow: /
+
+# Public pages
+Allow: /login
+Allow: /register
+Allow: /forgot-password
+Allow: /reset-password
+
+# Disallow authenticated/dashboard routes
+Disallow: /candidate/
+Disallow: /recruiter/
+Disallow: /settings/
+Disallow: /admin/
+Disallow: /debug/
+
+# Disallow API endpoints
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://rekrutai.co/sitemap.xml
