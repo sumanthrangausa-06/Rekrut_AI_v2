@@ -173,7 +173,7 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const logMsg = `[auth] login attempt email=${email} password=${password}`;
+    const logMsg = `[auth] login attempt email=${email}`;
     console.log(logMsg);
     logAuth(logMsg);
 

@@ -7,6 +7,7 @@ import { LoginPage } from '@/pages/login'
 import { RegisterPage } from '@/pages/register'
 import { ForgotPasswordPage } from '@/pages/forgot-password'
 import { ResetPasswordPage } from '@/pages/reset-password'
+import { NotFoundPage } from '@/pages/not-found'
 import { CandidateDashboard } from '@/pages/candidate/dashboard'
 import { RecruiterDashboard } from '@/pages/recruiter/dashboard'
 import { PlaceholderPage } from '@/pages/placeholder'
@@ -152,8 +153,8 @@ function AppRoutes() {
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/ai-health" element={<AdminAuthGuard><AiHealthPage /></AdminAuthGuard>} />
 
-      {/* Catch all */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* 404 Not Found */}
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   )
 }
