@@ -11,6 +11,7 @@ import { NotFoundPage } from '@/pages/not-found'
 import { CandidateDashboard } from '@/pages/candidate/dashboard'
 import { RecruiterDashboard } from '@/pages/recruiter/dashboard'
 import { PlaceholderPage } from '@/pages/placeholder'
+import { RecruiterAnalyticsPage } from '@/pages/recruiter/analytics'
 
 // Jobs
 import { CandidateJobsPage } from '@/pages/candidate/jobs'
@@ -135,7 +136,7 @@ function AppRoutes() {
         <Route path="interviews" element={<Safe><RecruiterInterviewsPage /></Safe>} />
         <Route path="offers" element={<Safe><RecruiterOffersPage /></Safe>} />
         <Route path="onboarding" element={<Safe><RecruiterOnboardingPage /></Safe>} />
-        <Route path="analytics" element={<Safe><PlaceholderPage /></Safe>} />
+        <Route path="analytics" element={<Safe><RecruiterAnalyticsPage /></Safe>} />
         <Route path="company" element={<Safe><RecruiterCompanyPage /></Safe>} />
         <Route path="payroll" element={<Safe><RecruiterPayrollPage /></Safe>} />
         <Route path="omniscore" element={<Safe><RecruiterOmniScorePage /></Safe>} />

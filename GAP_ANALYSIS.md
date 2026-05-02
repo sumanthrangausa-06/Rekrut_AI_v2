@@ -1,6 +1,6 @@
 # Rekrut AI — Gap Analysis
 
-**Date:** February 10, 2026
+**Date:** May 2, 2026 (Updated from Feb 10, 2026)
 **Sources:** MODULE_AUDIT.md (Feb 9) + COMPETITIVE_ANALYSIS.md (Feb 9) + codebase inspection
 
 ---
@@ -10,6 +10,22 @@
 Rekrut AI has **13 of 15 original modules fully built** with real backend logic and frontend UIs. The codebase is large (10K+ lines of routes, 29 migrations, 10 services). But "built" ≠ "competitive." Cross-referencing with the competitive analysis reveals significant gaps in depth, polish, and missing competitive features.
 
 **Biggest strategic gap:** OmniScore is the #1 differentiator (zero competitors) but the implementation is only 160 lines. That's the priority.
+
+---
+
+## Sprint Plan Active ✅
+
+**See `SPRINT_PLAN.md` for current prioritized tasks and weekly execution plan.**
+
+### Updates Since Feb 10, 2026:
+- **OmniScore v2 substantially built**: Route expanded from 160 lines to 22KB with:
+  - Two-sided scoring (OmniScore + TrustScore)
+  - Mutual matching endpoints
+  - Company scoring with candidate ratings
+  - Recruiter leaderboard
+  - Score history and recommendations
+- **Frontend migration in progress**: Server now serves React SPA only (see `FRONTEND_MIGRATION.md`)
+- **Prioritized next sprint**: Monetization (pricing + email) → Compliance (EU AI Act) → Integration (calendar)
 
 ---
 
