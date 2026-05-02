@@ -1,6 +1,6 @@
 # Rekrut AI - Shared Task Board
-**Last Updated:** 2026-05-02 10:05 AM
-**Updated By:** Growth Hacker
+**Last Updated:** 2026-05-02 12:10 PM
+**Updated By:** Integrations Engineer
 
 ---
 
@@ -10,8 +10,11 @@
 - Updated metadata for stronger search and social sharing previews
 
 ## 🔄 In Progress
+- Mapping Google Calendar and Outlook integration requirements for interview scheduling
+- Reviewing ATS integration gaps for Greenhouse and Lever
 - Checking whether analytics tracking needs a real provider snippet before launch
 - Verifying the homepage copy aligns with the recruiter and candidate funnels
+- QA blocker: full authenticated dashboard testing is pending until the local server can boot without `OPENAI_API_KEY` and connect to PostgreSQL in this environment
 
 ## 📝 Notes
 - Branch: `dev`
