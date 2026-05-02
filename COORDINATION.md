@@ -1,12 +1,12 @@
 # Rekrut AI - Coordination System
 
 ## 🎯 Purpose
-This file tracks the current UX/UI work in progress for Rekrut AI.
+This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 
-## ✅ Active Work
-- Auditing mobile responsiveness across the shared dashboard shell
-- Improving navigation consistency between candidate and recruiter views
-- Tightening touch targets, focus states, and drawer behavior on mobile
+## ✅ Completed Work
+- Audited the public landing page for SEO and conversion improvements
+- Added clearer hero messaging, repeated CTAs, funnel-oriented sections, and basic analytics hooks
+- Updated metadata for stronger search and social sharing previews
 
 ## 📝 Notes
 - Branch: `dev`
