@@ -32,6 +32,7 @@ const { requireAdmin } = require('./routes/admin');
 const memoryRoutes = require('./routes/memory');
 const communicationsRoutes = require('./routes/communications');
 const notificationsRoutes = require('./routes/notifications');
+const screeningRoutes = require('./routes/screening');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -138,6 +139,9 @@ app.use('/api/communications', communicationsRoutes);
 
 // API Routes - Email Notifications
 app.use('/api/notifications', notificationsRoutes);
+
+// API Routes - AI Screening (Recruiter AI Coach)
+app.use('/api/screening', screeningRoutes);
 
 // Comprehensive Monitoring Metrics — protected by admin auth
 app.get('/api/admin/metrics', requireAdmin, async (req, res) => {
