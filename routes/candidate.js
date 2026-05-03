@@ -22,6 +22,53 @@ try { matchingEngine = require('../services/matching-engine'); } catch(e) { matc
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
+function badRequest(message) {
+  const err = new Error(message);
+  err.statusCode = 400;
+  return err;
+}
+
+function normalizeTextField(value, maxLength, fieldName) {
+  if (value === undefined || value === null) return value;
+  const normalized = String(value).replace(/<[^>]*>/g, '').replace(/\u0000/g, '').trim();
+  if (!normalized) return null;
+  if (normalized.length > maxLength) {
+    throw badRequest(`${fieldName} must be ${maxLength} characters or fewer`);
+  }
+  return normalized;
+}
+
+function normalizeUrlField(value, fieldName) {
+  if (value === undefined || value === null) return value;
+  const normalized = String(value).trim();
+  if (!normalized) return null;
+  if (normalized.length > 2048) {
+    throw badRequest(`${fieldName} is too long`);
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw badRequest(`${fieldName} must be a valid URL`);
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw badRequest(`${fieldName} must use http or https`);
+  }
+
+  return parsed.toString();
+}
+
+function normalizePositiveInteger(value, fieldName, maxValue = Number.MAX_SAFE_INTEGER) {
+  if (value === undefined || value === null || value === '') return value;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > maxValue) {
+    throw badRequest(`${fieldName} must be a non-negative integer`);
+  }
+  return parsed;
+}
+
 // Helper: trigger async profile re-embedding + OmniScore recalc on profile changes
 function triggerProfileUpdate(userId, changeType) {
   setImmediate(async () => {
@@ -123,6 +170,24 @@ router.put('/profile', authMiddleware, async (req, res) => {
       remote_preference, years_experience
     } = req.body;
 
+    const sanitizedHeadline = normalizeTextField(headline, 120, 'Headline');
+    const sanitizedBio = normalizeTextField(bio, 2000, 'Bio');
+    const sanitizedLocation = normalizeTextField(location, 120, 'Location');
+    const sanitizedPhone = normalizeTextField(phone, 40, 'Phone');
+    const sanitizedLinkedinUrl = normalizeUrlField(linkedin_url, 'LinkedIn URL');
+    const sanitizedGithubUrl = normalizeUrlField(github_url, 'GitHub URL');
+    const sanitizedPortfolioUrl = normalizeUrlField(portfolio_url, 'Portfolio URL');
+    const sanitizedAvailability = normalizeTextField(availability, 60, 'Availability');
+    const sanitizedSalaryMin = normalizePositiveInteger(salary_min, 'salary_min');
+    const sanitizedSalaryMax = normalizePositiveInteger(salary_max, 'salary_max');
+    const sanitizedYearsExperience = normalizePositiveInteger(years_experience, 'years_experience', 80);
+
+    if (sanitizedSalaryMin !== undefined && sanitizedSalaryMax !== undefined &&
+        sanitizedSalaryMin !== null && sanitizedSalaryMax !== null &&
+        sanitizedSalaryMin > sanitizedSalaryMax) {
+      return res.status(400).json({ error: 'Minimum salary cannot exceed maximum salary' });
+    }
+
     // Check if profile exists
     const existing = await pool.query(
       'SELECT id FROM candidate_profiles WHERE user_id = $1',
@@ -150,11 +215,11 @@ router.put('/profile', authMiddleware, async (req, res) => {
           updated_at = NOW()
         WHERE user_id = $1
         RETURNING *
-      `, [req.user.id, headline, bio, location, phone,
-          linkedin_url, github_url, portfolio_url,
-          availability, salary_min, salary_max,
+      `, [req.user.id, sanitizedHeadline, sanitizedBio, sanitizedLocation, sanitizedPhone,
+          sanitizedLinkedinUrl, sanitizedGithubUrl, sanitizedPortfolioUrl,
+          sanitizedAvailability, sanitizedSalaryMin, sanitizedSalaryMax,
           JSON.stringify(preferred_job_types), JSON.stringify(preferred_locations),
-          remote_preference, years_experience]);
+          remote_preference, sanitizedYearsExperience]);
     } else {
       result = await pool.query(`
         INSERT INTO candidate_profiles (
@@ -165,22 +230,26 @@ router.put('/profile', authMiddleware, async (req, res) => {
           remote_preference, years_experience
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING *
-      `, [req.user.id, headline, bio, location, phone,
-          linkedin_url, github_url, portfolio_url,
-          availability, salary_min, salary_max,
+      `, [req.user.id, sanitizedHeadline, sanitizedBio, sanitizedLocation, sanitizedPhone,
+          sanitizedLinkedinUrl, sanitizedGithubUrl, sanitizedPortfolioUrl,
+          sanitizedAvailability, sanitizedSalaryMin, sanitizedSalaryMax,
           JSON.stringify(preferred_job_types || ['full-time']),
           JSON.stringify(preferred_locations || []),
-          remote_preference || 'hybrid', years_experience || 0]);
+          remote_preference || 'hybrid', sanitizedYearsExperience || 0]);
     }
 
     // Also update user name if provided
     if (req.body.name) {
+      const sanitizedName = normalizeTextField(req.body.name, 120, 'Name');
       await pool.query('UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2',
-        [req.body.name, req.user.id]);
+        [sanitizedName, req.user.id]);
     }
 
     res.json({ success: true, profile: result.rows[0] });
   } catch (err) {
+    if (err.statusCode === 400) {
+      return res.status(400).json({ error: err.message });
+    }
     console.error('Update profile error:', err);
     res.status(500).json({ error: 'Failed to update profile' });
   }
@@ -322,16 +391,16 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
                 portfolio_url = COALESCE(NULLIF($8, ''), candidate_profiles.portfolio_url),
                 years_experience = COALESCE($9, candidate_profiles.years_experience),
                 updated_at = NOW()
-            `, [
-              req.user.id,
-              parsedData.headline || null,
-              parsedData.bio || null,
-              parsedData.contact.location || null,
-              parsedData.contact.phone || null,
-              parsedData.contact.linkedin || null,
-              parsedData.contact.github || null,
-              parsedData.contact.portfolio || null,
-              parsedData.years_experience || null
+              RETURNING *
+            `, [req.user.id,
+              normalizeTextField(parsedData.contact.headline || parsedData.contact.title, 120, 'Headline'),
+              normalizeTextField(parsedData.contact.bio, 2000, 'Bio'),
+              normalizeTextField(parsedData.contact.location, 120, 'Location'),
+              normalizeTextField(parsedData.contact.phone, 40, 'Phone'),
+              normalizeUrlField(parsedData.contact.linkedin_url || parsedData.contact.linkedin, 'LinkedIn URL'),
+              normalizeUrlField(parsedData.contact.github_url || parsedData.contact.github, 'GitHub URL'),
+              normalizeUrlField(parsedData.contact.portfolio_url || parsedData.contact.website, 'Portfolio URL'),
+              normalizePositiveInteger(parsedData.contact.years_experience, 'years_experience', 80)
             ]);
             applySummary.profile = true;
 
@@ -1152,6 +1221,14 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Job not found' });
     }
 
+    const existingApplication = await pool.query(
+      'SELECT id FROM job_applications WHERE candidate_id = $1 AND job_id = $2',
+      [req.user.id, req.params.jobId]
+    );
+    if (existingApplication.rows.length > 0) {
+      return res.status(400).json({ error: 'You have already applied to this job' });
+    }
+
     const candidateProfile = {
       ...profile.rows[0],
       skills: skills.rows
@@ -1172,10 +1249,6 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
     const result = await pool.query(`
       INSERT INTO job_applications (candidate_id, job_id, company_id, cover_letter, match_score, omniscore_at_apply, screening_answers)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
-      ON CONFLICT (job_id, candidate_id) DO UPDATE SET
-        cover_letter = $4,
-        screening_answers = $7,
-        updated_at = NOW()
       RETURNING *
     `, [req.user.id, req.params.jobId, job.rows[0].company_id, cover_letter, matchScore, omniscore, JSON.stringify(screening_answers || {})]);
 
@@ -1198,7 +1271,6 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
           } else if (q.category === 'availability') {
             updates.availability = String(answer);
           } else if (q.category === 'experience') {
-            // Map experience bracket to years
             const bracket = String(answer);
             if (bracket.includes('0-1')) updates.years_experience = 1;
             else if (bracket.includes('1-3')) updates.years_experience = 2;
@@ -1210,7 +1282,6 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
           }
         }
 
-        // Update profile with extracted data (only non-null fields)
         if (Object.keys(updates).length > 0) {
           const setClauses = [];
           const values = [req.user.id];
