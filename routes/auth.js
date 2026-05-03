@@ -17,11 +17,51 @@ const router = express.Router();
 
 function logAuth(message) {
   try {
-    // append to a file in project root (no nested directory required)
     fs.appendFileSync('auth.log', message + '\n');
   } catch (e) {
     console.error('Failed to write auth log', e);
   }
+}
+
+const authBuckets = new Map();
+
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.length > 0) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+function rateLimit({ windowMs, max }) {
+  return (req, res, next) => {
+    const key = `${req.method}:${req.path}:${getClientIp(req)}`;
+    const now = Date.now();
+    const bucket = authBuckets.get(key) || { count: 0, resetAt: now + windowMs };
+
+    if (now > bucket.resetAt) {
+      bucket.count = 0;
+      bucket.resetAt = now + windowMs;
+    }
+
+    bucket.count += 1;
+    authBuckets.set(key, bucket);
+
+    for (const [bucketKey, value] of authBuckets.entries()) {
+      if (value.resetAt < now) authBuckets.delete(bucketKey);
+    }
+
+    if (bucket.count > max) {
+      return res.status(429).json({ error: 'Too many attempts. Please try again later.' });
+    }
+
+    next();
+  };
+}
+
+function isStrongPassword(password) {
+  if (typeof password !== 'string' || password.length < 8 || password.length > 128) return false;
+  return /[a-z]/.test(password) && /[A-Z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password);
 }
 
 // Email transporter (SMTP)
@@ -38,14 +78,13 @@ function initializeEmailTransporter() {
       emailTransporter = nodemailer.createTransport({
         host: smtpHost,
         port: smtpPort,
-        secure: smtpPort === 465, // true for 465, false for other ports
+        secure: smtpPort === 465,
         auth: {
           user: smtpUser,
           pass: smtpPass
         },
-        // Gmail/Outlook specific settings
         tls: {
-          rejectUnauthorized: false // For development/testing
+          rejectUnauthorized: false
         }
       });
 
@@ -68,7 +107,6 @@ async function sendEmail(to, subject, text, html) {
   }
 
   const mailOptions = {
-    // default sender address should be a no-reply address so personal email isn't exposed
     from: process.env.SMTP_FROM || 'no-reply@rekrutai.co',
     to,
     subject,
@@ -82,12 +120,18 @@ async function sendEmail(to, subject, text, html) {
 // ============= EMAIL/PASSWORD AUTH =============
 
 // Register
-router.post('/register', async (req, res) => {
+router.post('/register', rateLimit({ windowMs: 15 * 60 * 1000, max: 5 }), async (req, res) => {
   try {
     const { email, password, name, role = 'candidate', company_name } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        error: 'Password must be at least 8 characters and include uppercase, lowercase, number, and symbol'
+      });
     }
 
     // Check if user exists
@@ -170,7 +214,7 @@ router.post('/register', async (req, res) => {
 });
 
 // Login
-router.post('/login', async (req, res) => {
+router.post('/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 10 }), async (req, res) => {
   try {
     const { email, password } = req.body;
     const logMsg = `[auth] login attempt email=${email}`;
@@ -615,7 +659,7 @@ router.get('/verify-payment', authMiddleware, async (req, res) => {
 // ============= PASSWORD RESET =============
 
 // Forgot password - send reset email
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 5 }), async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -675,7 +719,7 @@ router.post('/forgot-password', async (req, res) => {
 });
 
 // Reset password with token
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 5 }), async (req, res) => {
   try {
     const { token, password } = req.body;
 
@@ -683,8 +727,10 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Token and password are required' });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        error: 'Password must be at least 8 characters and include uppercase, lowercase, number, and symbol'
+      });
     }
 
     // Find valid token

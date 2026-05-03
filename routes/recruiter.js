@@ -8,6 +8,31 @@ const { AuditLogger } = require('../services/auditLogger');
 
 const router = express.Router();
 
+function badRequest(message) {
+  const err = new Error(message);
+  err.statusCode = 400;
+  return err;
+}
+
+function normalizeTextField(value, maxLength, fieldName) {
+  if (value === undefined || value === null) return value;
+  const normalized = String(value).replace(/<[^>]*>/g, '').trim();
+  if (!normalized) return null;
+  if (normalized.length > maxLength) {
+    throw badRequest(`${fieldName} must be ${maxLength} characters or fewer`);
+  }
+  return normalized;
+}
+
+function normalizeSalary(value, fieldName) {
+  if (value === undefined || value === null || value === '') return value;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw badRequest(`${fieldName} must be a non-negative integer`);
+  }
+  return parsed;
+}
+
 // Middleware to require recruiter role — auto-provisions company if recruiter has company_name but no company_id
 async function requireRecruiter(req, res, next) {
   const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
@@ -155,8 +180,25 @@ router.post('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
       optimize = false // Flag to run AI optimization
     } = req.body;
 
-    if (!title) {
+    const sanitizedTitle = normalizeTextField(title, 120, 'Job title');
+    const sanitizedDescription = normalizeTextField(description, 8000, 'Description');
+    const sanitizedRequirements = normalizeTextField(requirements, 8000, 'Requirements');
+    const sanitizedLocation = normalizeTextField(location, 200, 'Location');
+
+    if (!sanitizedTitle) {
       return res.status(400).json({ error: 'Job title is required' });
+    }
+
+    if (salary_range !== undefined && salary_range !== null && salary_range !== '') {
+      const salaryText = String(salary_range).trim();
+      const rangeMatch = salaryText.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+      if (rangeMatch) {
+        const minSalary = normalizeSalary(rangeMatch[1], 'salary_range minimum');
+        const maxSalary = normalizeSalary(rangeMatch[2], 'salary_range maximum');
+        if (minSalary > maxSalary) {
+          return res.status(400).json({ error: 'Minimum salary cannot exceed maximum salary' });
+        }
+      }
     }
 
     // Normalize job_type to lowercase to match CHECK constraint
@@ -166,22 +208,21 @@ router.post('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
       return res.status(400).json({ error: `Invalid job type. Must be one of: ${validJobTypes.join(', ')}` });
     }
 
-    let finalDescription = description;
-    let finalRequirements = requirements;
+    let finalDescription = sanitizedDescription;
+    let finalRequirements = sanitizedRequirements;
     let optimizationResult = null;
 
     // Run AI optimization if requested
     if (optimize) {
       try {
         optimizationResult = await jobOptimizer.optimizeJobDescription({
-          title, description, requirements, location, salary_range, job_type,
+          title: sanitizedTitle, description: sanitizedDescription, requirements: sanitizedRequirements, location: sanitizedLocation, salary_range, job_type,
           company: req.user.company_name
         });
-        finalDescription = optimizationResult.optimized_description || description;
-        finalRequirements = optimizationResult.optimized_requirements || requirements;
+        finalDescription = optimizationResult.optimized_description || sanitizedDescription;
+        finalRequirements = optimizationResult.optimized_requirements || sanitizedRequirements;
       } catch (e) {
         console.error('Job optimization error:', e);
-        // Continue without optimization
       }
     }
 
@@ -190,8 +231,8 @@ router.post('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
       `INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [req.user.id, req.user.company_id, title, req.user.company_name,
-       finalDescription, finalRequirements, location, salary_range, normalizedJobType,
+      [req.user.id, req.user.company_id, sanitizedTitle, req.user.company_name,
+       finalDescription, finalRequirements, sanitizedLocation, salary_range, normalizedJobType,
        screening_questions ? JSON.stringify(screening_questions) : null]
     );
 
@@ -206,8 +247,8 @@ router.post('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
     // Analyze and add authenticity score
     try {
       const analysis = await jobOptimizer.analyzeJobPosting({
-        title, description: finalDescription, requirements: finalRequirements,
-        location, salary_range, job_type, company: req.user.company_name
+        title: sanitizedTitle, description: finalDescription, requirements: finalRequirements,
+        location: sanitizedLocation, salary_range, job_type, company: req.user.company_name
       });
 
       await trustscoreService.addJobAuthenticityComponent(
@@ -224,11 +265,13 @@ router.post('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
         message: optimize ? 'Job created with AI optimization!' : 'Job created successfully'
       });
     } catch (e) {
-      // Return job without analysis
       res.json({ success: true, job });
     }
 
   } catch (err) {
+    if (err.statusCode === 400) {
+      return res.status(400).json({ error: err.message });
+    }
     console.error('Create job error:', err);
     res.status(500).json({ error: 'Failed to create job' });
   }
@@ -333,6 +376,25 @@ router.put('/jobs/:id', authMiddleware, requireRecruiter, async (req, res) => {
   try {
     const { title, description, requirements, location, salary_range, job_type, status, screening_questions } = req.body;
 
+    const sanitizedTitle = title !== undefined ? normalizeTextField(title, 120, 'Job title') : title;
+    const sanitizedDescription = description !== undefined ? normalizeTextField(description, 8000, 'Description') : description;
+    const sanitizedRequirements = requirements !== undefined ? normalizeTextField(requirements, 8000, 'Requirements') : requirements;
+    const sanitizedLocation = location !== undefined ? normalizeTextField(location, 200, 'Location') : location;
+
+    let normalizedSalaryRange = salary_range;
+    if (salary_range !== undefined && salary_range !== null && salary_range !== '') {
+      const salaryText = String(salary_range).trim();
+      const rangeMatch = salaryText.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+      if (rangeMatch) {
+        const minSalary = normalizeSalary(rangeMatch[1], 'salary_range minimum');
+        const maxSalary = normalizeSalary(rangeMatch[2], 'salary_range maximum');
+        if (minSalary > maxSalary) {
+          return res.status(400).json({ error: 'Minimum salary cannot exceed maximum salary' });
+        }
+      }
+      normalizedSalaryRange = salaryText;
+    }
+
     // Normalize job_type to lowercase if provided
     const normalizedUpdateJobType = job_type ? job_type.toLowerCase().trim() : null;
     if (normalizedUpdateJobType) {
@@ -365,11 +427,14 @@ router.put('/jobs/:id', authMiddleware, requireRecruiter, async (req, res) => {
         updated_at = NOW()
        WHERE id = $9
        RETURNING *`,
-      [title, description, requirements, location, salary_range, normalizedUpdateJobType, status, screening_questions || null, req.params.id]
+      [sanitizedTitle, sanitizedDescription, sanitizedRequirements, sanitizedLocation, normalizedSalaryRange, normalizedUpdateJobType, status, screening_questions || null, req.params.id]
     );
 
     res.json({ success: true, job: result.rows[0] });
   } catch (err) {
+    if (err.statusCode === 400) {
+      return res.status(400).json({ error: err.message });
+    }
     console.error('Update job error:', err);
     res.status(500).json({ error: 'Failed to update job' });
   }
