@@ -1142,7 +1142,11 @@ router.get('/jobs/recommended', authMiddleware, async (req, res) => {
     // Sort by match score
     jobsWithScores.sort((a, b) => (b.match?.match_score || 0) - (a.match?.match_score || 0));
 
-    res.json({ success: true, jobs: jobsWithScores });
+    res.json({
+      success: true,
+      jobs: jobsWithScores,
+      recommended_jobs: jobsWithScores
+    });
   } catch (err) {
     console.error('Get recommended jobs error:', err);
     res.status(500).json({ error: 'Failed to get recommended jobs' });
@@ -2147,6 +2151,7 @@ Only return JSON.`;
       query: query,
       parsed_filters: filters,
       jobs: scoredJobs,
+      results: scoredJobs,
       total: scoredJobs.length
     });
   } catch (err) {
