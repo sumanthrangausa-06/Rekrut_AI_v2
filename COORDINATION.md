@@ -14,6 +14,7 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 - Shifting focus toward the EU AI Act compliance dashboard and related reporting work.
 - Preserving ongoing focus on calendar/ATS discovery, OmniScore route consistency, and transactional email coverage.
 - Auditing the candidate matching path to confirm the recommended-jobs flow stays aligned with the OmniScore service and recruiter views.
+- Tightening the EU AI Act compliance dashboard for mobile layouts, keyboard navigation, and clearer tab/table behavior.
 
 ### Blockers
 - Full dashboard QA is still blocked because the local server needs `OPENAI_API_KEY` and PostgreSQL access in this environment.
@@ -28,6 +29,7 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 
 ### Frontend Developer - Active Work
 - [ ] EU AI Act Compliance Dashboard (started 2026-05-14)
+
 ## ✅ Completed Work
 - Audited the public landing page for SEO and conversion improvements
 - Added clearer hero messaging, repeated CTAs, funnel-oriented sections, and basic analytics hooks
