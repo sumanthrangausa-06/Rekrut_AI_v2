@@ -107,6 +107,11 @@ export function LandingPage() {
             <span className="font-heading text-xl font-bold">Rekrut AI</span>
           </Link>
           <div className="flex items-center gap-3">
+            <Link to="/pricing" data-analytics="header-pricing">
+              <Button variant="ghost" size="sm">
+                Pricing
+              </Button>
+            </Link>
             {isAuthenticated && user ? (
               <Link to={dashboardPath} data-analytics="header-dashboard">
                 <Button size="sm" className="gap-2">

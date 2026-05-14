@@ -12,6 +12,7 @@ import { CandidateDashboard } from '@/pages/candidate/dashboard'
 import { RecruiterDashboard } from '@/pages/recruiter/dashboard'
 import { PlaceholderPage } from '@/pages/placeholder'
 import { RecruiterAnalyticsPage } from '@/pages/recruiter/analytics'
+import { PricingPage } from '@/pages/pricing'
 
 // Jobs
 import { CandidateJobsPage } from '@/pages/candidate/jobs'
@@ -97,6 +98,7 @@ function AppRoutes() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/test-camera" element={<TestCameraPage />} />
+      <Route path="/pricing" element={<PricingPage />} />
       <Route path="/screening/:token" element={<CandidateScreeningPage />} />
 
       {/* Auto-redirect based on role */}
