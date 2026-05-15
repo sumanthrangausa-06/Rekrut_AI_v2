@@ -1,13 +1,15 @@
 # Task Board
 
-## Current Status
-- Primary next priority: EU AI Act Compliance Dashboard.
-- PR #1 (`Improve mobile dashboard navigation`) is merged on `main`; full runtime QA remains blocked until `OPENAI_API_KEY` and PostgreSQL access are available.
-- QA check today: syntax and build passed; live uptime checks for `https://rekrutai.co` and `/health` both returned `200 OK`.
-- Security follow-up completed today: auth login logs were sanitized to remove credential-sensitive details.
+## Completed Today
+- [x] **Resolve OmniScore route consistency** - Added legacy aliases for `/api/candidate/omniscore` and `/api/recruiter/omniscore` in `server.js`.
 
-- [x] **Email Notifications System** - Implement transactional emails for applications, interviews, offers. Table stakes feature. (critical)
-- [x] **Add Pricing Page with Stripe Checkout** - Create pricing page with tier selection and Stripe checkout integration. Critical for monetization. (critical)
+## Revenue & Monetization
+
+- [x] **Add Pricing Page with Stripe Checkout** - Create pricing page with tier selection and Stripe checkout integration. Critical for monetization.
+- [x] **Revenue Dashboard + Funnel Metrics** - Track pricing views, checkout starts, completed purchases, and enterprise contact-sales conversions. (critical)
+- [ ] **Stripe Launch Readiness** - Verify live/test keys, success/cancel flows, payment sync, and error handling. (high)
+- [ ] **Enterprise Pricing Motion** - Define qualification, handoff, and follow-up flow for custom plans. (high)
+
 - [ ] **EU AI Act Compliance Dashboard** - Add audit trail, risk classification, transparency reports. August 2026 deadline. (high)
 - [ ] **Improve Candidate Matching Quality** - Refine ranking logic and validation so search results are more relevant and consistent. (high)
 - [ ] **Fix Outstanding Reliability Issues** - Stabilize the daily run pipeline and reduce failure modes in the autonomous system. (high)
@@ -16,3 +18,4 @@
 - [ ] **Partnership Outreach: Calendar integrations** - Map and contact Google Calendar and Outlook for scheduling integration discovery. (medium)
 - [ ] **Interview scheduling sync adapters** - Add internal routes/services to connect interview scheduling with Google Calendar and Outlook once OAuth design is finalized. (medium)
 - [ ] **Partnership Outreach: Job boards** - Map and contact Indeed, ZipRecruiter, and LinkedIn for posting/import partnerships. (medium)
+- [ ] **Email Notifications System** - Implement transactional emails for applications, interviews, offers. Table stakes feature.

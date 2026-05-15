@@ -13,6 +13,7 @@ import { useAuth, getDashboardPath } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { apiCall } from '@/lib/api'
+import { trackEvent } from '@/lib/analytics'
 
 type BillingCycle = 'monthly' | 'yearly'
 
@@ -75,6 +76,14 @@ export function PricingPage() {
   const search = useMemo(() => new URLSearchParams(location.search), [location.search])
 
   useEffect(() => {
+    trackEvent('page_view_pricing', { billing_cycle: billingCycle })
+  }, [])
+
+  useEffect(() => {
+    trackEvent('pricing_cycle_change', { billing_cycle: billingCycle })
+  }, [billingCycle])
+
+  useEffect(() => {
     let active = true
 
     async function loadPlans() {
@@ -105,6 +114,7 @@ export function PricingPage() {
     const sessionId = search.get('session_id')
 
     if (canceled) {
+      trackEvent('pricing_checkout_canceled')
       setPageMessage('Checkout canceled. You can try again whenever you want.')
       return
     }
@@ -123,6 +133,10 @@ export function PricingPage() {
 
           if (!active) return
           if (data.verified) {
+            trackEvent('pricing_checkout_confirmed', {
+              plan_id: data.planId,
+              billing_cycle: data.billingCycle,
+            })
             setPageMessage(
               data.synced
                 ? 'Payment confirmed. Your account is active.'
@@ -217,7 +231,10 @@ export function PricingPage() {
               <button
                 key={option.id}
                 type="button"
-                onClick={() => setBillingCycle(option.id)}
+                onClick={() => {
+                  setBillingCycle(option.id)
+                  trackEvent('pricing_cycle_toggle_click', { billing_cycle: option.id })
+                }}
                 className={`rounded-full border px-5 py-2 text-sm font-medium transition ${
                   billingCycle === option.id
                     ? 'border-primary bg-primary text-primary-foreground'
@@ -319,6 +336,7 @@ export function PricingPage() {
                           variant="outline"
                           className="w-full"
                           onClick={() => {
+                            trackEvent('pricing_contact_sales_click', { plan_id: plan.id, billing_cycle: billingCycle })
                             window.location.href = 'mailto:hello@rekrutai.co?subject=Rekrut%20AI%20Enterprise%20Pricing'
                           }}
                         >
@@ -329,7 +347,10 @@ export function PricingPage() {
                           type="button"
                           className="w-full gap-2"
                           disabled={isDisabled || checkoutLoading === plan.id}
-                          onClick={() => handleCheckout(plan.id)}
+                          onClick={() => {
+                            trackEvent('pricing_checkout_click', { plan_id: plan.id, billing_cycle: billingCycle })
+                            handleCheckout(plan.id)
+                          }}
                         >
                           {checkoutLoading === plan.id ? (
                             <>

@@ -3,6 +3,45 @@
 ## 🎯 Purpose
 This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 
+## Revenue Review - 2026-05-15
+
+### Findings
+- Pricing and billing infrastructure is already in place: `/pricing` and `/api/billing` exist, so the monetization path is past the initial build stage.
+- The remaining revenue gap is launch readiness: Stripe secret/config validation, payment success handling, and reliable measurement of checkout and sales-conversion events.
+- Enterprise revenue is still manual today because the custom-plan CTA routes to email; that should be treated as a measurable sales handoff, not just a button.
+- No explicit MRR, churn, or realized revenue report was present in the workspace, so this pass is a readiness review rather than a performance report.
+
+### Next Actions
+- Verify Stripe live/test setup and payment sync behavior.
+- Add or confirm funnel metrics for plan views, checkout starts, completed purchases, and contact-sales clicks.
+- Define the enterprise qualification and follow-up process.
+- Keep billing work aligned with the existing landing-page analytics pass.
+
+## Daily Standup - 2026-05-15
+
+### Completed Yesterday
+- Revalidated repo state and the open PR queue; no new merges changed the priority order.
+- PR #1 (`Improve mobile dashboard navigation`) is still open on GitHub and awaiting full authenticated QA/review.
+- Security follow-up remains complete: auth login logs were sanitized to remove credential-sensitive details.
+
+### In Progress Today
+- Keeping the EU AI Act Compliance Dashboard as the primary product priority.
+- Continuing landing-page analytics + conversion instrumentation.
+- Tracking OmniScore route consistency and the candidate/recruiter 404 cleanup decision.
+- Preserving coverage for calendar automation, ATS/HRIS integrations, and transactional email work.
+
+### Blockers
+- Full dashboard QA is still blocked until `OPENAI_API_KEY` and PostgreSQL access are available in this environment.
+- OmniScore path naming still needs a backend decision before frontend links are changed.
+
+### Coordination Notes
+- Frontend and backend agents should avoid touching the OmniScore path independently.
+- QA should resume once the environment blocker is cleared.
+- Open PR queue remains at 1 item.
+
+### Backend Developer - Completed Work
+- [x] Resolve OmniScore route consistency for `/api/omniscore` vs `/api/candidate/omniscore` (completed 2026-05-15)
+
 ## Daily Standup - 2026-05-14
 
 ### Completed Yesterday
@@ -29,10 +68,15 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 - PR #1 should remain treated as merged and closed.
 - Growth work today is centered on clearer tracking for landing-page and pricing-page intent signals.
 
+### Support Triage - 2026-05-14
+- Revalidated `QA_BUG_REPORT.md` against the current codebase; BUG-001 through BUG-004 now appear stale.
+- The main remaining support follow-up is OmniScore path consistency plus the candidate/recruiter 404 endpoints listed in BUG-005.
+- Keep `TASKS.md` focused on those remaining routing gaps until a backend decision is made.
 
-### Frontend Developer - Active Work
-- [ ] EU AI Act Compliance Dashboard (started 2026-05-14)
-- [ ] Landing-page analytics + conversion instrumentation (started 2026-05-14)
+
+### Frontend Developer - Completed Work
+- [x] Revenue Dashboard + Funnel Metrics (completed 2026-05-15)
+- [x] Landing-page analytics + conversion instrumentation (completed 2026-05-14)
 
 ## ✅ Completed Work
 - Audited the public landing page for SEO and conversion improvements
@@ -80,7 +124,6 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 | Backend | Calendar / ATS integration discovery | API and adapter layer | 🔄 In Progress |
 | Backend | Email notifications coverage | Notifications routes and templates | 🔄 In Progress |
 | Frontend | Dashboard navigation and route consistency | UI shell and OmniScore links | 🔄 In Progress |
-| Frontend | Landing-page analytics + conversion instrumentation | Landing and pricing pages | 🔄 In Progress |
 | QA | Full authenticated dashboard verification | Local app runtime | ⛔ Blocked |
 | Scrum Master | PR review coordination and task sequencing | `COORDINATION.md`, `TASKS.md` | 🔄 In Progress |
 
@@ -124,3 +167,9 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 - `npm run lint` is not available in this repo.
 - Full authenticated runtime QA is still blocked by missing `OPENAI_API_KEY` and `ECONNREFUSED 127.0.0.1:5432` on local startup.
 - Live uptime checks for `https://rekrutai.co` and `/health` both returned `200 OK`; repeated root probes stayed around ~0.13s-0.23s TTFB and `/health` around ~0.15s-0.28s.
+
+### Analysis Pass
+- Verified `routes/candidate.js` already sanitizes profile text and URLs, enforces length limits, validates positive integers, and rejects duplicate job applications.
+- Verified the analytics path is wired end-to-end: `client/src/lib/analytics.ts` posts to `/api/analytics/events`, `routes/analytics.js` records events and builds funnel summaries, and `server.js` mounts the analytics router.
+- The main remaining cleanup item is OmniScore path consistency: the backend still serves `/api/omniscore`, while the QA bug report references `/api/candidate/omniscore` as the stale 404.
+- Treat BUG-001 through BUG-004 in `QA_BUG_REPORT.md` as stale unless a newer regression is confirmed.
