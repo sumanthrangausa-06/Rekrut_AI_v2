@@ -217,7 +217,7 @@ router.post('/register', rateLimit({ windowMs: 15 * 60 * 1000, max: 5 }), async 
 router.post('/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 10 }), async (req, res) => {
   try {
     const { email, password } = req.body;
-    const logMsg = `[auth] login attempt email=${email}`;
+    const logMsg = '[auth] login attempt';
     console.log(logMsg);
     logAuth(logMsg);
 
@@ -245,7 +245,7 @@ router.post('/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 10 }), async (r
 
     const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) {
-      const logMsg = `[auth] password mismatch for ${email}`;
+      const logMsg = '[auth] invalid credentials';
       console.log(logMsg);
       logAuth(logMsg);
       return res.status(401).json({ error: 'Invalid credentials' });
