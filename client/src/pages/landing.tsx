@@ -147,13 +147,13 @@ export function LandingPage() {
             <div className="mx-auto max-w-4xl text-center">
               <div className="mb-4 inline-flex items-center rounded-full border bg-muted px-3 py-1.5 text-xs text-muted-foreground sm:px-4 sm:text-sm">
                 <Zap className="mr-1.5 h-3.5 w-3.5 shrink-0 text-primary" />
-                AI recruitment software for faster hiring
+                AI recruitment software for screening, onboarding, and hiring analytics
               </div>
               <h1 className="font-heading text-3xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-                Hire smarter with an AI platform built for recruiters and candidates.
+                Hire smarter with AI recruiting tools built for faster screening and stronger conversions.
               </h1>
               <p className="mt-6 text-lg text-muted-foreground sm:text-xl">
-                Match talent faster, screen candidates with less friction, and keep onboarding moving with one workflow.
+                Match candidates faster, screen applicants with less friction, and keep onboarding, compliance, and reporting in one workflow.
               </p>
               <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
                 {isAuthenticated && user ? (
@@ -244,7 +244,7 @@ export function LandingPage() {
               </p>
             </div>
             <div className="mt-10 grid gap-4 md:grid-cols-3">
-              {['AI recruitment platform', 'candidate screening software', 'onboarding automation'].map((term) => (
+              {['AI recruitment platform', 'candidate screening software', 'recruiting analytics dashboard'].map((term) => (
                 <div key={term} className="rounded-2xl border bg-muted/30 p-5 text-sm font-medium text-foreground shadow-sm">
                   {term}
                 </div>

@@ -31,6 +31,7 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 - Preserving coverage for calendar automation, ATS/HRIS integrations, and transactional email work.
 - Verifying OmniScore lookups stay aligned with the current `omni_scores` schema across screening and matching paths.
 - Running a UX/UI polish pass on mobile responsiveness, component consistency, and accessibility for the landing, auth, and pricing surfaces.
+- Tightening landing-page SEO and conversion copy plus homepage metadata so the public funnel is better aligned with search intent.
 
 ### Blockers
 - Full dashboard QA is still blocked until `OPENAI_API_KEY` and PostgreSQL access are available in this environment.
