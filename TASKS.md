@@ -2,6 +2,7 @@
 
 ## Completed Today
 - [x] **Resolve OmniScore route consistency** - Added legacy aliases for `/api/candidate/omniscore` and `/api/recruiter/omniscore` in `server.js`.
+- [x] **Align recruiter screening OmniScore lookups** - Updated screening routes to read `total_score` and order by `last_updated`.
 
 ## Revenue & Monetization
 
