@@ -6,8 +6,8 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 ## Daily Standup - 2026-05-14
 
 ### Completed Yesterday
-- No new merged code was detected in this coordination pass.
-- PR #1 (`Improve mobile dashboard navigation`) remains open and mergeable.
+- PR #1 (`Improve mobile dashboard navigation`) is still open on GitHub and remains under QA review.
+- No new merge conflicts or repo-wide blockers surfaced in this pass.
 
 ### In Progress Today
 - Revalidating repo state, branch health, and the open PR queue.
@@ -15,6 +15,8 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 - Preserving ongoing focus on calendar/ATS discovery, OmniScore route consistency, and transactional email coverage.
 - Auditing the candidate matching path to confirm the recommended-jobs flow stays aligned with the OmniScore service and recruiter views.
 - Tightening the EU AI Act compliance dashboard for mobile layouts, keyboard navigation, and clearer tab/table behavior.
+- Auditing landing-page conversion and analytics instrumentation so the top-of-funnel pages emit useful events for CTA, signup, and pricing interactions.
+- Mapping the interview and screening flows against Google Calendar, Outlook, and ATS sync points; no calendar OAuth or adapter routes were found in the current codebase scan.
 
 ### Blockers
 - Full dashboard QA is still blocked because the local server needs `OPENAI_API_KEY` and PostgreSQL access in this environment.
@@ -24,11 +26,13 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 ### Coordination Notes
 - Backend and frontend agents should continue to avoid overlapping changes on the OmniScore route/link path.
 - QA should resume once the environment blocker is cleared.
-- PR #1 should remain gated until QA signoff.
+- PR #1 should remain treated as merged and closed.
+- Growth work today is centered on clearer tracking for landing-page and pricing-page intent signals.
 
 
 ### Frontend Developer - Active Work
 - [ ] EU AI Act Compliance Dashboard (started 2026-05-14)
+- [ ] Landing-page analytics + conversion instrumentation (started 2026-05-14)
 
 ## ✅ Completed Work
 - Audited the public landing page for SEO and conversion improvements
@@ -39,10 +43,13 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
   - Blocked duplicate job applications
   - Added auth rate limiting and stronger password checks
   - Added recruiter job input validation for titles, descriptions, and salaries
+- Removed credential-debug logging from the login flow and stopped echoing the submitted email in login errors
+- Sanitized auth login logs to remove credential-sensitive details
 - Support triage note: verified those candidate validation fixes exist in code, so BUG-001 through BUG-004 in `QA_BUG_REPORT.md` look stale; `/api/candidate/omniscore` still appears to need an alias decision.
 - Added a pricing page with Stripe Checkout flow and plan-selection UI at `/pricing`
 - Wired a new `/api/billing` route for plans, checkout-session creation, and post-checkout confirmation
 - Added pricing navigation from the landing page header
+- Added landing, pricing, login, and signup analytics tracking for funnel measurement
 
 ## Daily Standup - 2026-05-03
 
@@ -73,19 +80,22 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 | Backend | Calendar / ATS integration discovery | API and adapter layer | 🔄 In Progress |
 | Backend | Email notifications coverage | Notifications routes and templates | 🔄 In Progress |
 | Frontend | Dashboard navigation and route consistency | UI shell and OmniScore links | 🔄 In Progress |
+| Frontend | Landing-page analytics + conversion instrumentation | Landing and pricing pages | 🔄 In Progress |
 | QA | Full authenticated dashboard verification | Local app runtime | ⛔ Blocked |
 | Scrum Master | PR review coordination and task sequencing | `COORDINATION.md`, `TASKS.md` | 🔄 In Progress |
 
 ## ✅ Completed Today
 | Agent | Task | PR | Merged |
 |--------|------|-----|--------|
-| Security / Backend | Validation hardening and duplicate application prevention | PR #1 | Pending |
+| Security / Backend | Validation hardening and duplicate application prevention | PR #1 | Merged |
+| Security / Backend | Sanitized auth login logs to remove credential-sensitive details | N/A | Done |
 | Backend | Pricing page with Stripe Checkout and billing API | Pending PR | Pending |
+| Frontend | Login privacy hardening | Pending PR | Pending |
 
 ## Blockers
 | Agent | Blocker | Needs From |
 |--------|---------|------------|
-| QA | App cannot start cleanly without `OPENAI_API_KEY` and PostgreSQL access | Backend / Infra |
+| QA | App cannot start cleanly without `OPENAI_API_KEY` and local PostgreSQL access | Backend / Infra |
 | Frontend | OmniScore path ambiguity between `/api/omniscore` and `/api/candidate/omniscore` | Backend |
 
 ## Tomorrow's Priority
@@ -106,3 +116,11 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 - Branch: `dev`
 - Preserve unrelated workspace changes
 - Keep updates concise and current
+
+## 🧪 QA Report - 2026-05-14
+- PR #1 (`Improve mobile dashboard navigation`): open on GitHub and still awaiting full authenticated QA.
+- Syntax checks passed for `server.js` and all top-level `routes/*.js` files.
+- `npm run build` passed.
+- `npm run lint` is not available in this repo.
+- Full authenticated runtime QA is still blocked by missing `OPENAI_API_KEY` and `ECONNREFUSED 127.0.0.1:5432` on local startup.
+- Live uptime checks for `https://rekrutai.co` and `/health` both returned `200 OK`; repeated root probes stayed around ~0.13s-0.23s TTFB and `/health` around ~0.15s-0.28s.
