@@ -43,13 +43,13 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-dvh-safe items-center justify-center bg-muted/30 p-4">
+    <div className="flex min-h-dvh-safe items-center justify-center bg-muted/30 px-4 py-6 sm:p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex items-center gap-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-heading font-bold">
-              H
+              R
             </div>
             <span className="font-heading text-2xl font-bold">Rekrut AI</span>
           </Link>

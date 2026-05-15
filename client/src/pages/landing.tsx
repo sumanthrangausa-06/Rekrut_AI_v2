@@ -1,7 +1,9 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth, getDashboardPath } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { trackEvent } from '@/lib/analytics'
 import {
   Briefcase,
   Users,
@@ -96,38 +98,42 @@ export function LandingPage() {
   const { isAuthenticated, user } = useAuth()
   const dashboardPath = user ? getDashboardPath(user.role) : '/login'
 
+  useEffect(() => {
+    trackEvent('page_view_landing')
+  }, [])
+
   return (
     <div className="min-h-dvh-safe bg-background">
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <Link to="/" className="flex items-center gap-2">
+        <div className="mx-auto flex min-h-16 max-w-6xl flex-col gap-3 px-4 py-4 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:py-0">
+          <Link to="/" className="flex items-center gap-2" onClick={() => trackEvent('nav_logo_click', { destination: 'home' })}>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground font-heading">
               R
             </div>
             <span className="font-heading text-xl font-bold">Rekrut AI</span>
           </Link>
-          <div className="flex items-center gap-3">
-            <Link to="/pricing" data-analytics="header-pricing">
-              <Button variant="ghost" size="sm">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
+            <Link to="/pricing" className="block w-full sm:w-auto" data-analytics="header-pricing" onClick={() => trackEvent('header_pricing_click')}>
+              <Button variant="ghost" size="sm" className="w-full sm:w-auto">
                 Pricing
               </Button>
             </Link>
             {isAuthenticated && user ? (
-              <Link to={dashboardPath} data-analytics="header-dashboard">
-                <Button size="sm" className="gap-2">
+              <Link to={dashboardPath} className="block w-full sm:w-auto" data-analytics="header-dashboard" onClick={() => trackEvent('header_dashboard_click', { role: user.role })}>
+                <Button size="sm" className="w-full gap-2 sm:w-auto">
                   <LayoutDashboard className="h-4 w-4" />
                   Dashboard
                 </Button>
               </Link>
             ) : (
               <>
-                <Link to="/login" data-analytics="header-sign-in">
-                  <Button variant="ghost" size="sm">
+                <Link to="/login" className="block w-full sm:w-auto" data-analytics="header-sign-in" onClick={() => trackEvent('header_sign_in_click')}>
+                  <Button variant="ghost" size="sm" className="w-full sm:w-auto">
                     Sign in
                   </Button>
                 </Link>
-                <Link to="/register" data-analytics="header-get-started">
-                  <Button size="sm">Get started</Button>
+                <Link to="/register" className="block w-full sm:w-auto" data-analytics="header-get-started" onClick={() => trackEvent('header_get_started_click')}>
+                  <Button size="sm" className="w-full sm:w-auto">Get started</Button>
                 </Link>
               </>
             )}
@@ -151,7 +157,7 @@ export function LandingPage() {
               </p>
               <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
                 {isAuthenticated && user ? (
-                  <Link to={dashboardPath} data-analytics="hero-dashboard">
+                  <Link to={dashboardPath} data-analytics="hero-dashboard" onClick={() => trackEvent('hero_dashboard_click', { role: user.role })}>
                     <Button size="lg" className="gap-2">
                       Go to Dashboard
                       <ArrowRight className="h-4 w-4" />
@@ -159,13 +165,13 @@ export function LandingPage() {
                   </Link>
                 ) : (
                   <>
-                    <Link to="/register" data-analytics="hero-start-hiring">
+                    <Link to="/register" data-analytics="hero-start-hiring" onClick={() => trackEvent('hero_start_hiring_click')}>
                       <Button size="lg" className="gap-2">
                         Start hiring free
                         <ArrowRight className="h-4 w-4" />
                       </Button>
                     </Link>
-                    <Link to="/register?role=candidate" data-analytics="hero-find-jobs">
+                    <Link to="/register?role=candidate" data-analytics="hero-find-jobs" onClick={() => trackEvent('hero_find_jobs_click')}>
                       <Button variant="outline" size="lg">
                         Find jobs
                       </Button>
@@ -280,13 +286,13 @@ export function LandingPage() {
                 Start with a cleaner landing page and a faster path from first click to active applicant.
               </p>
               <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-                <Link to="/register" data-analytics="cta-start-hiring">
+                <Link to="/register" data-analytics="cta-start-hiring" onClick={() => trackEvent('cta_start_hiring_click')}>
                   <Button variant="secondary" size="lg" className="gap-2">
                     Start hiring free
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
-                <Link to="/register?role=candidate" data-analytics="cta-find-jobs">
+                <Link to="/register?role=candidate" data-analytics="cta-find-jobs" onClick={() => trackEvent('cta_find_jobs_click')}>
                   <Button variant="outline" size="lg" className="border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground">
                     Find jobs
                   </Button>
