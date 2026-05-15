@@ -6,8 +6,8 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 ## CTO Daily Check - 2026-05-15
 
 ### PR Review
-- No pull requests were created or opened today in the GitHub repo snapshot.
-- The open PR queue remains empty.
+- PR #1 (`feat: revenue dashboard + funnel metrics`) is open on GitHub and still tracking against `main`.
+- The branch now also includes a small OmniScore compatibility fix for legacy `/api/candidate/omniscore` and `/api/recruiter/omniscore` links.
 
 ### System Performance
 - Host health looks normal: load average is ~0.00, memory is plentiful, and disk usage is low.
