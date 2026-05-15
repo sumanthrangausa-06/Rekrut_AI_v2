@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const pool = require('../lib/db');
 const router = express.Router();
 
 let logAuthEvent;
@@ -191,6 +192,117 @@ router.get('/me', (req, res) => {
   }
 
   return res.status(401).json({ authenticated: false });
+});
+
+// GET /api/admin/revenue — admin-only revenue funnel metrics
+router.get('/revenue', requireAdmin, async (req, res) => {
+  try {
+    const { start_date, end_date } = req.query;
+    const startDate = start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const endDate = end_date || new Date().toISOString();
+
+    const pageViewsResult = await pool.query(`
+      SELECT
+        event_type,
+        COUNT(*) as count,
+        COUNT(DISTINCT session_id) as unique_visitors
+      FROM events
+      WHERE event_type LIKE 'page_view%'
+        AND created_at >= $1
+        AND created_at <= $2
+      GROUP BY event_type
+      ORDER BY count DESC
+    `, [startDate, endDate]);
+
+    const signupFunnelResult = await pool.query(`
+      SELECT
+        event_type,
+        COUNT(DISTINCT session_id) as sessions
+      FROM events
+      WHERE event_type IN ('page_view_landing', 'page_view_signup', 'signup_click', 'signup_complete_candidate', 'signup_complete_recruiter')
+        AND created_at >= $1
+        AND created_at <= $2
+      GROUP BY event_type
+    `, [startDate, endDate]);
+
+    const revenueFunnelResult = await pool.query(`
+      SELECT
+        event_type,
+        COUNT(*) as count,
+        COUNT(DISTINCT session_id) as sessions
+      FROM events
+      WHERE event_type IN (
+        'page_view_pricing',
+        'pricing_cycle_change',
+        'pricing_cycle_toggle_click',
+        'pricing_checkout_click',
+        'pricing_checkout_confirmed',
+        'pricing_checkout_canceled',
+        'pricing_contact_sales_click'
+      )
+        AND created_at >= $1
+        AND created_at <= $2
+      GROUP BY event_type
+    `, [startDate, endDate]);
+
+    const dailyVisitorsResult = await pool.query(`
+      SELECT
+        DATE(created_at) as date,
+        COUNT(DISTINCT session_id) as visitors
+      FROM events
+      WHERE event_type LIKE 'page_view%'
+        AND created_at >= $1
+        AND created_at <= $2
+      GROUP BY DATE(created_at)
+      ORDER BY date ASC
+    `, [startDate, endDate]);
+
+    const landingViews = pageViewsResult.rows.find((row) => row.event_type === 'page_view_landing')?.unique_visitors || 0;
+    const signupPageViews = pageViewsResult.rows.find((row) => row.event_type === 'page_view_signup')?.unique_visitors || 0;
+    const pricingViews = pageViewsResult.rows.find((row) => row.event_type === 'page_view_pricing')?.unique_visitors || 0;
+    const signupClicks = signupFunnelResult.rows.find((row) => row.event_type === 'signup_click')?.sessions || 0;
+    const candidateSignups = signupFunnelResult.rows.find((row) => row.event_type === 'signup_complete_candidate')?.sessions || 0;
+    const recruiterSignups = signupFunnelResult.rows.find((row) => row.event_type === 'signup_complete_recruiter')?.sessions || 0;
+    const totalSignups = candidateSignups + recruiterSignups;
+    const billingCycleToggles = revenueFunnelResult.rows.find((row) => row.event_type === 'pricing_cycle_change')?.sessions || revenueFunnelResult.rows.find((row) => row.event_type === 'pricing_cycle_toggle_click')?.sessions || 0;
+    const checkoutClicks = revenueFunnelResult.rows.find((row) => row.event_type === 'pricing_checkout_click')?.sessions || 0;
+    const checkoutConfirmed = revenueFunnelResult.rows.find((row) => row.event_type === 'pricing_checkout_confirmed')?.sessions || 0;
+    const checkoutCanceled = revenueFunnelResult.rows.find((row) => row.event_type === 'pricing_checkout_canceled')?.sessions || 0;
+    const contactSalesClicks = revenueFunnelResult.rows.find((row) => row.event_type === 'pricing_contact_sales_click')?.sessions || 0;
+
+    res.json({
+      success: true,
+      data: {
+        page_views: pageViewsResult.rows,
+        signup_funnel: {
+          landing_views: landingViews,
+          signup_page_views: signupPageViews,
+          signup_clicks: signupClicks,
+          candidate_signups: candidateSignups,
+          recruiter_signups: recruiterSignups,
+          total_signups: totalSignups,
+          conversion_rate: landingViews > 0 ? ((totalSignups / landingViews) * 100).toFixed(2) : '0.00',
+          click_through_rate: landingViews > 0 ? ((signupClicks / landingViews) * 100).toFixed(2) : '0.00',
+        },
+        revenue_funnel: {
+          pricing_views: pricingViews,
+          billing_cycle_toggles: billingCycleToggles,
+          checkout_clicks: checkoutClicks,
+          checkout_confirmed: checkoutConfirmed,
+          checkout_canceled: checkoutCanceled,
+          contact_sales_clicks: contactSalesClicks,
+          pricing_to_checkout_rate: pricingViews > 0 ? ((checkoutClicks / pricingViews) * 100).toFixed(2) : '0.00',
+          checkout_completion_rate: checkoutClicks > 0 ? ((checkoutConfirmed / checkoutClicks) * 100).toFixed(2) : '0.00',
+          enterprise_contact_rate: pricingViews > 0 ? ((contactSalesClicks / pricingViews) * 100).toFixed(2) : '0.00',
+        },
+        daily_visitors: dailyVisitorsResult.rows,
+        date_range: { start: startDate, end: endDate },
+      },
+    });
+  } catch (error) {
+    console.error('[admin/revenue] Error:', error.message);
+    res.status(500).json({ error: 'Failed to load revenue metrics', message: error.message });
+  }
 });
 
 // POST /api/admin/bridge — auto-elevate JWT admin users without separate login
