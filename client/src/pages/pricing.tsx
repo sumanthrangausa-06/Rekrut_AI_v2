@@ -185,29 +185,29 @@ export function PricingPage() {
   return (
     <div className="min-h-dvh-safe bg-gradient-to-b from-background via-background to-muted/30">
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
+        <div className="mx-auto flex min-h-16 max-w-6xl flex-col gap-3 px-4 py-4 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:py-0">
           <Link to="/" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground font-heading">
               R
             </div>
             <span className="font-heading text-xl font-bold">Rekrut AI</span>
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
             {user ? (
-              <Link to={dashboardPath}>
-                <Button variant="ghost" size="sm">
+              <Link to={dashboardPath} className="block w-full sm:w-auto">
+                <Button variant="ghost" size="sm" className="w-full sm:w-auto">
                   Dashboard
                 </Button>
               </Link>
             ) : (
-              <Link to="/login">
-                <Button variant="ghost" size="sm">
+              <Link to="/login" className="block w-full sm:w-auto">
+                <Button variant="ghost" size="sm" className="w-full sm:w-auto">
                   Sign in
                 </Button>
               </Link>
             )}
-            <Link to="/register">
-              <Button size="sm">Get started</Button>
+            <Link to="/register" className="block w-full sm:w-auto">
+              <Button size="sm" className="w-full sm:w-auto">Get started</Button>
             </Link>
           </div>
         </div>
@@ -226,36 +226,37 @@ export function PricingPage() {
             Launch with a clean pricing page, then send buyers straight into Stripe Checkout with one click.
           </p>
 
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             {billingOptions.map((option) => (
               <button
                 key={option.id}
                 type="button"
+                aria-pressed={billingCycle === option.id}
                 onClick={() => {
                   setBillingCycle(option.id)
                   trackEvent('pricing_cycle_toggle_click', { billing_cycle: option.id })
                 }}
-                className={`rounded-full border px-5 py-2 text-sm font-medium transition ${
+                className={`flex w-full items-start gap-2 rounded-full border px-4 py-3 text-left text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-auto sm:items-center sm:px-5 sm:py-2 ${
                   billingCycle === option.id
                     ? 'border-primary bg-primary text-primary-foreground'
                     : 'bg-background text-foreground hover:bg-muted'
                 }`}
               >
-                {option.label}
-                <span className="ml-2 text-xs opacity-70">{option.helper}</span>
+                <span>{option.label}</span>
+                <span className="text-xs font-normal opacity-70 sm:ml-2">{option.helper}</span>
               </button>
             ))}
           </div>
 
           {pageMessage ? (
-            <div className="mt-6 rounded-2xl border bg-card px-4 py-3 text-sm text-foreground shadow-sm">
+            <div className="mt-6 rounded-2xl border bg-card px-4 py-3 text-sm text-foreground shadow-sm" role="status" aria-live="polite">
               {syncingSession ? <Loader2 className="mr-2 inline h-4 w-4 animate-spin" /> : null}
               {pageMessage}
             </div>
           ) : null}
 
           {!stripeConfigured && !plansLoading ? (
-            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200" role="alert">
               Stripe Checkout is not configured yet. Add <code>STRIPE_SECRET_KEY</code> in Settings &gt; Advanced to enable checkout.
             </div>
           ) : null}
