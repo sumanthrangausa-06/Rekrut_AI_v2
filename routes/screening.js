@@ -47,7 +47,7 @@ router.post('/analyze', authMiddleware, async (req, res) => {
          FROM education WHERE user_id = u.id) as education,
         (SELECT json_agg(json_build_object('title', title, 'company', company_name, 'start_date', start_date, 'end_date', end_date))
          FROM work_experience WHERE user_id = u.id) as experience,
-        (SELECT score FROM omni_scores WHERE user_id = u.id ORDER BY calculated_at DESC LIMIT 1) as omni_score,
+        (SELECT total_score FROM omni_scores WHERE user_id = u.id ORDER BY last_updated DESC LIMIT 1) as omni_score,
         (SELECT json_agg(json_build_object('skill', skill_name, 'score', score))
          FROM assessment_results WHERE user_id = u.id AND score IS NOT NULL) as assessment_scores,
         (SELECT AVG(score)::decimal(3,1) FROM interview_evaluations WHERE candidate_id = u.id) as interview_avg_score
@@ -145,7 +145,7 @@ router.post('/batch', authMiddleware, async (req, res) => {
         cp.years_experience,
         (SELECT json_agg(json_build_object('name', skill, 'level', level)) 
          FROM candidate_skills WHERE user_id = u.id) as skills,
-        (SELECT score FROM omni_scores WHERE user_id = u.id ORDER BY calculated_at DESC LIMIT 1) as omni_score,
+        (SELECT total_score FROM omni_scores WHERE user_id = u.id ORDER BY last_updated DESC LIMIT 1) as omni_score,
         ja.id as application_id
       FROM job_applications ja
       JOIN users u ON u.id = ja.candidate_id
@@ -211,7 +211,7 @@ router.get('/:job_id', authMiddleware, async (req, res) => {
         jas.*,
         u.name as candidate_name,
         u.email as candidate_email,
-        os.score as omni_score
+        os.total_score as omni_score
       FROM job_application_screenings jas
       JOIN users u ON u.id = jas.candidate_id
       LEFT JOIN omni_scores os ON os.user_id = u.id
@@ -276,13 +276,13 @@ router.post('/compare', authMiddleware, async (req, res) => {
     const candidates = await Promise.all([
       pool.query(`
         SELECT u.*, cp.years_experience, 
-          (SELECT score FROM omni_scores WHERE user_id = u.id ORDER BY calculated_at DESC LIMIT 1) as omni_score,
+          (SELECT total_score FROM omni_scores WHERE user_id = u.id ORDER BY last_updated DESC LIMIT 1) as omni_score,
           (SELECT json_agg(json_build_object('name', skill)) FROM candidate_skills WHERE user_id = u.id) as skills
         FROM users u LEFT JOIN candidate_profiles cp ON cp.user_id = u.id WHERE u.id = $1
       `, [candidate1_id]),
       pool.query(`
         SELECT u.*, cp.years_experience,
-          (SELECT score FROM omni_scores WHERE user_id = u.id ORDER BY calculated_at DESC LIMIT 1) as omni_score,
+          (SELECT total_score FROM omni_scores WHERE user_id = u.id ORDER BY last_updated DESC LIMIT 1) as omni_score,
           (SELECT json_agg(json_build_object('name', skill)) FROM candidate_skills WHERE user_id = u.id) as skills
         FROM users u LEFT JOIN candidate_profiles cp ON cp.user_id = u.id WHERE u.id = $1
       `, [candidate2_id]),

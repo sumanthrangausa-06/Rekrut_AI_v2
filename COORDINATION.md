@@ -29,6 +29,7 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 - Continuing landing-page analytics + conversion instrumentation.
 - Tracking OmniScore route consistency and the candidate/recruiter 404 cleanup decision.
 - Preserving coverage for calendar automation, ATS/HRIS integrations, and transactional email work.
+- Verifying OmniScore lookups stay aligned with the current `omni_scores` schema across screening and matching paths.
 
 ### Blockers
 - Full dashboard QA is still blocked until `OPENAI_API_KEY` and PostgreSQL access are available in this environment.
@@ -41,6 +42,7 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 
 ### Backend Developer - Completed Work
 - [x] Resolve OmniScore route consistency for `/api/omniscore` vs `/api/candidate/omniscore` (completed 2026-05-15)
+- [x] Align recruiter screening OmniScore queries to `total_score` / `last_updated` in the current schema
 
 ## Daily Standup - 2026-05-14
 
