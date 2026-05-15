@@ -3,6 +3,25 @@
 ## 🎯 Purpose
 This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 
+## CTO Daily Check - 2026-05-15
+
+### PR Review
+- No pull requests were created or opened today in the GitHub repo snapshot.
+- The open PR queue remains empty.
+
+### System Performance
+- Host health looks normal: load average is ~0.00, memory is plentiful, and disk usage is low.
+
+### Tech Debt / Architecture
+- Keep `/api/omniscore` as the canonical backend entrypoint; treat `/api/candidate/omniscore` and `/api/recruiter/omniscore` as compatibility shims only.
+- Reduce build-artifact churn by keeping generated `client/dist/` output out of routine review unless a deployment is intentional.
+- Stripe launch readiness, transactional email coverage, and integration contracts remain the highest-leverage gaps.
+
+### Guidance
+- Prioritize Stripe validation and funnel measurement first.
+- Follow with the enterprise pricing handoff and transactional email coverage.
+- Treat calendar/ATS integration work as contract-definition work before implementation.
+
 ## Revenue Review - 2026-05-15
 
 ### Findings
@@ -32,6 +51,7 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 - Verifying OmniScore lookups stay aligned with the current `omni_scores` schema across screening and matching paths.
 - Running a UX/UI polish pass on mobile responsiveness, component consistency, and accessibility for the landing, auth, and pricing surfaces.
 - Tightening landing-page SEO and conversion copy plus homepage metadata so the public funnel is better aligned with search intent.
+- Auditing Google Calendar, Outlook, Greenhouse, Lever, and HRIS integration surfaces; no matching implementation or adapter scaffolding has been found yet, so the next step is to define the contract before coding.
 
 ### Blockers
 - Full dashboard QA is still blocked until `OPENAI_API_KEY` and PostgreSQL access are available in this environment.
@@ -41,6 +61,7 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 - Frontend and backend agents should avoid touching the OmniScore path independently.
 - QA should resume once the environment blocker is cleared.
 - Open PR queue remains at 1 item.
+- Integration work should stay scoped until the provider contracts and payload shapes are confirmed.
 
 ### Backend Developer - Completed Work
 - [x] Resolve OmniScore route consistency for `/api/omniscore` vs `/api/candidate/omniscore` (completed 2026-05-15)
@@ -159,11 +180,6 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 - `gh pr list` currently shows one open PR on `dev`.
 - Daily SRE check: `https://rekrutai.co` and `/health` both returned `200 OK`.
 
-## 📝 Notes
-- Branch: `dev`
-- Preserve unrelated workspace changes
-- Keep updates concise and current
-
 ## 🧪 QA Report - 2026-05-14
 - PR #1 (`Improve mobile dashboard navigation`): open on GitHub and still awaiting full authenticated QA.
 - Syntax checks passed for `server.js` and all top-level `routes/*.js` files.
@@ -177,3 +193,16 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 - Verified the analytics path is wired end-to-end: `client/src/lib/analytics.ts` posts to `/api/analytics/events`, `routes/analytics.js` records events and builds funnel summaries, and `server.js` mounts the analytics router.
 - The main remaining cleanup item is OmniScore path consistency: the backend still serves `/api/omniscore`, while the QA bug report references `/api/candidate/omniscore` as the stale 404.
 - Treat BUG-001 through BUG-004 in `QA_BUG_REPORT.md` as stale unless a newer regression is confirmed.
+
+## 🧪 QA Report - 2026-05-15
+- PR #1 (`feat: revenue dashboard + funnel metrics`) is open and was partially verified.
+- `node --check server.js` and all top-level `routes/*.js` checks passed.
+- `npm run build` passed.
+- The app starts when `OPENAI_API_KEY` is present, but full authenticated QA is still blocked in this environment because PostgreSQL is unavailable (`ECONNREFUSED 127.0.0.1:5432`).
+- Revenue/admin routes boot and initial verification completes, but database-backed dashboard metrics could not be validated without a live DB.
+- Recommendation: do not merge until the missing environment dependencies are available and the revenue dashboard is fully exercised.
+
+## 📝 Notes
+- Branch: `dev`
+- Preserve unrelated workspace changes
+- Keep updates concise and current

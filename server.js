@@ -103,6 +103,8 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/interviews', quickPracticeRoutes);  // ISOLATED Quick Practice — must be BEFORE interview routes (#32717)
 app.use('/api/interviews', interviewRoutes);       // Mock Interview + video analysis (no practice routes)
 app.use('/api/omniscore', omniscoreRoutes);
+app.use('/api/candidate/omniscore', omniscoreRoutes);
+app.use('/api/recruiter/omniscore', omniscoreRoutes);
 app.use('/api/candidate', candidateRoutes);
 app.use('/api/assessments', assessmentRoutes);
 

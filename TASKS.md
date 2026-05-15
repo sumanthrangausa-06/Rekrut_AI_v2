@@ -10,6 +10,7 @@
 - [x] **Add Pricing Page with Stripe Checkout** - Create pricing page with tier selection and Stripe checkout integration. Critical for monetization.
 - [x] **Revenue Dashboard + Funnel Metrics** - Track pricing views, checkout starts, completed purchases, and enterprise contact-sales conversions. (critical)
 - [ ] **Stripe Launch Readiness** - Verify live/test keys, success/cancel flows, payment sync, and error handling. (high)
+  - QA note: full authenticated verification is blocked here until `OPENAI_API_KEY` and local PostgreSQL access are available in this environment.
 - [ ] **Enterprise Pricing Motion** - Define qualification, handoff, and follow-up flow for custom plans. (high)
 
 - [ ] **EU AI Act Compliance Dashboard** - Add audit trail, risk classification, transparency reports. August 2026 deadline. (high)
