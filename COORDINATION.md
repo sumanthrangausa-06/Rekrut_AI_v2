@@ -3,28 +3,61 @@
 ## 🎯 Purpose
 This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 
-## CTO Daily Check - 2026-05-15
+## Daily Standup - 2026-05-16
 
-### PR Review
-- PR #1 (`feat: revenue dashboard + funnel metrics`) is open on GitHub and still tracking against `main`.
-- The branch now also includes a small OmniScore compatibility fix for legacy `/api/candidate/omniscore` and `/api/recruiter/omniscore` links.
+### Completed Yesterday
+- PR #1 (`feat: revenue dashboard + funnel metrics`) remains open on GitHub and is still mergeable; no new merges landed.
+- Revalidated the QA bug report against the current codebase; the legacy OmniScore alias issue is now resolved in `server.js`.
 
-### Security Audit
-- Fixed an IDOR issue in the GDPR/compliance self-service routes by requiring each authenticated user to act only on their own records unless they are an admin.
-- Hardened Google and LinkedIn OAuth callbacks by validating the returned `state` against the session-stored OAuth nonce.
+### In Progress Today
+- Running a mobile UX polish pass on the dashboard shell: sidebar, header, and content spacing for better touch targets and viewport consistency.
+- Keeping revenue/Stripe launch readiness and funnel measurement at the top of the queue.
+- Tracking the remaining `/api/jobs/:id/apply` versus `/api/candidate/jobs/:jobId/apply` decision.
+- Preserving calendar automation, ATS/HRIS integration discovery, and transactional email coverage.
+- Watching the authenticated dashboard QA path for a clean environment to validate against.
+- Improving candidate matching quality and OmniScore accuracy with backend-only scoring fixes.
 
-### System Performance
-- Host health looks normal: load average is ~0.00, memory is plentiful, and disk usage is low.
+### Blockers
+- Full authenticated dashboard QA is still blocked until `OPENAI_API_KEY` and PostgreSQL access are available in this environment.
 
-### Tech Debt / Architecture
-- Keep `/api/omniscore` as the canonical backend entrypoint; treat `/api/candidate/omniscore` and `/api/recruiter/omniscore` as compatibility shims only.
-- Reduce build-artifact churn by keeping generated `client/dist/` output out of routine review unless a deployment is intentional.
-- Stripe launch readiness, transactional email coverage, and integration contracts remain the highest-leverage gaps.
+### Coordination Notes
+- Frontend route cleanup and navigation consistency are verified; the remaining path-choice item is backend-only.
+- The next path-consistency item is the job application endpoint decision.
+- QA should resume once the environment blocker is cleared.
+- Open PR queue remains at 1 item, and there are no review requests yet.
+- Backend validation today confirmed the candidate interview, onboarding, payroll, and AI coaching routes are already implemented.
+- Candidate matching logic now uses stricter skill normalization to reduce false positives.
+- OmniScore decay now uses elapsed time more accurately across weeks and months.
 
-### Guidance
-- Prioritize Stripe validation and funnel measurement first.
-- Follow with the enterprise pricing handoff and transactional email coverage.
-- Treat calendar/ATS integration work as contract-definition work before implementation.
+## 🛠️ Active Work
+| Agent | Task | File | Status |
+|-------|------|------|--------|
+| Scrum Master | PR review coordination, task sequencing, and QA unblock | `COORDINATION.md`, `TASKS.md` | 🔄 In Progress |
+| Backend | Revenue dashboard validation and Stripe launch readiness | API routes and billing flows | 🔄 In Progress |
+| Backend | Calendar / ATS integration discovery | API and adapter layer | 🔄 In Progress |
+| Backend | Email notifications coverage | Notifications routes and templates | 🔄 In Progress |
+| Frontend | Candidate/recruiter route cleanup and navigation consistency | UI shell and remaining 404 links | ✅ Completed |
+| QA | Full authenticated dashboard verification | Local app runtime | ⛔ Blocked |
+
+## ✅ Completed Today
+| Agent | Task | PR | Merged |
+|--------|------|-----|--------|
+| Scrum Master | Coordination refresh and daily standup update | N/A | Pending |
+| Backend | Candidate matching quality tuning and OmniScore decay fix | N/A | Pending |
+| Frontend | Candidate/recruiter route cleanup and navigation consistency | N/A | Done |
+| Backend | Resolve OmniScore route consistency and align recruiter screening lookups | PR #1 | Done |
+
+## Blockers
+| Agent | Blocker | Needs From |
+|--------|---------|------------|
+| QA | App cannot start cleanly without `OPENAI_API_KEY` and local PostgreSQL access | Backend / Infra |
+
+## Tomorrow's Priority
+1. Unblock authenticated dashboard QA
+2. Resolve candidate/recruiter route cleanup and job application alias consistency
+3. Confirm revenue dashboard and Stripe launch readiness
+4. Continue calendar and ATS integration planning
+5. Keep transactional email coverage moving
 
 ## Revenue Review - 2026-05-15
 
@@ -70,42 +103,6 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 ### Backend Developer - Completed Work
 - [x] Resolve OmniScore route consistency for `/api/omniscore` vs `/api/candidate/omniscore` (completed 2026-05-15)
 - [x] Align recruiter screening OmniScore queries to `total_score` / `last_updated` in the current schema
-
-## Daily Standup - 2026-05-14
-
-### Completed Yesterday
-- PR #1 (`Improve mobile dashboard navigation`) is still open on GitHub and remains under QA review.
-- No new merge conflicts or repo-wide blockers surfaced in this pass.
-
-### In Progress Today
-- Revalidating repo state, branch health, and the open PR queue.
-- Shifting focus toward the EU AI Act compliance dashboard and related reporting work.
-- Preserving ongoing focus on calendar/ATS discovery, OmniScore route consistency, and transactional email coverage.
-- Auditing the candidate matching path to confirm the recommended-jobs flow stays aligned with the OmniScore service and recruiter views.
-- Tightening the EU AI Act compliance dashboard for mobile layouts, keyboard navigation, and clearer tab/table behavior.
-- Auditing landing-page conversion and analytics instrumentation so the top-of-funnel pages emit useful events for CTA, signup, and pricing interactions.
-- Mapping the interview and screening flows against Google Calendar, Outlook, and ATS sync points; no calendar OAuth or adapter routes were found in the current codebase scan.
-
-### Blockers
-- Full dashboard QA is still blocked because the local server needs `OPENAI_API_KEY` and PostgreSQL access in this environment.
-- Matching-engine verification is also blocked by the same PostgreSQL dependency, so end-to-end score checks could not be completed.
-- No additional repository blockers surfaced during this scan.
-
-### Coordination Notes
-- Backend and frontend agents should continue to avoid overlapping changes on the OmniScore route/link path.
-- QA should resume once the environment blocker is cleared.
-- PR #1 should remain treated as merged and closed.
-- Growth work today is centered on clearer tracking for landing-page and pricing-page intent signals.
-
-### Support Triage - 2026-05-14
-- Revalidated `QA_BUG_REPORT.md` against the current codebase; BUG-001 through BUG-004 now appear stale.
-- The main remaining support follow-up is OmniScore path consistency plus the candidate/recruiter 404 endpoints listed in BUG-005.
-- Keep `TASKS.md` focused on those remaining routing gaps until a backend decision is made.
-
-
-### Frontend Developer - Completed Work
-- [x] Revenue Dashboard + Funnel Metrics (completed 2026-05-15)
-- [x] Landing-page analytics + conversion instrumentation (completed 2026-05-14)
 
 ## ✅ Completed Work
 - Audited the public landing page for SEO and conversion improvements
@@ -210,3 +207,22 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 - Branch: `dev`
 - Preserve unrelated workspace changes
 - Keep updates concise and current
+
+## Support Triage - 2026-05-15
+- Rechecked `QA_BUG_REPORT.md` against the current codebase.
+- BUG-001 through BUG-004 and BUG-007 still appear stale based on the current implementation.
+- The remaining customer-facing follow-ups are the missing candidate/recruiter API endpoints listed in BUG-005 and the `/api/jobs/:id/apply` alias decision in BUG-006.
+- No new support escalation surfaced in this pass.
+
+## Scheduled Analysis - 2026-05-15
+
+### Findings
+- `routes/candidate.js` already sanitizes profile text, enforces length limits, validates URLs, clamps numeric fields, and blocks duplicate job applications.
+- `routes/recruiter.js` already validates job titles, descriptions, salary ranges, and job types before saving jobs.
+- `server.js` already mounts legacy OmniScore aliases for `/api/candidate/omniscore` and `/api/recruiter/omniscore`.
+- The remaining route gaps in `QA_BUG_REPORT.md` are the prefixed 404s for candidate/recruiter interviews, onboarding, payroll, analytics, and AI coaching, plus the `/api/jobs/:id/apply` vs `/api/candidate/jobs/:jobId/apply` path mismatch.
+
+### Guidance
+- Treat BUG-001 through BUG-004 and BUG-007 as stale unless a fresh regression appears.
+- Keep Stripe launch readiness and funnel measurement as the top active revenue work.
+- Leave candidate/recruiter route cleanup as the next path-consistency item.

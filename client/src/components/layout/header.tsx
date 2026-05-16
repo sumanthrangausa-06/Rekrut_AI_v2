@@ -15,6 +15,7 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
   const navigate = useNavigate()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const workspaceLabel = isRecruiter ? 'Recruiter workspace' : 'Candidate workspace'
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -39,25 +40,28 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
   }, [])
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-card/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/60 lg:px-6">
+    <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between border-b bg-card/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-card/60 lg:px-6 lg:py-0">
       <div className="flex items-center gap-3">
         <button
           onClick={onMenuToggle}
-          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-2 hover:bg-muted lg:hidden"
+          className="flex min-h-[48px] min-w-[48px] items-center justify-center rounded-md p-2 hover:bg-muted lg:hidden"
           aria-label={sidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
           aria-controls="primary-navigation"
           aria-expanded={sidebarOpen}
         >
           <Menu className="h-5 w-5" />
         </button>
-        <Badge variant={isRecruiter ? 'default' : 'secondary'} className="hidden sm:inline-flex">
-          {isRecruiter ? 'Recruiter' : 'Candidate'}
-        </Badge>
+        <div className="flex flex-col justify-center">
+          <Badge variant={isRecruiter ? 'default' : 'secondary'} className="hidden sm:inline-flex w-fit">
+            {isRecruiter ? 'Recruiter' : 'Candidate'}
+          </Badge>
+          <span className="text-xs font-medium text-muted-foreground sm:hidden">{workspaceLabel}</span>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
         <button
-          className="relative flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-2 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="relative flex min-h-[48px] min-w-[48px] items-center justify-center rounded-full p-2 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label="Notifications"
           title="Notifications"
         >
@@ -67,7 +71,7 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex min-h-[44px] items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex min-h-[48px] items-center gap-2 rounded-full px-2 py-1.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             aria-haspopup="menu"
             aria-expanded={dropdownOpen}
             aria-controls="user-menu"

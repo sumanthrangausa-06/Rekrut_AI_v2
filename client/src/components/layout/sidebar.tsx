@@ -63,6 +63,10 @@ const recruiterNav: NavItem[] = [
 export function Sidebar({ open, onClose }: SidebarProps) {
   const { isRecruiter } = useAuth()
   const navItems = isRecruiter ? recruiterNav : candidateNav
+  const workspaceLabel = isRecruiter ? 'Recruiter workspace' : 'Candidate workspace'
+  const workspaceDescription = isRecruiter
+    ? 'Manage jobs, applications, interviews, and team analytics.'
+    : 'Track roles, applications, interviews, and your progress.'
 
   return (
     <>
@@ -77,26 +81,33 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       <aside
         id="primary-navigation"
         aria-label="Primary navigation"
+        aria-hidden={!open}
         role="navigation"
         className={cn(
           'fixed inset-y-0 left-0 z-50 flex w-[18rem] max-w-[calc(100vw-1.5rem)] flex-col border-r bg-card shadow-2xl transition-transform duration-200 lg:static lg:z-auto lg:w-64 lg:max-w-none lg:translate-x-0 lg:shadow-none',
-          open ? 'translate-x-0' : '-translate-x-full'
+          open ? 'translate-x-0' : '-translate-x-full pointer-events-none lg:pointer-events-auto'
         )}
       >
-        <div className="flex h-16 items-center justify-between border-b px-6">
-          <NavLink to={isRecruiter ? '/recruiter' : '/candidate'} className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground font-heading">
-              H
-            </div>
-            <span className="font-heading text-lg font-bold">Rekrut AI</span>
-          </NavLink>
-          <button
-            onClick={onClose}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-2 hover:bg-muted lg:hidden"
-            aria-label="Close navigation menu"
-          >
-            <X className="h-5 w-5" />
-          </button>
+        <div className="border-b px-6 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <NavLink to={isRecruiter ? '/recruiter' : '/candidate'} className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground font-heading">
+                H
+              </div>
+              <span className="font-heading text-lg font-bold">Rekrut AI</span>
+            </NavLink>
+            <button
+              onClick={onClose}
+              className="flex min-h-[48px] min-w-[48px] items-center justify-center rounded-md p-2 hover:bg-muted lg:hidden"
+              aria-label="Close navigation menu"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="mt-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{workspaceLabel}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{workspaceDescription}</p>
+          </div>
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
@@ -108,7 +119,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               onClick={onClose}
               className={({ isActive }) =>
                 cn(
-                  'flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                  'flex min-h-[48px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                   isActive
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -128,7 +139,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             onClick={onClose}
             className={({ isActive }) =>
               cn(
-                'flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                'flex min-h-[48px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                 isActive
                   ? 'bg-primary/10 text-primary'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'

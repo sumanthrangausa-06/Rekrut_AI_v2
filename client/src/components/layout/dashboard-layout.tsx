@@ -57,11 +57,11 @@ export function DashboardLayout() {
         Skip to content
       </a>
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <Header sidebarOpen={sidebarOpen} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
         <main
           id="main-content"
-          className="flex-1 overflow-y-auto bg-muted/30 p-3 pb-8 overscroll-contain sm:p-4 lg:p-6 lg:pb-6 touch-scroll"
+          className="min-h-0 flex-1 overflow-y-auto bg-muted/30 px-3 py-3 pb-8 overscroll-contain sm:px-4 sm:py-4 lg:px-6 lg:py-6 lg:pb-6"
         >
           <Outlet />
         </main>
