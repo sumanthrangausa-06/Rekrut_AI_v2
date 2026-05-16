@@ -23,6 +23,16 @@ function logAuth(message) {
   }
 }
 
+function verifyOauthState(req, state) {
+  const expectedState = req.session?.oauth_state;
+  if (!expectedState || !state || state !== expectedState) {
+    return false;
+  }
+
+  delete req.session.oauth_state;
+  return true;
+}
+
 const authBuckets = new Map();
 
 function getClientIp(req) {
@@ -388,6 +398,10 @@ router.get('/google/callback', async (req, res) => {
       return res.redirect('/login.html?error=No authorization code received');
     }
 
+    if (!verifyOauthState(req, state)) {
+      return res.redirect('/login.html?error=Invalid OAuth state');
+    }
+
     // Exchange code for tokens
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -507,6 +521,10 @@ router.get('/linkedin/callback', async (req, res) => {
 
     if (!code) {
       return res.redirect('/login.html?error=No authorization code received');
+    }
+
+    if (!verifyOauthState(req, state)) {
+      return res.redirect('/login.html?error=Invalid OAuth state');
     }
 
     // Exchange code for tokens

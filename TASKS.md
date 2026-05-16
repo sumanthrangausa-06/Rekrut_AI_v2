@@ -5,6 +5,8 @@
 - [x] **Align recruiter screening OmniScore lookups** - Updated screening routes to read `total_score` and order by `last_updated`.
 - [x] **UX/UI polish pass** - Improved mobile headers, pricing controls, and auth branding consistency.
 - [x] **OmniScore compatibility aliases** - Added legacy `/api/candidate/omniscore` and `/api/recruiter/omniscore` route shims to preserve stale links.
+- [x] **Harden OAuth callbacks** - Validated Google and LinkedIn callback `state` values against the session nonce.
+- [x] **Fix GDPR compliance IDOR** - Restricted export, delete, consent, and appeal routes to the authenticated user or admin.
 
 ## Revenue & Monetization
 
