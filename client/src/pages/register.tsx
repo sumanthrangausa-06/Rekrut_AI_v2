@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, Navigate } from 'react-router-dom'
 import { useAuth, getDashboardPath } from '@/contexts/auth-context'
 import { clearTokens } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -9,10 +9,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { UserPlus, AlertCircle, Building2, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/api'
+import { trackEvent } from '@/lib/analytics'
 
 export function RegisterPage() {
   const { register, isAuthenticated, user } = useAuth()
-  const navigate = useNavigate()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -20,6 +20,10 @@ export function RegisterPage() {
   const [companyName, setCompanyName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    trackEvent('page_view_signup')
+  }, [])
 
   if (isAuthenticated && user) {
     return <Navigate to={getDashboardPath(user.role)} replace />
@@ -31,8 +35,8 @@ export function RegisterPage() {
     setLoading(true)
 
     try {
-      // Clear any stale tokens before registration
       clearTokens()
+      trackEvent('signup_submit_click', { role, has_company: role === 'employer' })
       await register({
         email,
         password,
@@ -40,6 +44,7 @@ export function RegisterPage() {
         role,
         company_name: role === 'employer' ? companyName : undefined,
       })
+      trackEvent('signup_complete', { role, has_company: role === 'employer' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed')
     } finally {
@@ -50,13 +55,12 @@ export function RegisterPage() {
   const isRecruiterRole = role === 'employer'
 
   return (
-    <div className="flex min-h-dvh-safe items-center justify-center bg-muted/30 p-4">
+    <div className="flex min-h-dvh-safe items-center justify-center bg-muted/30 px-4 py-6 sm:p-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex items-center gap-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-heading font-bold">
-              H
+              R
             </div>
             <span className="font-heading text-2xl font-bold">Rekrut AI</span>
           </Link>
@@ -76,13 +80,15 @@ export function RegisterPage() {
                 </div>
               )}
 
-              {/* Role selector */}
               <div className="space-y-2">
                 <Label>I am a</Label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setRole('candidate')}
+                    onClick={() => {
+                      setRole('candidate')
+                      trackEvent('signup_role_select', { role: 'candidate' })
+                    }}
                     className={cn(
                       'flex flex-col items-center gap-1 rounded-lg border-2 p-3 text-sm font-medium transition-colors',
                       !isRecruiterRole
@@ -95,7 +101,10 @@ export function RegisterPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setRole('employer')}
+                    onClick={() => {
+                      setRole('employer')
+                      trackEvent('signup_role_select', { role: 'employer' })
+                    }}
                     className={cn(
                       'flex flex-col items-center gap-1 rounded-lg border-2 p-3 text-sm font-medium transition-colors',
                       isRecruiterRole

@@ -8,9 +8,65 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Inter', sans-serif; }
+
+    .skip-link {
+      position: absolute;
+      left: -999px;
+      top: 12px;
+      z-index: 1000;
+      padding: 10px 14px;
+      border-radius: 9999px;
+      background: #111827;
+      color: #fff;
+      border: 1px solid #6366f1;
+    }
+
+    .skip-link:focus {
+      left: 16px;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .table-wrapper table {
+      min-width: 720px;
+      width: 100%;
+    }
+
+    .tab-button {
+      transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+    }
+
+    .tab-button:focus-visible,
+    button:focus-visible,
+    input:focus-visible {
+      outline: 2px solid #6366f1;
+      outline-offset: 2px;
+    }
+
+    .tab-button[aria-selected="true"] {
+      border-color: #4f46e5;
+      color: #4f46e5;
+    }
   </style>
 </head>
 <body class="bg-gray-50">
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
   <!-- Navigation -->
   <nav class="bg-white shadow-sm border-b">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -30,7 +86,7 @@
     </div>
   </nav>
 
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <main id="main-content" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- Header -->
     <div class="mb-8">
       <h1 class="text-3xl font-bold text-gray-900">Compliance & Analytics Dashboard</h1>
@@ -38,21 +94,21 @@
     </div>
 
     <!-- Tabs -->
-    <div class="border-b border-gray-200 mb-8">
-      <nav class="-mb-px flex space-x-8">
-        <button onclick="showTab('bias')" id="tab-bias" class="tab-button border-indigo-600 text-indigo-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+    <div class="border-b border-gray-200 mb-8 overflow-x-auto">
+      <nav class="compliance-tab-nav -mb-px flex gap-2 sm:gap-4 min-w-max" role="tablist" aria-label="Compliance dashboard sections">
+        <button type="button" onclick="showTab('bias')" onkeydown="handleTabKeydown(event, 'bias')" id="tab-bias" class="tab-button border-indigo-600 text-indigo-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" role="tab" aria-selected="true" aria-controls="content-bias" tabindex="0">
           Bias Detection
         </button>
-        <button onclick="showTab('fairness')" id="tab-fairness" class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+        <button type="button" onclick="showTab('fairness')" onkeydown="handleTabKeydown(event, 'fairness')" id="tab-fairness" class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" role="tab" aria-selected="false" aria-controls="content-fairness" tabindex="-1">
           Fairness Audits
         </button>
-        <button onclick="showTab('gdpr')" id="tab-gdpr" class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+        <button type="button" onclick="showTab('gdpr')" onkeydown="handleTabKeydown(event, 'gdpr')" id="tab-gdpr" class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" role="tab" aria-selected="false" aria-controls="content-gdpr" tabindex="-1">
           GDPR Requests
         </button>
-        <button onclick="showTab('audit')" id="tab-audit" class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+        <button type="button" onclick="showTab('audit')" onkeydown="handleTabKeydown(event, 'audit')" id="tab-audit" class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" role="tab" aria-selected="false" aria-controls="content-audit" tabindex="-1">
           Audit Logs
         </button>
-        <button onclick="showTab('retention')" id="tab-retention" class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+        <button type="button" onclick="showTab('retention')" onkeydown="handleTabKeydown(event, 'retention')" id="tab-retention" class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" role="tab" aria-selected="false" aria-controls="content-retention" tabindex="-1">
           Data Retention
         </button>
       </nav>
@@ -63,12 +119,12 @@
       <div class="bg-white rounded-lg shadow p-6 mb-6">
         <h2 class="text-xl font-semibold mb-4">Demographic Parity Analysis</h2>
         <p class="text-gray-600 mb-4">Generate a comprehensive bias report analyzing score distributions across demographic groups.</p>
-        <button onclick="generateBiasReport()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition">
+        <button type="button" onclick="generateBiasReport()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition">
           Generate New Bias Report
         </button>
-        <div id="bias-loading" class="hidden mt-4">
+        <div id="bias-loading" class="hidden mt-4" aria-live="polite">
           <div class="flex items-center text-gray-600">
-            <svg class="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
+            <svg class="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24" aria-hidden="true">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
@@ -77,7 +133,7 @@
         </div>
       </div>
 
-      <div id="bias-report-container" class="space-y-6"></div>
+      <div id="bias-report-container" class="space-y-6" aria-live="polite" aria-atomic="true"></div>
     </div>
 
     <!-- Fairness Audits Tab -->
@@ -85,12 +141,12 @@
       <div class="bg-white rounded-lg shadow p-6 mb-6">
         <h2 class="text-xl font-semibold mb-4">Automated Fairness Audits</h2>
         <p class="text-gray-600 mb-4">Run automated fairness audits to ensure equitable scoring across all candidates.</p>
-        <button onclick="generateFairnessAudit()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition">
+        <button type="button" onclick="generateFairnessAudit()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition">
           Run Fairness Audit
         </button>
-        <div id="fairness-loading" class="hidden mt-4">
+        <div id="fairness-loading" class="hidden mt-4" aria-live="polite">
           <div class="flex items-center text-gray-600">
-            <svg class="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
+            <svg class="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24" aria-hidden="true">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
@@ -99,7 +155,7 @@
         </div>
       </div>
 
-      <div id="fairness-audit-container" class="space-y-6"></div>
+      <div id="fairness-audit-container" class="space-y-6" aria-live="polite" aria-atomic="true"></div>
     </div>
 
     <!-- GDPR Requests Tab -->
@@ -108,14 +164,15 @@
         <!-- Data Export -->
         <div class="bg-white rounded-lg shadow p-6">
           <h3 class="text-lg font-semibold mb-3 flex items-center">
-            <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
             </svg>
             Data Export (Right to Portability)
           </h3>
           <p class="text-gray-600 text-sm mb-4">Export all data for a specific user in compliance with GDPR.</p>
+          <label class="sr-only" for="export-user-id">User ID</label>
           <input type="number" id="export-user-id" placeholder="User ID" class="w-full px-3 py-2 border rounded-lg mb-3">
-          <button onclick="exportUserData()" class="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
+          <button type="button" onclick="exportUserData()" class="w-full bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
             Export User Data
           </button>
         </div>
@@ -123,21 +180,23 @@
         <!-- Right to be Forgotten -->
         <div class="bg-white rounded-lg shadow p-6">
           <h3 class="text-lg font-semibold mb-3 flex items-center">
-            <svg class="w-5 h-5 mr-2 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 mr-2 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
             </svg>
             Right to be Forgotten
           </h3>
           <p class="text-gray-600 text-sm mb-4">Submit a deletion request for user data (requires manual compliance review).</p>
+          <label class="sr-only" for="delete-user-id">User ID</label>
           <input type="number" id="delete-user-id" placeholder="User ID" class="w-full px-3 py-2 border rounded-lg mb-2">
+          <label class="sr-only" for="delete-confirm-email">Confirm user email</label>
           <input type="email" id="delete-confirm-email" placeholder="Confirm user email" class="w-full px-3 py-2 border rounded-lg mb-3">
-          <button onclick="requestDeletion()" class="w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
+          <button type="button" onclick="requestDeletion()" class="w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
             Request Data Deletion
           </button>
         </div>
       </div>
 
-      <div id="gdpr-result" class="mt-6"></div>
+      <div id="gdpr-result" class="mt-6" aria-live="polite" aria-atomic="true"></div>
     </div>
 
     <!-- Audit Logs Tab -->
@@ -145,23 +204,25 @@
       <div class="bg-white rounded-lg shadow p-6 mb-6">
         <h2 class="text-xl font-semibold mb-4">Query Audit Logs</h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <label class="sr-only" for="audit-user-id">User ID optional</label>
           <input type="number" id="audit-user-id" placeholder="User ID (optional)" class="px-3 py-2 border rounded-lg">
+          <label class="sr-only" for="audit-action-type">Action type optional</label>
           <input type="text" id="audit-action-type" placeholder="Action Type (optional)" class="px-3 py-2 border rounded-lg">
-          <button onclick="queryAuditLogs()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition">
+          <button type="button" onclick="queryAuditLogs()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition">
             Query Logs
           </button>
         </div>
-        <div class="flex gap-4">
-          <button onclick="exportAuditLogs('json')" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+        <div class="flex gap-4 flex-wrap">
+          <button type="button" onclick="exportAuditLogs('json')" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
             Export as JSON
           </button>
-          <button onclick="exportAuditLogs('csv')" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+          <button type="button" onclick="exportAuditLogs('csv')" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
             Export as CSV
           </button>
         </div>
       </div>
 
-      <div id="audit-logs-container" class="bg-white rounded-lg shadow overflow-hidden"></div>
+      <div id="audit-logs-container" class="bg-white rounded-lg shadow overflow-hidden" aria-live="polite" aria-atomic="true"></div>
     </div>
 
     <!-- Data Retention Tab -->
@@ -169,12 +230,47 @@
       <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-xl font-semibold mb-4">Data Retention Policies</h2>
         <p class="text-gray-600 mb-6">Configure how long different types of data are retained before automatic deletion.</p>
-        <div id="retention-policies-container"></div>
+        <div id="retention-policies-container" aria-live="polite" aria-atomic="true"></div>
       </div>
     </div>
-  </div>
+  </main>
 
   <script>
+    const tabOrder = ['bias', 'fairness', 'gdpr', 'audit', 'retention'];
+
+    function syncTabState(activeTab) {
+      tabOrder.forEach(tab => {
+        const button = document.getElementById(`tab-${tab}`);
+        if (!button) return;
+        const isActive = tab === activeTab;
+        button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        button.tabIndex = isActive ? 0 : -1;
+      });
+    }
+
+    function handleTabKeydown(event, tab) {
+      const currentIndex = tabOrder.indexOf(tab);
+      if (currentIndex === -1) return;
+
+      let nextIndex = null;
+      if (event.key === 'ArrowRight') {
+        nextIndex = (currentIndex + 1) % tabOrder.length;
+      } else if (event.key === 'ArrowLeft') {
+        nextIndex = (currentIndex - 1 + tabOrder.length) % tabOrder.length;
+      } else if (event.key === 'Home') {
+        nextIndex = 0;
+      } else if (event.key === 'End') {
+        nextIndex = tabOrder.length - 1;
+      } else {
+        return;
+      }
+
+      event.preventDefault();
+      const nextTab = tabOrder[nextIndex];
+      showTab(nextTab);
+      document.getElementById(`tab-${nextTab}`)?.focus();
+    }
+
     // Tab switching
     function showTab(tab) {
       // Hide all tabs
@@ -189,6 +285,7 @@
       const tabBtn = document.getElementById(`tab-${tab}`);
       tabBtn.classList.add('border-indigo-600', 'text-indigo-600');
       tabBtn.classList.remove('border-transparent', 'text-gray-500');
+      syncTabState(tab);
 
       // Load data for certain tabs
       if (tab === 'retention') loadRetentionPolicies();
@@ -455,38 +552,40 @@
       }
 
       let html = `
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User ID</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Target</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP Address</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-            ${logs.map(log => `
-              <tr class="hover:bg-gray-50">
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  ${new Date(log.created_at).toLocaleString()}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  ${log.action_type}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  ${log.user_id || '-'}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  ${log.target_type ? `${log.target_type}:${log.target_id}` : '-'}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  ${log.ip_address || '-'}
-                </td>
+        <div class="table-wrapper">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User ID</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Target</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP Address</th>
               </tr>
-            `).join('')}
-          </tbody>
-        </table>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              ${logs.map(log => `
+                <tr class="hover:bg-gray-50">
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    ${new Date(log.created_at).toLocaleString()}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    ${log.action_type}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    ${log.user_id || '-'}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    ${log.target_type ? `${log.target_type}:${log.target_id}` : '-'}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    ${log.ip_address || '-'}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
       `;
 
       container.innerHTML = html;
@@ -548,30 +647,32 @@
       const container = document.getElementById('retention-policies-container');
 
       let html = `
-        <table class="min-w-full">
-          <thead>
-            <tr class="border-b">
-              <th class="py-3 text-left text-sm font-medium text-gray-700">Data Type</th>
-              <th class="py-3 text-left text-sm font-medium text-gray-700">Retention Period</th>
-              <th class="py-3 text-left text-sm font-medium text-gray-700">Auto-Delete</th>
-              <th class="py-3 text-left text-sm font-medium text-gray-700">Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${policies.map(policy => `
-              <tr class="border-b hover:bg-gray-50">
-                <td class="py-4 text-sm font-medium">${policy.data_type}</td>
-                <td class="py-4 text-sm">${policy.retention_days} days (${(policy.retention_days / 365).toFixed(1)} years)</td>
-                <td class="py-4 text-sm">
-                  <span class="px-2 py-1 rounded text-xs ${policy.auto_delete ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
-                    ${policy.auto_delete ? 'Enabled' : 'Disabled'}
-                  </span>
-                </td>
-                <td class="py-4 text-sm text-gray-600">${policy.description}</td>
+        <div class="table-wrapper">
+          <table class="min-w-full">
+            <thead>
+              <tr class="border-b">
+                <th scope="col" class="py-3 text-left text-sm font-medium text-gray-700">Data Type</th>
+                <th scope="col" class="py-3 text-left text-sm font-medium text-gray-700">Retention Period</th>
+                <th scope="col" class="py-3 text-left text-sm font-medium text-gray-700">Auto-Delete</th>
+                <th scope="col" class="py-3 text-left text-sm font-medium text-gray-700">Description</th>
               </tr>
-            `).join('')}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              ${policies.map(policy => `
+                <tr class="border-b hover:bg-gray-50">
+                  <td class="py-4 text-sm font-medium">${policy.data_type}</td>
+                  <td class="py-4 text-sm">${policy.retention_days} days (${(policy.retention_days / 365).toFixed(1)} years)</td>
+                  <td class="py-4 text-sm">
+                    <span class="px-2 py-1 rounded text-xs ${policy.auto_delete ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                      ${policy.auto_delete ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </td>
+                  <td class="py-4 text-sm text-gray-600">${policy.description}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
       `;
 
       container.innerHTML = html;
