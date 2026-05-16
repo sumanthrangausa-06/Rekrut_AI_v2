@@ -9,6 +9,10 @@ This file tracks the current UX/UI and growth work in progress for Rekrut AI.
 - PR #1 (`feat: revenue dashboard + funnel metrics`) is open on GitHub and still tracking against `main`.
 - The branch now also includes a small OmniScore compatibility fix for legacy `/api/candidate/omniscore` and `/api/recruiter/omniscore` links.
 
+### Security Audit
+- Fixed an IDOR issue in the GDPR/compliance self-service routes by requiring each authenticated user to act only on their own records unless they are an admin.
+- Hardened Google and LinkedIn OAuth callbacks by validating the returned `state` against the session-stored OAuth nonce.
+
 ### System Performance
 - Host health looks normal: load average is ~0.00, memory is plentiful, and disk usage is low.
 
