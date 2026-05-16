@@ -12,6 +12,7 @@ import { CandidateDashboard } from '@/pages/candidate/dashboard'
 import { RecruiterDashboard } from '@/pages/recruiter/dashboard'
 import { PlaceholderPage } from '@/pages/placeholder'
 import { RecruiterAnalyticsPage } from '@/pages/recruiter/analytics'
+import { PricingPage } from '@/pages/pricing'
 
 // Jobs
 import { CandidateJobsPage } from '@/pages/candidate/jobs'
@@ -73,6 +74,7 @@ import { MockInterviewDebugPage } from '@/pages/debug/mock-interview'
 import { AdminLoginPage } from '@/pages/admin/login'
 import { AdminAuthGuard } from '@/components/admin-auth-guard'
 import { AiHealthPage } from '@/pages/admin/ai-health'
+import { RevenuePage } from '@/pages/admin/revenue'
 
 // Helper: wrap a page element with RouteErrorBoundary
 function Safe({ children }: { children: React.ReactNode }) {
@@ -97,6 +99,7 @@ function AppRoutes() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/test-camera" element={<TestCameraPage />} />
+      <Route path="/pricing" element={<PricingPage />} />
       <Route path="/screening/:token" element={<CandidateScreeningPage />} />
 
       {/* Auto-redirect based on role */}
@@ -152,6 +155,7 @@ function AppRoutes() {
 
       {/* Admin routes — login is public, everything else requires auth */}
       <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin/revenue" element={<AdminAuthGuard><RevenuePage /></AdminAuthGuard>} />
       <Route path="/admin/ai-health" element={<AdminAuthGuard><AiHealthPage /></AdminAuthGuard>} />
 
       {/* 404 Not Found */}

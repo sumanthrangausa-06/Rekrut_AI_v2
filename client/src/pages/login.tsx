@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, Navigate } from 'react-router-dom'
 import { useAuth, getDashboardPath } from '@/contexts/auth-context'
 import { clearTokens } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -7,14 +7,18 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { LogIn, AlertCircle } from 'lucide-react'
+import { trackEvent } from '@/lib/analytics'
 
 export function LoginPage() {
   const { login, isAuthenticated, user } = useAuth()
-  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    trackEvent('page_view_login')
+  }, [])
 
   if (isAuthenticated && user) {
     return <Navigate to={getDashboardPath(user.role)} replace />
@@ -26,28 +30,26 @@ export function LoginPage() {
     setLoading(true)
 
     try {
-      // Log submitted credentials for debugging (DO NOT leave this in prod)
-      console.log('[login] submitting', JSON.stringify({ email, password }))
-      // Clear any stale tokens before login
+      trackEvent('login_submit_click')
       clearTokens()
       await login(email, password)
-      // Auth context will update, redirect happens via Navigate above
+      trackEvent('login_complete')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed'
-      setError(`${message} (submitted email: ${email})`)
+      setError(message)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="flex min-h-dvh-safe items-center justify-center bg-muted/30 p-4">
+    <div className="flex min-h-dvh-safe items-center justify-center bg-muted/30 px-4 py-6 sm:p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex items-center gap-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-heading font-bold">
-              H
+              R
             </div>
             <span className="font-heading text-2xl font-bold">Rekrut AI</span>
           </Link>

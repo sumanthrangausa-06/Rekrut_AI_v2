@@ -61,6 +61,27 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
       GROUP BY event_type
     `, [startDate, endDate]);
 
+    // Revenue funnel
+    const revenueFunnelResult = await pool.query(`
+      SELECT
+        event_type,
+        COUNT(*) as count,
+        COUNT(DISTINCT session_id) as sessions
+      FROM events
+      WHERE event_type IN (
+        'page_view_pricing',
+        'pricing_cycle_change',
+        'pricing_cycle_toggle_click',
+        'pricing_checkout_click',
+        'pricing_checkout_confirmed',
+        'pricing_checkout_canceled',
+        'pricing_contact_sales_click'
+      )
+        AND created_at >= $1
+        AND created_at <= $2
+      GROUP BY event_type
+    `, [startDate, endDate]);
+
     // Feature engagement
     const featureEngagementResult = await pool.query(`
       SELECT
@@ -91,10 +112,16 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
     // Conversion rates
     const landingViews = pageViewsResult.rows.find(r => r.event_type === 'page_view_landing')?.unique_visitors || 0;
     const signupPageViews = pageViewsResult.rows.find(r => r.event_type === 'page_view_signup')?.unique_visitors || 0;
+    const pricingViews = pageViewsResult.rows.find(r => r.event_type === 'page_view_pricing')?.unique_visitors || 0;
     const signupClicks = signupFunnelResult.rows.find(r => r.event_type === 'signup_click')?.sessions || 0;
     const candidateSignups = signupFunnelResult.rows.find(r => r.event_type === 'signup_complete_candidate')?.sessions || 0;
     const recruiterSignups = signupFunnelResult.rows.find(r => r.event_type === 'signup_complete_recruiter')?.sessions || 0;
     const totalSignups = candidateSignups + recruiterSignups;
+    const billingCycleToggles = revenueFunnelResult.rows.find(r => r.event_type === 'pricing_cycle_change')?.sessions || revenueFunnelResult.rows.find(r => r.event_type === 'pricing_cycle_toggle_click')?.sessions || 0;
+    const checkoutClicks = revenueFunnelResult.rows.find(r => r.event_type === 'pricing_checkout_click')?.sessions || 0;
+    const checkoutConfirmed = revenueFunnelResult.rows.find(r => r.event_type === 'pricing_checkout_confirmed')?.sessions || 0;
+    const checkoutCanceled = revenueFunnelResult.rows.find(r => r.event_type === 'pricing_checkout_canceled')?.sessions || 0;
+    const contactSalesClicks = revenueFunnelResult.rows.find(r => r.event_type === 'pricing_contact_sales_click')?.sessions || 0;
 
     res.json({
       success: true,
@@ -109,6 +136,17 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
           total_signups: totalSignups,
           conversion_rate: landingViews > 0 ? ((totalSignups / landingViews) * 100).toFixed(2) : '0.00',
           click_through_rate: landingViews > 0 ? ((signupClicks / landingViews) * 100).toFixed(2) : '0.00'
+        },
+        revenue_funnel: {
+          pricing_views: pricingViews,
+          billing_cycle_toggles: billingCycleToggles,
+          checkout_clicks: checkoutClicks,
+          checkout_confirmed: checkoutConfirmed,
+          checkout_canceled: checkoutCanceled,
+          contact_sales_clicks: contactSalesClicks,
+          pricing_to_checkout_rate: pricingViews > 0 ? ((checkoutClicks / pricingViews) * 100).toFixed(2) : '0.00',
+          checkout_completion_rate: checkoutClicks > 0 ? ((checkoutConfirmed / checkoutClicks) * 100).toFixed(2) : '0.00',
+          enterprise_contact_rate: pricingViews > 0 ? ((contactSalesClicks / pricingViews) * 100).toFixed(2) : '0.00'
         },
         feature_engagement: featureEngagementResult.rows,
         daily_visitors: dailyVisitorsResult.rows,

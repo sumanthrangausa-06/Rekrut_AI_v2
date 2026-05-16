@@ -32,6 +32,7 @@ const { requireAdmin } = require('./routes/admin');
 const memoryRoutes = require('./routes/memory');
 const communicationsRoutes = require('./routes/communications');
 const notificationsRoutes = require('./routes/notifications');
+const billingRoutes = require('./routes/billing');
 const screeningRoutes = require('./routes/screening');
 
 const app = express();
@@ -102,6 +103,8 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/interviews', quickPracticeRoutes);  // ISOLATED Quick Practice — must be BEFORE interview routes (#32717)
 app.use('/api/interviews', interviewRoutes);       // Mock Interview + video analysis (no practice routes)
 app.use('/api/omniscore', omniscoreRoutes);
+app.use('/api/candidate/omniscore', omniscoreRoutes);
+app.use('/api/recruiter/omniscore', omniscoreRoutes);
 app.use('/api/candidate', candidateRoutes);
 app.use('/api/assessments', assessmentRoutes);
 
@@ -139,6 +142,9 @@ app.use('/api/communications', communicationsRoutes);
 
 // API Routes - Email Notifications
 app.use('/api/notifications', notificationsRoutes);
+
+// API Routes - Billing and subscriptions
+app.use('/api/billing', billingRoutes);
 
 // API Routes - AI Screening (Recruiter AI Coach)
 app.use('/api/screening', screeningRoutes);
