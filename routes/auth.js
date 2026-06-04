@@ -94,7 +94,7 @@ function initializeEmailTransporter() {
           pass: smtpPass
         },
         tls: {
-          rejectUnauthorized: false
+          rejectUnauthorized: true
         }
       });
 
