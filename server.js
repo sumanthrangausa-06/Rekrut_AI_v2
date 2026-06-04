@@ -61,13 +61,19 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+// Validate session secret before configuring session middleware
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) {
+  throw new Error('SESSION_SECRET environment variable is required. Set a strong random string.');
+}
+
 app.use(session({
   store: new pgSession({
     pool: pool,
     tableName: 'user_sessions',
     createTableIfMissing: true, // Auto-creates table on first run
   }),
-  secret: process.env.SESSION_SECRET || 'rekrutai-secret-key-change-in-prod',
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
   cookie: {

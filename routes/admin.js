@@ -53,7 +53,7 @@ setInterval(() => {
 }, 30 * 60 * 1000);
 
 // ─── Admin Credentials ─────────────────────────────────────────────────────
-// Uses ADMIN_PASSWORD env var; generates random default if not set
+// Uses ADMIN_PASSWORD env var; MUST be set in production
 let ADMIN_PASSWORD_HASH = null;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 
@@ -63,20 +63,19 @@ async function initAdminCredentials() {
   if (password) {
     ADMIN_PASSWORD_HASH = await bcrypt.hash(password, 12);
     console.log('[admin] Admin credentials loaded from env vars');
+  } else if (process.env.NODE_ENV === 'production') {
+    throw new Error('ADMIN_PASSWORD environment variable is required in production');
   } else {
-    // Generate a strong default password
+    // Development only: generate a random password and write to a file (not stdout)
     const defaultPassword = crypto.randomBytes(16).toString('base64url');
     ADMIN_PASSWORD_HASH = await bcrypt.hash(defaultPassword, 12);
-    console.log('');
-    console.log('╔══════════════════════════════════════════════════════════════╗');
-    console.log('║                    ADMIN CREDENTIALS                         ║');
-    console.log('╠══════════════════════════════════════════════════════════════╣');
-    console.log(`║  Username: ${ADMIN_USERNAME.padEnd(48)}║`);
-    console.log(`║  Password: ${defaultPassword.padEnd(48)}║`);
-    console.log('║                                                              ║');
-    console.log('║  Set ADMIN_PASSWORD env var to use your own password.        ║');
-    console.log('╚══════════════════════════════════════════════════════════════╝');
-    console.log('');
+    
+    // Write to a file with restricted permissions instead of stdout
+    const fs = require('fs');
+    const path = require('path');
+    const adminCredFile = path.join(process.cwd(), '.admin-credentials');
+    fs.writeFileSync(adminCredFile, `Username: ${ADMIN_USERNAME}\nPassword: ${defaultPassword}\n`, { mode: 0o600 });
+    console.log(`[admin] Development credentials written to ${adminCredFile} (permissions 600)`);
   }
 }
 
