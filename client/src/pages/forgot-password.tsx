@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Mail, CheckCircle, AlertCircle } from 'lucide-react'
 import { apiCall } from '@/lib/api'
+import { Logo } from '@/components/ui/logo';
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -40,9 +41,7 @@ export function ForgotPasswordPage() {
           {/* Logo */}
           <div className="mb-8 text-center">
             <Link to="/" className="inline-flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-heading font-bold">
-                H
-              </div>
+              <Logo size="xl" />
               <span className="font-heading text-2xl font-bold">Rekrut AI</span>
             </Link>
           </div>
@@ -89,9 +88,7 @@ export function ForgotPasswordPage() {
         {/* Logo */}
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-heading font-bold">
-              H
-            </div>
+            <Logo size="xl" />
             <span className="font-heading text-2xl font-bold">Rekrut AI</span>
           </Link>
         </div>

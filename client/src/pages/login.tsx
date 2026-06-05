@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { LogIn, AlertCircle } from 'lucide-react'
 import { trackEvent } from '@/lib/analytics'
 
+import { Logo } from '@/components/ui/logo';
+
 export function LoginPage() {
   const { login, isAuthenticated, user } = useAuth()
   const [email, setEmail] = useState('')
@@ -48,9 +50,7 @@ export function LoginPage() {
         {/* Rekrut AI Logo */}
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-heading font-bold">
-              R
-            </div>
+            <Logo size="xl" />
             <span className="font-heading text-2xl font-bold">Rekrut AI</span>
           </Link>
         </div>
