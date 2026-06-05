@@ -100,46 +100,6 @@ function timeAgo(dateStr: string) {
 }
 
 // ─── Mock Data ──────────────────────────────────────────────
-const mockCompany: PublicCompany = {
-  id: 1, name: 'TechCorp', slug: 'techcorp',
-  description: 'TechCorp is a leading technology company building the future of cloud infrastructure. We help startups and enterprises scale their applications with cutting-edge distributed systems. Our mission is to make cloud computing accessible, reliable, and cost-effective for everyone.',
-  industry: 'Technology', company_size: '201-500',
-  website: 'https://techcorp.example.com', linkedin_url: 'https://linkedin.com/company/techcorp',
-  headquarters: 'San Francisco, CA', founded_year: 2018,
-  logo_url: '', is_verified: true,
-  culture_description: 'We believe in transparency, autonomy, and continuous learning. Every team member has a voice in shaping our product and culture. We prioritize work-life balance and mental health.',
-  core_values: ['Transparency', 'Innovation', 'Customer First', 'Diversity', 'Continuous Learning'],
-  benefits: ['Health Insurance', '401k Match', 'Unlimited PTO', 'Remote Work', 'Professional Development', 'Parental Leave', 'Gym Membership', 'Stock Options'],
-  office_locations: ['San Francisco, CA', 'New York, NY', 'Austin, TX', 'London, UK', 'Singapore'],
-  trust_score: 847, score_tier: 'exceptional',
-  total_ratings: 128, avg_rating: 4.6,
-  avg_overall: 4.6, avg_interview: 4.5, avg_communication: 4.7, avg_transparency: 4.8, avg_culture: 4.6, avg_growth: 4.4,
-}
-
-const mockJobs: PublicJob[] = [
-  { id: 1, title: 'Senior React Developer', location: 'San Francisco, CA / Remote', salary_range: '$140k - $180k', job_type: 'full-time', created_at: new Date(Date.now() - 86400000 * 2).toISOString(), match_score: 92 },
-  { id: 2, title: 'Product Manager', location: 'New York, NY', salary_range: '$130k - $160k', job_type: 'full-time', created_at: new Date(Date.now() - 86400000 * 5).toISOString(), match_score: 88 },
-  { id: 3, title: 'UX Designer', location: 'Remote', salary_range: '$110k - $145k', job_type: 'full-time', created_at: new Date(Date.now() - 86400000 * 7).toISOString(), match_score: 85 },
-  { id: 4, title: 'DevOps Engineer', location: 'Austin, TX / Remote', salary_range: '$125k - $165k', job_type: 'full-time', created_at: new Date(Date.now() - 86400000 * 10).toISOString() },
-  { id: 5, title: 'Data Engineer', location: 'San Francisco, CA', salary_range: '$135k - $175k', job_type: 'full-time', created_at: new Date(Date.now() - 86400000 * 14).toISOString() },
-]
-
-const mockReviews: PublicReview[] = [
-  { overall_rating: 5, interview_experience: 5, communication: 5, review_text: 'Incredible interview process. The team was transparent about the role, timeline, and expectations. I received feedback within 24 hours of each round.', pros: 'Fast feedback, transparent process, great team culture', cons: 'Nothing significant', created_at: new Date(Date.now() - 86400000 * 30).toISOString(), reviewer_name: 'Alex M.' },
-  { overall_rating: 4, interview_experience: 4, communication: 5, review_text: 'Great experience overall. The technical interview was challenging but fair. The team seemed genuinely interested in my growth, not just my current skills.', pros: 'Challenging but fair interviews, growth-oriented team', cons: 'Longer process than expected (3 weeks)', created_at: new Date(Date.now() - 86400000 * 60).toISOString(), reviewer_name: 'Sarah K.' },
-  { overall_rating: 5, interview_experience: 5, communication: 4, review_text: 'The hiring manager was incredibly knowledgeable and took time to explain the product vision. I felt valued as a candidate throughout.', pros: 'Strong leadership, clear vision, good communication', cons: 'No cons', created_at: new Date(Date.now() - 86400000 * 90).toISOString(), reviewer_name: 'James T.' },
-  { overall_rating: 4, interview_experience: 3, communication: 5, review_text: 'Good company with solid values. The interview process was a bit disorganized but the communication was excellent throughout.', pros: 'Great communication, transparent about salary', cons: 'Interview scheduling was a bit chaotic', created_at: new Date(Date.now() - 86400000 * 120).toISOString(), reviewer_name: 'Maria G.' },
-]
-
-const mockTeam: TeamMember[] = [
-  { id: 1, name: 'Sarah Chen', role: 'CEO', avatar_url: '' },
-  { id: 2, name: 'James Wilson', role: 'CTO', avatar_url: '' },
-  { id: 3, name: 'Emily Park', role: 'Head of Design', avatar_url: '' },
-  { id: 4, name: 'Michael Torres', role: 'VP Engineering', avatar_url: '' },
-  { id: 5, name: 'Lisa Anderson', role: 'Head of People', avatar_url: '' },
-  { id: 6, name: 'David Kim', role: 'Lead Data Engineer', avatar_url: '' },
-]
-
 // ─── Main Component ───────────────────────────────────────
 export function PublicCompanyPage() {
   const { slug } = useParams()
@@ -148,6 +108,7 @@ export function PublicCompanyPage() {
   const [reviews, setReviews] = useState<PublicReview[]>([])
   const [team, setTeam] = useState<TeamMember[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -155,6 +116,7 @@ export function PublicCompanyPage() {
 
   async function loadData() {
     setLoading(true)
+    setError(null)
     try {
       const [companyData, jobsData, reviewsData, teamData] = await Promise.allSettled([
         apiCall<{ company: PublicCompany }>(`/company/public/${slug}`),
@@ -163,16 +125,16 @@ export function PublicCompanyPage() {
         apiCall<{ team: TeamMember[] }>(`/company/${slug}/team`),
       ])
 
-      setCompany(companyData.status === 'fulfilled' ? companyData.value.company : null)
+      if (companyData.status === 'fulfilled') {
+        setCompany(companyData.value.company)
+      } else {
+        setError('Failed to load company profile')
+      }
       setJobs(jobsData.status === 'fulfilled' ? jobsData.value.jobs || [] : [])
       setReviews(reviewsData.status === 'fulfilled' ? reviewsData.value.reviews || [] : [])
       setTeam(teamData.status === 'fulfilled' ? teamData.value.team || [] : [])
-    } catch {
-      // Fallback to mock data for demo
-      setCompany(mockCompany)
-      setJobs(mockJobs)
-      setReviews(mockReviews)
-      setTeam(mockTeam)
+    } catch (err) {
+      setError('Failed to load company profile')
     } finally {
       setLoading(false)
     }
@@ -190,7 +152,7 @@ export function PublicCompanyPage() {
     return (
       <div className="text-center py-20">
         <Building2 className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-        <h2 className="font-heading text-xl font-bold">Company Not Found</h2>
+        <h2 className="font-heading text-xl font-bold">{error || 'Company Not Found'}</h2>
         <p className="text-muted-foreground mt-2">This company profile doesn't exist or has been removed.</p>
         <Button className="mt-4" asChild>
           <Link to="/candidate/jobs">Browse Jobs</Link>
