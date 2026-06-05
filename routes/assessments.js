@@ -4,6 +4,7 @@ const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { chat, handleAIError } = require('../lib/polsia-ai');
 const omniscoreService = require('../services/omniscore');
+const { rateLimits } = require('../lib/distributed-rate-limiter');
 
 // Skill catalog - available to all candidates without pre-existing skills
 const SKILL_CATALOG = [
@@ -117,8 +118,8 @@ router.get('/results', authMiddleware, async (req, res) => {
   }
 });
 
-// Start new assessment - accepts skillName+category OR skillId
-router.post('/start', authMiddleware, async (req, res) => {
+// Start new assessment - accepts skillName+category OR skillId (AI RATE LIMITED)
+router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
   const client = await pool.connect();
   try {
     const userId = req.user.id;
@@ -997,8 +998,8 @@ router.get('/recruiter/catalog', authMiddleware, async (req, res) => {
 
 const { safeParseJSON } = require('../lib/polsia-ai');
 
-// Recruiter: Generate AI assessment from job posting
-router.post('/generate', authMiddleware, async (req, res) => {
+// Recruiter: Generate AI assessment from job posting (RATE LIMITED)
+router.post('/generate', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
     if (!recruiterRoles.includes(req.user.role)) {
@@ -1783,8 +1784,8 @@ router.get('/job-assessments/all', authMiddleware, async (req, res) => {
   }
 });
 
-// Conversational assessment — AI asks follow-up questions based on answers
-router.post('/job-assessment/:id/converse', authMiddleware, async (req, res) => {
+// Conversational assessment — AI asks follow-up questions based on answers (RATE LIMITED)
+router.post('/job-assessment/:id/converse', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const assessmentId = req.params.id;
     const candidateId = req.user.id;

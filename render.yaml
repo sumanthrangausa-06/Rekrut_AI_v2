@@ -1,10 +1,39 @@
 services:
   - type: web
     runtime: node
-    name: app
+    name: rekrutai-dev
     buildCommand: npm install && cd client && npm install && npm run build
-    startCommand: npm run build && npm start
+    startCommand: npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
-        value: production
+        value: development
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: POLSIA_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: NVIDIA_NIM_API_KEY
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+    autoDeploy: false
+    branch: dev
+    pullRequestPreviewsEnabled: false

@@ -16,6 +16,8 @@ const {
 } = require('../lib/polsia-ai');
 
 const omniscoreService = require('../services/omniscore');
+const { rateLimits } = require('../lib/distributed-rate-limiter');
+
 let matchingEngine;
 try { matchingEngine = require('../services/matching-engine'); } catch(e) { matchingEngine = null; }
 
@@ -1590,8 +1592,8 @@ router.put('/interviews/:id/reschedule', authMiddleware, async (req, res) => {
 
 // ============= AI FEATURES =============
 
-// AI Resume Optimizer — tailored suggestions for a specific job
-router.post('/ai/resume-optimizer', authMiddleware, async (req, res) => {
+// AI Resume Optimizer — tailored suggestions for a specific job (RATE LIMITED)
+router.post('/ai/resume-optimizer', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { job_id } = req.body;
     const { chat } = require('../lib/polsia-ai');
@@ -1651,8 +1653,8 @@ Only return JSON.`;
   }
 });
 
-// AI Cover Letter Generator — creates a tailored cover letter
-router.post('/ai/cover-letter', authMiddleware, async (req, res) => {
+// AI Cover Letter Generator — creates a tailored cover letter (RATE LIMITED)
+router.post('/ai/cover-letter', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { job_id } = req.body;
     if (!job_id) return res.status(400).json({ error: 'job_id required' });
@@ -1702,8 +1704,8 @@ Only return JSON.`;
   }
 });
 
-// AI Screening Answer Suggestions — based on stored profile and past answers
-router.post('/ai/screening-suggestions', authMiddleware, async (req, res) => {
+// AI Screening Answer Suggestions — based on stored profile and past answers (RATE LIMITED)
+router.post('/ai/screening-suggestions', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { job_id, questions } = req.body;
     if (!questions || !Array.isArray(questions)) return res.status(400).json({ error: 'questions array required' });
@@ -1982,8 +1984,8 @@ router.put('/offers/:id/decline', authMiddleware, async (req, res) => {
 
 // ============= AI AGENT ENDPOINTS (Phase 4) =============
 
-// AI Match Explanation — natural language explanation of why a job matches
-router.post('/ai/match-explanation', authMiddleware, async (req, res) => {
+// AI Match Explanation — natural language explanation of why a job matches (RATE LIMITED)
+router.post('/ai/match-explanation', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { job_id } = req.body;
     if (!job_id) return res.status(400).json({ error: 'job_id required' });
@@ -2054,8 +2056,8 @@ Only return JSON.`;
   }
 });
 
-// AI Smart Search — intent-based natural language job search
-router.post('/ai/smart-search', authMiddleware, async (req, res) => {
+// AI Smart Search — intent-based natural language job search (RATE LIMITED)
+router.post('/ai/smart-search', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { query } = req.body;
     if (!query || query.trim().length < 3) return res.status(400).json({ error: 'Search query required (min 3 chars)' });
@@ -2160,8 +2162,8 @@ Only return JSON.`;
   }
 });
 
-// AI Application Review — checks completeness before submit
-router.post('/ai/application-review', authMiddleware, async (req, res) => {
+// AI Application Review — checks completeness before submit (RATE LIMITED)
+router.post('/ai/application-review', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { job_id, cover_letter, screening_answers } = req.body;
     if (!job_id) return res.status(400).json({ error: 'job_id required' });
@@ -2222,8 +2224,8 @@ Only return JSON.`;
   }
 });
 
-// AI Resume Score — rate resume quality and feed into OmniScore
-router.post('/ai/resume-score', authMiddleware, async (req, res) => {
+// AI Resume Score — rate resume quality and feed into OmniScore (RATE LIMITED)
+router.post('/ai/resume-score', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { chat } = require('../lib/polsia-ai');
     const omniscoreService = require('../services/omniscore');
