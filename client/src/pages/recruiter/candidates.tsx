@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { CandidateCard } from "@/components/domain/candidate-card"
 import { FilterBar } from "@/components/domain/filter-bar"
@@ -14,13 +14,11 @@ import {
   Users,
   Search,
   UserCheck,
-  MessageSquare,
-  Calendar,
-  Bookmark,
   Download,
-  Mail,
-  Phone,
   SlidersHorizontal,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 
 export type Candidate = {
@@ -50,6 +48,9 @@ export type PipelineStats = {
   offer: number
   hired: number
   rejected: number
+  topCandidates?: number
+  last24h?: number
+  last7d?: number
 }
 
 const filterOptions = [
@@ -126,70 +127,62 @@ export function RecruiterCandidatesPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({})
   const [selectedTab, setSelectedTab] = useState("all")
-  const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set())
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const limit = 20
+
+  const loadCandidates = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      params.set("page", String(page))
+      params.set("limit", String(limit))
+      if (searchQuery) params.set("search", searchQuery)
+      if (selectedTab !== "all") params.set("status", selectedTab)
+      if (activeFilters.experience) params.set("experience", activeFilters.experience)
+      if (activeFilters.location) params.set("location", activeFilters.location)
+      if (activeFilters.matchScore) {
+        const score = activeFilters.matchScore
+        if (score === "90-100") { params.set("minScore", "90") }
+        else if (score === "80-89") { params.set("minScore", "80"); params.set("maxScore", "89") }
+        else if (score === "70-79") { params.set("minScore", "70"); params.set("maxScore", "79") }
+        else if (score === "below-70") { params.set("maxScore", "69") }
+      }
+
+      const [candidatesData, statsData] = await Promise.all([
+        apiCall<{ candidates: Array<any>; pagination: { totalPages: number } }>(
+          `/recruiter/candidates/full?${params.toString()}`
+        ),
+        apiCall<{ stats: PipelineStats }>("/recruiter/pipeline-stats"),
+      ])
+
+      if (candidatesData.success) {
+        setCandidates(
+          candidatesData.candidates.map((c) => ({
+            ...c,
+            skills: c.skills?.map((s: any) => (typeof s === "string" ? s : s.name)) || [],
+          }))
+        )
+        setTotalPages(candidatesData.pagination?.totalPages || 1)
+      }
+      if (statsData.success) {
+        setStats(statsData.stats)
+      }
+    } catch (err) {
+      console.error("Failed to load candidates:", err)
+    } finally {
+      setLoading(false)
+    }
+  }, [page, searchQuery, activeFilters, selectedTab])
 
   useEffect(() => {
-    async function loadCandidates() {
-      setLoading(true)
-      try {
-        const [candidatesData, statsData] = await Promise.all([
-          apiCall<{ candidates: Candidate[] }>("/recruiter/candidates"),
-          apiCall<PipelineStats>("/recruiter/pipeline-stats"),
-        ])
-        setCandidates(candidatesData.candidates || [])
-        setStats(statsData)
-      } catch (err) {
-        console.error("Failed to load candidates:", err)
-        // Fallback: empty state will show
-      } finally {
-        setLoading(false)
-      }
-    }
     loadCandidates()
-  }, [])
+  }, [loadCandidates])
 
-  // Filter candidates
-  const filteredCandidates = candidates.filter((c) => {
-    // Search query
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      const matchesSearch =
-        c.name.toLowerCase().includes(q) ||
-        c.headline?.toLowerCase().includes(q) ||
-        c.skills.some((s) => s.toLowerCase().includes(q)) ||
-        c.location?.toLowerCase().includes(q)
-      if (!matchesSearch) return false
-    }
-
-    // Status filter
-    if (activeFilters.status && c.applicationStatus !== activeFilters.status) return false
-
-    // Tab filter
-    if (selectedTab !== "all" && c.applicationStatus !== selectedTab) return false
-
-    // Experience filter
-    if (activeFilters.experience && c.experienceYears != null) {
-      const range = activeFilters.experience
-      if (range === "0-2" && c.experienceYears > 2) return false
-      if (range === "3-5" && (c.experienceYears < 3 || c.experienceYears > 5)) return false
-      if (range === "6-10" && (c.experienceYears < 6 || c.experienceYears > 10)) return false
-      if (range === "10+" && c.experienceYears < 10) return false
-    }
-
-    // Location filter
-    if (activeFilters.location && !c.location?.toLowerCase().includes(activeFilters.location)) return false
-
-    // Match score filter
-    if (activeFilters.matchScore && c.matchScore != null) {
-      const range = activeFilters.matchScore
-      if (range === "90-100" && c.matchScore < 90) return false
-      if (range === "80-89" && (c.matchScore < 80 || c.matchScore >= 90)) return false
-      if (range === "70-79" && (c.matchScore < 70 || c.matchScore >= 80)) return false
-      if (range === "below-70" && c.matchScore >= 70) return false
-    }
-
-    return true
-  })
+  // Reset to page 1 when filters/search/tab changes
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, activeFilters, selectedTab])
 
   const handleFilterChange = (id: string, value: string | string[]) => {
     setActiveFilters((prev) => ({ ...prev, [id]: value as string }))
@@ -199,6 +192,7 @@ export function RecruiterCandidatesPage() {
   const handleClearFilters = () => {
     setActiveFilters({})
     setSearchQuery("")
+    setSelectedTab("all")
     trackEvent("candidate_filters_clear")
   }
 
@@ -212,138 +206,111 @@ export function RecruiterCandidatesPage() {
 
   const handleShortlist = (id: string) => {
     trackEvent("candidate_shortlist", { candidate_id: id })
-    // TODO: API call to shortlist
   }
 
   const handleExport = () => {
     trackEvent("candidates_export")
-    // TODO: CSV export
   }
 
   const tabCounts = {
-    all: candidates.length,
-    applied: candidates.filter((c) => c.applicationStatus === "applied").length,
-    screening: candidates.filter((c) => c.applicationStatus === "screening").length,
-    interview: candidates.filter((c) => c.applicationStatus === "interview").length,
-    offer: candidates.filter((c) => c.applicationStatus === "offer").length,
+    all: stats?.total || 0,
+    applied: stats?.new || 0,
+    screening: stats?.screening || 0,
+    interview: stats?.interview || 0,
+    offer: stats?.offer || 0,
   }
 
   return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="font-heading text-2xl font-bold">Candidates</h1>
-            <p className="text-muted-foreground">Manage and review your candidate pipeline</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleExport} className="gap-1">
-              <Download className="h-4 w-4" />
-              Export CSV
-            </Button>
-            <Button size="sm" className="gap-1" onClick={() => navigate("/recruiter/jobs")}>
-              <Users className="h-4 w-4" />
-              Post a Job
-            </Button>
-          </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="font-heading text-2xl font-bold">Candidates</h1>
+          <p className="text-muted-foreground">Manage and review your candidate pipeline</p>
         </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleExport} className="gap-1">
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button size="sm" className="gap-1" onClick={() => navigate("/recruiter/jobs")}>
+            <Users className="h-4 w-4" />
+            Post a Job
+          </Button>
+        </div>
+      </div>
 
-        {/* Stats */}
-        {stats && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <ChartCard
-              title="Total Candidates"
-              value={stats.total}
-              icon={<Users className="h-4 w-4" />}
-            />
-            <ChartCard
-              title="New Applications"
-              value={stats.new}
-              trend="up"
-              trendValue="+12%"
-              icon={<Search className="h-4 w-4" />}
-            />
-            <ChartCard
-              title="In Screening"
-              value={stats.screening}
-              icon={<SlidersHorizontal className="h-4 w-4" />}
-            />
-            <ChartCard
-              title="Interviews"
-              value={stats.interview}
-              icon={<Calendar className="h-4 w-4" />}
-            />
-            <ChartCard
-              title="Hired"
-              value={stats.hired}
-              trend="up"
-              trendValue="+5%"
-              icon={<UserCheck className="h-4 w-4" />}
-            />
-          </div>
-        )}
+      {/* Stats */}
+      {stats && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <ChartCard title="Total Candidates" value={stats.total} icon={<Users className="h-4 w-4" />} />
+          <ChartCard title="New Applications" value={stats.new} icon={<Search className="h-4 w-4" />} />
+          <ChartCard title="In Screening" value={stats.screening} icon={<SlidersHorizontal className="h-4 w-4" />} />
+          <ChartCard title="Interviews" value={stats.interview} icon={<Calendar className="h-4 w-4" />} />
+          <ChartCard title="Hired" value={stats.hired} icon={<UserCheck className="h-4 w-4" />} />
+        </div>
+      )}
 
-        {/* Filters */}
-        <FilterBar
-          searchPlaceholder="Search by name, skill, or location..."
-          onSearch={setSearchQuery}
-          filters={filterOptions}
-          activeFilters={activeFilters}
-          onFilterChange={handleFilterChange}
-          onClearFilters={handleClearFilters}
-        />
+      {/* Filters */}
+      <FilterBar
+        searchPlaceholder="Search by name, skill, or location..."
+        onSearch={setSearchQuery}
+        filters={filterOptions}
+        activeFilters={activeFilters}
+        onFilterChange={handleFilterChange}
+        onClearFilters={handleClearFilters}
+      />
 
-        {/* Tabs */}
-        <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-          <TabsList className="flex-wrap h-auto">
-            <TabsTrigger value="all">
-              All
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tabCounts.all}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="applied">
-              Applied
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tabCounts.applied}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="screening">
-              Screening
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tabCounts.screening}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="interview">
-              Interview
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tabCounts.interview}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="offer">
-              Offer
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tabCounts.offer}</Badge>
-            </TabsTrigger>
-          </TabsList>
+      {/* Tabs */}
+      <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="all">
+            All
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tabCounts.all}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="applied">
+            Applied
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tabCounts.applied}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="screening">
+            Screening
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tabCounts.screening}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="interview">
+            Interview
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tabCounts.interview}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="offer">
+            Offer
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tabCounts.offer}</Badge>
+          </TabsTrigger>
+        </TabsList>
 
-          <TabsContent value={selectedTab} className="mt-4">
-            {loading ? (
-              <Skeleton count={4} variant="card" />
-            ) : filteredCandidates.length === 0 ? (
-              <EmptyState
-                icon={Search}
-                title="No candidates found"
-                description={
-                  searchQuery || Object.keys(activeFilters).length > 0
-                    ? "Try adjusting your filters or search query"
-                    : "Post a job to start receiving applications"
-                }
-                action={
-                  searchQuery || Object.keys(activeFilters).length > 0
-                    ? { label: "Clear filters", onClick: handleClearFilters }
-                    : { label: "Post a job", href: "/recruiter/jobs" }
-                }
-              />
-            ) : (
+        <TabsContent value={selectedTab} className="mt-4">
+          {loading ? (
+            <Skeleton count={4} variant="card" />
+          ) : candidates.length === 0 ? (
+            <EmptyState
+              icon={Search}
+              title="No candidates found"
+              description={
+                searchQuery || Object.keys(activeFilters).length > 0
+                  ? "Try adjusting your filters or search query"
+                  : "Post a job to start receiving applications"
+              }
+              action={
+                searchQuery || Object.keys(activeFilters).length > 0
+                  ? { label: "Clear filters", onClick: handleClearFilters }
+                  : { label: "Post a job", href: "/recruiter/jobs" }
+              }
+            />
+          ) : (
+            <div className="space-y-4">
               <div className="grid gap-4">
-                {filteredCandidates.map((candidate) => (
+                {candidates.map((candidate) => (
                   <div key={candidate.id} className="relative">
                     {candidate.applicationStatus && (
-                      <Badge
-                        className={`absolute top-3 right-3 z-10 ${statusColors[candidate.applicationStatus]}`}
-                      >
+                      <Badge className={`absolute top-3 right-3 z-10 ${statusColors[candidate.applicationStatus]}`}>
                         {statusLabels[candidate.applicationStatus]}
                       </Badge>
                     )}
@@ -367,9 +334,25 @@ export function RecruiterCandidatesPage() {
                   </div>
                 ))}
               </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2">
+                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {page} of {totalPages}
+                  </span>
+                  <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
   )
 }

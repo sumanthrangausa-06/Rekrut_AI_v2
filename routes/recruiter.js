@@ -617,6 +617,221 @@ router.get('/candidates', authMiddleware, requireRecruiter, async (req, res) => 
   }
 });
 
+// Get full candidate profiles with pipeline data (B-001)
+router.get('/candidates/full', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const { search, status, experience, location, skills, minScore, maxScore, sortBy = 'applied_at', sortOrder = 'DESC', page = 1, limit = 20 } = req.query;
+    const companyId = req.user.company_id;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    // Build WHERE conditions dynamically
+    const conditions = ['ja.company_id = $1'];
+    const params = [companyId];
+    let paramIdx = 2;
+
+    if (search) {
+      conditions.push(`(
+        u.name ILIKE $${paramIdx} OR
+        cp.headline ILIKE $${paramIdx} OR
+        cp.location ILIKE $${paramIdx} OR
+        EXISTS (SELECT 1 FROM candidate_skills cs WHERE cs.user_id = u.id AND cs.skill_name ILIKE $${paramIdx})
+      )`);
+      params.push(`%${search}%`);
+      paramIdx++;
+    }
+
+    if (status) {
+      conditions.push(`ja.status = $${paramIdx}`);
+      params.push(status);
+      paramIdx++;
+    }
+
+    if (experience) {
+      const [min, max] = experience.split('-').map(Number);
+      if (!isNaN(min) && !isNaN(max)) {
+        conditions.push(`cp.years_experience >= $${paramIdx} AND cp.years_experience <= $${paramIdx + 1}`);
+        params.push(min, max);
+        paramIdx += 2;
+      } else if (experience === '10+') {
+        conditions.push(`cp.years_experience >= $${paramIdx}`);
+        params.push(10);
+        paramIdx++;
+      }
+    }
+
+    if (location) {
+      conditions.push(`cp.location ILIKE $${paramIdx}`);
+      params.push(`%${location}%`);
+      paramIdx++;
+    }
+
+    if (skills) {
+      const skillList = skills.split(',').map(s => s.trim()).filter(Boolean);
+      if (skillList.length > 0) {
+        const skillPlaceholders = skillList.map((_, i) => `$${paramIdx + i}`).join(',');
+        conditions.push(`EXISTS (SELECT 1 FROM candidate_skills cs WHERE cs.user_id = u.id AND cs.skill_name IN (${skillPlaceholders}))`);
+        params.push(...skillList);
+        paramIdx += skillList.length;
+      }
+    }
+
+    if (minScore) {
+      conditions.push(`COALESCE(os.total_score, ja.match_score, 0) >= $${paramIdx}`);
+      params.push(parseInt(minScore));
+      paramIdx++;
+    }
+
+    if (maxScore) {
+      conditions.push(`COALESCE(os.total_score, ja.match_score, 0) <= $${paramIdx}`);
+      params.push(parseInt(maxScore));
+      paramIdx++;
+    }
+
+    const whereClause = conditions.join(' AND ');
+
+    // Get total count for pagination
+    const countResult = await pool.query(`
+      SELECT COUNT(DISTINCT u.id) as total
+      FROM job_applications ja
+      JOIN users u ON ja.candidate_id = u.id
+      LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+      LEFT JOIN omni_scores os ON os.user_id = u.id
+      WHERE ${whereClause}
+    `, params);
+
+    const totalCount = parseInt(countResult.rows[0].total);
+
+    // Get candidates with full data
+    const result = await pool.query(`
+      SELECT DISTINCT ON (u.id)
+        u.id,
+        u.name,
+        u.email,
+        u.avatar_url,
+        cp.headline,
+        cp.location,
+        cp.years_experience,
+        cp.phone,
+        cp.salary_min,
+        cp.salary_max,
+        cp.remote_preference,
+        COALESCE(os.total_score, ja.match_score, 0) as omniscore,
+        os.score_tier,
+        ja.status as application_status,
+        ja.applied_at,
+        ja.match_score,
+        (SELECT COUNT(*) FROM candidate_skills cs WHERE cs.user_id = u.id) as skill_count,
+        (SELECT json_agg(json_build_object(
+          'name', cs.skill_name,
+          'level', cs.level,
+          'category', cs.category
+        )) FROM candidate_skills cs WHERE cs.user_id = u.id ORDER BY cs.level DESC LIMIT 10) as skills
+      FROM job_applications ja
+      JOIN users u ON ja.candidate_id = u.id
+      LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+      LEFT JOIN omni_scores os ON os.user_id = u.id
+      WHERE ${whereClause}
+      ORDER BY u.id, ja.applied_at DESC
+      LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
+    `, [...params, parseInt(limit), offset]);
+
+    // Format candidates for frontend
+    const candidates = result.rows.map(row => ({
+      id: String(row.id),
+      name: row.name,
+      email: row.email,
+      avatar: row.avatar_url,
+      headline: row.headline || 'No headline set',
+      location: row.location || 'Location not specified',
+      experienceYears: row.years_experience || 0,
+      phone: row.phone,
+      skills: row.skills || [],
+      matchScore: row.match_score || 0,
+      omniscore: row.omniscore || 0,
+      scoreTier: row.score_tier,
+      applicationStatus: row.application_status,
+      lastActivity: row.applied_at ? new Date(row.applied_at).toISOString() : null,
+      isTopCandidate: row.omniscore >= 85,
+      salaryMin: row.salary_min,
+      salaryMax: row.salary_max,
+      remotePreference: row.remote_preference,
+      skillCount: row.skill_count || 0
+    }));
+
+    res.json({
+      success: true,
+      candidates,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / parseInt(limit))
+      }
+    });
+  } catch (err) {
+    console.error('Get full candidates error:', err);
+    res.status(500).json({ error: 'Failed to fetch candidates', message: err.message });
+  }
+});
+
+// Get pipeline stats (B-001)
+router.get('/pipeline-stats', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const companyId = req.user.company_id;
+
+    const stats = await pool.query(`
+      SELECT
+        COUNT(DISTINCT ja.id) as total,
+        COUNT(DISTINCT CASE WHEN ja.status = 'applied' THEN ja.id END) as new,
+        COUNT(DISTINCT CASE WHEN ja.status = 'screening' THEN ja.id END) as screening,
+        COUNT(DISTINCT CASE WHEN ja.status = 'interview' THEN ja.id END) as interview,
+        COUNT(DISTINCT CASE WHEN ja.status = 'offer' THEN ja.id END) as offer,
+        COUNT(DISTINCT CASE WHEN ja.status = 'hired' THEN ja.id END) as hired,
+        COUNT(DISTINCT CASE WHEN ja.status = 'rejected' THEN ja.id END) as rejected
+      FROM job_applications ja
+      WHERE ja.company_id = $1
+    `, [companyId]);
+
+    const recentActivity = await pool.query(`
+      SELECT
+        COUNT(DISTINCT CASE WHEN ja.updated_at >= NOW() - INTERVAL '24 hours' THEN ja.id END) as last_24h,
+        COUNT(DISTINCT CASE WHEN ja.updated_at >= NOW() - INTERVAL '7 days' THEN ja.id END) as last_7d
+      FROM job_applications ja
+      WHERE ja.company_id = $1
+    `, [companyId]);
+
+    const topCandidates = await pool.query(`
+      SELECT COUNT(DISTINCT u.id) as count
+      FROM job_applications ja
+      JOIN users u ON ja.candidate_id = u.id
+      LEFT JOIN omni_scores os ON os.user_id = u.id
+      WHERE ja.company_id = $1 AND COALESCE(os.total_score, ja.match_score, 0) >= 85
+    `, [companyId]);
+
+    const row = stats.rows[0];
+    const activity = recentActivity.rows[0];
+
+    res.json({
+      success: true,
+      stats: {
+        total: parseInt(row.total) || 0,
+        new: parseInt(row.new) || 0,
+        screening: parseInt(row.screening) || 0,
+        interview: parseInt(row.interview) || 0,
+        offer: parseInt(row.offer) || 0,
+        hired: parseInt(row.hired) || 0,
+        rejected: parseInt(row.rejected) || 0,
+        topCandidates: parseInt(topCandidates.rows[0].count) || 0,
+        last24h: parseInt(activity.last_24h) || 0,
+        last7d: parseInt(activity.last_7d) || 0
+      }
+    });
+  } catch (err) {
+    console.error('Get pipeline stats error:', err);
+    res.status(500).json({ error: 'Failed to fetch pipeline stats', message: err.message });
+  }
+});
+
 // Get applications for a job
 router.get('/jobs/:id/applications', authMiddleware, requireRecruiter, async (req, res) => {
   try {
