@@ -1,39 +1,177 @@
 services:
   - type: web
-    runtime: node
-    name: rekrutai-dev
-    buildCommand: npm install && cd client && npm install && npm run build
+    name: rekrutai-staging
+    env: node
+    branch: staging
+    buildCommand: cd client && npm install && npm run build && cd .. && npm install
     startCommand: npm start
-    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: rekrutai-staging-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REKRUT_AI_URL
+        value: https://rekrutai-staging.onrender.com
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: POLSIA_API_KEY
+        sync: false
+      - key: POLSIA_BASE_URL
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+    autoDeploy: false
+
+  - type: web
+    name: rekrutai-prod
+    env: node
+    branch: main
+    buildCommand: cd client && npm install && npm run build && cd .. && npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: rekrutai-prod-db
+          property: connectionString
+      - key: JWT_SECRET
+        sync: false
+      - key: REKRUT_AI_URL
+        value: https://rekrutai.co
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: POLSIA_API_KEY
+        sync: false
+      - key: POLSIA_BASE_URL
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+    autoDeploy: false
+
+  - type: web
+    name: rekrutai-dev
+    env: node
+    branch: dev
+    buildCommand: cd client && npm install && npm run build && cd .. && npm install
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: development
       - key: PORT
         value: 10000
       - key: DATABASE_URL
-        sync: false
-      - key: SESSION_SECRET
-        generateValue: true
+        fromDatabase:
+          name: rekrutai-dev-db
+          property: connectionString
       - key: JWT_SECRET
         generateValue: true
-      - key: ADMIN_PASSWORD
+      - key: REKRUT_AI_URL
+        value: https://rekrutai-dev.onrender.com
+      - key: STRIPE_SECRET_KEY
         sync: false
       - key: POLSIA_API_KEY
         sync: false
-      - key: OPENAI_API_KEY
+      - key: POLSIA_BASE_URL
         sync: false
-      - key: GROQ_API_KEY
+      - key: R2_ACCESS_KEY_ID
         sync: false
-      - key: NVIDIA_NIM_API_KEY
+      - key: R2_SECRET_ACCESS_KEY
         sync: false
-      - key: DEEPGRAM_API_KEY
+      - key: R2_BUCKET_NAME
         sync: false
-      - key: SMTP_HOST
+      - key: R2_ENDPOINT
         sync: false
-      - key: SMTP_USER
+      - key: R2_PUBLIC_URL
         sync: false
-      - key: SMTP_PASS
+      - key: EMAIL_HOST
         sync: false
-    autoDeploy: false
-    branch: dev
-    pullRequestPreviewsEnabled: false
+      - key: EMAIL_PORT
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+    autoDeploy: true
+
+  # Uncomment to create a staging database on Neon
+  # - type: pserv
+  #   name: rekrutai-staging-db
+  #   env: postgresql
+  #   branch: staging
+  #   plan: starter
+  #   ipAllowList: []
+
+  # Uncomment to create a production database on Neon
+  # - type: pserv
+  #   name: rekrutai-prod-db
+  #   env: postgresql
+  #   branch: main
+  #   plan: starter
+  #   ipAllowList: []
+
+  # Uncomment to create a dev database on Neon
+  # - type: pserv
+  #   name: rekrutai-dev-db
+  #   env: postgresql
+  #   branch: dev
+  #   plan: starter
+  #   ipAllowList: []
