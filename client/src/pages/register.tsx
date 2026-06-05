@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/api'
 import { trackEvent } from '@/lib/analytics'
 
+import { Logo } from '@/components/ui/logo';
+
 export function RegisterPage() {
   const { register, isAuthenticated, user } = useAuth()
   const [name, setName] = useState('')
@@ -59,9 +61,7 @@ export function RegisterPage() {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-heading font-bold">
-              R
-            </div>
+            <Logo size="xl" />
             <span className="font-heading text-2xl font-bold">Rekrut AI</span>
           </Link>
         </div>

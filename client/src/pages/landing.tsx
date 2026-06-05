@@ -94,6 +94,8 @@ const faq = [
   },
 ]
 
+import { Logo } from '@/components/ui/logo';
+
 export function LandingPage() {
   const { isAuthenticated, user } = useAuth()
   const dashboardPath = user ? getDashboardPath(user.role) : '/login'
@@ -107,9 +109,7 @@ export function LandingPage() {
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto flex min-h-16 max-w-6xl flex-col gap-3 px-4 py-4 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:py-0">
           <Link to="/" className="flex items-center gap-2" onClick={() => trackEvent('nav_logo_click', { destination: 'home' })}>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground font-heading">
-              R
-            </div>
+            <Logo size="md" />
             <span className="font-heading text-xl font-bold">Rekrut AI</span>
           </Link>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
