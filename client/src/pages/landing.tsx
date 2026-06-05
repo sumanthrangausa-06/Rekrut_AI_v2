@@ -4,6 +4,7 @@ import { useAuth, getDashboardPath } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { trackEvent } from '@/lib/analytics'
+import { Logo } from '@/components/ui/logo'
 import {
   Briefcase,
   Users,
