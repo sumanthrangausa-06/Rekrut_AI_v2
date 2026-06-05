@@ -79,6 +79,9 @@ import { AdminAgentsDashboardPage } from '@/pages/admin/agents'
 import { AgentDashboardPage } from '@/pages/admin/agent-dashboard'
 import { AdminCompliancePage } from '@/pages/admin/compliance'
 
+// Blog
+import { BlogPage, BlogPostPage } from '@/pages/blog'
+
 // Chat
 import { CandidateChatPage } from '@/pages/candidate/chat'
 import { RecruiterChatPage } from '@/pages/recruiter/chat'
@@ -122,6 +125,8 @@ function AppRoutes() {
       <Route path="/test-camera" element={<TestCameraPage />} />
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/screening/:token" element={<CandidateScreeningPage />} />
+      <Route path="/blog" element={<BlogPage />} />
+      <Route path="/blog/:slug" element={<BlogPostPage />} />
 
       {/* Public company profile */}
       <Route path="/company/:slug" element={<Safe><PublicCompanyPage /></Safe>} />
