@@ -118,6 +118,11 @@ export function LandingPage() {
                 Pricing
               </Button>
             </Link>
+            <Link to="/blog" className="block w-full sm:w-auto" data-analytics="header-blog" onClick={() => trackEvent('header_blog_click')}>
+              <Button variant="ghost" size="sm" className="w-full sm:w-auto">
+                Blog
+              </Button>
+            </Link>
             {isAuthenticated && user ? (
               <Link to={dashboardPath} className="block w-full sm:w-auto" data-analytics="header-dashboard" onClick={() => trackEvent('header_dashboard_click', { role: user.role })}>
                 <Button size="sm" className="w-full gap-2 sm:w-auto">
@@ -304,8 +309,12 @@ export function LandingPage() {
       </main>
 
       <footer className="border-t py-8">
-        <div className="mx-auto max-w-6xl px-4 text-center text-sm text-muted-foreground">
+        <div className="mx-auto max-w-6xl px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} Rekrut AI. All rights reserved.</p>
+          <div className="flex items-center gap-4">
+            <Link to="/blog" className="hover:text-primary transition-colors" onClick={() => trackEvent('footer_blog_click')}>Blog</Link>
+            <Link to="/pricing" className="hover:text-primary transition-colors" onClick={() => trackEvent('footer_pricing_click')}>Pricing</Link>
+          </div>
         </div>
       </footer>
     </div>
