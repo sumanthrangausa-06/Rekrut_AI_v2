@@ -2,7 +2,16 @@ const OpenAI = require('openai');
 const crypto = require('crypto');
 const pool = require('../lib/db');
 
-const openai = new OpenAI(); // Uses OPENAI_BASE_URL and OPENAI_API_KEY from env
+let openai = null;
+try {
+  if (process.env.OPENAI_API_KEY) {
+    openai = new OpenAI(); // Uses OPENAI_BASE_URL and OPENAI_API_KEY from env
+  } else {
+    console.warn('[document-verification] OPENAI_API_KEY not set — OpenAI client disabled');
+  }
+} catch (err) {
+  console.warn('[document-verification] Failed to initialize OpenAI client:', err.message);
+}
 
 /**
  * Document Verification Service
