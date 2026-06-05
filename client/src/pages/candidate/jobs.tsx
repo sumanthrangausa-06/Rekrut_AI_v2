@@ -13,6 +13,7 @@ import {
 
 interface Job {
   id: number
+  job_id?: number
   title: string
   company: string
   poster_company?: string
@@ -171,7 +172,7 @@ export function CandidateJobsPage() {
       {/* Recommended jobs section */}
       {showRecommended && recommendedJobs.length > 0 && (
         <div>
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mb-3">
             <Sparkles className="h-4 w-4 text-primary" />
             <h2 className="font-semibold text-sm">Recommended for You</h2>
             <Badge variant="secondary" className="text-[10px]">{recommendedJobs.length} matches</Badge>
@@ -235,18 +236,19 @@ export function CandidateJobsPage() {
                   <X className="h-3 w-3" /> Close
                 </Button>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Input
-                  placeholder='Try: "remote python jobs paying over 100k" or "entry level design roles in NYC"'
+                  placeholder='Try: "remote python jobs paying over 100k"'
                   value={aiSearchQuery}
                   onChange={e => setAiSearchQuery(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleAiSearch()}
                   className="flex-1"
                   autoFocus
+                  aria-label="AI search query"
                 />
-                <Button onClick={handleAiSearch} disabled={aiSearching || !aiSearchQuery.trim()} size="sm">
+                <Button onClick={handleAiSearch} disabled={aiSearching || !aiSearchQuery.trim()} size="sm" aria-label={aiSearching ? 'Searching' : 'Search'}>
                   {aiSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                  {aiSearching ? 'Searching...' : 'Search'}
+                  <span className="hidden sm:inline">{aiSearching ? 'Searching...' : 'Search'}</span>
                 </Button>
               </div>
               {aiResults && (

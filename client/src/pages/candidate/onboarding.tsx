@@ -48,6 +48,7 @@ interface WizardData {
   i9_admission_number: string | null
   i9_passport_number: string | null
   i9_country_of_issuance: string | null
+  country_specific_data?: Record<string, any>
   i9_work_auth_expiry: string | null
   i9_other_last_names: string | null
   i9_email: string | null

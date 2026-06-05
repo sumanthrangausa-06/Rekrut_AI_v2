@@ -75,6 +75,27 @@ import { AdminLoginPage } from '@/pages/admin/login'
 import { AdminAuthGuard } from '@/components/admin-auth-guard'
 import { AiHealthPage } from '@/pages/admin/ai-health'
 import { RevenuePage } from '@/pages/admin/revenue'
+import { AdminAgentsDashboardPage } from '@/pages/admin/agents'
+import { AgentDashboardPage } from '@/pages/admin/agent-dashboard'
+import { AdminCompliancePage } from '@/pages/admin/compliance'
+
+// Chat
+import { CandidateChatPage } from '@/pages/candidate/chat'
+import { RecruiterChatPage } from '@/pages/recruiter/chat'
+
+// Public Company
+import { PublicCompanyPage } from '@/pages/recruiter/public-company'
+
+// Career Page
+import { RecruiterCareerPage } from '@/pages/recruiter/career-page'
+
+// Settings page
+import { SettingsPage } from '@/pages/settings'
+
+// New domain pages (replace placeholders)
+import { CandidateDocumentsPage } from '@/pages/candidate/documents'
+import { RecruiterCandidatesPage } from '@/pages/recruiter/candidates'
+import { RecruiterScreeningPage } from '@/pages/recruiter/screening'
 
 // Helper: wrap a page element with RouteErrorBoundary
 function Safe({ children }: { children: React.ReactNode }) {
@@ -102,6 +123,10 @@ function AppRoutes() {
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/screening/:token" element={<CandidateScreeningPage />} />
 
+      {/* Public company profile */}
+      <Route path="/company/:slug" element={<Safe><PublicCompanyPage /></Safe>} />
+      <Route path="/careers/:company" element={<Safe><RecruiterCareerPage /></Safe>} />
+
       {/* Auto-redirect based on role */}
       <Route path="/dashboard" element={<RoleRedirect />} />
 
@@ -118,7 +143,8 @@ function AppRoutes() {
         <Route path="interviews" element={<Safe><CandidateInterviewsPage /></Safe>} />
         <Route path="ai-coaching" element={<Safe><AiCoachingPage /></Safe>} />
         <Route path="omniscore" element={<Safe><CandidateOmniScorePage /></Safe>} />
-        <Route path="documents" element={<Safe><PlaceholderPage /></Safe>} />
+        <Route path="documents" element={<Safe><CandidateDocumentsPage /></Safe>} />
+        <Route path="chat" element={<Safe><CandidateChatPage /></Safe>} />
         <Route path="offers" element={<Safe><CandidateOffersPage /></Safe>} />
         <Route path="onboarding" element={<Safe><CandidateOnboardingPage /></Safe>} />
         <Route path="payroll" element={<Safe><CandidatePayrollPage /></Safe>} />
@@ -135,7 +161,10 @@ function AppRoutes() {
         <Route path="jobs/:id/assessment" element={<Safe><RecruiterJobAssessmentPage /></Safe>} />
         <Route path="applications" element={<Safe><RecruiterApplicationsPage /></Safe>} />
         <Route path="assessments" element={<Safe><RecruiterAssessmentsPage /></Safe>} />
-        <Route path="candidates" element={<Safe><PlaceholderPage /></Safe>} />
+        <Route path="candidates" element={<Safe><RecruiterCandidatesPage /></Safe>} />
+        <Route path="screening" element={<Safe><RecruiterScreeningPage /></Safe>} />
+        <Route path="chat" element={<Safe><RecruiterChatPage /></Safe>} />
+        <Route path="career-page" element={<Safe><RecruiterCareerPage /></Safe>} />
         <Route path="interviews" element={<Safe><RecruiterInterviewsPage /></Safe>} />
         <Route path="offers" element={<Safe><RecruiterOffersPage /></Safe>} />
         <Route path="onboarding" element={<Safe><RecruiterOnboardingPage /></Safe>} />
@@ -147,7 +176,7 @@ function AppRoutes() {
 
       {/* Settings */}
       <Route path="/settings" element={<DashboardLayout />}>
-        <Route index element={<Safe><PlaceholderPage /></Safe>} />
+        <Route index element={<Safe><SettingsPage /></Safe>} />
       </Route>
 
       {/* Debug routes */}
@@ -157,6 +186,9 @@ function AppRoutes() {
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/revenue" element={<AdminAuthGuard><RevenuePage /></AdminAuthGuard>} />
       <Route path="/admin/ai-health" element={<AdminAuthGuard><AiHealthPage /></AdminAuthGuard>} />
+      <Route path="/admin/agents" element={<AdminAuthGuard><AdminAgentsDashboardPage /></AdminAuthGuard>} />
+      <Route path="/admin/compliance" element={<AdminAuthGuard><AdminCompliancePage /></AdminAuthGuard>} />
+      <Route path="/admin/agent-dashboard" element={<AdminAuthGuard><AgentDashboardPage /></AdminAuthGuard>} />
 
       {/* 404 Not Found */}
       <Route path="*" element={<NotFoundPage />} />

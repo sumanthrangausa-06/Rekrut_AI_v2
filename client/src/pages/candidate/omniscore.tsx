@@ -6,10 +6,34 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Star, TrendingUp, Building2, Zap, Shield, Users, ArrowUpRight, ArrowDownRight,
-  MessageSquare, ThumbsUp, Target, Sparkles, Award, BarChart3, ChevronRight,
+  MessageSquare, ThumbsUp, Target, Sparkles, Award, BarChart3, ChevronRight, Clock,
 } from 'lucide-react'
 
 // ─── Types ──────────────────────────────────────────────────
+  interface ScoreExplainer {
+  factors: Array<{
+    name: string
+    impact: number // -10 to +10
+    description: string
+    details: string[]
+    action?: string
+  }>
+  peerComparison: {
+    percentile: number
+    avgScore: number
+    topScore: number
+    medianScore: number
+  }
+  improvementRoadmap: Array<{
+    step: number
+    title: string
+    description: string
+    estimatedPoints: number
+    difficulty: "easy" | "medium" | "hard"
+    timeEstimate: string
+  }>
+}
+
 interface ScoreBreakdown {
   score: number
   max: number
@@ -152,6 +176,9 @@ export function CandidateOmniScorePage() {
   const [tab, setTab] = useState('my-score')
   const [loading, setLoading] = useState(true)
 
+  const [explainer, setExplainer] = useState<ScoreExplainer | null>(null)
+  const [explainerLoading, setExplainerLoading] = useState(false)
+
   // My Score data
   const [scoreData, setScoreData] = useState<{
     current: OmniScoreData
@@ -193,14 +220,16 @@ export function CandidateOmniScorePage() {
 
   async function loadMyScore() {
     try {
-      // Daily checkin + breakdown + trend in parallel
+      // Daily checkin + breakdown + trend + explainer in parallel
       await apiCall('/omniscore/checkin', { method: 'POST' }).catch(() => {})
-      const [data, trend] = await Promise.all([
+      const [data, trend, explainerData] = await Promise.all([
         apiCall<any>('/omniscore/breakdown'),
-        apiCall<any>('/memory/omniscore-trend?days=30').catch(() => ({ history: [] }))
+        apiCall<any>('/memory/omniscore-trend?days=30').catch(() => ({ history: [] })),
+        apiCall<any>('/omniscore/explainer').catch(() => null)
       ])
       setScoreData(data)
       setTrendData(trend.history || [])
+      setExplainer(explainerData)
     } catch {
       // If no score yet, still show the page
     } finally {
@@ -352,6 +381,133 @@ export function CandidateOmniScorePage() {
                       </Card>
                     )
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Why This Score? — Explainability */}
+            {explainer && (
+              <div>
+                <h3 className="font-heading text-lg font-semibold mb-3 flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" /> Why This Score?
+                </h3>
+                <Card>
+                  <CardContent className="p-4 space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Your OmniScore is calculated from these key factors. Positive factors boost your score, while negative factors drag it down.
+                    </p>
+                    <div className="space-y-3">
+                      {explainer.factors.map((factor, i) => (
+                        <div key={i} className="space-y-1">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium">{factor.name}</span>
+                            <span className={factor.impact > 0 ? 'text-emerald-500' : factor.impact < 0 ? 'text-red-500' : 'text-muted-foreground'}>
+                              {factor.impact > 0 ? '+' : ''}{factor.impact} pts
+                            </span>
+                          </div>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${
+                              factor.impact > 0 ? 'bg-emerald-500' : factor.impact < 0 ? 'bg-red-500' : 'bg-slate-400'
+                            }`}
+                              style={{ width: `${Math.abs(factor.impact) * 5}%`, marginLeft: factor.impact < 0 ? 'auto' : 0, marginRight: factor.impact > 0 ? 'auto' : 0 }} />
+                          </div>
+                          <p className="text-xs text-muted-foreground">{factor.description}</p>
+                          {factor.action && (
+                            <p className="text-xs text-primary">
+                              <ArrowUpRight className="h-3 w-3 inline mr-1" />
+                              {factor.action}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Peer Comparison */}
+            {explainer?.peerComparison && (
+              <div>
+                <h3 className="font-heading text-lg font-semibold mb-3 flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" /> How You Compare
+                </h3>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div className="text-center">
+                        <p className="text-3xl font-bold text-primary">{explainer.peerComparison.percentile}%</p>
+                        <p className="text-xs text-muted-foreground">Percentile</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-3xl font-bold">{explainer.peerComparison.avgScore}</p>
+                        <p className="text-xs text-muted-foreground">Avg Score</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-3xl font-bold">{explainer.peerComparison.medianScore}</p>
+                        <p className="text-xs text-muted-foreground">Median Score</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-3xl font-bold text-emerald-500">{explainer.peerComparison.topScore}</p>
+                        <p className="text-xs text-muted-foreground">Top Score</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 p-3 rounded-lg bg-muted/50 text-sm text-center">
+                      <p className="text-muted-foreground">
+                        You are in the <span className="font-bold text-primary">{explainer.peerComparison.percentile}th percentile</span> of all candidates.
+                        {explainer.peerComparison.percentile > 80 ? ' Outstanding! 🎉' : explainer.peerComparison.percentile > 50 ? ' Above average.' : ' Room to improve.'}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Improvement Roadmap */}
+            {explainer?.improvementRoadmap && explainer.improvementRoadmap.length > 0 && (
+              <div>
+                <h3 className="font-heading text-lg font-semibold mb-3 flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-primary" /> Score Improvement Roadmap
+                </h3>
+                <div className="space-y-3">
+                  {explainer.improvementRoadmap.map((step) => (
+                    <Card key={step.step} className={step.difficulty === 'easy' ? 'border-emerald-500/30' : step.difficulty === 'hard' ? 'border-red-500/30' : ''}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
+                            step.difficulty === 'easy' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                            step.difficulty === 'medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                          }`}>
+                            {step.step}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-semibold">{step.title}</h4>
+                              <Badge variant="outline" className={
+                                step.difficulty === 'easy' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' :
+                                step.difficulty === 'medium' ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' :
+                                'bg-red-500/10 text-red-500 border-red-500/30'
+                              }>
+                                {step.difficulty}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-1">{step.description}</p>
+                            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <ArrowUpRight className="h-3 w-3 text-emerald-500" />
+                                +{step.estimatedPoints} pts
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {step.timeEstimate}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               </div>
             )}

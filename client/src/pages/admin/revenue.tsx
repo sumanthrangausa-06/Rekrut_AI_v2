@@ -125,9 +125,9 @@ function FunnelCard({
   title: string
   description: string
   milestones: ReadonlyArray<{ label: string; icon: ElementType; key: string; tone: string }>
-  values: Record<string, number>
+  values: Record<string, number | string>
 }) {
-  const maxValue = Math.max(...milestones.map((milestone) => values[milestone.key] || 0), 1)
+  const maxValue = Math.max(...milestones.map((milestone) => Number(values[milestone.key] || 0)), 1)
 
   return (
     <Card className="border bg-card shadow-sm">
@@ -137,10 +137,10 @@ function FunnelCard({
       </CardHeader>
       <CardContent className="space-y-4">
         {milestones.map((milestone, index) => {
-          const value = values[milestone.key] || 0
+          const value = Number(values[milestone.key] || 0)
           const width = Math.max((value / maxValue) * 100, value > 0 ? 8 : 2)
           const previousKey = milestones[index - 1]?.key
-          const previousValue = previousKey ? values[previousKey] || 0 : 0
+          const previousValue = previousKey ? Number(values[previousKey] || 0) : 0
           const stepRate = previousValue > 0 && index > 0 ? `${((value / previousValue) * 100).toFixed(1)}%` : null
 
           return (
@@ -152,7 +152,7 @@ function FunnelCard({
                 </div>
                 <div className="flex items-center gap-2">
                   {stepRate ? <span className="text-xs text-muted-foreground">{stepRate} of prior step</span> : null}
-                  <span className="font-semibold tabular-nums">{formatCount(value)}</span>
+                  <span className="font-semibold tabular-nums">{formatCount(Number(value))}</span>
                 </div>
               </div>
               <div className="h-3 overflow-hidden rounded-full bg-muted">
