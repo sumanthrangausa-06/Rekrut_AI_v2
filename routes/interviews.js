@@ -9,6 +9,7 @@ const fetch = require('node-fetch');
 const FormData = require('form-data');
 
 const { rateLimits } = require('../lib/distributed-rate-limiter');
+const emailService = require('../lib/email-service');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -2123,6 +2124,42 @@ router.post('/schedule', authMiddleware, async (req, res) => {
       interview,
       reminders_created: reminderCount
     });
+
+    // ── Send interview scheduled notification (non-blocking) ──
+    try {
+      const [candidate, job, recruiter] = await Promise.all([
+        pool.query('SELECT id, name, email FROM users WHERE id = $1', [candidate_id]),
+        pool.query('SELECT id, title FROM jobs WHERE id = $1', [job_id]),
+        pool.query('SELECT id, name FROM users WHERE id = $1', [req.user.id])
+      ]);
+
+      const candInfo = candidate.rows[0];
+      const jobInfo = job.rows[0];
+      const recruiterInfo = recruiter.rows[0];
+
+      if (candInfo?.email) {
+        const scheduledDate = new Date(scheduled_at);
+        await emailService.sendTemplatedEmail({
+          to: candInfo.email,
+          templateName: 'interview_scheduled',
+          templateData: {
+            candidate_name: candInfo.name || 'Candidate',
+            job_title: jobInfo?.title || 'the position',
+            company_name: req.user.company_name || 'Our Company',
+            interview_date: scheduledDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+            interview_time: scheduledDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }),
+            interview_location: interview_type === 'video' ? 'Virtual (Video)' : 'In-Person',
+            interviewer_name: recruiterInfo?.name || '',
+            meeting_link: meeting_link || '',
+            confirmation_link: `${process.env.FRONTEND_URL || 'https://rekrut.ai'}/candidate/interviews`
+          },
+          userId: candidate_id,
+          metadata: { job_id, company_id: companyId, interview_id: interview.id }
+        });
+      }
+    } catch (emailErr) {
+      console.error('[email] Failed to send interview scheduled email (non-blocking):', emailErr.message);
+    }
   } catch (err) {
     console.error('Schedule interview error:', err);
     res.status(500).json({ error: 'Failed to schedule interview' });

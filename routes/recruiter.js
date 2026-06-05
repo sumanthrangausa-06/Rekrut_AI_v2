@@ -5,6 +5,7 @@ const { authMiddleware } = require('../lib/auth');
 const trustscoreService = require('../services/trustscore');
 const jobOptimizer = require('../services/job-optimizer');
 const { AuditLogger } = require('../services/auditLogger');
+const emailService = require('../lib/email-service');
 
 const router = express.Router();
 
@@ -1671,6 +1672,39 @@ router.post('/offers', authMiddleware, requireRecruiter, async (req, res) => {
     );
 
     res.json({ success: true, offer: result.rows[0] });
+
+    // ── Send offer extended notification (non-blocking) ──
+    try {
+      const [candidate, jobInfo] = await Promise.all([
+        pool.query('SELECT id, name, email FROM users WHERE id = $1', [candidate_id]),
+        pool.query('SELECT id, title FROM jobs WHERE id = $1', [job_id])
+      ]);
+
+      const candInfo = candidate.rows[0];
+      const jobData = jobInfo.rows[0];
+
+      if (candInfo?.email) {
+        await emailService.sendTemplatedEmail({
+          to: candInfo.email,
+          templateName: 'offer_extended',
+          templateData: {
+            candidate_name: candInfo.name || 'Candidate',
+            job_title: jobData?.title || 'the position',
+            company_name: req.user.company_name || job.rows[0]?.company || 'Our Company',
+            salary: salary ? `$${parseFloat(salary).toLocaleString()}` : 'Competitive',
+            work_location: location || 'Remote',
+            start_date: start_date || 'To be determined',
+            benefits: benefits || '',
+            offer_link: `${process.env.FRONTEND_URL || 'https://rekrut.ai'}/candidate/offers`,
+            offer_deadline: '7 days'
+          },
+          userId: candidate_id,
+          metadata: { job_id, company_id: req.user.company_id, offer_id: result.rows[0].id }
+        });
+      }
+    } catch (emailErr) {
+      console.error('[email] Failed to send offer extended email (non-blocking):', emailErr.message);
+    }
   } catch (err) {
     console.error('Create offer error:', err);
     res.status(500).json({ error: 'Failed to create offer' });
