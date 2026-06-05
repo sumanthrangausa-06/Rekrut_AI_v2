@@ -356,5 +356,33 @@ router.get('/agents', requireAdmin, async (req, res) => {
   }
 });
 
+// GET /api/admin/team-status — team member status dashboard
+router.get('/team-status', requireAdmin, async (req, res) => {
+  try {
+    const statusFile = path.join(__dirname, '../public/team-status.json');
+    
+    let data = {
+      generated_at: new Date().toISOString(),
+      team_members: [],
+      deployments: {},
+      recent_commits: [],
+      stats: {}
+    };
+    
+    if (fs.existsSync(statusFile)) {
+      const content = fs.readFileSync(statusFile, 'utf8');
+      data = JSON.parse(content);
+    }
+    
+    res.json({
+      success: true,
+      data: data
+    });
+  } catch (error) {
+    console.error('[admin/team-status] Error:', error.message);
+    res.status(500).json({ error: 'Failed to load team status', message: error.message });
+  }
+});
+
 module.exports = router;
 module.exports.requireAdmin = requireAdmin;

@@ -1,0 +1,163 @@
+{
+  "generated_at": "2026-06-05T19:47:00.000Z",
+  "source": "team-status-tracker",
+  "version": "1.0.0",
+  "team_members": [
+    {
+      "id": "tm-001",
+      "name": "Suga",
+      "role": "CTO / Co-Founder",
+      "status": "active",
+      "current_task": "Staging Environment Setup & Infrastructure",
+      "task_status": "in-progress",
+      "progress": 85,
+      "started_at": "2026-06-05T18:00:00Z",
+      "last_update": "2026-06-05T19:47:00Z",
+      "eta": "2026-06-06T02:00:00Z",
+      "blockers": ["Waiting for Ranga to add API keys to staging env vars"],
+      "notes": [
+        "Staging deployment fixed - root cause was missing OPENAI_API_KEY",
+        "3 files wrapped with try/catch for graceful SDK init",
+        "Staging URL: https://rekrutai-staging.onrender.com (LIVE)",
+        "Next: Neon staging DB branch, API keys setup"
+      ]
+    },
+    {
+      "id": "tm-002",
+      "name": "Kimi",
+      "role": "AI Assistant / Coordinator",
+      "status": "active",
+      "current_task": "Team Coordination & Status Tracking",
+      "task_status": "in-progress",
+      "progress": 60,
+      "started_at": "2026-06-05T14:00:00Z",
+      "last_update": "2026-06-05T19:47:00Z",
+      "eta": "2026-06-06T00:00:00Z",
+      "blockers": [],
+      "notes": [
+        "Coordinating between agents",
+        "Requesting team status dashboard update",
+        "Monitoring deployment pipeline"
+      ]
+    },
+    {
+      "id": "tm-003",
+      "name": "CMO",
+      "role": "Chief Marketing Officer",
+      "status": "active",
+      "current_task": "Content & Marketing Tasks",
+      "task_status": "in-progress",
+      "progress": 30,
+      "started_at": "2026-06-05T16:00:00Z",
+      "last_update": "2026-06-05T19:47:00Z",
+      "eta": "2026-06-06T12:00:00Z",
+      "blockers": [],
+      "notes": [
+        "B-025: 50 seed jobs - in progress",
+        "B-024: Landing page copy - in progress",
+        "B-027: Content calendar - in progress"
+      ]
+    },
+    {
+      "id": "tm-004",
+      "name": "Sunny",
+      "role": "QA Lead",
+      "status": "active",
+      "current_task": "Playwright E2E Test Setup",
+      "task_status": "in-progress",
+      "progress": 10,
+      "started_at": "2026-06-05T19:00:00Z",
+      "last_update": "2026-06-05T19:47:00Z",
+      "eta": "2026-06-06T06:00:00Z",
+      "blockers": ["Staging needs API keys for full AI feature testing"],
+      "notes": [
+        "Setting up Playwright test framework",
+        "Can test non-AI features immediately on staging",
+        "Waiting for API keys to test AI features"
+      ]
+    },
+    {
+      "id": "tm-005",
+      "name": "Ranga",
+      "role": "CEO / Co-Founder",
+      "status": "active",
+      "current_task": "Product Direction & Decision Making",
+      "task_status": "in-progress",
+      "progress": 50,
+      "started_at": "2026-06-05T10:00:00Z",
+      "last_update": "2026-06-05T19:47:00Z",
+      "eta": "ongoing",
+      "blockers": [],
+      "notes": [
+        "Deciding on staging vs prod strategy",
+        "Need to add API keys to staging env vars",
+        "Need to create Neon staging DB branch",
+        "Reviewing team status dashboard"
+      ]
+    }
+  ],
+  "deployments": {
+    "dev": {
+      "url": "https://rekrutai-dev.onrender.com",
+      "status": "live",
+      "branch": "dev",
+      "last_deploy": "2026-06-05T18:00:00Z",
+      "health_check": "passing"
+    },
+    "staging": {
+      "url": "https://rekrutai-staging.onrender.com",
+      "status": "live",
+      "branch": "staging",
+      "last_deploy": "2026-06-05T19:40:31Z",
+      "health_check": "passing",
+      "notes": "Fixed OPENAI_API_KEY crash. Needs API keys for full functionality."
+    },
+    "prod": {
+      "url": "https://hireloop-vzvw.polsia.app",
+      "status": "live",
+      "branch": "main",
+      "last_deploy": "2026-06-05T12:00:00Z",
+      "health_check": "passing"
+    }
+  },
+  "recent_commits": [
+    {
+      "sha": "60fc48b",
+      "message": "fix: gracefully handle missing OPENAI_API_KEY in document-verification.js",
+      "author": "Suga",
+      "branch": "staging",
+      "time": "2026-06-05T19:26:00Z"
+    },
+    {
+      "sha": "9792d4a",
+      "message": "fix: gracefully handle missing OPENAI_API_KEY in polsia-ai.js and qp-ai.js",
+      "author": "Suga",
+      "branch": "staging",
+      "time": "2026-06-05T19:20:00Z"
+    },
+    {
+      "sha": "d9202bf",
+      "message": "diagnostic: add startup diagnostic wrapper to debug Render deploy failures",
+      "author": "Suga",
+      "branch": "staging",
+      "time": "2026-06-05T19:10:00Z"
+    },
+    {
+      "sha": "89fa46a",
+      "message": "infra: add render.yaml blueprint for dev/staging/prod services",
+      "author": "Suga",
+      "branch": "staging",
+      "time": "2026-06-05T18:00:00Z"
+    }
+  ],
+  "stats": {
+    "total_members": 5,
+    "active": 5,
+    "idle": 0,
+    "blocked": 1,
+    "tasks_in_progress": 5,
+    "tasks_done": 0,
+    "deployments_live": 3,
+    "deployments_failed": 0
+  }
+}
