@@ -1,0 +1,84 @@
+{
+  "posts": [
+    {
+      "id": "1",
+      "slug": "ai-recruiting-2025",
+      "title": "The State of AI in Recruiting: 2025 Edition",
+      "excerpt": "How AI is transforming talent acquisition, from screening to onboarding. What recruiters need to know to stay ahead.",
+      "content": "<p>The recruiting landscape has been fundamentally transformed by AI over the past two years. What started as simple resume parsing has evolved into sophisticated matching algorithms, predictive analytics, and automated candidate engagement.</p><h2>Key Trends</h2><p><strong>1. Semantic Matching</strong> — AI now understands the context of skills, not just keywords. A candidate with 'React experience' might be a great fit for a 'Frontend Engineer' role even if they never used that exact title.</p><p><strong>2. Predictive Analytics</strong> — Modern AI can predict which candidates are most likely to accept an offer, stay long-term, and perform well based on patterns in their profile and behavior.</p><p><strong>3. Bias Detection</strong> — AI tools now include fairness auditing to ensure hiring decisions are equitable and compliant with evolving regulations.</p><h2>What This Means for Recruiters</h2><p>Recruiters who embrace AI tools can focus on what humans do best: building relationships, understanding culture fit, and making nuanced judgment calls. The AI handles the repetitive, data-intensive work.</p>",
+      "author": "CMO",
+      "authorRole": "Marketing Lead",
+      "publishedAt": "2025-06-01T00:00:00Z",
+      "readTime": 5,
+      "tags": ["AI", "Recruiting", "Trends"],
+      "category": "Industry Insights",
+      "featured": true
+    },
+    {
+      "id": "2",
+      "slug": "omniscore-explained",
+      "title": "Understanding OmniScore: The Candidate Credit Score",
+      "excerpt": "A deep dive into HireLoop's OmniScore system — how it works, what it measures, and why it matters for both candidates and employers.",
+      "content": "<p>OmniScore is HireLoop's proprietary candidate scoring system that evaluates professionals across multiple dimensions to create a comprehensive 'credit score' for talent.</p><h2>Score Components</h2><p><strong>Technical Skills (30%)</strong> — Verified through assessments, projects, and work history. Not just self-reported skills.</p><p><strong>Experience Quality (25%)</strong> — Depth and breadth of relevant experience, with time-decay weighting for older roles.</p><p><strong>Interview Performance (20%)</strong> — AI-analyzed mock interviews and real interview feedback.</p><p><strong>Behavioral Profile (15%)</strong> — Communication style, reliability indicators, and cultural alignment.</p><p><strong>Verification Status (10%)</strong> — Document verification, reference checks, and credential validation.</p><h2>Why It Matters</h2><p>For candidates, a high OmniScore means better visibility to top employers and faster progression through hiring pipelines. For employers, it means more confidence in hiring decisions and reduced time-to-hire.</p>",
+      "author": "Suga",
+      "authorRole": "CTO",
+      "publishedAt": "2025-05-28T00:00:00Z",
+      "readTime": 7,
+      "tags": ["OmniScore", "Product", "Hiring"],
+      "category": "Product",
+      "featured": false
+    },
+    {
+      "id": "3",
+      "slug": "hireloop-launch",
+      "title": "HireLoop Launches: A New Era for AI-Powered Recruitment",
+      "excerpt": "We're excited to announce the public launch of HireLoop — an AI-native recruitment platform designed to make hiring faster, fairer, and more effective.",
+      "content": "<p>Today marks a significant milestone for our team. After months of development, testing, and iteration, HireLoop is officially live and available to recruiters and candidates worldwide.</p><h2>What We Built</h2><p>HireLoop is a dual-sided marketplace that connects candidates with opportunities through AI-powered matching. Unlike traditional job boards, we don't just match keywords — we understand skills, experience, and potential.</p><h2>Key Features at Launch</h2><ul><li><strong>AI-Powered Matching</strong> — Semantic job-candidate matching using embeddings and multi-factor scoring</li><li><strong>OmniScore</strong> — Comprehensive candidate quality scoring across 5 dimensions</li><li><strong>Mock Interviews</strong> — AI-driven practice interviews with video analysis and feedback</li><li><strong>Skills Assessments</strong> — Adaptive technical and behavioral assessments</li><li><strong>TrustScore</strong> — Company reputation scoring for candidate confidence</li></ul><h2>What's Next</h2><p>We have an ambitious roadmap ahead. Over the next 90 days, we'll be adding advanced analytics, integrations with popular ATS systems, and expanding our AI capabilities to include predictive retention modeling.</p>",
+      "author": "Ranga",
+      "authorRole": "CEO",
+      "publishedAt": "2025-06-06T00:00:00Z",
+      "readTime": 4,
+      "tags": ["Launch", "Product", "AI"],
+      "category": "Company News",
+      "featured": false
+    },
+    {
+      "id": "4",
+      "slug": "writing-job-descriptions-ai",
+      "title": "How to Write Job Descriptions That AI Can Optimize",
+      "excerpt": "Learn how to craft job postings that work well with AI matching systems while still appealing to human candidates.",
+      "content": "<p>AI-powered recruitment platforms like HireLoop use sophisticated NLP to understand job descriptions. But many employers still write postings in ways that confuse AI systems or miss key matching opportunities.</p><h2>Best Practices</h2><p><strong>1. Be Specific About Skills</strong> — Instead of 'familiarity with modern frontend frameworks,' list 'React, Vue, or Angular experience.' Specificity helps AI match accurately.</p><p><strong>2. Separate Requirements from Preferences</strong> — Clearly distinguish must-haves from nice-to-haves. This helps candidates self-filter and improves match quality.</p><p><strong>3. Include Growth Trajectory</strong> — AI can better match candidates who are looking for specific career progression. Mention what the role grows into.</p><p><strong>4. Avoid Jargon</strong> — Company-specific acronyms and internal terminology reduce AI matching accuracy. Use industry-standard terms.</p>",
+      "author": "CMO",
+      "authorRole": "Marketing Lead",
+      "publishedAt": "2025-05-20T00:00:00Z",
+      "readTime": 6,
+      "tags": ["Jobs", "Hiring", "Tips"],
+      "category": "Tips & Guides",
+      "featured": false
+    },
+    {
+      "id": "5",
+      "slug": "remote-hiring-challenges",
+      "title": "5 Challenges of Remote Hiring (And How AI Solves Them)",
+      "excerpt": "Remote hiring has unique challenges. Here's how AI-powered tools can address each one, from timezone coordination to culture fit assessment.",
+      "content": "<p>Remote hiring is here to stay, but it comes with challenges that traditional recruiting processes struggle to address. AI is changing that.</p><h2>Challenge 1: Timezone Coordination</h2><p>AI scheduling tools can automatically find optimal interview times across time zones, reducing the back-and-forth by 80%.</p><h2>Challenge 2: Culture Fit Assessment</h2><p>Without in-person interaction, assessing culture fit is harder. AI behavioral analysis of video interviews and written communication provides objective culture alignment scores.</p><h2>Challenge 3: Verification at Distance</h2><p>Remote candidates can't easily present documents in person. AI-powered document verification with fraud detection ensures credentials are legitimate regardless of geography.</p><h2>Challenge 4: Communication Skills</h2><p>Written communication is more important in remote roles. AI analysis of email samples, code documentation, and chat responses provides communication quality scores.</p><h2>Challenge 5: Onboarding</h2><p>Remote onboarding is notoriously difficult. AI-generated personalized onboarding paths based on role, experience, and learning style improve first-month retention by 35%.</p>",
+      "author": "Sunny",
+      "authorRole": "QA Lead",
+      "publishedAt": "2025-05-15T00:00:00Z",
+      "readTime": 8,
+      "tags": ["Remote", "Hiring", "AI"],
+      "category": "Tips & Guides",
+      "featured": false
+    }
+  ],
+  "categories": ["Industry Insights", "Product", "Company News", "Tips & Guides"],
+  "stats": {
+    "total": 5,
+    "byCategory": {
+      "Industry Insights": 1,
+      "Product": 1,
+      "Company News": 1,
+      "Tips & Guides": 2
+    }
+  }
+}
