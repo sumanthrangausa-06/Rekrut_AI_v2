@@ -1,6 +1,8 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const path = require('path');
+const fs = require('fs');
 const pool = require('../lib/db');
 const router = express.Router();
 
@@ -325,6 +327,36 @@ router.post('/logout', (req, res) => {
     req.session.adminLoginAt = null;
   }
   return res.json({ success: true, message: 'Logged out' });
+});
+
+// GET /api/admin/agents — agent task dashboard data
+router.get('/agents', requireAdmin, async (req, res) => {
+  try {
+    const tasksFile = path.join(__dirname, '../public/agent-tasks.json');
+    const statusFile = path.join(__dirname, '../public/agent-status.json');
+    
+    let data = {};
+    
+    // Try to read the structured task data
+    if (fs.existsSync(tasksFile)) {
+      const tasksContent = fs.readFileSync(tasksFile, 'utf8');
+      data = JSON.parse(tasksContent);
+    }
+    
+    // Also try to read the raw status data
+    if (fs.existsSync(statusFile)) {
+      const statusContent = fs.readFileSync(statusFile, 'utf8');
+      data.rawStatus = JSON.parse(statusContent);
+    }
+    
+    res.json({
+      success: true,
+      data: data
+    });
+  } catch (error) {
+    console.error('[admin/agents] Error:', error.message);
+    res.status(500).json({ error: 'Failed to load agent status', message: error.message });
+  }
 });
 
 module.exports = router;

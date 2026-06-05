@@ -65,6 +65,16 @@ export function DashboardLayout() {
         >
           <Outlet />
         </main>
+        <footer className="border-t bg-card py-4 px-4 lg:px-6">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
+            <p className="text-sm text-muted-foreground">© 2026 Rekrut AI, Inc.</p>
+            <div className="flex gap-4">
+              <a href="#" className="text-sm text-muted-foreground hover:text-foreground">Privacy</a>
+              <a href="#" className="text-sm text-muted-foreground hover:text-foreground">Terms</a>
+              <a href="#" className="text-sm text-muted-foreground hover:text-foreground">Help Center</a>
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   )

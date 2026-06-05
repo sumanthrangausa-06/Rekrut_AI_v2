@@ -1110,7 +1110,7 @@ export function QuickPractice({ questions, categoryFilter, setCategoryFilter, on
                       "{displayTranscript}"
                     </p>
                     <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
-                      <span>{displayTranscript.split(/\s+/).filter(w => w).length} words</span>
+                      <span>{displayTranscript.split(/\s+/).filter((w: string) => w).length} words</span>
                       <span>•</span>
                       <span>{formatTime(displayDuration)} recording</span>
                     </div>
