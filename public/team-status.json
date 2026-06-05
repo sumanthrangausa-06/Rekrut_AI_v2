@@ -45,17 +45,21 @@
       "name": "CMO",
       "role": "Chief Marketing Officer",
       "status": "active",
-      "current_task": "Content & Marketing Tasks",
+      "current_task": "Content, Marketing & Seed Jobs",
       "task_status": "in-progress",
-      "progress": 30,
+      "progress": 75,
       "started_at": "2026-06-05T16:00:00Z",
-      "last_update": "2026-06-05T19:47:00Z",
+      "last_update": "2026-06-06T03:48:00Z",
       "eta": "2026-06-06T12:00:00Z",
-      "blockers": [],
+      "blockers": ["Blog page needs to be live on staging", "Analytics events need confirmation from Suga"],
       "notes": [
-        "B-025: 50 seed jobs - in progress",
-        "B-024: Landing page copy - in progress",
-        "B-027: Content calendar - in progress"
+        "B-025 DONE: 50 seed jobs across 8 industries, ready for marketplace seeding",
+        "B-024 DONE: Landing page copy with hero, features, pricing, FAQ, security, testimonials",
+        "B-027 DONE: Content calendar Week 1 - 2 blog posts with drafts, social snippets, newsletter, Twitter/X threads",
+        "DONE: 90-day marketing roadmap ($17.5K budget, 15K candidates by Day 90)",
+        "IN PROGRESS: Week 1 social execution - waiting for blog to be live on staging",
+        "IN PROGRESS: Header images for blog posts - need design assets (Canva fallback)",
+        "QUESTIONS for Suga: (1) Is blog page route ready on staging? (2) Are analytics events instrumented for landing/signup?"
       ]
     },
     {

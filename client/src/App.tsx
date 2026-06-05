@@ -78,7 +78,6 @@ import { RevenuePage } from '@/pages/admin/revenue'
 import { AdminAgentsDashboardPage } from '@/pages/admin/agents'
 import { AgentDashboardPage } from '@/pages/admin/agent-dashboard'
 import { AdminCompliancePage } from '@/pages/admin/compliance'
-import { TeamStatusPage } from '@/pages/admin/team-status'
 
 // Chat
 import { CandidateChatPage } from '@/pages/candidate/chat'
@@ -190,7 +189,6 @@ function AppRoutes() {
       <Route path="/admin/agents" element={<AdminAuthGuard><AdminAgentsDashboardPage /></AdminAuthGuard>} />
       <Route path="/admin/compliance" element={<AdminAuthGuard><AdminCompliancePage /></AdminAuthGuard>} />
       <Route path="/admin/agent-dashboard" element={<AdminAuthGuard><AgentDashboardPage /></AdminAuthGuard>} />
-      <Route path="/admin/team-status" element={<AdminAuthGuard><TeamStatusPage /></AdminAuthGuard>} />
 
       {/* 404 Not Found */}
       <Route path="*" element={<NotFoundPage />} />
