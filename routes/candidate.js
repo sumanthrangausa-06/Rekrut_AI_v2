@@ -17,6 +17,7 @@ const {
 
 const omniscoreService = require('../services/omniscore');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
+const emailService = require('../lib/email-service');
 
 let matchingEngine;
 try { matchingEngine = require('../services/matching-engine'); } catch(e) { matchingEngine = null; }
@@ -1310,6 +1311,28 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
     }
 
     res.json({ success: true, application: result.rows[0] });
+
+    // ── Send application received notification (non-blocking) ──
+    try {
+      const jobInfo = job.rows[0];
+      const userInfo = profile.rows[0];
+      await emailService.sendTemplatedEmail({
+        to: userInfo?.email,
+        templateName: 'application_received',
+        templateData: {
+          candidate_name: userInfo?.name || 'Candidate',
+          job_title: jobInfo?.title || 'the position',
+          company_name: jobInfo?.company || 'Our Company',
+          assessment_required: false,
+          assessment_deadline: '',
+          assessment_link: ''
+        },
+        userId: req.user.id,
+        metadata: { job_id: jobInfo?.id, company_id: jobInfo?.company_id }
+      });
+    } catch (emailErr) {
+      console.error('[email] Failed to send application received email (non-blocking):', emailErr.message);
+    }
   } catch (err) {
     console.error('Apply to job error:', err);
     res.status(500).json({ error: 'Failed to apply to job' });

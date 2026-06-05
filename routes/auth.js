@@ -17,6 +17,7 @@ const router = express.Router();
 
 // Rate limiting (distributed via PostgreSQL)
 const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-limiter');
+const emailService = require('../lib/email-service');
 
 function logAuth(message) {
   try {
@@ -174,6 +175,22 @@ router.post('/register', rateLimits.strict, async (req, res) => {
       accessToken,
       refreshToken
     });
+
+    // ── Send welcome email (non-blocking) ──
+    try {
+      await emailService.sendTemplatedEmail({
+        to: user.email,
+        templateName: 'welcome',
+        templateData: {
+          name: user.name || 'Welcome',
+          dashboard_link: `${process.env.FRONTEND_URL || 'https://rekrut.ai'}/${role === 'candidate' ? 'candidate' : 'recruiter'}`
+        },
+        userId: user.id,
+        metadata: { role, signup_source: 'web' }
+      });
+    } catch (emailErr) {
+      console.error('[email] Failed to send welcome email (non-blocking):', emailErr.message);
+    }
   } catch (err) {
     console.error('Registration error:', err);
 
