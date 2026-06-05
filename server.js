@@ -1199,6 +1199,14 @@ app.get('*', (req, res) => {
 
 const server = app.listen(PORT, () => {
   console.log(`Rekrut AI running on port ${PORT}`);
+  
+  // Start distributed rate limiter cleanup
+  try {
+    const { distributedRateLimiter } = require('./lib/distributed-rate-limiter');
+    distributedRateLimiter.startCleanup(5 * 60 * 1000); // Clean every 5 minutes
+  } catch (err) {
+    console.warn('[server] Could not start rate limiter cleanup:', err.message);
+  }
 });
 
 // Wire up active HTTP connection tracking for the metrics dashboard

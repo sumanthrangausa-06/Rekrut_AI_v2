@@ -19,38 +19,21 @@ try {
   verifyToken = () => null;
 }
 
-// ─── Rate Limiting (in-memory) ──────────────────────────────────────────────
-const loginAttempts = new Map(); // ip -> { count, firstAttempt }
+// ─── Rate Limiting (distributed via PostgreSQL) ─────────────────────────────
+const { distributedRateLimiter } = require('../lib/distributed-rate-limiter');
+
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
 const MAX_ATTEMPTS = 5;
 
-function checkRateLimit(ip) {
-  const now = Date.now();
-  const record = loginAttempts.get(ip);
-
-  if (!record || (now - record.firstAttempt) > RATE_LIMIT_WINDOW) {
-    loginAttempts.set(ip, { count: 1, firstAttempt: now });
-    return { allowed: true, remaining: MAX_ATTEMPTS - 1 };
-  }
-
-  if (record.count >= MAX_ATTEMPTS) {
-    const retryAfter = Math.ceil((RATE_LIMIT_WINDOW - (now - record.firstAttempt)) / 1000);
-    return { allowed: false, retryAfter };
-  }
-
-  record.count++;
-  return { allowed: true, remaining: MAX_ATTEMPTS - record.count };
+async function checkRateLimit(ip) {
+  const key = `admin_login:${ip}`;
+  const result = await distributedRateLimiter.checkLimit(key, RATE_LIMIT_WINDOW, MAX_ATTEMPTS);
+  return {
+    allowed: result.allowed,
+    remaining: Math.max(0, MAX_ATTEMPTS - result.count),
+    retryAfter: result.retryAfter
+  };
 }
-
-// Clean up old rate limit entries every 30 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, record] of loginAttempts.entries()) {
-    if ((now - record.firstAttempt) > RATE_LIMIT_WINDOW) {
-      loginAttempts.delete(ip);
-    }
-  }
-}, 30 * 60 * 1000);
 
 // ─── Admin Credentials ─────────────────────────────────────────────────────
 // Uses ADMIN_PASSWORD env var; MUST be set in production

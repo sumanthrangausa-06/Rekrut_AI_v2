@@ -15,6 +15,9 @@ const {
 
 const router = express.Router();
 
+// Rate limiting (distributed via PostgreSQL)
+const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-limiter');
+
 function logAuth(message) {
   try {
     fs.appendFileSync('auth.log', message + '\n');
@@ -23,50 +26,12 @@ function logAuth(message) {
   }
 }
 
-function verifyOauthState(req, state) {
-  const expectedState = req.session?.oauth_state;
-  if (!expectedState || !state || state !== expectedState) {
-    return false;
-  }
-
-  delete req.session.oauth_state;
-  return true;
-}
-
-const authBuckets = new Map();
-
 function getClientIp(req) {
   const forwarded = req.headers['x-forwarded-for'];
   if (typeof forwarded === 'string' && forwarded.length > 0) {
     return forwarded.split(',')[0].trim();
   }
   return req.ip || req.socket?.remoteAddress || 'unknown';
-}
-
-function rateLimit({ windowMs, max }) {
-  return (req, res, next) => {
-    const key = `${req.method}:${req.path}:${getClientIp(req)}`;
-    const now = Date.now();
-    const bucket = authBuckets.get(key) || { count: 0, resetAt: now + windowMs };
-
-    if (now > bucket.resetAt) {
-      bucket.count = 0;
-      bucket.resetAt = now + windowMs;
-    }
-
-    bucket.count += 1;
-    authBuckets.set(key, bucket);
-
-    for (const [bucketKey, value] of authBuckets.entries()) {
-      if (value.resetAt < now) authBuckets.delete(bucketKey);
-    }
-
-    if (bucket.count > max) {
-      return res.status(429).json({ error: 'Too many attempts. Please try again later.' });
-    }
-
-    next();
-  };
 }
 
 function isStrongPassword(password) {
@@ -130,7 +95,7 @@ async function sendEmail(to, subject, text, html) {
 // ============= EMAIL/PASSWORD AUTH =============
 
 // Register
-router.post('/register', rateLimit({ windowMs: 15 * 60 * 1000, max: 5 }), async (req, res) => {
+router.post('/register', rateLimits.strict, async (req, res) => {
   try {
     const { email, password, name, role = 'candidate', company_name } = req.body;
 
@@ -224,7 +189,7 @@ router.post('/register', rateLimit({ windowMs: 15 * 60 * 1000, max: 5 }), async 
 });
 
 // Login
-router.post('/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 10 }), async (req, res) => {
+router.post('/login', rateLimits.strict, async (req, res) => {
   try {
     const { email, password } = req.body;
     const logMsg = '[auth] login attempt';
@@ -677,7 +642,7 @@ router.get('/verify-payment', authMiddleware, async (req, res) => {
 // ============= PASSWORD RESET =============
 
 // Forgot password - send reset email
-router.post('/forgot-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 5 }), async (req, res) => {
+router.post('/forgot-password', rateLimits.strict, async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -737,7 +702,7 @@ router.post('/forgot-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 5 }),
 });
 
 // Reset password with token
-router.post('/reset-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 5 }), async (req, res) => {
+router.post('/reset-password', rateLimits.strict, async (req, res) => {
   try {
     const { token, password } = req.body;
 
