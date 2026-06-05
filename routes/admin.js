@@ -95,7 +95,7 @@ function requireAdmin(req, res, next) {
 // POST /api/admin/login
 router.post('/login', async (req, res) => {
   const ip = req.ip || req.connection.remoteAddress || 'unknown';
-  const rateCheck = checkRateLimit(ip);
+  const rateCheck = await checkRateLimit(ip);
 
   if (!rateCheck.allowed) {
     return res.status(429).json({
@@ -127,9 +127,6 @@ router.post('/login', async (req, res) => {
   // Set admin session
   req.session.isAdmin = true;
   req.session.adminLoginAt = new Date().toISOString();
-
-  // Reset rate limiter on success
-  loginAttempts.delete(ip);
 
   logAuthEvent('admin_login_success', null, ADMIN_USERNAME, ip);
 
