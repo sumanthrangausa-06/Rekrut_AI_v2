@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth-context'
+import { Logo } from '@/components/ui/logo'
 import {
   LayoutDashboard,
   Briefcase,
@@ -85,9 +86,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       >
         <div className="flex h-16 items-center justify-between border-b px-6">
           <NavLink to={isRecruiter ? '/recruiter' : '/candidate'} className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground font-heading">
-              H
-            </div>
+            <Logo size="sm" />
             <span className="font-heading text-lg font-bold">Rekrut AI</span>
           </NavLink>
           <button
