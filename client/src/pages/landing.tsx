@@ -95,7 +95,6 @@ const faq = [
   },
 ]
 
-import { Logo } from '@/components/ui/logo';
 
 export function LandingPage() {
   const { isAuthenticated, user } = useAuth()
