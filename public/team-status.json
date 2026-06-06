@@ -26,7 +26,7 @@
       "last_update": "2026-06-06T07:58:00Z",
       "blockers": ["Waiting for API keys in staging env"],
       "notes": ["Consolidated all agent roles. Handling frontend, backend, DevOps, QA."]
-    }
+    },
     {
       "id": "tm-003",
       "name": "CMO",
