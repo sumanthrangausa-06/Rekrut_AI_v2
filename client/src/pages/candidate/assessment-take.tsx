@@ -187,6 +187,10 @@ export function AssessmentTakePage() {
           setPassed((result.score || 0) >= 60)
         }
         setCompleted(true)
+        // Redirect to results page after a short delay
+        setTimeout(() => {
+          navigate(`/candidate/assessment-results?session=${sessionId}`)
+        }, 2000)
       } else if (result.nextQuestion) {
         setQuestion(result.nextQuestion)
         setSelectedAnswer('')
@@ -203,8 +207,10 @@ export function AssessmentTakePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <div className="flex flex-col items-center justify-center min-h-[80vh] gap-4">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <div className="font-heading text-xl font-semibold">Preparing Your Assessment</div>
+        <div className="text-muted-foreground">AI is generating personalized questions...</div>
       </div>
     )
   }

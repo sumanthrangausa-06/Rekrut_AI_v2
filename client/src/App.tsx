@@ -33,6 +33,7 @@ import { RecruiterApplicationsPage } from '@/pages/recruiter/applications'
 import { CandidateAssessmentsPage } from '@/pages/candidate/assessments'
 import { AssessmentTakePage } from '@/pages/candidate/assessment-take'
 import { JobAssessmentTakePage } from '@/pages/candidate/job-assessment-take'
+import { AssessmentResultsPage } from '@/pages/candidate/assessment-results'
 
 // Offers
 import { CandidateOffersPage } from '@/pages/candidate/offers'
@@ -107,12 +108,17 @@ import { RecruiterScreeningPage } from '@/pages/recruiter/screening'
 
 // New migrated pages
 import { PaymentSuccessPage } from '@/pages/payment-success'
+import { RecruiterRegisterPage } from '@/pages/recruiter-register'
+import { RecruiterJobCreatePage } from '@/pages/recruiter/job-create'
+import { RecruiterPayrollDashboardPage } from '@/pages/recruiter/payroll-dashboard'
+import { RecruiterPayrollRunPage } from '@/pages/recruiter/payroll-run'
+import { EmployeePayrollPage } from '@/pages/employee-payroll'
+
 import { RecruiterCommunicationsPage } from '@/pages/recruiter-communications'
 import { RecruiterTrustscorePage } from '@/pages/recruiter-trustscore'
 import { RecruiterPostHireFeedbackPage } from '@/pages/post-hire-feedback'
 import { ComplianceDashboardPage } from '@/pages/compliance-dashboard'
 
-import { AssessmentResultsPage } from '@/pages/candidate/assessment-results'
 import { InterviewPracticePage } from '@/pages/candidate/interview-practice'
 import { VideoInterviewPage } from '@/pages/candidate/video-interview'
 import { InterviewAnalysisPage } from '@/pages/candidate/interview-analysis'
@@ -159,6 +165,9 @@ function AppRoutes() {
       <Route path="/company/:slug" element={<Safe><PublicCompanyPage /></Safe>} />
       <Route path="/careers/:company" element={<Safe><RecruiterCareerPage /></Safe>} />
 
+      <Route path="/recruiter-register" element={<RecruiterRegisterPage />} />
+      <Route path="/employee-payroll" element={<EmployeePayrollPage />} />
+
       {/* Auto-redirect based on role */}
       <Route path="/dashboard" element={<RoleRedirect />} />
 
@@ -171,11 +180,21 @@ function AppRoutes() {
         <Route path="profile" element={<Safe><CandidateProfilePage /></Safe>} />
         <Route path="assessments" element={<Safe><CandidateAssessmentsPage /></Safe>} />
         <Route path="assessments/:id/take" element={<Safe><AssessmentTakePage /></Safe>} />
+        <Route path="assessment-results" element={<Safe><AssessmentResultsPage /></Safe>} />
         <Route path="job-assessment/:id" element={<Safe><JobAssessmentTakePage /></Safe>} />
         <Route path="interviews" element={<Safe><CandidateInterviewsPage /></Safe>} />
         <Route path="ai-coaching" element={<Safe><AiCoachingPage /></Safe>} />
         <Route path="omniscore" element={<Safe><CandidateOmniScorePage /></Safe>} />
         <Route path="documents" element={<Safe><CandidateDocumentsPage /></Safe>} />
+        <Route path="assessments/:id/results" element={<Safe><AssessmentResultsPage /></Safe>} />
+        <Route path="interview-practice" element={<Safe><InterviewPracticePage /></Safe>} />
+        <Route path="video-interview" element={<Safe><VideoInterviewPage /></Safe>} />
+        <Route path="interview-analysis" element={<Safe><InterviewAnalysisPage /></Safe>} />
+        <Route path="history" element={<Safe><HistoryPage /></Safe>} />
+        <Route path="feedback" element={<Safe><PostHireFeedbackPage /></Safe>} />
+        <Route path="offers/manage" element={<Safe><OfferManagementPage /></Safe>} />
+        <Route path="company-profile" element={<Safe><CompanyProfilePage /></Safe>} />
+        <Route path="interview" element={<Safe><InterviewPage /></Safe>} />
         <Route path="chat" element={<Safe><CandidateChatPage /></Safe>} />
         <Route path="offers" element={<Safe><CandidateOffersPage /></Safe>} />
         <Route path="onboarding" element={<Safe><CandidateOnboardingPage /></Safe>} />
@@ -205,6 +224,9 @@ function AppRoutes() {
         <Route path="trustscore" element={<Safe><RecruiterTrustscorePage /></Safe>} />
         <Route path="company" element={<Safe><RecruiterCompanyPage /></Safe>} />
         <Route path="payroll" element={<Safe><RecruiterPayrollPage /></Safe>} />
+        <Route path="payroll-dashboard" element={<Safe><RecruiterPayrollDashboardPage /></Safe>} />
+        <Route path="payroll-run/:id" element={<Safe><RecruiterPayrollRunPage /></Safe>} />
+        <Route path="job-create" element={<Safe><RecruiterJobCreatePage /></Safe>} />
         <Route path="omniscore" element={<Safe><RecruiterOmniScorePage /></Safe>} />
         <Route path="post-hire-feedback" element={<Safe><RecruiterPostHireFeedbackPage /></Safe>} />
         <Route path="compliance" element={<Safe><ComplianceDashboardPage /></Safe>} />
