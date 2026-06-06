@@ -2274,4 +2274,68 @@ router.post('/pipeline/auto-check/:jobId', authMiddleware, requireRecruiter, asy
   }
 });
 
+// Get recruiter analytics dashboard data
+router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const recruiterId = req.user.id;
+    const companyId = req.user.company_id;
+
+    // Job stats
+    const jobStats = await pool.query(`
+      SELECT 
+        COUNT(*) as total_jobs,
+        COUNT(*) FILTER (WHERE status = 'active') as active_jobs,
+        COUNT(*) FILTER (WHERE status = 'closed') as closed_jobs
+      FROM jobs
+      WHERE user_id = $1 OR company_id = $2
+    `, [recruiterId, companyId]);
+
+    // Application stats
+    const appStats = await pool.query(`
+      SELECT 
+        COUNT(*) as total_applications,
+        COUNT(*) FILTER (WHERE status = 'new') as new_applications,
+        COUNT(*) FILTER (WHERE status = 'screening') as screening,
+        COUNT(*) FILTER (WHERE status = 'interview') as interviews,
+        COUNT(*) FILTER (WHERE status = 'offer') as offers,
+        COUNT(*) FILTER (WHERE status = 'hired') as hired,
+        COUNT(*) FILTER (WHERE status = 'rejected') as rejected
+      FROM job_applications
+      WHERE job_id IN (SELECT id FROM jobs WHERE user_id = $1 OR company_id = $2)
+    `, [recruiterId, companyId]);
+
+    // Time-to-hire (average days from application to hired)
+    const timeToHire = await pool.query(`
+      SELECT AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 86400) as avg_days
+      FROM job_applications
+      WHERE status = 'hired' AND job_id IN (SELECT id FROM jobs WHERE user_id = $1 OR company_id = $2)
+    `, [recruiterId, companyId]);
+
+    // Recent activity
+    const recentActivity = await pool.query(`
+      SELECT 
+        ja.status,
+        ja.created_at,
+        j.title as job_title,
+        u.name as candidate_name
+      FROM job_applications ja
+      JOIN jobs j ON ja.job_id = j.id
+      JOIN users u ON ja.candidate_id = u.id
+      WHERE j.user_id = $1 OR j.company_id = $2
+      ORDER BY ja.created_at DESC
+      LIMIT 10
+    `, [recruiterId, companyId]);
+
+    res.json({
+      jobs: jobStats.rows[0],
+      applications: appStats.rows[0],
+      time_to_hire: Math.round(timeToHire.rows[0]?.avg_days || 0),
+      recent_activity: recentActivity.rows
+    });
+  } catch (err) {
+    console.error('Recruiter analytics error:', err);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
 module.exports = router;
