@@ -6,11 +6,11 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                                                                             │
 │   dev branch  →  staging branch  →  main branch  →  production              │
-│   (build)          (test/QA)         (approved)      (live)                 │
+│   (build)          (test/review)         (approved)      (live)             │
 │                                                                             │
 │   • Subagents work here     • You review here     • Only after            │
-│   • Never push to staging   • Integration tests     • You approve            │
-│   • Never push to main                            • Auto-deploy             │
+│   • Never push to staging   • Deployed URL        • You approve            │
+│   • Never push to main      • Integration tests     • Auto-deploy             │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -19,9 +19,9 @@
 
 | Branch | Purpose | URL | Rules |
 |--------|---------|-----|-------|
-| `dev` | Development - I build here | You test locally | **Only branch for active work. Never push to staging/main.** |
-| `staging` | Integration / QA | https://rekrutai-dev.onrender.com | Promote from dev after review. Not for direct commits. |
-| `main` | Production - Live site | https://rekrutai.co | Promote from staging only after approval. Never direct commits. |
+| `dev` | Development — I build here | You test locally | **Only branch for active work. Never push to staging/main.** |
+| `staging` | Review — Deployed for you to click around | https://rekrutai-dev.onrender.com | Promote from dev after review. Not for direct commits. |
+| `main` | Production — Live site | https://rekrutai.co | Promote from staging only after approval. Never direct commits. |
 
 ## How It Works
 
@@ -47,7 +47,7 @@ git merge dev --no-ff
 git push origin staging
 ```
 - Staging auto-deploys to https://rekrutai-dev.onrender.com
-- You review on staging
+- You review on staging by clicking around the deployed site
 - Integration tests run here
 
 ### Step 4: You Review on Staging
@@ -105,7 +105,7 @@ npm run dev
 | Rule | Why | If broken |
 |------|-----|-----------|
 | **Only work on `dev`** | Prevents untested code reaching production | Revert and replay on dev |
-| **Never push to `staging` directly** | Staging is for integration, not development | Merge dev to staging instead |
+| **Never push to `staging` directly** | Staging is for review, not development | Merge dev to staging instead |
 | **Never push to `main` directly** | Production must be protected | Revert immediately, go through staging |
 | **Always checkout dev first** | Ensures subagents start on correct branch | Check branch before any work |
 
@@ -115,7 +115,7 @@ npm run dev
 # Check current branch
 git branch
 # * dev      <- Development (safe to break)
-#   staging  <- Integration testing (promote from dev)
+#   staging  <- Review (deployed to rekrutai-dev.onrender.com)
 #   main     <- Production (protected)
 ```
 
