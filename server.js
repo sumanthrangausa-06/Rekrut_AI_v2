@@ -5,6 +5,7 @@ const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const helmet = require('helmet');
 
 // Load environment variables from .env file
 require('dotenv').config();
@@ -38,6 +39,9 @@ const screeningRoutes = require('./routes/screening');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Disable x-powered-by header
+app.disable('x-powered-by');
+
 // Trust proxy (Render runs behind a reverse proxy)
 app.set('trust proxy', 1);
 
@@ -45,6 +49,28 @@ app.set('trust proxy', 1);
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Security headers — MUST be early, before CORS and session middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://api.rekrutai.co", "https://rekrutai-dev.onrender.com"],
+      frameAncestors: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Allow embedded resources
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  }
+}));
 
 // Middleware
 app.use(cors({
