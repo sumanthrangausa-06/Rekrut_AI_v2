@@ -2277,60 +2277,256 @@ router.post('/pipeline/auto-check/:jobId', authMiddleware, requireRecruiter, asy
 // Get recruiter analytics dashboard data
 router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
   try {
-    const recruiterId = req.user.id;
     const companyId = req.user.company_id;
 
-    // Job stats
-    const jobStats = await pool.query(`
-      SELECT 
-        COUNT(*) as total_jobs,
-        COUNT(*) FILTER (WHERE status = 'active') as active_jobs,
-        COUNT(*) FILTER (WHERE status = 'closed') as closed_jobs
-      FROM jobs
-      WHERE user_id = $1 OR company_id = $2
-    `, [recruiterId, companyId]);
+    // ─── OVERVIEW ───
 
-    // Application stats
-    const appStats = await pool.query(`
-      SELECT 
-        COUNT(*) as total_applications,
-        COUNT(*) FILTER (WHERE status = 'new') as new_applications,
+    // Total active jobs for this company
+    const activeJobsResult = await pool.query(`
+      SELECT COUNT(*) as total_active_jobs
+      FROM jobs WHERE company_id = $1 AND status = 'active'
+    `, [companyId]);
+    const totalActiveJobs = parseInt(activeJobsResult.rows[0].total_active_jobs) || 0;
+
+    // Total applications (all time)
+    const totalAppsResult = await pool.query(`
+      SELECT COUNT(*) as total_applications
+      FROM job_applications WHERE company_id = $1
+    `, [companyId]);
+    const totalApplications = parseInt(totalAppsResult.rows[0].total_applications) || 0;
+
+    // New applications this week (last 7 days)
+    const newAppsWeekResult = await pool.query(`
+      SELECT COUNT(*) as new_applications_this_week
+      FROM job_applications
+      WHERE company_id = $1 AND applied_at >= NOW() - INTERVAL '7 days'
+    `, [companyId]);
+    const newApplicationsThisWeek = parseInt(newAppsWeekResult.rows[0].new_applications_this_week) || 0;
+
+    // Total candidates (unique candidates who applied)
+    const totalCandidatesResult = await pool.query(`
+      SELECT COUNT(DISTINCT candidate_id) as total_candidates
+      FROM job_applications WHERE company_id = $1
+    `, [companyId]);
+    const totalCandidates = parseInt(totalCandidatesResult.rows[0].total_candidates) || 0;
+
+    // Total job views (graceful)
+    let totalViews = 0;
+    try {
+      const viewsResult = await pool.query(`
+        SELECT COALESCE(SUM(views), 0) as total_views
+        FROM job_analytics WHERE job_id IN (SELECT id FROM jobs WHERE company_id = $1)
+      `, [companyId]);
+      totalViews = parseInt(viewsResult.rows[0]?.total_views || '0');
+    } catch (viewErr) {
+      console.log('[analytics] job_analytics table not available, total_views = 0');
+    }
+
+    // ─── PIPELINE ───
+
+    // Candidates in pipeline by stage (excluding terminal stages)
+    const pipelineResult = await pool.query(`
+      SELECT
+        status,
+        COUNT(*) as count
+      FROM job_applications
+      WHERE company_id = $1 AND status NOT IN ('rejected', 'withdrawn', 'hired')
+      GROUP BY status
+      ORDER BY count DESC
+    `, [companyId]);
+
+    const candidatesInPipeline = pipelineResult.rows.reduce((acc, row) => {
+      acc[row.status] = parseInt(row.count);
+      return acc;
+    }, {});
+    const totalInPipeline = pipelineResult.rows.reduce((sum, r) => sum + parseInt(r.count), 0);
+
+    // Average time in current stage (days since application, grouped by current status)
+    const timeInStageResult = await pool.query(`
+      SELECT
+        status,
+        AVG(EXTRACT(EPOCH FROM (NOW() - applied_at)) / 86400) as avg_days
+      FROM job_applications
+      WHERE company_id = $1 AND status NOT IN ('rejected', 'withdrawn', 'hired')
+      GROUP BY status
+    `, [companyId]);
+
+    const avgTimeInStage = timeInStageResult.rows.reduce((acc, row) => {
+      acc[row.status] = row.avg_days ? parseFloat(row.avg_days).toFixed(1) : null;
+      return acc;
+    }, {});
+
+    // ─── APPLICATIONS ───
+
+    // All time application counts by status
+    const allTimeAppsResult = await pool.query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE status = 'applied') as applied,
         COUNT(*) FILTER (WHERE status = 'screening') as screening,
-        COUNT(*) FILTER (WHERE status = 'interview') as interviews,
-        COUNT(*) FILTER (WHERE status = 'offer') as offers,
+        COUNT(*) FILTER (WHERE status = 'interviewed') as interviewed,
+        COUNT(*) FILTER (WHERE status = 'offered') as offered,
         COUNT(*) FILTER (WHERE status = 'hired') as hired,
-        COUNT(*) FILTER (WHERE status = 'rejected') as rejected
-      FROM job_applications
-      WHERE job_id IN (SELECT id FROM jobs WHERE user_id = $1 OR company_id = $2)
-    `, [recruiterId, companyId]);
+        COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
+        COUNT(*) FILTER (WHERE status = 'withdrawn') as withdrawn
+      FROM job_applications WHERE company_id = $1
+    `, [companyId]);
+    const allTimeApps = allTimeAppsResult.rows[0];
 
-    // Time-to-hire (average days from application to hired)
-    const timeToHire = await pool.query(`
-      SELECT AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 86400) as avg_days
+    // Last 7 days application counts
+    const last7DaysAppsResult = await pool.query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE status = 'applied') as applied,
+        COUNT(*) FILTER (WHERE status = 'screening') as screening,
+        COUNT(*) FILTER (WHERE status = 'interviewed') as interviewed,
+        COUNT(*) FILTER (WHERE status = 'offered') as offered,
+        COUNT(*) FILTER (WHERE status = 'hired') as hired,
+        COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
+        COUNT(*) FILTER (WHERE status = 'withdrawn') as withdrawn
       FROM job_applications
-      WHERE status = 'hired' AND job_id IN (SELECT id FROM jobs WHERE user_id = $1 OR company_id = $2)
-    `, [recruiterId, companyId]);
+      WHERE company_id = $1 AND applied_at >= NOW() - INTERVAL '7 days'
+    `, [companyId]);
+    const last7DaysApps = last7DaysAppsResult.rows[0];
 
-    // Recent activity
-    const recentActivity = await pool.query(`
-      SELECT 
-        ja.status,
-        ja.created_at,
-        j.title as job_title,
-        u.name as candidate_name
+    // Last 30 days application counts
+    const last30DaysAppsResult = await pool.query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE status = 'applied') as applied,
+        COUNT(*) FILTER (WHERE status = 'screening') as screening,
+        COUNT(*) FILTER (WHERE status = 'interviewed') as interviewed,
+        COUNT(*) FILTER (WHERE status = 'offered') as offered,
+        COUNT(*) FILTER (WHERE status = 'hired') as hired,
+        COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
+        COUNT(*) FILTER (WHERE status = 'withdrawn') as withdrawn
+      FROM job_applications
+      WHERE company_id = $1 AND applied_at >= NOW() - INTERVAL '30 days'
+    `, [companyId]);
+    const last30DaysApps = last30DaysAppsResult.rows[0];
+
+    // Source breakdown (graceful — mock if source column not tracked yet)
+    let sourceBreakdown = [
+      { name: 'Direct', count: 0, percentage: 0 },
+      { name: 'LinkedIn', count: 0, percentage: 0 },
+      { name: 'Indeed', count: 0, percentage: 0 },
+      { name: 'Referral', count: 0, percentage: 0 },
+      { name: 'Other', count: 0, percentage: 0 },
+    ];
+    try {
+      const sourceResult = await pool.query(`
+        SELECT COALESCE(source, 'Direct') as name, COUNT(*) as count
+        FROM job_applications
+        WHERE company_id = $1
+        GROUP BY source
+      `, [companyId]);
+      const total = sourceResult.rows.reduce((sum, r) => sum + parseInt(r.count), 0) || 1;
+      sourceBreakdown = sourceResult.rows.map(r => ({
+        name: r.name,
+        count: parseInt(r.count),
+        percentage: Math.round((parseInt(r.count) / total) * 100)
+      }));
+    } catch (sourceErr) {
+      console.log('[analytics] source tracking not available, using default breakdown');
+    }
+
+    // ─── CANDIDATES ───
+
+    // Top skills in demand (from job requirements)
+    let topSkills = [];
+    try {
+      // Try skills array column (PostgreSQL array)
+      const skillsResult = await pool.query(`
+        SELECT UNNEST(skills_required) as skill, COUNT(*) as count
+        FROM jobs
+        WHERE company_id = $1 AND skills_required IS NOT NULL
+        GROUP BY skill
+        ORDER BY count DESC
+        LIMIT 10
+      `, [companyId]);
+      topSkills = skillsResult.rows.map(r => ({ skill: r.skill, count: parseInt(r.count) }));
+    } catch (skillsErr) {
+      try {
+        // Fallback: try skills as JSONB column
+        const skillsJsonResult = await pool.query(`
+          SELECT jsonb_array_elements_text(skills) as skill, COUNT(*) as count
+          FROM jobs
+          WHERE company_id = $1 AND skills IS NOT NULL
+          GROUP BY skill
+          ORDER BY count DESC
+          LIMIT 10
+        `, [companyId]);
+        topSkills = skillsJsonResult.rows.map(r => ({ skill: r.skill, count: parseInt(r.count) }));
+      } catch (skillsJsonErr) {
+        console.log('[analytics] skills columns not available, top_skills empty');
+      }
+    }
+
+    // Recent applications (top 10)
+    const recentAppsResult = await pool.query(`
+      SELECT
+        ja.id, ja.status, ja.applied_at,
+        u.name as candidate_name, u.email as candidate_email,
+        j.title as job_title, j.id as job_id
       FROM job_applications ja
-      JOIN jobs j ON ja.job_id = j.id
       JOIN users u ON ja.candidate_id = u.id
-      WHERE j.user_id = $1 OR j.company_id = $2
-      ORDER BY ja.created_at DESC
+      JOIN jobs j ON ja.job_id = j.id
+      WHERE ja.company_id = $1
+      ORDER BY ja.applied_at DESC
       LIMIT 10
-    `, [recruiterId, companyId]);
+    `, [companyId]);
 
     res.json({
-      jobs: jobStats.rows[0],
-      applications: appStats.rows[0],
-      time_to_hire: Math.round(timeToHire.rows[0]?.avg_days || 0),
-      recent_activity: recentActivity.rows
+      success: true,
+      overview: {
+        total_active_jobs: totalActiveJobs,
+        total_applications: totalApplications,
+        new_applications_this_week: newApplicationsThisWeek,
+        total_candidates: totalCandidates,
+        total_views: totalViews,
+      },
+      pipeline: {
+        candidates_in_pipeline: candidatesInPipeline,
+        total_in_pipeline: totalInPipeline,
+        average_time_in_stage: avgTimeInStage,
+      },
+      applications: {
+        all_time: {
+          total: parseInt(allTimeApps.total) || 0,
+          applied: parseInt(allTimeApps.applied) || 0,
+          screening: parseInt(allTimeApps.screening) || 0,
+          interviewed: parseInt(allTimeApps.interviewed) || 0,
+          offered: parseInt(allTimeApps.offered) || 0,
+          hired: parseInt(allTimeApps.hired) || 0,
+          rejected: parseInt(allTimeApps.rejected) || 0,
+          withdrawn: parseInt(allTimeApps.withdrawn) || 0,
+        },
+        last_7_days: {
+          total: parseInt(last7DaysApps.total) || 0,
+          applied: parseInt(last7DaysApps.applied) || 0,
+          screening: parseInt(last7DaysApps.screening) || 0,
+          interviewed: parseInt(last7DaysApps.interviewed) || 0,
+          offered: parseInt(last7DaysApps.offered) || 0,
+          hired: parseInt(last7DaysApps.hired) || 0,
+          rejected: parseInt(last7DaysApps.rejected) || 0,
+          withdrawn: parseInt(last7DaysApps.withdrawn) || 0,
+        },
+        last_30_days: {
+          total: parseInt(last30DaysApps.total) || 0,
+          applied: parseInt(last30DaysApps.applied) || 0,
+          screening: parseInt(last30DaysApps.screening) || 0,
+          interviewed: parseInt(last30DaysApps.interviewed) || 0,
+          offered: parseInt(last30DaysApps.offered) || 0,
+          hired: parseInt(last30DaysApps.hired) || 0,
+          rejected: parseInt(last30DaysApps.rejected) || 0,
+          withdrawn: parseInt(last30DaysApps.withdrawn) || 0,
+        },
+        source_breakdown: sourceBreakdown,
+      },
+      candidates: {
+        top_skills_in_demand: topSkills,
+        recent_applications: recentAppsResult.rows,
+      },
     });
   } catch (err) {
     console.error('Recruiter analytics error:', err);
