@@ -1097,7 +1097,7 @@ router.get('/jobs', authMiddleware, async (req, res) => {
     const pageLimit = Math.min(parseInt(limit, 10) || 20, 50);
     const pageOffset = parseInt(offset, 10) || 0;
 
-    let whereClause = "WHERE j.status = 'active' AND j.closed_at IS NULL";
+    let whereClause = "WHERE j.status = 'active'";
     const params = [];
     let paramIndex = 1;
 
@@ -1107,7 +1107,7 @@ router.get('/jobs', authMiddleware, async (req, res) => {
       paramIndex++;
     }
     if (location) {
-      whereClause += ` AND (j.location ILIKE $${paramIndex} OR j.location_type ILIKE $${paramIndex})`;
+      whereClause += ` AND j.location ILIKE $${paramIndex}`;
       params.push(`%${location}%`);
       paramIndex++;
     }
@@ -1129,16 +1129,15 @@ router.get('/jobs', authMiddleware, async (req, res) => {
 
     const jobsQuery = `
       SELECT 
-        j.id, j.title, j.description, j.location, j.location_type, j.job_type,
-        j.salary_min, j.salary_max, j.salary_currency, j.salary_period,
-        j.skills_required, j.status, j.created_at, j.updated_at, j.posted_at,
-        c.name as company_name, c.slug as company_slug, c.logo_url as company_logo,
+        j.id, j.title, j.description, j.company, j.company as poster_company, j.location, j.job_type,
+        j.salary_min, j.salary_max, j.salary_range, j.currency_code, j.country_code,
+        j.skills_required, j.status, j.created_at, j.updated_at, j.screening_questions,
+        j.requirements, j.user_id,
         EXISTS(SELECT 1 FROM applications a WHERE a.job_id = j.id AND a.candidate_id = $${paramIndex} LIMIT 1) as has_applied,
         EXISTS(SELECT 1 FROM saved_jobs sj WHERE sj.job_id = j.id AND sj.user_id = $${paramIndex} LIMIT 1) as has_saved
       FROM jobs j
-      LEFT JOIN companies c ON j.company_id = c.id
       ${whereClause}
-      ORDER BY j.posted_at DESC
+      ORDER BY j.created_at DESC
       LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}
     `;
     params.push(userId, userId, pageLimit, pageOffset);
@@ -1148,7 +1147,6 @@ router.get('/jobs', authMiddleware, async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM jobs j
-      LEFT JOIN companies c ON j.company_id = c.id
       ${whereClause}
     `;
     const countResult = await pool.query(countQuery, params.slice(0, paramIndex - 1));
@@ -1160,9 +1158,6 @@ router.get('/jobs', authMiddleware, async (req, res) => {
         ...row,
         has_applied: row.has_applied,
         has_saved: row.has_saved,
-        salary_range: row.salary_min && row.salary_max
-          ? `${row.salary_min}-${row.salary_max} ${row.salary_currency}/${row.salary_period}`
-          : null
       })),
       pagination: {
         total,
