@@ -303,15 +303,18 @@ export function RecruiterTrustscorePage() {
       <section>
         <h2 className="text-xl font-semibold mb-4">What is TrustScore?</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {infoCards.map((card, idx) => (
-            <Card key={idx}>
-              <CardContent className="pt-6">
-                <card.icon className="h-8 w-8 text-purple-500 mb-3" />
-                <h3 className="font-semibold text-base mb-2">{card.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{card.description}</p>
-              </CardContent>
-            </Card>
-          ))}
+          {infoCards.map((card, idx) => {
+            const Icon = card.icon
+            return (
+              <Card key={idx}>
+                <CardContent className="pt-6">
+                  <Icon className="h-8 w-8 text-purple-500 mb-3" />
+                  <h3 className="font-semibold text-base mb-2">{card.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{card.description}</p>
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       </section>
 

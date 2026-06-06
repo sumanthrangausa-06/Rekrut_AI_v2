@@ -77,6 +77,7 @@ import { MockInterviewDebugPage } from '@/pages/debug/mock-interview'
 
 // Admin
 import { AdminLoginPage } from '@/pages/admin/login'
+import { AdminAnalyticsPage } from '@/pages/admin/analytics'
 import { AdminDashboardPage } from '@/pages/admin/dashboard'
 import { AdminAuthGuard } from '@/components/admin-auth-guard'
 import { AiHealthPage } from '@/pages/admin/ai-health'
@@ -85,6 +86,7 @@ import { AdminAgentsDashboardPage } from '@/pages/admin/agents'
 import { AgentDashboardPage } from '@/pages/admin/agent-dashboard'
 import { AdminCompliancePage } from '@/pages/admin/compliance'
 
+import { AdminAnalyticsPage } from '@/pages/admin/analytics'
 // Blog
 import { BlogPage, BlogPostPage } from '@/pages/blog'
 
@@ -255,6 +257,7 @@ function AppRoutes() {
       <Route path="/admin/agents" element={<AdminAuthGuard><AdminAgentsDashboardPage /></AdminAuthGuard>} />
       <Route path="/admin/compliance" element={<AdminAuthGuard><AdminCompliancePage /></AdminAuthGuard>} />
       <Route path="/admin/agent-dashboard" element={<AdminAuthGuard><AgentDashboardPage /></AdminAuthGuard>} />
+      <Route path="/admin/analytics" element={<AdminAuthGuard><AdminAnalyticsPage /></AdminAuthGuard>} />
 
       {/* 404 Not Found */}
       <Route path="*" element={<NotFoundPage />} />
