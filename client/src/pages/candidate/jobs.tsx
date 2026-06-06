@@ -54,6 +54,8 @@ interface Job {
   skills_required?: string[]
   posted_by?: string
   applicants_count?: number
+  has_applied?: boolean
+  has_saved?: boolean
 }
 
 interface SavedJob { job_id: number; saved_at: string }
@@ -188,10 +190,10 @@ export function CandidateJobsPage() {
   async function loadJobs() {
     try {
       const [allData, recData] = await Promise.allSettled([
-        apiCall<{ jobs: Job[] }>('/jobs?status=active&limit=200'),
+        apiCall<{ data: Job[], pagination: { total: number } }>('/candidate/jobs?limit=200'),
         apiCall<{ recommended_jobs: Job[] }>('/candidate/jobs/recommended'),
       ])
-      const allJobs = allData.status === 'fulfilled' ? allData.value.jobs || [] : []
+      const allJobs = allData.status === 'fulfilled' ? allData.value.data || [] : []
       const recJobs = recData.status === 'fulfilled' ? recData.value.recommended_jobs || [] : []
 
       const recMap = new Map<number, Job>()
@@ -601,7 +603,10 @@ export function CandidateJobsPage() {
                                   )}
                                 </p>
                               </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                {job.has_applied && (
+                                  <Badge className="bg-green-500 text-white text-[10px] px-1.5 py-0">Applied</Badge>
+                                )}
                                 {score != null && (
                                   <Tooltip content={`${matchLevelLabel(job.match_level || '')} - ${score}% match`}>
                                     <div className={`text-center rounded-lg border px-2 py-0.5 shrink-0 ${matchBg(score)}`}>
