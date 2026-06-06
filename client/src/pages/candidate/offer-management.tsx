@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
+import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select } from '@/components/ui/select'
 import {
   ArrowLeft, Plus, Send, Save, FileText, CheckCircle, XCircle, Clock,
   AlertTriangle, Loader2, DollarSign, Calendar, User, Briefcase,
@@ -312,131 +314,116 @@ export function OfferManagementPage() {
       </Card>
 
       {/* Create Offer Modal */}
-      {showCreate && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">Create New Offer</h2>
-                <Button variant="ghost" size="sm" onClick={() => setShowCreate(false)}>
-                  ✕
-                </Button>
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <div className="p-6 space-y-4">
+          <div>
+            <Label htmlFor="candidate">Candidate</Label>
+            <Select
+              id="candidate"
+              placeholder="Select candidate..."
+              value={formData.candidate_id}
+              onValueChange={(value) => setFormData((prev) => ({ ...prev, candidate_id: value }))}
+            >
+              {candidates.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} - {c.email}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="job">Job Position</Label>
+            <Select
+              id="job"
+              placeholder="Select job..."
+              value={formData.job_id}
+              onValueChange={(value) => setFormData((prev) => ({ ...prev, job_id: value }))}
+            >
+              {jobs.map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.title}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="title">Job Title</Label>
+            <Input
+              id="title"
+              value={formData.title}
+              onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+              placeholder="e.g., Senior Software Engineer"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="salary">Annual Salary</Label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="salary"
+                  type="number"
+                  min="0"
+                  step="1000"
+                  className="pl-8"
+                  value={formData.salary}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, salary: e.target.value }))}
+                />
               </div>
             </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <Label htmlFor="candidate">Candidate</Label>
-                <select
-                  id="candidate"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  value={formData.candidate_id}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, candidate_id: e.target.value }))}
-                >
-                  <option value="">Select candidate...</option>
-                  {candidates.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} - {c.email}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <Label htmlFor="job">Job Position</Label>
-                <select
-                  id="job"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  value={formData.job_id}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, job_id: e.target.value }))}
-                >
-                  <option value="">Select job...</option>
-                  {jobs.map((j) => (
-                    <option key={j.id} value={j.id}>
-                      {j.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <Label htmlFor="title">Job Title</Label>
+            <div>
+              <Label htmlFor="start_date">Start Date</Label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
-                  placeholder="e.g., Senior Software Engineer"
+                  id="start_date"
+                  type="date"
+                  className="pl-8"
+                  value={formData.start_date}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, start_date: e.target.value }))}
                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="salary">Annual Salary</Label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="salary"
-                      type="number"
-                      min="0"
-                      step="1000"
-                      className="pl-8"
-                      value={formData.salary}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, salary: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="start_date">Start Date</Label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="start_date"
-                      type="date"
-                      className="pl-8"
-                      value={formData.start_date}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, start_date: e.target.value }))}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="benefits">Benefits Package</Label>
-                <Textarea
-                  id="benefits"
-                  value={formData.benefits}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, benefits: e.target.value }))}
-                  placeholder="Health insurance, 401(k), PTO, etc."
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => createOffer(false)}
-                  disabled={submitting}
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  Save as Draft
-                </Button>
-                <Button
-                  className="flex-1"
-                  onClick={() => createOffer(true)}
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Send className="h-4 w-4 mr-2" />
-                  )}
-                  Send Offer
-                </Button>
               </div>
             </div>
           </div>
+
+          <div>
+            <Label htmlFor="benefits">Benefits Package</Label>
+            <Textarea
+              id="benefits"
+              value={formData.benefits}
+              onChange={(e) => setFormData((prev) => ({ ...prev, benefits: e.target.value }))}
+              placeholder="Health insurance, 401(k), PTO, etc."
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => createOffer(false)}
+              disabled={submitting}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save as Draft
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={() => createOffer(true)}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              Send Offer
+            </Button>
+          </div>
         </div>
-      )}
+      </Dialog>
     </div>
   )
 }
