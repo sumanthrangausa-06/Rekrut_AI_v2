@@ -85,17 +85,70 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
       FROM jobs WHERE company_id = $1
     `, [companyId]);
 
-    // Get application stats
+    // Get application stats (with reviewed count)
     const appStats = await pool.query(`
       SELECT
         COUNT(*) as total_applications,
         COUNT(*) FILTER (WHERE status = 'applied') as new_applications,
         COUNT(*) FILTER (WHERE status = 'screening') as screening,
+        COUNT(*) FILTER (WHERE status = 'reviewed' OR status = 'screening') as reviewed,
         COUNT(*) FILTER (WHERE status = 'interviewed') as interviewed,
         COUNT(*) FILTER (WHERE status = 'offered') as offered,
         COUNT(*) FILTER (WHERE status = 'hired') as hired
       FROM job_applications WHERE company_id = $1
     `, [companyId]);
+
+    // Get total job views (graceful if job_analytics doesn't exist)
+    let totalViews = 0;
+    try {
+      const viewStats = await pool.query(`
+        SELECT COALESCE(SUM(views), 0) as total_views
+        FROM job_analytics WHERE job_id IN (
+          SELECT id FROM jobs WHERE company_id = $1
+        )
+      `, [companyId]);
+      totalViews = parseInt(viewStats.rows[0]?.total_views || '0');
+    } catch (viewErr) {
+      console.log('[dashboard] job_analytics table not available, total_views = 0');
+    }
+
+    // Get average time to hire (graceful if hired_at doesn't exist)
+    let avgTimeToHire = null;
+    try {
+      const timeToHire = await pool.query(`
+        SELECT AVG(EXTRACT(EPOCH FROM (hired_at - applied_at)) / 86400) as avg_days
+        FROM job_applications
+        WHERE company_id = $1 AND status = 'hired' AND hired_at IS NOT NULL
+      `, [companyId]);
+      avgTimeToHire = timeToHire.rows[0]?.avg_days ? parseFloat(timeToHire.rows[0].avg_days).toFixed(1) : null;
+    } catch (timeErr) {
+      console.log('[dashboard] hired_at column not available, avg_time_to_hire = null');
+    }
+
+    // Get OmniScore distribution (graceful if omniscore_at_apply doesn't exist)
+    let scoreDistribution = { '900': 0, '800': 0, '700': 0, '600': 0, below: 0 };
+    try {
+      const scoreDist = await pool.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE omniscore_at_apply >= 900) as "900",
+          COUNT(*) FILTER (WHERE omniscore_at_apply >= 800 AND omniscore_at_apply < 900) as "800",
+          COUNT(*) FILTER (WHERE omniscore_at_apply >= 700 AND omniscore_at_apply < 800) as "700",
+          COUNT(*) FILTER (WHERE omniscore_at_apply >= 600 AND omniscore_at_apply < 700) as "600",
+          COUNT(*) FILTER (WHERE omniscore_at_apply < 600 OR omniscore_at_apply IS NULL) as below
+        FROM job_applications WHERE company_id = $1
+      `, [companyId]);
+      scoreDistribution = scoreDist.rows[0] || scoreDistribution;
+    } catch (scoreErr) {
+      console.log('[dashboard] omniscore_at_apply column not available, using defaults');
+    }
+
+    // Get source breakdown (mock until we track sources properly)
+    const sourceBreakdown = [
+      { name: 'Direct', count: 0, percentage: 0 },
+      { name: 'LinkedIn', count: 0, percentage: 0 },
+      { name: 'Indeed', count: 0, percentage: 0 },
+      { name: 'Referral', count: 0, percentage: 0 },
+    ];
 
     // Get upcoming interviews
     const upcomingInterviews = await pool.query(`
@@ -128,8 +181,21 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
     res.json({
       success: true,
       trust_score: trustScore,
-      job_stats: jobStats.rows[0],
-      application_stats: appStats.rows[0],
+      job_stats: {
+        ...jobStats.rows[0],
+        total_views: totalViews,
+      },
+      application_stats: {
+        ...appStats.rows[0],
+      },
+      avg_time_to_hire: avgTimeToHire,
+      score_distribution: scoreDistribution,
+      source_breakdown: [
+        { name: 'Direct', count: 0, percentage: 0 },
+        { name: 'LinkedIn', count: 0, percentage: 0 },
+        { name: 'Indeed', count: 0, percentage: 0 },
+        { name: 'Referral', count: 0, percentage: 0 },
+      ],
       upcoming_interviews: upcomingInterviews.rows,
       recent_applications: recentApps.rows
     });
