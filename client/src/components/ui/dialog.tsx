@@ -11,7 +11,7 @@ interface DialogProps {
   style?: React.CSSProperties
 }
 
-function DialogContent({ children, className, style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
+export function DialogContent({ children, className, style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
     <div className={cn(
       'relative z-50 w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] overflow-y-auto border bg-background p-4 sm:p-6 shadow-lg',
@@ -75,5 +75,3 @@ export function DialogDescription({ children, className }: { children: React.Rea
 export function DialogFooter({ children, className }: { children: React.ReactNode; className?: string }) {
   return <div className={cn('flex justify-end gap-2 mt-4', className)}>{children}</div>
 }
-
-export { DialogContent }
