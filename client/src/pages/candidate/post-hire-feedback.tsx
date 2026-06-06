@@ -207,112 +207,99 @@ export function PostHireFeedbackPage() {
       )}
 
       {/* Feedback Modal */}
-      {activeFeedback && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">{activeFeedback.day_mark}-Day Check-in</h2>
-                <Button variant="ghost" size="sm" onClick={() => setActiveFeedback(null)}>
-                  ✕
-                </Button>
-              </div>
+      <Dialog open={!!activeFeedback} onOpenChange={(open) => !open && setActiveFeedback(null)}>
+        <div className="p-6 space-y-6">
+          {/* Questions */}
+          {activeFeedback?.questions.map((question, index) => (
+            <div key={index}>
+              <label className="block text-sm font-medium mb-2">
+                {question}
+              </label>
+              <Textarea
+                value={answers[question] || ''}
+                onChange={(e) => setAnswers((prev) => ({ ...prev, [question]: e.target.value }))}
+                placeholder="Your answer..."
+                rows={3}
+              />
             </div>
+          ))}
 
-            <div className="p-6 space-y-6">
-              {/* Questions */}
-              {activeFeedback.questions.map((question, index) => (
-                <div key={index}>
-                  <label className="block text-sm font-medium mb-2">
-                    {question}
-                  </label>
-                  <Textarea
-                    value={answers[question] || ''}
-                    onChange={(e) => setAnswers((prev) => ({ ...prev, [question]: e.target.value }))}
-                    placeholder="Your answer..."
-                    rows={3}
-                  />
-                </div>
-              ))}
-
-              {/* Satisfaction */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Overall Satisfaction (1-10)
-                </label>
-                <div className="flex gap-2">
-                  {Array.from({ length: 10 }, (_, i) => i + 1).map((score) => (
-                    <Button
-                      key={score}
-                      variant={satisfaction >= score ? 'default' : 'outline'}
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => setSatisfaction(score)}
-                    >
-                      {score}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Recommendation */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Would you recommend this company to a friend?
-                </label>
-                <div className="flex gap-3">
-                  <Button
-                    variant={wouldRecommend === true ? 'default' : 'outline'}
-                    className="flex-1"
-                    onClick={() => setWouldRecommend(true)}
-                  >
-                    <ThumbsUp className="h-4 w-4 mr-2" />
-                    Yes
-                  </Button>
-                  <Button
-                    variant={wouldRecommend === false ? 'default' : 'outline'}
-                    className="flex-1"
-                    onClick={() => setWouldRecommend(false)}
-                  >
-                    <ThumbsDown className="h-4 w-4 mr-2" />
-                    No
-                  </Button>
-                </div>
-              </div>
-
-              {/* Comments */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Additional Comments (Optional)
-                </label>
-                <Textarea
-                  value={comments}
-                  onChange={(e) => setComments(e.target.value)}
-                  placeholder="Share any additional thoughts..."
-                  rows={4}
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setActiveFeedback(null)}>
-                  Cancel
-                </Button>
+          {/* Satisfaction */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Overall Satisfaction (1-10)
+            </label>
+            <div className="flex gap-2">
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((score) => (
                 <Button
-                  onClick={submitFeedback}
-                  disabled={submitting || satisfaction === 0 || wouldRecommend === null}
+                  key={score}
+                  variant={satisfaction >= score ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setSatisfaction(score)}
                 >
-                  {submitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Send className="h-4 w-4 mr-2" />
-                  )}
-                  Submit Feedback
+                  {score}
                 </Button>
-              </div>
+              ))}
             </div>
           </div>
+
+          {/* Recommendation */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Would you recommend this company to a friend?
+            </label>
+            <div className="flex gap-3">
+              <Button
+                variant={wouldRecommend === true ? 'default' : 'outline'}
+                className="flex-1"
+                onClick={() => setWouldRecommend(true)}
+              >
+                <ThumbsUp className="h-4 w-4 mr-2" />
+                Yes
+              </Button>
+              <Button
+                variant={wouldRecommend === false ? 'default' : 'outline'}
+                className="flex-1"
+                onClick={() => setWouldRecommend(false)}
+              >
+                <ThumbsDown className="h-4 w-4 mr-2" />
+                No
+              </Button>
+            </div>
+          </div>
+
+          {/* Comments */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Additional Comments (Optional)
+            </label>
+            <Textarea
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              placeholder="Share any additional thoughts..."
+              rows={4}
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setActiveFeedback(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={submitFeedback}
+              disabled={submitting || satisfaction === 0 || wouldRecommend === null}
+            >
+              {submitting ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              Submit Feedback
+            </Button>
+          </div>
         </div>
-      )}
+      </Dialog>
     </div>
   )
 }
