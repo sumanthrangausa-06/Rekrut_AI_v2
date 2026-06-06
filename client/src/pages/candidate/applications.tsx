@@ -593,6 +593,41 @@ function ApplicationCard({
                 ))}
               </div>
             )}
+
+            {/* Match score */}
+            {app.match_score && (
+              <div className="mt-2 flex items-center gap-2">
+                <div className={`h-2 w-2 rounded-full ${
+                  app.match_score >= 80 ? 'bg-green-500' : app.match_score >= 60 ? 'bg-amber-500' : 'bg-red-400'
+                }`} />
+                <span className="text-xs font-medium text-muted-foreground">Match: {app.match_score}%</span>
+                <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      app.match_score >= 80 ? 'bg-green-500' : app.match_score >= 60 ? 'bg-amber-500' : 'bg-red-400'
+                    }`}
+                    style={{ width: `${app.match_score}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Next steps for active applications */}
+            {!['rejected', 'withdrawn', 'hired'].includes(app.status) && (
+              <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <ArrowRight className="h-3 w-3 text-primary" />
+                </div>
+                <span>
+                  {app.status === 'applied' && 'Awaiting recruiter review'}
+                  {app.status === 'screening' && 'In screening stage — expect a call'}
+                  {app.status === 'shortlisted' && "You've been shortlisted!"}
+                  {app.status === 'reviewing' && 'Under detailed review by the team'}
+                  {app.status === 'interviewed' && 'Interview completed — awaiting decision'}
+                  {app.status === 'offered' && 'Offer received! Review the details'}
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {onWithdraw && !['rejected', 'withdrawn', 'hired'].includes(app.status) && (
