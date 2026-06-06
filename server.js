@@ -77,15 +77,26 @@ app.use(helmet({
   }
 }));
 
-// Middleware
+// CORS — whitelist origins in production, allow dev origins in development
+const corsOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
+  : process.env.NODE_ENV === 'production'
+    ? ['https://rekrutai.co', 'https://www.rekrutai.co', 'https://app.rekrutai.co']
+    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173', 'http://127.0.0.1:4173', 'http://127.0.0.1:3000', 'https://hireloop-vzvw.polsia.app'];
+
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g., mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (corsOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
 }));
 
-// Explicitly allow camera and microphone access (prevents CDN/proxy stripping)
+// Permissions-Policy: restrict to self (same-origin) only, no wildcard access
 app.use((req, res, next) => {
-  res.setHeader('Permissions-Policy', 'camera=*, microphone=*');
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self)');
   next();
 });
 
@@ -108,7 +119,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false, // Allow cookies over HTTP (Render terminates TLS at proxy)
+    secure: process.env.NODE_ENV === 'production', // Secure in production; allow HTTP in dev
     httpOnly: true,
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     sameSite: 'lax',
