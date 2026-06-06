@@ -212,9 +212,19 @@ router.get('/:id', authMiddleware, async (req, res) => {
 
     const document = result.rows[0];
 
-    // Check access permission - owner or recruiter
-    const hasAccess = document.user_id === userId ||
-                     userRole === 'recruiter' || userRole === 'hiring_manager' || userRole === 'admin';
+    // Check access permission - owner, or recruiter/hiring_manager/admin with company relationship
+    let hasAccess = document.user_id === userId;
+    if (!hasAccess && (userRole === 'recruiter' || userRole === 'hiring_manager' || userRole === 'admin')) {
+      // Verify the candidate has a relationship with the recruiter's company
+      // (e.g., applied to a job at this company, or is in the recruiter's pipeline)
+      const relationResult = await pool.query(`
+        SELECT 1 FROM applications a
+        JOIN jobs j ON a.job_id = j.id
+        WHERE a.candidate_id = $1 AND j.company_id = $2
+        LIMIT 1
+      `, [document.user_id, userCompanyId]);
+      hasAccess = relationResult.rows.length > 0;
+    }
 
     if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied' });

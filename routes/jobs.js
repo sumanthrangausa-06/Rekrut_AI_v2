@@ -9,13 +9,22 @@ router.get('/', optionalAuth, async (req, res) => {
   try {
     const { status = 'active', limit = 20, offset = 0, search, location, job_type, salary_min, salary_max } = req.query;
 
+    const allowedStatuses = ['active'];
+    const requestedStatus = status ? status.trim().toLowerCase() : 'active';
+    if (!allowedStatuses.includes(requestedStatus)) {
+      return res.status(400).json({ error: 'Invalid status parameter' });
+    }
+
     let query = `
-      SELECT j.*, u.company_name as poster_company
+      SELECT j.id, j.title, j.company, j.description, j.requirements, j.location,
+             j.salary_range, j.job_type, j.screening_questions, j.country_code,
+             j.currency_code, j.salary_min, j.salary_max, j.status, j.created_at,
+             u.company_name as poster_company
       FROM jobs j
       LEFT JOIN users u ON j.user_id = u.id
       WHERE j.status = $1
     `;
-    const params = [status];
+    const params = [requestedStatus];
     let idx = 2;
 
     // Text search across title, company, description, requirements
@@ -61,7 +70,7 @@ router.get('/', optionalAuth, async (req, res) => {
 
     // Get total count for pagination
     let countQuery = `SELECT COUNT(*) as total FROM jobs j WHERE j.status = $1`;
-    const countParams = [status];
+    const countParams = [requestedStatus];
     let cIdx = 2;
     if (search && search.trim()) {
       countQuery += ` AND (j.title ILIKE $${cIdx} OR j.company ILIKE $${cIdx} OR j.description ILIKE $${cIdx} OR j.requirements ILIKE $${cIdx})`;
@@ -108,10 +117,13 @@ router.get('/:id', optionalAuth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid job ID' });
     }
     const result = await pool.query(
-      `SELECT j.*, u.company_name as poster_company, u.name as poster_name
+      `SELECT j.id, j.title, j.company, j.description, j.requirements, j.location,
+              j.salary_range, j.job_type, j.screening_questions, j.country_code,
+              j.currency_code, j.salary_min, j.salary_max, j.status, j.created_at,
+              u.company_name as poster_company, u.name as poster_name
        FROM jobs j
        LEFT JOIN users u ON j.user_id = u.id
-       WHERE j.id = $1`,
+       WHERE j.id = $1 AND j.status = 'active'`,
       [id]
     );
 
