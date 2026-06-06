@@ -1089,6 +1089,94 @@ router.delete('/projects/:id', authMiddleware, async (req, res) => {
 
 // ============= JOB MATCHING =============
 
+// Get all active jobs with candidate personalization
+router.get('/jobs', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { search, location, job_type, salary_min, salary_max, limit = 20, offset = 0 } = req.query;
+    const pageLimit = Math.min(parseInt(limit, 10) || 20, 50);
+    const pageOffset = parseInt(offset, 10) || 0;
+
+    let whereClause = "WHERE j.status = 'active' AND j.closed_at IS NULL";
+    const params = [];
+    let paramIndex = 1;
+
+    if (search) {
+      whereClause += ` AND (j.title ILIKE $${paramIndex} OR j.description ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+    if (location) {
+      whereClause += ` AND (j.location ILIKE $${paramIndex} OR j.location_type ILIKE $${paramIndex})`;
+      params.push(`%${location}%`);
+      paramIndex++;
+    }
+    if (job_type) {
+      whereClause += ` AND j.job_type = $${paramIndex}`;
+      params.push(job_type);
+      paramIndex++;
+    }
+    if (salary_min) {
+      whereClause += ` AND j.salary_min >= $${paramIndex}`;
+      params.push(parseInt(salary_min, 10));
+      paramIndex++;
+    }
+    if (salary_max) {
+      whereClause += ` AND j.salary_max <= $${paramIndex}`;
+      params.push(parseInt(salary_max, 10));
+      paramIndex++;
+    }
+
+    const jobsQuery = `
+      SELECT 
+        j.id, j.title, j.description, j.location, j.location_type, j.job_type,
+        j.salary_min, j.salary_max, j.salary_currency, j.salary_period,
+        j.skills_required, j.status, j.created_at, j.updated_at, j.posted_at,
+        c.name as company_name, c.slug as company_slug, c.logo_url as company_logo,
+        EXISTS(SELECT 1 FROM applications a WHERE a.job_id = j.id AND a.candidate_id = $${paramIndex} LIMIT 1) as has_applied,
+        EXISTS(SELECT 1 FROM saved_jobs sj WHERE sj.job_id = j.id AND sj.user_id = $${paramIndex} LIMIT 1) as has_saved
+      FROM jobs j
+      LEFT JOIN companies c ON j.company_id = c.id
+      ${whereClause}
+      ORDER BY j.posted_at DESC
+      LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}
+    `;
+    params.push(userId, userId, pageLimit, pageOffset);
+
+    const jobsResult = await pool.query(jobsQuery, params);
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM jobs j
+      LEFT JOIN companies c ON j.company_id = c.id
+      ${whereClause}
+    `;
+    const countResult = await pool.query(countQuery, params.slice(0, paramIndex - 1));
+    const total = parseInt(countResult.rows[0].total, 10);
+
+    res.json({
+      success: true,
+      data: jobsResult.rows.map(row => ({
+        ...row,
+        has_applied: row.has_applied,
+        has_saved: row.has_saved,
+        salary_range: row.salary_min && row.salary_max
+          ? `${row.salary_min}-${row.salary_max} ${row.salary_currency}/${row.salary_period}`
+          : null
+      })),
+      pagination: {
+        total,
+        limit: pageLimit,
+        offset: pageOffset,
+        has_more: pageOffset + jobsResult.rows.length < total
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching jobs:', error);
+    res.status(500).json({ error: 'Failed to fetch jobs' });
+  }
+});
+
 // Get jobs with match scores
 router.get('/jobs/recommended', authMiddleware, async (req, res) => {
   try {
