@@ -72,4 +72,8 @@ export function DialogDescription({ children, className }: { children: React.Rea
   return <p className={cn('text-sm text-muted-foreground', className)}>{children}</p>
 }
 
+export function DialogFooter({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn('flex justify-end gap-2 mt-4', className)}>{children}</div>
+}
+
 export { DialogContent }
