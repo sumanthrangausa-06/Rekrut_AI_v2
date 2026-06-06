@@ -13,6 +13,10 @@ import { RecruiterDashboard } from '@/pages/recruiter/dashboard'
 import { PlaceholderPage } from '@/pages/placeholder'
 import { RecruiterAnalyticsPage } from '@/pages/recruiter/analytics'
 import { PricingPage } from '@/pages/pricing'
+import { AboutPage } from '@/pages/about'
+import { ContactPage } from '@/pages/contact'
+import { PrivacyPage } from '@/pages/privacy'
+import { TermsPage } from '@/pages/terms'
 
 // Jobs
 import { CandidateJobsPage } from '@/pages/candidate/jobs'
@@ -127,6 +131,10 @@ function AppRoutes() {
       <Route path="/screening/:token" element={<CandidateScreeningPage />} />
       <Route path="/blog" element={<BlogPage />} />
       <Route path="/blog/:slug" element={<BlogPostPage />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/contact" element={<ContactPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
 
       {/* Public company profile */}
       <Route path="/company/:slug" element={<Safe><PublicCompanyPage /></Safe>} />
