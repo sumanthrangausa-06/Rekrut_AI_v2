@@ -50,6 +50,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// API health alias for monitoring consistency
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Security headers — MUST be early, before CORS and session middleware
 app.use(helmet({
   contentSecurityPolicy: {
