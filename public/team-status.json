@@ -27,6 +27,18 @@
       "blockers": ["Waiting for API keys in staging env"],
       "notes": ["Consolidated all agent roles. Handling frontend, backend, DevOps, QA."]
     }
+    {
+      "id": "tm-003",
+      "name": "CMO",
+      "role": "Chief Marketing Officer",
+      "status": "on-demand",
+      "current_task": "Marketing content, competitive analysis, blog posts, social campaigns",
+      "task_status": "idle",
+      "progress": 0,
+      "last_update": "2026-06-06T08:30:00Z",
+      "blockers": [],
+      "notes": ["Lives on Ranga's local machine. Connect when marketing content is needed."]
+    }
   ],
   "deployments": {
     "dev": { "branch": "dev", "status": "healthy", "last_deploy": "2026-06-06T07:30:00Z" },
@@ -34,6 +46,9 @@
     "prod": { "branch": "main", "status": "healthy", "last_deploy": "2026-06-05T00:00:00Z" }
   },
   "recent_commits": [
+    { "hash": "23f1dd0", "message": "feat: admin compliance endpoints — EU AI Act dashboard wiring", "branch": "staging", "author": "Suga", "timestamp": "2026-06-06T08:30:00Z" },
+    { "hash": "fe29482", "message": "feat: recruiter dashboard analytics — complete metrics backend", "branch": "staging", "author": "Suga", "timestamp": "2026-06-06T07:45:00Z" },
+    { "hash": "afa85ae", "message": "docs: update team structure — consolidated to Ranga + Suga", "branch": "staging", "author": "Suga", "timestamp": "2026-06-06T07:30:00Z" },
     { "hash": "4efdd85", "message": "fix: remove duplicate Logo import in landing.tsx", "branch": "staging", "author": "Suga", "timestamp": "2026-06-06T07:09:00Z" },
     { "hash": "ce5ed93", "message": "feat: email notifications — auto-trigger on key events", "branch": "staging", "author": "Suga", "timestamp": "2026-06-06T07:00:00Z" },
     { "hash": "6d9bdde", "message": "brand: fix logo consistency across all pages", "branch": "staging", "author": "Suga", "timestamp": "2026-06-06T07:00:00Z" },
