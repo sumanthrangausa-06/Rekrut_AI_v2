@@ -5,8 +5,61 @@
 - [x] Frontend route cleanup and navigation consistency are verified across the candidate/recruiter shell; the remaining path-choice item is backend-only.
 - [x] Standardize the job application path on `/api/candidate/jobs/:jobId/apply`; treat `/api/jobs/:id/apply` as stale documentation unless a compatibility alias is added later.
 
-## UI Build Phase (Next Sprint — Week of June 8-12, 2026)
-**Owner:** Frontend Lead Agent | **Priority:** Critical for monetization + enterprise readiness
+## Team Structure (2026-06-06)
+**Ranga** — CEO, Founder, Product Direction
+**Suga** — CTO, Co-Founder, Orchestrator, Engineering Lead
+
+All engineering, design, and QA work is now consolidated under Suga. No other agents active.
+
+## Workflow: Dev → Staging → Prod
+
+### Branch Strategy
+- `dev` — Active development branch. All commits land here first.
+- `staging` — Pre-production validation. Merged from dev when feature-complete.
+- `main` — Production. Only merged from staging after QA pass.
+
+### Process
+1. **Develop** on `dev` branch (or feature branches → PR → dev)
+2. **Test locally** — TypeScript build must pass, no new errors introduced
+3. **Merge to `staging`** — Deploy to staging environment (Render)
+4. **QA on staging** — Manual testing + smoke tests (Suga does QA)
+5. **Merge to `main`** — Only after QA pass + Ranga approval for major features
+6. **Deploy to prod** — Auto-deploy from main branch on Render
+
+### QA Checklist (Before Staging → Prod)
+- [ ] TypeScript build passes (`tsc --noEmit`)
+- [ ] No runtime errors in staging logs
+- [ ] Feature works end-to-end (manual test)
+- [ ] No regressions on existing flows (login, apply, interview)
+- [ ] Database migrations tested (if applicable)
+- [ ] API endpoints respond correctly
+- [ ] Mobile responsive check (quick)
+
+### Staging Environment
+- **URL:** https://rekrutai-staging.onrender.com
+- **Auto-deploy:** From `staging` branch
+- **Database:** Neon staging branch (needs Ranga to create)
+- **API Keys:** Need Ranga to add to Render env vars
+
+### Production Environment
+- **URL:** https://hireloop-vzvw.polsia.app (or rekrutai.co)
+- **Auto-deploy:** From `main` branch
+- **Database:** Neon production
+- **Status:** Currently the main product URL
+
+## Current Sprint Priority (June 6-12, 2026)
+1. **Recruiter Dashboard Analytics** — P0 launch blocker. Verify real API wiring, not placeholder.
+2. **Email Notifications** — Templates seeded, triggers wired. Need SMTP credentials in production.
+3. **EU AI Act Compliance Dashboard** — August 2026 deadline. Verify API wiring.
+4. **Brand Cleanup** — Logo done, need responsive audit + remaining placeholder removal
+5. **Sign Up/Sign In Polish** — Match Visily reference, social auth ready
+6. **Legacy HTML Migration** — 11 pages still need React migration
+
+## Done Today (2026-06-06)
+- Public Company Profile page (real API endpoints)
+- Brand cleanup (Logo component everywhere)
+- Email notification infrastructure (6 templates, 4 auto-triggers)
+
 
 ### ✅ Foundation (Done — June 5, 2026)
 - [x] **Component Library: Domain Components** — JobCard, CandidateCard, EmptyState, Skeleton, ChartCard, FilterBar, OmniScoreRing built in `client/src/components/domain/`
