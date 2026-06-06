@@ -86,7 +86,6 @@ import { AdminAgentsDashboardPage } from '@/pages/admin/agents'
 import { AgentDashboardPage } from '@/pages/admin/agent-dashboard'
 import { AdminCompliancePage } from '@/pages/admin/compliance'
 
-import { AdminAnalyticsPage } from '@/pages/admin/analytics'
 // Blog
 import { BlogPage, BlogPostPage } from '@/pages/blog'
 
