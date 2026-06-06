@@ -314,7 +314,7 @@ export function RecruiterTrustscorePage() {
                 </CardContent>
               </Card>
             )
-          })}}
+          })}
         </div>
       </section>
 
