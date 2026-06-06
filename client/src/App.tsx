@@ -76,6 +76,7 @@ import { MockInterviewDebugPage } from '@/pages/debug/mock-interview'
 
 // Admin
 import { AdminLoginPage } from '@/pages/admin/login'
+import { AdminDashboardPage } from '@/pages/admin/dashboard'
 import { AdminAuthGuard } from '@/components/admin-auth-guard'
 import { AiHealthPage } from '@/pages/admin/ai-health'
 import { RevenuePage } from '@/pages/admin/revenue'
@@ -104,6 +105,23 @@ import { CandidateDocumentsPage } from '@/pages/candidate/documents'
 import { RecruiterCandidatesPage } from '@/pages/recruiter/candidates'
 import { RecruiterScreeningPage } from '@/pages/recruiter/screening'
 
+// New migrated pages
+import { PaymentSuccessPage } from '@/pages/payment-success'
+import { RecruiterCommunicationsPage } from '@/pages/recruiter-communications'
+import { RecruiterTrustscorePage } from '@/pages/recruiter-trustscore'
+import { RecruiterPostHireFeedbackPage } from '@/pages/post-hire-feedback'
+import { ComplianceDashboardPage } from '@/pages/compliance-dashboard'
+
+import { AssessmentResultsPage } from '@/pages/candidate/assessment-results'
+import { InterviewPracticePage } from '@/pages/candidate/interview-practice'
+import { VideoInterviewPage } from '@/pages/candidate/video-interview'
+import { InterviewAnalysisPage } from '@/pages/candidate/interview-analysis'
+import { HistoryPage } from '@/pages/candidate/history'
+import { PostHireFeedbackPage } from '@/pages/candidate/post-hire-feedback'
+import { OfferManagementPage } from '@/pages/candidate/offer-management'
+import { CompanyProfilePage } from '@/pages/candidate/company-profile'
+import { InterviewPage } from '@/pages/candidate/interview'
+
 // Helper: wrap a page element with RouteErrorBoundary
 function Safe({ children }: { children: React.ReactNode }) {
   return <RouteErrorBoundary>{children}</RouteErrorBoundary>
@@ -128,6 +146,7 @@ function AppRoutes() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/test-camera" element={<TestCameraPage />} />
       <Route path="/pricing" element={<PricingPage />} />
+      <Route path="/payment-success" element={<PaymentSuccessPage />} />
       <Route path="/screening/:token" element={<CandidateScreeningPage />} />
       <Route path="/blog" element={<BlogPage />} />
       <Route path="/blog/:slug" element={<BlogPostPage />} />
@@ -182,9 +201,13 @@ function AppRoutes() {
         <Route path="offers" element={<Safe><RecruiterOffersPage /></Safe>} />
         <Route path="onboarding" element={<Safe><RecruiterOnboardingPage /></Safe>} />
         <Route path="analytics" element={<Safe><RecruiterAnalyticsPage /></Safe>} />
+        <Route path="communications" element={<Safe><RecruiterCommunicationsPage /></Safe>} />
+        <Route path="trustscore" element={<Safe><RecruiterTrustscorePage /></Safe>} />
         <Route path="company" element={<Safe><RecruiterCompanyPage /></Safe>} />
         <Route path="payroll" element={<Safe><RecruiterPayrollPage /></Safe>} />
         <Route path="omniscore" element={<Safe><RecruiterOmniScorePage /></Safe>} />
+        <Route path="post-hire-feedback" element={<Safe><RecruiterPostHireFeedbackPage /></Safe>} />
+        <Route path="compliance" element={<Safe><ComplianceDashboardPage /></Safe>} />
       </Route>
 
       {/* Settings */}
@@ -197,6 +220,8 @@ function AppRoutes() {
 
       {/* Admin routes — login is public, everything else requires auth */}
       <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin" element={<AdminAuthGuard><AdminDashboardPage /></AdminAuthGuard>} />
+      <Route path="/admin/dashboard" element={<AdminAuthGuard><AdminDashboardPage /></AdminAuthGuard>} />
       <Route path="/admin/revenue" element={<AdminAuthGuard><RevenuePage /></AdminAuthGuard>} />
       <Route path="/admin/ai-health" element={<AdminAuthGuard><AiHealthPage /></AdminAuthGuard>} />
       <Route path="/admin/agents" element={<AdminAuthGuard><AdminAgentsDashboardPage /></AdminAuthGuard>} />

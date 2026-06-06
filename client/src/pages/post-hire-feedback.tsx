@@ -32,7 +32,7 @@ interface FeedbackForm {
   hireAgain: boolean | null;
 }
 
-export default function PostHireFeedbackPage() {
+export function RecruiterPostHireFeedbackPage() {
   const [submitted, setSubmitted] = useState(false);
   const [hoveredStar, setHoveredStar] = useState(0);
   const [form, setForm] = useState<FeedbackForm>({
