@@ -1,22 +1,63 @@
 const TOKEN_KEY = 'rekrutai_token'
 const REFRESH_KEY = 'rekrutai_refresh'
 
+// Legacy keys from older versions — check in priority order and migrate
+const LEGACY_TOKEN_KEYS = ['token', 'hireloop_token']
+const LEGACY_REFRESH_KEYS = ['refresh_token', 'hireloop_refresh']
+
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY)
+  // Check canonical key first
+  let token = localStorage.getItem(TOKEN_KEY)
+  if (token) return token
+
+  // Check legacy keys and migrate if found
+  for (const key of LEGACY_TOKEN_KEYS) {
+    token = localStorage.getItem(key)
+    if (token) {
+      // Migrate to canonical key
+      localStorage.setItem(TOKEN_KEY, token)
+      localStorage.removeItem(key)
+      return token
+    }
+  }
+
+  return null
 }
 
 export function getRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_KEY)
+  let refresh = localStorage.getItem(REFRESH_KEY)
+  if (refresh) return refresh
+
+  for (const key of LEGACY_REFRESH_KEYS) {
+    refresh = localStorage.getItem(key)
+    if (refresh) {
+      localStorage.setItem(REFRESH_KEY, refresh)
+      localStorage.removeItem(key)
+      return refresh
+    }
+  }
+
+  return null
 }
 
 export function setTokens(accessToken: string, refreshToken: string) {
   localStorage.setItem(TOKEN_KEY, accessToken)
   localStorage.setItem(REFRESH_KEY, refreshToken)
+  // Also set legacy keys for backward compatibility with other code
+  localStorage.setItem('token', accessToken)
+  localStorage.setItem('refresh_token', refreshToken)
 }
 
 export function clearTokens() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(REFRESH_KEY)
+  // Clear legacy keys too
+  for (const key of LEGACY_TOKEN_KEYS) {
+    localStorage.removeItem(key)
+  }
+  for (const key of LEGACY_REFRESH_KEYS) {
+    localStorage.removeItem(key)
+  }
 }
 
 let isRefreshing = false
