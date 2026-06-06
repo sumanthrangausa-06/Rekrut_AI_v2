@@ -114,8 +114,11 @@ import { RecruiterPayrollDashboardPage } from '@/pages/recruiter/payroll-dashboa
 import { RecruiterPayrollRunPage } from '@/pages/recruiter/payroll-run'
 import { EmployeePayrollPage } from '@/pages/employee-payroll'
 
-import { RecruiterCommunicationsPage } from '@/pages/recruiter-communications'
-import { RecruiterTrustscorePage } from '@/pages/recruiter-trustscore'
+import { RecruiterCommunicationsPage } from '@/pages/recruiter/communications'
+import { RecruiterTrustscorePage } from '@/pages/recruiter/trustscore'
+import { RecruiterProfilePage } from '@/pages/recruiter-profile'
+import { RecruiterOnboardingAiPage } from '@/pages/recruiter/onboarding-ai'
+import { RecruiterOnboardingDocsPage } from '@/pages/recruiter/onboarding-docs'
 import { RecruiterPostHireFeedbackPage } from '@/pages/post-hire-feedback'
 import { ComplianceDashboardPage } from '@/pages/compliance-dashboard'
 
@@ -222,7 +225,10 @@ function AppRoutes() {
         <Route path="analytics" element={<Safe><RecruiterAnalyticsPage /></Safe>} />
         <Route path="communications" element={<Safe><RecruiterCommunicationsPage /></Safe>} />
         <Route path="trustscore" element={<Safe><RecruiterTrustscorePage /></Safe>} />
+        <Route path="onboarding-ai" element={<Safe><RecruiterOnboardingAiPage /></Safe>} />
+        <Route path="onboarding-docs" element={<Safe><RecruiterOnboardingDocsPage /></Safe>} />
         <Route path="company" element={<Safe><RecruiterCompanyPage /></Safe>} />
+        <Route path="profile" element={<Safe><RecruiterProfilePage /></Safe>} />
         <Route path="payroll" element={<Safe><RecruiterPayrollPage /></Safe>} />
         <Route path="payroll-dashboard" element={<Safe><RecruiterPayrollDashboardPage /></Safe>} />
         <Route path="payroll-run/:id" element={<Safe><RecruiterPayrollRunPage /></Safe>} />
