@@ -1,6 +1,24 @@
 {
-  "generated_at": "2026-06-06T06:49:00.000Z",
+  "generated_at": "2026-06-06T07:58:00.000Z",
   "source": "agent-orchestrator",
   "version": "2.0.0",
+  "team": [
+    {
+      "name": "Ranga",
+      "role": "CEO / Founder",
+      "status": "active",
+      "current_task": "Product direction, funding, partnerships",
+      "progress": 50,
+      "blockers": "None"
+    },
+    {
+      "name": "Suga",
+      "role": "CTO / Co-Founder / Orchestrator",
+      "status": "active",
+      "current_task": "All engineering, design, QA, infrastructure",
+      "progress": 75,
+      "blockers": "Waiting for API keys in staging"
+    }
+  ],
   "tasks": []
 }

@@ -1,55 +1,42 @@
 {
-  "generated_at": "2026-06-06T06:49:00.000Z",
+  "generated_at": "2026-06-06T07:58:00.000Z",
   "source": "team-status-tracker",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "team_members": [
     {
       "id": "tm-001",
-      "name": "Suga",
-      "role": "CTO / Co-Founder",
+      "name": "Ranga",
+      "role": "CEO / Founder",
       "status": "active",
-      "current_task": "Waiting for direction",
-      "task_status": "idle",
-      "progress": 0,
-      "last_update": "2026-06-06T06:49:00Z",
+      "current_task": "Product direction, funding, partnerships",
+      "task_status": "active",
+      "progress": 50,
+      "last_update": "2026-06-06T07:58:00Z",
       "blockers": [],
-      "notes": ["Ready to work. Assign next task."]
+      "notes": ["Setting strategy and priorities"]
     },
     {
       "id": "tm-002",
-      "name": "CMO",
-      "role": "Chief Marketing Officer",
+      "name": "Suga",
+      "role": "CTO / Co-Founder / Orchestrator",
       "status": "active",
-      "current_task": "Waiting for direction",
-      "task_status": "idle",
-      "progress": 0,
-      "last_update": "2026-06-06T06:49:00Z",
-      "blockers": [],
-      "notes": ["Ready to work. Assign next task."]
-    },
-    {
-      "id": "tm-003",
-      "name": "Sunny",
-      "role": "QA / Testing Lead",
-      "status": "active",
-      "current_task": "Waiting for direction",
-      "task_status": "idle",
-      "progress": 0,
-      "last_update": "2026-06-06T06:49:00Z",
-      "blockers": [],
-      "notes": ["Ready to work. Assign next task."]
-    },
-    {
-      "id": "tm-004",
-      "name": "Kimi",
-      "role": "AI Coordinator",
-      "status": "active",
-      "current_task": "Coordinator",
-      "task_status": "idle",
-      "progress": 0,
-      "last_update": "2026-06-06T06:49:00Z",
-      "blockers": [],
-      "notes": ["Coordinator role. No code tasks."]
+      "current_task": "All engineering, design, QA, infrastructure",
+      "task_status": "active",
+      "progress": 75,
+      "last_update": "2026-06-06T07:58:00Z",
+      "blockers": ["Waiting for API keys in staging env"],
+      "notes": ["Consolidated all agent roles. Handling frontend, backend, DevOps, QA."]
     }
+  ],
+  "deployments": {
+    "dev": { "branch": "dev", "status": "healthy", "last_deploy": "2026-06-06T07:30:00Z" },
+    "staging": { "branch": "staging", "status": "healthy", "last_deploy": "2026-06-06T07:50:00Z" },
+    "prod": { "branch": "main", "status": "healthy", "last_deploy": "2026-06-05T00:00:00Z" }
+  },
+  "recent_commits": [
+    { "hash": "4efdd85", "message": "fix: remove duplicate Logo import in landing.tsx", "branch": "staging", "author": "Suga", "timestamp": "2026-06-06T07:09:00Z" },
+    { "hash": "ce5ed93", "message": "feat: email notifications — auto-trigger on key events", "branch": "staging", "author": "Suga", "timestamp": "2026-06-06T07:00:00Z" },
+    { "hash": "6d9bdde", "message": "brand: fix logo consistency across all pages", "branch": "staging", "author": "Suga", "timestamp": "2026-06-06T07:00:00Z" },
+    { "hash": "73744ca", "message": "feat: public company page with real API endpoints", "branch": "staging", "author": "Suga", "timestamp": "2026-06-06T07:00:00Z" }
   ]
 }
