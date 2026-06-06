@@ -47,18 +47,24 @@ All engineering, design, and QA work is now consolidated under Suga. No other ag
 - **Database:** Neon production
 - **Status:** Currently the main product URL
 
-## Current Sprint Priority (June 6-12, 2026)
-1. **Recruiter Dashboard Analytics** — P0 launch blocker. Verify real API wiring, not placeholder.
-2. **Email Notifications** — Templates seeded, triggers wired. Need SMTP credentials in production.
-3. **EU AI Act Compliance Dashboard** — August 2026 deadline. Verify API wiring.
-4. **Brand Cleanup** — Logo done, need responsive audit + remaining placeholder removal
-5. **Sign Up/Sign In Polish** — Match Visily reference, social auth ready
-6. **Legacy HTML Migration** — 11 pages still need React migration
-
 ## Done Today (2026-06-06)
 - Public Company Profile page (real API endpoints)
 - Brand cleanup (Logo component everywhere)
 - Email notification infrastructure (6 templates, 4 auto-triggers)
+- Recruiter dashboard analytics (complete backend metrics — total_views, avg_time_to_hire, score_distribution, source_breakdown)
+- Admin compliance endpoints (EU AI Act dashboard wiring — decisions, bias-report, risk-classifications, review)
+- Social auth buttons (Google + LinkedIn) on login and register pages
+- Team status updated: CMO on-demand on Ranga's local machine
+
+## Current Sprint Priority (June 6-12, 2026)
+1. **Legacy HTML Migration** — 11 pages still need React migration. High priority for launch.
+2. **Responsive Audit** — Run mobile/tablet/desktop pass on all 20 reference screens.
+3. **Sign Up/Sign In Polish** — Match Visily reference design (social auth done, need visual polish)
+4. **Dark Mode** — Toggle + CSS tokens. All screens support light/dark.
+5. **Loading States** — Skeleton screens on all data-driven pages. No blank pages.
+6. **Error Boundaries** — Toast notifications for all API failures. No silent errors.
+7. **Stripe Live Mode** — Verify live keys, success/cancel flows, payment sync. (needs Ranga)
+8. **E2E Test Suite** — Basic tests for login → pricing → checkout flow. (needs Ranga)
 
 
 ### ✅ Foundation (Done — June 5, 2026)
