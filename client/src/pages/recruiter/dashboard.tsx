@@ -412,12 +412,12 @@ export function RecruiterDashboard() {
                 Search entire candidate database, AI video interviews, advanced analytics, and contract generation
               </p>
             </div>
-            <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 shrink-0">
+            <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 shrink-0 min-h-[44px]" onClick={() => navigate('/recruiter/billing')}>
               Upgrade
             </Button>
             <button
               onClick={() => setShowUpgradeBanner(false)}
-              className="shrink-0 text-muted-foreground hover:text-foreground"
+              className="shrink-0 text-muted-foreground hover:text-foreground min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md p-2"
             >
               <X className="h-4 w-4" />
             </button>
@@ -440,7 +440,7 @@ export function RecruiterDashboard() {
               </p>
             </div>
             <Link to="/recruiter/company">
-              <Button variant="outline" size="sm" className="gap-1">
+              <Button variant="outline" size="sm" className="gap-1 min-h-[44px]">
                 Improve Score
                 <ArrowRight className="h-3 w-3" />
               </Button>
@@ -517,7 +517,7 @@ export function RecruiterDashboard() {
               </p>
             </div>
             <Link to="/recruiter/candidates">
-              <Button variant="ghost" size="sm" className="gap-1">
+              <Button variant="ghost" size="sm" className="gap-1 min-h-[44px]">
                 View Pipeline
                 <ArrowRight className="h-3 w-3" />
               </Button>
@@ -598,7 +598,7 @@ export function RecruiterDashboard() {
                   <Users className="mx-auto mb-2 h-8 w-8 opacity-30" />
                   <p className="text-sm text-muted-foreground">No candidates in pipeline yet</p>
                   <Link to="/recruiter/jobs/new">
-                    <Button size="sm" className="mt-3 gap-1">
+                    <Button size="sm" className="mt-3 gap-1 min-h-[44px]">
                       <Plus className="h-3 w-3" /> Post a Job
                     </Button>
                   </Link>
@@ -638,7 +638,7 @@ export function RecruiterDashboard() {
                 ))}
               </div>
               <Link to="/recruiter/candidates">
-                <Button variant="ghost" size="sm" className="w-full mt-3 gap-1">
+                <Button variant="ghost" size="sm" className="w-full mt-3 gap-1 min-h-[44px]">
                   View all activity
                   <ArrowRight className="h-3 w-3" />
                 </Button>
@@ -666,7 +666,7 @@ export function RecruiterDashboard() {
                 </div>
               ))}
               <Link to="/recruiter/analytics">
-                <Button variant="ghost" size="sm" className="w-full gap-1">
+                <Button variant="ghost" size="sm" className="w-full gap-1 min-h-[44px]">
                   Full Analytics
                   <ArrowRight className="h-3 w-3" />
                 </Button>
@@ -745,7 +745,7 @@ export function RecruiterDashboard() {
               Upcoming Interviews
             </CardTitle>
             <Link to="/recruiter/interviews">
-              <Button variant="ghost" size="sm" className="gap-1">
+              <Button variant="ghost" size="sm" className="gap-1 min-h-[44px]">
                 View all
                 <ArrowRight className="h-3 w-3" />
               </Button>

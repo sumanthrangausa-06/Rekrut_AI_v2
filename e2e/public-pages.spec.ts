@@ -29,6 +29,6 @@ test.describe('Public Pages', () => {
   test('home page loads without authentication', async ({ page }) => {
     await page.goto('/')
     await expect(page).toHaveURL(/.*\/$/)
-    await expect(page.getByRole('heading', { name: /Hire smarter|Hire faster/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /Your AI-Powered Career Companion/i })).toBeVisible()
   })
 })

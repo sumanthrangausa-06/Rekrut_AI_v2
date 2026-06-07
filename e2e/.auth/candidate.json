@@ -1,0 +1,34 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "rekrutai_token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjAsImVtYWlsIjoiZTJlLWNhbmRpZGF0ZUByZWtydXRhaS50ZXN0Iiwicm9sZSI6ImNhbmRpZGF0ZSIsImlhdCI6MTc4MDg2MTc4OSwiZXhwIjoxNzgwODYyNjg5fQ.UXyzHk_diVyKSWBF6A9gWWDWT2MMYIorWOnI0Oo-kVs"
+        },
+        {
+          "name": "token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjAsImVtYWlsIjoiZTJlLWNhbmRpZGF0ZUByZWtydXRhaS50ZXN0Iiwicm9sZSI6ImNhbmRpZGF0ZSIsImlhdCI6MTc4MDg2MTc4OSwiZXhwIjoxNzgwODYyNjg5fQ.UXyzHk_diVyKSWBF6A9gWWDWT2MMYIorWOnI0Oo-kVs"
+        },
+        {
+          "name": "theme",
+          "value": "system"
+        },
+        {
+          "name": "rekrutai_refresh",
+          "value": "de73e2e92b8bde350de4121c55957a353a092787abda0c2d69dc7eec1e458f18990cc4b9839540ec"
+        },
+        {
+          "name": "rekrut-theme",
+          "value": "light"
+        },
+        {
+          "name": "refresh_token",
+          "value": "de73e2e92b8bde350de4121c55957a353a092787abda0c2d69dc7eec1e458f18990cc4b9839540ec"
+        }
+      ]
+    }
+  ]
+}
