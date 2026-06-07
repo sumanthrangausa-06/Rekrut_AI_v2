@@ -242,7 +242,7 @@ export function CandidateJobsPage() {
     setAiSearching(true)
     try {
       const data = await apiCall<{ success: boolean; results: Job[] }>('/candidate/ai/smart-search', {
-        method: 'POST', body: JSON.stringify({ query: aiSearchQuery }),
+        method: 'POST', body: { query: aiSearchQuery },
       })
       if (data.results) {
         setAiResults(data.results)

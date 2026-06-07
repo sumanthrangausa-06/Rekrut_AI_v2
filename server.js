@@ -81,8 +81,8 @@ app.use(helmet({
 const corsOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
   : process.env.NODE_ENV === 'production'
-    ? ['https://rekrutai.co', 'https://www.rekrutai.co', 'https://app.rekrutai.co']
-    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173', 'http://127.0.0.1:4173', 'http://127.0.0.1:3000', 'https://hireloop-vzvw.polsia.app'];
+    ? ['https://rekrutai.co', 'https://www.rekrutai.co', 'https://app.rekrutai.co', 'https://rekrutai-dev.onrender.com']
+    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173', 'http://127.0.0.1:4173', 'http://127.0.0.1:3000', 'https://hireloop-vzvw.polsia.app', 'https://rekrutai-dev.onrender.com'];
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -100,9 +100,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Stripe webhook needs raw body for signature verification — must be before express.json()
 app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
-
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());

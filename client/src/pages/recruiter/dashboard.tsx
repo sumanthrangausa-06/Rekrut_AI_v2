@@ -529,7 +529,7 @@ export function RecruiterDashboard() {
             {pipelineStages.map((stage, index) => (
               <div key={stage.id} className="flex items-center gap-1 shrink-0">
                 <div
-                  className={`flex flex-col items-center gap-1 rounded-lg px-4 py-3 cursor-pointer transition-all hover:shadow-sm ${stage.bgColor} border ${stage.borderColor} min-w-[100px]`}
+                  className={`flex flex-col items-center gap-1 rounded-lg px-2 py-2 sm:px-4 sm:py-3 cursor-pointer transition-all hover:shadow-sm ${stage.bgColor} border ${stage.borderColor} min-w-[72px] sm:min-w-[100px]`}
                   onClick={() => navigate(`/recruiter/candidates?status=${stage.id}`)}
                 >
                   <span className={`text-xl font-bold ${stage.color}`}>{stage.count}</span>

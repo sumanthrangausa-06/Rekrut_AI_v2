@@ -10,3 +10,4 @@ test-fixtures/
 
 # Client build is committed for deployment
 # client/node_modules/ is excluded via top-level node_modules/ rule
+.admin-credentials

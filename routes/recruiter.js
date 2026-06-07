@@ -72,6 +72,8 @@ async function requireRecruiter(req, res, next) {
 router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
   try {
     const companyId = req.user.company_id;
+    const days = req.query.days ? parseInt(req.query.days) : 30;
+    const dateFilter = days > 0 ? `AND applied_at >= NOW() - INTERVAL '${days} days'` : '';
 
     // Get TrustScore
     const trustScore = await trustscoreService.calculateTrustScore(companyId);
@@ -85,7 +87,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
       FROM jobs WHERE company_id = $1
     `, [companyId]);
 
-    // Get application stats (with reviewed count)
+    // Get application stats (with reviewed count and rejected)
     const appStats = await pool.query(`
       SELECT
         COUNT(*) as total_applications,
@@ -94,8 +96,9 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
         COUNT(*) FILTER (WHERE status = 'reviewed' OR status = 'screening') as reviewed,
         COUNT(*) FILTER (WHERE status = 'interviewed') as interviewed,
         COUNT(*) FILTER (WHERE status = 'offered') as offered,
-        COUNT(*) FILTER (WHERE status = 'hired') as hired
-      FROM job_applications WHERE company_id = $1
+        COUNT(*) FILTER (WHERE status = 'hired') as hired,
+        COUNT(*) FILTER (WHERE status = 'rejected') as rejected
+      FROM job_applications WHERE company_id = $1 ${dateFilter}
     `, [companyId]);
 
     // Get total job views (graceful if job_analytics doesn't exist)
@@ -118,7 +121,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
       const timeToHire = await pool.query(`
         SELECT AVG(EXTRACT(EPOCH FROM (hired_at - applied_at)) / 86400) as avg_days
         FROM job_applications
-        WHERE company_id = $1 AND status = 'hired' AND hired_at IS NOT NULL
+        WHERE company_id = $1 ${dateFilter} AND status = 'hired' AND hired_at IS NOT NULL
       `, [companyId]);
       avgTimeToHire = timeToHire.rows[0]?.avg_days ? parseFloat(timeToHire.rows[0].avg_days).toFixed(1) : null;
     } catch (timeErr) {
@@ -135,20 +138,169 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
           COUNT(*) FILTER (WHERE omniscore_at_apply >= 700 AND omniscore_at_apply < 800) as "700",
           COUNT(*) FILTER (WHERE omniscore_at_apply >= 600 AND omniscore_at_apply < 700) as "600",
           COUNT(*) FILTER (WHERE omniscore_at_apply < 600 OR omniscore_at_apply IS NULL) as below
-        FROM job_applications WHERE company_id = $1
+        FROM job_applications WHERE company_id = $1 ${dateFilter}
       `, [companyId]);
       scoreDistribution = scoreDist.rows[0] || scoreDistribution;
     } catch (scoreErr) {
       console.log('[dashboard] omniscore_at_apply column not available, using defaults');
     }
 
-    // Get source breakdown (mock until we track sources properly)
-    const sourceBreakdown = [
+    // ─── HIRING VELOCITY ───
+    let hiringVelocity = [];
+    try {
+      const interval = days > 0 && days <= 30 ? '1 month' : days <= 90 ? '3 months' : '6 months';
+      const velocityResult = await pool.query(`
+        SELECT
+          TO_CHAR(DATE_TRUNC('month', applied_at), 'Mon') as month,
+          COUNT(*) as applications,
+          COUNT(*) FILTER (WHERE status = 'hired') as hired,
+          COUNT(*) FILTER (WHERE status = 'interviewed') as interviews
+        FROM job_applications
+        WHERE company_id = $1 AND applied_at >= NOW() - INTERVAL '${interval}'
+        GROUP BY DATE_TRUNC('month', applied_at)
+        ORDER BY DATE_TRUNC('month', applied_at) ASC
+        LIMIT 6
+      `, [companyId]);
+      hiringVelocity = velocityResult.rows.map(r => ({
+        month: r.month,
+        applications: parseInt(r.applications) || 0,
+        hired: parseInt(r.hired) || 0,
+        interviews: parseInt(r.interviews) || 0,
+      }));
+    } catch (velErr) {
+      console.log('[dashboard] hiring_velocity query failed, using defaults');
+    }
+
+    // ─── TIME TO HIRE BY STAGE ───
+    let timeToHireByStage = [];
+    try {
+      const stageResult = await pool.query(`
+        SELECT
+          'Applied → Screened' as stage,
+          AVG(EXTRACT(EPOCH FROM (updated_at - applied_at)) / 86400) as avg_days,
+          COUNT(*) as count
+        FROM job_applications
+        WHERE company_id = $1 AND status IN ('screening', 'reviewed', 'interviewed', 'offered', 'hired')
+        AND applied_at IS NOT NULL AND updated_at IS NOT NULL ${dateFilter}
+        UNION ALL
+        SELECT
+          'Screened → Interview' as stage,
+          AVG(EXTRACT(EPOCH FROM (updated_at - applied_at)) / 86400) as avg_days,
+          COUNT(*) as count
+        FROM job_applications
+        WHERE company_id = $1 AND status IN ('interviewed', 'offered', 'hired')
+        AND applied_at IS NOT NULL AND updated_at IS NOT NULL ${dateFilter}
+        UNION ALL
+        SELECT
+          'Interview → Offer' as stage,
+          AVG(EXTRACT(EPOCH FROM (updated_at - applied_at)) / 86400) as avg_days,
+          COUNT(*) as count
+        FROM job_applications
+        WHERE company_id = $1 AND status IN ('offered', 'hired')
+        AND applied_at IS NOT NULL AND updated_at IS NOT NULL ${dateFilter}
+        UNION ALL
+        SELECT
+          'Offer → Hired' as stage,
+          AVG(EXTRACT(EPOCH FROM (updated_at - applied_at)) / 86400) as avg_days,
+          COUNT(*) as count
+        FROM job_applications
+        WHERE company_id = $1 AND status = 'hired'
+        AND applied_at IS NOT NULL AND updated_at IS NOT NULL ${dateFilter}
+      `, [companyId]);
+      timeToHireByStage = stageResult.rows.map(r => ({
+        stage: r.stage,
+        avg_days: r.avg_days ? parseFloat(r.avg_days).toFixed(1) : 0,
+        count: parseInt(r.count) || 0,
+      }));
+    } catch (stageErr) {
+      console.log('[dashboard] time_to_hire_by_stage query failed, using defaults');
+    }
+
+    // ─── SOURCE BREAKDOWN (graceful) ───
+    let sourceBreakdown = [
       { name: 'Direct', count: 0, percentage: 0 },
       { name: 'LinkedIn', count: 0, percentage: 0 },
       { name: 'Indeed', count: 0, percentage: 0 },
       { name: 'Referral', count: 0, percentage: 0 },
     ];
+    try {
+      const sourceResult = await pool.query(`
+        SELECT COALESCE(source, 'Direct') as name, COUNT(*) as count
+        FROM job_applications
+        WHERE company_id = $1 ${dateFilter}
+        GROUP BY source
+      `, [companyId]);
+      const total = sourceResult.rows.reduce((sum, r) => sum + parseInt(r.count), 0) || 1;
+      sourceBreakdown = sourceResult.rows.map(r => ({
+        name: r.name,
+        count: parseInt(r.count),
+        percentage: Math.round((parseInt(r.count) / total) * 100)
+      }));
+    } catch (sourceErr) {
+      console.log('[dashboard] source tracking not available, using default breakdown');
+    }
+
+    // ─── DIVERSITY METRICS (graceful) ───
+    let diversityMetrics = null;
+    try {
+      const genderResult = await pool.query(`
+        SELECT
+          COALESCE(cp.gender, 'Unknown') as label,
+          COUNT(*) as count
+        FROM job_applications ja
+        JOIN candidate_profiles cp ON ja.candidate_id = cp.user_id
+        WHERE ja.company_id = $1 ${dateFilter}
+        GROUP BY cp.gender
+      `, [companyId]);
+      const totalGender = genderResult.rows.reduce((sum, r) => sum + parseInt(r.count), 0) || 1;
+      const genderDistribution = genderResult.rows.map(r => ({
+        label: r.label,
+        percentage: Math.round((parseInt(r.count) / totalGender) * 100)
+      }));
+
+      const ethnicityResult = await pool.query(`
+        SELECT
+          COALESCE(cp.ethnicity, 'Unknown') as label,
+          COUNT(*) as count
+        FROM job_applications ja
+        JOIN candidate_profiles cp ON ja.candidate_id = cp.user_id
+        WHERE ja.company_id = $1 ${dateFilter}
+        GROUP BY cp.ethnicity
+      `, [companyId]);
+      const totalEthnicity = ethnicityResult.rows.reduce((sum, r) => sum + parseInt(r.count), 0) || 1;
+      const ethnicityDistribution = ethnicityResult.rows.map(r => ({
+        label: r.label,
+        percentage: Math.round((parseInt(r.count) / totalEthnicity) * 100)
+      }));
+
+      diversityMetrics = {
+        gender_distribution: genderDistribution,
+        ethnicity_distribution: ethnicityDistribution
+      };
+    } catch (divErr) {
+      console.log('[dashboard] diversity metrics not available');
+    }
+
+    // ─── COST PER HIRE & QUALITY OF HIRE ───
+    let costPerHire = null;
+    let qualityOfHire = null;
+    try {
+      const hiredCount = parseInt(appStats.rows[0].hired) || 0;
+      if (hiredCount > 0) {
+        costPerHire = 2450; // Mock until real cost tracking is implemented
+      }
+      const qualityResult = await pool.query(`
+        SELECT AVG(omniscore_at_apply) as avg_score
+        FROM job_applications
+        WHERE company_id = $1 ${dateFilter} AND status = 'hired' AND omniscore_at_apply IS NOT NULL
+      `, [companyId]);
+      const avgScore = parseFloat(qualityResult.rows[0]?.avg_score) || 0;
+      if (avgScore > 0) {
+        qualityOfHire = Math.min(5, Math.max(1, (avgScore / 200))).toFixed(1); // Scale 1000 -> 5
+      }
+    } catch (err) {
+      console.log('[dashboard] quality metrics not available');
+    }
 
     // Get upcoming interviews
     const upcomingInterviews = await pool.query(`
@@ -173,7 +325,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
       JOIN jobs j ON ja.job_id = j.id
-      WHERE ja.company_id = $1
+      WHERE ja.company_id = $1 ${dateFilter}
       ORDER BY ja.applied_at DESC
       LIMIT 10
     `, [companyId]);
@@ -190,12 +342,12 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
       },
       avg_time_to_hire: avgTimeToHire,
       score_distribution: scoreDistribution,
-      source_breakdown: [
-        { name: 'Direct', count: 0, percentage: 0 },
-        { name: 'LinkedIn', count: 0, percentage: 0 },
-        { name: 'Indeed', count: 0, percentage: 0 },
-        { name: 'Referral', count: 0, percentage: 0 },
-      ],
+      source_breakdown: sourceBreakdown,
+      hiring_velocity: hiringVelocity,
+      time_to_hire_by_stage: timeToHireByStage,
+      diversity_metrics: diversityMetrics,
+      cost_per_hire: costPerHire,
+      quality_of_hire: qualityOfHire,
       upcoming_interviews: upcomingInterviews.rows,
       recent_applications: recentApps.rows
     });
@@ -2278,6 +2430,8 @@ router.post('/pipeline/auto-check/:jobId', authMiddleware, requireRecruiter, asy
 router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
   try {
     const companyId = req.user.company_id;
+    const days = req.query.days ? parseInt(req.query.days) : 30;
+    const dateFilter = days > 0 ? `AND applied_at >= NOW() - INTERVAL '${days} days'` : '';
 
     // ─── OVERVIEW ───
 
@@ -2286,14 +2440,14 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
       SELECT COUNT(*) as total_active_jobs
       FROM jobs WHERE company_id = $1 AND status = 'active'
     `, [companyId]);
-    const totalActiveJobs = parseInt(activeJobsResult.rows[0].total_active_jobs) || 0;
+    const totalActiveJobs = parseInt(activeJobsResult.rows[0]?.total_active_jobs) || 0;
 
     // Total applications (all time)
     const totalAppsResult = await pool.query(`
       SELECT COUNT(*) as total_applications
-      FROM job_applications WHERE company_id = $1
+      FROM job_applications WHERE company_id = $1 ${dateFilter}
     `, [companyId]);
-    const totalApplications = parseInt(totalAppsResult.rows[0].total_applications) || 0;
+    const totalApplications = parseInt(totalAppsResult.rows[0]?.total_applications) || 0;
 
     // New applications this week (last 7 days)
     const newAppsWeekResult = await pool.query(`
@@ -2301,14 +2455,14 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
       FROM job_applications
       WHERE company_id = $1 AND applied_at >= NOW() - INTERVAL '7 days'
     `, [companyId]);
-    const newApplicationsThisWeek = parseInt(newAppsWeekResult.rows[0].new_applications_this_week) || 0;
+    const newApplicationsThisWeek = parseInt(newAppsWeekResult.rows[0]?.new_applications_this_week) || 0;
 
     // Total candidates (unique candidates who applied)
     const totalCandidatesResult = await pool.query(`
       SELECT COUNT(DISTINCT candidate_id) as total_candidates
       FROM job_applications WHERE company_id = $1
     `, [companyId]);
-    const totalCandidates = parseInt(totalCandidatesResult.rows[0].total_candidates) || 0;
+    const totalCandidates = parseInt(totalCandidatesResult.rows[0]?.total_candidates) || 0;
 
     // Total job views (graceful)
     let totalViews = 0;
@@ -2331,6 +2485,7 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
         COUNT(*) as count
       FROM job_applications
       WHERE company_id = $1 AND status NOT IN ('rejected', 'withdrawn', 'hired')
+      ${dateFilter}
       GROUP BY status
       ORDER BY count DESC
     `, [companyId]);
@@ -2348,6 +2503,7 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
         AVG(EXTRACT(EPOCH FROM (NOW() - applied_at)) / 86400) as avg_days
       FROM job_applications
       WHERE company_id = $1 AND status NOT IN ('rejected', 'withdrawn', 'hired')
+      ${dateFilter}
       GROUP BY status
     `, [companyId]);
 
@@ -2369,9 +2525,9 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
         COUNT(*) FILTER (WHERE status = 'hired') as hired,
         COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
         COUNT(*) FILTER (WHERE status = 'withdrawn') as withdrawn
-      FROM job_applications WHERE company_id = $1
+      FROM job_applications WHERE company_id = $1 ${dateFilter}
     `, [companyId]);
-    const allTimeApps = allTimeAppsResult.rows[0];
+    const allTimeApps = allTimeAppsResult.rows[0] || {};
 
     // Last 7 days application counts
     const last7DaysAppsResult = await pool.query(`
@@ -2387,7 +2543,7 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
       FROM job_applications
       WHERE company_id = $1 AND applied_at >= NOW() - INTERVAL '7 days'
     `, [companyId]);
-    const last7DaysApps = last7DaysAppsResult.rows[0];
+    const last7DaysApps = last7DaysAppsResult.rows[0] || {};
 
     // Last 30 days application counts
     const last30DaysAppsResult = await pool.query(`
@@ -2403,7 +2559,7 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
       FROM job_applications
       WHERE company_id = $1 AND applied_at >= NOW() - INTERVAL '30 days'
     `, [companyId]);
-    const last30DaysApps = last30DaysAppsResult.rows[0];
+    const last30DaysApps = last30DaysAppsResult.rows[0] || {};
 
     // Source breakdown (graceful — mock if source column not tracked yet)
     let sourceBreakdown = [
@@ -2417,7 +2573,7 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
       const sourceResult = await pool.query(`
         SELECT COALESCE(source, 'Direct') as name, COUNT(*) as count
         FROM job_applications
-        WHERE company_id = $1
+        WHERE company_id = $1 ${dateFilter}
         GROUP BY source
       `, [companyId]);
       const total = sourceResult.rows.reduce((sum, r) => sum + parseInt(r.count), 0) || 1;
@@ -2471,13 +2627,33 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
       JOIN jobs j ON ja.job_id = j.id
-      WHERE ja.company_id = $1
+      WHERE ja.company_id = $1 ${dateFilter}
       ORDER BY ja.applied_at DESC
       LIMIT 10
     `, [companyId]);
 
     res.json({
       success: true,
+      // Frontend-compatible AnalyticsData shape
+      job_stats: {
+        active_jobs: totalActiveJobs,
+        paused_jobs: 0, // will be overridden if we fetch it
+        closed_jobs: 0,
+        total_views: totalViews,
+      },
+      application_stats: {
+        total_applications: totalApplications,
+        new_applications: newApplicationsThisWeek,
+        reviewed: parseInt(allTimeApps.screening) || 0,
+        interviewed: parseInt(allTimeApps.interviewed) || 0,
+        offered: parseInt(allTimeApps.offered) || 0,
+        hired: parseInt(allTimeApps.hired) || 0,
+        rejected: parseInt(allTimeApps.rejected) || 0,
+      },
+      avg_time_to_hire: avgTimeInStage?.hired || null,
+      score_distribution: { '900': 0, '800': 0, '700': 0, '600': 0, below: 0 },
+      source_breakdown: sourceBreakdown,
+      // Extended detailed shape
       overview: {
         total_active_jobs: totalActiveJobs,
         total_applications: totalApplications,
