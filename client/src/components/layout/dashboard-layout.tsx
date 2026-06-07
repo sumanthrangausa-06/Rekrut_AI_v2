@@ -69,9 +69,9 @@ export function DashboardLayout() {
           <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
             <p className="text-sm text-muted-foreground">© 2026 Rekrut AI, Inc.</p>
             <div className="flex gap-4">
-              <a href="#" className="text-sm text-muted-foreground hover:text-foreground">Privacy</a>
-              <a href="#" className="text-sm text-muted-foreground hover:text-foreground">Terms</a>
-              <a href="#" className="text-sm text-muted-foreground hover:text-foreground">Help Center</a>
+              <a href="#" className="text-sm text-muted-foreground hover:text-foreground min-h-[44px] inline-flex items-center px-2">Privacy</a>
+              <a href="#" className="text-sm text-muted-foreground hover:text-foreground min-h-[44px] inline-flex items-center px-2">Terms</a>
+              <a href="#" className="text-sm text-muted-foreground hover:text-foreground min-h-[44px] inline-flex items-center px-2">Help Center</a>
             </div>
           </div>
         </footer>
