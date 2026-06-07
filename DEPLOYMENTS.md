@@ -1,5 +1,9 @@
 # Deployment Report
 
+## Production Deployment Checklist
+
+📋 **Production deploy checklist:** `docs/PROD_DEPLOY_CHECKLIST.md`
+
 ## Current Deployment
 
 | Field | Value |
@@ -12,6 +16,8 @@
 | **Branch** | main |
 | **Environment** | Production (Render) |
 | **Service ID** | srv-d69opaer433s73d6p570 |
+| **Auto-Deploy** | ✅ Enabled (main branch) |
+| **Health Check** | `/health` |
 
 ## Recent Deployments
 

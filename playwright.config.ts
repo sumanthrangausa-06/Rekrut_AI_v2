@@ -14,8 +14,21 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
+    },
+    {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'mobile-chromium',
+      use: {
+        ...devices['iPhone 14'],
+        browserName: 'chromium',
+      },
+      dependencies: ['setup'],
     },
   ],
   webServer: {
