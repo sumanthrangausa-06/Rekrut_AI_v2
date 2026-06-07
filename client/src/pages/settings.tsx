@@ -441,7 +441,7 @@ export function SettingsPage() {
               <CardDescription>Irreversible actions for your account</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="space-y-1">
                   <p className="font-medium">Delete Account</p>
                   <p className="text-sm text-muted-foreground">
@@ -628,7 +628,7 @@ export function SettingsPage() {
               <CardDescription>Choose your preferred appearance</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <button
                   type="button"
                   onClick={() => setTheme("light")}

@@ -1,5 +1,6 @@
 const express = require('express');
 const fetch = require('node-fetch');
+const crypto = require('crypto');
 const pool = require('../lib/db');
 const { optionalAuth } = require('../lib/auth');
 
@@ -229,6 +230,204 @@ router.post('/confirm-session', optionalAuth, async (req, res) => {
   } catch (error) {
     console.error('[billing] confirm-session error:', error.message);
     res.status(error.status || 500).json({ error: error.message || 'Failed to confirm session.' });
+  }
+});
+
+function getStripeWebhookSecret() {
+  return process.env.STRIPE_WEBHOOK_SECRET || '';
+}
+
+function verifyStripeSignature(payload, signatureHeader, secret) {
+  if (!secret || !signatureHeader) return false;
+
+  const elements = signatureHeader.split(',');
+  const signatures = [];
+  let timestamp = null;
+
+  for (const element of elements) {
+    const [key, value] = element.split('=');
+    if (key === 't') timestamp = value;
+    if (key === 'v1') signatures.push(value);
+  }
+
+  if (!timestamp || signatures.length === 0) return false;
+
+  const signedPayload = timestamp + '.' + payload;
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(signedPayload, 'utf8')
+    .digest('hex');
+
+  for (const sig of signatures) {
+    if (sig.length === expectedSignature.length) {
+      try {
+        const sigBuffer = Buffer.from(sig, 'hex');
+        const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+        if (crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+          return true;
+        }
+      } catch (e) {
+        // Continue to next signature
+      }
+    }
+  }
+  return false;
+}
+
+router.post('/webhook', async (req, res) => {
+  try {
+    const secret = getStripeWebhookSecret();
+    if (!secret) {
+      return res.status(503).json({ error: 'Stripe webhook secret is not configured.' });
+    }
+
+    const payload = req.body instanceof Buffer ? req.body.toString('utf8') : req.body;
+    const sig = req.headers['stripe-signature'] || '';
+
+    if (!verifyStripeSignature(payload, sig, secret)) {
+      return res.status(400).json({ error: 'Invalid signature.' });
+    }
+
+    const event = JSON.parse(payload);
+    const eventType = event.type;
+
+    console.log('[billing] webhook received:', eventType, event.id);
+
+    switch (eventType) {
+      case 'checkout.session.completed': {
+        const session = event.data?.object;
+        if (session?.client_reference_id) {
+          const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id || null;
+          await pool.query(
+            `UPDATE users
+             SET is_paid = true,
+                 stripe_subscription_id = $1,
+                 subscription_plan = $2,
+                 subscription_status = $3
+             WHERE id = $4`,
+            [subscriptionId, session.metadata?.plan_id || null, 'active', session.client_reference_id]
+          );
+        }
+        break;
+      }
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data?.object;
+        if (invoice?.subscription) {
+          await pool.query(
+            `UPDATE users SET subscription_status = $1 WHERE stripe_subscription_id = $2`,
+            ['active', typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id]
+          );
+        }
+        break;
+      }
+      case 'invoice.payment_failed': {
+        const invoice = event.data?.object;
+        if (invoice?.subscription) {
+          await pool.query(
+            `UPDATE users SET subscription_status = $1 WHERE stripe_subscription_id = $2`,
+            ['past_due', typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id]
+          );
+        }
+        break;
+      }
+      case 'customer.subscription.deleted': {
+        const subscription = event.data?.object;
+        if (subscription?.id) {
+          await pool.query(
+            `UPDATE users
+             SET is_paid = false,
+                 subscription_status = $1,
+                 stripe_subscription_id = NULL
+             WHERE stripe_subscription_id = $2`,
+            ['cancelled', subscription.id]
+          );
+        }
+        break;
+      }
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error('[billing] webhook error:', error.message);
+    res.status(500).json({ error: 'Webhook processing failed.' });
+  }
+});
+
+router.get('/subscription-status', optionalAuth, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, email, is_paid, stripe_subscription_id, subscription_plan, subscription_status
+       FROM users WHERE id = $1`,
+      [req.user.id]
+    );
+
+    const user = result.rows[0];
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    let stripeData = null;
+    if (req.query.refresh === '1' && user.stripe_subscription_id && getStripeSecret()) {
+      try {
+        stripeData = await stripeGet(`/subscriptions/${user.stripe_subscription_id}`);
+      } catch (e) {
+        console.error('[billing] refresh subscription from Stripe failed:', e.message);
+      }
+    }
+
+    res.json({
+      isPaid: user.is_paid,
+      subscriptionId: user.stripe_subscription_id,
+      plan: user.subscription_plan,
+      status: user.subscription_status || 'inactive',
+      stripeLive: stripeData,
+    });
+  } catch (error) {
+    console.error('[billing] subscription-status error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch subscription status.' });
+  }
+});
+
+router.post('/cancel-subscription', optionalAuth, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    if (!getStripeSecret()) {
+      return res.status(503).json({ error: 'Stripe is not configured yet.' });
+    }
+
+    const userResult = await pool.query(
+      `SELECT stripe_subscription_id FROM users WHERE id = $1`,
+      [req.user.id]
+    );
+
+    const subscriptionId = userResult.rows[0]?.stripe_subscription_id;
+    if (!subscriptionId) {
+      return res.status(400).json({ error: 'No active subscription found.' });
+    }
+
+    const deleted = await stripePost(`/subscriptions/${subscriptionId}`, { cancel_at_period_end: 'true' });
+
+    await pool.query(
+      `UPDATE users SET subscription_status = $1 WHERE id = $2`,
+      ['cancelled', req.user.id]
+    );
+
+    res.json({
+      cancelled: true,
+      subscriptionId: deleted.id,
+      status: deleted.status,
+      cancelAtPeriodEnd: deleted.cancel_at_period_end,
+    });
+  } catch (error) {
+    console.error('[billing] cancel-subscription error:', error.message);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to cancel subscription.' });
   }
 });
 
