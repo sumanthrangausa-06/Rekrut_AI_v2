@@ -181,7 +181,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
           COUNT(*) as count
         FROM job_applications
         WHERE company_id = $1 AND status IN ('screening', 'reviewed', 'interviewed', 'offered', 'hired')
-        AND applied_at IS NOT NULL AND updated_at IS NOT NULL
+        AND applied_at IS NOT NULL AND updated_at IS NOT NULL ${dateFilter}
         UNION ALL
         SELECT
           'Screened → Interview' as stage,
@@ -189,7 +189,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
           COUNT(*) as count
         FROM job_applications
         WHERE company_id = $1 AND status IN ('interviewed', 'offered', 'hired')
-        AND applied_at IS NOT NULL AND updated_at IS NOT NULL
+        AND applied_at IS NOT NULL AND updated_at IS NOT NULL ${dateFilter}
         UNION ALL
         SELECT
           'Interview → Offer' as stage,
@@ -197,7 +197,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
           COUNT(*) as count
         FROM job_applications
         WHERE company_id = $1 AND status IN ('offered', 'hired')
-        AND applied_at IS NOT NULL AND updated_at IS NOT NULL
+        AND applied_at IS NOT NULL AND updated_at IS NOT NULL ${dateFilter}
         UNION ALL
         SELECT
           'Offer → Hired' as stage,
@@ -205,7 +205,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
           COUNT(*) as count
         FROM job_applications
         WHERE company_id = $1 AND status = 'hired'
-        AND applied_at IS NOT NULL AND updated_at IS NOT NULL
+        AND applied_at IS NOT NULL AND updated_at IS NOT NULL ${dateFilter}
       `, [companyId]);
       timeToHireByStage = stageResult.rows.map(r => ({
         stage: r.stage,
@@ -325,7 +325,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
       JOIN jobs j ON ja.job_id = j.id
-      WHERE ja.company_id = $1
+      WHERE ja.company_id = $1 ${dateFilter}
       ORDER BY ja.applied_at DESC
       LIMIT 10
     `, [companyId]);
