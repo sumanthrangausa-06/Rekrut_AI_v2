@@ -15,6 +15,7 @@ test-fixtures/
 # Test artifacts and logs
 test-results/
 auth.log
+server.log
 client/test-responsive.html
 client/test-tailwind.js
 client/test-tailwind.mjs
