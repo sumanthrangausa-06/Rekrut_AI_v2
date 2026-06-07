@@ -459,17 +459,18 @@ export function RecruiterJobsPage() {
       <Sheet
         open={showMobilePanel}
         onOpenChange={setShowMobilePanel}
-        side="right"
-        className="w-full sm:w-[480px] md:w-[520px]"
       >
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <Briefcase className="h-5 w-5" />
-            Job Details
-          </SheetTitle>
-          <SheetClose />
-        </SheetHeader>
-        <SheetContent>
+        <SheetContent
+          side="right"
+          className="w-full sm:w-[480px] md:w-[520px]"
+        >
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5" />
+              Job Details
+            </SheetTitle>
+            <SheetClose />
+          </SheetHeader>
           {selectedJob && (
             <JobDetailPanel
               job={selectedJob}
