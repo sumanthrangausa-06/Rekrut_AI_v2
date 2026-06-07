@@ -22,8 +22,8 @@ test.describe('Visitor Navigation', () => {
     await expect(page).toHaveURL(/.*\/login/);
 
     // Verify login form
-    await expect(page.getByLabel('Email')).toBeVisible();
-    await expect(page.getByLabel('Password')).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Email' })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Password' })).toBeVisible();
   });
 });
 
