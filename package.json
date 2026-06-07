@@ -30,5 +30,8 @@
     "pg": "^8.11.3",
     "pgvector": "^0.1.5",
     "uuid": "^14.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
   }
 }

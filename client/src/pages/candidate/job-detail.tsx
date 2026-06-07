@@ -310,7 +310,7 @@ export function CandidateJobDetailPage() {
             <div className="flex items-start gap-4">
               <Avatar src={job.company_logo} fallback={(job.company || job.poster_company || 'C').charAt(0)} size="lg" className="h-14 w-14" />
               <div>
-                <h1 className="font-heading text-2xl font-bold mb-2">{job.title}</h1>
+                <h1 className="font-heading text-xl sm:text-2xl font-bold mb-2">{job.title}</h1>
                 <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1"><Building2 className="h-4 w-4" />{job.company || job.poster_company || 'Company'}</span>
                   {job.location && <span className="flex items-center gap-1"><MapPin className="h-4 w-4" />{job.location}</span>}
@@ -362,7 +362,7 @@ export function CandidateJobDetailPage() {
       {/* Job Assessment */}
       {jobAssessment && applied && (
         <Card className="border-violet-200 bg-gradient-to-r from-violet-50/50 to-indigo-50/50">
-          <CardContent className="py-4 flex items-center gap-4">
+          <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center shrink-0">
               <GraduationCap className="h-5 w-5 text-violet-600" />
             </div>
@@ -381,7 +381,7 @@ export function CandidateJobDetailPage() {
       {user && matchBreakdown && score != null && score > 0 && (
         <Card className="border-primary/20">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex flex-wrap items-center gap-2 text-base">
               <BarChart3 className="h-5 w-5 text-primary" /> Why This Job Matches You
               <Badge variant={score >= 80 ? 'default' : score >= 60 ? 'secondary' : 'outline'} className="ml-auto text-sm">{score}% Match</Badge>
             </CardTitle>
@@ -520,7 +520,7 @@ export function CandidateJobDetailPage() {
                     </div>
                   )}
 
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2">
                     <Button onClick={handleApply} disabled={applying} className="flex-1 gap-2">
                       {applying ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Send className="h-4 w-4" />}
                       Submit with AI-Tailored Documents
@@ -543,7 +543,7 @@ export function CandidateJobDetailPage() {
       {showApplyForm && !applied && !showOneClickModal && (
         <Card className="border-primary/30 shadow-lg">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5" />Apply for {job.title}</CardTitle>
+            <CardTitle className="flex flex-wrap items-center gap-2"><Send className="h-5 w-5" />Apply for {job.title}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             {autoFill && Object.keys(autoFillSources).length > 0 && (
@@ -553,7 +553,7 @@ export function CandidateJobDetailPage() {
               </div>
             )}
             <div>
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-1">
                 <Label>Cover Letter <span className="text-muted-foreground text-xs">(optional)</span></Label>
                 <Button variant="outline" size="sm" onClick={generateCoverLetter} disabled={generatingCL} className="gap-1 text-xs">
                   {generatingCL ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
@@ -567,7 +567,7 @@ export function CandidateJobDetailPage() {
             </div>
             {screeningQuestions.length > 0 && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div className="flex items-center gap-2"><ListChecks className="h-4 w-4 text-primary" /><h4 className="font-medium text-sm">Pre-screening Questions</h4></div>
                   <Button variant="outline" size="sm" onClick={getSuggestions} disabled={generatingSuggestions} className="gap-1 text-xs">
                     {generatingSuggestions ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
@@ -585,7 +585,7 @@ export function CandidateJobDetailPage() {
             )}
             {reviewResult && (
               <div className={`rounded-lg border p-4 space-y-3 ${reviewResult.ready_to_submit ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {reviewResult.ready_to_submit ? <CheckCircle className="h-4 w-4 text-green-600" /> : <AlertCircle className="h-4 w-4 text-amber-600" />}
                   <span className="font-medium text-sm">{reviewResult.ready_to_submit ? 'Application looks great!' : 'Some improvements suggested'}</span>
                   <Badge variant="outline" className="ml-auto">{reviewResult.completeness_score || 0}% complete</Badge>
@@ -598,7 +598,7 @@ export function CandidateJobDetailPage() {
                 )}
               </div>
             )}
-            <div className="flex gap-2 pt-2 border-t">
+            <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t">
               <Button onClick={handleApply} disabled={applying} className="gap-2">
                 {applying ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Send className="h-4 w-4" />}
                 Submit Application
