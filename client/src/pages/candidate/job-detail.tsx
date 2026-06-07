@@ -299,7 +299,7 @@ export function CandidateJobDetailPage() {
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
-      <Button variant="ghost" size="sm" onClick={() => navigate('/candidate/jobs')} className="gap-1">
+      <Button variant="ghost" size="sm" onClick={() => navigate('/candidate/jobs')} className="gap-1 min-h-[44px]">
         <ArrowLeft className="h-4 w-4" /> Back to jobs
       </Button>
 
@@ -323,7 +323,7 @@ export function CandidateJobDetailPage() {
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <button onClick={toggleSave} className="p-2 rounded-lg hover:bg-muted transition-colors" aria-label={saved ? 'Unsave' : 'Save'}>
+              <button onClick={toggleSave} className="p-2 rounded-lg hover:bg-muted transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center" aria-label={saved ? 'Unsave' : 'Save'}>
                 {saved ? <Bookmark className="h-5 w-5 text-amber-500 fill-amber-500" /> : <BookmarkPlus className="h-5 w-5 text-muted-foreground" />}
               </button>
               {applied ? (
@@ -350,7 +350,7 @@ export function CandidateJobDetailPage() {
                 <div className="mt-2">
                   <Progress value={profileCompleteness} className="h-2" />
                 </div>
-                <Button variant="outline" size="sm" className="mt-2 gap-1" onClick={() => navigate('/candidate/profile')}>
+                <Button variant="outline" size="sm" className="mt-2 gap-1 min-h-[44px]" onClick={() => navigate('/candidate/profile')}>
                   <Pencil className="h-3 w-3" /> Complete Profile
                 </Button>
               </div>
@@ -370,7 +370,7 @@ export function CandidateJobDetailPage() {
               <p className="font-medium text-sm">{jobAssessment.title}</p>
               <p className="text-xs text-muted-foreground">{jobAssessment.question_count} questions · AI-scored · Adaptive difficulty</p>
             </div>
-            <Button onClick={() => navigate(`/candidate/job-assessment/${jobAssessment.id}`)} className="gap-1.5 shrink-0 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white" size="sm">
+            <Button onClick={() => navigate(`/candidate/job-assessment/${jobAssessment.id}`)} className="gap-1.5 shrink-0 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white min-h-[44px]" size="sm">
               <Sparkles className="h-3.5 w-3.5" /> Take Assessment
             </Button>
           </CardContent>
@@ -449,7 +449,7 @@ export function CandidateJobDetailPage() {
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowOneClickModal(false)} />
           <div className="relative z-50 w-full max-w-2xl max-h-[90vh] overflow-y-auto border bg-background p-4 sm:p-6 shadow-lg rounded-t-2xl sm:rounded-lg">
-            <button onClick={() => setShowOneClickModal(false)} className="absolute right-4 top-4"><X className="h-4 w-4" /></button>
+            <button onClick={() => setShowOneClickModal(false)} className="absolute right-4 top-4 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md p-2 hover:bg-muted transition-colors"><X className="h-4 w-4" /></button>
             <div className="space-y-5">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -489,7 +489,7 @@ export function CandidateJobDetailPage() {
 
                   {/* Document previews toggle */}
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" className="gap-1" onClick={() => setShowDocs(!showDocs)}>
+                    <Button variant="outline" size="sm" className="gap-1 min-h-[44px]" onClick={() => setShowDocs(!showDocs)}>
                       <FileText className="h-3.5 w-3.5" /> {showDocs ? 'Hide' : 'Preview'} Tailored Documents
                     </Button>
                   </div>
@@ -525,13 +525,13 @@ export function CandidateJobDetailPage() {
                       {applying ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Send className="h-4 w-4" />}
                       Submit with AI-Tailored Documents
                     </Button>
-                    <Button variant="outline" onClick={() => setShowOneClickModal(false)}>Review Later</Button>
+                    <Button variant="outline" onClick={() => setShowOneClickModal(false)} className="min-h-[44px]">Review Later</Button>
                   </div>
                 </div>
               ) : (
                 <div className="text-center py-4">
                   <p className="text-sm text-muted-foreground">Could not generate tailored documents. You can still apply manually.</p>
-                  <Button className="mt-2" onClick={() => setShowApplyForm(true)}>Apply Manually</Button>
+                  <Button className="mt-2 min-h-[44px]" onClick={() => setShowApplyForm(true)}>Apply Manually</Button>
                 </div>
               )}
             </div>
@@ -555,7 +555,7 @@ export function CandidateJobDetailPage() {
             <div>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-1">
                 <Label>Cover Letter <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                <Button variant="outline" size="sm" onClick={generateCoverLetter} disabled={generatingCL} className="gap-1 text-xs">
+                <Button variant="outline" size="sm" onClick={generateCoverLetter} disabled={generatingCL} className="gap-1 text-xs min-h-[44px]">
                   {generatingCL ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                   {generatingCL ? 'Generating...' : '✨ Generate with AI'}
                 </Button>
@@ -569,7 +569,7 @@ export function CandidateJobDetailPage() {
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div className="flex items-center gap-2"><ListChecks className="h-4 w-4 text-primary" /><h4 className="font-medium text-sm">Pre-screening Questions</h4></div>
-                  <Button variant="outline" size="sm" onClick={getSuggestions} disabled={generatingSuggestions} className="gap-1 text-xs">
+                  <Button variant="outline" size="sm" onClick={getSuggestions} disabled={generatingSuggestions} className="gap-1 text-xs min-h-[44px]">
                     {generatingSuggestions ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
                     {generatingSuggestions ? 'Suggesting...' : '✨ AI Suggest Answers'}
                   </Button>
@@ -620,7 +620,7 @@ export function CandidateJobDetailPage() {
                 {reviewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {reviewing ? 'Reviewing...' : 'AI Review'}
               </Button>
-              <Button variant="outline" onClick={() => setShowApplyForm(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => setShowApplyForm(false)} className="min-h-[44px]">Cancel</Button>
             </div>
           </CardContent>
         </Card>
@@ -630,7 +630,7 @@ export function CandidateJobDetailPage() {
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><Briefcase className="h-5 w-5" /> Job Description</CardTitle></CardHeader>
         <CardContent>
-          <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed">{job.description || 'No description provided.'}</div>
+          <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed break-words overflow-x-hidden">{job.description || 'No description provided.'}</div>
         </CardContent>
       </Card>
 
@@ -639,7 +639,7 @@ export function CandidateJobDetailPage() {
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Requirements</CardTitle></CardHeader>
           <CardContent>
-            <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed">{job.requirements}</div>
+            <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed break-words overflow-x-hidden">{job.requirements}</div>
           </CardContent>
         </Card>
       )}

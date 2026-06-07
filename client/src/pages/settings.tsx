@@ -28,6 +28,9 @@ import {
   Moon,
   Sun,
   Monitor,
+  CreditCard,
+  Loader2,
+  Download,
 } from "lucide-react"
 
 interface NotificationSettings {
@@ -89,9 +92,21 @@ export function SettingsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState("")
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
+  // Billing state
+  const [subscription, setSubscription] = useState<{
+    isPaid: boolean
+    subscriptionId: string | null
+    plan: string | null
+    status: string
+  } | null>(null)
+  const [billingLoading, setBillingLoading] = useState(false)
+  const [billingError, setBillingError] = useState<string | null>(null)
+  const [cancelLoading, setCancelLoading] = useState(false)
+
   useEffect(() => {
     trackEvent("page_view_settings")
     loadSettings()
+    loadBilling()
   }, [])
 
   async function loadSettings() {
@@ -109,6 +124,46 @@ export function SettingsPage() {
       if (data.privacy) setPrivacy(data.privacy)
     } catch (err) {
       // Use defaults if API fails
+    }
+  }
+
+  async function loadBilling() {
+    setBillingLoading(true)
+    setBillingError(null)
+    try {
+      const data = await apiCall<{
+        isPaid: boolean
+        subscriptionId: string | null
+        plan: string | null
+        status: string
+      }>("/billing/subscription-status")
+      setSubscription(data)
+    } catch (err) {
+      setBillingError(err instanceof Error ? err.message : "Failed to load subscription status.")
+    } finally {
+      setBillingLoading(false)
+    }
+  }
+
+  async function handleCancelSubscription() {
+    if (!confirm("Cancel your subscription? You will keep access until the end of the current billing period.")) return
+    setCancelLoading(true)
+    setBillingError(null)
+    try {
+      const data = await apiCall<{
+        cancelled: boolean
+        subscriptionId: string
+        status: string
+        cancelAtPeriodEnd: boolean
+      }>("/billing/cancel-subscription", { method: "POST" })
+      if (data.cancelled) {
+        setSubscription((prev) => prev ? { ...prev, status: "cancelled" } : prev)
+        showSaved()
+      }
+    } catch (err) {
+      setBillingError(err instanceof Error ? err.message : "Failed to cancel subscription.")
+    } finally {
+      setCancelLoading(false)
     }
   }
 
@@ -281,6 +336,10 @@ export function SettingsPage() {
           <TabsTrigger value="appearance" className="gap-1">
             <Palette className="h-4 w-4" />
             Appearance
+          </TabsTrigger>
+          <TabsTrigger value="billing" className="gap-1">
+            <CreditCard className="h-4 w-4" />
+            Billing
           </TabsTrigger>
         </TabsList>
 
@@ -665,6 +724,82 @@ export function SettingsPage() {
                   <span className="font-medium">System</span>
                 </button>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Billing Tab */}
+        <TabsContent value="billing" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Subscription</CardTitle>
+              <CardDescription>Manage your Rekrut AI plan and billing</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {billingLoading ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading subscription...
+                </div>
+              ) : billingError ? (
+                <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  {billingError}
+                </div>
+              ) : subscription?.isPaid ? (
+                <div className="space-y-4">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Plan</p>
+                      <p className="font-medium capitalize">{subscription.plan || "Custom"}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Status</p>
+                      <Badge variant={subscription.status === "active" ? "default" : "secondary"}>
+                        {subscription.status}
+                      </Badge>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Subscription ID</p>
+                      <p className="font-mono text-xs">{subscription.subscriptionId}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={loadBilling}
+                      disabled={billingLoading}
+                    >
+                      Refresh
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleCancelSubscription}
+                      disabled={cancelLoading || subscription.status === "cancelled"}
+                    >
+                      {cancelLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          Cancelling...
+                        </>
+                      ) : subscription.status === "cancelled" ? (
+                        "Cancelled"
+                      ) : (
+                        "Cancel Subscription"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    You are on the free plan. Upgrade to unlock premium features.
+                  </p>
+                  <Button asChild>
+                    <a href="/pricing">View Plans</a>
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

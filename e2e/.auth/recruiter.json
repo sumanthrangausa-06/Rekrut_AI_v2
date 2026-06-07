@@ -1,0 +1,34 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "rekrutai_token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjEsImVtYWlsIjoiZTJlLXJlY3J1aXRlckByZWtydXRhaS50ZXN0Iiwicm9sZSI6InJlY3J1aXRlciIsImlhdCI6MTc4MDg2MTc5NSwiZXhwIjoxNzgwODYyNjk1fQ.IDJI69K7fjBWZEpe27hq_5kspcH2dZDhz9Jv-Vl8n7w"
+        },
+        {
+          "name": "token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjEsImVtYWlsIjoiZTJlLXJlY3J1aXRlckByZWtydXRhaS50ZXN0Iiwicm9sZSI6InJlY3J1aXRlciIsImlhdCI6MTc4MDg2MTc5NSwiZXhwIjoxNzgwODYyNjk1fQ.IDJI69K7fjBWZEpe27hq_5kspcH2dZDhz9Jv-Vl8n7w"
+        },
+        {
+          "name": "theme",
+          "value": "system"
+        },
+        {
+          "name": "rekrutai_refresh",
+          "value": "e4279e7bb5e8c4c5efa64ae01c0d655c6ebdb0b8062aaa9468259074b2f745c3b4403ac62424e0da"
+        },
+        {
+          "name": "rekrut-theme",
+          "value": "light"
+        },
+        {
+          "name": "refresh_token",
+          "value": "e4279e7bb5e8c4c5efa64ae01c0d655c6ebdb0b8062aaa9468259074b2f745c3b4403ac62424e0da"
+        }
+      ]
+    }
+  ]
+}
