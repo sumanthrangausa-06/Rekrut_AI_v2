@@ -137,6 +137,37 @@ function Safe({ children }: { children: React.ReactNode }) {
   return <RouteErrorBoundary>{children}</RouteErrorBoundary>
 }
 
+// Auth guard: shows loading state while auth initializes, redirects if not authenticated
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="flex min-h-dvh-safe items-center justify-center bg-background">
+        <div className="animate-pulse flex flex-col items-center gap-3">
+          <div className="h-8 w-8 rounded-full bg-primary/20" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  return <>{children}</>
+}
+
+// Combined wrapper: error boundary + auth guard for protected routes
+function Protected({ children }: { children: React.ReactNode }) {
+  return (
+    <Safe>
+      <RequireAuth>{children}</RequireAuth>
+    </Safe>
+  )
+}
+
 function RoleRedirect() {
   const { user, loading } = useAuth()
 
@@ -177,75 +208,75 @@ function AppRoutes() {
 
       {/* Candidate routes */}
       <Route path="/candidate" element={<DashboardLayout />}>
-        <Route index element={<Safe><CandidateDashboard /></Safe>} />
-        <Route path="jobs" element={<Safe><CandidateJobsPage /></Safe>} />
-        <Route path="jobs/:id" element={<Safe><CandidateJobDetailPage /></Safe>} />
-        <Route path="applications" element={<Safe><CandidateApplicationsPage /></Safe>} />
-        <Route path="profile" element={<Safe><CandidateProfilePage /></Safe>} />
-        <Route path="assessments" element={<Safe><CandidateAssessmentsPage /></Safe>} />
-        <Route path="assessments/:id/take" element={<Safe><AssessmentTakePage /></Safe>} />
-        <Route path="assessment-results" element={<Safe><AssessmentResultsPage /></Safe>} />
-        <Route path="job-assessment/:id" element={<Safe><JobAssessmentTakePage /></Safe>} />
-        <Route path="interviews" element={<Safe><CandidateInterviewsPage /></Safe>} />
-        <Route path="ai-coaching" element={<Safe><AiCoachingPage /></Safe>} />
-        <Route path="omniscore" element={<Safe><CandidateOmniScorePage /></Safe>} />
-        <Route path="documents" element={<Safe><CandidateDocumentsPage /></Safe>} />
-        <Route path="assessments/:id/results" element={<Safe><AssessmentResultsPage /></Safe>} />
-        <Route path="interview-practice" element={<Safe><InterviewPracticePage /></Safe>} />
-        <Route path="video-interview" element={<Safe><VideoInterviewPage /></Safe>} />
-        <Route path="interview-analysis" element={<Safe><InterviewAnalysisPage /></Safe>} />
-        <Route path="history" element={<Safe><HistoryPage /></Safe>} />
-        <Route path="feedback" element={<Safe><PostHireFeedbackPage /></Safe>} />
-        <Route path="offers/manage" element={<Safe><OfferManagementPage /></Safe>} />
-        <Route path="company-profile" element={<Safe><CompanyProfilePage /></Safe>} />
-        <Route path="interview" element={<Safe><InterviewPage /></Safe>} />
-        <Route path="chat" element={<Safe><CandidateChatPage /></Safe>} />
-        <Route path="offers" element={<Safe><CandidateOffersPage /></Safe>} />
-        <Route path="onboarding" element={<Safe><CandidateOnboardingPage /></Safe>} />
-        <Route path="payroll" element={<Safe><CandidatePayrollPage /></Safe>} />
+        <Route index element={<Protected><CandidateDashboard /></Protected>} />
+        <Route path="jobs" element={<Protected><CandidateJobsPage /></Protected>} />
+        <Route path="jobs/:id" element={<Protected><CandidateJobDetailPage /></Protected>} />
+        <Route path="applications" element={<Protected><CandidateApplicationsPage /></Protected>} />
+        <Route path="profile" element={<Protected><CandidateProfilePage /></Protected>} />
+        <Route path="assessments" element={<Protected><CandidateAssessmentsPage /></Protected>} />
+        <Route path="assessments/:id/take" element={<Protected><AssessmentTakePage /></Protected>} />
+        <Route path="assessment-results" element={<Protected><AssessmentResultsPage /></Protected>} />
+        <Route path="job-assessment/:id" element={<Protected><JobAssessmentTakePage /></Protected>} />
+        <Route path="interviews" element={<Protected><CandidateInterviewsPage /></Protected>} />
+        <Route path="ai-coaching" element={<Protected><AiCoachingPage /></Protected>} />
+        <Route path="omniscore" element={<Protected><CandidateOmniScorePage /></Protected>} />
+        <Route path="documents" element={<Protected><CandidateDocumentsPage /></Protected>} />
+        <Route path="assessments/:id/results" element={<Protected><AssessmentResultsPage /></Protected>} />
+        <Route path="interview-practice" element={<Protected><InterviewPracticePage /></Protected>} />
+        <Route path="video-interview" element={<Protected><VideoInterviewPage /></Protected>} />
+        <Route path="interview-analysis" element={<Protected><InterviewAnalysisPage /></Protected>} />
+        <Route path="history" element={<Protected><HistoryPage /></Protected>} />
+        <Route path="feedback" element={<Protected><PostHireFeedbackPage /></Protected>} />
+        <Route path="offers/manage" element={<Protected><OfferManagementPage /></Protected>} />
+        <Route path="company-profile" element={<Protected><CompanyProfilePage /></Protected>} />
+        <Route path="interview" element={<Protected><InterviewPage /></Protected>} />
+        <Route path="chat" element={<Protected><CandidateChatPage /></Protected>} />
+        <Route path="offers" element={<Protected><CandidateOffersPage /></Protected>} />
+        <Route path="onboarding" element={<Protected><CandidateOnboardingPage /></Protected>} />
+        <Route path="payroll" element={<Protected><CandidatePayrollPage /></Protected>} />
       </Route>
 
       {/* Recruiter routes */}
       <Route path="/recruiter" element={<DashboardLayout />}>
-        <Route index element={<Safe><RecruiterDashboard /></Safe>} />
-        <Route path="jobs" element={<Safe><RecruiterJobsPage /></Safe>} />
-        <Route path="jobs/new" element={<Safe><RecruiterJobFormPage /></Safe>} />
-        <Route path="jobs/:id/applicants" element={<Safe><RecruiterJobApplicantsPage /></Safe>} />
-        <Route path="jobs/:id/edit" element={<Safe><RecruiterJobFormPage /></Safe>} />
-        <Route path="jobs/:id" element={<Safe><RecruiterJobApplicantsPage /></Safe>} />
-        <Route path="jobs/:id/assessment" element={<Safe><RecruiterJobAssessmentPage /></Safe>} />
-        <Route path="applications" element={<Safe><RecruiterApplicationsPage /></Safe>} />
-        <Route path="assessments" element={<Safe><RecruiterAssessmentsPage /></Safe>} />
-        <Route path="candidates" element={<Safe><RecruiterCandidatesPage /></Safe>} />
-        <Route path="screening" element={<Safe><RecruiterScreeningPage /></Safe>} />
-        <Route path="chat" element={<Safe><RecruiterChatPage /></Safe>} />
-        <Route path="career-page" element={<Safe><RecruiterCareerPage /></Safe>} />
-        <Route path="interviews" element={<Safe><RecruiterInterviewsPage /></Safe>} />
-        <Route path="offers" element={<Safe><RecruiterOffersPage /></Safe>} />
-        <Route path="onboarding" element={<Safe><RecruiterOnboardingPage /></Safe>} />
-        <Route path="analytics" element={<Safe><RecruiterAnalyticsPage /></Safe>} />
-        <Route path="communications" element={<Safe><RecruiterCommunicationsPage /></Safe>} />
-        <Route path="trustscore" element={<Safe><RecruiterTrustscorePage /></Safe>} />
-        <Route path="onboarding-ai" element={<Safe><RecruiterOnboardingAiPage /></Safe>} />
-        <Route path="onboarding-docs" element={<Safe><RecruiterOnboardingDocsPage /></Safe>} />
-        <Route path="company" element={<Safe><RecruiterCompanyPage /></Safe>} />
-        <Route path="profile" element={<Safe><RecruiterProfilePage /></Safe>} />
-        <Route path="payroll" element={<Safe><RecruiterPayrollPage /></Safe>} />
-        <Route path="payroll-dashboard" element={<Safe><RecruiterPayrollDashboardPage /></Safe>} />
-        <Route path="payroll-run/:id" element={<Safe><RecruiterPayrollRunPage /></Safe>} />
-        <Route path="job-create" element={<Safe><RecruiterJobCreatePage /></Safe>} />
-        <Route path="omniscore" element={<Safe><RecruiterOmniScorePage /></Safe>} />
-        <Route path="post-hire-feedback" element={<Safe><RecruiterPostHireFeedbackPage /></Safe>} />
-        <Route path="compliance" element={<Safe><ComplianceDashboardPage /></Safe>} />
+        <Route index element={<Protected><RecruiterDashboard /></Protected>} />
+        <Route path="jobs" element={<Protected><RecruiterJobsPage /></Protected>} />
+        <Route path="jobs/new" element={<Protected><RecruiterJobFormPage /></Protected>} />
+        <Route path="jobs/:id/applicants" element={<Protected><RecruiterJobApplicantsPage /></Protected>} />
+        <Route path="jobs/:id/edit" element={<Protected><RecruiterJobFormPage /></Protected>} />
+        <Route path="jobs/:id" element={<Protected><RecruiterJobApplicantsPage /></Protected>} />
+        <Route path="jobs/:id/assessment" element={<Protected><RecruiterJobAssessmentPage /></Protected>} />
+        <Route path="applications" element={<Protected><RecruiterApplicationsPage /></Protected>} />
+        <Route path="assessments" element={<Protected><RecruiterAssessmentsPage /></Protected>} />
+        <Route path="candidates" element={<Protected><RecruiterCandidatesPage /></Protected>} />
+        <Route path="screening" element={<Protected><RecruiterScreeningPage /></Protected>} />
+        <Route path="chat" element={<Protected><RecruiterChatPage /></Protected>} />
+        <Route path="career-page" element={<Protected><RecruiterCareerPage /></Protected>} />
+        <Route path="interviews" element={<Protected><RecruiterInterviewsPage /></Protected>} />
+        <Route path="offers" element={<Protected><RecruiterOffersPage /></Protected>} />
+        <Route path="onboarding" element={<Protected><RecruiterOnboardingPage /></Protected>} />
+        <Route path="analytics" element={<Protected><RecruiterAnalyticsPage /></Protected>} />
+        <Route path="communications" element={<Protected><RecruiterCommunicationsPage /></Protected>} />
+        <Route path="trustscore" element={<Protected><RecruiterTrustscorePage /></Protected>} />
+        <Route path="onboarding-ai" element={<Protected><RecruiterOnboardingAiPage /></Protected>} />
+        <Route path="onboarding-docs" element={<Protected><RecruiterOnboardingDocsPage /></Protected>} />
+        <Route path="company" element={<Protected><RecruiterCompanyPage /></Protected>} />
+        <Route path="profile" element={<Protected><RecruiterProfilePage /></Protected>} />
+        <Route path="payroll" element={<Protected><RecruiterPayrollPage /></Protected>} />
+        <Route path="payroll-dashboard" element={<Protected><RecruiterPayrollDashboardPage /></Protected>} />
+        <Route path="payroll-run/:id" element={<Protected><RecruiterPayrollRunPage /></Protected>} />
+        <Route path="job-create" element={<Protected><RecruiterJobCreatePage /></Protected>} />
+        <Route path="omniscore" element={<Protected><RecruiterOmniScorePage /></Protected>} />
+        <Route path="post-hire-feedback" element={<Protected><RecruiterPostHireFeedbackPage /></Protected>} />
+        <Route path="compliance" element={<Protected><ComplianceDashboardPage /></Protected>} />
       </Route>
 
       {/* Settings */}
       <Route path="/settings" element={<DashboardLayout />}>
-        <Route index element={<Safe><SettingsPage /></Safe>} />
+        <Route index element={<Protected><SettingsPage /></Protected>} />
       </Route>
 
       {/* Debug routes */}
-      <Route path="/debug/mock-interview" element={<Safe><MockInterviewDebugPage /></Safe>} />
+      <Route path="/debug/mock-interview" element={<Protected><MockInterviewDebugPage /></Protected>} />
 
       {/* Admin routes — login is public, everything else requires auth */}
       <Route path="/admin/login" element={<AdminLoginPage />} />
