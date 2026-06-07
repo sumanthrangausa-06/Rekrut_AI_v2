@@ -605,7 +605,7 @@ export function RecruiterCandidatesPage() {
                     >
                       <button
                         onClick={() => toggleSelectCandidate(candidate.id)}
-                        className="flex h-5 w-5 items-center justify-center rounded border bg-white shadow-sm hover:border-indigo-400"
+                        className="flex h-5 w-5 items-center justify-center rounded border bg-background shadow-sm hover:border-indigo-400"
                       >
                         {selectedCandidates.has(candidate.id) && <CheckSquare className="h-4 w-4 text-indigo-600" />}
                       </button>
@@ -641,7 +641,7 @@ export function RecruiterCandidatesPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="gap-1 text-xs h-7 bg-white border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                        className="gap-1 text-xs h-7 bg-background border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950"
                         onClick={(e) => {
                           e.stopPropagation()
                           handleAiScreen(candidate)
