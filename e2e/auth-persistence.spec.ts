@@ -7,8 +7,8 @@ test.describe('Auth Persistence & Token Tests', () => {
   test('candidate token persists across page reloads', async ({ page }) => {
     // Login as candidate
     await page.goto('/login')
-    await page.getByLabel('Email').fill('test_candidate@rekrutai.co')
-    await page.getByLabel('Password').fill('Test123!')
+    await page.getByRole('textbox', { name: 'Email' }).fill('test_candidate@rekrutai.co')
+    await page.getByRole('textbox', { name: 'Password' }).fill('Test123!')
     await page.getByRole('button', { name: /Sign in/i }).click()
 
     // Wait for redirect to dashboard
@@ -24,8 +24,8 @@ test.describe('Auth Persistence & Token Tests', () => {
   test('candidate can navigate directly to /candidate/jobs when authenticated', async ({ page }) => {
     // Login as candidate
     await page.goto('/login')
-    await page.getByLabel('Email').fill('test_candidate@rekrutai.co')
-    await page.getByLabel('Password').fill('Test123!')
+    await page.getByRole('textbox', { name: 'Email' }).fill('test_candidate@rekrutai.co')
+    await page.getByRole('textbox', { name: 'Password' }).fill('Test123!')
     await page.getByRole('button', { name: /Sign in/i }).click()
     await page.waitForURL(/.*\/candidate/)
 
@@ -38,8 +38,8 @@ test.describe('Auth Persistence & Token Tests', () => {
   test('logout clears auth and redirects to login', async ({ page }) => {
     // Login as candidate
     await page.goto('/login')
-    await page.getByLabel('Email').fill('test_candidate@rekrutai.co')
-    await page.getByLabel('Password').fill('Test123!')
+    await page.getByRole('textbox', { name: 'Email' }).fill('test_candidate@rekrutai.co')
+    await page.getByRole('textbox', { name: 'Password' }).fill('Test123!')
     await page.getByRole('button', { name: /Sign in/i }).click()
     await page.waitForURL(/.*\/candidate/)
 
@@ -64,8 +64,8 @@ test.describe('Auth Persistence & Token Tests', () => {
   test('recruiter token persists across page reloads', async ({ page }) => {
     // Login as recruiter
     await page.goto('/login')
-    await page.getByLabel('Email').fill('test_recruiter@rekrutai.co')
-    await page.getByLabel('Password').fill('Test123!')
+    await page.getByRole('textbox', { name: 'Email' }).fill('test_recruiter@rekrutai.co')
+    await page.getByRole('textbox', { name: 'Password' }).fill('Test123!')
     await page.getByRole('button', { name: /Sign in/i }).click()
 
     // Wait for redirect to dashboard
@@ -81,8 +81,8 @@ test.describe('Auth Persistence & Token Tests', () => {
   test('recruiter can navigate directly to /recruiter/jobs when authenticated', async ({ page }) => {
     // Login as recruiter
     await page.goto('/login')
-    await page.getByLabel('Email').fill('test_recruiter@rekrutai.co')
-    await page.getByLabel('Password').fill('Test123!')
+    await page.getByRole('textbox', { name: 'Email' }).fill('test_recruiter@rekrutai.co')
+    await page.getByRole('textbox', { name: 'Password' }).fill('Test123!')
     await page.getByRole('button', { name: /Sign in/i }).click()
     await page.waitForURL(/.*\/recruiter/)
 
@@ -141,7 +141,8 @@ test.describe('Candidate Jobs Page - Full Flow', () => {
 
     // Open filter sheet
     await filterBtn.click()
-    await expect(page.locator('text=Filters').first()).toBeVisible()
+    // On mobile, "Filters" text is hidden in the button (hidden sm:inline), so check the sheet/dialog opened instead
+    await expect(page.locator('[role="dialog"], [data-state="open"]').first()).toBeVisible()
   })
 })
 
