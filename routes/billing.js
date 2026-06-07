@@ -293,57 +293,62 @@ router.post('/webhook', async (req, res) => {
 
     console.log('[billing] webhook received:', eventType, event.id);
 
-    switch (eventType) {
-      case 'checkout.session.completed': {
-        const session = event.data?.object;
-        if (session?.client_reference_id) {
-          const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id || null;
-          await pool.query(
-            `UPDATE users
-             SET is_paid = true,
-                 stripe_subscription_id = $1,
-                 subscription_plan = $2,
-                 subscription_status = $3
-             WHERE id = $4`,
-            [subscriptionId, session.metadata?.plan_id || null, 'active', session.client_reference_id]
-          );
+    try {
+      switch (eventType) {
+        case 'checkout.session.completed': {
+          const session = event.data?.object;
+          if (session?.client_reference_id) {
+            const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id || null;
+            await pool.query(
+              `UPDATE users
+               SET is_paid = true,
+                   stripe_subscription_id = $1,
+                   subscription_plan = $2,
+                   subscription_status = $3
+               WHERE id = $4`,
+              [subscriptionId, session.metadata?.plan_id || null, 'active', session.client_reference_id]
+            );
+          }
+          break;
         }
-        break;
-      }
-      case 'invoice.payment_succeeded': {
-        const invoice = event.data?.object;
-        if (invoice?.subscription) {
-          await pool.query(
-            `UPDATE users SET subscription_status = $1 WHERE stripe_subscription_id = $2`,
-            ['active', typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id]
-          );
+        case 'invoice.payment_succeeded': {
+          const invoice = event.data?.object;
+          if (invoice?.subscription) {
+            await pool.query(
+              `UPDATE users SET subscription_status = $1 WHERE stripe_subscription_id = $2`,
+              ['active', typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id]
+            );
+          }
+          break;
         }
-        break;
-      }
-      case 'invoice.payment_failed': {
-        const invoice = event.data?.object;
-        if (invoice?.subscription) {
-          await pool.query(
-            `UPDATE users SET subscription_status = $1 WHERE stripe_subscription_id = $2`,
-            ['past_due', typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id]
-          );
+        case 'invoice.payment_failed': {
+          const invoice = event.data?.object;
+          if (invoice?.subscription) {
+            await pool.query(
+              `UPDATE users SET subscription_status = $1 WHERE stripe_subscription_id = $2`,
+              ['past_due', typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id]
+            );
+          }
+          break;
         }
-        break;
-      }
-      case 'customer.subscription.deleted': {
-        const subscription = event.data?.object;
-        if (subscription?.id) {
-          await pool.query(
-            `UPDATE users
-             SET is_paid = false,
-                 subscription_status = $1,
-                 stripe_subscription_id = NULL
-             WHERE stripe_subscription_id = $2`,
-            ['cancelled', subscription.id]
-          );
+        case 'customer.subscription.deleted': {
+          const subscription = event.data?.object;
+          if (subscription?.id) {
+            await pool.query(
+              `UPDATE users
+               SET is_paid = false,
+                   subscription_status = $1,
+                   stripe_subscription_id = NULL
+               WHERE stripe_subscription_id = $2`,
+              ['cancelled', subscription.id]
+            );
+          }
+          break;
         }
-        break;
       }
+    } catch (dbError) {
+      console.error('[billing] webhook DB error:', dbError.message);
+      // Return 200 to prevent Stripe retries, but log the error
     }
 
     res.json({ received: true });
