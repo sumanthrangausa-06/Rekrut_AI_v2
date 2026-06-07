@@ -11,18 +11,23 @@ export function PaymentSuccessPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [verifying, setVerifying] = useState(true)
+  const [verifyError, setVerifyError] = useState<string | null>(null)
   const sessionId = searchParams.get('session_id') || searchParams.get('checkout_session_id')
 
   useEffect(() => {
     async function verifyPayment() {
       if (!sessionId) {
+        setVerifyError('No session ID found in the URL.')
         setVerifying(false)
         return
       }
       try {
-        await apiCall(`/auth/verify-payment?session_id=${sessionId}`)
+        const res = await apiCall<{ success?: boolean; verified?: boolean }>(`/auth/verify-payment?session_id=${sessionId}`)
+        if (!res.verified) {
+          setVerifyError('Payment verification failed. If you were charged, contact support.')
+        }
       } catch (err) {
-        console.error('Payment verification error:', err)
+        setVerifyError(err instanceof Error ? err.message : 'Payment verification failed.')
       } finally {
         setVerifying(false)
       }
@@ -46,6 +51,22 @@ export function PaymentSuccessPage() {
             <div className="py-12">
               <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
               <p className="text-sm text-muted-foreground mt-4">Verifying payment...</p>
+            </div>
+          ) : verifyError ? (
+            <div className="py-6 space-y-4">
+              <div className="text-6xl">⚠️</div>
+              <div className="space-y-2">
+                <h1 className="text-2xl font-bold">Payment verification issue</h1>
+                <p className="text-muted-foreground text-sm">{verifyError}</p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button size="lg" className="w-full" onClick={() => navigate('/pricing')}>
+                  Return to Pricing
+                </Button>
+                <Button variant="outline" size="lg" className="w-full" onClick={() => window.location.reload()}>
+                  Retry Verification
+                </Button>
+              </div>
             </div>
           ) : (
             <>
