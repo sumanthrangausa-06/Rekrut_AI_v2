@@ -1219,11 +1219,22 @@ app.use(express.static(publicAssetsPath, {
 }));
 
 // Serve React app build
-app.use(express.static(reactBuildPath));
+app.use(express.static(reactBuildPath, {
+  // Don't serve index.html via static — we handle SPA fallback below
+  index: false,
+}));
 
-// SPA fallback — serve React index.html for all non-API routes
+// SPA fallback — serve React index.html for all non-API routes that don't match a file
 app.get('*', (req, res) => {
   if (!req.path.startsWith('/api')) {
+    // Check if the requested file exists as a static asset
+    const assetPath = path.join(reactBuildPath, req.path);
+    if (req.path !== '/' && fs.existsSync(assetPath) && fs.statSync(assetPath).isFile()) {
+      // File exists — let the static middleware handle it (shouldn't reach here normally)
+      res.sendFile(assetPath);
+      return;
+    }
+    // Serve index.html for SPA routes
     const indexPath = path.join(reactBuildPath, 'index.html');
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
