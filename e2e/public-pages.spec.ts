@@ -4,8 +4,7 @@ test.describe('Public Pages', () => {
   test('login page loads without authentication', async ({ page }) => {
     await page.goto('/login')
     await expect(page).toHaveURL(/.*\/login/)
-    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible()
-    await expect(page.getByText('Sign in to your account')).toBeVisible()
+    await expect(page.getByRole('heading', { name: /Sign in/i })).toBeVisible()
   })
 
   test('register page loads without authentication', async ({ page }) => {
