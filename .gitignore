@@ -8,6 +8,12 @@ bin/audio/
 # Polsia test fixtures (auto-injected, do not commit)
 test-fixtures/
 
+# Playwright test artifacts
+test-results/
+
+# Playwright auth state (contains tokens)
+e2e/.auth/
+
 # Client build is committed for deployment
 # client/node_modules/ is excluded via top-level node_modules/ rule
 .admin-credentials
