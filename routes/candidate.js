@@ -1133,7 +1133,7 @@ router.get('/jobs', authMiddleware, async (req, res) => {
         j.salary_min, j.salary_max, j.salary_range, j.currency_code, j.country_code,
         j.skills_required, j.status, j.created_at, j.updated_at, j.screening_questions,
         j.requirements, j.user_id,
-        EXISTS(SELECT 1 FROM applications a WHERE a.job_id = j.id AND a.candidate_id = $${paramIndex} LIMIT 1) as has_applied,
+        EXISTS(SELECT 1 FROM job_applications a WHERE a.job_id = j.id AND a.candidate_id = $${paramIndex} LIMIT 1) as has_applied,
         EXISTS(SELECT 1 FROM saved_jobs sj WHERE sj.job_id = j.id AND sj.user_id = $${paramIndex} LIMIT 1) as has_saved
       FROM jobs j
       ${whereClause}
