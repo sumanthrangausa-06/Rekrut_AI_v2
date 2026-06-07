@@ -232,4 +232,137 @@ router.post('/confirm-session', optionalAuth, async (req, res) => {
   }
 });
 
+const crypto = require('crypto');
+
+function getStripeWebhookSecret() {
+  return process.env.STRIPE_WEBHOOK_SECRET || '';
+}
+
+function verifyStripeSignature(payload, signature, secret) {
+  if (!signature || !secret) return false;
+  const expected = crypto.createHmac('sha256', secret).update(payload, 'utf8').digest('hex');
+  const signatures = signature.split(',').map((s) => s.trim());
+  return signatures.some((sig) => {
+    const parts = sig.split('=');
+    return parts.length === 2 && parts[0] === 'v1' && crypto.timingSafeEqual(
+      Buffer.from(parts[1], 'hex'),
+      Buffer.from(expected, 'hex')
+    );
+  });
+}
+
+router.post('/webhook', async (req, res) => {
+  try {
+    const secret = getStripeWebhookSecret();
+    if (!secret) {
+      console.error('[billing] webhook: STRIPE_WEBHOOK_SECRET not configured');
+      return res.status(503).json({ error: 'Webhook not configured.' });
+    }
+
+    const signature = req.headers['stripe-signature'] || '';
+    const payload = req.body instanceof Buffer ? req.body.toString('utf8') : req.body;
+
+    if (!verifyStripeSignature(payload, signature, secret)) {
+      console.error('[billing] webhook: signature verification failed');
+      return res.status(400).json({ error: 'Invalid signature.' });
+    }
+
+    const event = JSON.parse(payload);
+    console.log(`[billing] webhook: received ${event.type}`);
+
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+        const clientReferenceId = session.client_reference_id;
+        const customerEmail = session.customer_email || session.customer_details?.email;
+        const planId = session.metadata?.plan_id || null;
+
+        if (clientReferenceId) {
+          await pool.query(
+            `UPDATE users
+             SET is_paid = true,
+                 stripe_subscription_id = $1,
+                 subscription_plan = $2,
+                 subscription_status = 'active'
+             WHERE id = $3`,
+            [subscriptionId, planId, clientReferenceId]
+          );
+          console.log(`[billing] webhook: activated subscription for user ${clientReferenceId}`);
+        } else if (customerEmail) {
+          const result = await pool.query(
+            `UPDATE users
+             SET is_paid = true,
+                 stripe_subscription_id = $1,
+                 subscription_plan = $2,
+                 subscription_status = 'active'
+             WHERE email = $3
+             RETURNING id`,
+            [subscriptionId, planId, customerEmail.toLowerCase()]
+          );
+          if (result.rowCount > 0) {
+            console.log(`[billing] webhook: activated subscription for email ${customerEmail}`);
+          }
+        }
+        break;
+      }
+
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object;
+        const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
+        if (subscriptionId) {
+          await pool.query(
+            `UPDATE users
+             SET subscription_status = 'active',
+                 is_paid = true
+             WHERE stripe_subscription_id = $1`,
+            [subscriptionId]
+          );
+          console.log(`[billing] webhook: renewed subscription ${subscriptionId}`);
+        }
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object;
+        const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
+        if (subscriptionId) {
+          await pool.query(
+            `UPDATE users
+             SET subscription_status = 'past_due'
+             WHERE stripe_subscription_id = $1`,
+            [subscriptionId]
+          );
+          console.log(`[billing] webhook: payment failed for subscription ${subscriptionId}`);
+        }
+        break;
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object;
+        const subscriptionId = subscription.id;
+        await pool.query(
+          `UPDATE users
+           SET is_paid = false,
+               subscription_status = 'canceled',
+               stripe_subscription_id = NULL,
+               subscription_plan = NULL
+           WHERE stripe_subscription_id = $1`,
+          [subscriptionId]
+        );
+        console.log(`[billing] webhook: canceled subscription ${subscriptionId}`);
+        break;
+      }
+
+      default:
+        console.log(`[billing] webhook: unhandled event type ${event.type}`);
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error('[billing] webhook error:', error.message);
+    res.status(500).json({ error: 'Webhook processing failed.' });
+  }
+});
+
 module.exports = router;

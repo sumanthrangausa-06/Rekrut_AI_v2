@@ -9,7 +9,6 @@ import { Logo } from '@/components/ui/logo'
 import {
   Briefcase,
   Users,
-  BarChart3,
   Shield,
   Zap,
   Star,
@@ -17,85 +16,66 @@ import {
   CheckCircle2,
   MessageSquareText,
   Video,
-  FileText,
   Sparkles,
-  Search,
   ArrowUpRight,
   Menu,
   X,
   ChevronDown,
   ChevronUp,
-  Play,
   Globe,
   Rocket,
-  Heart,
   Target,
-  Cpu,
   Award,
-  Clock,
   Building2,
-  MapPin,
-  Phone,
   Mail,
   Linkedin,
   Twitter,
   Github,
   Instagram,
   Send,
-  MessageCircle,
-  Youtube,
+  Lock,
+  EyeOff,
+  FileCheck,
 } from 'lucide-react'
 
 // ─── Data ─────────────────────────────────────────────────────────────
 
 const features = [
   {
-    icon: Sparkles,
+    icon: Target,
     title: 'AI Job Matching',
     description:
-      'Our AI engine analyzes skills, experience, and role fit to surface the best matches — not just keyword matches.',
-  },
-  {
-    icon: Cpu,
-    title: 'OmniScore',
-    description:
-      'A unified candidate readiness score that combines assessment results, interview feedback, and skill validation in one number.',
-  },
-  {
-    icon: Shield,
-    title: 'TrustScore',
-    description:
-      'Two-sided trust signals help candidates vet companies and recruiters evaluate candidate reliability before engaging.',
+      'Upload your resume or build a profile. Our AI analyzes your skills, experience, and preferences — then surfaces roles where you have a real shot. Match score included so you know where you stand.',
   },
   {
     icon: Video,
-    title: 'AI Video Interviews',
+    title: 'Mock Interviews',
     description:
-      'Built-in video calling with AI-powered interview assistance, transcription, and structured feedback collection.',
+      'Practice unlimited mock interviews with our AI interviewer. Get real-time feedback on your answers, communication style, and pacing. Role-specific questions for tech, product, sales, marketing, and more.',
   },
   {
     icon: MessageSquareText,
-    title: 'Smart Screening',
+    title: 'AI Coaching',
     description:
-      'AI-assisted application review, automated shortlisting, and contextual follow-up questions reduce recruiter workload.',
+      'Stuck on salary negotiation? Need help with a career pivot? Our AI coaching gives you personalized, actionable advice based on your profile and goals. No appointments. No fees. Just ask.',
   },
   {
-    icon: FileText,
-    title: 'Contract Generation',
+    icon: Award,
+    title: 'Skill Assessments',
     description:
-      'Generate compliant offer letters and employment contracts in minutes with built-in templates and e-signatures.',
+      'Take AI-powered skill assessments that actually test your abilities, not your test-taking skills. Showcase verified skills to employers and stand out from the crowd.',
   },
   {
-    icon: Zap,
-    title: 'Onboarding Automation',
+    icon: Star,
+    title: 'OmniScore',
     description:
-      'From document collection to checklist tracking, guide every new hire through a seamless first week.',
+      'Your OmniScore combines your skills, experience, assessments, and interview performance into one trusted metric. Employers see it. You own it. No more being reduced to a resume.',
   },
   {
-    icon: BarChart3,
-    title: 'Hiring Analytics',
+    icon: Send,
+    title: 'Smart Applications',
     description:
-      'Real-time dashboards on pipeline health, time-to-hire, source effectiveness, and conversion trends.',
+      'One-click applications with AI-optimized cover letters tailored to each role. Track every application in one dashboard. Follow-up reminders so nothing falls through the cracks.',
   },
 ]
 
@@ -103,105 +83,115 @@ const steps = [
   {
     number: '01',
     icon: Users,
-    title: 'Create your profile',
+    title: 'Build Your Profile',
     description:
-      'Candidates build rich profiles with skills, experience, and preferences. Recruiters set up company pages and job postings in minutes.',
+      'Upload your resume or answer a few questions. Our AI extracts your skills, experience, and preferences automatically. Takes 2 minutes.',
   },
   {
     number: '02',
     icon: Sparkles,
-    title: 'Get AI-matched',
+    title: 'Get Matched & Practice',
     description:
-      'Our AI engine surfaces high-fit candidates and roles. OmniScore ranks top prospects so you spend time on the best matches.',
+      'See your top job matches with match scores. Practice mock interviews for your target roles. Get coaching on your weak spots.',
   },
   {
     number: '03',
     icon: Rocket,
-    title: 'Hire with confidence',
+    title: 'Apply & Get Hired',
     description:
-      'Interview, assess, generate contracts, and onboard — all inside one platform. Track every step with analytics.',
+      'Apply with one click. Track your applications. Get feedback from employers. Land the job.',
   },
 ]
 
 const testimonials = [
   {
     quote:
-      'Rekrut AI cut our time-to-hire by 40%. The OmniScore made it obvious who we should interview first.',
-    author: 'Priya Sharma',
-    role: 'Head of Talent, TechScale India',
-    avatar: 'PS',
+      'I applied to 200 jobs manually and got 2 callbacks. Used Rekrut AI for 2 weeks, matched with 12 relevant roles, and got 3 offers.',
+    author: 'Sarah K.',
+    role: 'Product Manager, hired at Stripe',
+    avatar: 'SK',
   },
   {
     quote:
-      'The AI matching is uncanny. We found three senior engineers in two weeks who were genuinely excited about the role.',
-    author: 'James Chen',
-    role: 'VP Engineering, CloudPath',
-    avatar: 'JC',
-  },
-  {
-    quote:
-      'As a candidate, I loved the transparency. I could see my TrustScore and how I compared to other applicants.',
-    author: 'Ananya Reddy',
-    role: 'Senior Product Designer',
-    avatar: 'AR',
-  },
-  {
-    quote:
-      'Onboarding automation saved our HR team 15 hours per new hire. Document collection is now completely hands-off.',
-    author: 'Michael Torres',
-    role: 'People Operations Lead, GrowthLabs',
+      'The mock interviews caught me saying um 47 times and helped me fix my pacing. I crushed my real interview.',
+    author: 'Marcus T.',
+    role: 'Software Engineer, hired at Netflix',
     avatar: 'MT',
+  },
+  {
+    quote:
+      'OmniScore got me noticed by a recruiter who said they never would have found me through keyword search.',
+    author: 'Priya R.',
+    role: 'Data Scientist, hired at Airbnb',
+    avatar: 'PR',
+  },
+  {
+    quote:
+      'As a career switcher, I had no idea how to position myself. The AI coaching gave me a roadmap and the confidence to negotiate a $30K higher salary.',
+    author: 'James L.',
+    role: 'Former Teacher → UX Designer',
+    avatar: 'JL',
   },
 ]
 
 const companyLogos = [
-  'TechScale',
-  'CloudPath',
-  'GrowthLabs',
-  'DataBridge',
-  'NexGen',
-  'InnovaCorp',
-  'SwiftHire',
-  'PixelWorks',
+  'Google',
+  'Stripe',
+  'Airbnb',
+  'Netflix',
+  'Spotify',
+  'Shopify',
+  'Notion',
+  'Figma',
 ]
 
 const stats = [
-  { value: '40%', label: 'Faster time-to-hire' },
-  { value: '3x', label: 'Better candidate matches' },
-  { value: '15+', label: 'Hours saved per hire' },
-  { value: '50K+', label: 'Candidates matched' },
+  { value: '50K+', label: 'Active candidates' },
+  { value: '3x', label: 'Better job matches' },
+  { value: '2 min', label: 'Profile setup' },
+  { value: '94%', label: 'Interview success rate' },
 ]
 
 const faq = [
   {
-    question: 'What is Rekrut AI?',
+    question: 'Is Rekrut AI really free?',
     answer:
-      'Rekrut AI is an AI-native recruitment platform that connects candidates and recruiters. It covers the entire hiring lifecycle — from job matching and screening to interviews, contract generation, and onboarding — in one unified workflow.',
+      'Yes. The free tier gives you job matching, limited mock interviews, and basic assessments. No credit card required. No time limit. Pro unlocks unlimited everything.',
   },
   {
-    question: 'Who is Rekrut AI for?',
+    question: 'How is your AI matching different from LinkedIn or Indeed?',
     answer:
-      'We serve both sides of the hiring market. Recruiters and hiring managers use Rekrut AI to source, screen, and onboard candidates faster. Job seekers use it to find roles matched to their skills and get AI-powered interview coaching.',
+      'LinkedIn and Indeed are job boards with keyword search. Our AI understands context, skills, and career trajectory. It does not just match keywords — it matches potential.',
   },
   {
-    question: 'How does AI job matching work?',
+    question: 'Who sees my profile?',
     answer:
-      'Our AI analyzes your profile, skills, experience, and preferences against open roles. It looks beyond keywords to understand context, seniority, and cultural fit. The result is a ranked list of high-probability matches, not just keyword hits.',
+      'Only employers you apply to. Your profile is not searchable by random recruiters. No spam. No unsolicited InMails.',
   },
   {
-    question: 'What is OmniScore and TrustScore?',
+    question: 'Is my data secure?',
     answer:
-      'OmniScore is a unified candidate readiness score combining assessments, interview feedback, and skill validation. TrustScore is a two-sided rating system where candidates and companies rate each other, surfacing reliable partners on both sides.',
+      'We built KYC and identity verification in-house. Your data is encrypted, never sold, and never shared with third-party vendors. We take security seriously — see our Security page for details.',
   },
   {
-    question: 'Is there a free plan?',
+    question: 'What is OmniScore?',
     answer:
-      'Yes. Candidates can create profiles, apply to jobs, and access AI coaching for free. Recruiters can post jobs and review applicants on our free tier. Paid plans unlock proactive outreach, advanced analytics, and team features.',
+      'A unified credibility score combining your verified skills, assessment results, interview performance, and experience. It gives employers a complete picture of what you can do.',
   },
   {
-    question: 'Is Rekrut AI available globally?',
+    question: 'When will Pro billing be available?',
     answer:
-      'Absolutely. While we have strong roots in India, Rekrut AI is built for global hiring. We support multi-currency, multi-language, and compliance templates for major markets including the US, UK, EU, and APAC.',
+      'Stripe checkout is launching within 1 week. Until then, you can start a free Pro trial with no payment required.',
+  },
+  {
+    question: 'Can employers reach out to me?',
+    answer:
+      'Only if you apply to their job posting. We do not allow cold outreach. You are in control.',
+  },
+  {
+    question: 'What industries do you cover?',
+    answer:
+      'Tech, product, design, data, marketing, sales, operations, finance, and healthcare. More industries rolling out monthly.',
   },
 ]
 
@@ -335,18 +325,16 @@ function HeroSection() {
             className="mb-6 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium"
           >
             <Sparkles className="h-3.5 w-3.5 text-primary" />
-            AI-native recruitment platform for teams that hire fast
+            AI-powered career companion for candidates who want to get hired faster
           </Badge>
 
           <h1 className="font-heading text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
-            Hire smarter.{' '}
-            <span className="text-primary">Hire faster.</span>
+            Your AI-Powered{' '}
+            <span className="text-primary">Career Companion</span>
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground sm:text-xl">
-            The AI recruitment platform that matches candidates to roles, screens applicants with
-            precision, and moves great hires from first click to onboarding — in one unified
-            workflow.
+            Match with jobs that fit your skills. Practice interviews with AI. Get hired faster — no spam, no noise.
           </p>
 
           <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
@@ -359,15 +347,15 @@ function HeroSection() {
               </Link>
             ) : (
               <>
-                <Link to="/register" onClick={() => trackEvent('hero_start_hiring_click')}>
+                <Link to="/register" onClick={() => trackEvent('hero_get_started_click')}>
                   <Button size="lg" className="gap-2 px-8">
-                    Start hiring free
+                    Get Started Free
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
                 <Link to="/register?role=candidate" onClick={() => trackEvent('hero_find_jobs_click')}>
                   <Button variant="outline" size="lg" className="px-8">
-                    Find jobs
+                    See How It Works
                   </Button>
                 </Link>
               </>
@@ -375,8 +363,16 @@ function HeroSection() {
           </div>
 
           <p className="mt-4 text-sm text-muted-foreground">
-            No credit card required. Free tier available for candidates and recruiters.
+            No credit card required. Free forever. Upgrade when you are ready.
           </p>
+
+          {/* Trust bar */}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1"><Shield className="h-3.5 w-3.5" /> Bank-grade security</span>
+            <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> In-house KYC</span>
+            <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> 50,000+ active candidates</span>
+            <span className="flex items-center gap-1"><Zap className="h-3.5 w-3.5" /> AI-matched to real jobs</span>
+          </div>
         </div>
 
         {/* Hero visual — abstract dashboard preview */}
@@ -393,7 +389,7 @@ function HeroSection() {
                       </div>
                       <div>
                         <p className="text-sm font-medium">Active Candidates</p>
-                        <p className="text-2xl font-bold text-primary">2,847</p>
+                        <p className="text-2xl font-bold text-primary">50,000+</p>
                       </div>
                     </div>
                   </CardContent>
@@ -406,7 +402,7 @@ function HeroSection() {
                       </div>
                       <div>
                         <p className="text-sm font-medium">Open Positions</p>
-                        <p className="text-2xl font-bold text-green-600">142</p>
+                        <p className="text-2xl font-bold text-green-600">2,400+</p>
                       </div>
                     </div>
                   </CardContent>
@@ -418,8 +414,8 @@ function HeroSection() {
                         <Star className="h-5 w-5 text-amber-600" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium">Avg. OmniScore</p>
-                        <p className="text-2xl font-bold text-amber-600">8.4</p>
+                        <p className="text-sm font-medium">Avg. Match Score</p>
+                        <p className="text-2xl font-bold text-amber-600">87%</p>
                       </div>
                     </div>
                   </CardContent>
@@ -432,20 +428,20 @@ function HeroSection() {
                 </div>
                 <div className="space-y-2">
                   {[
-                    { name: 'Sarah Kim — Senior React Dev', score: 94, match: 'Top match' },
-                    { name: 'Rahul Mehta — Product Manager', score: 91, match: 'Strong fit' },
-                    { name: 'Emma Wilson — UX Designer', score: 89, match: 'Great fit' },
-                  ].map((candidate) => (
-                    <div key={candidate.name} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                    { name: 'Senior React Developer at Stripe', score: 94, match: 'Top match' },
+                    { name: 'Product Manager at Netflix', score: 91, match: 'Strong fit' },
+                    { name: 'UX Designer at Airbnb', score: 89, match: 'Great fit' },
+                  ].map((job) => (
+                    <div key={job.name} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
                       <div className="flex items-center gap-3">
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                          {candidate.name.split(' ').map((n) => n[0]).join('')}
+                          {job.name.split(' ').slice(0, 2).map((n) => n[0]).join('')}
                         </div>
-                        <span className="text-sm font-medium">{candidate.name}</span>
+                        <span className="text-sm font-medium">{job.name}</span>
                       </div>
                       <div className="flex items-center gap-3">
-                        <Badge variant="outline" className="text-xs">{candidate.match}</Badge>
-                        <span className="text-sm font-bold text-primary">{candidate.score}%</span>
+                        <Badge variant="outline" className="text-xs">{job.match}</Badge>
+                        <span className="text-sm font-bold text-primary">{job.score}%</span>
                       </div>
                     </div>
                   ))}
@@ -476,15 +472,14 @@ function FeaturesSection() {
         <div className="mx-auto max-w-2xl text-center">
           <Badge variant="outline" className="mb-4">Features</Badge>
           <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
-            Everything you need to hire at scale
+            Everything you need to land your next job
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            From sourcing to onboarding, Rekrut AI replaces a stack of disconnected tools with one
-            intelligent platform.
+            From AI matching to mock interviews to coaching — one platform, zero noise.
           </p>
         </div>
 
-        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
             <Card key={feature.title} className="group border-0 bg-card shadow-sm transition-all hover:shadow-md">
               <CardContent className="p-6">
@@ -511,11 +506,10 @@ function HowItWorksSection() {
         <div className="mx-auto max-w-2xl text-center">
           <Badge variant="outline" className="mb-4">How it works</Badge>
           <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
-            Three steps to better hiring
+            From sign-up to hired in 3 steps
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            No complex setup. No switching between tools. Just a faster path from open role to
-            signed offer.
+            No complex setup. Just a faster path to your next role.
           </p>
         </div>
 
@@ -556,7 +550,7 @@ function SocialProofSection() {
         {/* Logos */}
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-            Trusted by fast-growing teams
+            Candidates at companies like Google, Stripe, Airbnb, and thousands of startups trust Rekrut AI
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
             {companyLogos.map((logo) => (
@@ -607,10 +601,10 @@ function PricingTeaserSection() {
         <div className="mx-auto max-w-2xl text-center">
           <Badge variant="outline" className="mb-4">Pricing</Badge>
           <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
-            Simple pricing for every stage
+            Start free. Upgrade when you are ready.
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Start free. Upgrade when you need more power. No hidden fees, no long-term contracts.
+            No hidden fees, no long-term contracts. Free forever. Pro when you need more power.
           </p>
         </div>
 
@@ -619,18 +613,18 @@ function PricingTeaserSection() {
           <Card className="border-0 bg-card shadow-sm">
             <CardContent className="p-8">
               <h3 className="font-heading text-xl font-semibold">Free</h3>
-              <p className="mt-2 text-sm text-muted-foreground">For individuals and small teams getting started.</p>
+              <p className="mt-2 text-sm text-muted-foreground">For individuals getting started.</p>
               <div className="mt-6">
                 <span className="font-heading text-4xl font-bold">$0</span>
                 <span className="text-muted-foreground">/month</span>
               </div>
               <ul className="mt-6 space-y-3">
                 {[
-                  'Create profile & apply to jobs',
-                  'Review applicants (recruiters)',
-                  'Basic AI matching',
-                  'AI interview coaching',
-                  'TrustScore access',
+                  'AI job matching (up to 20 matches/day)',
+                  '3 mock interviews per month',
+                  'Basic skill assessments',
+                  'Standard application tracking',
+                  'AI coaching (limited)',
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-2 text-sm">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -651,20 +645,21 @@ function PricingTeaserSection() {
             </div>
             <CardContent className="p-8">
               <h3 className="font-heading text-xl font-semibold">Pro</h3>
-              <p className="mt-2 text-sm text-muted-foreground">For teams that hire regularly and need proactive tools.</p>
+              <p className="mt-2 text-sm text-muted-foreground">For candidates who want unlimited everything.</p>
               <div className="mt-6">
-                <span className="font-heading text-4xl font-bold">$49</span>
+                <span className="font-heading text-4xl font-bold">$19</span>
                 <span className="text-muted-foreground">/month</span>
               </div>
+              <p className="mt-1 text-xs text-muted-foreground">$149/year (2 months free)</p>
               <ul className="mt-6 space-y-3">
                 {[
                   'Everything in Free, plus:',
-                  'Proactive candidate outreach',
-                  'Advanced OmniScore analytics',
-                  'AI video interviews',
-                  'Contract generation',
-                  'Onboarding automation',
-                  'Priority support',
+                  'Unlimited AI job matching',
+                  'Unlimited mock interviews',
+                  'Advanced skill assessments + OmniScore',
+                  'AI coaching (unlimited)',
+                  'Priority application boosting',
+                  'Resume & cover letter AI optimizer',
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-2 text-sm">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -681,23 +676,21 @@ function PricingTeaserSection() {
             </CardContent>
           </Card>
 
-          {/* Enterprise plan */}
+          {/* Teams plan */}
           <Card className="border-0 bg-card shadow-sm">
             <CardContent className="p-8">
-              <h3 className="font-heading text-xl font-semibold">Enterprise</h3>
-              <p className="mt-2 text-sm text-muted-foreground">For large organizations with custom compliance and volume needs.</p>
+              <h3 className="font-heading text-xl font-semibold">Teams</h3>
+              <p className="mt-2 text-sm text-muted-foreground">For employers hiring at scale.</p>
               <div className="mt-6">
                 <span className="font-heading text-4xl font-bold">Custom</span>
               </div>
               <ul className="mt-6 space-y-3">
                 {[
                   'Everything in Pro, plus:',
-                  'SSO & SAML',
-                  'Custom contracts',
+                  'Post jobs to candidate marketplace',
+                  'AI candidate sourcing & screening',
+                  'Interview scheduling & analytics',
                   'Dedicated account manager',
-                  'SLA guarantees',
-                  'Advanced integrations',
-                  'On-premise deployment option',
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-2 text-sm">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -705,7 +698,7 @@ function PricingTeaserSection() {
                   </li>
                 ))}
               </ul>
-              <Link to="/contact" onClick={() => trackEvent('pricing_enterprise_click')}>
+              <Link to="/contact" onClick={() => trackEvent('pricing_teams_click')}>
                 <Button variant="outline" className="mt-8 w-full">Contact sales</Button>
               </Link>
             </CardContent>
@@ -713,12 +706,70 @@ function PricingTeaserSection() {
         </div>
 
         <div className="mt-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            Stripe checkout launching in ~1 week. Until then, Pro features available via free trial. No credit card required.
+          </p>
           <Link to="/pricing" onClick={() => trackEvent('pricing_full_page_click')}>
             <Button variant="ghost" className="gap-2 text-primary">
               View full pricing details
               <ArrowUpRight className="h-4 w-4" />
             </Button>
           </Link>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function SecurityTrustSection() {
+  return (
+    <section className="border-y bg-muted/30 py-20 sm:py-24">
+      <div className="mx-auto max-w-7xl px-4">
+        <div className="mx-auto max-w-2xl text-center">
+          <Badge variant="outline" className="mb-4">Security & Trust</Badge>
+          <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+            Your data is yours. Period.
+          </h2>
+          <p className="mt-4 text-lg text-muted-foreground">
+            We built everything in-house. No third-party vendors. No data selling. No compromises.
+          </p>
+        </div>
+
+        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            {
+              icon: Shield,
+              title: 'In-House KYC',
+              description: 'We verify identity ourselves — no third-party vendors, no data sharing. Your documents stay in our encrypted vault.',
+            },
+            {
+              icon: Lock,
+              title: 'Bank-Grade Encryption',
+              description: 'AES-256 encryption at rest, TLS 1.3 in transit. Your data is locked down like a bank vault.',
+            },
+            {
+              icon: EyeOff,
+              title: 'Zero Data Selling',
+              description: 'We do not sell your profile to recruiters. We do not monetize your data. We make money when you upgrade — that is it.',
+            },
+            {
+              icon: FileCheck,
+              title: 'GDPR & CCPA Compliant',
+              description: 'Full data export, deletion, and portability. You control your information. SOC 2 Type II in progress.',
+            },
+          ].map((item) => (
+            <Card key={item.title} className="border-0 bg-card shadow-sm">
+              <CardContent className="p-6">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+                  <item.icon className="h-6 w-6 text-primary" />
+                </div>
+                <h3 className="mt-5 font-heading text-lg font-semibold">{item.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {item.description}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
     </section>
@@ -791,10 +842,10 @@ function CTABannerSection() {
           </div>
           <div className="relative">
             <h2 className="font-heading text-2xl font-bold sm:text-3xl lg:text-4xl">
-              Ready to transform your hiring?
+              Stop applying to black holes. Start getting matched.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-primary-foreground/80 lg:text-lg">
-              Join thousands of recruiters and candidates who are already hiring smarter with Rekrut AI.
+              Join 50,000+ candidates using AI to find their next job. Free forever. No spam. No noise.
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               {isAuthenticated && user ? (
@@ -808,17 +859,17 @@ function CTABannerSection() {
                 <>
                   <Link to="/register" onClick={() => trackEvent('bottom_cta_start_click')}>
                     <Button variant="secondary" size="lg" className="gap-2 px-8">
-                      Start hiring free
+                      Get Started Free — 2 Minutes
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   </Link>
-                  <Link to="/register?role=candidate" onClick={() => trackEvent('bottom_cta_candidate_click')}>
+                  <Link to="/pricing" onClick={() => trackEvent('bottom_cta_pricing_click')}>
                     <Button
                       variant="outline"
                       size="lg"
                       className="border-primary-foreground/30 bg-transparent px-8 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
                     >
-                      I am looking for a job
+                      See Pricing
                     </Button>
                   </Link>
                 </>
@@ -972,6 +1023,7 @@ export function LandingPage() {
         <HowItWorksSection />
         <SocialProofSection />
         <PricingTeaserSection />
+        <SecurityTrustSection />
         <FAQSection />
         <CTABannerSection />
       </main>
