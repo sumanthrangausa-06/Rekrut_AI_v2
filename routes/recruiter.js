@@ -922,7 +922,7 @@ router.get('/candidates/full', authMiddleware, requireRecruiter, async (req, res
 
     // Get candidates with full data
     const result = await pool.query(`
-      SELECT DISTINCT ON (u.id)
+      SELECT
         u.id,
         u.name,
         u.email,
@@ -934,23 +934,30 @@ router.get('/candidates/full', authMiddleware, requireRecruiter, async (req, res
         cp.salary_min,
         cp.salary_max,
         cp.remote_preference,
-        COALESCE(os.total_score, ja.match_score, 0) as omniscore,
+        COALESCE(os.total_score, latest_ja.match_score, 0) as omniscore,
         os.score_tier,
-        ja.status as application_status,
-        ja.applied_at,
-        ja.match_score,
-        (SELECT COUNT(*) FROM candidate_skills cs WHERE cs.user_id = u.id) as skill_count,
+        latest_ja.status as application_status,
+        latest_ja.applied_at,
+        latest_ja.match_score,
+        (SELECT COUNT(*) FROM candidate_skills csi WHERE csi.user_id = u.id) as skill_count,
         (SELECT json_agg(json_build_object(
-          'name', cs.skill_name,
-          'level', cs.level,
-          'category', cs.category
-        )) FROM candidate_skills cs WHERE cs.user_id = u.id ORDER BY cs.level DESC LIMIT 10) as skills
-      FROM job_applications ja
-      JOIN users u ON ja.candidate_id = u.id
+          'name', csk2.skill_name,
+          'level', csk2.level,
+          'category', csk2.category
+        ))
+        FROM (SELECT * FROM candidate_skills csk2 WHERE csk2.user_id = u.id LIMIT 10) csk2
+        ) as skills
+      FROM (
+        SELECT DISTINCT ON (candidate_id) candidate_id, status, applied_at, match_score, company_id
+        FROM job_applications
+        WHERE company_id = $1
+        ORDER BY candidate_id, applied_at DESC
+      ) latest_ja
+      JOIN users u ON latest_ja.candidate_id = u.id
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
       LEFT JOIN omni_scores os ON os.user_id = u.id
-      WHERE ${whereClause}
-      ORDER BY u.id, ja.applied_at DESC
+      WHERE ${whereClause.replace(/ja\./g, 'latest_ja.')}
+      ORDER BY latest_ja.applied_at DESC
       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
     `, [...params, parseInt(limit), offset]);
 
