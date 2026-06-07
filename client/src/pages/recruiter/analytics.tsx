@@ -78,7 +78,7 @@ export function RecruiterAnalyticsPage() {
       setLoading(true)
       try {
         const [dashboardData, jobsData] = await Promise.all([
-          apiCall<AnalyticsData>(`/recruiter/dashboard?days=${timeRange}`),
+          apiCall<AnalyticsData>(`/recruiter/analytics?days=${timeRange}`),
           apiCall<{ jobs: AnalyticsData['jobs'] }>(`/recruiter/jobs?days=${timeRange}`),
         ])
 
