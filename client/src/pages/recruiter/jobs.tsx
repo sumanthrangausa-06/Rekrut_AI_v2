@@ -1,3 +1,4 @@
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from '@/components/ui/sheet'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiCall } from '@/lib/api'
@@ -12,7 +13,8 @@ import {
   BarChart3, Clock, TrendingUp, ArrowRight, ChevronRight, MoreHorizontal,
   Filter, Sparkles, CheckCircle2, XCircle, PauseCircle, PlayCircle,
   LayoutGrid, List, Kanban, Zap, MessageSquare, Video, FileText,
-  GripVertical, MoveRight, ArrowUpRight, ArrowDownRight, Minus,
+  GripVertical, MoveRight, ArrowUpRight, ArrowDownRight, Minus, X,
+  ChevronLeft, ExternalLink, GraduationCap, DollarSign, Calendar,
 } from 'lucide-react'
 
 interface Job {
@@ -70,6 +72,8 @@ export function RecruiterJobsPage() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
   const [showJobDetail, setShowJobDetail] = useState(false)
 
+  const [showMobilePanel, setShowMobilePanel] = useState(false)
+
   useEffect(() => {
     loadJobs()
   }, [])
@@ -111,6 +115,18 @@ export function RecruiterJobsPage() {
     }
   }
 
+  function openJobDetail(job: Job) {
+    setSelectedJob(job)
+    setShowJobDetail(true)
+    setShowMobilePanel(true)
+  }
+
+  function closeJobDetail() {
+    setShowJobDetail(false)
+    setShowMobilePanel(false)
+    setSelectedJob(null)
+  }
+
   const filtered = jobs.filter(j => {
     const matchSearch = !search ||
       j.title?.toLowerCase().includes(search.toLowerCase()) ||
@@ -126,8 +142,6 @@ export function RecruiterJobsPage() {
   const avgTimeToFill = jobs.length > 0
     ? Math.round(jobs.reduce((sum, j) => sum + (j.time_to_fill || 0), 0) / jobs.filter(j => j.time_to_fill).length)
     : 0
-
-  const jobDetail = selectedJob || filtered[0]
 
   return (
     <div className="space-y-6">
@@ -269,8 +283,11 @@ export function RecruiterJobsPage() {
               <Card key={job.id} className="transition-shadow hover:shadow-md overflow-hidden">
                 <CardContent className="p-4">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                    {/* Left: Job info */}
-                    <div className="min-w-0 flex-1">
+                    {/* Left: Job info — clickable to open detail panel on mobile/tablet */}
+                    <div
+                      className="min-w-0 flex-1 cursor-pointer"
+                      onClick={() => openJobDetail(job)}
+                    >
                       <div className="flex items-center gap-2 mb-2">
                         <h3 className="font-semibold text-lg">{job.title}</h3>
                         <Badge variant={status.variant} className="gap-1">
@@ -340,31 +357,32 @@ export function RecruiterJobsPage() {
                           <p className="text-[10px] text-muted-foreground">Hired</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex flex-wrap items-center gap-1">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => navigate(`/recruiter/jobs/${job.id}/applicants`)}
-                          className="gap-1"
+                          className="gap-1 min-h-[44px] min-w-[44px]"
                           title="View applicants"
                         >
                           <Users className="h-3.5 w-3.5" />
-                          <span className="text-xs">Applicants</span>
+                          <span className="text-xs hidden sm:inline">Applicants</span>
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => navigate(`/recruiter/jobs/${job.id}/edit`)}
-                          className="gap-1"
+                          className="gap-1 min-h-[44px] min-w-[44px]"
                           title="Edit job"
                         >
                           <Edit className="h-3.5 w-3.5" />
+                          <span className="text-xs hidden sm:inline">Edit</span>
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => toggleJobStatus(job)}
-                          className="gap-1"
+                          className="gap-1 min-h-[44px] min-w-[44px]"
                           title={job.status === 'active' ? 'Pause job' : 'Activate job'}
                         >
                           {job.status === 'active' ? (
@@ -372,13 +390,14 @@ export function RecruiterJobsPage() {
                           ) : (
                             <PlayCircle className="h-3.5 w-3.5" />
                           )}
+                          <span className="text-xs hidden sm:inline">{job.status === 'active' ? 'Pause' : 'Activate'}</span>
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => deleteJob(job.id)}
                           disabled={deleting === job.id}
-                          className="text-destructive hover:text-destructive"
+                          className="text-destructive hover:text-destructive min-h-[44px] min-w-[44px]"
                           title="Delete job"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -397,8 +416,10 @@ export function RecruiterJobsPage() {
           {filtered.map(job => {
             const status = statusColors[job.status] || statusColors.draft
             return (
-              <Card key={job.id} className="transition-shadow hover:shadow-md cursor-pointer"
-                onClick={() => navigate(`/recruiter/jobs/${job.id}/applicants`)}
+              <Card
+                key={job.id}
+                className="transition-shadow hover:shadow-md cursor-pointer"
+                onClick={() => openJobDetail(job)}
               >
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-center justify-between">
@@ -433,6 +454,235 @@ export function RecruiterJobsPage() {
           })}
         </div>
       )}
+
+      {/* === MOBILE JOB DETAIL DRAWER (Sheet) === */}
+      <Sheet
+        open={showMobilePanel}
+        onOpenChange={setShowMobilePanel}
+        side="right"
+        className="w-full sm:w-[480px] md:w-[520px]"
+      >
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <Briefcase className="h-5 w-5" />
+            Job Details
+          </SheetTitle>
+          <SheetClose />
+        </SheetHeader>
+        <SheetContent>
+          {selectedJob && (
+            <JobDetailPanel
+              job={selectedJob}
+              onClose={closeJobDetail}
+              onViewApplicants={() => navigate(`/recruiter/jobs/${selectedJob.id}/applicants`)}
+              onEdit={() => navigate(`/recruiter/jobs/${selectedJob.id}/edit`)}
+              onToggleStatus={() => toggleJobStatus(selectedJob)}
+              onDelete={() => deleteJob(selectedJob.id)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
+    </div>
+  )
+}
+
+// === JOB DETAIL PANEL (Responsive for mobile & desktop) ===
+function JobDetailPanel({
+  job,
+  onClose,
+  onViewApplicants,
+  onEdit,
+  onToggleStatus,
+  onDelete,
+}: {
+  job: Job
+  onClose: () => void
+  onViewApplicants: () => void
+  onEdit: () => void
+  onToggleStatus: () => void
+  onDelete: () => void
+}) {
+  const status = statusColors[job.status] || statusColors.draft
+  const totalPipeline =
+    (job.application_count || 0) +
+    (job.interviews || 0) +
+    (job.offer_count || 0) +
+    (job.hired_count || 0)
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="font-bold text-lg leading-tight">{job.title}</h2>
+          <Badge variant={status.variant} className="gap-1">
+            {status.icon}
+            {status.label}
+          </Badge>
+          {job.status === 'active' && (
+            <Badge variant="outline" className="text-[10px] gap-1 bg-green-50 text-green-700 border-green-200">
+              <ArrowUpRight className="h-3 w-3" />
+              Live
+            </Badge>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          {job.department && (
+            <span className="flex items-center gap-1">
+              <Briefcase className="h-3.5 w-3.5" />
+              {job.department}
+            </span>
+          )}
+          {job.location && (
+            <span className="flex items-center gap-1">
+              <MapPin className="h-3.5 w-3.5" />
+              {job.location}
+            </span>
+          )}
+          {job.job_type && <Badge variant="outline" className="text-[10px]">{job.job_type}</Badge>}
+          {job.salary_range && <Badge variant="outline" className="text-[10px]">{job.salary_range}</Badge>}
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {timeAgo(job.created_at)}
+          </span>
+        </div>
+      </div>
+
+      {/* Pipeline Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="rounded-lg bg-muted/50 p-3 text-center">
+          <p className="text-2xl font-bold">{job.application_count || 0}</p>
+          <p className="text-[10px] text-muted-foreground">Applicants</p>
+        </div>
+        <div className="rounded-lg bg-muted/50 p-3 text-center">
+          <p className="text-2xl font-bold">{job.views || 0}</p>
+          <p className="text-[10px] text-muted-foreground">Views</p>
+        </div>
+        <div className="rounded-lg bg-muted/50 p-3 text-center">
+          <p className="text-2xl font-bold text-emerald-600">{job.hired_count || 0}</p>
+          <p className="text-[10px] text-muted-foreground">Hired</p>
+        </div>
+        <div className="rounded-lg bg-muted/50 p-3 text-center">
+          <p className="text-2xl font-bold">{job.interviews || 0}</p>
+          <p className="text-[10px] text-muted-foreground">Interviews</p>
+        </div>
+        <div className="rounded-lg bg-muted/50 p-3 text-center">
+          <p className="text-2xl font-bold text-amber-600">{job.offer_count || 0}</p>
+          <p className="text-[10px] text-muted-foreground">Offers</p>
+        </div>
+        <div className="rounded-lg bg-muted/50 p-3 text-center">
+          <p className="text-2xl font-bold">{job.time_to_fill || '—'}</p>
+          <p className="text-[10px] text-muted-foreground">Days to Fill</p>
+        </div>
+      </div>
+
+      {/* Pipeline Progress Bar */}
+      {totalPipeline > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium">Pipeline Progress</h4>
+            <span className="text-xs text-muted-foreground">{totalPipeline} total</span>
+          </div>
+          <div className="flex items-center gap-1">
+            {pipelineStages.map(stage => {
+              const count =
+                stage.id === 'applied'
+                  ? job.application_count || 0
+                  : stage.id === 'screening'
+                    ? 0
+                    : stage.id === 'interview'
+                      ? job.interviews || 0
+                      : stage.id === 'offer'
+                        ? job.offer_count || 0
+                        : stage.id === 'hired'
+                          ? job.hired_count || 0
+                          : 0
+              if (count === 0) return null
+              return (
+                <div
+                  key={stage.id}
+                  className={`h-3 rounded-full ${stage.color}`}
+                  style={{ width: `${Math.max((count / totalPipeline) * 100, 4)}%` }}
+                  title={`${stage.label}: ${count}`}
+                />
+              )
+            })}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {pipelineStages.map(stage => {
+              const count =
+                stage.id === 'applied'
+                  ? job.application_count || 0
+                  : stage.id === 'screening'
+                    ? 0
+                    : stage.id === 'interview'
+                      ? job.interviews || 0
+                      : stage.id === 'offer'
+                        ? job.offer_count || 0
+                        : stage.id === 'hired'
+                          ? job.hired_count || 0
+                          : 0
+              if (count === 0) return null
+              return (
+                <div key={stage.id} className="flex items-center gap-1">
+                  <div className={`h-2 w-2 rounded-full ${stage.color}`} />
+                  <span className="text-[10px] text-muted-foreground">
+                    {stage.label}: {count}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Mobile-optimized action buttons */}
+      <div className="space-y-2">
+        <Button
+          className="w-full gap-2 min-h-[48px] text-base"
+          onClick={onViewApplicants}
+        >
+          <Users className="h-5 w-5" />
+          View Applicants
+        </Button>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            variant="outline"
+            className="gap-2 min-h-[48px]"
+            onClick={onEdit}
+          >
+            <Edit className="h-4 w-4" />
+            Edit Job
+          </Button>
+          <Button
+            variant="outline"
+            className="gap-2 min-h-[48px]"
+            onClick={onToggleStatus}
+          >
+            {job.status === 'active' ? (
+              <>
+                <PauseCircle className="h-4 w-4" />
+                Pause
+              </>
+            ) : (
+              <>
+                <PlayCircle className="h-4 w-4" />
+                Activate
+              </>
+            )}
+          </Button>
+        </div>
+
+        <Button
+          variant="ghost"
+          className="w-full gap-2 text-destructive hover:text-destructive hover:bg-red-50 min-h-[48px]"
+          onClick={onDelete}
+        >
+          <Trash2 className="h-4 w-4" />
+          Delete Job
+        </Button>
+      </div>
     </div>
   )
 }
