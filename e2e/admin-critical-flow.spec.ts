@@ -49,7 +49,7 @@ test.describe('Admin Critical Flow', () => {
     await page.getByRole('button', { name: /Sign in|Login/i }).click();
 
     // Wait for login to complete and any redirect to settle
-    await page.waitForURL(/.*\/admin\/(ai-health|dashboard|analytics|agents)/, { timeout: 10000 });
+    await expect(page).toHaveURL(/.*\/admin\/(ai-health|dashboard|analytics|agents)/, { timeout: 10000 });
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(800);
 
