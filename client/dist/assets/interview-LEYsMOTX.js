@@ -1,0 +1,1 @@
+import{a as e}from"./react-BzTWj-t8.js";import{a as t}from"./router-BU3fWQCq.js";function n(){const a=t();return e.useEffect(()=>{a("/candidate/ai-coaching",{replace:!0})},[a]),null}export{n as InterviewPage};
