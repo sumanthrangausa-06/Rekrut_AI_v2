@@ -60,8 +60,7 @@ test.describe('Candidate Apply Flow', () => {
     }
 
     if (targetJobIndex === -1) {
-      test.skip(true, 'Created job not found or already applied — skipping');
-      return;
+      throw new Error('Created job not found in jobs list — candidate test cannot proceed');
     }
 
     const targetJob = jobCards.nth(targetJobIndex);
@@ -73,8 +72,7 @@ test.describe('Candidate Apply Flow', () => {
     // Some job cards may not navigate to a detail page (SPA behavior varies)
     const currentUrl = page.url();
     if (!currentUrl.match(/.*\/candidate\/jobs\/\d+/)) {
-      test.skip(true, 'Job cards do not navigate to detail page in current UI — skipping');
-      return;
+      throw new Error('Job cards do not navigate to detail page in current UI — test cannot proceed');
     }
 
     // Wait for the detail panel to show the Apply button
