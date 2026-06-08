@@ -382,8 +382,7 @@ router.get('/team-status', requireAdmin, async (req, res) => {
 // GET /api/admin/compliance/decisions — AI decision audit trail
 router.get('/compliance/decisions', requireAdmin, async (req, res) => {
   try {
-    const limit = Math.min(safeInt(req.query.limit, 50), 500);
-    const offset = safeInt(req.query.offset, 0);
+    const { limit = 50, offset = 0 } = req.query;
 
     // Get all AI decision logs from audit_logs
     const result = await pool.query(`
@@ -462,16 +461,6 @@ function mapDecisionType(actionType) {
     'score_appeal_submitted': 'scoring',
   };
   return typeMap[actionType] || 'scoring';
-}
-
-function safeFloat(value, fallback = 0) {
-  const parsed = parseFloat(value);
-  return Number.isNaN(parsed) ? fallback : parsed;
-}
-
-function safeInt(value, fallback = 0) {
-  const parsed = parseInt(value, 10);
-  return Number.isNaN(parsed) ? fallback : parsed;
 }
 
 // GET /api/admin/compliance/bias-report — latest bias detection report
@@ -607,9 +596,6 @@ router.get('/compliance/risk-classifications', requireAdmin, async (req, res) =>
 router.post('/compliance/decisions/:id/review', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    if (!id || !/^\d+$/.test(id)) {
-      return res.status(400).json({ error: 'Invalid decision ID' });
-    }
 
     await pool.query(`
       UPDATE audit_logs
@@ -631,8 +617,7 @@ router.post('/compliance/decisions/:id/review', requireAdmin, async (req, res) =
 // GET /api/admin/compliance/explanations — explainability log of all AI decisions
 router.get('/compliance/explanations', requireAdmin, async (req, res) => {
   try {
-    const limit = Math.min(safeInt(req.query.limit, 50), 500);
-    const offset = safeInt(req.query.offset, 0);
+    const { limit = 50, offset = 0 } = req.query;
 
     const result = await pool.query(`
       SELECT
@@ -681,17 +666,7 @@ router.get('/compliance/explanations', requireAdmin, async (req, res) => {
 // GET /api/admin/compliance/overrides — human override tracking
 router.get('/compliance/overrides', requireAdmin, async (req, res) => {
   try {
-    const limit = Math.min(safeInt(req.query.limit, 50), 500);
-    const offset = safeInt(req.query.offset, 0);
-    const { startDate, endDate } = req.query;
-    
-    // Validate date formats if provided
-    if (startDate && !/^\d{4}-\d{2}-\d{2}/.test(startDate)) {
-      return res.status(400).json({ error: 'Invalid startDate format. Use ISO 8601.' });
-    }
-    if (endDate && !/^\d{4}-\d{2}-\d{2}/.test(endDate)) {
-      return res.status(400).json({ error: 'Invalid endDate format. Use ISO 8601.' });
-    }
+    const { limit = 50, offset = 0, startDate, endDate } = req.query;
     
     let dateFilter = '';
     const params = [limit, offset];
@@ -740,22 +715,9 @@ router.get('/compliance/overrides', requireAdmin, async (req, res) => {
       overrideReason: row.override_reason || 'No reason provided',
       jobTitle: row.job_title || 'N/A',
       aiModel: row.ai_model || 'unknown',
-      aiConfidence: safeFloat(row.ai_confidence, 0.85),
+      aiConfidence: parseFloat(row.ai_confidence || 0.85),
       overrideFromIp: row.override_from_ip,
     }));
-
-    // Build separate date params for the stats query (no LIMIT/OFFSET)
-    const statsDateParams = [];
-    let statsParamIdx = 1;
-    let statsDateFilter = '';
-    if (startDate) {
-      statsDateFilter += ` AND created_at >= $${statsParamIdx++}`;
-      statsDateParams.push(startDate);
-    }
-    if (endDate) {
-      statsDateFilter += ` AND created_at <= $${statsParamIdx++}`;
-      statsDateParams.push(endDate);
-    }
 
     const statsResult = await pool.query(`
       SELECT
@@ -765,8 +727,8 @@ router.get('/compliance/overrides', requireAdmin, async (req, res) => {
         AVG(CASE WHEN metadata->>'ai_confidence' IS NOT NULL THEN (metadata->>'ai_confidence')::float END) as avg_ai_confidence
       FROM audit_logs
       WHERE action_type = 'human_override'
-        ${statsDateFilter}
-    `, statsDateParams);
+        ${dateFilter}
+    `, params.slice(2));
 
     const stats = statsResult.rows[0] || {};
 
@@ -774,10 +736,10 @@ router.get('/compliance/overrides', requireAdmin, async (req, res) => {
       success: true,
       overrides,
       summary: {
-        totalOverrides: safeInt(stats.total_overrides, 0),
-        uniqueRecruiters: safeInt(stats.unique_recruiters, 0),
-        uniqueCandidates: safeInt(stats.unique_candidates, 0),
-        avgAiConfidence: safeFloat(stats.avg_ai_confidence, 0.85),
+        totalOverrides: parseInt(stats.total_overrides || 0),
+        uniqueRecruiters: parseInt(stats.unique_recruiters || 0),
+        uniqueCandidates: parseInt(stats.unique_candidates || 0),
+        avgAiConfidence: parseFloat(stats.avg_ai_confidence || 0.85).toFixed(2),
       }
     });
   } catch (error) {
@@ -987,248 +949,81 @@ router.get('/compliance/risk-checklist', requireAdmin, async (req, res) => {
   }
 });
 
-// GET /api/admin/compliance/bias-reports — historical bias reports list
-router.get('/compliance/bias-reports', requireAdmin, async (req, res) => {
-  try {
-    const limit = Math.min(safeInt(req.query.limit, 10), 500);
-    const offset = safeInt(req.query.offset, 0);
-
-    const result = await pool.query(
-      `SELECT id, audit_date, audit_type, overall_fairness_score, issues_found,
-              demographic_breakdowns, appeal_stats, created_at
-       FROM fairness_audits
-       ORDER BY audit_date DESC
-       LIMIT $1 OFFSET $2`,
-      [limit, offset]
-    );
-
-    const countResult = await pool.query(
-      `SELECT COUNT(*) as total FROM fairness_audits`
-    );
-
-    const reports = result.rows.map(row => ({
-      id: row.id,
-      auditDate: row.audit_date,
-      auditType: row.audit_type,
-      overallFairnessScore: parseFloat(row.overall_fairness_score) || 0,
-      issuesFound: parseInt(row.issues_found) || 0,
-      demographicCount: Array.isArray(row.demographic_breakdowns) ? row.demographic_breakdowns.length : 0,
-      appealCount: Array.isArray(row.appeal_stats) ? row.appeal_stats.length : 0,
-      createdAt: row.created_at,
-    }));
-
-    res.json({
-      success: true,
-      reports,
-      total: parseInt(countResult.rows[0].total),
-      limit,
-      offset,
-    });
-  } catch (error) {
-    console.error('[admin/compliance/bias-reports] Error:', error.message);
-    res.status(500).json({ error: 'Failed to load bias reports' });
-  }
-});
-
-// GET /api/admin/compliance/performance — model performance metrics
-router.get('/compliance/performance', requireAdmin, async (req, res) => {
-  try {
-    const days = Math.min(Math.max(safeInt(req.query.days, 30), 1), 365);
-    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
-    // Decision volume over time
-    const volumeResult = await pool.query(
-      `SELECT DATE(created_at) as date, COUNT(*) as count
-       FROM audit_logs
-       WHERE action_type LIKE 'ai_%' AND created_at >= $1
-       GROUP BY DATE(created_at)
-       ORDER BY date`,
-      [startDate]
-    );
-
-    // Average confidence by model
-    const confidenceResult = await pool.query(
-      `SELECT
-         COALESCE(metadata->>'model', 'unknown') as model,
-         COUNT(*) as decisions,
-         AVG(COALESCE((metadata->>'confidence')::float, 0.85)) as avg_confidence,
-         COUNT(CASE WHEN metadata->>'human_override' = 'true' THEN 1 END) as overrides
-       FROM audit_logs
-       WHERE action_type LIKE 'ai_%' AND created_at >= $1
-       GROUP BY COALESCE(metadata->>'model', 'unknown')
-       ORDER BY decisions DESC`,
-      [startDate]
-    );
-
-    // Score distribution (drift indicator) — may fail if table does not exist
-    let scoreDistribution = [];
-    try {
-      const scoreDistResult = await pool.query(
-        `SELECT
-           FLOOR(overall_score / 10) * 10 as bucket,
-           COUNT(*) as count
-         FROM omniscore_results
-         WHERE created_at >= $1 AND overall_score IS NOT NULL
-         GROUP BY bucket
-         ORDER BY bucket`,
-        [startDate]
-      );
-      scoreDistribution = scoreDistResult.rows.map(r => ({
-        bucket: safeInt(r.bucket, 0),
-        count: safeInt(r.count, 0),
-      }));
-    } catch (scoreErr) {
-      console.warn('[admin/compliance/performance] Score distribution unavailable:', scoreErr.message);
-    }
-
-    // Human review rate
-    const reviewResult = await pool.query(
-      `SELECT
-         COUNT(*) as total,
-         COUNT(CASE WHEN metadata->>'human_reviewed' = 'true' THEN 1 END) as reviewed
-       FROM audit_logs
-       WHERE action_type LIKE 'ai_%' AND created_at >= $1`,
-      [startDate]
-    );
-
-    const reviewStats = reviewResult.rows[0] || { total: 0, reviewed: 0 };
-
-    res.json({
-      success: true,
-      period: days,
-      volumeOverTime: volumeResult.rows.map(r => ({ date: r.date, count: safeInt(r.count, 0) })),
-      modelPerformance: confidenceResult.rows.map(r => ({
-        model: r.model,
-        decisions: safeInt(r.decisions, 0),
-        avgConfidence: safeFloat(r.avg_confidence, 0.85),
-        overrideRate: safeInt(r.decisions, 0) > 0 ? safeInt(r.overrides, 0) / safeInt(r.decisions, 0) : 0,
-      })),
-      scoreDistribution,
-      reviewRate: safeInt(reviewStats.total, 0) > 0
-        ? safeInt(reviewStats.reviewed, 0) / safeInt(reviewStats.total, 0)
-        : 0,
-      totalDecisions: safeInt(reviewStats.total, 0),
-    });
-  } catch (error) {
-    console.error('[admin/compliance/performance] Error:', error.message);
-    res.status(500).json({ error: 'Failed to load performance metrics' });
-  }
-});
-
-// POST /api/admin/compliance/export — export compliance decisions as CSV or JSON
+// Export compliance data (CSV)
 router.post('/compliance/export', requireAdmin, async (req, res) => {
   try {
-    const { format = 'csv', startDate, endDate } = req.body;
-
-    if (!['csv', 'json'].includes(format)) {
-      return res.status(400).json({ error: 'Invalid format. Use "csv" or "json".' });
-    }
-
-    if (startDate && !/^\d{4}-\d{2}-\d{2}/.test(startDate)) {
-      return res.status(400).json({ error: 'Invalid startDate format. Use ISO 8601.' });
-    }
-    if (endDate && !/^\d{4}-\d{2}-\d{2}/.test(endDate)) {
-      return res.status(400).json({ error: 'Invalid endDate format. Use ISO 8601.' });
-    }
-
+    const { startDate, endDate } = req.body;
     let dateFilter = '';
     const params = [];
-    let paramIdx = 1;
-
+    
     if (startDate) {
-      dateFilter += ` AND al.created_at >= $${paramIdx++}`;
       params.push(startDate);
+      dateFilter += ` AND al.created_at >= $${params.length}`;
     }
     if (endDate) {
-      dateFilter += ` AND al.created_at <= $${paramIdx++}`;
       params.push(endDate);
+      dateFilter += ` AND al.created_at <= $${params.length}`;
     }
-
-    const result = await pool.query(
-      `SELECT
+    
+    const result = await pool.query(`
+      SELECT
         al.id::text as id,
         al.created_at as timestamp,
         al.action_type as decision_type,
         al.user_id as candidate_id,
         u.name as candidate_name,
-        al.metadata->>'decision' as decision,
-        al.metadata->>'model' as ai_model,
+        al.target_id as job_id,
+        j.title as job_title,
+        COALESCE(al.metadata->>'model', 'unknown') as ai_model,
         COALESCE((al.metadata->>'confidence')::float, 0.85) as confidence,
-        COALESCE(al.metadata->>'human_reviewed', 'false') as human_reviewed,
-        COALESCE(al.metadata->>'human_override', 'false') as human_override,
-        COALESCE(al.metadata->>'bias_flags', '[]') as bias_flags,
-        al.metadata->>'explanation' as explanation
+        COALESCE(al.metadata->>'decision', 'processed') as decision,
+        COALESCE(al.metadata->>'explanation', 'AI processed this record') as explanation,
+        COALESCE(al.metadata->>'human_reviewed', 'false')::boolean as human_reviewed,
+        COALESCE(al.metadata->>'human_reviewer', null) as human_reviewer,
+        COALESCE(al.metadata->>'human_override', 'false')::boolean as human_override,
+        COALESCE(al.metadata->>'bias_flags', '[]')::jsonb as bias_flags,
+        COALESCE(al.metadata->>'data_retention', '7 years') as data_retention,
+        md5(al.id::text || al.created_at::text) as audit_hash
       FROM audit_logs al
       LEFT JOIN users u ON al.user_id = u.id
-      WHERE (al.action_type LIKE 'ai_%'
-         OR al.action_type IN ('screening_decision', 'matching_decision',
-                                'interview_analysis', 'assessment_graded'))
-        ${dateFilter}
+      LEFT JOIN jobs j ON al.target_id = j.id AND al.target_type = 'job'
+      WHERE al.action_type LIKE 'ai_%'
+         OR al.action_type IN ('score_appeal_submitted', 'bias_analysis_generated',
+                                'score_explanation_viewed', 'decision_explanation_viewed',
+                                'screening_decision', 'matching_decision',
+                                'interview_analysis', 'assessment_graded',
+                                'human_override', 'ai_explanation_generated')
+      ${dateFilter}
       ORDER BY al.created_at DESC
-      LIMIT 10000`,
-      params
-    );
-
-    await logAuthEvent('compliance_export', req.user?.id || null, 'admin', req.ip || 'unknown', {
-      format,
-      count: result.rows.length,
-      startDate,
-      endDate
-    });
-
-    if (format === 'csv') {
-      const headers = ['ID', 'Timestamp', 'Decision Type', 'Candidate ID', 'Candidate Name', 'Decision', 'AI Model', 'Confidence', 'Human Reviewed', 'Human Override', 'Bias Flags', 'Explanation'];
-      const rows = result.rows.map(row => [
-        row.id,
-        row.timestamp,
-        row.decision_type,
-        row.candidate_id,
-        row.candidate_name || 'Unknown',
-        row.decision || 'processed',
-        row.ai_model || 'unknown',
-        row.confidence,
-        row.human_reviewed,
-        row.human_override,
-        Array.isArray(row.bias_flags) ? row.bias_flags.join(';') : '',
-        (row.explanation || '').replace(/\r?\n/g, ' ').replace(/"/g, '""')
-      ].map(field => {
-        const str = String(field ?? '');
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-          return `"${str}"`;
-        }
-        return str;
-      }).join(','));
-
-      const csv = [headers.join(','), ...rows].join('\n');
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="compliance-export-${new Date().toISOString().split('T')[0]}.csv"`);
-      res.send(csv);
-      return;
-    }
-
-    // JSON fallback
-    res.json({
-      success: true,
-      count: result.rows.length,
-      format,
-      decisions: result.rows.map(row => ({
-        id: row.id,
-        timestamp: row.timestamp,
-        decisionType: row.decision_type,
-        candidateId: row.candidate_id,
-        candidateName: row.candidate_name || 'Unknown',
-        decision: row.decision || 'processed',
-        aiModel: row.ai_model || 'unknown',
-        confidence: row.confidence,
-        humanReviewed: row.human_reviewed === 'true',
-        humanOverride: row.human_override === 'true',
-        biasFlags: Array.isArray(row.bias_flags) ? row.bias_flags : [],
-        explanation: row.explanation || '',
-      }))
-    });
+    `, params);
+    
+    const headers = ['ID', 'Timestamp', 'Decision Type', 'Candidate ID', 'Candidate Name', 'Job ID', 'Job Title', 'AI Model', 'Confidence', 'Decision', 'Explanation', 'Human Reviewed', 'Human Reviewer', 'Human Override', 'Bias Flags', 'Data Retention', 'Audit Hash'];
+    const rows = result.rows.map(row => [
+      row.id,
+      row.timestamp,
+      row.decision_type,
+      row.candidate_id,
+      row.candidate_name,
+      row.job_id,
+      row.job_title,
+      row.ai_model,
+      row.confidence,
+      row.decision,
+      row.explanation,
+      row.human_reviewed,
+      row.human_reviewer,
+      row.human_override,
+      JSON.stringify(row.bias_flags),
+      row.data_retention,
+      row.audit_hash
+    ]);
+    
+    const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n');
+    
+    res.json({ success: true, csv });
   } catch (error) {
     console.error('[admin/compliance/export] Error:', error.message);
-    res.status(500).json({ error: 'Export failed' });
+    res.status(500).json({ error: 'Failed to export compliance data' });
   }
 });
 

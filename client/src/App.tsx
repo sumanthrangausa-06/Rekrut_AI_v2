@@ -85,6 +85,7 @@ import { RevenuePage } from '@/pages/admin/revenue'
 import { AdminAgentsDashboardPage } from '@/pages/admin/agents'
 import { AgentDashboardPage } from '@/pages/admin/agent-dashboard'
 import { AdminCompliancePage } from '@/pages/admin/compliance'
+import { EUAIActDashboard } from '@/pages/admin/compliance/EUAIActDashboard'
 
 // Blog
 import { BlogPage, BlogPostPage } from '@/pages/blog'
@@ -285,7 +286,7 @@ function AppRoutes() {
       <Route path="/admin/revenue" element={<AdminAuthGuard><RevenuePage /></AdminAuthGuard>} />
       <Route path="/admin/ai-health" element={<AdminAuthGuard><AiHealthPage /></AdminAuthGuard>} />
       <Route path="/admin/agents" element={<AdminAuthGuard><AdminAgentsDashboardPage /></AdminAuthGuard>} />
-      <Route path="/admin/compliance" element={<AdminAuthGuard><AdminCompliancePage /></AdminAuthGuard>} />
+      <Route path="/admin/compliance" element={<AdminAuthGuard><EUAIActDashboard /></AdminAuthGuard>} />
       <Route path="/admin/agent-dashboard" element={<AdminAuthGuard><AgentDashboardPage /></AdminAuthGuard>} />
       <Route path="/admin/analytics" element={<AdminAuthGuard><AdminAnalyticsPage /></AdminAuthGuard>} />
 

@@ -1,32 +1,15 @@
 // Auth setup: purely API-based. No browser contexts are spawned here,
 // which avoids the major memory spike that caused SIGKILL in CI.
+//
+// Note: The suite runners (run-e2e-sequential.js / run-e2e-suite.sh) delete
+// auth files before every run, so tokens are always fresh. The unconditional
+// fs.unlinkSync() in each setup() below is the second line of defence.
 import { test as setup, expect } from '@playwright/test';
 import * as fs from 'fs';
 
 const CANDIDATE_EMAIL = 'e2e-candidate@rekrutai.test';
 const RECRUITER_EMAIL = 'e2e-recruiter@rekrutai.test';
 const PASSWORD = 'TestPass123!';
-
-/** Return true if the token in the given storageState file is valid for at least 5 more minutes. */
-function isAuthValid(path: string): boolean {
-  if (!fs.existsSync(path)) return false;
-  try {
-    const data = JSON.parse(fs.readFileSync(path, 'utf-8'));
-    const origin = data.origins?.find((o: any) => o.origin === 'http://localhost:3000');
-    const tokenEntry = origin?.localStorage?.find((entry: any) => entry.name === 'token');
-    if (!tokenEntry) return false;
-    const token = tokenEntry.value as string;
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
-    if (!payload.exp) return false;
-    const now = Math.floor(Date.now() / 1000);
-    // Require at least 5 minutes of remaining validity
-    return payload.exp - now > 300;
-  } catch {
-    return false;
-  }
-}
 
 async function getOrCreateUser(
   request: any,
