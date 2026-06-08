@@ -14,7 +14,10 @@ function isAuthValid(path: string): boolean {
   if (!fs.existsSync(path)) return false;
   try {
     const data = JSON.parse(fs.readFileSync(path, 'utf-8'));
-    const origin = data.origins?.find((o: any) => o.origin === 'http://localhost:3000');
+    const origin = data.origins?.find((o: any) => {
+      const token = o.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value;
+      return !!token;
+    });
     const token = origin?.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value;
     return !!token;
   } catch {
@@ -95,11 +98,12 @@ async function getOrCreateUser(
 }
 
 function writeStorageState(token: string, refreshToken: string, path: string) {
+  const baseURL = process.env.BASE_URL || 'http://localhost:3000';
   const storageState = {
     cookies: [] as any[],
     origins: [
       {
-        origin: 'http://localhost:3000',
+        origin: baseURL,
         localStorage: [
           { name: 'rekrutai_token', value: token },
           { name: 'rekrutai_refresh', value: refreshToken },
