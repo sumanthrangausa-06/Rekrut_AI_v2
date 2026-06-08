@@ -120,10 +120,8 @@ function writeStorageState(token: string, refreshToken: string, path: string) {
 
 setup('authenticate candidate', async ({ request }) => {
   const path = 'e2e/.auth/candidate.json';
-  if (isAuthValid(path)) {
-    setup.skip(true, 'Candidate auth state is valid');
-    return;
-  }
+  // Always regenerate to avoid setup-skip cascading to dependent tests
+  if (fs.existsSync(path)) fs.unlinkSync(path);
   const { token, refreshToken } = await getOrCreateUser(
     request,
     CANDIDATE_EMAIL,
@@ -135,10 +133,8 @@ setup('authenticate candidate', async ({ request }) => {
 
 setup('authenticate recruiter', async ({ request }) => {
   const path = 'e2e/.auth/recruiter.json';
-  if (isAuthValid(path)) {
-    setup.skip(true, 'Recruiter auth state is valid');
-    return;
-  }
+  // Always regenerate to avoid setup-skip cascading to dependent tests
+  if (fs.existsSync(path)) fs.unlinkSync(path);
   const { token, refreshToken } = await getOrCreateUser(
     request,
     RECRUITER_EMAIL,

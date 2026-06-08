@@ -1,4 +1,4 @@
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiCall } from '@/lib/api'
@@ -456,19 +456,14 @@ export function RecruiterJobsPage() {
       )}
 
       {/* === MOBILE JOB DETAIL DRAWER (Sheet) === */}
-      <Sheet
-        open={showMobilePanel}
-        onOpenChange={setShowMobilePanel}
-        className="w-full sm:w-[480px] md:w-[520px]"
-      >
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <Briefcase className="h-5 w-5" />
-            Job Details
-          </SheetTitle>
-          <SheetClose />
-        </SheetHeader>
-        <SheetContent className="overflow-x-hidden">
+      <Sheet open={showMobilePanel} onOpenChange={setShowMobilePanel}>
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-x-hidden">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5" />
+              Job Details
+            </SheetTitle>
+          </SheetHeader>
           {selectedJob && (
             <JobDetailPanel
               job={selectedJob}
