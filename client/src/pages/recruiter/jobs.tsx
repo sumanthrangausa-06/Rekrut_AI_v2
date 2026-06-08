@@ -529,22 +529,22 @@ function JobDetailPanel({
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           {job.department && (
-            <span className="flex items-center gap-1 min-w-0">
+            <span className="flex items-center gap-1 max-w-full">
               <Briefcase className="h-3.5 w-3.5 shrink-0" />
-              <span className="min-w-0 break-words">{job.department}</span>
+              <span className="break-words">{job.department}</span>
             </span>
           )}
           {job.location && (
-            <span className="flex items-center gap-1 min-w-0">
+            <span className="flex items-center gap-1 max-w-full">
               <MapPin className="h-3.5 w-3.5 shrink-0" />
-              <span className="min-w-0 break-words">{job.location}</span>
+              <span className="break-words">{job.location}</span>
             </span>
           )}
           {job.job_type && <Badge variant="outline" className="text-[10px] shrink-0">{job.job_type}</Badge>}
           {job.salary_range && <Badge variant="outline" className="text-[10px] shrink-0">{job.salary_range}</Badge>}
-          <span className="flex items-center gap-1 min-w-0">
+          <span className="flex items-center gap-1 max-w-full">
             <Clock className="h-3 w-3 shrink-0" />
-            <span className="min-w-0 break-words">{timeAgo(job.created_at)}</span>
+            <span className="break-words">{timeAgo(job.created_at)}</span>
           </span>
         </div>
       </div>
@@ -625,9 +625,9 @@ function JobDetailPanel({
                           : 0
               if (count === 0) return null
               return (
-                <div key={stage.id} className="flex items-center gap-1 min-w-0">
+                <div key={stage.id} className="flex items-center gap-1 max-w-full">
                   <div className={`h-2 w-2 rounded-full shrink-0 ${stage.color}`} />
-                  <span className="text-[10px] text-muted-foreground min-w-0 break-words">
+                  <span className="text-[10px] text-muted-foreground break-words">
                     {stage.label}: {count}
                   </span>
                 </div>

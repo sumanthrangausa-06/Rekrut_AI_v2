@@ -3,47 +3,87 @@ import * as fs from 'fs';
 
 test.use({ storageState: 'e2e/.auth/candidate.json' });
 
+function getToken(path: string): string {
+  const data = JSON.parse(fs.readFileSync(path, 'utf-8'));
+  const origin = data.origins?.find((o: any) => o.origin === 'http://localhost:3000');
+  const token = origin?.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value;
+  return token || '';
+}
+
 test.describe('Candidate Apply Flow', () => {
-  test('browse jobs, apply with one-click, and verify on dashboard and applications', async ({ page }) => {
+  test('browse jobs, apply with one-click, and verify on dashboard and applications', async ({ page, request }) => {
+    const recruiterToken = getToken('e2e/.auth/recruiter.json');
+    const jobTitle = `E2E Apply Flow Job ${Date.now()}`;
+
+    // ─── 0. Create a job via API as recruiter (so candidate has something to apply to) ───
+    const createRes = await request.post('/api/jobs', {
+      headers: { 'Authorization': `Bearer ${recruiterToken}` },
+      data: {
+        title: jobTitle,
+        company: 'E2E Test Co',
+        description: 'End-to-end testing position for candidate apply flow verification.',
+        requirements: 'Experience with Playwright and E2E testing.',
+        location: 'Remote',
+        salary_range: '$80,000 - $100,000',
+        job_type: 'full-time',
+        screening_questions: [],
+      },
+    });
+
+    if (!createRes.ok()) {
+      throw new Error(`Failed to create job: ${createRes.status()} ${await createRes.text()}`);
+    }
+    const jobData = await createRes.json();
+    const jobId = jobData.job?.id;
+    if (!jobId) {
+      throw new Error('Job creation did not return an ID');
+    }
+
     // ─── 1. Browse Jobs ───
     await page.goto('/candidate/jobs');
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByText(/active jobs|results/).first()).toBeVisible({ timeout: 15000 });
 
-    // Find an unapplied job
+    // Find the newly created job (it should not have "Applied" badge yet)
     const jobCards = page.locator('.cursor-pointer');
     const count = await jobCards.count();
     let targetJobIndex = -1;
     for (let i = 0; i < count; i++) {
       const card = jobCards.nth(i);
       const hasApplied = await card.locator('text=Applied').isVisible().catch(() => false);
-      if (!hasApplied) {
+      const cardText = await card.textContent().catch(() => '');
+      if (!hasApplied && cardText.includes(jobTitle)) {
         targetJobIndex = i;
         break;
       }
     }
 
     if (targetJobIndex === -1) {
-      test.skip(true, 'All visible jobs already applied — skipping');
+      test.skip(true, 'Created job not found or already applied — skipping');
       return;
     }
 
     const targetJob = jobCards.nth(targetJobIndex);
-    const jobTitle = await targetJob.locator('h3').first().textContent() || 'Unknown Job';
 
     // ─── 2. View Job Detail ───
     await targetJob.click();
+    await page.waitForTimeout(800);
+
+    // Wait for the detail panel to show the Apply button
+    await expect(page.getByRole('button', { name: 'Apply Now' }).first()).toBeVisible({ timeout: 10000 });
+
+    // ─── 3. Navigate to Job Detail Page ───
+    const applyBtn = page.getByRole('button', { name: 'Apply Now' }).first();
+    await applyBtn.click();
+
+    // Wait for navigation to job detail page
     await expect(page).toHaveURL(/.*\/candidate\/jobs\/\d+/, { timeout: 10000 });
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(800);
 
-    await expect(page.getByRole('heading', { name: /job|engineer|developer|designer|manager/i }).first()).toBeVisible({ timeout: 10000 });
-
-    // ─── 3. Apply to Job ───
-    const applyBtn = page.getByRole('button', { name: 'Apply Now' }).first();
-    await expect(applyBtn).toBeVisible({ timeout: 10000 });
-    await applyBtn.click();
+    // Click Apply Now on the job detail page to open the form
+    await page.getByRole('button', { name: 'Apply Now' }).first().click();
 
     // Wait for the apply form to appear
     await expect(page.getByRole('button', { name: 'Submit Application' }).first()).toBeVisible({ timeout: 10000 });

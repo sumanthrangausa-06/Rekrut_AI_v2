@@ -7,6 +7,27 @@ const CANDIDATE_EMAIL = 'e2e-candidate@rekrutai.test';
 const RECRUITER_EMAIL = 'e2e-recruiter@rekrutai.test';
 const PASSWORD = 'TestPass123!';
 
+/** Return true if the token in the given storageState file is valid for at least 5 more minutes. */
+function isAuthValid(path: string): boolean {
+  if (!fs.existsSync(path)) return false;
+  try {
+    const data = JSON.parse(fs.readFileSync(path, 'utf-8'));
+    const origin = data.origins?.find((o: any) => o.origin === 'http://localhost:3000');
+    const tokenEntry = origin?.localStorage?.find((entry: any) => entry.name === 'token');
+    if (!tokenEntry) return false;
+    const token = tokenEntry.value as string;
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
+    if (!payload.exp) return false;
+    const now = Math.floor(Date.now() / 1000);
+    // Require at least 5 minutes of remaining validity
+    return payload.exp - now > 300;
+  } catch {
+    return false;
+  }
+}
+
 async function getOrCreateUser(
   request: any,
   email: string,
@@ -99,8 +120,8 @@ function writeStorageState(token: string, refreshToken: string, path: string) {
 
 setup('authenticate candidate', async ({ request }) => {
   const path = 'e2e/.auth/candidate.json';
-  if (fs.existsSync(path)) {
-    setup.skip(true, 'Candidate auth state already exists');
+  if (isAuthValid(path)) {
+    setup.skip(true, 'Candidate auth state is valid');
     return;
   }
   const { token, refreshToken } = await getOrCreateUser(
@@ -114,8 +135,8 @@ setup('authenticate candidate', async ({ request }) => {
 
 setup('authenticate recruiter', async ({ request }) => {
   const path = 'e2e/.auth/recruiter.json';
-  if (fs.existsSync(path)) {
-    setup.skip(true, 'Recruiter auth state already exists');
+  if (isAuthValid(path)) {
+    setup.skip(true, 'Recruiter auth state is valid');
     return;
   }
   const { token, refreshToken } = await getOrCreateUser(

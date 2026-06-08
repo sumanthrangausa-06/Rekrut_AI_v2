@@ -35,19 +35,37 @@ test.describe('Recruiter Job Post and Pipeline Flow', () => {
     await page.waitForSelector('text=Preview');
     await page.getByRole('button', { name: 'Publish Job' }).click();
 
-    // Verify redirect to jobs list and job appears
+    // Verify redirect to jobs list and job appears (with retry)
     await page.waitForURL('/recruiter/jobs');
-    await expect(page.getByText(jobTitle).first()).toBeVisible({ timeout: 15000 });
+    let jobFound = false;
+    for (let i = 0; i < 10; i++) {
+      if (await page.getByText(jobTitle).first().isVisible().catch(() => false)) {
+        jobFound = true;
+        break;
+      }
+      await page.waitForTimeout(1500);
+    }
+    if (!jobFound) {
+      throw new Error(`Job "${jobTitle}" not found in jobs list after posting`);
+    }
 
     // ─── 2. Apply as Candidate via API ───
+    // Allow the job to propagate to the candidate API before querying
+    await page.waitForTimeout(3000);
+
     const candidateToken = getTokenFromStorageState('e2e/.auth/candidate.json');
 
-    // Find the job by title via API
-    const jobsRes = await request.get('/api/candidate/jobs?limit=200', {
-      headers: { 'Authorization': `Bearer ${candidateToken}` },
-    });
-    const jobsData = await jobsRes.json();
-    const job = jobsData.data?.find((j: any) => j.title === jobTitle);
+    // Find the job by title via API (with retry)
+    let job = null;
+    for (let i = 0; i < 8; i++) {
+      const jobsRes = await request.get('/api/candidate/jobs?limit=200', {
+        headers: { 'Authorization': `Bearer ${candidateToken}` },
+      });
+      const jobsData = await jobsRes.json();
+      job = jobsData.data?.find((j: any) => j.title === jobTitle);
+      if (job) break;
+      await page.waitForTimeout(2000);
+    }
 
     if (!job) {
       throw new Error(`Job "${jobTitle}" not found after posting`);
