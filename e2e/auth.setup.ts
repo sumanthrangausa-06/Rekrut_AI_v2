@@ -2,14 +2,25 @@
 // which avoids the major memory spike that caused SIGKILL in CI.
 //
 // Note: The suite runners (run-e2e-sequential.js / run-e2e-suite.sh) delete
-// auth files before every run, so tokens are always fresh. The unconditional
-// fs.unlinkSync() in each setup() below is the second line of defence.
+// auth files before every run, so tokens are always fresh.
 import { test as setup, expect } from '@playwright/test';
 import * as fs from 'fs';
 
 const CANDIDATE_EMAIL = 'e2e-candidate@rekrutai.test';
 const RECRUITER_EMAIL = 'e2e-recruiter@rekrutai.test';
 const PASSWORD = 'TestPass123!';
+
+function isAuthValid(path: string): boolean {
+  if (!fs.existsSync(path)) return false;
+  try {
+    const data = JSON.parse(fs.readFileSync(path, 'utf-8'));
+    const origin = data.origins?.find((o: any) => o.origin === 'http://localhost:3000');
+    const token = origin?.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value;
+    return !!token;
+  } catch {
+    return false;
+  }
+}
 
 async function getOrCreateUser(
   request: any,
@@ -101,24 +112,13 @@ function writeStorageState(token: string, refreshToken: string, path: string) {
   fs.writeFileSync(path, JSON.stringify(storageState, null, 2));
 }
 
-function isAuthValid(path: string): boolean {
-  if (!fs.existsSync(path)) return false;
-  try {
-    const data = JSON.parse(fs.readFileSync(path, 'utf-8'));
-    const origin = data.origins?.find((o: any) => o.origin === 'http://localhost:3000');
-    const token = origin?.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value;
-    return !!token;
-  } catch {
-    return false;
-  }
-}
-
 setup('authenticate candidate', async ({ request }) => {
   const path = 'e2e/.auth/candidate.json';
   if (isAuthValid(path)) {
     setup.skip(true, 'Candidate auth state is valid');
     return;
   }
+  if (fs.existsSync(path)) fs.unlinkSync(path);
   const { token, refreshToken } = await getOrCreateUser(
     request,
     CANDIDATE_EMAIL,
@@ -134,12 +134,30 @@ setup('authenticate recruiter', async ({ request }) => {
     setup.skip(true, 'Recruiter auth state is valid');
     return;
   }
+  if (fs.existsSync(path)) fs.unlinkSync(path);
   const { token, refreshToken } = await getOrCreateUser(
     request,
     RECRUITER_EMAIL,
     'recruiter',
     'E2E Recruiter',
     'E2E Test Co'
+  );
+  writeStorageState(token, refreshToken, path);
+});
+
+setup('authenticate admin', async ({ request }) => {
+  const path = 'e2e/.auth/admin.json';
+  if (isAuthValid(path)) {
+    setup.skip(true, 'Admin auth state is valid');
+    return;
+  }
+  if (fs.existsSync(path)) fs.unlinkSync(path);
+  const { token, refreshToken } = await getOrCreateUser(
+    request,
+    'e2e-admin-qa@rekrutai.test',
+    'recruiter',
+    'E2E Admin',
+    'E2E Admin Co'
   );
   writeStorageState(token, refreshToken, path);
 });
