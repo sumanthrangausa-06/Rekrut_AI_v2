@@ -774,7 +774,7 @@ export function RecruiterCandidatesPage() {
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-2"
                 >
-                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}
+                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="min-h-[44px] min-w-[44px]"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
@@ -782,7 +782,7 @@ export function RecruiterCandidatesPage() {
                   >
                     Page {page} of {totalPages}
                   </span>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}
+                  <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="min-h-[44px] min-w-[44px]"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
