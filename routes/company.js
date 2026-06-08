@@ -1,5 +1,6 @@
 // Company Management Routes
 const express = require('express');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const pool = require('../lib/db');
 const { generateToken, generateRefreshToken, authMiddleware, optionalAuth } = require('../lib/auth');
@@ -545,7 +546,7 @@ router.post('/team/invite', authMiddleware, async (req, res) => {
     }
 
     // Generate temporary password
-    const tempPassword = Math.random().toString(36).slice(-8);
+    const tempPassword = crypto.randomBytes(12).toString('base64url').slice(0, 16);
     const password_hash = await bcrypt.hash(tempPassword, 13);
 
     // Get company name
