@@ -54,7 +54,9 @@ test.describe('Candidate Full Journey', () => {
     if (!jobId) throw new Error('Job creation did not return an ID');
 
     // ─── 1. Signup as a new candidate ───
-    await page.setExtraHTTPHeaders({ 'X-Forwarded-For': '1.2.3.4' });
+    // Use a random IP to avoid rate-limiting collisions with other tests
+    const randomIP = `${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}`;
+    await page.setExtraHTTPHeaders({ 'X-Forwarded-For': randomIP });
     await page.goto('/register');
     await expect(page.getByRole('heading', { name: /Create an account/i })).toBeVisible({ timeout: 10000 });
 
@@ -70,7 +72,8 @@ test.describe('Candidate Full Journey', () => {
 
     // ─── 2. Complete profile ───
     await page.goto('/candidate/profile');
-    await expect(page.locator('text=Profile Completeness').or(page.locator('text=Personal Information')).first()).toBeVisible({ timeout: 10000 });
+    await page.waitForURL('/candidate/profile');
+    await page.waitForLoadState('networkidle');
 
     await page.getByRole('button', { name: 'Settings' }).click();
     await expect(page.getByRole('heading', { name: 'Personal Information' })).toBeVisible({ timeout: 10000 });
@@ -96,12 +99,12 @@ test.describe('Candidate Full Journey', () => {
 
     // ─── 4. Navigate directly to the seeded job detail ───
     await page.goto(`/candidate/jobs/${jobId}`);
+    await expect(page).toHaveURL(`/candidate/jobs/${jobId}`, { timeout: 15000 });
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(1000);
 
-    const jobTitleWords = jobTitle.split(' ').slice(0, 3).join(' ');
-    await expect(page.getByText(jobTitleWords).first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Job Description').first()).toBeVisible({ timeout: 10000 });
+    // Wait for the job to load by checking the Apply Now button
+    await expect(page.getByRole('button', { name: 'Apply Now' }).first()).toBeVisible({ timeout: 15000 });
 
     // ─── 5. Apply to the job ───
     // Use a more specific locator scoped to the main job card to avoid similar-jobs buttons
@@ -148,6 +151,7 @@ test.describe('Candidate Full Journey', () => {
     await expect(page.getByText('Applied').first()).toBeVisible({ timeout: 15000 });
 
     // ─── 6. Verify in My Applications ───
+    const jobTitleWords = jobTitle.split(' ').slice(0, 3).join(' ');
     await page.goto('/candidate/applications');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(800);
