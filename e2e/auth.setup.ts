@@ -10,6 +10,34 @@ const CANDIDATE_EMAIL = 'e2e-candidate@rekrutai.test';
 const RECRUITER_EMAIL = 'e2e-recruiter@rekrutai.test';
 const PASSWORD = 'TestPass123!';
 
+function decodeJWT(token: string): any | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    // base64url → base64
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padding = 4 - (base64.length % 4);
+    const padded = base64 + '='.repeat(padding === 4 ? 0 : padding);
+    const json = Buffer.from(padded, 'base64').toString('utf-8');
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+function cleanupStaleAuthFiles(): void {
+  const dir = 'e2e/.auth';
+  if (!fs.existsSync(dir)) return;
+  for (const file of fs.readdirSync(dir)) {
+    if (file.endsWith('.json')) {
+      const path = `${dir}/${file}`;
+      if (!isAuthValid(path)) {
+        fs.unlinkSync(path);
+      }
+    }
+  }
+}
+
 function isAuthValid(path: string): boolean {
   if (!fs.existsSync(path)) return false;
   try {
@@ -19,7 +47,10 @@ function isAuthValid(path: string): boolean {
       return !!token;
     });
     const token = origin?.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value;
-    return !!token;
+    if (!token) return false;
+    const decoded = decodeJWT(token);
+    if (!decoded || !decoded.exp) return false;
+    return Date.now() < decoded.exp * 1000;
   } catch {
     return false;
   }
@@ -115,6 +146,10 @@ function writeStorageState(token: string, refreshToken: string, path: string) {
   };
   fs.writeFileSync(path, JSON.stringify(storageState, null, 2));
 }
+
+setup('cleanup stale auth files', async () => {
+  cleanupStaleAuthFiles();
+});
 
 setup('authenticate candidate', async ({ request }) => {
   const path = 'e2e/.auth/candidate.json';
