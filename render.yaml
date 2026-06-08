@@ -4,7 +4,7 @@ services:
     env: node
     branch: main
     buildCommand: cd client && npm install --include=dev && npm run build && cd .. && npm install
-    startCommand: npm start
+    startCommand: npm run migrate && npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -168,7 +168,7 @@ services:
     env: node
     branch: staging
     buildCommand: cd client && npm install --include=dev && npm run build && cd .. && npm install
-    startCommand: npm start
+    startCommand: npm run migrate && npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -271,7 +271,7 @@ services:
     env: node
     branch: dev
     buildCommand: cd client && npm install --include=dev && npm run build && cd .. && npm install
-    startCommand: npm start
+    startCommand: npm run migrate && npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV

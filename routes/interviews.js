@@ -10,6 +10,7 @@ const FormData = require('form-data');
 
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const emailService = require('../lib/email-service');
+const { AuditLogger } = require('../services/auditLogger');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -226,6 +227,23 @@ router.post('/:id/complete', authMiddleware, async (req, res) => {
       validResponses.map(r => r.analysis),
       { subscriptionId: req.user.stripe_subscription_id }
     );
+
+    // Audit log: AI explanation generated for interview feedback
+    await AuditLogger.log({
+      actionType: 'ai_explanation_generated',
+      userId: req.user.id,
+      targetType: 'interview',
+      targetId: req.params.id,
+      metadata: {
+        interview_id: req.params.id,
+        overall_score: overallFeedback.overall_score,
+        model_version: 'interview-feedback-v1',
+        explanation_type: 'interview_feedback',
+        confidence: overallFeedback.overall_score / 100,
+        response_count: validResponses.length
+      },
+      req
+    });
 
     // Calculate duration
     const startTime = new Date(interviewData.created_at);
@@ -464,6 +482,25 @@ router.post('/save-analysis', authMiddleware, async (req, res) => {
         scores.presentation || 0
       ]
     );
+
+    // Audit log: AI interview analysis
+    await AuditLogger.log({
+      actionType: 'interview_analysis',
+      userId: req.user.id,
+      targetType: 'interview',
+      targetId: interview_id,
+      metadata: {
+        question_index: question_index,
+        eye_contact_score: scores.eyeContact || 0,
+        expression_score: scores.expression || 0,
+        body_language_score: scores.bodyLanguage || 0,
+        voice_score: scores.voice || 0,
+        presentation_score: scores.presentation || 0,
+        model_version: 'video-analysis-v1',
+        confidence: (scores.eyeContact || 0 + scores.expression || 0 + scores.bodyLanguage || 0 + scores.voice || 0 + scores.presentation || 0) / 500
+      },
+      req
+    });
 
     res.json({ success: true });
   } catch (err) {
