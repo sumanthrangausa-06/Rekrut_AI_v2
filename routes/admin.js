@@ -38,7 +38,7 @@ async function checkRateLimit(ip) {
 }
 
 // ─── Admin Credentials ─────────────────────────────────────────────────────
-// Uses ADMIN_PASSWORD env var; MUST be set in production
+// Uses ADMIN_PASSWORD env var; MUST be set in production and development
 let ADMIN_PASSWORD_HASH = null;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 
@@ -48,19 +48,12 @@ async function initAdminCredentials() {
   if (password) {
     ADMIN_PASSWORD_HASH = await bcrypt.hash(password, 12);
     console.log('[admin] Admin credentials loaded from env vars');
-  } else if (process.env.NODE_ENV === 'production') {
-    throw new Error('ADMIN_PASSWORD environment variable is required in production');
   } else {
-    // Development only: generate a random password and write to a file (not stdout)
-    const defaultPassword = crypto.randomBytes(16).toString('base64url');
-    ADMIN_PASSWORD_HASH = await bcrypt.hash(defaultPassword, 12);
-    
-    // Write to a file with restricted permissions instead of stdout
-    const fs = require('fs');
-    const path = require('path');
-    const adminCredFile = path.join(process.cwd(), '.admin-credentials');
-    fs.writeFileSync(adminCredFile, `Username: ${ADMIN_USERNAME}\nPassword: ${defaultPassword}\n`, { mode: 0o600 });
-    console.log(`[admin] Development credentials written to ${adminCredFile} (permissions 600)`);
+    throw new Error(
+      'ADMIN_PASSWORD environment variable is required. ' +
+      'Set it in your .env file (see .env.example). ' +
+      'Never commit credentials to the repository.'
+    );
   }
 }
 

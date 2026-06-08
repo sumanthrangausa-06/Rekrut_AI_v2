@@ -1,23 +1,8 @@
 import { test, expect } from '@playwright/test';
-import * as fs from 'fs';
-import * as path from 'path';
 
-// Read admin credentials from the dev-generated file
-const credFile = path.join(__dirname, '..', '.admin-credentials');
-let ADMIN_USERNAME = 'admin';
-let ADMIN_PASSWORD = '';
-
-if (fs.existsSync(credFile)) {
-  const content = fs.readFileSync(credFile, 'utf-8');
-  const userMatch = content.match(/Username:\s*(.+)/);
-  const passMatch = content.match(/Password:\s*(.+)/);
-  if (userMatch) ADMIN_USERNAME = userMatch[1].trim();
-  if (passMatch) ADMIN_PASSWORD = passMatch[1].trim();
-}
-
-// Fallback: use env vars if available
-ADMIN_USERNAME = process.env.ADMIN_USERNAME || ADMIN_USERNAME;
-ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ADMIN_PASSWORD;
+// Admin credentials from environment variables only
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
 // ───────────────────────────────────────────────
 // Admin Critical Flow
