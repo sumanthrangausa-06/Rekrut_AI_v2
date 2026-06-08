@@ -329,6 +329,21 @@ export function RecruiterCandidatesPage() {
     trackEvent("candidates_bulk_export", { count: ids.length })
   }
 
+  const handleBulkStatusChange = async (status: string) => {
+    if (!status || selectedCandidates.size === 0) return
+    try {
+      await apiCall("/recruiter/candidates/bulk-status", {
+        method: "POST",
+        body: { candidateIds: Array.from(selectedCandidates), status },
+      })
+      setSelectedCandidates(new Set())
+      loadCandidates()
+      alert(`Status updated to ${status} for ${selectedCandidates.size} candidates`)
+    } catch (err) {
+      alert("Failed to update status. Please try again.")
+    }
+  }
+
   const handleSaveSearch = async () => {
     if (!saveSearchName.trim()) return
     try {
@@ -611,6 +626,19 @@ export function RecruiterCandidatesPage() {
             >
               <Square className="h-3 w-3" /> Select All
             </Button>
+            <select
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              onChange={(e) => { handleBulkStatusChange(e.target.value); e.target.selectedIndex = 0; }}
+              defaultValue=""
+            >
+              <option value="" disabled>Change Status</option>
+              <option value="applied">Applied</option>
+              <option value="screening">Screening</option>
+              <option value="interview">Interview</option>
+              <option value="offer">Offer</option>
+              <option value="hired">Hired</option>
+              <option value="rejected">Rejected</option>
+            </select>
           </div>
           <Button
             size="sm"
