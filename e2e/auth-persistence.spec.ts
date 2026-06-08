@@ -113,8 +113,8 @@ test.describe('Candidate Jobs Page - Full Flow', () => {
     }
 
     // Verify job cards are visible or empty state
-    const jobCards = page.locator('[class*="card"], [class*="job"]').first()
-    const emptyState = page.locator('text=No jobs found').first()
+    const jobCards = page.locator('[class*="job-card"], [class*="JobCard"]').first()
+    const emptyState = page.getByText(/No jobs found/i).first()
     await expect(jobCards.or(emptyState)).toBeVisible()
 
     // Click on a job if visible
@@ -141,8 +141,9 @@ test.describe('Candidate Jobs Page - Full Flow', () => {
 
     // Open filter sheet
     await filterBtn.click()
-    // On mobile, "Filters" text is hidden in the button (hidden sm:inline), so check the sheet/dialog opened instead
-    await expect(page.locator('[role="dialog"], [data-state="open"]').first()).toBeVisible()
+    // On mobile, filter panel renders inline; check for filter sections
+    await expect(page.getByRole('heading', { name: 'Filters' }).first()).toBeVisible()
+    await expect(page.getByText('Job Type').first()).toBeVisible()
   })
 })
 
