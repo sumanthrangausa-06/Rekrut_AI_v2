@@ -459,11 +459,9 @@ export function RecruiterJobsPage() {
       <Sheet
         open={showMobilePanel}
         onOpenChange={setShowMobilePanel}
+        className="w-full sm:w-[480px] md:w-[520px]"
       >
-        <SheetContent
-          side="right"
-          className="w-full sm:w-[480px] md:w-[520px]"
-        >
+        <SheetContent>
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <Briefcase className="h-5 w-5" />
@@ -515,13 +513,13 @@ function JobDetailPanel({
       {/* Header */}
       <div className="space-y-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <h2 className="font-bold text-lg leading-tight">{job.title}</h2>
-          <Badge variant={status.variant} className="gap-1">
+          <h2 className="font-bold text-lg leading-tight min-w-0 break-words">{job.title}</h2>
+          <Badge variant={status.variant} className="gap-1 shrink-0">
             {status.icon}
             {status.label}
           </Badge>
           {job.status === 'active' && (
-            <Badge variant="outline" className="text-[10px] gap-1 bg-green-50 text-green-700 border-green-200">
+            <Badge variant="outline" className="text-[10px] gap-1 bg-green-50 text-green-700 border-green-200 shrink-0">
               <ArrowUpRight className="h-3 w-3" />
               Live
             </Badge>
@@ -529,50 +527,50 @@ function JobDetailPanel({
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           {job.department && (
-            <span className="flex items-center gap-1">
-              <Briefcase className="h-3.5 w-3.5" />
-              {job.department}
+            <span className="flex items-center gap-1 min-w-0">
+              <Briefcase className="h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0 break-words">{job.department}</span>
             </span>
           )}
           {job.location && (
-            <span className="flex items-center gap-1">
-              <MapPin className="h-3.5 w-3.5" />
-              {job.location}
+            <span className="flex items-center gap-1 min-w-0">
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0 break-words">{job.location}</span>
             </span>
           )}
-          {job.job_type && <Badge variant="outline" className="text-[10px]">{job.job_type}</Badge>}
-          {job.salary_range && <Badge variant="outline" className="text-[10px]">{job.salary_range}</Badge>}
-          <span className="flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            {timeAgo(job.created_at)}
+          {job.job_type && <Badge variant="outline" className="text-[10px] shrink-0">{job.job_type}</Badge>}
+          {job.salary_range && <Badge variant="outline" className="text-[10px] shrink-0">{job.salary_range}</Badge>}
+          <span className="flex items-center gap-1 min-w-0">
+            <Clock className="h-3 w-3 shrink-0" />
+            <span className="min-w-0 break-words">{timeAgo(job.created_at)}</span>
           </span>
         </div>
       </div>
 
       {/* Pipeline Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div className="rounded-lg bg-muted/50 p-3 text-center">
-          <p className="text-2xl font-bold">{job.application_count || 0}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0">
+          <p className="text-2xl font-bold break-words">{job.application_count || 0}</p>
           <p className="text-[10px] text-muted-foreground">Applicants</p>
         </div>
-        <div className="rounded-lg bg-muted/50 p-3 text-center">
-          <p className="text-2xl font-bold">{job.views || 0}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0">
+          <p className="text-2xl font-bold break-words">{job.views || 0}</p>
           <p className="text-[10px] text-muted-foreground">Views</p>
         </div>
-        <div className="rounded-lg bg-muted/50 p-3 text-center">
-          <p className="text-2xl font-bold text-emerald-600">{job.hired_count || 0}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0">
+          <p className="text-2xl font-bold text-emerald-600 break-words">{job.hired_count || 0}</p>
           <p className="text-[10px] text-muted-foreground">Hired</p>
         </div>
-        <div className="rounded-lg bg-muted/50 p-3 text-center">
-          <p className="text-2xl font-bold">{job.interviews || 0}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0">
+          <p className="text-2xl font-bold break-words">{job.interviews || 0}</p>
           <p className="text-[10px] text-muted-foreground">Interviews</p>
         </div>
-        <div className="rounded-lg bg-muted/50 p-3 text-center">
-          <p className="text-2xl font-bold text-amber-600">{job.offer_count || 0}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0">
+          <p className="text-2xl font-bold text-amber-600 break-words">{job.offer_count || 0}</p>
           <p className="text-[10px] text-muted-foreground">Offers</p>
         </div>
-        <div className="rounded-lg bg-muted/50 p-3 text-center">
-          <p className="text-2xl font-bold">{job.time_to_fill || '—'}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0">
+          <p className="text-2xl font-bold break-words">{job.time_to_fill || '—'}</p>
           <p className="text-[10px] text-muted-foreground">Days to Fill</p>
         </div>
       </div>
@@ -603,7 +601,7 @@ function JobDetailPanel({
                 <div
                   key={stage.id}
                   className={`h-3 rounded-full ${stage.color}`}
-                  style={{ width: `${Math.max((count / totalPipeline) * 100, 4)}%` }}
+                  style={{ flexGrow: Math.max(count, 1), minWidth: '4%' }}
                   title={`${stage.label}: ${count}`}
                 />
               )
@@ -625,9 +623,9 @@ function JobDetailPanel({
                           : 0
               if (count === 0) return null
               return (
-                <div key={stage.id} className="flex items-center gap-1">
-                  <div className={`h-2 w-2 rounded-full ${stage.color}`} />
-                  <span className="text-[10px] text-muted-foreground">
+                <div key={stage.id} className="flex items-center gap-1 min-w-0">
+                  <div className={`h-2 w-2 rounded-full shrink-0 ${stage.color}`} />
+                  <span className="text-[10px] text-muted-foreground min-w-0 break-words">
                     {stage.label}: {count}
                   </span>
                 </div>
