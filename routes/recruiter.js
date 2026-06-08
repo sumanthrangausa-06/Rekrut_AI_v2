@@ -1,5 +1,6 @@
 // Recruiter Dashboard & Job Management Routes
 const express = require('express');
+const crypto = require('crypto');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const trustscoreService = require('../services/trustscore');
@@ -72,8 +73,8 @@ async function requireRecruiter(req, res, next) {
 router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
   try {
     const companyId = req.user.company_id;
-    const days = req.query.days ? parseInt(req.query.days) : 30;
-    const dateFilter = days > 0 ? `AND applied_at >= NOW() - INTERVAL '${days} days'` : '';
+    const days = parseInt(req.query.days, 10) || 30;
+    const dateFilter = days > 0 ? `AND applied_at >= NOW() - INTERVAL '1 day' * $2` : '';
 
     // Get TrustScore
     const trustScore = await trustscoreService.calculateTrustScore(companyId);
@@ -99,7 +100,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
         COUNT(*) FILTER (WHERE status = 'hired') as hired,
         COUNT(*) FILTER (WHERE status = 'rejected') as rejected
       FROM job_applications WHERE company_id = $1 ${dateFilter}
-    `, [companyId]);
+    `, [companyId, days]);
 
     // Get total job views (graceful if job_analytics doesn't exist)
     let totalViews = 0;
@@ -122,7 +123,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
         SELECT AVG(EXTRACT(EPOCH FROM (hired_at - applied_at)) / 86400) as avg_days
         FROM job_applications
         WHERE company_id = $1 ${dateFilter} AND status = 'hired' AND hired_at IS NOT NULL
-      `, [companyId]);
+      `, [companyId, days]);
       avgTimeToHire = timeToHire.rows[0]?.avg_days ? parseFloat(timeToHire.rows[0].avg_days).toFixed(1) : null;
     } catch (timeErr) {
       console.log('[dashboard] hired_at column not available, avg_time_to_hire = null');
@@ -139,7 +140,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
           COUNT(*) FILTER (WHERE omniscore_at_apply >= 600 AND omniscore_at_apply < 700) as "600",
           COUNT(*) FILTER (WHERE omniscore_at_apply < 600 OR omniscore_at_apply IS NULL) as below
         FROM job_applications WHERE company_id = $1 ${dateFilter}
-      `, [companyId]);
+      `, [companyId, days]);
       scoreDistribution = scoreDist.rows[0] || scoreDistribution;
     } catch (scoreErr) {
       console.log('[dashboard] omniscore_at_apply column not available, using defaults');
@@ -148,7 +149,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
     // ─── HIRING VELOCITY ───
     let hiringVelocity = [];
     try {
-      const interval = days > 0 && days <= 30 ? '1 month' : days <= 90 ? '3 months' : '6 months';
+      const lookbackMonths = days > 0 && days <= 30 ? 1 : days <= 90 ? 3 : 6;
       const velocityResult = await pool.query(`
         SELECT
           TO_CHAR(DATE_TRUNC('month', applied_at), 'Mon') as month,
@@ -156,11 +157,11 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
           COUNT(*) FILTER (WHERE status = 'hired') as hired,
           COUNT(*) FILTER (WHERE status = 'interviewed') as interviews
         FROM job_applications
-        WHERE company_id = $1 AND applied_at >= NOW() - INTERVAL '${interval}'
+        WHERE company_id = $1 AND applied_at >= NOW() - INTERVAL '1 month' * $2
         GROUP BY DATE_TRUNC('month', applied_at)
         ORDER BY DATE_TRUNC('month', applied_at) ASC
         LIMIT 6
-      `, [companyId]);
+      `, [companyId, lookbackMonths]);
       hiringVelocity = velocityResult.rows.map(r => ({
         month: r.month,
         applications: parseInt(r.applications) || 0,
@@ -206,7 +207,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
         FROM job_applications
         WHERE company_id = $1 AND status = 'hired'
         AND applied_at IS NOT NULL AND updated_at IS NOT NULL ${dateFilter}
-      `, [companyId]);
+      `, [companyId, days]);
       timeToHireByStage = stageResult.rows.map(r => ({
         stage: r.stage,
         avg_days: r.avg_days ? parseFloat(r.avg_days).toFixed(1) : 0,
@@ -229,7 +230,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
         FROM job_applications
         WHERE company_id = $1 ${dateFilter}
         GROUP BY source
-      `, [companyId]);
+      `, [companyId, days]);
       const total = sourceResult.rows.reduce((sum, r) => sum + parseInt(r.count), 0) || 1;
       sourceBreakdown = sourceResult.rows.map(r => ({
         name: r.name,
@@ -251,7 +252,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
         JOIN candidate_profiles cp ON ja.candidate_id = cp.user_id
         WHERE ja.company_id = $1 ${dateFilter}
         GROUP BY cp.gender
-      `, [companyId]);
+      `, [companyId, days]);
       const totalGender = genderResult.rows.reduce((sum, r) => sum + parseInt(r.count), 0) || 1;
       const genderDistribution = genderResult.rows.map(r => ({
         label: r.label,
@@ -266,7 +267,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
         JOIN candidate_profiles cp ON ja.candidate_id = cp.user_id
         WHERE ja.company_id = $1 ${dateFilter}
         GROUP BY cp.ethnicity
-      `, [companyId]);
+      `, [companyId, days]);
       const totalEthnicity = ethnicityResult.rows.reduce((sum, r) => sum + parseInt(r.count), 0) || 1;
       const ethnicityDistribution = ethnicityResult.rows.map(r => ({
         label: r.label,
@@ -293,7 +294,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
         SELECT AVG(omniscore_at_apply) as avg_score
         FROM job_applications
         WHERE company_id = $1 ${dateFilter} AND status = 'hired' AND omniscore_at_apply IS NOT NULL
-      `, [companyId]);
+      `, [companyId, days]);
       const avgScore = parseFloat(qualityResult.rows[0]?.avg_score) || 0;
       if (avgScore > 0) {
         qualityOfHire = Math.min(5, Math.max(1, (avgScore / 200))).toFixed(1); // Scale 1000 -> 5
@@ -328,7 +329,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
       WHERE ja.company_id = $1 ${dateFilter}
       ORDER BY ja.applied_at DESC
       LIMIT 10
-    `, [companyId]);
+    `, [companyId, days]);
 
     res.json({
       success: true,
@@ -773,7 +774,7 @@ router.post('/interviews', authMiddleware, requireRecruiter, async (req, res) =>
     // Auto-generate Jitsi meeting link for video interviews
     let meeting_link = null;
     if (interview_type === 'video') {
-      const roomId = `Rekrut AI-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
+      const roomId = `Rekrut AI-${Date.now().toString(36)}-${crypto.randomBytes(6).toString('base64url')}`;
       meeting_link = `https://meet.jit.si/${roomId}`;
     }
 
@@ -1257,7 +1258,7 @@ router.post('/interviews/schedule', authMiddleware, requireRecruiter, async (req
 
     // Auto-generate Jitsi meeting link for video interviews if not provided
     if (interview_type === 'video' && !meeting_link) {
-      const roomId = `Rekrut AI-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
+      const roomId = `Rekrut AI-${Date.now().toString(36)}-${crypto.randomBytes(6).toString('base64url')}`;
       meeting_link = `https://meet.jit.si/${roomId}`;
     }
 
@@ -2544,8 +2545,8 @@ router.post('/pipeline/auto-check/:jobId', authMiddleware, requireRecruiter, asy
 router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
   try {
     const companyId = req.user.company_id;
-    const days = req.query.days ? parseInt(req.query.days) : 30;
-    const dateFilter = days > 0 ? `AND applied_at >= NOW() - INTERVAL '${days} days'` : '';
+    const days = parseInt(req.query.days, 10) || 30;
+    const dateFilter = days > 0 ? `AND applied_at >= NOW() - INTERVAL '1 day' * $2` : '';
 
     // ─── OVERVIEW ───
 
@@ -2560,7 +2561,7 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
     const totalAppsResult = await pool.query(`
       SELECT COUNT(*) as total_applications
       FROM job_applications WHERE company_id = $1 ${dateFilter}
-    `, [companyId]);
+    `, [companyId, days]);
     const totalApplications = parseInt(totalAppsResult.rows[0]?.total_applications) || 0;
 
     // New applications this week (last 7 days)
@@ -2602,7 +2603,7 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
       ${dateFilter}
       GROUP BY status
       ORDER BY count DESC
-    `, [companyId]);
+    `, [companyId, days]);
 
     const candidatesInPipeline = pipelineResult.rows.reduce((acc, row) => {
       acc[row.status] = parseInt(row.count);
@@ -2619,7 +2620,7 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
       WHERE company_id = $1 AND status NOT IN ('rejected', 'withdrawn', 'hired')
       ${dateFilter}
       GROUP BY status
-    `, [companyId]);
+    `, [companyId, days]);
 
     const avgTimeInStage = timeInStageResult.rows.reduce((acc, row) => {
       acc[row.status] = row.avg_days ? parseFloat(row.avg_days).toFixed(1) : null;
@@ -2640,7 +2641,7 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
         COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
         COUNT(*) FILTER (WHERE status = 'withdrawn') as withdrawn
       FROM job_applications WHERE company_id = $1 ${dateFilter}
-    `, [companyId]);
+    `, [companyId, days]);
     const allTimeApps = allTimeAppsResult.rows[0] || {};
 
     // Last 7 days application counts
@@ -2689,7 +2690,7 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
         FROM job_applications
         WHERE company_id = $1 ${dateFilter}
         GROUP BY source
-      `, [companyId]);
+      `, [companyId, days]);
       const total = sourceResult.rows.reduce((sum, r) => sum + parseInt(r.count), 0) || 1;
       sourceBreakdown = sourceResult.rows.map(r => ({
         name: r.name,
@@ -2744,7 +2745,7 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
       WHERE ja.company_id = $1 ${dateFilter}
       ORDER BY ja.applied_at DESC
       LIMIT 10
-    `, [companyId]);
+    `, [companyId, days]);
 
     res.json({
       success: true,
