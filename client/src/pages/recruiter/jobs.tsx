@@ -520,7 +520,7 @@ function JobDetailPanel({
               {status.label}
             </Badge>
             {job.status === 'active' && (
-              <Badge variant="outline" className="text-[10px] gap-1 bg-green-50 text-green-700 border-green-200 shrink-0">
+              <Badge variant="outline" className="text-xs gap-1 bg-green-50 text-green-700 border-green-200 shrink-0 max-w-full truncate">
                 <ArrowUpRight className="h-3 w-3" />
                 Live
               </Badge>
@@ -540,8 +540,8 @@ function JobDetailPanel({
               <span className="break-words">{job.location}</span>
             </span>
           )}
-          {job.job_type && <Badge variant="outline" className="text-[10px] shrink-0">{job.job_type}</Badge>}
-          {job.salary_range && <Badge variant="outline" className="text-[10px] shrink-0">{job.salary_range}</Badge>}
+          {job.job_type && <Badge variant="outline" className="text-xs shrink-0 max-w-full truncate">{job.job_type}</Badge>}
+          {job.salary_range && <Badge variant="outline" className="text-xs shrink-0 max-w-full truncate">{job.salary_range}</Badge>}
           <span className="flex items-center gap-1 max-w-full">
             <Clock className="h-3 w-3 shrink-0" />
             <span className="break-words">{timeAgo(job.created_at)}</span>
@@ -552,28 +552,28 @@ function JobDetailPanel({
       {/* Pipeline Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
-          <p className="text-xl sm:text-2xl font-bold break-words">{job.application_count || 0}</p>
-          <p className="text-[10px] text-muted-foreground">Applicants</p>
+          <p className="text-xl sm:text-2xl font-bold truncate">{job.application_count || 0}</p>
+          <p className="text-xs text-muted-foreground">Applicants</p>
         </div>
         <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
-          <p className="text-xl sm:text-2xl font-bold break-words">{job.views || 0}</p>
-          <p className="text-[10px] text-muted-foreground">Views</p>
+          <p className="text-xl sm:text-2xl font-bold truncate">{job.views || 0}</p>
+          <p className="text-xs text-muted-foreground">Views</p>
         </div>
         <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
-          <p className="text-xl sm:text-2xl font-bold text-emerald-600 break-words">{job.hired_count || 0}</p>
-          <p className="text-[10px] text-muted-foreground">Hired</p>
+          <p className="text-xl sm:text-2xl font-bold text-emerald-600 truncate">{job.hired_count || 0}</p>
+          <p className="text-xs text-muted-foreground">Hired</p>
         </div>
         <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
-          <p className="text-xl sm:text-2xl font-bold break-words">{job.interviews || 0}</p>
-          <p className="text-[10px] text-muted-foreground">Interviews</p>
+          <p className="text-xl sm:text-2xl font-bold truncate">{job.interviews || 0}</p>
+          <p className="text-xs text-muted-foreground">Interviews</p>
         </div>
         <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
-          <p className="text-xl sm:text-2xl font-bold text-amber-600 break-words">{job.offer_count || 0}</p>
-          <p className="text-[10px] text-muted-foreground">Offers</p>
+          <p className="text-xl sm:text-2xl font-bold text-amber-600 truncate">{job.offer_count || 0}</p>
+          <p className="text-xs text-muted-foreground">Offers</p>
         </div>
         <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
-          <p className="text-xl sm:text-2xl font-bold break-words">{job.time_to_fill || '—'}</p>
-          <p className="text-[10px] text-muted-foreground">Days to Fill</p>
+          <p className="text-xl sm:text-2xl font-bold truncate">{job.time_to_fill || '—'}</p>
+          <p className="text-xs text-muted-foreground">Days to Fill</p>
         </div>
       </div>
 
@@ -627,7 +627,7 @@ function JobDetailPanel({
               return (
                 <div key={stage.id} className="flex items-center gap-1 max-w-full">
                   <div className={`h-2 w-2 rounded-full shrink-0 ${stage.color}`} />
-                  <span className="text-[10px] text-muted-foreground break-words">
+                  <span className="text-xs text-muted-foreground break-words">
                     {stage.label}: {count}
                   </span>
                 </div>

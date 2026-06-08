@@ -56,9 +56,9 @@ test.describe('Job Search and Filtering', () => {
     await page.waitForTimeout(600)
 
     // Verify results show only full-time jobs
-    const resultText = await page.getByText(/results?/).first().textContent()
-    const resultCount = parseInt(resultText?.match(/(\d+)/)?.[0] || '0')
-    expect(resultCount).toBeGreaterThanOrEqual(0)
+    const ftResultText = await page.getByText(/results?/).first().textContent()
+    const ftResultCount = parseInt(ftResultText?.match(/(\d+)/)?.[0] || '0')
+    expect(ftResultCount).toBeGreaterThanOrEqual(0)
 
     // Filter by remote type
     const remoteSelect = page.locator('select').filter({ hasText: /All Work Modes/ }).first()
@@ -110,9 +110,9 @@ test.describe('Job Search and Filtering', () => {
     await page.waitForTimeout(600)
 
     // Verify jobs are still visible
-    const resultText = await page.getByText(/results?/).first().textContent()
-    const resultCount = parseInt(resultText?.match(/(\d+)/)?.[0] || '0')
-    expect(resultCount).toBeGreaterThan(0)
+    const sortResultText = await page.getByText(/results?/).first().textContent()
+    const sortResultCount = parseInt(sortResultText?.match(/(\d+)/)?.[0] || '0')
+    expect(sortResultCount).toBeGreaterThan(0)
 
     // Sort by salary high-low
     await sortSelect.selectOption('salary_high')
@@ -151,8 +151,8 @@ test.describe('Job Search and Filtering', () => {
     await page.waitForTimeout(600)
 
     // Verify results or empty state
-    const resultText = await page.getByText(/results?|No jobs found/).first().textContent()
-    expect(resultText).toBeTruthy()
+    const expResultText = await page.getByText(/results?|No jobs found/).first().textContent()
+    expect(expResultText).toBeTruthy()
 
     // Clear filters
     await expSelect.selectOption('')
