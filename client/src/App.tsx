@@ -272,7 +272,7 @@ function AppRoutes() {
       <Route path="/admin/revenue" element={<AdminAuthGuard><RevenuePage /></AdminAuthGuard>} />
       <Route path="/admin/ai-health" element={<AdminAuthGuard><AiHealthPage /></AdminAuthGuard>} />
       <Route path="/admin/agents" element={<AdminAuthGuard><AdminAgentsDashboardPage /></AdminAuthGuard>} />
-      <Route path="/admin/compliance" element={<AdminAuthGuard><EUAIActDashboard /></AdminAuthGuard>} />
+      <Route path="/admin/compliance" element={<AdminAuthGuard><AdminCompliancePage /></AdminAuthGuard>} />
       <Route path="/admin/agent-dashboard" element={<AdminAuthGuard><AgentDashboardPage /></AdminAuthGuard>} />
       <Route path="/admin/analytics" element={<AdminAuthGuard><AdminAnalyticsPage /></AdminAuthGuard>} />
 
