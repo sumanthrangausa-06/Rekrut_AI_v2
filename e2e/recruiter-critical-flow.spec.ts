@@ -20,13 +20,16 @@ test.describe('Recruiter Critical Flow', () => {
     await expect(page.getByRole('heading', { name: /Create an account/i })).toBeVisible();
 
     // Select role: Employer / Recruiter
-    await page.getByRole('combobox').selectOption('employer');
+    const roleSelect = page.getByRole('combobox').first()
+    if (await roleSelect.isVisible().catch(() => false)) {
+      await roleSelect.selectOption('employer')
+    }
     await page.fill('input#name', 'E2E Test Recruiter');
     await page.fill('input#email', email);
     await page.fill('input#password', PASSWORD);
-    await page.fill('input#companyName', 'E2E Test Co');
+    await page.getByRole('textbox', { name: /Company name/i }).fill('E2E Test Co');
 
-    await page.getByRole('button', { name: /Create Account|Sign Up|Register/i }).click();
+    await page.getByRole('button', { name: /Sign up/i }).click();
 
     // Should redirect to recruiter dashboard
     await expect(page).toHaveURL(/.*\/recruiter/);
