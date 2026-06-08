@@ -15,7 +15,7 @@ import { apiCall } from "@/lib/api"
 import { trackEvent } from "@/lib/analytics"
 import {
   Users, Search, UserCheck, Download, SlidersHorizontal, Calendar, ChevronLeft, ChevronRight,
-  LayoutGrid, List, Filter, Sparkles, Save, Star, Bookmark, Trash2, ArrowRight, CheckSquare,
+  LayoutGrid, List, Filter, Sparkles, Save, Star, Bookmark, Trash2, ArrowUpDown, Clock, ArrowRight, CheckSquare,
   Square, Plus, Mail, X, GripVertical, Kanban, BookmarkX, Video, BrainCircuit,
 } from "lucide-react"
 
@@ -174,6 +174,8 @@ export function RecruiterCandidatesPage() {
   const [isRunningScreening, setIsRunningScreening] = useState(false)
   const [aiScreenerOpen, setAiScreenerOpen] = useState(false)
   const [aiScreenerCandidate, setAiScreenerCandidate] = useState<Candidate | null>(null)
+  const [sortBy, setSortBy] = useState<"relevance" | "newest" | "experience" | "matchScore" | "name">("relevance")
+  const [recentSearches, setRecentSearches] = useState<string[]>([])
   const limit = 20
 
   const loadCandidates = useCallback(async () => {
@@ -227,6 +229,23 @@ export function RecruiterCandidatesPage() {
     loadSavedSearches()
     loadJobs()
   }, [loadCandidates])
+
+  useEffect(() => {
+    const stored = localStorage.getItem("recruiter_recent_searches")
+    if (stored) {
+      try { setRecentSearches(JSON.parse(stored)) } catch { /* ignore */ }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      setRecentSearches(prev => {
+        const next = [searchQuery.trim(), ...prev.filter(s => s !== searchQuery.trim())].slice(0, 5)
+        localStorage.setItem("recruiter_recent_searches", JSON.stringify(next))
+        return next
+      })
+    }
+  }, [searchQuery])
 
   useEffect(() => {
     setPage(1)
@@ -384,7 +403,21 @@ export function RecruiterCandidatesPage() {
     offer: stats?.offer || 0,
   }
 
-  const filteredCandidates = candidates
+  const sortedCandidates = [...candidates].sort((a, b) => {
+    switch (sortBy) {
+      case "newest":
+        return (b.appliedAt || b.lastActivity || "").localeCompare(a.appliedAt || a.lastActivity || "")
+      case "experience":
+        return (b.experienceYears || 0) - (a.experienceYears || 0)
+      case "matchScore":
+        return (b.matchScore || 0) - (a.matchScore || 0)
+      case "name":
+        return a.name.localeCompare(b.name)
+      case "relevance":
+      default:
+        return 0
+    }
+  })
 
   // Kanban board grouping
   const kanbanColumns = [
@@ -488,6 +521,19 @@ export function RecruiterCandidatesPage() {
               {viewMode === "list" ? <Kanban className="h-3.5 w-3.5" /> : <List className="h-3.5 w-3.5" />}
               {viewMode === "list" ? "Kanban" : "List"}
             </Button>
+            <div className="relative">
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value as any)}
+                className="h-9 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="relevance">Sort: Relevance</option>
+                <option value="newest">Sort: Newest</option>
+                <option value="experience">Sort: Experience</option>
+                <option value="matchScore">Sort: Match Score</option>
+                <option value="name">Sort: Name A-Z</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -497,6 +543,47 @@ export function RecruiterCandidatesPage() {
           <Filter className="h-3 w-3" />
           Pro tip: Use "AND", "OR", "NOT" for Boolean search. Example: "react AND senior NOT junior"
         </div>
+
+        {/* Recent Searches */}
+        {recentSearches.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2"
+          >
+            <span className="text-xs font-medium text-muted-foreground flex items-center gap-1"
+            >
+              <Clock className="h-3 w-3" />
+              Recent:
+            </span>
+            {recentSearches.map(query => (
+              <button
+                key={query}
+                onClick={() => setSearchQuery(query)}
+                className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
+              >
+                {query}
+              </button>
+            ))}
+            <button
+              onClick={() => { setRecentSearches([]); localStorage.removeItem("recruiter_recent_searches") }}
+              className="text-xs text-muted-foreground hover:text-red-500 transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        {/* Results count */}
+        {candidates.length > 0 && !loading && (
+          <div className="text-xs text-muted-foreground"
+          >
+            Showing {candidates.length} candidate{candidates.length !== 1 ? "s" : ""}
+            {sortBy !== "relevance" && (
+              <span className="ml-1 text-indigo-600 font-medium"
+              >
+                · sorted by {sortBy.replace("matchScore", "match score").replace("name", "name A-Z")}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Bulk Actions Bar */}
@@ -597,7 +684,7 @@ export function RecruiterCandidatesPage() {
             >
               <div className="grid gap-4"
               >
-                {candidates.map((candidate) => (
+                {sortedCandidates.map((candidate) => (
                   <div key={candidate.id} className="relative group"
                   >
                     {/* Selection checkbox */}
@@ -679,7 +766,7 @@ export function RecruiterCandidatesPage() {
             <div className="flex gap-4 overflow-x-auto pb-2"
             >
               {kanbanColumns.map(column => {
-                const columnCandidates = candidates.filter(c => c.applicationStatus === column.id)
+                const columnCandidates = sortedCandidates.filter(c => c.applicationStatus === column.id)
                 return (
                   <div key={column.id} className={`flex-shrink-0 w-72 rounded-lg border ${column.color} ${column.bg} p-3`}
                   >

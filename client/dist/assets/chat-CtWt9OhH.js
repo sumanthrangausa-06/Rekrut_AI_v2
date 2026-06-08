@@ -1,0 +1,1 @@
+import{j as t}from"./react-CBnZa-TQ.js";import{C as o}from"./chat-Oh4yEPvd.js";import"./index-BdSnmZTD.js";import"./react-dom-C1MfV-4U.js";import"./vendor-D2vs-GsL.js";import"./router-CvnleGUT.js";import"./input-CGeiCtkh.js";import"./scroll-area-BwkoFJrW.js";function s(){return t.jsx(o,{mode:"candidate"})}export{s as CandidateChatPage};
