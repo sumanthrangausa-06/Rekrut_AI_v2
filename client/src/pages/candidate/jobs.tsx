@@ -429,7 +429,7 @@ export function CandidateJobsPage() {
                 onClick={() => setShowFiltersMobile(true)}
               >
                 <Filter className="h-4 w-4" />
-                <span className="hidden sm:inline">Filters</span>
+                <span>Filters</span>
                 {activeFilterCount > 0 && (
                   <Badge className="bg-indigo-600 text-white text-[10px] px-1.5 py-0">{activeFilterCount}</Badge>
                 )}

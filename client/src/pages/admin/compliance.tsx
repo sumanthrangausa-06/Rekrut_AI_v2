@@ -32,6 +32,10 @@ import {
   ChevronDown,
   ChevronUp,
   Ban,
+  FileCheck,
+  ListChecks,
+  GitPullRequest,
+  Activity,
 } from "lucide-react"
 
 export type ComplianceDecision = {
@@ -80,6 +84,56 @@ export type RiskClassification = {
   nextReview: string
 }
 
+export type ExplainabilityLog = {
+  id: string
+  timestamp: string
+  actionType: string
+  adminUser: { id: number; name: string }
+  candidate: { id: number; name: string }
+  targetType: string
+  explanationType: string
+  summary: string
+  modelVersion: string
+  confidence: number
+  viewedFromIp: string
+}
+
+export type HumanOverride = {
+  id: string
+  timestamp: string
+  overriddenBy: { id: number; name: string }
+  candidate: { id: number; name: string }
+  originalDecision: string
+  overrideDecision: string
+  overrideReason: string
+  jobTitle: string
+  aiModel: string
+  aiConfidence: number
+  overrideFromIp: string
+}
+
+export type RiskChecklistItem = {
+  id: string
+  category: string
+  item: string
+  required: boolean
+  status: "complete" | "incomplete" | "pending" | "in_progress"
+  evidence: string
+  eu_ai_act_ref: string
+  lastVerified: string
+}
+
+export type RiskChecklistSummary = {
+  total: number
+  completed: number
+  pending: number
+  incomplete: number
+  inProgress: number
+  complianceScore: number
+  overallStatus: string
+  nextReview: string
+}
+
 const decisionTypeConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
   screening: { icon: <Shield className="h-4 w-4" />, color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400", label: "Screening" },
   matching: { icon: <Users className="h-4 w-4" />, color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400", label: "Matching" },
@@ -99,6 +153,10 @@ export function AdminCompliancePage() {
   const [decisions, setDecisions] = useState<ComplianceDecision[]>([])
   const [biasReport, setBiasReport] = useState<BiasReport | null>(null)
   const [riskClasses, setRiskClasses] = useState<RiskClassification[]>([])
+  const [explanations, setExplanations] = useState<ExplainabilityLog[]>([])
+  const [overrides, setOverrides] = useState<HumanOverride[]>([])
+  const [riskChecklist, setRiskChecklist] = useState<RiskChecklistItem[]>([])
+  const [riskChecklistSummary, setRiskChecklistSummary] = useState<RiskChecklistSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedTab, setSelectedTab] = useState("audit")
   const [expandedDecision, setExpandedDecision] = useState<string | null>(null)
@@ -107,14 +165,21 @@ export function AdminCompliancePage() {
     async function loadCompliance() {
       setLoading(true)
       try {
-        const [decisionsData, biasData, riskData] = await Promise.all([
+        const [decisionsData, biasData, riskData, explanationsData, overridesData, checklistData] = await Promise.all([
           apiCall<{ decisions: ComplianceDecision[] }>("/admin/compliance/decisions"),
           apiCall<{ report: BiasReport }>("/admin/compliance/bias-report").catch(() => ({ report: null })),
           apiCall<{ classifications: RiskClassification[] }>("/admin/compliance/risk-classifications").catch(() => ({ classifications: [] })),
+          apiCall<{ explanations: ExplainabilityLog[] }>("/admin/compliance/explanations").catch(() => ({ explanations: [] })),
+          apiCall<{ overrides: HumanOverride[]; summary: RiskChecklistSummary }>("/admin/compliance/overrides").catch(() => ({ overrides: [], summary: null })),
+          apiCall<{ checklist: RiskChecklistItem[]; summary: RiskChecklistSummary }>("/admin/compliance/risk-checklist").catch(() => ({ checklist: [], summary: null })),
         ])
         setDecisions(decisionsData.decisions || [])
         setBiasReport(biasData.report)
         setRiskClasses(riskData.classifications || [])
+        setExplanations(explanationsData.explanations || [])
+        setOverrides(overridesData.overrides || [])
+        setRiskChecklist(checklistData.checklist || [])
+        setRiskChecklistSummary(checklistData.summary || null)
       } catch (err) {
         console.error("Failed to load compliance data:", err)
       } finally {
@@ -240,6 +305,18 @@ export function AdminCompliancePage() {
               <AlertTriangle className="h-3.5 w-3.5" />
               Bias Detection
             </TabsTrigger>
+            <TabsTrigger value="explanations" className="gap-1">
+              <BrainCircuit className="h-3.5 w-3.5" />
+              Explainability
+            </TabsTrigger>
+            <TabsTrigger value="overrides" className="gap-1">
+              <GitPullRequest className="h-3.5 w-3.5" />
+              Overrides
+            </TabsTrigger>
+            <TabsTrigger value="risk-checklist" className="gap-1">
+              <ListChecks className="h-3.5 w-3.5" />
+              Risk Checklist
+            </TabsTrigger>
             <TabsTrigger value="transparency" className="gap-1">
               <Eye className="h-3.5 w-3.5" />
               Transparency
@@ -276,8 +353,8 @@ export function AdminCompliancePage() {
                         const type = decisionTypeConfig[d.decisionType]
                         const isExpanded = expandedDecision === d.id
                         return (
-                          <>
-                            <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setExpandedDecision(isExpanded ? null : d.id)}>
+                          <React.Fragment key={d.id}>
+                            <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => setExpandedDecision(isExpanded ? null : d.id)}>
                               <TableCell>
                                 <Badge className={`${type.color} gap-1`}>
                                   {type.icon}
@@ -350,7 +427,7 @@ export function AdminCompliancePage() {
                                 </TableCell>
                               </TableRow>
                             )}
-                          </>
+                          </React.Fragment>
                         )
                       })}
                     </TableBody>
@@ -459,6 +536,303 @@ export function AdminCompliancePage() {
                     </CardContent>
                   </Card>
                 </div>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="explanations" className="mt-4">
+            {loading ? (
+              <Skeleton count={3} variant="table" />
+            ) : explanations.length === 0 ? (
+              <EmptyState
+                icon={BrainCircuit}
+                title="No explainability logs yet"
+                description="AI explanation records will appear here once explanations are viewed or generated"
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <ChartCard
+                    title="Total Explanations"
+                    value={explanations.length}
+                    icon={<BrainCircuit className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Avg Confidence"
+                    value={`${(explanations.reduce((sum, e) => sum + e.confidence, 0) / Math.max(explanations.length, 1) * 100).toFixed(1)}%`}
+                    icon={<Activity className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Unique Models"
+                    value={new Set(explanations.map(e => e.modelVersion)).size}
+                    icon={<FileText className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Last 24h"
+                    value={explanations.filter(e => new Date(e.timestamp) > new Date(Date.now() - 24 * 60 * 60 * 1000)).length}
+                    icon={<Clock className="h-4 w-4" />}
+                  />
+                </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Explainability Log</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Timestamp</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Candidate</TableHead>
+                          <TableHead>Model</TableHead>
+                          <TableHead>Confidence</TableHead>
+                          <TableHead>Accessed By</TableHead>
+                          <TableHead>IP Address</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {explanations.map((e) => (
+                          <TableRow key={e.id}>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                              {new Date(e.timestamp).toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">
+                                {e.explanationType}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium text-sm">{e.candidate.name}</p>
+                                <p className="text-xs text-muted-foreground">ID: {e.candidate.id}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs">{e.modelVersion}</TableCell>
+                            <TableCell>{Math.round(e.confidence * 100)}%</TableCell>
+                            <TableCell>
+                              <p className="text-sm">{e.adminUser.name}</p>
+                              <p className="text-xs text-muted-foreground">ID: {e.adminUser.id}</p>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {e.viewedFromIp || "—"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="overrides" className="mt-4">
+            {loading ? (
+              <Skeleton count={3} variant="table" />
+            ) : overrides.length === 0 ? (
+              <EmptyState
+                icon={GitPullRequest}
+                title="No human overrides yet"
+                description="Records of recruiters overriding AI decisions will appear here"
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <ChartCard
+                    title="Total Overrides"
+                    value={overrides.length}
+                    icon={<GitPullRequest className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Avg AI Confidence"
+                    value={`${(overrides.reduce((sum, o) => sum + o.aiConfidence, 0) / Math.max(overrides.length, 1) * 100).toFixed(1)}%`}
+                    icon={<Activity className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Unique Recruiters"
+                    value={new Set(overrides.map(o => o.overriddenBy.id)).size}
+                    icon={<Users className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Last 24h"
+                    value={overrides.filter(o => new Date(o.timestamp) > new Date(Date.now() - 24 * 60 * 60 * 1000)).length}
+                    icon={<Clock className="h-4 w-4" />}
+                  />
+                </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Human Override Log</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Timestamp</TableHead>
+                          <TableHead>Candidate</TableHead>
+                          <TableHead>Job</TableHead>
+                          <TableHead>Original Decision</TableHead>
+                          <TableHead>Override Decision</TableHead>
+                          <TableHead>AI Confidence</TableHead>
+                          <TableHead>Override By</TableHead>
+                          <TableHead>Reason</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {overrides.map((o) => (
+                          <TableRow key={o.id}>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                              {new Date(o.timestamp).toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              <p className="font-medium text-sm">{o.candidate.name}</p>
+                              <p className="text-xs text-muted-foreground">ID: {o.candidate.id}</p>
+                            </TableCell>
+                            <TableCell className="text-sm">{o.jobTitle}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">
+                                {o.originalDecision}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                {o.overrideDecision}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{Math.round(o.aiConfidence * 100)}%</TableCell>
+                            <TableCell>
+                              <p className="text-sm">{o.overriddenBy.name}</p>
+                              <p className="text-xs text-muted-foreground">ID: {o.overriddenBy.id}</p>
+                            </TableCell>
+                            <TableCell className="text-sm max-w-xs truncate" title={o.overrideReason}>
+                              {o.overrideReason}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="risk-checklist" className="mt-4">
+            {loading ? (
+              <Skeleton count={4} variant="card" />
+            ) : riskChecklist.length === 0 ? (
+              <EmptyState
+                icon={ListChecks}
+                title="Risk checklist not available"
+                description="Checklist data will appear once compliance monitoring is configured"
+              />
+            ) : (
+              <div className="space-y-4">
+                {riskChecklistSummary && (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <ChartCard
+                      title="Compliance Score"
+                      value={`${riskChecklistSummary.complianceScore}%`}
+                      trend={riskChecklistSummary.complianceScore >= 80 ? "up" : "down"}
+                      trendValue={riskChecklistSummary.complianceScore >= 80 ? "On track" : "Needs work"}
+                      icon={<ShieldCheck className="h-4 w-4" />}
+                    />
+                    <ChartCard
+                      title="Complete"
+                      value={riskChecklistSummary.completed}
+                      icon={<CheckCircle className="h-4 w-4" />}
+                    />
+                    <ChartCard
+                      title="Pending"
+                      value={riskChecklistSummary.pending}
+                      icon={<Clock className="h-4 w-4" />}
+                    />
+                    <ChartCard
+                      title="Incomplete"
+                      value={riskChecklistSummary.incomplete}
+                      trend="down"
+                      trendValue={riskChecklistSummary.incomplete > 0 ? "Action needed" : "Clean"}
+                      icon={<XCircle className="h-4 w-4" />}
+                    />
+                  </div>
+                )}
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <ListChecks className="h-5 w-5" />
+                      EU AI Act Risk Assessment Checklist
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Requirement</TableHead>
+                          <TableHead>Evidence</TableHead>
+                          <TableHead>EU AI Act Ref</TableHead>
+                          <TableHead>Last Verified</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {riskChecklist.map((item) => {
+                          const statusConfig = {
+                            complete: {
+                              color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+                              icon: <CheckCircle className="h-4 w-4" />,
+                              label: "Complete",
+                            },
+                            pending: {
+                              color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                              icon: <Clock className="h-4 w-4" />,
+                              label: "Pending",
+                            },
+                            incomplete: {
+                              color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+                              icon: <XCircle className="h-4 w-4" />,
+                              label: "Incomplete",
+                            },
+                            in_progress: {
+                              color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                              icon: <Activity className="h-4 w-4" />,
+                              label: "In Progress",
+                            },
+                          };
+                          const config = statusConfig[item.status] || statusConfig.incomplete;
+                          return (
+                            <TableRow key={item.id}>
+                              <TableCell>
+                                <Badge className={`${config.color} gap-1`}>
+                                  {config.icon}
+                                  {config.label}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="font-medium">{item.category}</TableCell>
+                              <TableCell>
+                                <div>
+                                  <p className="text-sm font-medium">{item.item}</p>
+                                  {item.required && (
+                                    <p className="text-xs text-red-500">Required</p>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground max-w-sm">
+                                {item.evidence}
+                              </TableCell>
+                              <TableCell className="text-xs font-mono">
+                                {item.eu_ai_act_ref}
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {new Date(item.lastVerified).toLocaleDateString()}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
               </div>
             )}
           </TabsContent>

@@ -1,9 +1,32 @@
+// Auth setup: purely API-based. No browser contexts are spawned here,
+// which avoids the major memory spike that caused SIGKILL in CI.
 import { test as setup, expect } from '@playwright/test';
 import * as fs from 'fs';
 
 const CANDIDATE_EMAIL = 'e2e-candidate@rekrutai.test';
 const RECRUITER_EMAIL = 'e2e-recruiter@rekrutai.test';
 const PASSWORD = 'TestPass123!';
+
+/** Return true if the token in the given storageState file is valid for at least 5 more minutes. */
+function isAuthValid(path: string): boolean {
+  if (!fs.existsSync(path)) return false;
+  try {
+    const data = JSON.parse(fs.readFileSync(path, 'utf-8'));
+    const origin = data.origins?.find((o: any) => o.origin === 'http://localhost:3000');
+    const tokenEntry = origin?.localStorage?.find((entry: any) => entry.name === 'token');
+    if (!tokenEntry) return false;
+    const token = tokenEntry.value as string;
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
+    if (!payload.exp) return false;
+    const now = Math.floor(Date.now() / 1000);
+    // Require at least 5 minutes of remaining validity
+    return payload.exp - now > 300;
+  } catch {
+    return false;
+  }
+}
 
 async function getOrCreateUser(
   request: any,
@@ -17,7 +40,6 @@ async function getOrCreateUser(
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (attempt > 0) {
-      // Exponential backoff with jitter: 1s, 2s, 4s
       const delay = Math.floor(1000 * Math.pow(2, attempt - 1) + Math.random() * 500);
       await new Promise((r) => setTimeout(r, delay));
     }
@@ -34,7 +56,6 @@ async function getOrCreateUser(
       };
     }
 
-    // If rate-limited, retry with backoff
     if (loginRes.status() === 429) {
       const text = await loginRes.text().catch(() => '');
       try {
@@ -46,16 +67,14 @@ async function getOrCreateUser(
         }
       } catch {}
       lastError = new Error(`Rate limited: ${text}`);
-      continue; // retry on next iteration
+      continue;
     }
 
-    // If not found (404), attempt registration
     if (loginRes.status() !== 404) {
       const text = await loginRes.text().catch(() => '');
       throw new Error(`Login failed for ${email}: ${loginRes.status()} ${text}`);
     }
 
-    // Register new user
     const body: any = { name, email, password: PASSWORD, role };
     if (companyName) body.company_name = companyName;
 
@@ -71,7 +90,7 @@ async function getOrCreateUser(
     if (regRes.status() === 429) {
       const text = await regRes.text().catch(() => '');
       lastError = new Error(`Rate limited during registration: ${text}`);
-      continue; // retry on next iteration
+      continue;
     }
 
     const text = await regRes.text().catch(() => '');
@@ -81,13 +100,7 @@ async function getOrCreateUser(
   throw lastError || new Error(`Failed to getOrCreateUser for ${email} after ${maxRetries} retries`);
 }
 
-async function saveAuthState(
-  browser: any,
-  token: string,
-  refreshToken: string,
-  path: string,
-  role: 'candidate' | 'recruiter'
-) {
+function writeStorageState(token: string, refreshToken: string, path: string) {
   const storageState = {
     cookies: [] as any[],
     origins: [
@@ -102,80 +115,26 @@ async function saveAuthState(
       },
     ],
   };
-
-  try {
-    const context = await browser.newContext({ storageState });
-    try {
-      const page = await context.newPage();
-
-      const dashboardPath = role === 'recruiter' ? '/recruiter' : '/candidate';
-      await page.goto(dashboardPath);
-
-      await expect(page).toHaveURL(new RegExp(`.*${dashboardPath}`));
-      await page.waitForLoadState('networkidle');
-
-      await page.context().storageState({ path });
-    } finally {
-      await context.close().catch(() => {});
-    }
-  } catch {
-    // Fallback: write storage state directly without browser validation
-    // (browser may be under memory pressure in CI)
-    fs.writeFileSync(path, JSON.stringify(storageState, null, 2));
-  }
+  fs.writeFileSync(path, JSON.stringify(storageState, null, 2));
 }
 
-async function verifyExistingAuth(browser: any, path: string, role: 'candidate' | 'recruiter') {
-  if (!fs.existsSync(path)) return false;
-
-  try {
-    const context = await browser.newContext({ storageState: path });
-    try {
-      const page = await context.newPage();
-      const dashboardPath = role === 'recruiter' ? '/recruiter' : '/candidate';
-      await page.goto(dashboardPath);
-      await page.waitForLoadState('networkidle');
-      // Give React time to run the auth check and redirect if needed
-      await page.waitForTimeout(500);
-      const url = page.url();
-      return url.includes(dashboardPath);
-    } finally {
-      await context.close().catch(() => {});
-    }
-  } catch {
-    return false;
-  }
-}
-
-setup('authenticate candidate', async ({ request, browser }) => {
+setup('authenticate candidate', async ({ request }) => {
   const path = 'e2e/.auth/candidate.json';
-  if (await verifyExistingAuth(browser, path, 'candidate')) {
-    setup.skip(true, 'Candidate auth state already valid');
-    return;
-  }
-
+  // Always regenerate to avoid setup-skip cascading to dependent tests
+  if (fs.existsSync(path)) fs.unlinkSync(path);
   const { token, refreshToken } = await getOrCreateUser(
     request,
     CANDIDATE_EMAIL,
     'candidate',
     'E2E Candidate'
   );
-  await saveAuthState(
-    browser,
-    token,
-    refreshToken,
-    path,
-    'candidate'
-  );
+  writeStorageState(token, refreshToken, path);
 });
 
-setup('authenticate recruiter', async ({ request, browser }) => {
+setup('authenticate recruiter', async ({ request }) => {
   const path = 'e2e/.auth/recruiter.json';
-  if (await verifyExistingAuth(browser, path, 'recruiter')) {
-    setup.skip(true, 'Recruiter auth state already valid');
-    return;
-  }
-
+  // Always regenerate to avoid setup-skip cascading to dependent tests
+  if (fs.existsSync(path)) fs.unlinkSync(path);
   const { token, refreshToken } = await getOrCreateUser(
     request,
     RECRUITER_EMAIL,
@@ -183,11 +142,5 @@ setup('authenticate recruiter', async ({ request, browser }) => {
     'E2E Recruiter',
     'E2E Test Co'
   );
-  await saveAuthState(
-    browser,
-    token,
-    refreshToken,
-    path,
-    'recruiter'
-  );
+  writeStorageState(token, refreshToken, path);
 });

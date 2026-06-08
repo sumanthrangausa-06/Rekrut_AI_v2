@@ -33,6 +33,8 @@ export default defineConfig({
     // Reduce browser memory footprint by disabling unnecessary features
     launchOptions: {
       args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--disable-software-rasterizer',
@@ -58,6 +60,7 @@ export default defineConfig({
     {
       name: 'setup',
       testMatch: /auth\.setup\.ts/,
+      timeout: 180000, // 3 min — allows for rate-limit retries
     },
     {
       name: 'chromium',
@@ -81,8 +84,11 @@ export default defineConfig({
     // },
   ],
 
-  // Global teardown: clean up any orphaned browser processes after the suite
-  globalTeardown: require.resolve('./e2e/global-teardown.ts'),
+  // Global teardown: disabled — the pkill-based teardown was killing Playwright's
+  // own browser before it could finish graceful shutdown, causing the test runner
+  // to hang and receive SIGTERM. Playwright's built-in cleanup is sufficient for
+  // per-file test runs.
+  // globalTeardown: require.resolve('./e2e/global-teardown.ts'),
 
   webServer: {
     command: 'node server.js',
