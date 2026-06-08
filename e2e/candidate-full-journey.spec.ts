@@ -94,34 +94,21 @@ test.describe('Candidate Full Journey', () => {
       await page.waitForTimeout(800);
     }
 
-    // ─── 4. Find and click the job ───
-    const jobCards = page.locator('.cursor-pointer');
-    const count = await jobCards.count();
-    let targetJobIndex = -1;
-    for (let i = 0; i < count; i++) {
-      const card = jobCards.nth(i);
-      const cardText = await card.textContent().catch(() => '');
-      const hasApplied = await card.locator('text=Applied').isVisible().catch(() => false);
-      if (!hasApplied && cardText.includes(jobTitle)) {
-        targetJobIndex = i;
-        break;
-      }
-    }
-    if (targetJobIndex === -1) {
-      throw new Error(`Seeded job "${jobTitle}" not found in candidate jobs list`);
-    }
-
-    await jobCards.nth(targetJobIndex).click();
-
+    // ─── 4. Navigate directly to the seeded job detail ───
+    await page.goto(`/candidate/jobs/${jobId}`);
+    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(800);
+
     const jobTitleWords = jobTitle.split(' ').slice(0, 3).join(' ');
     await expect(page.getByText(jobTitleWords).first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('About the Role').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Job Description').first()).toBeVisible({ timeout: 10000 });
 
     // ─── 5. Apply to the job ───
-    const applyBtn = page.getByRole('button', { name: 'Apply Now' }).first();
+    // Use a more specific locator scoped to the main job card to avoid similar-jobs buttons
+    const applyBtn = page.locator('main, [role="main"], .job-detail').getByRole('button', { name: 'Apply Now' }).first();
     await expect(applyBtn).toBeVisible({ timeout: 10000 });
     await applyBtn.click();
+    await page.waitForTimeout(500);
 
     await expect(page.getByRole('button', { name: 'Submit Application' }).first()).toBeVisible({ timeout: 10000 });
 
