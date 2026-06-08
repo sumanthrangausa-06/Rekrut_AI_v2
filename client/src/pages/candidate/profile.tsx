@@ -813,7 +813,7 @@ function OverviewTab({ profile, experience, education, skills, certifications, p
                       <p className="text-xs text-muted-foreground truncate">{conn.title} at {conn.company}</p>
                       <p className="text-[10px] text-muted-foreground">{conn.mutual_connections} mutual connections</p>
                     </div>
-                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1">
+                    <Button variant="outline" size="sm" className="min-h-[44px] px-2 text-xs gap-1">
                       <Plus className="h-3 w-3" /> Connect
                     </Button>
                   </div>
@@ -1369,10 +1369,10 @@ function SkillsTab({ skills, setSkills, showMessage }: {
                           )}
                         </div>
                         <div className="flex flex-col items-center gap-1 shrink-0">
-                          <Button variant="ghost" size="sm" onClick={() => removeSkill(skill.id)} className="text-muted-foreground hover:text-destructive h-7 w-7 p-0">
+                          <Button variant="ghost" size="sm" onClick={() => removeSkill(skill.id)} className="text-muted-foreground hover:text-destructive min-h-[44px] min-w-[44px] p-0">
                             <X className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1" onClick={() => endorseSkill(skill.id)} disabled={endorsing === skill.id}>
+                          <Button variant="outline" size="sm" className="min-h-[44px] text-[10px] gap-1" onClick={() => endorseSkill(skill.id)} disabled={endorsing === skill.id}>
                             {endorsing === skill.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <ThumbsUp className="h-3 w-3" />}
                             Endorse
                           </Button>

@@ -26,11 +26,11 @@ test.describe('recruiter job posting flow', () => {
     // Step 3: Preview & Post
     await page.getByRole('button', { name: /Next/i }).click()
     await page.waitForSelector('text=Preview')
-    await page.getByRole('button', { name: 'Post Job' }).click()
+    await page.getByRole('button', { name: 'Publish Job' }).click()
 
     // Verify redirect to jobs list and job appears
     await page.waitForURL('/recruiter/jobs')
-    await expect(page.getByText(jobTitle)).toBeVisible({ timeout: 15000 })
+    await expect(page.getByText(jobTitle).first()).toBeVisible({ timeout: 15000 })
 
     // Edit the job via dropdown menu
     const jobRow = page.locator('text=' + jobTitle).first().locator('xpath=ancestor::*[contains(@class, "group")]')
@@ -44,6 +44,11 @@ test.describe('recruiter job posting flow', () => {
     }
 
     await page.waitForURL(/.*\/recruiter\/jobs\/\d+\/edit/)
+
+    // Navigate through wizard to step 3 (Preview & Post) where Update Job button is
+    await page.getByRole('button', { name: /Next/i }).click()
+    await page.getByRole('button', { name: /Next/i }).click()
+    await page.waitForSelector('text=Preview')
 
     // Update title and save
     await page.getByPlaceholder(/e\.g\. Senior Software Engineer/i).fill(updatedTitle)
