@@ -3,7 +3,7 @@ services:
     name: rekrutai-prod
     env: node
     branch: main
-    buildCommand: cd client && npm install && npm run build && cd .. && npm install
+    buildCommand: cd client && npm install --include=dev && npm run build && cd .. && npm install
     startCommand: npm start
     healthCheckPath: /health
     envVars:
@@ -167,7 +167,7 @@ services:
     name: rekrutai-staging
     env: node
     branch: staging
-    buildCommand: cd client && npm install && npm run build && cd .. && npm install
+    buildCommand: cd client && npm install --include=dev && npm run build && cd .. && npm install
     startCommand: npm start
     healthCheckPath: /health
     envVars:
@@ -270,7 +270,7 @@ services:
     name: rekrutai-dev
     env: node
     branch: dev
-    buildCommand: cd client && npm install && npm run build && cd .. && npm install
+    buildCommand: cd client && npm install --include=dev && npm run build && cd .. && npm install
     startCommand: npm start
     healthCheckPath: /health
     envVars:
