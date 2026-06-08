@@ -73,8 +73,8 @@ export function AdminDashboardPage() {
 
         // Fetch analytics, AI health, and agents in parallel
         const [analyticsRes, aiHealthRes] = await Promise.allSettled([
-          apiCall('/admin/analytics', { skipAuthCheck: false }).catch(() => null),
-          apiCall('/admin/ai-health', { skipAuthCheck: false }).catch(() => null),
+          apiCall<any>('/admin/analytics', { skipAuthCheck: false }).catch(() => null),
+          apiCall<any>('/admin/ai-health', { skipAuthCheck: false }).catch(() => null),
         ])
 
         if (cancelled) return
