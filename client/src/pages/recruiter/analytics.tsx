@@ -329,7 +329,7 @@ export function RecruiterAnalyticsPage() {
       </Card>
 
       {/* Two-column grid: Velocity + Sources */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Hiring Velocity */}
         <Card>
           <CardHeader className="pb-3">
@@ -402,7 +402,7 @@ export function RecruiterAnalyticsPage() {
       </div>
 
       {/* Two-column grid: Time by Stage + Top Jobs */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Time to Hire by Stage */}
         <Card>
           <CardHeader className="pb-3">
@@ -522,7 +522,7 @@ export function RecruiterAnalyticsPage() {
       </Card>
 
       {/* Two-column grid: Diversity + Rejection Reasons */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Diversity Metrics */}
         <Card>
           <CardHeader className="pb-3">
@@ -535,7 +535,7 @@ export function RecruiterAnalyticsPage() {
             {/* Gender */}
             <div className="space-y-2">
               <p className="text-sm font-medium text-muted-foreground">Gender</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {diversityMetrics.gender_distribution.map((item) => (
                   <div key={item.label} className="rounded-lg border p-3">
                     <div className="flex items-center justify-between mb-1">
