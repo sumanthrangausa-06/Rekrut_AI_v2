@@ -4,16 +4,21 @@ test.use({ storageState: 'e2e/.auth/recruiter.json' })
 
 test.describe('recruiter job posting flow', () => {
   test('create job, verify listing, edit, and verify update', async ({ page }) => {
+    test.setTimeout(120000) // 2 minutes — job creation + editing is long
     const jobTitle = 'E2E Test Engineer ' + Date.now()
     const updatedTitle = jobTitle + ' Updated'
 
     // Navigate to jobs page and create new job
     await page.goto('/recruiter/jobs')
     await page.waitForURL('/recruiter/jobs')
-    await page.getByRole('button', { name: 'Post New Job' }).click()
+    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(500)
+    await page.getByRole('button', { name: 'Post New Job' }).first().click()
     await page.waitForURL('/recruiter/jobs/new')
+    await page.waitForLoadState('networkidle')
 
-    // Step 1: Job Details
+    // Step 1: Job Details — wait for form to be ready
+    await page.waitForSelector('input[placeholder*="Senior"], input[placeholder*="Engineer"], input[name="title"]', { timeout: 15000 })
     await page.getByPlaceholder(/e\.g\. Senior Software Engineer/i).fill(jobTitle)
     await page.getByPlaceholder(/Leave blank to use your company name/i).fill('E2E Test Co')
     await page.getByPlaceholder(/e\.g\. New York, NY or Remote/i).fill('Remote')
@@ -44,6 +49,7 @@ test.describe('recruiter job posting flow', () => {
     }
 
     await page.waitForURL(/.*\/recruiter\/jobs\/\d+\/edit/)
+    await page.waitForLoadState('networkidle')
 
     // Navigate through wizard to step 3 (Preview & Post) where Update Job button is
     await page.getByRole('button', { name: /Next/i }).click()

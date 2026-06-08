@@ -60,6 +60,7 @@ export default defineConfig({
     {
       name: 'setup',
       testMatch: /auth\.setup\.ts/,
+      timeout: 180000, // 3 min — allows for rate-limit retries
     },
     {
       name: 'chromium',
