@@ -76,6 +76,9 @@ export default defineConfig({
     // },
   ],
 
+  // Global teardown: clean up any orphaned browser processes after the suite
+  globalTeardown: require.resolve('./e2e/global-teardown.ts'),
+
   webServer: {
     command: 'node server.js',
     url: 'http://localhost:3000',
