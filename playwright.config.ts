@@ -33,6 +33,8 @@ export default defineConfig({
     // Reduce browser memory footprint by disabling unnecessary features
     launchOptions: {
       args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--disable-software-rasterizer',
