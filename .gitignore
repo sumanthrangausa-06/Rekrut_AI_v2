@@ -7,6 +7,10 @@ client/dist/
 dist/
 build/
 
+# Logs
+logs/
+*.log
+
 # Self-hosted audio binaries (downloaded at build time)
 bin/audio/
 
