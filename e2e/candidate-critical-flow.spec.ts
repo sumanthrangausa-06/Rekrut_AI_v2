@@ -18,7 +18,7 @@ test.describe('Candidate Critical Flow — Desktop', () => {
 
     // ─── 1. Signup ───
     await page.goto('/register');
-    await expect(page.getByRole('heading', { name: /Create Account/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Create an account/i })).toBeVisible();
 
     // Select role: Job Seeker
     await page.locator('select#role').selectOption('candidate');
@@ -86,7 +86,7 @@ test.describe('Candidate Critical Flow — Mobile', () => {
 
     // ─── 1. Signup ───
     await page.goto('/register');
-    await expect(page.getByRole('heading', { name: /Create Account/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Create an account/i })).toBeVisible();
 
     await page.locator('select#role').selectOption('candidate');
     await page.fill('input#name', 'E2E Mobile Candidate');

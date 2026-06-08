@@ -17,7 +17,7 @@ test.describe('Recruiter Critical Flow', () => {
 
     // ─── 1. Signup as Recruiter ───
     await page.goto('/register');
-    await expect(page.getByRole('heading', { name: /Create Account/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Create an account/i })).toBeVisible();
 
     // Select role: Employer / Recruiter
     await page.locator('select#role').selectOption('employer');
