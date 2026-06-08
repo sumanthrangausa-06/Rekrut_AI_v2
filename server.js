@@ -64,7 +64,11 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       scriptSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://api.rekrutai.co", "https://rekrutai-dev.onrender.com"],
+      connectSrc: [
+        "'self'",
+        ...(process.env.NODE_ENV === 'development' ? ["https://rekrutai-dev.onrender.com"] : []),
+        "https://api.rekrutai.co",
+      ],
       frameAncestors: ["'none'"],
       upgradeInsecureRequests: [],
     },

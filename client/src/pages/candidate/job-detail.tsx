@@ -305,7 +305,7 @@ export function CandidateJobDetailPage() {
 
       {/* Job header */}
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-start gap-4">
               <Avatar src={job.company_logo} fallback={(job.company || job.poster_company || 'C').charAt(0)} size="lg" className="h-14 w-14" />
@@ -322,7 +322,7 @@ export function CandidateJobDetailPage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button onClick={toggleSave} className="p-2 rounded-lg hover:bg-muted transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center" aria-label={saved ? 'Unsave' : 'Save'}>
                 {saved ? <Bookmark className="h-5 w-5 text-amber-500 fill-amber-500" /> : <BookmarkPlus className="h-5 w-5 text-muted-foreground" />}
               </button>
@@ -547,7 +547,7 @@ export function CandidateJobDetailPage() {
           </CardHeader>
           <CardContent className="space-y-5">
             {autoFill && Object.keys(autoFillSources).length > 0 && (
-              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800 flex items-center gap-2">
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800 flex items-start gap-2">
                 <Zap className="h-4 w-4 shrink-0" />
                 Some fields were auto-filled from your profile and past applications. Review and update as needed.
               </div>
@@ -575,7 +575,7 @@ export function CandidateJobDetailPage() {
                   </Button>
                 </div>
                 {screeningQuestions.map((q, i) => (
-                  <div key={q.id || i} className="rounded-lg border p-4 space-y-1">
+                  <div key={q.id || i} className="rounded-lg border p-3 sm:p-4 space-y-1">
                     <Label className="text-sm font-medium">{q.question || ''}{q.required && <span className="text-destructive ml-1">*</span>}</Label>
                     {q.category && <p className="text-xs text-muted-foreground capitalize">{q.category.replace(/_/g, ' ')}</p>}
                     {renderScreeningInput(q, i)}

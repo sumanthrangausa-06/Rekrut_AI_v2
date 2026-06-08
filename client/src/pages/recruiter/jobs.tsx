@@ -302,10 +302,10 @@ export function RecruiterJobsPage() {
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                        {job.department && <span className="flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" /> {job.department}</span>}
+                        {job.department && <span className="flex items-center gap-1 min-w-0"><Briefcase className="h-3.5 w-3.5 shrink-0" /> <span className="min-w-0 break-words">{job.department}</span></span>}
                         {job.location && (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3.5 w-3.5" /> {job.location}
+                          <span className="flex items-center gap-1 min-w-0">
+                            <MapPin className="h-3.5 w-3.5 shrink-0" /> <span className="min-w-0 break-words">{job.location}</span>
                           </span>
                         )}
                         {job.job_type && <Badge variant="outline" className="text-[10px]">{job.job_type}</Badge>}
@@ -343,7 +343,7 @@ export function RecruiterJobsPage() {
 
                     {/* Right: Stats + Actions */}
                     <div className="flex flex-col gap-3 sm:items-end">
-                      <div className="flex items-center gap-4 sm:gap-6">
+                      <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                         <div className="text-center">
                           <p className="text-xl font-bold">{job.application_count || 0}</p>
                           <p className="text-[10px] text-muted-foreground">Applicants</p>
@@ -422,14 +422,14 @@ export function RecruiterJobsPage() {
                 onClick={() => openJobDetail(job)}
               >
                 <CardContent className="p-4 space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-1">
                     <Badge variant={status.variant} className="gap-1">
                       {status.icon}
                       {status.label}
                     </Badge>
                     <span className="text-xs text-muted-foreground">{timeAgo(job.created_at)}</span>
                   </div>
-                  <h3 className="font-semibold text-base">{job.title}</h3>
+                  <h3 className="font-semibold text-base break-words min-w-0">{job.title}</h3>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     {job.location && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {job.location}</span>}
                     {job.job_type && <span>{job.job_type}</span>}
@@ -509,21 +509,23 @@ function JobDetailPanel({
     (job.hired_count || 0)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 max-w-full">
       {/* Header */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:flex-wrap">
           <h2 className="font-bold text-lg leading-tight min-w-0 break-words">{job.title}</h2>
-          <Badge variant={status.variant} className="gap-1 shrink-0">
-            {status.icon}
-            {status.label}
-          </Badge>
-          {job.status === 'active' && (
-            <Badge variant="outline" className="text-[10px] gap-1 bg-green-50 text-green-700 border-green-200 shrink-0">
-              <ArrowUpRight className="h-3 w-3" />
-              Live
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant={status.variant} className="gap-1 shrink-0">
+              {status.icon}
+              {status.label}
             </Badge>
-          )}
+            {job.status === 'active' && (
+              <Badge variant="outline" className="text-[10px] gap-1 bg-green-50 text-green-700 border-green-200 shrink-0">
+                <ArrowUpRight className="h-3 w-3" />
+                Live
+              </Badge>
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           {job.department && (
