@@ -32,3 +32,6 @@ e2e/.auth/
 
 # Stripe CLI (if installed locally)
 stripe
+
+# E2E reports directory (generated test artifacts, do not commit)
+e2e-reports/
