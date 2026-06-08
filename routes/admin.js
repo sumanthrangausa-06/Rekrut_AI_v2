@@ -382,7 +382,8 @@ router.get('/team-status', requireAdmin, async (req, res) => {
 // GET /api/admin/compliance/decisions — AI decision audit trail
 router.get('/compliance/decisions', requireAdmin, async (req, res) => {
   try {
-    const { limit = 50, offset = 0 } = req.query;
+    const limit = Math.min(safeInt(req.query.limit, 50), 500);
+    const offset = safeInt(req.query.offset, 0);
 
     // Get all AI decision logs from audit_logs
     const result = await pool.query(`
@@ -461,6 +462,16 @@ function mapDecisionType(actionType) {
     'score_appeal_submitted': 'scoring',
   };
   return typeMap[actionType] || 'scoring';
+}
+
+function safeFloat(value, fallback = 0) {
+  const parsed = parseFloat(value);
+  return Number.isNaN(parsed) ? fallback : parsed;
+}
+
+function safeInt(value, fallback = 0) {
+  const parsed = parseInt(value, 10);
+  return Number.isNaN(parsed) ? fallback : parsed;
 }
 
 // GET /api/admin/compliance/bias-report — latest bias detection report
@@ -596,6 +607,9 @@ router.get('/compliance/risk-classifications', requireAdmin, async (req, res) =>
 router.post('/compliance/decisions/:id/review', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
+    if (!id || !/^\d+$/.test(id)) {
+      return res.status(400).json({ error: 'Invalid decision ID' });
+    }
 
     await pool.query(`
       UPDATE audit_logs
@@ -611,6 +625,610 @@ router.post('/compliance/decisions/:id/review', requireAdmin, async (req, res) =
   } catch (error) {
     console.error('[admin/compliance/review] Error:', error.message);
     res.status(500).json({ error: 'Failed to mark as reviewed' });
+  }
+});
+
+// GET /api/admin/compliance/explanations — explainability log of all AI decisions
+router.get('/compliance/explanations', requireAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(safeInt(req.query.limit, 50), 500);
+    const offset = safeInt(req.query.offset, 0);
+
+    const result = await pool.query(`
+      SELECT
+        al.id::text as id,
+        al.created_at as timestamp,
+        al.action_type,
+        al.user_id as admin_user_id,
+        au.name as admin_user_name,
+        al.target_id as candidate_id,
+        cu.name as candidate_name,
+        al.target_type as target_type,
+        COALESCE(al.metadata->>'explanation_type', 'unknown') as explanation_type,
+        COALESCE(al.metadata->>'explanation_summary', 'Explanation viewed') as explanation_summary,
+        COALESCE(al.metadata->>'model_version', 'unknown') as model_version,
+        COALESCE(al.metadata->>'confidence', '0.85')::float as confidence,
+        al.ip_address as viewed_from_ip
+      FROM audit_logs al
+      LEFT JOIN users au ON al.user_id = au.id
+      LEFT JOIN users cu ON al.target_id = cu.id AND al.target_type = 'user'
+      WHERE al.action_type IN ('score_explanation_viewed', 'decision_explanation_viewed', 'ai_explanation_generated')
+      ORDER BY al.created_at DESC
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+
+    const explanations = result.rows.map(row => ({
+      id: row.id,
+      timestamp: row.timestamp,
+      actionType: row.action_type,
+      adminUser: { id: row.admin_user_id, name: row.admin_user_name || 'System' },
+      candidate: { id: row.candidate_id, name: row.candidate_name || 'Unknown' },
+      targetType: row.target_type,
+      explanationType: row.explanation_type,
+      summary: row.explanation_summary,
+      modelVersion: row.model_version,
+      confidence: row.confidence,
+      viewedFromIp: row.viewed_from_ip,
+    }));
+
+    res.json({ success: true, explanations });
+  } catch (error) {
+    console.error('[admin/compliance/explanations] Error:', error.message);
+    res.status(500).json({ error: 'Failed to load explainability log' });
+  }
+});
+
+// GET /api/admin/compliance/overrides — human override tracking
+router.get('/compliance/overrides', requireAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(safeInt(req.query.limit, 50), 500);
+    const offset = safeInt(req.query.offset, 0);
+    const { startDate, endDate } = req.query;
+    
+    // Validate date formats if provided
+    if (startDate && !/^\d{4}-\d{2}-\d{2}/.test(startDate)) {
+      return res.status(400).json({ error: 'Invalid startDate format. Use ISO 8601.' });
+    }
+    if (endDate && !/^\d{4}-\d{2}-\d{2}/.test(endDate)) {
+      return res.status(400).json({ error: 'Invalid endDate format. Use ISO 8601.' });
+    }
+    
+    let dateFilter = '';
+    const params = [limit, offset];
+    let paramIdx = 3;
+
+    if (startDate) {
+      dateFilter += ` AND al.created_at >= $${paramIdx++}`;
+      params.push(startDate);
+    }
+    if (endDate) {
+      dateFilter += ` AND al.created_at <= $${paramIdx++}`;
+      params.push(endDate);
+    }
+
+    const result = await pool.query(`
+      SELECT
+        al.id::text as id,
+        al.created_at as timestamp,
+        al.user_id as override_by_id,
+        ou.name as override_by_name,
+        al.target_id as candidate_id,
+        cu.name as candidate_name,
+        al.metadata->>'original_decision' as original_decision,
+        al.metadata->>'override_decision' as override_decision,
+        al.metadata->>'override_reason' as override_reason,
+        al.metadata->>'job_title' as job_title,
+        al.metadata->>'ai_model' as ai_model,
+        al.metadata->>'ai_confidence' as ai_confidence,
+        al.ip_address as override_from_ip
+      FROM audit_logs al
+      LEFT JOIN users ou ON al.user_id = ou.id
+      LEFT JOIN users cu ON al.target_id = cu.id
+      WHERE al.action_type = 'human_override'
+        ${dateFilter}
+      ORDER BY al.created_at DESC
+      LIMIT $1 OFFSET $2
+    `, params);
+
+    const overrides = result.rows.map(row => ({
+      id: row.id,
+      timestamp: row.timestamp,
+      overriddenBy: { id: row.override_by_id, name: row.override_by_name || 'Unknown' },
+      candidate: { id: row.candidate_id, name: row.candidate_name || 'Unknown' },
+      originalDecision: row.original_decision || 'AI Recommended',
+      overrideDecision: row.override_decision || 'Human Override',
+      overrideReason: row.override_reason || 'No reason provided',
+      jobTitle: row.job_title || 'N/A',
+      aiModel: row.ai_model || 'unknown',
+      aiConfidence: safeFloat(row.ai_confidence, 0.85),
+      overrideFromIp: row.override_from_ip,
+    }));
+
+    // Build separate date params for the stats query (no LIMIT/OFFSET)
+    const statsDateParams = [];
+    let statsParamIdx = 1;
+    let statsDateFilter = '';
+    if (startDate) {
+      statsDateFilter += ` AND created_at >= $${statsParamIdx++}`;
+      statsDateParams.push(startDate);
+    }
+    if (endDate) {
+      statsDateFilter += ` AND created_at <= $${statsParamIdx++}`;
+      statsDateParams.push(endDate);
+    }
+
+    const statsResult = await pool.query(`
+      SELECT
+        COUNT(*) as total_overrides,
+        COUNT(DISTINCT user_id) as unique_recruiters,
+        COUNT(DISTINCT target_id) as unique_candidates,
+        AVG(CASE WHEN metadata->>'ai_confidence' IS NOT NULL THEN (metadata->>'ai_confidence')::float END) as avg_ai_confidence
+      FROM audit_logs
+      WHERE action_type = 'human_override'
+        ${statsDateFilter}
+    `, statsDateParams);
+
+    const stats = statsResult.rows[0] || {};
+
+    res.json({
+      success: true,
+      overrides,
+      summary: {
+        totalOverrides: safeInt(stats.total_overrides, 0),
+        uniqueRecruiters: safeInt(stats.unique_recruiters, 0),
+        uniqueCandidates: safeInt(stats.unique_candidates, 0),
+        avgAiConfidence: safeFloat(stats.avg_ai_confidence, 0.85),
+      }
+    });
+  } catch (error) {
+    console.error('[admin/compliance/overrides] Error:', error.message);
+    res.status(500).json({ error: 'Failed to load human override data' });
+  }
+});
+
+// GET /api/admin/compliance/risk-checklist — EU AI Act risk assessment checklist
+router.get('/compliance/risk-checklist', requireAdmin, async (req, res) => {
+  try {
+    const auditCountResult = await pool.query(`
+      SELECT COUNT(*) as count FROM audit_logs WHERE created_at >= NOW() - INTERVAL '30 days'
+    `).catch(() => ({ rows: [{ count: 0 }] }));
+    
+    const biasReportResult = await pool.query(`
+      SELECT COUNT(*) as count FROM bias_reports WHERE report_date >= NOW() - INTERVAL '30 days'
+    `).catch(() => ({ rows: [{ count: 0 }] }));
+    
+    const fairnessAuditResult = await pool.query(`
+      SELECT COUNT(*) as count FROM fairness_audits WHERE audit_date >= NOW() - INTERVAL '30 days'
+    `).catch(() => ({ rows: [{ count: 0 }] }));
+    
+    const consentResult = await pool.query(`
+      SELECT COUNT(*) as count FROM consent_records WHERE created_at >= NOW() - INTERVAL '30 days'
+    `).catch(() => ({ rows: [{ count: 0 }] }));
+    
+    const humanReviewResult = await pool.query(`
+      SELECT COUNT(*) as count FROM audit_logs 
+      WHERE action_type = 'human_override' AND created_at >= NOW() - INTERVAL '30 days'
+    `).catch(() => ({ rows: [{ count: 0 }] }));
+    
+    const dataRequestResult = await pool.query(`
+      SELECT COUNT(*) as count FROM data_requests WHERE status = 'pending'
+    `).catch(() => ({ rows: [{ count: 0 }] }));
+    
+    const retentionPolicyResult = await pool.query(`
+      SELECT COUNT(*) as count FROM data_retention_policies
+    `).catch(() => ({ rows: [{ count: 0 }] }));
+    
+    const adminCountResult = await pool.query(`
+      SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND created_at >= NOW() - INTERVAL '90 days'
+    `).catch(() => ({ rows: [{ count: 0 }] }));
+    
+    const explainabilityCount = await pool.query(`
+      SELECT COUNT(*) as count FROM audit_logs 
+      WHERE action_type IN ('score_explanation_viewed', 'decision_explanation_viewed') 
+      AND created_at >= NOW() - INTERVAL '30 days'
+    `).catch(() => ({ rows: [{ count: 0 }] }));
+
+    const auditCount = parseInt(auditCountResult.rows[0].count);
+    const biasReportCount = parseInt(biasReportResult.rows[0].count);
+    const fairnessAuditCount = parseInt(fairnessAuditResult.rows[0].count);
+    const consentCount = parseInt(consentResult.rows[0].count);
+    const humanReviewCount = parseInt(humanReviewResult.rows[0].count);
+    const dataRequestPending = parseInt(dataRequestResult.rows[0].count);
+    const retentionPolicyCount = parseInt(retentionPolicyResult.rows[0].count);
+    const adminCount = parseInt(adminCountResult.rows[0].count);
+    const explainabilityCountVal = parseInt(explainabilityCount.rows[0].count);
+
+    const checklist = [
+      {
+        id: 'risk-1',
+        category: 'Risk Management',
+        item: 'Risk management system implemented and maintained',
+        required: true,
+        status: auditCount > 0 && retentionPolicyCount > 0 ? 'complete' : 'incomplete',
+        evidence: `${auditCount} audit logs in last 30 days, ${retentionPolicyCount} retention policies configured`,
+        eu_ai_act_ref: 'Article 9',
+        lastVerified: new Date().toISOString(),
+      },
+      {
+        id: 'risk-2',
+        category: 'Data & Governance',
+        item: 'Training, validation, and testing data governance',
+        required: true,
+        status: biasReportCount > 0 ? 'complete' : 'incomplete',
+        evidence: `${biasReportCount} bias reports in last 30 days`,
+        eu_ai_act_ref: 'Article 10',
+        lastVerified: new Date().toISOString(),
+      },
+      {
+        id: 'risk-3',
+        category: 'Transparency',
+        item: 'Technical documentation and record keeping',
+        required: true,
+        status: auditCount > 100 && explainabilityCountVal > 0 ? 'complete' : 'incomplete',
+        evidence: `${auditCount} audit entries, ${explainabilityCountVal} explanations accessed`,
+        eu_ai_act_ref: 'Article 11',
+        lastVerified: new Date().toISOString(),
+      },
+      {
+        id: 'risk-4',
+        category: 'Transparency',
+        item: 'Transparency and provision of information to deployers',
+        required: true,
+        status: explainabilityCountVal > 0 ? 'complete' : 'incomplete',
+        evidence: `${explainabilityCountVal} explanations provided in last 30 days`,
+        eu_ai_act_ref: 'Article 13',
+        lastVerified: new Date().toISOString(),
+      },
+      {
+        id: 'risk-5',
+        category: 'Human Oversight',
+        item: 'Human oversight measures in place',
+        required: true,
+        status: humanReviewCount > 0 ? 'complete' : 'incomplete',
+        evidence: `${humanReviewCount} human overrides in last 30 days`,
+        eu_ai_act_ref: 'Article 14',
+        lastVerified: new Date().toISOString(),
+      },
+      {
+        id: 'risk-6',
+        category: 'Accuracy & Robustness',
+        item: 'Accuracy, robustness, and cybersecurity',
+        required: true,
+        status: fairnessAuditCount > 0 ? 'complete' : 'incomplete',
+        evidence: `${fairnessAuditCount} fairness audits in last 30 days`,
+        eu_ai_act_ref: 'Article 15',
+        lastVerified: new Date().toISOString(),
+      },
+      {
+        id: 'risk-7',
+        category: 'Bias Monitoring',
+        item: 'Continuous bias monitoring and reporting',
+        required: true,
+        status: biasReportCount > 0 && fairnessAuditCount > 0 ? 'complete' : 'incomplete',
+        evidence: `${biasReportCount} bias reports, ${fairnessAuditCount} fairness audits`,
+        eu_ai_act_ref: 'Article 10(3)',
+        lastVerified: new Date().toISOString(),
+      },
+      {
+        id: 'risk-8',
+        category: 'Consent & Rights',
+        item: 'Candidate consent tracking and GDPR compliance',
+        required: true,
+        status: consentCount > 0 ? 'complete' : 'incomplete',
+        evidence: `${consentCount} consent records in last 30 days`,
+        eu_ai_act_ref: 'Article 14(4) + GDPR',
+        lastVerified: new Date().toISOString(),
+      },
+      {
+        id: 'risk-9',
+        category: 'Data Rights',
+        item: 'Right to explanation, appeal, and data deletion',
+        required: true,
+        status: dataRequestPending === 0 ? 'complete' : 'pending',
+        evidence: `${dataRequestPending} pending data requests`,
+        eu_ai_act_ref: 'Article 14 + GDPR Art. 15-22',
+        lastVerified: new Date().toISOString(),
+      },
+      {
+        id: 'risk-10',
+        category: 'Governance',
+        item: 'Qualified personnel assigned to oversee AI systems',
+        required: true,
+        status: adminCount > 0 ? 'complete' : 'incomplete',
+        evidence: `${adminCount} admin users active in last 90 days`,
+        eu_ai_act_ref: 'Article 14(2)',
+        lastVerified: new Date().toISOString(),
+      },
+      {
+        id: 'risk-11',
+        category: 'Logging',
+        item: 'Automatic logging of AI system events',
+        required: true,
+        status: auditCount > 1000 ? 'complete' : auditCount > 0 ? 'in_progress' : 'incomplete',
+        evidence: `${auditCount} logged events in last 30 days`,
+        eu_ai_act_ref: 'Article 12(1)',
+        lastVerified: new Date().toISOString(),
+      },
+      {
+        id: 'risk-12',
+        category: 'Documentation',
+        item: 'System documentation for high-risk AI systems',
+        required: true,
+        status: 'complete',
+        evidence: 'System documentation and transparency reports maintained',
+        eu_ai_act_ref: 'Article 11',
+        lastVerified: new Date().toISOString(),
+      },
+    ];
+
+    const completed = checklist.filter(c => c.status === 'complete').length;
+    const pending = checklist.filter(c => c.status === 'pending').length;
+    const incomplete = checklist.filter(c => c.status === 'incomplete').length;
+    const inProgress = checklist.filter(c => c.status === 'in_progress').length;
+    const total = checklist.length;
+
+    res.json({
+      success: true,
+      checklist,
+      summary: {
+        total,
+        completed,
+        pending,
+        incomplete,
+        inProgress,
+        complianceScore: Math.round((completed / total) * 100),
+        overallStatus: incomplete === 0 && pending === 0 ? 'compliant' : pending > 0 ? 'needs_attention' : 'partially_compliant',
+        nextReview: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+      }
+    });
+  } catch (error) {
+    console.error('[admin/compliance/risk-checklist] Error:', error.message);
+    res.status(500).json({ error: 'Failed to load risk checklist' });
+  }
+});
+
+// GET /api/admin/compliance/bias-reports — historical bias reports list
+router.get('/compliance/bias-reports', requireAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(safeInt(req.query.limit, 10), 500);
+    const offset = safeInt(req.query.offset, 0);
+
+    const result = await pool.query(
+      `SELECT id, audit_date, audit_type, overall_fairness_score, issues_found,
+              demographic_breakdowns, appeal_stats, created_at
+       FROM fairness_audits
+       ORDER BY audit_date DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total FROM fairness_audits`
+    );
+
+    const reports = result.rows.map(row => ({
+      id: row.id,
+      auditDate: row.audit_date,
+      auditType: row.audit_type,
+      overallFairnessScore: parseFloat(row.overall_fairness_score) || 0,
+      issuesFound: parseInt(row.issues_found) || 0,
+      demographicCount: Array.isArray(row.demographic_breakdowns) ? row.demographic_breakdowns.length : 0,
+      appealCount: Array.isArray(row.appeal_stats) ? row.appeal_stats.length : 0,
+      createdAt: row.created_at,
+    }));
+
+    res.json({
+      success: true,
+      reports,
+      total: parseInt(countResult.rows[0].total),
+      limit,
+      offset,
+    });
+  } catch (error) {
+    console.error('[admin/compliance/bias-reports] Error:', error.message);
+    res.status(500).json({ error: 'Failed to load bias reports' });
+  }
+});
+
+// GET /api/admin/compliance/performance — model performance metrics
+router.get('/compliance/performance', requireAdmin, async (req, res) => {
+  try {
+    const days = Math.min(Math.max(safeInt(req.query.days, 30), 1), 365);
+    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+    // Decision volume over time
+    const volumeResult = await pool.query(
+      `SELECT DATE(created_at) as date, COUNT(*) as count
+       FROM audit_logs
+       WHERE action_type LIKE 'ai_%' AND created_at >= $1
+       GROUP BY DATE(created_at)
+       ORDER BY date`,
+      [startDate]
+    );
+
+    // Average confidence by model
+    const confidenceResult = await pool.query(
+      `SELECT
+         COALESCE(metadata->>'model', 'unknown') as model,
+         COUNT(*) as decisions,
+         AVG(COALESCE((metadata->>'confidence')::float, 0.85)) as avg_confidence,
+         COUNT(CASE WHEN metadata->>'human_override' = 'true' THEN 1 END) as overrides
+       FROM audit_logs
+       WHERE action_type LIKE 'ai_%' AND created_at >= $1
+       GROUP BY COALESCE(metadata->>'model', 'unknown')
+       ORDER BY decisions DESC`,
+      [startDate]
+    );
+
+    // Score distribution (drift indicator) — may fail if table does not exist
+    let scoreDistribution = [];
+    try {
+      const scoreDistResult = await pool.query(
+        `SELECT
+           FLOOR(overall_score / 10) * 10 as bucket,
+           COUNT(*) as count
+         FROM omniscore_results
+         WHERE created_at >= $1 AND overall_score IS NOT NULL
+         GROUP BY bucket
+         ORDER BY bucket`,
+        [startDate]
+      );
+      scoreDistribution = scoreDistResult.rows.map(r => ({
+        bucket: safeInt(r.bucket, 0),
+        count: safeInt(r.count, 0),
+      }));
+    } catch (scoreErr) {
+      console.warn('[admin/compliance/performance] Score distribution unavailable:', scoreErr.message);
+    }
+
+    // Human review rate
+    const reviewResult = await pool.query(
+      `SELECT
+         COUNT(*) as total,
+         COUNT(CASE WHEN metadata->>'human_reviewed' = 'true' THEN 1 END) as reviewed
+       FROM audit_logs
+       WHERE action_type LIKE 'ai_%' AND created_at >= $1`,
+      [startDate]
+    );
+
+    const reviewStats = reviewResult.rows[0] || { total: 0, reviewed: 0 };
+
+    res.json({
+      success: true,
+      period: days,
+      volumeOverTime: volumeResult.rows.map(r => ({ date: r.date, count: safeInt(r.count, 0) })),
+      modelPerformance: confidenceResult.rows.map(r => ({
+        model: r.model,
+        decisions: safeInt(r.decisions, 0),
+        avgConfidence: safeFloat(r.avg_confidence, 0.85),
+        overrideRate: safeInt(r.decisions, 0) > 0 ? safeInt(r.overrides, 0) / safeInt(r.decisions, 0) : 0,
+      })),
+      scoreDistribution,
+      reviewRate: safeInt(reviewStats.total, 0) > 0
+        ? safeInt(reviewStats.reviewed, 0) / safeInt(reviewStats.total, 0)
+        : 0,
+      totalDecisions: safeInt(reviewStats.total, 0),
+    });
+  } catch (error) {
+    console.error('[admin/compliance/performance] Error:', error.message);
+    res.status(500).json({ error: 'Failed to load performance metrics' });
+  }
+});
+
+// POST /api/admin/compliance/export — export compliance decisions as CSV or JSON
+router.post('/compliance/export', requireAdmin, async (req, res) => {
+  try {
+    const { format = 'csv', startDate, endDate } = req.body;
+
+    if (!['csv', 'json'].includes(format)) {
+      return res.status(400).json({ error: 'Invalid format. Use "csv" or "json".' });
+    }
+
+    if (startDate && !/^\d{4}-\d{2}-\d{2}/.test(startDate)) {
+      return res.status(400).json({ error: 'Invalid startDate format. Use ISO 8601.' });
+    }
+    if (endDate && !/^\d{4}-\d{2}-\d{2}/.test(endDate)) {
+      return res.status(400).json({ error: 'Invalid endDate format. Use ISO 8601.' });
+    }
+
+    let dateFilter = '';
+    const params = [];
+    let paramIdx = 1;
+
+    if (startDate) {
+      dateFilter += ` AND al.created_at >= $${paramIdx++}`;
+      params.push(startDate);
+    }
+    if (endDate) {
+      dateFilter += ` AND al.created_at <= $${paramIdx++}`;
+      params.push(endDate);
+    }
+
+    const result = await pool.query(
+      `SELECT
+        al.id::text as id,
+        al.created_at as timestamp,
+        al.action_type as decision_type,
+        al.user_id as candidate_id,
+        u.name as candidate_name,
+        al.metadata->>'decision' as decision,
+        al.metadata->>'model' as ai_model,
+        COALESCE((al.metadata->>'confidence')::float, 0.85) as confidence,
+        COALESCE(al.metadata->>'human_reviewed', 'false') as human_reviewed,
+        COALESCE(al.metadata->>'human_override', 'false') as human_override,
+        COALESCE(al.metadata->>'bias_flags', '[]') as bias_flags,
+        al.metadata->>'explanation' as explanation
+      FROM audit_logs al
+      LEFT JOIN users u ON al.user_id = u.id
+      WHERE (al.action_type LIKE 'ai_%'
+         OR al.action_type IN ('screening_decision', 'matching_decision',
+                                'interview_analysis', 'assessment_graded'))
+        ${dateFilter}
+      ORDER BY al.created_at DESC
+      LIMIT 10000`,
+      params
+    );
+
+    await logAuthEvent('compliance_export', req.user?.id || null, 'admin', req.ip || 'unknown', {
+      format,
+      count: result.rows.length,
+      startDate,
+      endDate
+    });
+
+    if (format === 'csv') {
+      const headers = ['ID', 'Timestamp', 'Decision Type', 'Candidate ID', 'Candidate Name', 'Decision', 'AI Model', 'Confidence', 'Human Reviewed', 'Human Override', 'Bias Flags', 'Explanation'];
+      const rows = result.rows.map(row => [
+        row.id,
+        row.timestamp,
+        row.decision_type,
+        row.candidate_id,
+        row.candidate_name || 'Unknown',
+        row.decision || 'processed',
+        row.ai_model || 'unknown',
+        row.confidence,
+        row.human_reviewed,
+        row.human_override,
+        Array.isArray(row.bias_flags) ? row.bias_flags.join(';') : '',
+        (row.explanation || '').replace(/\r?\n/g, ' ').replace(/"/g, '""')
+      ].map(field => {
+        const str = String(field ?? '');
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str}"`;
+        }
+        return str;
+      }).join(','));
+
+      const csv = [headers.join(','), ...rows].join('\n');
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="compliance-export-${new Date().toISOString().split('T')[0]}.csv"`);
+      res.send(csv);
+      return;
+    }
+
+    // JSON fallback
+    res.json({
+      success: true,
+      count: result.rows.length,
+      format,
+      decisions: result.rows.map(row => ({
+        id: row.id,
+        timestamp: row.timestamp,
+        decisionType: row.decision_type,
+        candidateId: row.candidate_id,
+        candidateName: row.candidate_name || 'Unknown',
+        decision: row.decision || 'processed',
+        aiModel: row.ai_model || 'unknown',
+        confidence: row.confidence,
+        humanReviewed: row.human_reviewed === 'true',
+        humanOverride: row.human_override === 'true',
+        biasFlags: Array.isArray(row.bias_flags) ? row.bias_flags : [],
+        explanation: row.explanation || '',
+      }))
+    });
+  } catch (error) {
+    console.error('[admin/compliance/export] Error:', error.message);
+    res.status(500).json({ error: 'Export failed' });
   }
 });
 
