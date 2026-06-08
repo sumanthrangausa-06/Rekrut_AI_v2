@@ -1166,6 +1166,39 @@ router.put('/applications/:id', authMiddleware, requireRecruiter, async (req, re
       }
     }
 
+    // If status is being changed, check if this overrides an AI recommendation
+    if (status) {
+      const aiDecision = await pool.query(`
+        SELECT action_type, metadata
+        FROM audit_logs
+        WHERE target_type = 'job_application' AND target_id = $1
+          AND action_type IN ('screening_decision', 'matching_decision', 'ai_screening', 'ai_matching')
+        ORDER BY created_at DESC
+        LIMIT 1
+      `, [req.params.id]);
+      
+      if (aiDecision.rows.length > 0) {
+        const aiMetadata = aiDecision.rows[0].metadata || {};
+        await AuditLogger.log({
+          actionType: 'human_override',
+          userId: req.user.id,
+          targetType: 'job_application',
+          targetId: parseInt(req.params.id),
+          metadata: {
+            candidate_id: existing.rows[0].candidate_id,
+            job_id: existing.rows[0].job_id,
+            original_ai_decision: aiMetadata.decision || aiMetadata.status || 'ai_recommended',
+            override_decision: status,
+            override_reason: recruiter_notes || 'Manual status change by recruiter',
+            ai_model: aiMetadata.model || 'unknown',
+            ai_confidence: aiMetadata.confidence || 0.85,
+            job_title: existing.rows[0].job_title || 'Unknown Position'
+          },
+          req
+        });
+      }
+    }
+
     // Audit log: Application status change
     if (status) {
       await AuditLogger.log({
@@ -1547,6 +1580,37 @@ router.put('/applications/batch-status', authMiddleware, requireRecruiter, async
       `UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id IN (${updatePlaceholders}) RETURNING *`,
       [status, ...validIds]
     );
+
+    // Check for AI decisions on each application and log human overrides
+    for (const appId of validIds) {
+      const aiDecision = await pool.query(`
+        SELECT action_type, metadata
+        FROM audit_logs
+        WHERE target_type = 'job_application' AND target_id = $1
+          AND action_type IN ('screening_decision', 'matching_decision', 'ai_screening', 'ai_matching')
+        ORDER BY created_at DESC
+        LIMIT 1
+      `, [appId]);
+      
+      if (aiDecision.rows.length > 0) {
+        const aiMetadata = aiDecision.rows[0].metadata || {};
+        await AuditLogger.log({
+          actionType: 'human_override',
+          userId: req.user.id,
+          targetType: 'job_application',
+          targetId: appId,
+          metadata: {
+            original_ai_decision: aiMetadata.decision || aiMetadata.status || 'ai_recommended',
+            override_decision: status,
+            override_reason: 'Batch status change by recruiter',
+            ai_model: aiMetadata.model || 'unknown',
+            ai_confidence: aiMetadata.confidence || 0.85,
+            batch_operation: true
+          },
+          req
+        });
+      }
+    }
 
     // Audit log batch action
     await AuditLogger.log({
@@ -2072,6 +2136,39 @@ router.put('/offers/:id/send', authMiddleware, requireRecruiter, async (req, res
         [existing.rows[0].job_id]
       );
     } catch (e) { /* non-critical */ }
+
+    // Check if this offer overrides an AI decision
+    const aiDecision = await pool.query(`
+      SELECT action_type, metadata
+      FROM audit_logs
+      WHERE target_type = 'job_application' AND target_id = (
+        SELECT id FROM job_applications WHERE job_id = $1 AND candidate_id = $2 LIMIT 1
+      )
+        AND action_type IN ('screening_decision', 'matching_decision', 'ai_screening', 'ai_matching')
+      ORDER BY created_at DESC
+      LIMIT 1
+    `, [existing.rows[0].job_id, existing.rows[0].candidate_id]);
+    
+    if (aiDecision.rows.length > 0) {
+      const aiMetadata = aiDecision.rows[0].metadata || {};
+      await AuditLogger.log({
+        actionType: 'human_override',
+        userId: req.user.id,
+        targetType: 'job_application',
+        targetId: existing.rows[0].job_id,
+        metadata: {
+          candidate_id: existing.rows[0].candidate_id,
+          job_id: existing.rows[0].job_id,
+          original_ai_decision: aiMetadata.decision || aiMetadata.status || 'ai_recommended',
+          override_decision: 'offered',
+          override_reason: 'Recruiter sent offer to candidate',
+          ai_model: aiMetadata.model || 'unknown',
+          ai_confidence: aiMetadata.confidence || 0.85,
+          offer_id: parseInt(req.params.id)
+        },
+        req
+      });
+    }
 
     // Audit log
     await AuditLogger.log({

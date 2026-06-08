@@ -7,6 +7,9 @@
     "start": "node server.js",
     "build": "cd client && npm install --include=dev && npm run build",
     "test": "npx playwright test",
+    "test:e2e": "npx playwright test",
+    "test:e2e:sequential": "node scripts/run-e2e-sequential.js",
+    "test:e2e:sequential:ci": "CI=true node scripts/run-e2e-sequential.js",
     "migrate": "node migrate.js",
     "postinstall": "bash scripts/setup-audio.sh 2>&1 || echo '[postinstall] Audio setup skipped (non-fatal)'"
   },

@@ -949,5 +949,83 @@ router.get('/compliance/risk-checklist', requireAdmin, async (req, res) => {
   }
 });
 
+// Export compliance data (CSV)
+router.post('/compliance/export', requireAdmin, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.body;
+    let dateFilter = '';
+    const params = [];
+    
+    if (startDate) {
+      params.push(startDate);
+      dateFilter += ` AND al.created_at >= $${params.length}`;
+    }
+    if (endDate) {
+      params.push(endDate);
+      dateFilter += ` AND al.created_at <= $${params.length}`;
+    }
+    
+    const result = await pool.query(`
+      SELECT
+        al.id::text as id,
+        al.created_at as timestamp,
+        al.action_type as decision_type,
+        al.user_id as candidate_id,
+        u.name as candidate_name,
+        al.target_id as job_id,
+        j.title as job_title,
+        COALESCE(al.metadata->>'model', 'unknown') as ai_model,
+        COALESCE((al.metadata->>'confidence')::float, 0.85) as confidence,
+        COALESCE(al.metadata->>'decision', 'processed') as decision,
+        COALESCE(al.metadata->>'explanation', 'AI processed this record') as explanation,
+        COALESCE(al.metadata->>'human_reviewed', 'false')::boolean as human_reviewed,
+        COALESCE(al.metadata->>'human_reviewer', null) as human_reviewer,
+        COALESCE(al.metadata->>'human_override', 'false')::boolean as human_override,
+        COALESCE(al.metadata->>'bias_flags', '[]')::jsonb as bias_flags,
+        COALESCE(al.metadata->>'data_retention', '7 years') as data_retention,
+        md5(al.id::text || al.created_at::text) as audit_hash
+      FROM audit_logs al
+      LEFT JOIN users u ON al.user_id = u.id
+      LEFT JOIN jobs j ON al.target_id = j.id AND al.target_type = 'job'
+      WHERE al.action_type LIKE 'ai_%'
+         OR al.action_type IN ('score_appeal_submitted', 'bias_analysis_generated',
+                                'score_explanation_viewed', 'decision_explanation_viewed',
+                                'screening_decision', 'matching_decision',
+                                'interview_analysis', 'assessment_graded',
+                                'human_override', 'ai_explanation_generated')
+      ${dateFilter}
+      ORDER BY al.created_at DESC
+    `, params);
+    
+    const headers = ['ID', 'Timestamp', 'Decision Type', 'Candidate ID', 'Candidate Name', 'Job ID', 'Job Title', 'AI Model', 'Confidence', 'Decision', 'Explanation', 'Human Reviewed', 'Human Reviewer', 'Human Override', 'Bias Flags', 'Data Retention', 'Audit Hash'];
+    const rows = result.rows.map(row => [
+      row.id,
+      row.timestamp,
+      row.decision_type,
+      row.candidate_id,
+      row.candidate_name,
+      row.job_id,
+      row.job_title,
+      row.ai_model,
+      row.confidence,
+      row.decision,
+      row.explanation,
+      row.human_reviewed,
+      row.human_reviewer,
+      row.human_override,
+      JSON.stringify(row.bias_flags),
+      row.data_retention,
+      row.audit_hash
+    ]);
+    
+    const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n');
+    
+    res.json({ success: true, csv });
+  } catch (error) {
+    console.error('[admin/compliance/export] Error:', error.message);
+    res.status(500).json({ error: 'Failed to export compliance data' });
+  }
+});
+
 module.exports = router;
 module.exports.requireAdmin = requireAdmin;
