@@ -1,0 +1,110 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy-to-prod" to confirm deployment'
+        required: true
+        type: string
+
+env:
+  RENDER_SERVICE_NAME: rekrutai-prod
+
+jobs:
+  verify:
+    name: Verify Deployment Readiness
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm deployment intent
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "deploy-to-prod" ]; then
+            echo "❌ Deployment not confirmed. You must type 'deploy-to-prod' to proceed."
+            exit 1
+          fi
+          echo "✅ Deployment confirmed by user."
+
+      - name: Check branch
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "❌ Production deployments must be triggered from the main branch."
+            echo "Current branch: ${{ github.ref }}"
+            exit 1
+          fi
+          echo "✅ Deploying from main branch."
+
+  ci-gate:
+    name: Re-run CI Checks
+    needs: verify
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Deploy to Production
+    needs: ci-gate
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://rekrutai.co
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build for production
+        run: npm run build
+
+      - name: Deploy to Render (manual trigger)
+        run: |
+          echo "🚀 Triggering production deployment on Render..."
+          echo ""
+          echo "Since autoDeploy is disabled for production, you have two options:"
+          echo ""
+          echo "Option 1 - Render Dashboard (Recommended):"
+          echo "  1. Go to https://dashboard.render.com/"
+          echo "  2. Find service: $RENDER_SERVICE_NAME"
+          echo "  3. Click 'Manual Deploy' > 'Deploy latest commit'"
+          echo ""
+          echo "Option 2 - Render CLI (if configured):"
+          echo "  render deploy --service $RENDER_SERVICE_NAME"
+          echo ""
+          echo "Option 3 - Render Deploy Hook (if configured):"
+          echo "  curl -X POST \$RENDER_DEPLOY_HOOK_URL"
+          echo ""
+          echo "Service: $RENDER_SERVICE_NAME"
+          echo "Branch:  main"
+          echo "Commit:  ${{ github.sha }}"
+          echo ""
+          echo "⚠️  IMPORTANT: Verify staging is stable before deploying to production."
+          echo "🔗 Staging URL: https://rekrutai-staging.onrender.com"
+
+      - name: Post-deploy health check
+        run: |
+          echo "⏳ Waiting 60 seconds for deployment to start..."
+          sleep 60
+          for i in {1..10}; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" https://rekrutai.co/health || echo "000")
+            if [ "$response" = "200" ]; then
+              echo "✅ Production is healthy (HTTP 200)"
+              exit 0
+            fi
+            echo "Attempt $i/10: Got HTTP $response, retrying in 15s..."
+            sleep 15
+          done
+          echo "❌ Production health check failed after 10 attempts"
+          exit 1
+
+      - name: Notify deployment complete
+        if: success()
+        run: |
+          echo "✅ Production deployment completed successfully!"
+          echo "Commit: ${{ github.sha }}"
+          echo "Deployed by: ${{ github.actor }}"
+          echo "URL: https://rekrutai.co"

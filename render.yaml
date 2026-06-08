@@ -159,7 +159,7 @@ services:
         sync: false
       - key: FORCE_SSL_VERIFY
         value: true
-    autoDeploy: true
+    autoDeploy: false
     numInstances: 1
     plan: standard
 
