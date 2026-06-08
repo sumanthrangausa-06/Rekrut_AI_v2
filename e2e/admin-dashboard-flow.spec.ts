@@ -1,18 +1,8 @@
 import { test, expect } from '@playwright/test'
-import { readFileSync } from 'fs'
 
-function getAdminPassword(): string {
-  try {
-    const content = readFileSync('.admin-credentials', 'utf-8')
-    const match = content.match(/Password: (.+)/)
-    return match ? match[1] : ''
-  } catch {
-    return process.env.ADMIN_PASSWORD || ''
-  }
-}
-
+// Admin credentials from environment variables only
 const ADMIN_USERNAME = 'admin'
-const ADMIN_PASSWORD = getAdminPassword()
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ''
 
 test.describe('admin dashboard flow', () => {
   test.beforeAll(() => {

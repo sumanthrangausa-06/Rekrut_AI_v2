@@ -60,7 +60,7 @@ Routes are mounted under the `/api` prefix with the following mappings:
 **Notable Patterns:**
 - **Dual auth path:** `requireAdmin` middleware supports both (1) direct admin session login and (2) JWT bridge — any user with `role === 'admin'` in their JWT gets auto-elevated to admin session.
 - **Rate limiting:** Uses `distributedRateLimiter` (PostgreSQL-backed) for login attempts — 5 attempts per 15 min window.
-- **Development credential generation:** If `ADMIN_PASSWORD` env var is missing in dev, generates a random password and writes it to `.admin-credentials` with `0o600` permissions.
+- **Development credential generation:** `ADMIN_PASSWORD` env var is required in all environments. Never writes credentials to disk.
 - **Bug:** `loginAttempts.delete(ip)` on line ~249 references a `loginAttempts` Map that is never defined in this file (should be `distributedRateLimiter` reset).
 
 ---
