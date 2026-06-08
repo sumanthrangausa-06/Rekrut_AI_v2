@@ -45,6 +45,13 @@ import {
   History,
   Gauge,
   Info,
+  Hand,
+  Database,
+  Trash2,
+  UserCheck,
+  UserX,
+  Gavel,
+  Settings2,
 } from "lucide-react"
 
 export type ComplianceDecision = {
@@ -168,6 +175,64 @@ export type RiskChecklistSummary = {
   nextReview: string
 }
 
+export type ConsentRecord = {
+  id: number
+  userId: number
+  userEmail: string
+  userName: string
+  consentType: string
+  consented: boolean
+  consentedAt: string
+  ipAddress: string
+  metadata: Record<string, any>
+  createdAt: string
+  updatedAt: string
+}
+
+export type DataRequest = {
+  id: number
+  userId: number
+  userEmail: string
+  userName: string
+  requestType: string
+  status: string
+  requestedAt: string
+  processedAt: string
+  processedBy: number
+  processorEmail: string
+  exportUrl: string
+  notes: string
+  metadata: Record<string, any>
+}
+
+export type ScoreAppeal = {
+  id: number
+  userId: number
+  userEmail: string
+  userName: string
+  scoreType: string
+  originalScore: number
+  appealReason: string
+  status: string
+  reviewedBy: number
+  reviewerEmail: string
+  reviewedAt: string
+  resolution: string
+  newScore: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type RetentionPolicy = {
+  id: number
+  dataType: string
+  retentionDays: number
+  autoDelete: boolean
+  description: string
+  createdAt: string
+  updatedAt: string
+}
+
 const decisionTypeConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
   screening: { icon: <Shield className="h-4 w-4" />, color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400", label: "Screening" },
   matching: { icon: <Users className="h-4 w-4" />, color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400", label: "Matching" },
@@ -193,16 +258,26 @@ export function AdminCompliancePage() {
   const [riskChecklistSummary, setRiskChecklistSummary] = useState<RiskChecklistSummary | null>(null)
   const [biasHistory, setBiasHistory] = useState<BiasHistoryReport[]>([])
   const [modelPerformance, setModelPerformance] = useState<ModelPerformance | null>(null)
+  const [consents, setConsents] = useState<ConsentRecord[]>([])
+  const [dataRequests, setDataRequests] = useState<DataRequest[]>([])
+  const [appeals, setAppeals] = useState<ScoreAppeal[]>([])
+  const [retentionPolicies, setRetentionPolicies] = useState<RetentionPolicy[]>([])
   const [loading, setLoading] = useState(true)
   const [exportLoading, setExportLoading] = useState(false)
   const [selectedTab, setSelectedTab] = useState("audit")
   const [expandedDecision, setExpandedDecision] = useState<string | null>(null)
+  const [appealFilter, setAppealFilter] = useState("all")
+  const [dataRequestFilter, setDataRequestFilter] = useState("all")
+  const [dataRequestTypeFilter, setDataRequestTypeFilter] = useState("all")
+  const [consentFilter, setConsentFilter] = useState("all")
+  const [editingPolicy, setEditingPolicy] = useState<number | null>(null)
+  const [policyForm, setPolicyForm] = useState<{ retentionDays: number; autoDelete: boolean }>({ retentionDays: 0, autoDelete: false })
 
   useEffect(() => {
     async function loadCompliance() {
       setLoading(true)
       try {
-        const [decisionsData, biasData, riskData, explanationsData, overridesData, checklistData, biasHistoryData, performanceData] = await Promise.all([
+        const [decisionsData, biasData, riskData, explanationsData, overridesData, checklistData, biasHistoryData, performanceData, consentsData, dataRequestsData, appealsData, retentionPoliciesData] = await Promise.all([
           apiCall<{ decisions: ComplianceDecision[] }>("/admin/compliance/decisions"),
           apiCall<{ report: BiasReport }>("/admin/compliance/bias-report").catch(() => ({ report: null })),
           apiCall<{ classifications: RiskClassification[] }>("/admin/compliance/risk-classifications").catch(() => ({ classifications: [] })),
@@ -211,6 +286,10 @@ export function AdminCompliancePage() {
           apiCall<{ checklist: RiskChecklistItem[]; summary: RiskChecklistSummary }>("/admin/compliance/risk-checklist").catch(() => ({ checklist: [], summary: null })),
           apiCall<{ reports: BiasHistoryReport[] }>("/admin/compliance/bias-reports").catch(() => ({ reports: [] })),
           apiCall<{ modelPerformance: ModelPerformance }>("/admin/compliance/performance").catch(() => ({ modelPerformance: null })),
+          apiCall<{ consents: ConsentRecord[] }>("/admin/compliance/consents").catch(() => ({ consents: [] })),
+          apiCall<{ dataRequests: DataRequest[] }>("/admin/compliance/data-requests").catch(() => ({ dataRequests: [] })),
+          apiCall<{ appeals: ScoreAppeal[] }>("/admin/compliance/appeals").catch(() => ({ appeals: [] })),
+          apiCall<{ policies: RetentionPolicy[] }>("/admin/compliance/retention-policies").catch(() => ({ policies: [] })),
         ])
         setDecisions(decisionsData.decisions || [])
         setBiasReport(biasData.report)
@@ -221,6 +300,10 @@ export function AdminCompliancePage() {
         setRiskChecklistSummary(checklistData.summary || null)
         setBiasHistory(biasHistoryData.reports || [])
         setModelPerformance(performanceData.modelPerformance || null)
+        setConsents(consentsData.consents || [])
+        setDataRequests(dataRequestsData.dataRequests || [])
+        setAppeals(appealsData.appeals || [])
+        setRetentionPolicies(retentionPoliciesData.policies || [])
       } catch (err) {
         console.error("Failed to load compliance data:", err)
       } finally {
@@ -301,6 +384,10 @@ export function AdminCompliancePage() {
     reviewed: decisions.filter((d) => d.humanReviewed).length,
     biasFlags: decisions.filter((d) => d.biasFlags.length > 0).length,
     overrides: decisions.filter((d) => d.humanOverride).length,
+    consents: consents.length,
+    consented: consents.filter((c) => c.consented).length,
+    pendingDataRequests: dataRequests.filter((r) => r.status === 'pending').length,
+    pendingAppeals: appeals.filter((a) => a.status === 'pending').length,
   }
 
   return (
@@ -422,6 +509,32 @@ export function AdminCompliancePage() {
             title="Human Overrides"
             value={stats.overrides}
             icon={<Ban className="h-4 w-4" />}
+          />
+          <ChartCard
+            title="Consent Records"
+            value={stats.consents}
+            icon={<Hand className="h-4 w-4" />}
+          />
+          <ChartCard
+            title="Active Consents"
+            value={stats.consented}
+            trend="up"
+            trendValue={`${Math.round((stats.consented / Math.max(stats.consents, 1)) * 100)}%`}
+            icon={<UserCheck className="h-4 w-4" />}
+          />
+          <ChartCard
+            title="Pending Data Requests"
+            value={stats.pendingDataRequests}
+            trend={stats.pendingDataRequests > 0 ? "down" : "neutral"}
+            trendValue={stats.pendingDataRequests > 0 ? "Action needed" : "Clean"}
+            icon={<Database className="h-4 w-4" />}
+          />
+          <ChartCard
+            title="Pending Appeals"
+            value={stats.pendingAppeals}
+            trend={stats.pendingAppeals > 0 ? "down" : "neutral"}
+            trendValue={stats.pendingAppeals > 0 ? "Action needed" : "Clean"}
+            icon={<Gavel className="h-4 w-4" />}
           />
         </div>
 
@@ -577,6 +690,22 @@ export function AdminCompliancePage() {
             <TabsTrigger value="transparency" className="gap-1">
               <Eye className="h-3.5 w-3.5" />
               Transparency
+            </TabsTrigger>
+            <TabsTrigger value="consent" className="gap-1">
+              <Hand className="h-3.5 w-3.5" />
+              Consent
+            </TabsTrigger>
+            <TabsTrigger value="data-requests" className="gap-1">
+              <Database className="h-3.5 w-3.5" />
+              Data Requests
+            </TabsTrigger>
+            <TabsTrigger value="appeals" className="gap-1">
+              <Gavel className="h-3.5 w-3.5" />
+              Appeals
+            </TabsTrigger>
+            <TabsTrigger value="retention" className="gap-1">
+              <Settings2 className="h-3.5 w-3.5" />
+              Retention
             </TabsTrigger>
           </TabsList>
 
@@ -1518,7 +1647,7 @@ export function AdminCompliancePage() {
             )}
           </TabsContent>
 
-          <TabsContent value="transparency" className="mt-4">
+  <TabsContent value="transparency" className="mt-4">
             <Card>
               <CardHeader>
                 <CardTitle>EU AI Act Transparency Report</CardTitle>
@@ -1527,39 +1656,449 @@ export function AdminCompliancePage() {
                 <div className="space-y-2">
                   <h3 className="font-semibold">1. AI System Description</h3>
                   <p className="text-sm text-muted-foreground">
-                    Rekrut AI uses multiple AI models for candidate screening, job matching, interview assessment, and scoring. All decisions are logged with explainability and audit trails.
+                    Rekrut AI uses multiple AI models for candidate screening, job matching, interview assessment, and scoring. All decisions are logged with explainability and audit trails in accordance with Article 13 of the EU AI Act.
                   </p>
                 </div>
                 <div className="space-y-2">
                   <h3 className="font-semibold">2. Decision Making Process</h3>
                   <p className="text-sm text-muted-foreground">
-                    AI models analyze candidate profiles, job requirements, interview responses, and documents. Human reviewers can override AI decisions. All overrides are logged.
+                    AI models analyze candidate profiles, job requirements, interview responses, and documents. Human reviewers can override AI decisions. All overrides are logged as per Article 14 of the EU AI Act.
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <h3 className="font-semibold">3. Data Usage</h3>
+                  <h3 className="font-semibold">3. Data Usage & Consent</h3>
                   <p className="text-sm text-muted-foreground">
-                    Candidate data is used solely for hiring purposes. Data retention follows GDPR and EU AI Act requirements. Candidates can request deletion at any time.
+                    Candidate data is used solely for hiring purposes with explicit consent. Data retention follows GDPR and EU AI Act requirements. Candidates can request deletion at any time (Articles 14(4) and GDPR Art. 17).
                   </p>
                 </div>
                 <div className="space-y-2">
                   <h3 className="font-semibold">4. Human Oversight</h3>
                   <p className="text-sm text-muted-foreground">
-                    All high-risk AI decisions require human review. Recruiters can override AI recommendations. Bias detection runs continuously on all decisions.
+                    All high-risk AI decisions require human review. Recruiters can override AI recommendations. Bias detection runs continuously on all decisions as per Article 14 of the EU AI Act.
                   </p>
                 </div>
                 <div className="space-y-2">
                   <h3 className="font-semibold">5. Rights of Individuals</h3>
                   <p className="text-sm text-muted-foreground">
-                    Candidates have the right to: request explanation of AI decisions, challenge decisions, request human review, and access their data.
+                    Candidates have the right to: request explanation of AI decisions (Article 13), challenge decisions (Article 14), request human review (Article 14), appeal scores, and access their data (GDPR Art. 15).
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-semibold">6. Data Retention Policies</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Audit logs are retained for 7 years for compliance purposes. Interview recordings are deleted after 2 years. Assessment results are kept for 5 years. Inactive candidate data is removed after 3 years. All policies are configurable and auditable.
                   </p>
                 </div>
                 <Button variant="outline" className="gap-1" onClick={handleExport}>
                   <Download className="h-4 w-4" />
-                  Download Full Report
+                  Download Full Transparency Report
                 </Button>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="consent" className="mt-4">
+            {loading ? (
+              <Skeleton count={3} variant="table" />
+            ) : consents.length === 0 ? (
+              <EmptyState
+                icon={Hand}
+                title="No consent records found"
+                description="Consent records will appear here once candidates provide consent through the system"
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">Total: {consents.length}</Badge>
+                    <Badge className="bg-green-100 text-green-700 text-xs">Consented: {consents.filter(c => c.consented).length}</Badge>
+                    <Badge className="bg-red-100 text-red-700 text-xs">Declined: {consents.filter(c => !c.consented).length}</Badge>
+                  </div>
+                  <div className="flex gap-2">
+                    <select
+                      className="text-sm border rounded-md px-2 py-1 bg-background"
+                      value={consentFilter}
+                      onChange={(e) => setConsentFilter(e.target.value)}
+                    >
+                      <option value="all">All Types</option>
+                      <option value="ai_processing">AI Processing</option>
+                      <option value="data_sharing">Data Sharing</option>
+                      <option value="marketing">Marketing</option>
+                      <option value="screening">Screening</option>
+                    </select>
+                  </div>
+                </div>
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>User</TableHead>
+                          <TableHead>Consent Type</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Consented At</TableHead>
+                          <TableHead>IP Address</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {consents
+                          .filter(c => consentFilter === 'all' || c.consentType === consentFilter)
+                          .map((c) => (
+                          <TableRow key={c.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium text-sm">{c.userName || c.userEmail}</p>
+                                <p className="text-xs text-muted-foreground">ID: {c.userId}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs capitalize">
+                                {c.consentType.replace('_', ' ')}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {c.consented ? (
+                                <Badge className="bg-green-100 text-green-700 text-xs">
+                                  <UserCheck className="h-3 w-3 mr-1" />
+                                  Consented
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-red-100 text-red-700 text-xs">
+                                  <UserX className="h-3 w-3 mr-1" />
+                                  Declined
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {c.consentedAt ? new Date(c.consentedAt).toLocaleString() : 'N/A'}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {c.ipAddress || '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="data-requests" className="mt-4">
+            {loading ? (
+              <Skeleton count={3} variant="table" />
+            ) : dataRequests.length === 0 ? (
+              <EmptyState
+                icon={Database}
+                title="No data requests found"
+                description="GDPR data export and deletion requests will appear here"
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">Total: {dataRequests.length}</Badge>
+                    <Badge className="bg-yellow-100 text-yellow-700 text-xs">Pending: {dataRequests.filter(r => r.status === 'pending').length}</Badge>
+                    <Badge className="bg-green-100 text-green-700 text-xs">Completed: {dataRequests.filter(r => r.status === 'completed').length}</Badge>
+                  </div>
+                  <div className="flex gap-2">
+                    <select
+                      className="text-sm border rounded-md px-2 py-1 bg-background"
+                      value={dataRequestFilter}
+                      onChange={(e) => setDataRequestFilter(e.target.value)}
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="pending">Pending</option>
+                      <option value="processing">Processing</option>
+                      <option value="completed">Completed</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                    <select
+                      className="text-sm border rounded-md px-2 py-1 bg-background"
+                      value={dataRequestTypeFilter}
+                      onChange={(e) => setDataRequestTypeFilter(e.target.value)}
+                    >
+                      <option value="all">All Types</option>
+                      <option value="export">Export</option>
+                      <option value="delete">Deletion</option>
+                    </select>
+                  </div>
+                </div>
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>User</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Requested</TableHead>
+                          <TableHead>Processed</TableHead>
+                          <TableHead>Processor</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {dataRequests
+                          .filter(r => dataRequestFilter === 'all' || r.status === dataRequestFilter)
+                          .filter(r => dataRequestTypeFilter === 'all' || r.requestType === dataRequestTypeFilter)
+                          .map((r) => (
+                          <TableRow key={r.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium text-sm">{r.userName || r.userEmail}</p>
+                                <p className="text-xs text-muted-foreground">ID: {r.userId}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs capitalize">
+                                {r.requestType === 'export' ? 'Data Export' : 'Right to be Forgotten'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={
+                                r.status === 'completed' ? 'bg-green-100 text-green-700 text-xs' :
+                                r.status === 'pending' ? 'bg-yellow-100 text-yellow-700 text-xs' :
+                                r.status === 'processing' ? 'bg-blue-100 text-blue-700 text-xs' :
+                                'bg-red-100 text-red-700 text-xs'
+                              }>
+                                {r.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {r.requestedAt ? new Date(r.requestedAt).toLocaleString() : 'N/A'}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {r.processedAt ? new Date(r.processedAt).toLocaleString() : '—'}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {r.processorEmail || '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="appeals" className="mt-4">
+            {loading ? (
+              <Skeleton count={3} variant="table" />
+            ) : appeals.length === 0 ? (
+              <EmptyState
+                icon={Gavel}
+                title="No score appeals found"
+                description="Score appeals will appear here once candidates submit them"
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">Total: {appeals.length}</Badge>
+                    <Badge className="bg-yellow-100 text-yellow-700 text-xs">Pending: {appeals.filter(a => a.status === 'pending').length}</Badge>
+                    <Badge className="bg-green-100 text-green-700 text-xs">Resolved: {appeals.filter(a => a.status === 'approved' || a.status === 'rejected').length}</Badge>
+                  </div>
+                  <div className="flex gap-2">
+                    <select
+                      className="text-sm border rounded-md px-2 py-1 bg-background"
+                      value={appealFilter}
+                      onChange={(e) => setAppealFilter(e.target.value)}
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                  </div>
+                </div>
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>User</TableHead>
+                          <TableHead>Score Type</TableHead>
+                          <TableHead>Original Score</TableHead>
+                          <TableHead>Reason</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Reviewer</TableHead>
+                          <TableHead>New Score</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {appeals
+                          .filter(a => appealFilter === 'all' || a.status === appealFilter)
+                          .map((a) => (
+                          <TableRow key={a.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium text-sm">{a.userName || a.userEmail}</p>
+                                <p className="text-xs text-muted-foreground">ID: {a.userId}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs capitalize">
+                                {a.scoreType}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">{a.originalScore}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
+                              {a.appealReason}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={
+                                a.status === 'approved' ? 'bg-green-100 text-green-700 text-xs' :
+                                a.status === 'rejected' ? 'bg-red-100 text-red-700 text-xs' :
+                                'bg-yellow-100 text-yellow-700 text-xs'
+                              }>
+                                {a.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {a.reviewerEmail || '—'}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {a.newScore !== null ? a.newScore : '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="retention" className="mt-4">
+            {loading ? (
+              <Skeleton count={3} variant="card" />
+            ) : retentionPolicies.length === 0 ? (
+              <EmptyState
+                icon={Settings2}
+                title="No retention policies configured"
+                description="Retention policies will appear here once configured"
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <ChartCard
+                    title="Total Policies"
+                    value={retentionPolicies.length}
+                    icon={<Settings2 className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Auto-Delete Enabled"
+                    value={retentionPolicies.filter(p => p.autoDelete).length}
+                    icon={<Trash2 className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Avg Retention"
+                    value={`${Math.round(retentionPolicies.reduce((s, p) => s + p.retentionDays, 0) / Math.max(retentionPolicies.length, 1))} days`}
+                    icon={<Clock className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Longest Retention"
+                    value={`${Math.max(...retentionPolicies.map(p => p.retentionDays))} days`}
+                    icon={<Calendar className="h-4 w-4" />}
+                  />
+                </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Data Retention Policies</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {retentionPolicies.map((policy) => (
+                        <div key={policy.id} className="flex items-center justify-between p-4 border rounded-lg">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm capitalize">{policy.dataType.replace('_', ' ')}</p>
+                              {policy.autoDelete ? (
+                                <Badge className="bg-green-100 text-green-700 text-xs">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Auto-Delete
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs">Manual</Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">{policy.description}</p>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            {editingPolicy === policy.id ? (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  className="w-24 text-sm border rounded-md px-2 py-1"
+                                  value={policyForm.retentionDays}
+                                  onChange={(e) => setPolicyForm({ ...policyForm, retentionDays: parseInt(e.target.value) || 0 })}
+                                  min={1}
+                                />
+                                <span className="text-xs text-muted-foreground">days</span>
+                                <label className="flex items-center gap-1 text-xs">
+                                  <input
+                                    type="checkbox"
+                                    checked={policyForm.autoDelete}
+                                    onChange={(e) => setPolicyForm({ ...policyForm, autoDelete: e.target.checked })}
+                                  />
+                                  Auto
+                                </label>
+                                <Button
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      await apiCall(`/admin/compliance/retention-policies/${policy.id}`, {
+                                        method: 'PUT',
+                                        body: JSON.stringify({
+                                          retentionDays: policyForm.retentionDays,
+                                          autoDelete: policyForm.autoDelete,
+                                        }),
+                                      });
+                                      setRetentionPolicies(prev => prev.map(p => p.id === policy.id ? { ...p, retentionDays: policyForm.retentionDays, autoDelete: policyForm.autoDelete } : p));
+                                      setEditingPolicy(null);
+                                    } catch (err) {
+                                      console.error('Failed to update policy:', err);
+                                    }
+                                  }}
+                                >
+                                  Save
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => setEditingPolicy(null)}>
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="text-right">
+                                  <p className="font-medium text-sm">{policy.retentionDays} days</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    ~{Math.round(policy.retentionDays / 365 * 10) / 10} years
+                                  </p>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditingPolicy(policy.id);
+                                    setPolicyForm({ retentionDays: policy.retentionDays, autoDelete: policy.autoDelete });
+                                  }}
+                                >
+                                  Edit
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>

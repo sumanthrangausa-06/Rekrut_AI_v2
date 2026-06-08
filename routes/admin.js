@@ -1182,5 +1182,329 @@ router.get('/compliance/performance', requireAdmin, async (req, res) => {
   }
 });
 
+// POST /api/admin/compliance/appeals/:id/review — review a score appeal
+router.post('/compliance/appeals/:id/review', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, resolution, newScore } = req.body;
+
+    if (!status || !['approved', 'rejected', 'pending'].includes(status)) {
+      return res.status(400).json({ error: 'Valid status required (approved/rejected/pending)' });
+    }
+
+    const result = await pool.query(
+      `UPDATE score_appeals
+       SET status = $1, resolution = $2, new_score = $3, reviewed_by = $4, reviewed_at = NOW(), updated_at = NOW()
+       WHERE id = $5
+       RETURNING *`,
+      [status, resolution || null, newScore || null, req.user?.id || null, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Appeal not found' });
+    }
+
+    // Log the review action
+    const { AuditLogger } = require('../services/auditLogger');
+    await AuditLogger.log({
+      actionType: 'appeal_reviewed',
+      userId: req.user?.id,
+      targetType: 'appeal',
+      targetId: parseInt(id),
+      metadata: { status, resolution, new_score: newScore },
+      req
+    });
+
+    res.json({ success: true, appeal: result.rows[0] });
+  } catch (error) {
+    console.error('[admin/compliance/appeals/review] Error:', error.message);
+    res.status(500).json({ error: 'Failed to review appeal' });
+  }
+});
+
+// GET /api/admin/compliance/appeals — list all score appeals
+router.get('/compliance/appeals', requireAdmin, async (req, res) => {
+  try {
+    const { limit = 50, offset = 0, status } = req.query;
+    const params = [limit, offset];
+    let statusFilter = '';
+    if (status && status !== 'all') {
+      statusFilter = `WHERE sa.status = $3`;
+      params.push(status);
+    }
+
+    const result = await pool.query(`
+      SELECT
+        sa.id,
+        sa.user_id,
+        u.email as user_email,
+        u.full_name as user_name,
+        sa.score_type,
+        sa.original_score,
+        sa.appeal_reason,
+        sa.status,
+        sa.reviewed_by,
+        reviewer.email as reviewer_email,
+        sa.reviewed_at,
+        sa.resolution,
+        sa.new_score,
+        sa.created_at,
+        sa.updated_at
+      FROM score_appeals sa
+      LEFT JOIN users u ON sa.user_id = u.id
+      LEFT JOIN users reviewer ON sa.reviewed_by = reviewer.id
+      ${statusFilter}
+      ORDER BY sa.created_at DESC
+      LIMIT $1 OFFSET $2
+    `, params);
+
+    const countResult = await pool.query(`
+      SELECT COUNT(*) as total FROM score_appeals sa ${statusFilter.replace('$3', '$1')}
+    `, status && status !== 'all' ? [status] : []);
+
+    const appeals = result.rows.map(row => ({
+      id: row.id,
+      userId: row.user_id,
+      userEmail: row.user_email,
+      userName: row.user_name,
+      scoreType: row.score_type,
+      originalScore: row.original_score,
+      appealReason: row.appeal_reason,
+      status: row.status,
+      reviewedBy: row.reviewed_by,
+      reviewerEmail: row.reviewer_email,
+      reviewedAt: row.reviewed_at,
+      resolution: row.resolution,
+      newScore: row.new_score,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+
+    res.json({
+      success: true,
+      appeals,
+      total: parseInt(countResult.rows[0]?.total) || 0,
+    });
+  } catch (error) {
+    console.error('[admin/compliance/appeals] Error:', error.message);
+    res.status(500).json({ error: 'Failed to load appeals' });
+  }
+});
+
+// GET /api/admin/compliance/consents — list all consent records
+router.get('/compliance/consents', requireAdmin, async (req, res) => {
+  try {
+    const { limit = 50, offset = 0, consentType } = req.query;
+    const params = [limit, offset];
+    let typeFilter = '';
+    if (consentType) {
+      typeFilter = `WHERE cr.consent_type = $3`;
+      params.push(consentType);
+    }
+
+    const result = await pool.query(`
+      SELECT
+        cr.id,
+        cr.user_id,
+        u.email as user_email,
+        u.full_name as user_name,
+        cr.consent_type,
+        cr.consented,
+        cr.consented_at,
+        cr.ip_address,
+        cr.metadata,
+        cr.created_at,
+        cr.updated_at
+      FROM consent_records cr
+      LEFT JOIN users u ON cr.user_id = u.id
+      ${typeFilter}
+      ORDER BY cr.created_at DESC
+      LIMIT $1 OFFSET $2
+    `, params);
+
+    const countResult = await pool.query(`
+      SELECT COUNT(*) as total FROM consent_records cr ${typeFilter.replace('$3', '$1')}
+    `, consentType ? [consentType] : []);
+
+    const consents = result.rows.map(row => ({
+      id: row.id,
+      userId: row.user_id,
+      userEmail: row.user_email,
+      userName: row.user_name,
+      consentType: row.consent_type,
+      consented: row.consented,
+      consentedAt: row.consented_at,
+      ipAddress: row.ip_address,
+      metadata: row.metadata,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+
+    res.json({
+      success: true,
+      consents,
+      total: parseInt(countResult.rows[0]?.total) || 0,
+    });
+  } catch (error) {
+    console.error('[admin/compliance/consents] Error:', error.message);
+    res.status(500).json({ error: 'Failed to load consents' });
+  }
+});
+
+// GET /api/admin/compliance/data-requests — list all GDPR data requests
+router.get('/compliance/data-requests', requireAdmin, async (req, res) => {
+  try {
+    const { limit = 50, offset = 0, status, requestType } = req.query;
+    const params = [limit, offset];
+    const conditions = [];
+    let paramIdx = 3;
+
+    if (status && status !== 'all') {
+      conditions.push(`dr.status = $${paramIdx}`);
+      params.push(status);
+      paramIdx++;
+    }
+    if (requestType && requestType !== 'all') {
+      conditions.push(`dr.request_type = $${paramIdx}`);
+      params.push(requestType);
+      paramIdx++;
+    }
+
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    const result = await pool.query(`
+      SELECT
+        dr.id,
+        dr.user_id,
+        u.email as user_email,
+        u.full_name as user_name,
+        dr.request_type,
+        dr.status,
+        dr.requested_at,
+        dr.processed_at,
+        dr.processed_by,
+        processor.email as processor_email,
+        dr.export_url,
+        dr.notes,
+        dr.metadata
+      FROM data_requests dr
+      LEFT JOIN users u ON dr.user_id = u.id
+      LEFT JOIN users processor ON dr.processed_by = processor.id
+      ${whereClause}
+      ORDER BY dr.requested_at DESC
+      LIMIT $1 OFFSET $2
+    `, params);
+
+    const countParams = conditions.map((_, i) => `$${i + 1}`);
+    const countResult = await pool.query(`
+      SELECT COUNT(*) as total FROM data_requests dr ${whereClause.replace(/\$\d+/g, (m) => {
+        const num = parseInt(m.replace('$', ''));
+        return `$${num - 2}`;
+      })}
+    `, params.slice(2));
+
+    const dataRequests = result.rows.map(row => ({
+      id: row.id,
+      userId: row.user_id,
+      userEmail: row.user_email,
+      userName: row.user_name,
+      requestType: row.request_type,
+      status: row.status,
+      requestedAt: row.requested_at,
+      processedAt: row.processed_at,
+      processedBy: row.processed_by,
+      processorEmail: row.processor_email,
+      exportUrl: row.export_url,
+      notes: row.notes,
+      metadata: row.metadata,
+    }));
+
+    res.json({
+      success: true,
+      dataRequests,
+      total: parseInt(countResult.rows[0]?.total) || 0,
+    });
+  } catch (error) {
+    console.error('[admin/compliance/data-requests] Error:', error.message);
+    res.status(500).json({ error: 'Failed to load data requests' });
+  }
+});
+
+// GET /api/admin/compliance/retention-policies — list all data retention policies
+router.get('/compliance/retention-policies', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM data_retention_policies ORDER BY data_type
+    `);
+
+    const policies = result.rows.map(row => ({
+      id: row.id,
+      dataType: row.data_type,
+      retentionDays: row.retention_days,
+      autoDelete: row.auto_delete,
+      description: row.description,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+
+    res.json({
+      success: true,
+      policies,
+    });
+  } catch (error) {
+    console.error('[admin/compliance/retention-policies] Error:', error.message);
+    res.status(500).json({ error: 'Failed to load retention policies' });
+  }
+});
+
+// PUT /api/admin/compliance/retention-policies/:id — update a retention policy
+router.put('/compliance/retention-policies/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { retentionDays, autoDelete } = req.body;
+
+    if (retentionDays === undefined || typeof retentionDays !== 'number' || retentionDays < 1) {
+      return res.status(400).json({ error: 'Valid retentionDays required (positive number)' });
+    }
+
+    const result = await pool.query(
+      `UPDATE data_retention_policies
+       SET retention_days = $1, auto_delete = $2, updated_at = NOW()
+       WHERE id = $3
+       RETURNING *`,
+      [retentionDays, autoDelete || false, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Policy not found' });
+    }
+
+    const { AuditLogger } = require('../services/auditLogger');
+    await AuditLogger.log({
+      actionType: 'retention_policy_updated',
+      userId: req.user?.id,
+      targetType: 'retention_policy',
+      targetId: parseInt(id),
+      metadata: { retention_days: retentionDays, auto_delete: autoDelete },
+      req
+    });
+
+    res.json({
+      success: true,
+      policy: {
+        id: result.rows[0].id,
+        dataType: result.rows[0].data_type,
+        retentionDays: result.rows[0].retention_days,
+        autoDelete: result.rows[0].auto_delete,
+        description: result.rows[0].description,
+        updatedAt: result.rows[0].updated_at,
+      }
+    });
+  } catch (error) {
+    console.error('[admin/compliance/retention-policies] Error:', error.message);
+    res.status(500).json({ error: 'Failed to update retention policy' });
+  }
+});
+
 module.exports = router;
 module.exports.requireAdmin = requireAdmin;
