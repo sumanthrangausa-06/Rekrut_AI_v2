@@ -203,7 +203,7 @@ export function RecruiterCandidatesPage() {
         apiCall<{ stats: PipelineStats }>("/recruiter/pipeline-stats"),
       ])
 
-      if (candidatesData.success) {
+      if (candidatesData.candidates) {
         setCandidates(
           candidatesData.candidates.map((c) => ({
             ...c,
@@ -212,7 +212,7 @@ export function RecruiterCandidatesPage() {
         )
         setTotalPages(candidatesData.pagination?.totalPages || 1)
       }
-      if (statsData.success) {
+      if (statsData.stats) {
         setStats(statsData.stats)
       }
     } catch (err) {

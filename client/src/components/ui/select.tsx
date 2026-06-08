@@ -2,6 +2,7 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 interface SelectProps {
+  id?: string
   value?: string
   onValueChange?: (value: string) => void
   onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void
@@ -13,12 +14,13 @@ interface SelectProps {
 }
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ value, onValueChange, onChange, onClick, children, className, disabled, placeholder }, ref) => {
+  ({ id, value, onValueChange, onChange, onClick, children, className, disabled, placeholder }, ref) => {
     // If onValueChange is used, render as Radix-style dropdown
     if (onValueChange) {
       return (
         <div className={cn('relative', className)}>
           <select
+            id={id}
             ref={ref}
             value={value}
             onChange={(e) => onValueChange(e.target.value)}
@@ -38,6 +40,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     // Default: render as native select with onChange
     return (
       <select
+        id={id}
         ref={ref}
         value={value}
         onChange={onChange}
