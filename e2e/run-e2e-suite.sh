@@ -66,6 +66,16 @@ echo ""
 
 for SPEC in "${SPEC_FILES[@]}"; do
   FILENAME=$(basename "$SPEC")
+
+  # Re-run auth setup if auth files went missing (another test may have
+  # cleared them or they may have expired)
+  if [ ! -f "e2e/.auth/candidate.json" ] || [ ! -f "e2e/.auth/recruiter.json" ]; then
+    echo "  → Auth files missing, re-running auth setup..."
+    if ! npx playwright test --project=setup ${EXTRA_ARGS} 2>&1; then
+      echo -e "${YELLOW}  ⚠️ Auth setup failed — continuing with ${FILENAME}${NC}"
+    fi
+  fi
+
   echo "────────────────────────────────────────"
   echo "Running: ${FILENAME}"
   echo "────────────────────────────────────────"

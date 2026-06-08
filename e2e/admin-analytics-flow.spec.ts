@@ -1,31 +1,9 @@
 import { test, expect } from '@playwright/test';
 
-// Admin credentials from environment variables only
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+test.use({ storageState: 'e2e/.auth/admin.json' });
 
 test.describe('Admin Analytics Flow', () => {
-  test.beforeAll(() => {
-    if (!ADMIN_PASSWORD) {
-      test.skip(true, 'Admin password not available — skipping admin analytics tests');
-    }
-  });
-
   test('admin analytics dashboard loads and shows all key sections', async ({ page }) => {
-    // ─── Login as admin ───
-    await page.setExtraHTTPHeaders({ 'X-Forwarded-For': '6.7.8.9' });
-    await page.goto('/admin/login');
-    await expect(page.getByRole('heading', { name: /Admin Access/i })).toBeVisible();
-
-    await page.fill('input#username', ADMIN_USERNAME);
-    await page.fill('input#password', ADMIN_PASSWORD);
-    await page.getByRole('button', { name: /Sign in|Login/i }).click();
-
-    await expect(page).toHaveURL(/.*\/admin\/(ai-health|dashboard|analytics|agents)/, { timeout: 10000 });
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(800);
-
-    // ─── Navigate to Analytics Dashboard ───
     await page.goto('/admin/analytics');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1200);
