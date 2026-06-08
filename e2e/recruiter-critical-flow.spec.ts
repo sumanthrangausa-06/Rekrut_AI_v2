@@ -20,7 +20,7 @@ test.describe('Recruiter Critical Flow', () => {
     await expect(page.getByRole('heading', { name: /Create an account/i })).toBeVisible();
 
     // Select role: Employer / Recruiter
-    await page.locator('select#role').selectOption('employer');
+    await page.getByRole('combobox').selectOption('employer');
     await page.fill('input#name', 'E2E Test Recruiter');
     await page.fill('input#email', email);
     await page.fill('input#password', PASSWORD);
