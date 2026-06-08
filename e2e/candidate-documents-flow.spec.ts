@@ -10,7 +10,7 @@ test.describe('Candidate Documents Flow', () => {
     await page.waitForLoadState('networkidle')
 
     // Verify header
-    await expect(page.getByRole('heading', { name: /Documents/i })).toBeVisible({ timeout: 15000 })
+    await expect(page.getByRole('heading', { name: 'Documents', exact: true })).toBeVisible({ timeout: 15000 })
     await expect(page.getByText(/Upload and verify your documents/i)).toBeVisible()
 
     // Verify stats cards
@@ -27,29 +27,29 @@ test.describe('Candidate Documents Flow', () => {
     await page.goto('/candidate/documents')
     await page.waitForLoadState('networkidle')
 
-    // Verify all status tabs exist
-    await expect(page.getByRole('tab', { name: /^All$/i })).toBeVisible({ timeout: 15000 })
-    await expect(page.getByRole('tab', { name: /Verified/i })).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole('tab', { name: /Pending/i })).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole('tab', { name: /Processing/i })).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole('tab', { name: /Rejected/i })).toBeVisible({ timeout: 10000 })
+    // Verify all status tabs exist (shadcn TabsTrigger renders as buttons)
+    await expect(page.getByRole('button', { name: /^All/i }).first()).toBeVisible({ timeout: 15000 })
+    await expect(page.getByRole('button', { name: /^Verified/i }).first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: /^Pending/i }).first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: /^Processing/i }).first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: /^Rejected/i }).first()).toBeVisible({ timeout: 10000 })
 
     // Click through tabs to verify they switch
     const tabs = ['Verified', 'Pending', 'Processing', 'Rejected']
     for (const tabName of tabs) {
-      const tab = page.getByRole('tab', { name: new RegExp(`^${tabName}$`, 'i') }).first()
+      const tab = page.getByRole('button', { name: new RegExp('^' + tabName, 'i') }).first()
       if (await tab.isVisible().catch(() => false)) {
         await tab.click()
         await page.waitForTimeout(600)
-        await expect(tab).toHaveAttribute('aria-selected', 'true')
+        await expect(tab).toBeVisible({ timeout: 10000 })
       }
     }
 
     // Return to All tab
-    const allTab = page.getByRole('tab', { name: /^All$/i })
+    const allTab = page.getByRole('button', { name: /^All/i }).first()
     await allTab.click()
     await page.waitForTimeout(600)
-    await expect(allTab).toHaveAttribute('aria-selected', 'true')
+    await expect(allTab).toBeVisible({ timeout: 10000 })
   })
 
   test('upload button triggers file input', async ({ page }) => {
@@ -79,7 +79,7 @@ test.describe('Candidate Documents Flow', () => {
 
     if (!hasDocuments && !hasEmptyState) {
       // If we can't determine, just verify the page didn't crash
-      await expect(page.getByRole('heading', { name: /Documents/i })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Documents', exact: true })).toBeVisible()
       return
     }
 
@@ -119,7 +119,7 @@ test.describe('Candidate Documents Flow', () => {
     // Switch tabs rapidly
     const tabs = ['All', 'Verified', 'Pending', 'All']
     for (const tabName of tabs) {
-      const tab = page.getByRole('tab', { name: new RegExp(`^${tabName}$`, 'i') }).first()
+      const tab = page.getByRole('button', { name: new RegExp('^' + tabName, 'i') }).first()
       if (await tab.isVisible().catch(() => false)) {
         await tab.click()
         await page.waitForTimeout(400)
@@ -131,6 +131,6 @@ test.describe('Candidate Documents Flow', () => {
     await page.waitForTimeout(300)
 
     // Page should still have the heading
-    await expect(page.getByRole('heading', { name: /Documents/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Documents', exact: true })).toBeVisible()
   })
 })

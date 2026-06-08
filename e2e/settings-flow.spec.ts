@@ -14,9 +14,10 @@ test.describe('Settings Flow', () => {
     await expect(page.getByText(/Manage your profile, account, and preferences/i)).toBeVisible()
 
     // Verify all tabs are present (shadcn TabsTrigger renders as buttons)
+    // Use nth(1) for Notifications to avoid navbar notification bell conflict
     await expect(page.getByRole('button', { name: 'Profile', exact: true })).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('button', { name: 'Account', exact: true })).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole('button', { name: 'Notifications', exact: true })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: 'Notifications', exact: true }).nth(1)).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('button', { name: 'Privacy', exact: true })).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('button', { name: 'Appearance', exact: true })).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('button', { name: 'Billing', exact: true })).toBeVisible({ timeout: 10000 })
@@ -85,20 +86,20 @@ test.describe('Settings Flow', () => {
     await page.goto('/settings')
     await page.waitForLoadState('networkidle')
 
-    await page.getByRole('button', { name: 'Notifications', exact: true }).click()
+    await page.getByRole('button', { name: 'Notifications', exact: true }).nth(1).click()
     await page.waitForTimeout(300)
 
     // Verify email notifications section
     await expect(page.getByText('Email Notifications')).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText('New job matches')).toBeVisible()
-    await expect(page.getByText('Application updates')).toBeVisible()
-    await expect(page.getByText('Messages')).toBeVisible()
-    await expect(page.getByText('Marketing & tips')).toBeVisible()
+    await expect(page.getByText('New job matches', { exact: true })).toBeVisible()
+    await expect(page.getByText('Application updates', { exact: true })).toBeVisible()
+    await expect(page.getByText('Messages', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText('Marketing & tips', { exact: true })).toBeVisible()
 
     // Verify push notifications section
     await expect(page.getByText('Push Notifications')).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText('Job alerts')).toBeVisible()
-    await expect(page.getByText('Reminders')).toBeVisible()
+    await expect(page.getByText('Job alerts', { exact: true })).toBeVisible()
+    await expect(page.getByText('Reminders', { exact: true })).toBeVisible()
 
     // Toggle a notification preference and save
     const firstToggle = page.locator('button[type="button"]').filter({ has: page.locator('span') }).first()
@@ -120,7 +121,7 @@ test.describe('Settings Flow', () => {
     await page.waitForTimeout(300)
 
     // Verify privacy settings
-    await expect(page.getByText('Privacy Settings')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: 'Privacy Settings' })).toBeVisible({ timeout: 10000 })
     await expect(page.getByText('Public profile')).toBeVisible()
     await expect(page.getByText('Receive messages')).toBeVisible()
     await expect(page.getByText('Share usage data')).toBeVisible()
