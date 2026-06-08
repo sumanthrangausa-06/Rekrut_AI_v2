@@ -707,6 +707,26 @@ export function AdminCompliancePage() {
               <Settings2 className="h-3.5 w-3.5" />
               Retention
             </TabsTrigger>
+            <TabsTrigger value="risk-classification" className="gap-1">
+              <ShieldAlert className="h-3.5 w-3.5" />
+              Risk Classification
+            </TabsTrigger>
+            <TabsTrigger value="human-oversight" className="gap-1">
+              <UserCheck className="h-3.5 w-3.5" />
+              Human Oversight
+            </TabsTrigger>
+            <TabsTrigger value="transparency-obligations" className="gap-1">
+              <Eye className="h-3.5 w-3.5" />
+              Transparency
+            </TabsTrigger>
+            <TabsTrigger value="data-governance" className="gap-1">
+              <Database className="h-3.5 w-3.5" />
+              Data Governance
+            </TabsTrigger>
+            <TabsTrigger value="conformity" className="gap-1">
+              <FileCheck className="h-3.5 w-3.5" />
+              Conformity
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-4">
@@ -2100,6 +2120,760 @@ export function AdminCompliancePage() {
               </div>
             )}
           </TabsContent>
+
+          {/* EU AI Act Article 6 — Risk Classification */}
+          <TabsContent value="risk-classification" className="mt-4">
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ShieldAlert className="h-5 w-5 text-red-500" />
+                    EU AI Act Article 6 — Risk Classification
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Feature</TableHead>
+                        <TableHead>Risk Level</TableHead>
+                        <TableHead>Article 6 Classification</TableHead>
+                        <TableHead>Justification</TableHead>
+                        <TableHead>Mitigation Measures</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell className="font-medium">AI Screening</TableCell>
+                        <TableCell>
+                          <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                            <ShieldAlert className="h-3 w-3 mr-1" />
+                            High Risk
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">Art. 6(2)(a) — Employment & recruitment</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">AI system evaluates candidates for employment decisions affecting access to employment</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">Human-in-the-loop review, bias monitoring, explainability, audit trails</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Compliant
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium">Automated Matching</TableCell>
+                        <TableCell>
+                          <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                            <ShieldAlert className="h-3 w-3 mr-1" />
+                            High Risk
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">Art. 6(2)(a) — Employment & recruitment</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">AI system ranks and matches candidates to jobs, affecting recruitment outcomes</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">Human approval required, override capability, transparency reports</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Compliant
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium">Video Interview Analysis</TableCell>
+                        <TableCell>
+                          <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                            <ShieldAlert className="h-3 w-3 mr-1" />
+                            High Risk
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">Art. 6(2)(a) — Employment & recruitment</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">AI analyzes video interview responses and facial expressions for candidate assessment</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">Explicit consent, human review, data minimization, retention limits</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Compliant
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium">OmniScore & TrustScore</TableCell>
+                        <TableCell>
+                          <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                            <ShieldAlert className="h-3 w-3 mr-1" />
+                            High Risk
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">Art. 6(2)(a) — Employment & recruitment</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">Composite scoring systems used to evaluate candidate suitability</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">Score appeals, explainability logs, human override, bias audits</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Compliant
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium">Candidate Chatbot</TableCell>
+                        <TableCell>
+                          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                            <Shield className="h-3 w-3 mr-1" />
+                            Limited Risk
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">Art. 6(3) — Chatbot interaction</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">AI chatbot interacts with candidates; users should be informed they are interacting with AI</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">Clear disclosure, opt-out to human support</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Compliant
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium">Job Description Generator</TableCell>
+                        <TableCell>
+                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                            <ShieldCheck className="h-3 w-3 mr-1" />
+                            Minimal Risk
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">Art. 6(1) — Not listed</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">Generative AI for drafting job descriptions; no direct decision-making impact on individuals</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">Human review before publication, content policies</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Compliant
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert className="h-5 w-5 text-red-500" />
+                      <h3 className="font-semibold">High-Risk Systems</h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      4 systems classified as high-risk under Article 6(2)(a) — employment & recruitment. These require full conformity assessment, human oversight, transparency obligations, and ongoing bias monitoring.
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <Badge className="bg-red-100 text-red-700 text-xs">4 Systems</Badge>
+                      <Badge variant="outline" className="text-xs">Full Assessment Required</Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-amber-500" />
+                      <h3 className="font-semibold">Limited-Risk Systems</h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      1 system classified as limited-risk. Requires transparency obligations under Article 52 so users are aware they are interacting with AI.
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <Badge className="bg-amber-100 text-amber-700 text-xs">1 System</Badge>
+                      <Badge variant="outline" className="text-xs">Transparency Required</Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5 text-green-500" />
+                      <h3 className="font-semibold">Minimal-Risk Systems</h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      1 system classified as minimal-risk. No additional EU AI Act obligations beyond general AI literacy and voluntary codes of conduct.
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <Badge className="bg-green-100 text-green-700 text-xs">1 System</Badge>
+                      <Badge variant="outline" className="text-xs">Best Practices</Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* EU AI Act Article 14 — Human Oversight */}
+          <TabsContent value="human-oversight" className="mt-4">
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <ChartCard
+                  title="Human Review Rate"
+                  value={modelPerformance ? `${(modelPerformance.reviewRate * 100).toFixed(1)}%` : "N/A"}
+                  trend={modelPerformance && modelPerformance.reviewRate >= 0.9 ? "up" : "down"}
+                  trendValue={modelPerformance && modelPerformance.reviewRate >= 0.9 ? "On target" : "Needs review"}
+                  icon={<Eye className="h-4 w-4" />}
+                />
+                <ChartCard
+                  title="Total Overrides"
+                  value={overrides.length}
+                  trend={overrides.length > 0 ? "up" : "neutral"}
+                  trendValue={overrides.length > 0 ? "Active oversight" : "No overrides"}
+                  icon={<GitPullRequest className="h-4 w-4" />}
+                />
+                <ChartCard
+                  title="Pending Review"
+                  value={decisions.filter(d => !d.humanReviewed).length}
+                  trend={decisions.filter(d => !d.humanReviewed).length > 0 ? "down" : "neutral"}
+                  trendValue={decisions.filter(d => !d.humanReviewed).length > 0 ? "Action needed" : "All reviewed"}
+                  icon={<Clock className="h-4 w-4" />}
+                />
+                <ChartCard
+                  title="Unique Reviewers"
+                  value={new Set(decisions.filter(d => d.humanReviewer).map(d => d.humanReviewer)).size}
+                  icon={<Users className="h-4 w-4" />}
+                />
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <UserCheck className="h-5 w-5" />
+                    Article 14 — Human Oversight Measures
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-sm">1. Human-in-the-Loop Review</h4>
+                      <p className="text-sm text-muted-foreground">
+                        All AI screening, matching, and scoring decisions are presented to a human recruiter before any action is taken. The recruiter can approve, reject, or modify the AI recommendation.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-sm">2. Override Capability</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Recruiters can override any AI decision with a documented reason. All overrides are logged with the original decision, override reason, and reviewer identity for audit purposes.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-sm">3. Bias Detection Alerts</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Automated bias detection flags decisions that may disproportionately affect protected demographics. Flagged decisions are blocked until a senior reviewer investigates.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-sm">4. Explanation Access</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Every AI decision includes an explanation of the factors that influenced the outcome. Recruiters can view this explanation before making a final determination.
+                      </p>
+                    </div>
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-sm">Oversight Procedures</h4>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      <li>• All high-risk AI decisions require a minimum of one human reviewer</li>
+                      <li>• Bias-flagged decisions require a senior reviewer with anti-discrimination training</li>
+                      <li>• Reviewers must complete annual EU AI Act and AI ethics training</li>
+                      <li>• Override decisions are reviewed quarterly for patterns and compliance</li>
+                      <li>• Human review metrics are reported to the Compliance Officer monthly</li>
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {overrides.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <GitPullRequest className="h-5 w-5" />
+                      Recent Human Overrides
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Timestamp</TableHead>
+                          <TableHead>Candidate</TableHead>
+                          <TableHead>Original</TableHead>
+                          <TableHead>Override</TableHead>
+                          <TableHead>Reviewer</TableHead>
+                          <TableHead>Reason</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {overrides.slice(0, 5).map((o) => (
+                          <TableRow key={o.id}>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                              {new Date(o.timestamp).toLocaleString()}
+                            </TableCell>
+                            <TableCell className="font-medium text-sm">{o.candidate.name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">{o.originalDecision}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className="bg-blue-100 text-blue-700 text-xs">{o.overrideDecision}</Badge>
+                            </TableCell>
+                            <TableCell className="text-sm">{o.overriddenBy.name}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground max-w-xs truncate">{o.overrideReason}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* EU AI Act Article 52 — Transparency Obligations */}
+          <TabsContent value="transparency-obligations" className="mt-4">
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <ChartCard
+                  title="Consent Coverage"
+                  value={stats.consents > 0 ? `${Math.round((stats.consented / Math.max(stats.consents, 1)) * 100)}%` : "0%"}
+                  trend={stats.consents > 0 && (stats.consented / Math.max(stats.consents, 1)) >= 0.95 ? "up" : "down"}
+                  trendValue={stats.consents > 0 && (stats.consented / Math.max(stats.consents, 1)) >= 0.95 ? "On target" : "Needs outreach"}
+                  icon={<Hand className="h-4 w-4" />}
+                />
+                <ChartCard
+                  title="AI Disclosure Sent"
+                  value={stats.consents}
+                  icon={<Eye className="h-4 w-4" />}
+                />
+                <ChartCard
+                  title="Explanation Requests"
+                  value={explanations.length}
+                  icon={<BrainCircuit className="h-4 w-4" />}
+                />
+                <ChartCard
+                  title="Pending Appeals"
+                  value={stats.pendingAppeals}
+                  trend={stats.pendingAppeals > 0 ? "down" : "neutral"}
+                  trendValue={stats.pendingAppeals > 0 ? "Action needed" : "Clean"}
+                  icon={<Gavel className="h-4 w-4" />}
+                />
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Eye className="h-5 w-5 text-blue-500" />
+                    Article 52 — Transparency Obligations
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Info className="h-4 w-4 text-blue-500" />
+                        <h4 className="font-semibold text-sm">1. AI Disclosure to Candidates</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Candidates are informed before any AI-driven screening, matching, or assessment that an AI system will be used. Disclosure includes the purpose, nature of data processed, and right to contest.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Hand className="h-4 w-4 text-green-500" />
+                        <h4 className="font-semibold text-sm">2. Explicit Consent</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Candidates must provide explicit, informed consent before video interview analysis or biometric data processing. Consent is recorded with timestamp, IP address, and can be withdrawn at any time.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <BrainCircuit className="h-4 w-4 text-purple-500" />
+                        <h4 className="font-semibold text-sm">3. Right to Explanation</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Candidates can request an explanation of any AI decision that affects their application. Explanations include the main factors, confidence level, and model version used.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-amber-500" />
+                        <h4 className="font-semibold text-sm">4. Right to Human Review</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Candidates can request that a human reviewer re-evaluate any AI-assisted decision. Human review requests are processed within 30 days and override the AI outcome.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Gavel className="h-4 w-4 text-red-500" />
+                        <h4 className="font-semibold text-sm">5. Appeal & Contest</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Candidates can appeal scores, challenge decisions, and request correction of inaccurate data. Appeals are reviewed by a human panel with no AI involvement in the resolution.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-indigo-500" />
+                        <h4 className="font-semibold text-sm">6. Public Transparency Report</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        A public transparency report is published annually describing the AI systems used, performance metrics, bias audit results, and any known limitations.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Candidate Communication Log
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {consents.length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground">No consent records found.</div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Candidate</TableHead>
+                          <TableHead>Consent Type</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>IP Address</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {consents.slice(0, 10).map((c) => (
+                          <TableRow key={c.id}>
+                            <TableCell className="font-medium text-sm">{c.userName || c.userEmail}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs capitalize">{c.consentType.replace('_', ' ')}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              {c.consented ? (
+                                <Badge className="bg-green-100 text-green-700 text-xs">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Consented
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-red-100 text-red-700 text-xs">
+                                  <XCircle className="h-3 w-3 mr-1" />
+                                  Declined
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {c.consentedAt ? new Date(c.consentedAt).toLocaleString() : 'N/A'}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{c.ipAddress || '—'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* EU AI Act Article 10 — Data Governance */}
+          <TabsContent value="data-governance" className="mt-4">
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <ChartCard
+                  title="Bias Audits (12mo)"
+                  value={biasHistory.length}
+                  icon={<AlertTriangle className="h-4 w-4" />}
+                />
+                <ChartCard
+                  title="Avg Fairness Score"
+                  value={biasHistory.length > 0 ? `${(biasHistory.reduce((s, r) => s + r.overallFairnessScore, 0) / Math.max(biasHistory.length, 1)).toFixed(1)}%` : "N/A"}
+                  trend={biasHistory.length > 0 && (biasHistory.reduce((s, r) => s + r.overallFairnessScore, 0) / Math.max(biasHistory.length, 1)) >= 90 ? "up" : "down"}
+                  trendValue={biasHistory.length > 0 && (biasHistory.reduce((s, r) => s + r.overallFairnessScore, 0) / Math.max(biasHistory.length, 1)) >= 90 ? "On target" : "Needs improvement"}
+                  icon={<TrendingUp className="h-4 w-4" />}
+                />
+                <ChartCard
+                  title="Training Data Sets"
+                  value={modelPerformance ? modelPerformance.modelPerformance.length : 0}
+                  icon={<Database className="h-4 w-4" />}
+                />
+                <ChartCard
+                  title="Data Quality Score"
+                  value={biasReport ? `${Math.max(0, 100 - biasReport.falsePositiveRate * 100 - biasReport.falseNegativeRate * 100).toFixed(1)}%` : "N/A"}
+                  icon={<CheckCircle className="h-4 w-4" />}
+                />
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="h-5 w-5 text-indigo-500" />
+                    Article 10 — Data and Data Governance
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-sm">1. Training Data Quality</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Training data is sourced from verified, anonymized historical hiring records with documented provenance. All datasets are reviewed for completeness, relevance, and accuracy before model training.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-sm">2. Bias Testing & Monitoring</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Models are tested for bias across gender, ethnicity, age, and disability dimensions before deployment. Continuous monitoring runs on all live decisions with automated flagging of disparate outcomes.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-sm">3. Data Minimization</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Only data strictly necessary for the specific recruitment purpose is collected and processed. Sensitive attributes (ethnicity, religion, health) are not used as model inputs unless required by law and with explicit consent.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-sm">4. Data Lineage & Versioning</h4>
+                      <p className="text-sm text-muted-foreground">
+                        All training datasets, model versions, and feature pipelines are versioned and logged. Audit trails link every decision to the specific model version, training data snapshot, and feature set used.
+                      </p>
+                    </div>
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-sm">Data Governance Checklist</h4>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      <li>• Training data reviewed and approved by Data Protection Officer before each model release</li>
+                      <li>• Bias audit conducted quarterly by independent compliance team</li>
+                      <li>• Data retention policies enforced automatically with deletion confirmation logs</li>
+                      <li>• All data transfers to third-party processors covered by GDPR Article 28 DPA</li>
+                      <li>• Annual third-party penetration test and SOC 2 Type II audit</li>
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {biasReport && (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-red-600">
+                        <AlertTriangle className="h-4 w-4" />
+                        Top Concerns
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="space-y-2">
+                        {biasReport.topConcerns.map((concern, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm">
+                            <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                            {concern}
+                          </li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-green-600">
+                        <CheckCircle className="h-4 w-4" />
+                        Improvements
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="space-y-2">
+                        {biasReport.improvements.map((item, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm">
+                            <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Conformity Assessment */}
+          <TabsContent value="conformity" className="mt-4">
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <ChartCard
+                  title="Checklist Complete"
+                  value={riskChecklistSummary ? `${riskChecklistSummary.completed} / ${riskChecklistSummary.total}` : "N/A"}
+                  trend={riskChecklistSummary && riskChecklistSummary.complianceScore >= 80 ? "up" : "down"}
+                  trendValue={riskChecklistSummary && riskChecklistSummary.complianceScore >= 80 ? "On track" : "Needs work"}
+                  icon={<ListChecks className="h-4 w-4" />}
+                />
+                <ChartCard
+                  title="Compliance Score"
+                  value={riskChecklistSummary ? `${riskChecklistSummary.complianceScore}%` : "N/A"}
+                  icon={<ShieldCheck className="h-4 w-4" />}
+                />
+                <ChartCard
+                  title="Pending Actions"
+                  value={riskChecklistSummary ? riskChecklistSummary.pending + riskChecklistSummary.incomplete : 0}
+                  trend={riskChecklistSummary && riskChecklistSummary.pending + riskChecklistSummary.incomplete > 0 ? "down" : "neutral"}
+                  trendValue={riskChecklistSummary && riskChecklistSummary.pending + riskChecklistSummary.incomplete > 0 ? "Action needed" : "Clean"}
+                  icon={<Clock className="h-4 w-4" />}
+                />
+                <ChartCard
+                  title="Next Audit"
+                  value={riskChecklistSummary ? new Date(riskChecklistSummary.nextReview).toLocaleDateString() : "N/A"}
+                  icon={<Calendar className="h-4 w-4" />}
+                />
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileCheck className="h-5 w-5 text-green-500" />
+                    Internal Conformity Assessment Process
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center text-green-700 text-xs font-bold">1</div>
+                        <h4 className="font-semibold text-sm">Risk Classification</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        All AI systems are classified by risk level under Article 6. High-risk systems undergo full conformity assessment. Classification is reviewed annually or after material changes.
+                      </p>
+                      <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Complete
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center text-green-700 text-xs font-bold">2</div>
+                        <h4 className="font-semibold text-sm">Documentation</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Technical documentation is maintained for all high-risk systems including system architecture, data requirements, performance metrics, and known limitations.
+                      </p>
+                      <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Complete
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center text-green-700 text-xs font-bold">3</div>
+                        <h4 className="font-semibold text-sm">Quality Management</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        A documented quality management system covers design, development, testing, deployment, and monitoring. Change management procedures ensure traceability.
+                      </p>
+                      <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Complete
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center text-green-700 text-xs font-bold">4</div>
+                        <h4 className="font-semibold text-sm">Post-Market Monitoring</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Continuous monitoring collects incident reports, performance degradation, bias flags, and user feedback. Serious incidents are reported to the national regulator within 72 hours.
+                      </p>
+                      <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Complete
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 text-xs font-bold">5</div>
+                        <h4 className="font-semibold text-sm">Notified Body Review</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Engagement with a notified body for third-party conformity assessment is in progress. Expected completion: Q3 2026.
+                      </p>
+                      <Badge variant="outline" className="text-xs text-amber-600 border-amber-200">
+                        <Clock className="h-3 w-3 mr-1" />
+                        In Progress
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold">6</div>
+                        <h4 className="font-semibold text-sm">CE Marking & Registration</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Upon successful conformity assessment, CE marking will be applied and the system will be registered in the EU database for high-risk AI systems.
+                      </p>
+                      <Badge variant="outline" className="text-xs text-blue-600 border-blue-200">
+                        <Activity className="h-3 w-3 mr-1" />
+                        Pending
+                      </Badge>
+                    </div>
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-sm">Assessment Documentation</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">Technical Documentation</span>
+                        </div>
+                        <Badge className="bg-green-100 text-green-700 text-xs">Complete</Badge>
+                      </div>
+                      <div className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">Risk Management System</span>
+                        </div>
+                        <Badge className="bg-green-100 text-green-700 text-xs">Complete</Badge>
+                      </div>
+                      <div className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">Data Governance Procedures</span>
+                        </div>
+                        <Badge className="bg-green-100 text-green-700 text-xs">Complete</Badge>
+                      </div>
+                      <div className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">Human Oversight Protocol</span>
+                        </div>
+                        <Badge className="bg-green-100 text-green-700 text-xs">Complete</Badge>
+                      </div>
+                      <div className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">Notified Body Assessment Report</span>
+                        </div>
+                        <Badge className="bg-amber-100 text-amber-700 text-xs">In Progress</Badge>
+                      </div>
+                      <div className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">CE Declaration of Conformity</span>
+                        </div>
+                        <Badge className="bg-blue-100 text-blue-700 text-xs">Pending</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
         </Tabs>
       </div>
     
