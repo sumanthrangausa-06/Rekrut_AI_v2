@@ -461,7 +461,6 @@ export function RecruiterJobsPage() {
         onOpenChange={setShowMobilePanel}
         className="w-full sm:w-[480px] md:w-[520px]"
       >
-        <SheetContent className="overflow-x-hidden">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Briefcase className="h-5 w-5" />
@@ -469,6 +468,7 @@ export function RecruiterJobsPage() {
           </SheetTitle>
           <SheetClose />
         </SheetHeader>
+        <SheetContent className="overflow-x-hidden">
           {selectedJob && (
             <JobDetailPanel
               job={selectedJob}
