@@ -1006,6 +1006,28 @@ router.get('/candidates/full', authMiddleware, requireRecruiter, async (req, res
   }
 });
 
+router.post('/candidates/bulk-status', authMiddleware, requireRecruiter, async (req, res) => {
+  try {
+    const { candidateIds, status } = req.body;
+    const VALID = ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'];
+    if (!candidateIds || !Array.isArray(candidateIds) || candidateIds.length === 0) {
+      return res.status(400).json({ error: 'candidateIds array required' });
+    }
+    if (!VALID.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID.join(', ')}` });
+    }
+    const result = await pool.query(
+      'UPDATE candidates SET status = $1, updated_at = NOW() WHERE id = ANY($2) AND company_id = $3',
+      [status, candidateIds, req.user.company_id]
+    );
+    console.log('[AUDIT] Bulk status update', { userId: req.user.id, count: result.rowCount, fromStatus: 'various', toStatus: status });
+    res.json({ updated: result.rowCount, candidateIds });
+  } catch (err) {
+    console.error('Bulk status update error:', err);
+    res.status(500).json({ error: 'Failed to update candidate statuses' });
+  }
+});
+
 // Get pipeline stats (B-001)
 router.get('/pipeline-stats', authMiddleware, requireRecruiter, async (req, res) => {
   try {
