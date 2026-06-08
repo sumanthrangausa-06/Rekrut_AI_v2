@@ -65,6 +65,13 @@ interface AnalyticsData {
   }
   cost_per_hire?: number
   quality_of_hire?: number
+  offer_acceptance_rate?: number
+  rejection_reasons?: Array<{
+    reason: string
+    count: number
+    percentage: number
+    trend: number
+  }>
 }
 
 export function RecruiterAnalyticsPage() {
@@ -158,6 +165,34 @@ export function RecruiterAnalyticsPage() {
     { stage: 'Interview → Offer', avg_days: 5, count: 18 },
     { stage: 'Offer → Hired', avg_days: 3, count: 12 },
   ]
+
+  // Diversity metrics (real or mock)
+  const diversityMetrics = data?.diversity_metrics || {
+    gender_distribution: [
+      { label: 'Male', percentage: 52 },
+      { label: 'Female', percentage: 44 },
+      { label: 'Non-binary', percentage: 3 },
+      { label: 'Prefer not to say', percentage: 1 },
+    ],
+    ethnicity_distribution: [
+      { label: 'Asian', percentage: 38 },
+      { label: 'White', percentage: 28 },
+      { label: 'Black', percentage: 15 },
+      { label: 'Hispanic', percentage: 12 },
+      { label: 'Other', percentage: 7 },
+    ],
+  }
+
+  // Rejection reasons (real or mock)
+  const rejectionReasons = data?.rejection_reasons || [
+    { reason: 'Skills gap', count: 42, percentage: 35, trend: -2 },
+    { reason: 'Not enough experience', count: 31, percentage: 26, trend: 4 },
+    { reason: 'Culture fit', count: 18, percentage: 15, trend: -5 },
+    { reason: 'Compensation mismatch', count: 14, percentage: 12, trend: 8 },
+    { reason: 'Accepted another offer', count: 9, percentage: 8, trend: 3 },
+    { reason: 'Other', count: 5, percentage: 4, trend: 0 },
+  ]
+  const maxRejectionCount = Math.max(...rejectionReasons.map(r => r.count), 1)
 
   if (loading) {
     return (
@@ -486,6 +521,106 @@ export function RecruiterAnalyticsPage() {
         </CardContent>
       </Card>
 
+      {/* Two-column grid: Diversity + Rejection Reasons */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Diversity Metrics */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Users className="h-4 w-4 text-indigo-500" />
+              Diversity Snapshot
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {/* Gender */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Gender</p>
+              <div className="grid grid-cols-2 gap-3">
+                {diversityMetrics.gender_distribution.map((item) => (
+                  <div key={item.label} className="rounded-lg border p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-muted-foreground">{item.label}</span>
+                      <span className="text-sm font-bold">{item.percentage}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
+                        style={{ width: `${item.percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Ethnicity */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Ethnicity</p>
+              <div className="space-y-2">
+                {diversityMetrics.ethnicity_distribution.map((item) => (
+                  <div key={item.label} className="flex items-center gap-3">
+                    <span className="w-24 shrink-0 text-xs text-muted-foreground">{item.label}</span>
+                    <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all duration-500"
+                        style={{ width: `${item.percentage}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-semibold w-10 text-right">{item.percentage}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Rejection Reason Analysis */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <XCircle className="h-4 w-4 text-red-500" />
+              Rejection Reasons
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {rejectionReasons.map((item) => {
+              const width = Math.max((item.count / maxRejectionCount) * 100, 5)
+              return (
+                <div key={item.reason}>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="text-muted-foreground">{item.reason}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium">{item.count}</span>
+                      <span className="text-xs text-muted-foreground">({item.percentage}%)</span>
+                      <Badge variant="outline" className="text-[10px] gap-0.5">
+                        {item.trend > 0 ? (
+                          <ArrowUpRight className="h-3 w-3 text-red-500" />
+                        ) : item.trend < 0 ? (
+                          <ArrowDownRight className="h-3 w-3 text-green-500" />
+                        ) : (
+                          <Minus className="h-3 w-3 text-slate-400" />
+                        )}
+                        {Math.abs(item.trend)}%
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-red-400 to-red-500 rounded-full transition-all duration-500"
+                        style={{ width: `${width}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+            <p className="text-xs text-muted-foreground pt-1">
+              Trend compares to previous period. ↓ = fewer rejections (good), ↑ = more rejections (investigate).
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Advanced Metrics (Pro tier) */}
       <Card className="border-indigo-200 bg-indigo-50/20">
         <CardHeader className="pb-3">
@@ -498,17 +633,17 @@ export function RecruiterAnalyticsPage() {
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="text-center p-4 rounded-lg bg-white/60 border border-indigo-100">
-              <p className="text-2xl font-bold">$2,450</p>
+              <p className="text-2xl font-bold">{data?.cost_per_hire ? `$${data.cost_per_hire.toLocaleString()}` : '—'}</p>
               <p className="text-xs text-muted-foreground">Cost per Hire</p>
               <p className="text-xs text-green-600 mt-1">↓ 12% vs last quarter</p>
             </div>
             <div className="text-center p-4 rounded-lg bg-white/60 border border-indigo-100">
-              <p className="text-2xl font-bold">4.3/5</p>
+              <p className="text-2xl font-bold">{data?.quality_of_hire ? `${data.quality_of_hire}/5` : '—'}</p>
               <p className="text-xs text-muted-foreground">Quality of Hire</p>
               <p className="text-xs text-green-600 mt-1">↑ 8% vs last quarter</p>
             </div>
             <div className="text-center p-4 rounded-lg bg-white/60 border border-indigo-100">
-              <p className="text-2xl font-bold">82%</p>
+              <p className="text-2xl font-bold">{data?.offer_acceptance_rate ? `${data.offer_acceptance_rate}%` : '—'}</p>
               <p className="text-xs text-muted-foreground">Offer Acceptance</p>
               <p className="text-xs text-green-600 mt-1">↑ 5% vs last quarter</p>
             </div>
