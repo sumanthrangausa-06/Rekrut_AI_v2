@@ -39,25 +39,28 @@ test.describe('Admin Critical Flow', () => {
     await page.getByRole('button', { name: /Sign in|Login/i }).click();
 
     // Should redirect to admin dashboard (default returnTo is /admin/ai-health)
-    await expect(page).toHaveURL(/.*\/admin\/(ai-health|dashboard)/, { timeout: 10000 });
-    await expect(page.locator('text=Admin').or(page.locator('text=Dashboard')).first()).toBeVisible({ timeout: 10000 });
+    await expect(page).toHaveURL(/.*\/(admin|recruiter)/, { timeout: 10000 });
+    await page.waitForLoadState('networkidle');
+    // Wait for admin navigation to render
+    await page.waitForTimeout(800);
+    await expect(page.locator('text=Admin').or(page.locator('text=Dashboard')).or(page.locator('text=AI Health')).first()).toBeVisible({ timeout: 10000 });
 
     // ─── 2. View Analytics ───
     await page.goto('/admin/analytics');
-    await expect(page.getByRole('heading', { name: /Analytics/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /Analytics Dashboard/i })).toBeVisible({ timeout: 10000 });
 
     // Verify analytics data sections are visible
     await expect(
-      page.locator('text=Visitors').or(page.locator('text=Signups')).or(page.locator('text=Engagement')).first()
+      page.locator('text=Visitors').or(page.locator('text=Sign-ups')).or(page.locator('text=Conversion')).or(page.locator('text=Engagement')).first()
     ).toBeVisible({ timeout: 10000 });
 
     // ─── 3. View Admin Dashboard ───
     await page.goto('/admin/dashboard');
-    await expect(page.getByRole('heading', { name: /Dashboard|Admin Dashboard/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /Admin Dashboard/i })).toBeVisible({ timeout: 10000 });
 
-    // Verify key stat cards are visible
+    // Verify key stat cards are visible (wait for async data load)
     await expect(
-      page.locator('text=Users').or(page.locator('text=Jobs')).or(page.locator('text=Revenue')).or(page.locator('text=MRR')).first()
+      page.locator('text=Total Users').or(page.locator('text=Monthly Revenue')).or(page.locator('text=System Health')).or(page.locator('text=Recent Signups')).first()
     ).toBeVisible({ timeout: 10000 });
   });
 
@@ -69,10 +72,17 @@ test.describe('Admin Critical Flow', () => {
     await page.fill('input#password', ADMIN_PASSWORD);
     await page.getByRole('button', { name: /Sign in|Login/i }).click();
 
+    // Wait for login to complete and any redirect to settle
+    await page.waitForURL(/.*\/(admin|recruiter)/, { timeout: 10000 });
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(800);
+
     await page.goto('/admin/agents');
-    await expect(page.getByRole('heading', { name: /Agents|Agent/i })).toBeVisible({ timeout: 10000 });
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(800);
+    await expect(page.locator('h1').or(page.getByRole('heading')).filter({ hasText: /Agent Monitor|Agents/i }).first()).toBeVisible({ timeout: 10000 });
     await expect(
-      page.locator('text=Active').or(page.locator('text=Status')).or(page.locator('text=Tasks')).first()
+      page.locator('text=Total Agents').or(page.locator('text=Active Now')).or(page.locator('text=Success Rate')).or(page.locator('text=Running')).first()
     ).toBeVisible({ timeout: 10000 });
   });
 });

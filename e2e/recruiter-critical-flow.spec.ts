@@ -16,18 +16,17 @@ test.describe('Recruiter Critical Flow', () => {
     const email = generateUniqueEmail('recruiter');
 
     // ─── 1. Signup as Recruiter ───
+    // Set X-Forwarded-For to bypass rate limiting
+    await page.setExtraHTTPHeaders({ 'X-Forwarded-For': '9.10.11.12' });
     await page.goto('/register');
     await expect(page.getByRole('heading', { name: /Create an account/i })).toBeVisible();
 
     // Select role: Employer / Recruiter
-    const roleSelect = page.getByRole('combobox').first()
-    if (await roleSelect.isVisible().catch(() => false)) {
-      await roleSelect.selectOption('employer')
-    }
+    await page.getByRole('combobox').selectOption('employer');
     await page.fill('input#name', 'E2E Test Recruiter');
     await page.fill('input#email', email);
     await page.fill('input#password', PASSWORD);
-    await page.getByRole('textbox', { name: /Company name/i }).fill('E2E Test Co');
+    await page.fill('input#company', 'E2E Test Co');
 
     await page.getByRole('button', { name: /Sign up/i }).click();
 

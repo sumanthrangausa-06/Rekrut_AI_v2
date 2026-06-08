@@ -17,11 +17,11 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
 
-  // Cap workers at 2 to limit total browser processes in memory.
+  // Cap workers at 1 to limit total browser processes in memory.
   // Each worker can hold one or more browser contexts.
-  // On this machine (7 GB RAM) 2 workers × 2 projects = ~4 concurrent
-  // browser instances max, which is safe.
-  workers: process.env.CI ? 1 : 2,
+  // On this machine (7 GB RAM) 1 worker × 1 project = ~1 concurrent
+  // browser instance max, which is safe.
+  workers: 1,
 
   reporter: 'list',
 
@@ -39,12 +39,17 @@ export default defineConfig({
         '--disable-background-timer-throttling',
         '--disable-backgrounding-occluded-windows',
         '--disable-renderer-backgrounding',
-        '--disable-features=TranslateUI',
+        '--disable-features=TranslateUI,IsolateOrigins,site-per-process',
+        '--disable-site-isolation-trials',
         '--enable-features=NetworkService,NetworkServiceInProcess',
         '--force-color-profile=srgb',
         '--mute-audio',
         '--no-first-run',
         '--disk-cache-dir=/tmp/playwright-cache',
+        '--js-flags=--max-old-space-size=512',
+        '--disable-extensions',
+        '--disable-default-apps',
+        '--disable-background-networking',
       ],
     },
   },

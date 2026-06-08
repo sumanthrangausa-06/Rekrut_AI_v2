@@ -406,7 +406,7 @@ export function RecruiterJobApplicantsPage() {
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">{selectedIds.size} selected</span>
             {selectedIds.size >= 2 && (
-              <Button variant="outline" size="sm" onClick={compareCandidates} disabled={comparing} className="gap-1 text-xs">
+              <Button variant="outline" size="sm" onClick={compareCandidates} disabled={comparing} className="gap-1 text-xs min-h-[44px]">
                 <GitCompare className="h-3.5 w-3.5" /> {comparing ? 'Comparing...' : 'AI Compare'}
               </Button>
             )}
@@ -604,7 +604,7 @@ export function RecruiterJobApplicantsPage() {
 
       {/* Detail dialog */}
       {selected && (
-        <Dialog open={true} onClose={() => setSelected(null)} className="max-w-2xl">
+        <Dialog open={true} onClose={() => setSelected(null)} className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold">
@@ -618,7 +618,7 @@ export function RecruiterJobApplicantsPage() {
           </DialogHeader>
           <div className="space-y-4">
             {/* Stats grid */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="rounded-lg bg-muted/50 p-3">
                 <p className="text-xs text-muted-foreground">Applied</p>
                 <p className="font-medium text-sm">{new Date(selected.applied_at).toLocaleDateString()}</p>
@@ -653,7 +653,7 @@ export function RecruiterJobApplicantsPage() {
                 <h4 className="font-medium text-sm mb-2 flex items-center gap-1">
                   <BarChart3 className="h-4 w-4 text-primary" /> Match Score Breakdown
                 </h4>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {Object.entries(matchBreakdown.dimensions).map(([key, dim]: [string, any]) => {
                     if (dim.available === false && !dim.score) return null
                     const score = dim.score || 0
@@ -690,11 +690,11 @@ export function RecruiterJobApplicantsPage() {
             <div className="flex items-center gap-2 py-1">
               <span className="text-xs text-muted-foreground">Quick feedback:</span>
               <Button variant="outline" size="sm" onClick={() => sendFeedback(selected.candidate_id, 'positive')} disabled={feedbackSending}
-                className="gap-1 text-xs h-7 text-green-600 border-green-200 hover:bg-green-50">
+                className="gap-1 text-xs min-h-[44px] text-green-600 border-green-200 hover:bg-green-50">
                 <ThumbsUp className="h-3 w-3" /> Good Fit
               </Button>
               <Button variant="outline" size="sm" onClick={() => sendFeedback(selected.candidate_id, 'negative')} disabled={feedbackSending}
-                className="gap-1 text-xs h-7 text-red-500 border-red-200 hover:bg-red-50">
+                className="gap-1 text-xs min-h-[44px] text-red-500 border-red-200 hover:bg-red-50">
                 <ThumbsDown className="h-3 w-3" /> Not a Fit
               </Button>
             </div>
@@ -827,7 +827,7 @@ export function RecruiterJobApplicantsPage() {
 
       {/* AI Comparison Dialog */}
       {showComparison && (
-        <Dialog open={true} onClose={() => { setShowComparison(false); setComparisonResult(null) }} className="max-w-3xl">
+        <Dialog open={true} onClose={() => { setShowComparison(false); setComparisonResult(null) }} className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-3xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <GitCompare className="h-5 w-5 text-primary" /> AI Candidate Comparison
@@ -920,7 +920,7 @@ export function RecruiterJobApplicantsPage() {
 
       {/* Pipeline Automation Dialog */}
       {showAutomation && (
-        <Dialog open={true} onClose={() => setShowAutomation(false)} className="max-w-lg">
+        <Dialog open={true} onClose={() => setShowAutomation(false)} className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sliders className="h-5 w-5 text-primary" /> Pipeline Automation
@@ -993,11 +993,11 @@ export function RecruiterJobApplicantsPage() {
                   </div>
                 </div>
                 <div className="flex gap-2 pt-2">
-                  <Button onClick={() => saveAutomation(automationRules)} disabled={automationSaving} className="gap-1.5">
+                  <Button onClick={() => saveAutomation(automationRules)} disabled={automationSaving} className="gap-1.5 min-h-[44px]">
                     {automationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings2 className="h-4 w-4" />}
                     Save Rules
                   </Button>
-                  <Button variant="outline" onClick={runAutoCheck} className="gap-1.5">
+                  <Button variant="outline" onClick={runAutoCheck} className="gap-1.5 min-h-[44px]">
                     <Zap className="h-4 w-4" /> Run Now
                   </Button>
                 </div>

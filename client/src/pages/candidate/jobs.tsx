@@ -737,6 +737,32 @@ export function CandidateJobsPage() {
         </div>
       </div>
 
+      {/* Mobile Detail Panel */}
+      <div className="lg:hidden">
+        <Sheet open={showDetailPanel && selectedJob != null} onOpenChange={setShowDetailPanel} className="w-full">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5" /> Job Details
+            </SheetTitle>
+            <SheetClose />
+          </SheetHeader>
+          <SheetContent className="p-0 overflow-x-hidden">
+            {selectedJob && (
+              <JobDetailPanel
+                job={selectedJob}
+                isSaved={savedJobIds.has(selectedJob.id)}
+                onToggleSave={e => toggleSaveJob(selectedJob.id, e)}
+                onClose={() => {
+                  setShowDetailPanel(false)
+                  setSelectedJob(null)
+                }}
+                onApply={() => navigate(`/candidate/jobs/${selectedJob.id}?apply=true`)}
+              />
+            )}
+          </SheetContent>
+        </Sheet>
+      </div>
+
       {/* === MOBILE FILTERS SHEET === */}
       <Sheet open={showFiltersMobile} onOpenChange={setShowFiltersMobile} side="left">
         <SheetHeader>
@@ -943,7 +969,7 @@ function JobDetailPanel({ job, isSaved, onToggleSave, onClose, onApply }: {
   })()
 
   return (
-    <div className="p-5 space-y-5">
+    <div className="p-4 sm:p-5 space-y-5">
       {/* Header with actions */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
@@ -954,10 +980,10 @@ function JobDetailPanel({ job, isSaved, onToggleSave, onClose, onApply }: {
             className="h-14 w-14"
           />
           <div className="min-w-0">
-            <h2 className="font-bold text-lg leading-tight">{job.title}</h2>
+            <h2 className="font-bold text-lg leading-tight break-words">{job.title}</h2>
             <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
               <Building2 className="h-3.5 w-3.5" />
-              {job.company || job.poster_company || 'Company'}
+              <span className="break-words">{job.company || job.poster_company || 'Company'}</span>
             </p>
           </div>
         </div>
@@ -1007,7 +1033,7 @@ function JobDetailPanel({ job, isSaved, onToggleSave, onClose, onApply }: {
       )}
 
       {/* Job Meta */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div className="flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50">
           <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
           <span className="truncate">{job.location || 'Location not specified'}</span>
@@ -1058,7 +1084,7 @@ function JobDetailPanel({ job, isSaved, onToggleSave, onClose, onApply }: {
       {/* Description */}
       <div>
         <p className="text-sm font-semibold mb-2">About the Role</p>
-        <div className="prose prose-sm max-w-none text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+        <div className="prose prose-sm max-w-none text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed break-words overflow-x-hidden">
           {job.description || 'No description provided.'}
         </div>
       </div>
@@ -1067,7 +1093,7 @@ function JobDetailPanel({ job, isSaved, onToggleSave, onClose, onApply }: {
       {job.requirements && (
         <div>
           <p className="text-sm font-semibold mb-2">Requirements</p>
-          <div className="prose prose-sm max-w-none text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+          <div className="prose prose-sm max-w-none text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed break-words overflow-x-hidden">
             {job.requirements}
           </div>
         </div>
@@ -1091,7 +1117,7 @@ function JobDetailPanel({ job, isSaved, onToggleSave, onClose, onApply }: {
 
       {/* Apply Actions */}
       <div className="sticky bottom-0 bg-background pt-2 pb-4 border-t">
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <Button className="flex-1 gap-2" onClick={onApply}>
             <Send className="h-4 w-4" /> Apply Now
           </Button>
