@@ -428,6 +428,7 @@ export function AdminCompliancePage() {
         <div className="grid gap-4 lg:grid-cols-3">
           {riskClasses.map((risk) => {
             const config = riskConfig[risk.level]
+            const isMitigated = risk.measures.length > 0 && new Date(risk.nextReview) > new Date()
             return (
               <Card key={risk.category}>
                 <CardContent className="p-4">
@@ -445,6 +446,31 @@ export function AdminCompliancePage() {
                     </div>
                   </div>
                   <p className="text-sm mt-2">{risk.description}</p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={`text-xs gap-1 ${
+                        isMitigated
+                          ? "text-green-600 border-green-200"
+                          : "text-amber-600 border-amber-200"
+                      }`}
+                    >
+                      {isMitigated ? (
+                        <>
+                          <CheckCircle className="h-3 w-3" />
+                          Mitigated
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="h-3 w-3" />
+                          Mitigation Pending
+                        </>
+                      )}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {risk.measures.length} measure{risk.measures.length !== 1 ? "s" : ""} in place
+                    </span>
+                  </div>
                   <div className="mt-2 flex flex-wrap gap-1">
                     {risk.measures.map((m) => (
                       <Badge key={m} variant="outline" className="text-xs">
@@ -472,6 +498,10 @@ export function AdminCompliancePage() {
             <TabsTrigger value="bias" className="gap-1">
               <AlertTriangle className="h-3.5 w-3.5" />
               Bias Detection
+            </TabsTrigger>
+            <TabsTrigger value="bias-history" className="gap-1">
+              <History className="h-3.5 w-3.5" />
+              Bias History
             </TabsTrigger>
             <TabsTrigger value="explanations" className="gap-1">
               <BrainCircuit className="h-3.5 w-3.5" />
@@ -865,68 +895,106 @@ export function AdminCompliancePage() {
                     </CardContent>
                   </Card>
                 </div>
+              </div>
+            )}
+          </TabsContent>
 
+          <TabsContent value="bias-history" className="mt-4">
+            {loading ? (
+              <Skeleton count={3} variant="table" />
+            ) : biasHistory.length === 0 ? (
+              <EmptyState
+                icon={History}
+                title="No bias history available"
+                description="Historical bias audit reports will appear once audits are conducted"
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <ChartCard
+                    title="Total Audits"
+                    value={biasHistory.length}
+                    icon={<History className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Avg Fairness Score"
+                    value={`${(biasHistory.reduce((s, r) => s + r.overallFairnessScore, 0) / Math.max(biasHistory.length, 1)).toFixed(1)}%`}
+                    icon={<TrendingUp className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Total Issues"
+                    value={biasHistory.reduce((s, r) => s + r.issuesFound, 0)}
+                    trend={biasHistory.reduce((s, r) => s + r.issuesFound, 0) > 0 ? "down" : "up"}
+                    trendValue={biasHistory.reduce((s, r) => s + r.issuesFound, 0) > 0 ? "Needs attention" : "Clean"}
+                    icon={<AlertTriangle className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Total Appeals"
+                    value={biasHistory.reduce((s, r) => s + r.appealCount, 0)}
+                    icon={<Users className="h-4 w-4" />}
+                  />
+                </div>
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <History className="h-5 w-5" />
-                      Historical Bias Reports
+                      Historical Bias Audit Reports
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {biasHistory.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No historical reports found. Run a bias analysis to generate reports.</p>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Fairness Score</TableHead>
-                            <TableHead>Issues</TableHead>
-                            <TableHead>Demographics</TableHead>
-                            <TableHead>Appeals</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {biasHistory.map((report) => (
-                            <TableRow key={report.id}>
-                              <TableCell className="text-xs whitespace-nowrap">
-                                {new Date(report.auditDate).toLocaleDateString()}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className="text-xs capitalize">
-                                  {report.auditType}
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Fairness Score</TableHead>
+                          <TableHead>Issues</TableHead>
+                          <TableHead>Demographics</TableHead>
+                          <TableHead>Appeals</TableHead>
+                          <TableHead>Created</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {biasHistory.map((report) => (
+                          <TableRow key={report.id}>
+                            <TableCell className="text-xs whitespace-nowrap">
+                              {new Date(report.auditDate).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs capitalize">
+                                {report.auditType}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Progress
+                                  value={report.overallFairnessScore}
+                                  max={100}
+                                  className="h-2 w-24"
+                                />
+                                <span className="text-xs font-medium">
+                                  {report.overallFairnessScore.toFixed(1)}%
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {report.issuesFound > 0 ? (
+                                <Badge variant="destructive" className="text-xs">
+                                  {report.issuesFound}
                                 </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <Progress
-                                    value={report.overallFairnessScore}
-                                    max={100}
-                                    className="h-2 w-24"
-                                  />
-                                  <span className="text-xs font-medium">
-                                    {report.overallFairnessScore.toFixed(1)}%
-                                  </span>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                {report.issuesFound > 0 ? (
-                                  <Badge variant="destructive" className="text-xs">
-                                    {report.issuesFound}
-                                  </Badge>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">—</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-xs">{report.demographicCount}</TableCell>
-                              <TableCell className="text-xs">{report.appealCount}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs">{report.demographicCount}</TableCell>
+                            <TableCell className="text-xs">{report.appealCount}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                              {new Date(report.createdAt).toLocaleDateString()}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </CardContent>
                 </Card>
               </div>
@@ -975,6 +1043,7 @@ export function AdminCompliancePage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Timestamp</TableHead>
+                          <TableHead>Action</TableHead>
                           <TableHead>Type</TableHead>
                           <TableHead>Candidate</TableHead>
                           <TableHead>Model</TableHead>
@@ -988,6 +1057,11 @@ export function AdminCompliancePage() {
                           <TableRow key={e.id}>
                             <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                               {new Date(e.timestamp).toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="text-xs">
+                                {e.actionType}
+                              </Badge>
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs">
@@ -1273,6 +1347,40 @@ export function AdminCompliancePage() {
                     icon={<TrendingUp className="h-4 w-4" />}
                   />
                 </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Volume Over Time
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {modelPerformance.volumeOverTime.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No volume data available for the selected period.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {modelPerformance.volumeOverTime.map((day) => (
+                          <div key={day.date} className="space-y-1">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">
+                                {new Date(day.date).toLocaleDateString()}
+                              </span>
+                              <span className="font-medium">{day.count}</span>
+                            </div>
+                            <Progress
+                              value={day.count}
+                              max={Math.max(
+                                ...modelPerformance.volumeOverTime.map((d) => d.count)
+                              )}
+                              className="h-2"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
                 <Card>
                   <CardHeader>

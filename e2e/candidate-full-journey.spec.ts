@@ -16,6 +16,13 @@ function getRecruiterToken(): string {
   return origin?.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value || '';
 }
 
+function getCandidateToken(): string {
+  const path = 'e2e/.auth/candidate.json';
+  const data = JSON.parse(fs.readFileSync(path, 'utf-8'));
+  const origin = data.origins?.find((o: any) => o.origin === 'http://localhost:3000');
+  return origin?.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value || '';
+}
+
 // ───────────────────────────────────────────────
 // Candidate Full Journey: signup → profile → search → apply → verify
 // ───────────────────────────────────────────────
@@ -65,16 +72,16 @@ test.describe('Candidate Full Journey', () => {
     await page.goto('/candidate/profile');
     await expect(page.locator('text=Profile Completeness').or(page.locator('text=Personal Information')).first()).toBeVisible({ timeout: 10000 });
 
-    await page.locator('button').filter({ hasText: /Settings/i }).click();
-    await expect(page.locator('text=Personal Information').first()).toBeVisible({ timeout: 10000 });
+    await page.getByRole('button', { name: 'Settings' }).click();
+    await expect(page.getByRole('heading', { name: 'Personal Information' })).toBeVisible({ timeout: 10000 });
 
-    await page.getByPlaceholder('Senior Software Engineer').fill('Senior QA Automation Engineer');
-    await page.getByPlaceholder('Brief professional summary...').fill('Experienced in end-to-end testing, CI/CD, and Playwright automation with 5+ years.');
-    await page.getByPlaceholder('San Francisco, CA').fill('Remote');
-    await page.getByPlaceholder('+1 (555) 000-0000').fill('+1 555 123 4567');
+    await page.locator('input[placeholder="Senior Software Engineer"]').fill('Senior QA Automation Engineer');
+    await page.locator('textarea[placeholder="Brief professional summary..."]').fill('Experienced in end-to-end testing, CI/CD, and Playwright automation with 5+ years.');
+    await page.locator('input[placeholder="San Francisco, CA"]').fill('Remote');
+    await page.locator('input[placeholder="+1 (555) 000-0000"]').fill('+1 (555) 123-4567');
 
-    await page.getByRole('button', { name: /Save Changes/i }).click();
-    await expect(page.locator('text=Profile saved').first()).toBeVisible({ timeout: 10000 });
+    await page.getByRole('button', { name: 'Save Changes' }).click();
+    await expect(page.getByText('Profile saved')).toBeVisible({ timeout: 10000 });
 
     // ─── 3. Search for the seeded job ───
     await page.goto('/candidate/jobs');
@@ -106,7 +113,6 @@ test.describe('Candidate Full Journey', () => {
 
     await jobCards.nth(targetJobIndex).click();
 
-    // The UI may open a side panel (same URL) or navigate to detail page
     await page.waitForTimeout(800);
     const jobTitleWords = jobTitle.split(' ').slice(0, 3).join(' ');
     await expect(page.getByText(jobTitleWords).first()).toBeVisible({ timeout: 10000 });
