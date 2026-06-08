@@ -1,5 +1,6 @@
 const express = require('express');
 const { authMiddleware, requireRole } = require('../lib/auth');
+const { AuditLogger } = require('../services/auditLogger');
 const {
   findMatchingJobs,
   findMatchingCandidates,
@@ -25,6 +26,21 @@ router.get('/recommendations', authMiddleware, async (req, res) => {
     const matches = await findMatchingJobs(req.user.id, {
       limit: parseInt(limit),
       minScore: parseFloat(min_score) / 100
+    });
+
+    // Log AI matching decision for compliance
+    await AuditLogger.log({
+      actionType: 'matching_decision',
+      userId: req.user.id,
+      targetType: 'candidate',
+      targetId: req.user.id,
+      metadata: {
+        match_count: matches.length,
+        min_score: parseFloat(min_score) / 100,
+        model_version: 'matching-engine-v1',
+        confidence: matches.length > 0 ? Math.max(...matches.map(m => m.final_score || m.score || 0)) : 0
+      },
+      req
     });
 
     res.json({
@@ -54,6 +70,21 @@ router.get('/candidates/:jobId', authMiddleware, requireRole('hiring_manager', '
     const matches = await findMatchingCandidates(jobId, {
       limit: parseInt(limit),
       minScore: parseFloat(min_score) / 100
+    });
+
+    // Log AI matching decision for compliance
+    await AuditLogger.log({
+      actionType: 'matching_decision',
+      userId: req.user.id,
+      targetType: 'job',
+      targetId: jobId,
+      metadata: {
+        match_count: matches.length,
+        min_score: parseFloat(min_score) / 100,
+        model_version: 'matching-engine-v1',
+        confidence: matches.length > 0 ? Math.max(...matches.map(m => m.final_score || m.score || 0)) : 0
+      },
+      req
     });
 
     res.json({
@@ -92,6 +123,22 @@ router.get('/explain/:candidateId/:jobId', authMiddleware, async (req, res) => {
     }
 
     const explanation = await explainMatch(candidateId, jobId);
+
+    // Log AI explanation generation for compliance
+    await AuditLogger.log({
+      actionType: 'ai_explanation_generated',
+      userId: req.user.id,
+      targetType: 'match',
+      targetId: jobId,
+      metadata: {
+        candidate_id: candidateId,
+        job_id: jobId,
+        model_version: 'matching-engine-v1',
+        explanation_type: 'match_explanation',
+        confidence: explanation?.score || explanation?.final_score || 0.5
+      },
+      req
+    });
 
     res.json({
       success: true,

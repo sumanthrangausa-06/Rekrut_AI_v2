@@ -334,7 +334,7 @@ export function CandidateJobsPage() {
   const savedJobs = jobs.filter(j => savedJobIds.has(j.id))
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col overflow-hidden">
+    <div className="h-[calc(100dvh-4rem)] flex flex-col overflow-hidden">
       {/* === HERO SEARCH BAR === */}
       <div className="shrink-0 bg-gradient-to-br from-indigo-600 via-indigo-500 to-purple-600 px-4 py-6 sm:py-8">
         <div className="max-w-4xl mx-auto">

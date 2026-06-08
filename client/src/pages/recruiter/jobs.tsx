@@ -524,20 +524,20 @@ function JobDetailPanel({
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           {job.department && (
-            <span className="flex items-center gap-1 max-w-full">
+            <span className="flex items-center gap-1 max-w-full min-w-0">
               <Briefcase className="h-3.5 w-3.5 shrink-0" />
               <span className="break-words">{job.department}</span>
             </span>
           )}
           {job.location && (
-            <span className="flex items-center gap-1 max-w-full">
+            <span className="flex items-center gap-1 max-w-full min-w-0">
               <MapPin className="h-3.5 w-3.5 shrink-0" />
               <span className="break-words">{job.location}</span>
             </span>
           )}
           {job.job_type && <Badge variant="outline" className="text-xs shrink-0 max-w-full truncate">{job.job_type}</Badge>}
           {job.salary_range && <Badge variant="outline" className="text-xs shrink-0 max-w-full truncate">{job.salary_range}</Badge>}
-          <span className="flex items-center gap-1 max-w-full">
+          <span className="flex items-center gap-1 max-w-full min-w-0">
             <Clock className="h-3 w-3 shrink-0" />
             <span className="break-words">{timeAgo(job.created_at)}</span>
           </span>
@@ -545,7 +545,7 @@ function JobDetailPanel({
       </div>
 
       {/* Pipeline Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
           <p className="text-xl sm:text-2xl font-bold truncate">{job.application_count || 0}</p>
           <p className="text-xs text-muted-foreground">Applicants</p>
@@ -620,7 +620,7 @@ function JobDetailPanel({
                           : 0
               if (count === 0) return null
               return (
-                <div key={stage.id} className="flex items-center gap-1 max-w-full">
+                <div key={stage.id} className="flex items-center gap-1 max-w-full min-w-0">
                   <div className={`h-2 w-2 rounded-full shrink-0 ${stage.color}`} />
                   <span className="text-xs text-muted-foreground break-words">
                     {stage.label}: {count}

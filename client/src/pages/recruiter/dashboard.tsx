@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
+import { RecruiterDashboardSkeleton } from '@/components/ui/skeleton'
 import {
   Briefcase,
   Users,
@@ -376,6 +377,10 @@ export function RecruiterDashboard() {
   }
 
   const totalPipeline = pipelineStages.reduce((sum, s) => sum + s.count, 0)
+
+  if (loading) {
+    return <RecruiterDashboardSkeleton />
+  }
 
   return (
     <div className="space-y-8">

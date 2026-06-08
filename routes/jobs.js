@@ -1,11 +1,49 @@
+const { query, validationResult } = require('express-validator');
 const express = require('express');
 const pool = require('../lib/db');
 const { authMiddleware, optionalAuth, requireRole } = require('../lib/auth');
 
 const router = express.Router();
 
+// Validation rules for job search/list queries
+const validateJobSearch = [
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('limit must be an integer between 1 and 100')
+    .toInt(),
+  query('offset')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('offset must be an integer >= 0')
+    .toInt(),
+  query('search')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('search must be a string with max length 200')
+    .escape(),
+  query('location')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('location must be a string with max length 100')
+    .escape(),
+];
+
+// Helper to return 400 on validation errors
+function handleValidationErrors(req, res, next) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ error: 'Validation failed', details: errors.array() });
+  }
+  next();
+}
+
 // List jobs (public) with search/filter
-router.get('/', optionalAuth, async (req, res) => {
+router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (req, res) => {
   try {
     const { status = 'active', limit = 20, offset = 0, search, location, job_type, salary_min, salary_max } = req.query;
 
@@ -103,7 +141,7 @@ router.get('/', optionalAuth, async (req, res) => {
 });
 
 // Search jobs (must be before /:id to avoid route collision)
-router.get('/search', optionalAuth, async (req, res) => {
+router.get('/search', optionalAuth, validateJobSearch, handleValidationErrors, async (req, res) => {
   // Redirect search to list endpoint with query params
   const queryString = new URLSearchParams(req.query).toString();
   return res.redirect(`/api/jobs?${queryString}`);
