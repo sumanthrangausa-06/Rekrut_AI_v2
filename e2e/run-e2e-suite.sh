@@ -40,6 +40,14 @@ echo "Project root: ${PROJECT_ROOT}"
 echo "Extra args:   ${EXTRA_ARGS:-none}"
 echo ""
 
+# Delete stale auth files so we never reuse expired JWTs.
+for f in e2e/.auth/candidate.json e2e/.auth/recruiter.json e2e/.auth/admin.json; do
+  if [ -f "$f" ]; then
+    rm -f "$f"
+    echo "  🗑️  Deleted stale auth file: $f"
+  fi
+done
+
 # Ensure auth state is fresh before running specs
 # This avoids re-running setup for every single spec file.
 echo "→ Running auth setup first..."

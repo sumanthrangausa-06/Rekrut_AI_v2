@@ -86,6 +86,20 @@ function main() {
   console.log('─'.repeat(60))
 
   // ── Step 1: Run auth setup once ─────────────────────────────
+  // Delete any stale auth files so Playwright is forced to regenerate
+  // fresh tokens (JWTs expire in 15 min; old files must not be reused).
+  const authFiles = [
+    path.join(ROOT_DIR, 'e2e', '.auth', 'candidate.json'),
+    path.join(ROOT_DIR, 'e2e', '.auth', 'recruiter.json'),
+    path.join(ROOT_DIR, 'e2e', '.auth', 'admin.json'),
+  ]
+  authFiles.forEach((fp) => {
+    if (fs.existsSync(fp)) {
+      fs.unlinkSync(fp)
+      console.log(`  🗑️  Deleted stale auth file: ${path.relative(ROOT_DIR, fp)}`)
+    }
+  })
+
   console.log('\n▶ Running auth.setup.ts (one-time)…')
   const setupPath = path.join(E2E_DIR, 'auth.setup.ts')
   const setupStatus = runPlaywright(
