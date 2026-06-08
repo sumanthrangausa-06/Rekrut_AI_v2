@@ -5,6 +5,10 @@ services:
     branch: main
     buildCommand: cd client && npm install --include=dev && npm run build && cd .. && npm install
     startCommand: npm run migrate && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
       - key: PORT
         value: 10000
       - key: DATABASE_URL
