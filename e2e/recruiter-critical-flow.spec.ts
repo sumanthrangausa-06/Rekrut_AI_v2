@@ -1,88 +1,127 @@
 import { test, expect } from '@playwright/test';
+import * as fs from 'fs';
 
-const PASSWORD = 'TestPass123!';
+test.use({ storageState: 'e2e/.auth/recruiter.json' });
 
-function generateUniqueEmail(prefix: string) {
-  const ts = Date.now();
-  const rand = Math.random().toString(36).slice(2, 6);
-  return `e2e-${prefix}-${ts}-${rand}@rekrutai.test`;
+function getToken(path: string): string {
+  const data = JSON.parse(fs.readFileSync(path, 'utf-8'));
+  const origin = data.origins?.find((o: any) => o.origin === 'http://localhost:3000');
+  const token = origin?.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value;
+  return token || '';
 }
 
 // ───────────────────────────────────────────────
-// Recruiter Critical Flow
+// Recruiter Critical Flow: login → post job → view candidates → shortlist → analytics
 // ───────────────────────────────────────────────
 test.describe('Recruiter Critical Flow', () => {
-  test('signup → post job → view applicants → shortlist candidate', async ({ page, request }) => {
-    const email = generateUniqueEmail('recruiter');
+  test('login → post job → view candidates → shortlist candidate → view analytics dashboard', async ({ page, request }) => {
+    const jobTitle = `E2E Critical Flow Job ${Date.now()}`;
+    const candidateToken = getToken('e2e/.auth/candidate.json');
 
-    // ─── 1. Signup as Recruiter ───
-    // Set X-Forwarded-For to bypass rate limiting
-    await page.setExtraHTTPHeaders({ 'X-Forwarded-For': '9.10.11.12' });
-    await page.goto('/register');
-    await expect(page.getByRole('heading', { name: /Create an account/i })).toBeVisible();
-
-    // Select role: Employer / Recruiter
-    await page.getByRole('combobox').selectOption('employer');
-    await page.fill('input#name', 'E2E Test Recruiter');
-    await page.fill('input#email', email);
-    await page.fill('input#password', PASSWORD);
-    await page.fill('input#company', 'E2E Test Co');
-
-    await page.getByRole('button', { name: /Sign up/i }).click();
-    await page.waitForTimeout(500);
-
-    // Should redirect to recruiter dashboard
-    await expect(page).toHaveURL(/.*\/recruiter/, { timeout: 15000 });
-    await expect(page.locator('text=Recruiter').or(page.locator('text=Dashboard')).first()).toBeVisible({ timeout: 15000 });
+    // ─── 1. Login (handled by storageState) — verify recruiter dashboard ───
+    await page.goto('/recruiter');
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByText(/Welcome back|Active Jobs|Dashboard|Recruiter/i).first()).toBeVisible({ timeout: 15000 });
 
     // ─── 2. Post a Job ───
-    await page.goto('/recruiter/jobs/new');
-    await expect(page.getByRole('heading', { name: /Job Details/i })).toBeVisible({ timeout: 10000 });
+    await page.goto('/recruiter/jobs');
+    await page.waitForURL('/recruiter/jobs');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(500);
+
+    await page.getByRole('button', { name: 'Post New Job' }).first().click();
+    await page.waitForURL('/recruiter/jobs/new');
+    await page.waitForLoadState('networkidle');
 
     // Step 1: Job Details
-    await page.getByPlaceholder('e.g. Senior Software Engineer').fill('E2E Critical Path Job');
-    await page.getByPlaceholder('Leave blank to use your company name').fill('E2E Test Co');
-    await page.getByPlaceholder('e.g. New York, NY or Remote').fill('Remote');
-    await page.getByPlaceholder('Describe the role, responsibilities, and what a typical day looks like').fill('This is a test job for E2E critical path verification.');
-    await page.getByRole('button', { name: /Next/i }).click();
+    await page.waitForSelector(
+      'input[placeholder*="Senior"], input[placeholder*="Engineer"], input[name="title"]',
+      { timeout: 15000 }
+    );
+    await page.locator('input[placeholder*="Senior"], input[placeholder*="Engineer"], input[name="title"]').first().fill(jobTitle);
+    await page.getByPlaceholder(/Leave blank to use your company name/i).fill('E2E Critical Co');
+    await page.getByPlaceholder(/e\.g\. New York, NY or Remote/i).fill('Remote');
+    await page.getByPlaceholder(/Describe the role, responsibilities/i).fill('Critical path E2E verification job.');
 
-    // Step 2: Requirements (minimal)
+    // Step 2: Requirements
     await page.getByRole('button', { name: /Next/i }).click();
+    await page.waitForSelector('text=Requirements', { timeout: 15000 });
 
     // Step 3: Preview & Post
-    await page.getByRole('button', { name: /Publish Job/i }).click();
+    await page.getByRole('button', { name: /Next/i }).click();
+    await page.waitForSelector('text=Preview', { timeout: 15000 });
+    await page.getByRole('button', { name: 'Publish Job' }).click();
 
-    // Verify success — redirect to job list or show success
-    await expect(page).toHaveURL(/.*\/recruiter\/jobs/, { timeout: 15000 });
-    await expect(page.locator('text=E2E Critical Path Job').first()).toBeVisible({ timeout: 10000 });
-
-    // ─── 3. View Applicants ───
-    // Click on the job card to view applicants
-    const jobCard = page.locator('text=E2E Critical Path Job').first();
-    await jobCard.click();
-
-    await expect(
-      page.locator('text=Applicants').or(page.locator('text=Applications')).or(page.locator('text=No applicants')).first()
-    ).toBeVisible({ timeout: 10000 });
-
-    // ─── 4. Shortlist Candidate (if there are applicants) ───
-    // In a fresh environment there may be no applicants.
-    // If none exist, we verify the applicant view loads correctly.
-    const noApplicants = page.locator('text=No applicants').or(page.locator('text=No applications')).first();
-    if (await noApplicants.isVisible().catch(() => false)) {
-      test.info().annotations.push({ type: 'note', description: 'No applicants to shortlist — job posted successfully' });
-      return;
-    }
-
-    // If there are applicants, move the first one to "shortlisted" status
-    const firstApplicant = page.locator('[class*="applicant"], [class*="card"]').first();
-    if (await firstApplicant.isVisible().catch(() => false)) {
-      // Look for a status dropdown or "Shortlist" button
-      const shortlistBtn = page.locator('button, a').filter({ hasText: /Shortlist/i }).first();
-      if (await shortlistBtn.isVisible().catch(() => false)) {
-        await shortlistBtn.click();
-        await expect(page.locator('text=Shortlisted').first()).toBeVisible({ timeout: 10000 });
+    // Verify redirect to jobs list and job appears
+    await page.waitForURL('/recruiter/jobs');
+    let jobFound = false;
+    for (let i = 0; i < 10; i++) {
+      if (await page.getByText(jobTitle).first().isVisible().catch(() => false)) {
+        jobFound = true;
+        break;
       }
+      await page.waitForTimeout(1500);
     }
+    if (!jobFound) {
+      throw new Error(`Job "${jobTitle}" not found in recruiter jobs list after posting`);
+    }
+    await expect(page.getByText(jobTitle).first()).toBeVisible({ timeout: 10000 });
+
+    // ─── 3. Find job ID via API and apply as candidate ───
+    await page.waitForTimeout(3000);
+
+    let job = null;
+    for (let i = 0; i < 8; i++) {
+      const jobsRes = await request.get('/api/candidate/jobs?limit=200', {
+        headers: { Authorization: `Bearer ${candidateToken}` },
+      });
+      const jobsData = await jobsRes.json();
+      job = jobsData.data?.find((j: any) => j.title === jobTitle);
+      if (job) break;
+      await page.waitForTimeout(2000);
+    }
+    if (!job) {
+      throw new Error(`Job "${jobTitle}" not found in candidate API after posting`);
+    }
+
+    const applyRes = await request.post(`/api/candidate/jobs/${job.id}/apply`, {
+      headers: { Authorization: `Bearer ${candidateToken}` },
+      data: {
+        cover_letter: 'I am excited about this opportunity and believe my skills align well.',
+        screening_answers: {},
+      },
+    });
+    if (!applyRes.ok()) {
+      throw new Error(`Failed to apply as candidate: ${applyRes.status()} ${await applyRes.text()}`);
+    }
+
+    // ─── 4. View Candidates / Applicants ───
+    await page.goto(`/recruiter/jobs/${job.id}/applicants`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(800);
+
+    await expect(page.getByRole('heading', { name: 'Pipeline' }).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/1 applicant/).first()).toBeVisible({ timeout: 10000 });
+
+    // ─── 5. Shortlist Candidate ───
+    // Advance from applied → screening → shortlisted (2 clicks)
+    for (let i = 0; i < 2; i++) {
+      const advanceBtn = page.getByRole('button', { name: 'Advance' }).first();
+      await expect(advanceBtn).toBeVisible({ timeout: 10000 });
+      await advanceBtn.click();
+      await page.waitForTimeout(1200);
+    }
+
+    await expect(page.getByText('Shortlisted').first()).toBeVisible({ timeout: 10000 });
+
+    // ─── 6. View Analytics Dashboard ───
+    await page.goto('/recruiter/analytics');
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByRole('heading', { name: /Hiring Analytics/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Job Views').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Applications').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Conversion Rate').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Avg Days to Hire').first()).toBeVisible({ timeout: 10000 });
   });
 });
