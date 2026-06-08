@@ -25,6 +25,7 @@ export function HistoryPage() {
   const navigate = useNavigate()
   const [interviews, setInterviews] = useState<HistoryInterview[]>([])
   const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState('all')
 
   useEffect(() => {
     async function loadHistory() {
@@ -60,7 +61,7 @@ export function HistoryPage() {
         <p className="text-muted-foreground">Review your past mock interviews and track progress</p>
       </div>
 
-      <Tabs defaultValue="all">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="completed">Completed</TabsTrigger>

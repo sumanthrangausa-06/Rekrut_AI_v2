@@ -1,10 +1,22 @@
 // AI Communication Hub Routes — outreach, follow-ups, rejections, offer letters
 const express = require('express');
+const crypto = require('crypto');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const commGenerator = require('../services/communication-generator');
 
 const router = express.Router();
+
+// Secure error response helper
+function sendError(res, err, consolePrefix) {
+  const ref = crypto.randomUUID();
+  console.error(`[ERROR ref=${ref}] ${consolePrefix}:`, err);
+  if (process.env.NODE_ENV === 'production') {
+    res.status(500).json({ error: 'Internal server error', ref });
+  } else {
+    res.status(500).json({ error: 'Internal server error', message: err.message, ref });
+  }
+}
 
 // Middleware: require recruiter role
 function requireRecruiter(req, res, next) {
@@ -130,8 +142,7 @@ router.post('/generate', authMiddleware, requireRecruiter, async (req, res) => {
       job: job ? { id: job.id, title: job.title } : null
     });
   } catch (err) {
-    console.error('[communications] Generate error:', err.message);
-    res.status(500).json({ error: 'Failed to generate communication', message: err.message });
+    sendError(res, err, '[communications] Generate error');
   }
 });
 
@@ -203,8 +214,7 @@ router.post('/send', authMiddleware, requireRecruiter, async (req, res) => {
       pipeline_results: pipelineResults
     });
   } catch (err) {
-    console.error('[communications] Send error:', err.message);
-    res.status(500).json({ error: 'Failed to send communication', message: err.message });
+    sendError(res, err, '[communications] Send error');
   }
 });
 
@@ -230,8 +240,7 @@ router.post('/draft', authMiddleware, requireRecruiter, async (req, res) => {
 
     res.json({ success: true, communication: saved });
   } catch (err) {
-    console.error('[communications] Draft save error:', err.message);
-    res.status(500).json({ error: 'Failed to save draft', message: err.message });
+    sendError(res, err, '[communications] Draft save error');
   }
 });
 
@@ -269,8 +278,7 @@ router.post('/pipeline', authMiddleware, requireRecruiter, async (req, res) => {
 
     res.json({ success: true, ...result });
   } catch (err) {
-    console.error('[communications] Pipeline error:', err.message);
-    res.status(500).json({ error: 'Pipeline failed', message: err.message });
+    sendError(res, err, '[communications] Pipeline error');
   }
 });
 
@@ -284,8 +292,7 @@ router.get('/history/:candidateId', authMiddleware, requireRecruiter, async (req
     );
     res.json({ success: true, communications: history, total: history.length });
   } catch (err) {
-    console.error('[communications] History error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch history', message: err.message });
+    sendError(res, err, '[communications] History error');
   }
 });
 
@@ -336,8 +343,7 @@ router.get('/', authMiddleware, requireRecruiter, async (req, res) => {
       offset: parseInt(offset)
     });
   } catch (err) {
-    console.error('[communications] List error:', err.message);
-    res.status(500).json({ error: 'Failed to list communications', message: err.message });
+    sendError(res, err, '[communications] List error');
   }
 });
 
@@ -442,8 +448,7 @@ router.post('/bulk', authMiddleware, requireRecruiter, async (req, res) => {
       results
     });
   } catch (err) {
-    console.error('[communications] Bulk error:', err.message);
-    res.status(500).json({ error: 'Bulk generation failed', message: err.message });
+    sendError(res, err, '[communications] Bulk error');
   }
 });
 
@@ -465,8 +470,7 @@ router.post('/sequences', authMiddleware, requireRecruiter, async (req, res) => 
 
     res.json({ success: true, sequence: result.rows[0] });
   } catch (err) {
-    console.error('[communications] Sequence create error:', err.message);
-    res.status(500).json({ error: 'Failed to create sequence', message: err.message });
+    sendError(res, err, '[communications] Sequence create error');
   }
 });
 
@@ -483,8 +487,7 @@ router.get('/sequences', authMiddleware, requireRecruiter, async (req, res) => {
 
     res.json({ success: true, sequences: result.rows });
   } catch (err) {
-    console.error('[communications] Sequence list error:', err.message);
-    res.status(500).json({ error: 'Failed to list sequences', message: err.message });
+    sendError(res, err, '[communications] Sequence list error');
   }
 });
 
@@ -529,8 +532,7 @@ router.post('/sequences/:id/enroll', authMiddleware, requireRecruiter, async (re
 
     res.json({ success: true, enrollment: enrollment.rows[0] });
   } catch (err) {
-    console.error('[communications] Enroll error:', err.message);
-    res.status(500).json({ error: 'Failed to enroll candidate', message: err.message });
+    sendError(res, err, '[communications] Enroll error');
   }
 });
 
@@ -552,8 +554,7 @@ router.get('/templates', authMiddleware, requireRecruiter, async (req, res) => {
     const result = await pool.query(query, params);
     res.json({ success: true, templates: result.rows });
   } catch (err) {
-    console.error('[communications] Templates error:', err.message);
-    res.status(500).json({ error: 'Failed to list templates', message: err.message });
+    sendError(res, err, '[communications] Templates error');
   }
 });
 
@@ -574,8 +575,7 @@ router.post('/templates', authMiddleware, requireRecruiter, async (req, res) => 
 
     res.json({ success: true, template: result.rows[0] });
   } catch (err) {
-    console.error('[communications] Template save error:', err.message);
-    res.status(500).json({ error: 'Failed to save template', message: err.message });
+    sendError(res, err, '[communications] Template save error');
   }
 });
 
@@ -625,8 +625,7 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('[communications] Analytics error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch analytics', message: err.message });
+    sendError(res, err, '[communications] Analytics error');
   }
 });
 

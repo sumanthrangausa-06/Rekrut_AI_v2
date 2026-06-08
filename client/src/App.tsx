@@ -1,137 +1,123 @@
+import { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth, getDashboardPath } from '@/contexts/auth-context'
 import { ErrorBoundary, RouteErrorBoundary } from '@/components/error-boundary'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
-import { LandingPage } from '@/pages/landing'
-import { LoginPage } from '@/pages/login'
-import { RegisterPage } from '@/pages/register'
-import { ForgotPasswordPage } from '@/pages/forgot-password'
-import { ResetPasswordPage } from '@/pages/reset-password'
-import { NotFoundPage } from '@/pages/not-found'
-import { CandidateDashboard } from '@/pages/candidate/dashboard'
-import { RecruiterDashboard } from '@/pages/recruiter/dashboard'
-import { PlaceholderPage } from '@/pages/placeholder'
-import { RecruiterAnalyticsPage } from '@/pages/recruiter/analytics'
-import { PricingPage } from '@/pages/pricing'
-import { AboutPage } from '@/pages/about'
-import { ContactPage } from '@/pages/contact'
-import { PrivacyPage } from '@/pages/privacy'
-import { TermsPage } from '@/pages/terms'
-
-// Jobs
-import { CandidateJobsPage } from '@/pages/candidate/jobs'
-import { CandidateJobDetailPage } from '@/pages/candidate/job-detail'
-import { RecruiterJobsPage } from '@/pages/recruiter/jobs'
-import { RecruiterJobFormPage } from '@/pages/recruiter/job-form'
-import { RecruiterJobApplicantsPage } from '@/pages/recruiter/job-applicants'
-
-// Applications
-import { CandidateApplicationsPage } from '@/pages/candidate/applications'
-import { RecruiterApplicationsPage } from '@/pages/recruiter/applications'
-
-// Assessments
-import { CandidateAssessmentsPage } from '@/pages/candidate/assessments'
-import { AssessmentTakePage } from '@/pages/candidate/assessment-take'
-import { JobAssessmentTakePage } from '@/pages/candidate/job-assessment-take'
-import { AssessmentResultsPage } from '@/pages/candidate/assessment-results'
-
-// Offers
-import { CandidateOffersPage } from '@/pages/candidate/offers'
-import { RecruiterOffersPage } from '@/pages/recruiter/offers'
-
-// Recruiter Assessments
-import { RecruiterAssessmentsPage } from '@/pages/recruiter/assessments'
-import { RecruiterJobAssessmentPage } from '@/pages/recruiter/job-assessment'
-
-// Profiles
-import { CandidateProfilePage } from '@/pages/candidate/profile'
-import { RecruiterCompanyPage } from '@/pages/recruiter/company'
-
-// Interviews
-import { CandidateInterviewsPage } from '@/pages/candidate/interviews'
-import { RecruiterInterviewsPage } from '@/pages/recruiter/interviews'
-
-// Onboarding
-import { CandidateOnboardingPage } from '@/pages/candidate/onboarding'
-import { RecruiterOnboardingPage } from '@/pages/recruiter/onboarding'
-
-// Payroll
-import { CandidatePayrollPage } from '@/pages/candidate/payroll'
-import { RecruiterPayrollPage } from '@/pages/recruiter/payroll'
-
-// AI Coaching
-import { AiCoachingPage } from '@/pages/candidate/ai-coaching'
-
-// OmniScore (Two-Sided Scoring)
-import { CandidateOmniScorePage } from '@/pages/candidate/omniscore'
-import { RecruiterOmniScorePage } from '@/pages/recruiter/omniscore'
-
-// Camera Test (isolation debugging)
-import { TestCameraPage } from '@/pages/test-camera'
-
-// AI Screening (public - candidate completes via invite link)
-import { CandidateScreeningPage } from '@/pages/candidate/screening'
-
-// Debug Pages
-import { MockInterviewDebugPage } from '@/pages/debug/mock-interview'
-
-// Admin
-import { AdminLoginPage } from '@/pages/admin/login'
-import { AdminAnalyticsPage } from '@/pages/admin/analytics'
-import { AdminDashboardPage } from '@/pages/admin/dashboard'
 import { AdminAuthGuard } from '@/components/admin-auth-guard'
-import { AiHealthPage } from '@/pages/admin/ai-health'
-import { RevenuePage } from '@/pages/admin/revenue'
-import { AdminAgentsDashboardPage } from '@/pages/admin/agents'
-import { AgentDashboardPage } from '@/pages/admin/agent-dashboard'
-import { AdminCompliancePage } from '@/pages/admin/compliance'
-import { EUAIActDashboard } from '@/pages/admin/compliance/EUAIActDashboard'
+
+// ─── Lazy page imports ───────────────────────────────────────────────────
+
+// Public
+const LandingPage = lazy(() => import('@/pages/landing').then(m => ({ default: m.LandingPage })))
+const LoginPage = lazy(() => import('@/pages/login').then(m => ({ default: m.LoginPage })))
+const RegisterPage = lazy(() => import('@/pages/register').then(m => ({ default: m.RegisterPage })))
+const ForgotPasswordPage = lazy(() => import('@/pages/forgot-password').then(m => ({ default: m.ForgotPasswordPage })))
+const ResetPasswordPage = lazy(() => import('@/pages/reset-password').then(m => ({ default: m.ResetPasswordPage })))
+const NotFoundPage = lazy(() => import('@/pages/not-found').then(m => ({ default: m.NotFoundPage })))
+const PricingPage = lazy(() => import('@/pages/pricing').then(m => ({ default: m.PricingPage })))
+const AboutPage = lazy(() => import('@/pages/about').then(m => ({ default: m.AboutPage })))
+const ContactPage = lazy(() => import('@/pages/contact').then(m => ({ default: m.ContactPage })))
+const PrivacyPage = lazy(() => import('@/pages/privacy').then(m => ({ default: m.PrivacyPage })))
+const TermsPage = lazy(() => import('@/pages/terms').then(m => ({ default: m.TermsPage })))
+const PaymentSuccessPage = lazy(() => import('@/pages/payment-success').then(m => ({ default: m.PaymentSuccessPage })))
+const RecruiterRegisterPage = lazy(() => import('@/pages/recruiter-register').then(m => ({ default: m.RecruiterRegisterPage })))
+const EmployeePayrollPage = lazy(() => import('@/pages/employee-payroll').then(m => ({ default: m.EmployeePayrollPage })))
+const PlaceholderPage = lazy(() => import('@/pages/placeholder').then(m => ({ default: m.PlaceholderPage })))
+const SettingsPage = lazy(() => import('@/pages/settings').then(m => ({ default: m.SettingsPage })))
+const TestCameraPage = lazy(() => import('@/pages/test-camera').then(m => ({ default: m.TestCameraPage })))
+const ComplianceDashboardPage = lazy(() => import('@/pages/compliance-dashboard').then(m => ({ default: m.ComplianceDashboardPage })))
+const PostHireFeedbackPage = lazy(() => import('@/pages/post-hire-feedback').then(m => ({ default: m.RecruiterPostHireFeedbackPage })))
+const RecruiterProfilePage = lazy(() => import('@/pages/recruiter-profile').then(m => ({ default: m.RecruiterProfilePage })))
+const RecruiterTrustscorePage = lazy(() => import('@/pages/recruiter-trustscore').then(m => ({ default: m.RecruiterTrustscorePage })))
+const RecruiterCommunicationsPage = lazy(() => import('@/pages/recruiter-communications').then(m => ({ default: m.RecruiterCommunicationsPage })))
 
 // Blog
-import { BlogPage, BlogPostPage } from '@/pages/blog'
+const BlogPage = lazy(() => import('@/pages/blog').then(m => ({ default: m.BlogPage })))
+const BlogPostPage = lazy(() => import('@/pages/blog').then(m => ({ default: m.BlogPostPage })))
 
-// Chat
-import { CandidateChatPage } from '@/pages/candidate/chat'
-import { RecruiterChatPage } from '@/pages/recruiter/chat'
+// Public company / career
+const PublicCompanyPage = lazy(() => import('@/pages/recruiter/public-company').then(m => ({ default: m.PublicCompanyPage })))
+const RecruiterCareerPage = lazy(() => import('@/pages/recruiter/career-page').then(m => ({ default: m.RecruiterCareerPage })))
 
-// Public Company
-import { PublicCompanyPage } from '@/pages/recruiter/public-company'
+// Candidate pages
+const CandidateDashboard = lazy(() => import('@/pages/candidate/dashboard').then(m => ({ default: m.CandidateDashboard })))
+const CandidateJobsPage = lazy(() => import('@/pages/candidate/jobs').then(m => ({ default: m.CandidateJobsPage })))
+const CandidateJobDetailPage = lazy(() => import('@/pages/candidate/job-detail').then(m => ({ default: m.CandidateJobDetailPage })))
+const CandidateApplicationsPage = lazy(() => import('@/pages/candidate/applications').then(m => ({ default: m.CandidateApplicationsPage })))
+const CandidateAssessmentsPage = lazy(() => import('@/pages/candidate/assessments').then(m => ({ default: m.CandidateAssessmentsPage })))
+const AssessmentTakePage = lazy(() => import('@/pages/candidate/assessment-take').then(m => ({ default: m.AssessmentTakePage })))
+const JobAssessmentTakePage = lazy(() => import('@/pages/candidate/job-assessment-take').then(m => ({ default: m.JobAssessmentTakePage })))
+const AssessmentResultsPage = lazy(() => import('@/pages/candidate/assessment-results').then(m => ({ default: m.AssessmentResultsPage })))
+const CandidateOffersPage = lazy(() => import('@/pages/candidate/offers').then(m => ({ default: m.CandidateOffersPage })))
+const CandidateProfilePage = lazy(() => import('@/pages/candidate/profile').then(m => ({ default: m.CandidateProfilePage })))
+const CandidateInterviewsPage = lazy(() => import('@/pages/candidate/interviews').then(m => ({ default: m.CandidateInterviewsPage })))
+const CandidateOnboardingPage = lazy(() => import('@/pages/candidate/onboarding').then(m => ({ default: m.CandidateOnboardingPage })))
+const CandidatePayrollPage = lazy(() => import('@/pages/candidate/payroll').then(m => ({ default: m.CandidatePayrollPage })))
+const AiCoachingPage = lazy(() => import('@/pages/candidate/ai-coaching').then(m => ({ default: m.AiCoachingPage })))
+const CandidateOmniScorePage = lazy(() => import('@/pages/candidate/omniscore').then(m => ({ default: m.CandidateOmniScorePage })))
+const CandidateDocumentsPage = lazy(() => import('@/pages/candidate/documents').then(m => ({ default: m.CandidateDocumentsPage })))
+const CandidateScreeningPage = lazy(() => import('@/pages/candidate/screening').then(m => ({ default: m.CandidateScreeningPage })))
+const CandidateChatPage = lazy(() => import('@/pages/candidate/chat').then(m => ({ default: m.CandidateChatPage })))
+const InterviewPracticePage = lazy(() => import('@/pages/candidate/interview-practice').then(m => ({ default: m.InterviewPracticePage })))
+const VideoInterviewPage = lazy(() => import('@/pages/candidate/video-interview').then(m => ({ default: m.VideoInterviewPage })))
+const InterviewAnalysisPage = lazy(() => import('@/pages/candidate/interview-analysis').then(m => ({ default: m.InterviewAnalysisPage })))
+const HistoryPage = lazy(() => import('@/pages/candidate/history').then(m => ({ default: m.HistoryPage })))
+const CandidatePostHireFeedbackPage = lazy(() => import('@/pages/candidate/post-hire-feedback').then(m => ({ default: m.PostHireFeedbackPage })))
+const OfferManagementPage = lazy(() => import('@/pages/candidate/offer-management').then(m => ({ default: m.OfferManagementPage })))
+const CompanyProfilePage = lazy(() => import('@/pages/candidate/company-profile').then(m => ({ default: m.CompanyProfilePage })))
+const InterviewPage = lazy(() => import('@/pages/candidate/interview').then(m => ({ default: m.InterviewPage })))
 
-// Career Page
-import { RecruiterCareerPage } from '@/pages/recruiter/career-page'
+// Recruiter pages
+const RecruiterDashboard = lazy(() => import('@/pages/recruiter/dashboard').then(m => ({ default: m.RecruiterDashboard })))
+const RecruiterJobsPage = lazy(() => import('@/pages/recruiter/jobs').then(m => ({ default: m.RecruiterJobsPage })))
+const RecruiterJobFormPage = lazy(() => import('@/pages/recruiter/job-form').then(m => ({ default: m.RecruiterJobFormPage })))
+const RecruiterJobApplicantsPage = lazy(() => import('@/pages/recruiter/job-applicants').then(m => ({ default: m.RecruiterJobApplicantsPage })))
+const RecruiterApplicationsPage = lazy(() => import('@/pages/recruiter/applications').then(m => ({ default: m.RecruiterApplicationsPage })))
+const RecruiterAssessmentsPage = lazy(() => import('@/pages/recruiter/assessments').then(m => ({ default: m.RecruiterAssessmentsPage })))
+const RecruiterJobAssessmentPage = lazy(() => import('@/pages/recruiter/job-assessment').then(m => ({ default: m.RecruiterJobAssessmentPage })))
+const RecruiterOffersPage = lazy(() => import('@/pages/recruiter/offers').then(m => ({ default: m.RecruiterOffersPage })))
+const RecruiterInterviewsPage = lazy(() => import('@/pages/recruiter/interviews').then(m => ({ default: m.RecruiterInterviewsPage })))
+const RecruiterOnboardingPage = lazy(() => import('@/pages/recruiter/onboarding').then(m => ({ default: m.RecruiterOnboardingPage })))
+const RecruiterPayrollPage = lazy(() => import('@/pages/recruiter/payroll').then(m => ({ default: m.RecruiterPayrollPage })))
+const RecruiterAnalyticsPage = lazy(() => import('@/pages/recruiter/analytics').then(m => ({ default: m.RecruiterAnalyticsPage })))
+const RecruiterCandidatesPage = lazy(() => import('@/pages/recruiter/candidates').then(m => ({ default: m.RecruiterCandidatesPage })))
+const RecruiterScreeningPage = lazy(() => import('@/pages/recruiter/screening').then(m => ({ default: m.RecruiterScreeningPage })))
+const RecruiterChatPage = lazy(() => import('@/pages/recruiter/chat').then(m => ({ default: m.RecruiterChatPage })))
+const RecruiterJobCreatePage = lazy(() => import('@/pages/recruiter/job-create').then(m => ({ default: m.RecruiterJobCreatePage })))
+const RecruiterPayrollDashboardPage = lazy(() => import('@/pages/recruiter/payroll-dashboard').then(m => ({ default: m.RecruiterPayrollDashboardPage })))
+const RecruiterPayrollRunPage = lazy(() => import('@/pages/recruiter/payroll-run').then(m => ({ default: m.RecruiterPayrollRunPage })))
+const RecruiterCompanyPage = lazy(() => import('@/pages/recruiter/company').then(m => ({ default: m.RecruiterCompanyPage })))
+const RecruiterOnboardingAiPage = lazy(() => import('@/pages/recruiter/onboarding-ai').then(m => ({ default: m.RecruiterOnboardingAiPage })))
+const RecruiterOnboardingDocsPage = lazy(() => import('@/pages/recruiter/onboarding-docs').then(m => ({ default: m.RecruiterOnboardingDocsPage })))
+const RecruiterOmniScorePage = lazy(() => import('@/pages/recruiter/omniscore').then(m => ({ default: m.RecruiterOmniScorePage })))
+const RecruiterPostHireFeedbackPage = lazy(() => import('@/pages/post-hire-feedback').then(m => ({ default: m.RecruiterPostHireFeedbackPage })))
 
-// Settings page
-import { SettingsPage } from '@/pages/settings'
+// Admin pages
+const AdminLoginPage = lazy(() => import('@/pages/admin/login').then(m => ({ default: m.AdminLoginPage })))
+const AdminAnalyticsPage = lazy(() => import('@/pages/admin/analytics').then(m => ({ default: m.AdminAnalyticsPage })))
+const AdminDashboardPage = lazy(() => import('@/pages/admin/dashboard').then(m => ({ default: m.AdminDashboardPage })))
+const AiHealthPage = lazy(() => import('@/pages/admin/ai-health').then(m => ({ default: m.AiHealthPage })))
+const RevenuePage = lazy(() => import('@/pages/admin/revenue').then(m => ({ default: m.RevenuePage })))
+const AdminAgentsDashboardPage = lazy(() => import('@/pages/admin/agents').then(m => ({ default: m.AdminAgentsDashboardPage })))
+const AgentDashboardPage = lazy(() => import('@/pages/admin/agent-dashboard').then(m => ({ default: m.AgentDashboardPage })))
+const AdminCompliancePage = lazy(() => import('@/pages/admin/compliance').then(m => ({ default: m.AdminCompliancePage })))
+const EUAIActDashboard = lazy(() => import('@/pages/admin/compliance/EUAIActDashboard').then(m => ({ default: m.EUAIActDashboard })))
 
-// New domain pages (replace placeholders)
-import { CandidateDocumentsPage } from '@/pages/candidate/documents'
-import { RecruiterCandidatesPage } from '@/pages/recruiter/candidates'
-import { RecruiterScreeningPage } from '@/pages/recruiter/screening'
+// Debug pages
+const MockInterviewDebugPage = lazy(() => import('@/pages/debug/mock-interview').then(m => ({ default: m.MockInterviewDebugPage })))
 
-// New migrated pages
-import { PaymentSuccessPage } from '@/pages/payment-success'
-import { RecruiterRegisterPage } from '@/pages/recruiter-register'
-import { RecruiterJobCreatePage } from '@/pages/recruiter/job-create'
-import { RecruiterPayrollDashboardPage } from '@/pages/recruiter/payroll-dashboard'
-import { RecruiterPayrollRunPage } from '@/pages/recruiter/payroll-run'
-import { EmployeePayrollPage } from '@/pages/employee-payroll'
+// ─── Loading fallback ────────────────────────────────────────────────────
 
-import { RecruiterCommunicationsPage } from '@/pages/recruiter/communications'
-import { RecruiterTrustscorePage } from '@/pages/recruiter/trustscore'
-import { RecruiterProfilePage } from '@/pages/recruiter-profile'
-import { RecruiterOnboardingAiPage } from '@/pages/recruiter/onboarding-ai'
-import { RecruiterOnboardingDocsPage } from '@/pages/recruiter/onboarding-docs'
-import { RecruiterPostHireFeedbackPage } from '@/pages/post-hire-feedback'
-import { ComplianceDashboardPage } from '@/pages/compliance-dashboard'
-
-import { InterviewPracticePage } from '@/pages/candidate/interview-practice'
-import { VideoInterviewPage } from '@/pages/candidate/video-interview'
-import { InterviewAnalysisPage } from '@/pages/candidate/interview-analysis'
-import { HistoryPage } from '@/pages/candidate/history'
-import { PostHireFeedbackPage } from '@/pages/candidate/post-hire-feedback'
-import { OfferManagementPage } from '@/pages/candidate/offer-management'
-import { CompanyProfilePage } from '@/pages/candidate/company-profile'
-import { InterviewPage } from '@/pages/candidate/interview'
+function PageLoading() {
+  return (
+    <div className="flex min-h-dvh-safe items-center justify-center bg-background">
+      <div className="animate-pulse flex flex-col items-center gap-3">
+        <div className="h-8 w-8 rounded-full bg-primary/20" />
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    </div>
+  )
+}
 
 // Helper: wrap a page element with RouteErrorBoundary
 function Safe({ children }: { children: React.ReactNode }) {
@@ -227,7 +213,7 @@ function AppRoutes() {
         <Route path="video-interview" element={<Protected><VideoInterviewPage /></Protected>} />
         <Route path="interview-analysis" element={<Protected><InterviewAnalysisPage /></Protected>} />
         <Route path="history" element={<Protected><HistoryPage /></Protected>} />
-        <Route path="feedback" element={<Protected><PostHireFeedbackPage /></Protected>} />
+        <Route path="feedback" element={<Protected><CandidatePostHireFeedbackPage /></Protected>} />
         <Route path="offers/manage" element={<Protected><OfferManagementPage /></Protected>} />
         <Route path="company-profile" element={<Protected><CompanyProfilePage /></Protected>} />
         <Route path="interview" element={<Protected><InterviewPage /></Protected>} />
@@ -286,7 +272,7 @@ function AppRoutes() {
       <Route path="/admin/revenue" element={<AdminAuthGuard><RevenuePage /></AdminAuthGuard>} />
       <Route path="/admin/ai-health" element={<AdminAuthGuard><AiHealthPage /></AdminAuthGuard>} />
       <Route path="/admin/agents" element={<AdminAuthGuard><AdminAgentsDashboardPage /></AdminAuthGuard>} />
-      <Route path="/admin/compliance" element={<AdminAuthGuard><EUAIActDashboard /></AdminAuthGuard>} />
+      <Route path="/admin/compliance" element={<AdminAuthGuard><AdminCompliancePage /></AdminAuthGuard>} />
       <Route path="/admin/agent-dashboard" element={<AdminAuthGuard><AgentDashboardPage /></AdminAuthGuard>} />
       <Route path="/admin/analytics" element={<AdminAuthGuard><AdminAnalyticsPage /></AdminAuthGuard>} />
 
@@ -301,7 +287,9 @@ export default function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
-          <AppRoutes />
+          <Suspense fallback={<PageLoading />}>
+            <AppRoutes />
+          </Suspense>
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>

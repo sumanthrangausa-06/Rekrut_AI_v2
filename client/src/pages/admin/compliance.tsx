@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, Fragment } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Progress } from "@/components/ui/progress"
+import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/domain/skeleton"
 import { EmptyState } from "@/components/domain/empty-state"
 import { ChartCard } from "@/components/domain/chart-card"
@@ -36,6 +38,13 @@ import {
   ListChecks,
   GitPullRequest,
   Activity,
+  BarChart3,
+  PieChart,
+  FileSpreadsheet,
+  ArrowDownToLine,
+  History,
+  Gauge,
+  Info,
 } from "lucide-react"
 
 export type ComplianceDecision = {
@@ -73,6 +82,31 @@ export type BiasReport = {
   }>
   topConcerns: string[]
   improvements: string[]
+}
+
+export type BiasHistoryReport = {
+  id: number
+  auditDate: string
+  auditType: string
+  overallFairnessScore: number
+  issuesFound: number
+  demographicCount: number
+  appealCount: number
+  createdAt: string
+}
+
+export type ModelPerformance = {
+  period: number
+  volumeOverTime: Array<{ date: string; count: number }>
+  modelPerformance: Array<{
+    model: string
+    decisions: number
+    avgConfidence: number
+    overrideRate: number
+  }>
+  scoreDistribution: Array<{ bucket: number; count: number }>
+  reviewRate: number
+  totalDecisions: number
 }
 
 export type RiskClassification = {
@@ -157,7 +191,10 @@ export function AdminCompliancePage() {
   const [overrides, setOverrides] = useState<HumanOverride[]>([])
   const [riskChecklist, setRiskChecklist] = useState<RiskChecklistItem[]>([])
   const [riskChecklistSummary, setRiskChecklistSummary] = useState<RiskChecklistSummary | null>(null)
+  const [biasHistory, setBiasHistory] = useState<BiasHistoryReport[]>([])
+  const [modelPerformance, setModelPerformance] = useState<ModelPerformance | null>(null)
   const [loading, setLoading] = useState(true)
+  const [exportLoading, setExportLoading] = useState(false)
   const [selectedTab, setSelectedTab] = useState("audit")
   const [expandedDecision, setExpandedDecision] = useState<string | null>(null)
 
@@ -165,13 +202,15 @@ export function AdminCompliancePage() {
     async function loadCompliance() {
       setLoading(true)
       try {
-        const [decisionsData, biasData, riskData, explanationsData, overridesData, checklistData] = await Promise.all([
+        const [decisionsData, biasData, riskData, explanationsData, overridesData, checklistData, biasHistoryData, performanceData] = await Promise.all([
           apiCall<{ decisions: ComplianceDecision[] }>("/admin/compliance/decisions"),
           apiCall<{ report: BiasReport }>("/admin/compliance/bias-report").catch(() => ({ report: null })),
           apiCall<{ classifications: RiskClassification[] }>("/admin/compliance/risk-classifications").catch(() => ({ classifications: [] })),
           apiCall<{ explanations: ExplainabilityLog[] }>("/admin/compliance/explanations").catch(() => ({ explanations: [] })),
           apiCall<{ overrides: HumanOverride[]; summary: RiskChecklistSummary }>("/admin/compliance/overrides").catch(() => ({ overrides: [], summary: null })),
           apiCall<{ checklist: RiskChecklistItem[]; summary: RiskChecklistSummary }>("/admin/compliance/risk-checklist").catch(() => ({ checklist: [], summary: null })),
+          apiCall<{ reports: BiasHistoryReport[] }>("/admin/compliance/bias-reports").catch(() => ({ reports: [] })),
+          apiCall<{ modelPerformance: ModelPerformance }>("/admin/compliance/performance").catch(() => ({ modelPerformance: null })),
         ])
         setDecisions(decisionsData.decisions || [])
         setBiasReport(biasData.report)
@@ -180,6 +219,8 @@ export function AdminCompliancePage() {
         setOverrides(overridesData.overrides || [])
         setRiskChecklist(checklistData.checklist || [])
         setRiskChecklistSummary(checklistData.summary || null)
+        setBiasHistory(biasHistoryData.reports || [])
+        setModelPerformance(performanceData.modelPerformance || null)
       } catch (err) {
         console.error("Failed to load compliance data:", err)
       } finally {
@@ -189,9 +230,58 @@ export function AdminCompliancePage() {
     loadCompliance()
   }, [])
 
+  const handleExportCSV = async () => {
+    setExportLoading(true)
+    trackEvent("compliance_export_csv", { count: decisions.length })
+    try {
+      const response = await apiCall<Blob>("/admin/compliance/export", {
+        method: "POST",
+        body: JSON.stringify({ format: "csv" }),
+        headers: { "Content-Type": "application/json" },
+      })
+      const blob = response instanceof Blob ? response : new Blob([response as any], { type: "text/csv" })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `compliance-export-${new Date().toISOString().split("T")[0]}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error("Export failed:", err)
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
+  const handleExportJSON = async () => {
+    setExportLoading(true)
+    trackEvent("compliance_export_json", { count: decisions.length })
+    try {
+      const data = await apiCall<{ decisions: any[] }>("/admin/compliance/export", {
+        method: "POST",
+        body: JSON.stringify({ format: "json" }),
+        headers: { "Content-Type": "application/json" },
+      })
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `compliance-export-${new Date().toISOString().split("T")[0]}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error("Export failed:", err)
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
   const handleExport = () => {
-    trackEvent("compliance_export", { count: decisions.length })
-    // TODO: CSV export
+    handleExportCSV()
   }
 
   const handleHumanReview = async (decisionId: string) => {
@@ -225,12 +315,87 @@ export function AdminCompliancePage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleExport} className="gap-1">
-              <Download className="h-4 w-4" />
-              Export Report
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              disabled={exportLoading || decisions.length === 0}
+              className="gap-1"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              {exportLoading ? "Exporting..." : "Export CSV"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportJSON}
+              disabled={exportLoading || decisions.length === 0}
+              className="gap-1"
+            >
+              <ArrowDownToLine className="h-4 w-4" />
+              JSON
             </Button>
           </div>
         </div>
+
+        
+        {/* Compliance Score Banner */}
+        {riskChecklistSummary && (
+          <Card className="border-l-4 border-l-primary">
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="shrink-0">
+                    <div className="relative h-16 w-16">
+                      <Gauge className="h-16 w-16 text-muted-foreground" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-sm font-bold">{riskChecklistSummary.complianceScore}%</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <h2 className="font-heading text-lg font-semibold">EU AI Act Compliance Score</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {riskChecklistSummary.overallStatus === "compliant"
+                        ? "System is fully compliant with EU AI Act requirements"
+                        : riskChecklistSummary.overallStatus === "needs_attention"
+                          ? "Attention needed: some requirements are pending"
+                          : "Partially compliant: complete remaining requirements"}
+                    </p>
+                    <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3 text-green-500" />
+                        {riskChecklistSummary.completed} complete
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-amber-500" />
+                        {riskChecklistSummary.pending} pending
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <XCircle className="h-3 w-3 text-red-500" />
+                        {riskChecklistSummary.incomplete} incomplete
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Activity className="h-3 w-3 text-blue-500" />
+                        {riskChecklistSummary.inProgress} in progress
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1 min-w-[200px]">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Progress</span>
+                    <span>{riskChecklistSummary.complianceScore}%</span>
+                  </div>
+                  <Progress value={riskChecklistSummary.complianceScore} max={100} />
+                  <p className="text-xs text-muted-foreground">
+                    Next review: {new Date(riskChecklistSummary.nextReview).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -264,6 +429,7 @@ export function AdminCompliancePage() {
         <div className="grid gap-4 lg:grid-cols-3">
           {riskClasses.map((risk) => {
             const config = riskConfig[risk.level]
+            const isMitigated = risk.measures.length > 0 && new Date(risk.nextReview) > new Date()
             return (
               <Card key={risk.category}>
                 <CardContent className="p-4">
@@ -281,6 +447,31 @@ export function AdminCompliancePage() {
                     </div>
                   </div>
                   <p className="text-sm mt-2">{risk.description}</p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={`text-xs gap-1 ${
+                        isMitigated
+                          ? "text-green-600 border-green-200"
+                          : "text-amber-600 border-amber-200"
+                      }`}
+                    >
+                      {isMitigated ? (
+                        <>
+                          <CheckCircle className="h-3 w-3" />
+                          Mitigated
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="h-3 w-3" />
+                          Mitigation Pending
+                        </>
+                      )}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {risk.measures.length} measure{risk.measures.length !== 1 ? "s" : ""} in place
+                    </span>
+                  </div>
                   <div className="mt-2 flex flex-wrap gap-1">
                     {risk.measures.map((m) => (
                       <Badge key={m} variant="outline" className="text-xs">
@@ -294,9 +485,67 @@ export function AdminCompliancePage() {
           })}
         </div>
 
+        {/* Transparency Notice — EU AI Act Article 52 */}
+        <Card className="border-l-4 border-l-blue-500">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Info className="h-5 w-5 text-blue-500" />
+              Transparency Notice — EU AI Act Article 52
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 pt-0">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <BrainCircuit className="h-4 w-4 text-purple-500" />
+                <h4 className="font-semibold text-sm">AI Systems Used</h4>
+              </div>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• <strong>Matching:</strong> Candidate-job fit scoring</li>
+                <li>• <strong>Screening:</strong> Qualification filtering</li>
+                <li>• <strong>Scoring:</strong> OmniScore & TrustScore</li>
+                <li>• <strong>Interview:</strong> AI-assisted assessments</li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Eye className="h-4 w-4 text-green-500" />
+                <h4 className="font-semibold text-sm">Human-in-the-Loop</h4>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                All AI recommendations are reviewed by human recruiters before final decisions.
+                {modelPerformance ? ` Current review rate: ${(modelPerformance.reviewRate * 100).toFixed(0)}%.` : ''}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-amber-500" />
+                <h4 className="font-semibold text-sm">Contesting Decisions</h4>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Candidates may request an explanation, appeal a score, or demand human review.
+                Use the appeals panel in candidate settings or contact support.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-red-500" />
+                <h4 className="font-semibold text-sm">Data Retention</h4>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Decision logs retained for 3 years per EU AI Act. Candidate profile data deleted on request (GDPR Art. 17).
+                Audit hashes are immutable and tamper-proof.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Tabs */}
         <Tabs value={selectedTab} onValueChange={setSelectedTab}>
           <TabsList className="flex-wrap h-auto">
+            <TabsTrigger value="overview" className="gap-1">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Compliance Score
+            </TabsTrigger>
             <TabsTrigger value="audit" className="gap-1">
               <FileText className="h-3.5 w-3.5" />
               Audit Trail
@@ -304,6 +553,10 @@ export function AdminCompliancePage() {
             <TabsTrigger value="bias" className="gap-1">
               <AlertTriangle className="h-3.5 w-3.5" />
               Bias Detection
+            </TabsTrigger>
+            <TabsTrigger value="bias-history" className="gap-1">
+              <History className="h-3.5 w-3.5" />
+              Bias History
             </TabsTrigger>
             <TabsTrigger value="explanations" className="gap-1">
               <BrainCircuit className="h-3.5 w-3.5" />
@@ -317,11 +570,172 @@ export function AdminCompliancePage() {
               <ListChecks className="h-3.5 w-3.5" />
               Risk Checklist
             </TabsTrigger>
+            <TabsTrigger value="performance" className="gap-1">
+              <BarChart3 className="h-3.5 w-3.5" />
+              Model Performance
+            </TabsTrigger>
             <TabsTrigger value="transparency" className="gap-1">
               <Eye className="h-3.5 w-3.5" />
               Transparency
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="overview" className="mt-4">
+            {loading ? (
+              <Skeleton count={4} variant="card" />
+            ) : !riskChecklistSummary ? (
+              <EmptyState
+                icon={ShieldCheck}
+                title="Compliance score not available"
+                description="Complete the risk checklist to generate a compliance score"
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <ChartCard
+                    title="Compliance Score"
+                    value={`${riskChecklistSummary.complianceScore}%`}
+                    trend={riskChecklistSummary.complianceScore >= 80 ? "up" : "down"}
+                    trendValue={riskChecklistSummary.complianceScore >= 80 ? "On track" : "Needs work"}
+                    icon={<ShieldCheck className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Requirements Complete"
+                    value={`${riskChecklistSummary.completed} / ${riskChecklistSummary.total}`}
+                    trend="up"
+                    trendValue={`${Math.round((riskChecklistSummary.completed / Math.max(riskChecklistSummary.total, 1)) * 100)}%`}
+                    icon={<CheckCircle className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Pending Actions"
+                    value={riskChecklistSummary.pending + riskChecklistSummary.incomplete}
+                    trend={riskChecklistSummary.pending + riskChecklistSummary.incomplete > 0 ? "down" : "neutral"}
+                    trendValue={riskChecklistSummary.pending + riskChecklistSummary.incomplete > 0 ? "Action needed" : "Clean"}
+                    icon={<Clock className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="In Progress"
+                    value={riskChecklistSummary.inProgress}
+                    icon={<Activity className="h-4 w-4" />}
+                  />
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <PieChart className="h-5 w-5" />
+                      Score Breakdown
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="font-medium">Complete</span>
+                        <span className="text-green-600 font-medium">{riskChecklistSummary.completed}</span>
+                      </div>
+                      <Progress value={riskChecklistSummary.completed} max={riskChecklistSummary.total} />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="font-medium">In Progress</span>
+                        <span className="text-blue-600 font-medium">{riskChecklistSummary.inProgress}</span>
+                      </div>
+                      <Progress value={riskChecklistSummary.inProgress} max={riskChecklistSummary.total} />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="font-medium">Pending</span>
+                        <span className="text-amber-600 font-medium">{riskChecklistSummary.pending}</span>
+                      </div>
+                      <Progress value={riskChecklistSummary.pending} max={riskChecklistSummary.total} />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="font-medium">Incomplete</span>
+                        <span className="text-red-600 font-medium">{riskChecklistSummary.incomplete}</span>
+                      </div>
+                      <Progress value={riskChecklistSummary.incomplete} max={riskChecklistSummary.total} />
+                    </div>
+
+                    <Separator />
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-sm">Overall Status</h4>
+                        <Badge
+                          className={
+                            riskChecklistSummary.overallStatus === "compliant"
+                              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                              : riskChecklistSummary.overallStatus === "needs_attention"
+                                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                                : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                          }
+                        >
+                          {riskChecklistSummary.overallStatus === "compliant"
+                            ? "Compliant"
+                            : riskChecklistSummary.overallStatus === "needs_attention"
+                              ? "Needs Attention"
+                              : "Partially Compliant"}
+                        </Badge>
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-sm">Next Review</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(riskChecklistSummary.nextReview).toLocaleDateString(undefined, {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5" />
+                      Priority Actions
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {riskChecklist
+                        .filter((item) => item.status === "incomplete" || item.status === "pending")
+                        .slice(0, 5)
+                        .map((item) => (
+                          <div key={item.id} className="flex items-start gap-3 p-3 rounded-lg border">
+                            <div className="shrink-0 mt-0.5">
+                              {item.status === "incomplete" ? (
+                                <XCircle className="h-4 w-4 text-red-500" />
+                              ) : (
+                                <Clock className="h-4 w-4 text-amber-500" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{item.item}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {item.category} — {item.eu_ai_act_ref}
+                              </p>
+                            </div>
+                            <Badge variant="outline" className="text-xs shrink-0">
+                              {item.status === "incomplete" ? "Incomplete" : "Pending"}
+                            </Badge>
+                          </div>
+                        ))}
+                      {riskChecklist.filter((item) => item.status === "incomplete" || item.status === "pending").length === 0 && (
+                        <div className="flex items-center gap-2 text-sm text-green-600">
+                          <CheckCircle className="h-4 w-4" />
+                          All requirements are complete. No priority actions needed.
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </TabsContent>
 
           <TabsContent value="audit" className="mt-4">
             {loading ? (
@@ -353,7 +767,7 @@ export function AdminCompliancePage() {
                         const type = decisionTypeConfig[d.decisionType]
                         const isExpanded = expandedDecision === d.id
                         return (
-                          <React.Fragment key={d.id}>
+                          <Fragment key={d.id}>
                             <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => setExpandedDecision(isExpanded ? null : d.id)}>
                               <TableCell>
                                 <Badge className={`${type.color} gap-1`}>
@@ -427,7 +841,7 @@ export function AdminCompliancePage() {
                                 </TableCell>
                               </TableRow>
                             )}
-                          </React.Fragment>
+                          </Fragment>
                         )
                       })}
                     </TableBody>
@@ -540,6 +954,108 @@ export function AdminCompliancePage() {
             )}
           </TabsContent>
 
+          <TabsContent value="bias-history" className="mt-4">
+            {loading ? (
+              <Skeleton count={3} variant="table" />
+            ) : biasHistory.length === 0 ? (
+              <EmptyState
+                icon={History}
+                title="No bias history available"
+                description="Historical bias audit reports will appear once audits are conducted"
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <ChartCard
+                    title="Total Audits"
+                    value={biasHistory.length}
+                    icon={<History className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Avg Fairness Score"
+                    value={`${(biasHistory.reduce((s, r) => s + r.overallFairnessScore, 0) / Math.max(biasHistory.length, 1)).toFixed(1)}%`}
+                    icon={<TrendingUp className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Total Issues"
+                    value={biasHistory.reduce((s, r) => s + r.issuesFound, 0)}
+                    trend={biasHistory.reduce((s, r) => s + r.issuesFound, 0) > 0 ? "down" : "up"}
+                    trendValue={biasHistory.reduce((s, r) => s + r.issuesFound, 0) > 0 ? "Needs attention" : "Clean"}
+                    icon={<AlertTriangle className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Total Appeals"
+                    value={biasHistory.reduce((s, r) => s + r.appealCount, 0)}
+                    icon={<Users className="h-4 w-4" />}
+                  />
+                </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <History className="h-5 w-5" />
+                      Historical Bias Audit Reports
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Fairness Score</TableHead>
+                          <TableHead>Issues</TableHead>
+                          <TableHead>Demographics</TableHead>
+                          <TableHead>Appeals</TableHead>
+                          <TableHead>Created</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {biasHistory.map((report) => (
+                          <TableRow key={report.id}>
+                            <TableCell className="text-xs whitespace-nowrap">
+                              {new Date(report.auditDate).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs capitalize">
+                                {report.auditType}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Progress
+                                  value={report.overallFairnessScore}
+                                  max={100}
+                                  className="h-2 w-24"
+                                />
+                                <span className="text-xs font-medium">
+                                  {report.overallFairnessScore.toFixed(1)}%
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {report.issuesFound > 0 ? (
+                                <Badge variant="destructive" className="text-xs">
+                                  {report.issuesFound}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs">{report.demographicCount}</TableCell>
+                            <TableCell className="text-xs">{report.appealCount}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                              {new Date(report.createdAt).toLocaleDateString()}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </TabsContent>
+
           <TabsContent value="explanations" className="mt-4">
             {loading ? (
               <Skeleton count={3} variant="table" />
@@ -582,6 +1098,7 @@ export function AdminCompliancePage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Timestamp</TableHead>
+                          <TableHead>Action</TableHead>
                           <TableHead>Type</TableHead>
                           <TableHead>Candidate</TableHead>
                           <TableHead>Model</TableHead>
@@ -595,6 +1112,11 @@ export function AdminCompliancePage() {
                           <TableRow key={e.id}>
                             <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                               {new Date(e.timestamp).toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="text-xs">
+                                {e.actionType}
+                              </Badge>
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs">
@@ -831,6 +1353,165 @@ export function AdminCompliancePage() {
                         })}
                       </TableBody>
                     </Table>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="performance" className="mt-4">
+            {loading ? (
+              <Skeleton count={3} variant="card" />
+            ) : !modelPerformance ? (
+              <EmptyState
+                icon={BarChart3}
+                title="Model performance data not available"
+                description="Performance metrics will appear once AI decisions are logged"
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <ChartCard
+                    title="Total Decisions (30d)"
+                    value={modelPerformance.totalDecisions}
+                    icon={<FileText className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Human Review Rate"
+                    value={`${(modelPerformance.reviewRate * 100).toFixed(1)}%`}
+                    trend={modelPerformance.reviewRate >= 0.9 ? "up" : "down"}
+                    trendValue={modelPerformance.reviewRate >= 0.9 ? "On target" : "Needs review"}
+                    icon={<Eye className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Active Models"
+                    value={modelPerformance.modelPerformance.length}
+                    icon={<BrainCircuit className="h-4 w-4" />}
+                  />
+                  <ChartCard
+                    title="Avg Confidence"
+                    value={
+                      modelPerformance.modelPerformance.length > 0
+                        ? `${(
+                            modelPerformance.modelPerformance.reduce((s, m) => s + m.avgConfidence, 0) /
+                            modelPerformance.modelPerformance.length *
+                            100
+                          ).toFixed(1)}%`
+                        : "N/A"
+                    }
+                    icon={<TrendingUp className="h-4 w-4" />}
+                  />
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Volume Over Time
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {modelPerformance.volumeOverTime.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No volume data available for the selected period.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {modelPerformance.volumeOverTime.map((day) => (
+                          <div key={day.date} className="space-y-1">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">
+                                {new Date(day.date).toLocaleDateString()}
+                              </span>
+                              <span className="font-medium">{day.count}</span>
+                            </div>
+                            <Progress
+                              value={day.count}
+                              max={Math.max(
+                                ...modelPerformance.volumeOverTime.map((d) => d.count)
+                              )}
+                              className="h-2"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BrainCircuit className="h-5 w-5" />
+                      Model Performance by System
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Model</TableHead>
+                          <TableHead>Decisions</TableHead>
+                          <TableHead>Avg Confidence</TableHead>
+                          <TableHead>Override Rate</TableHead>
+                          <TableHead>Health</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {modelPerformance.modelPerformance.map((model) => (
+                          <TableRow key={model.model}>
+                            <TableCell className="font-medium text-sm">{model.model}</TableCell>
+                            <TableCell>{model.decisions}</TableCell>
+                            <TableCell>{(model.avgConfidence * 100).toFixed(1)}%</TableCell>
+                            <TableCell>{(model.overrideRate * 100).toFixed(1)}%</TableCell>
+                            <TableCell>
+                              {model.overrideRate > 0.1 ? (
+                                <Badge variant="destructive" className="text-xs">High Override</Badge>
+                              ) : model.avgConfidence < 0.7 ? (
+                                <Badge variant="outline" className="text-xs text-amber-600 border-amber-200">Low Confidence</Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Healthy
+                                </Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Score Distribution
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {modelPerformance.scoreDistribution.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No score data available for the selected period.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {modelPerformance.scoreDistribution.map((bucket) => (
+                          <div key={bucket.bucket} className="space-y-1">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">
+                                {bucket.bucket}-{bucket.bucket + 9}
+                              </span>
+                              <span className="font-medium">{bucket.count}</span>
+                            </div>
+                            <Progress
+                              value={bucket.count}
+                              max={Math.max(
+                                ...modelPerformance.scoreDistribution.map((b) => b.count)
+                              )}
+                              className="h-2"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

@@ -117,7 +117,7 @@ router.post('/register', rateLimits.strict, async (req, res) => {
     }
 
     // Hash password
-    const password_hash = await bcrypt.hash(password, 10);
+    const password_hash = await bcrypt.hash(password, 13);
 
     // Create user
     const result = await pool.query(
@@ -746,7 +746,7 @@ router.post('/reset-password', rateLimits.strict, async (req, res) => {
     const userId = tokenResult.rows[0].user_id;
 
     // Hash new password
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 13);
 
     // Update user password
     await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);

@@ -6,6 +6,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const helmet = require('helmet');
+const crypto = require('crypto');
 
 // Load environment variables from .env file
 require('dotenv').config();
@@ -45,24 +46,14 @@ app.disable('x-powered-by');
 // Trust proxy (Render runs behind a reverse proxy)
 app.set('trust proxy', 1);
 
-// Health check — MUST be first, before all middleware
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// API health alias for monitoring consistency
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// Security headers — MUST be early, before CORS and session middleware
+// Security headers — MUST be first, before all middleware and routes
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: [
         "'self'",
@@ -81,6 +72,16 @@ app.use(helmet({
   }
 }));
 
+// Health check — available after helmet so security headers are present
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// API health alias for monitoring consistency
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // CORS — whitelist origins in production, allow dev origins in development
 const corsOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
@@ -98,9 +99,10 @@ app.use(cors({
   credentials: true,
 }));
 
-// Permissions-Policy: restrict to self (same-origin) only, no wildcard access
+// Permissions-Policy: deny-by-default, allow only camera and microphone for same-origin
 app.use((req, res, next) => {
-  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self)');
+  res.setHeader('Permissions-Policy',
+    'camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), vr=(), ambient-light-sensor=()');
   next();
 });
 
@@ -108,6 +110,53 @@ app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// ─── CSRF Protection — double-submit cookie pattern ──────────────────────
+const CSRF_COOKIE_NAME = '_csrf';
+
+// Generate CSRF token cookie if missing; expose token on req.csrfToken
+function generateCsrfToken(req, res, next) {
+  if (!req.cookies[CSRF_COOKIE_NAME]) {
+    const token = crypto.randomBytes(32).toString('hex');
+    res.cookie(CSRF_COOKIE_NAME, token, {
+      httpOnly: false,          // frontend must read it
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+    req.csrfToken = token;
+  } else {
+    req.csrfToken = req.cookies[CSRF_COOKIE_NAME];
+  }
+  next();
+}
+
+// CSRF validation: skip safe methods and /csrf-token endpoint
+function csrfProtection(req, res, next) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+  if (req.path === '/csrf-token') {
+    return next();
+  }
+  const cookieToken = req.cookies[CSRF_COOKIE_NAME];
+  const headerToken = req.headers['x-csrf-token'] || req.headers['X-CSRF-Token'];
+  if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+    return res.status(403).json({ error: 'CSRF token validation failed', code: 'CSRF_INVALID' });
+  }
+  next();
+}
+
+app.use(generateCsrfToken);
+
+// GET /csrf-token — returns the current CSRF token for the frontend
+app.get('/csrf-token', (req, res) => {
+  res.json({ csrfToken: req.csrfToken });
+});
+
+// Apply CSRF protection to all subsequent state-changing routes
+app.use(csrfProtection);
+
 // Validate session secret before configuring session middleware
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret) {
@@ -1214,7 +1263,17 @@ app.get('/api/admin/routes', requireAdmin, (req, res) => {
 const reactBuildPath = path.join(__dirname, 'client', 'dist');
 const publicAssetsPath = path.join(__dirname, 'public');
 
-console.log('[server] Serving React SPA from client/dist');
+// Cache the React SPA index.html in memory to avoid filesystem race conditions
+const indexPath = path.join(reactBuildPath, 'index.html');
+let indexHtml = null;
+try {
+  if (fs.existsSync(indexPath)) {
+    indexHtml = fs.readFileSync(indexPath, 'utf8');
+  }
+} catch (err) {
+  console.error('[server] Error reading React build:', err.message);
+}
+
 
 // Serve static assets from public/ (favicon, robots.txt, etc. — NOT HTML files)
 app.use(express.static(publicAssetsPath, {
@@ -1231,18 +1290,15 @@ app.use(express.static(reactBuildPath, {
 
 // SPA fallback — serve React index.html for all non-API routes that don't match a file
 app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api')) {
+  if (!req.path.startsWith('/api/') && req.path !== '/api') {
     // Check if the requested file exists as a static asset
     const assetPath = path.join(reactBuildPath, req.path);
     if (req.path !== '/' && fs.existsSync(assetPath) && fs.statSync(assetPath).isFile()) {
-      // File exists — let the static middleware handle it (shouldn't reach here normally)
       res.sendFile(assetPath);
       return;
     }
-    // Serve index.html for SPA routes
-    const indexPath = path.join(reactBuildPath, 'index.html');
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
+    if (indexHtml) {
+      res.send(indexHtml);
     } else {
       // Fallback message if React build doesn't exist
       res.status(503).json({

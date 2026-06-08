@@ -30,5 +30,19 @@ client/check-screens.mjs
 # Playwright auth state (local only, regenerate per run)
 e2e/.auth/
 
+# Agent-generated reports and local artifacts
+devops-staging-report.md
+git-workflow-report.md
+e2e-reports/
+
+# Build artifacts, reports, and local files
+*.report.md
+*.log
+.env.local
+.env.*.local
+
 # Stripe CLI (if installed locally)
 stripe
+
+# E2E reports directory (generated test artifacts, do not commit)
+e2e-reports/

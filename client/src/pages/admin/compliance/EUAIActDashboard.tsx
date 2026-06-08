@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, Fragment } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -384,7 +384,7 @@ export function EUAIActDashboard() {
                       const type = decisionTypeConfig[d.decisionType]
                       const isExpanded = expandedDecision === d.id
                       return (
-                        <React.Fragment key={d.id}>
+                        <Fragment key={d.id}>
                           <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => setExpandedDecision(isExpanded ? null : d.id)}>
                             <TableCell>
                               <Badge className={`${type.color} gap-1`}>
@@ -458,7 +458,7 @@ export function EUAIActDashboard() {
                               </TableCell>
                             </TableRow>
                           )}
-                        </React.Fragment>
+                        </Fragment>
                       )
                     })}
                   </TableBody>
