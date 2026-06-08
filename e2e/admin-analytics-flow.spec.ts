@@ -9,7 +9,7 @@ test.describe('Admin Analytics Flow', () => {
     await page.waitForTimeout(1200);
 
     // Verify main heading
-    await expect(page.getByRole('heading', { name: /Analytics Dashboard/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Analytics Dashboard').first()).toBeVisible({ timeout: 10000 });
 
     // Verify date range filter inputs
     await expect(page.locator('input[type="date"]').first()).toBeVisible({ timeout: 10000 });

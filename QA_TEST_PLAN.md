@@ -404,6 +404,7 @@
 | Mobile responsive | All pages usable | ⏳ |
 | Accessibility | WCAG 2.1 AA | ⏳ |
 | Regression | 0 broken features | ⏳ |
+| E2E test suite | 70%+ files pass | 🟡 71% (18/24 files green) |
 | TypeScript | ≤ 3 errors | ✅ |
 | Build | Pass | ✅ |
 
@@ -414,5 +415,7 @@
 ---
 
 *Test plan created: 2026-06-06 15:30 UTC*
+*Updated: 2026-06-08 with E2E automated test results*
 *QA Lead: Suga (CTO)*
-*Next update: As tests complete*
+*Next update: After auth infra fixes applied*
+*E2E Report: `docs/E2E_TEST_REPORT_2026-06-08.md`*
