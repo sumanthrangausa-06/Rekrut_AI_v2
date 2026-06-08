@@ -1306,7 +1306,7 @@ export function RecruiterJobFormPage() {
 
       {/* Navigation Buttons */}
       <div className={`
-        flex items-center gap-3 pt-2
+        flex flex-wrap items-center gap-3 pt-2
         ${step === 3 ? 'sticky bottom-4 bg-background/80 backdrop-blur-sm py-3 px-4 rounded-xl border shadow-lg' : ''}
       `}>
         {step > 1 && (

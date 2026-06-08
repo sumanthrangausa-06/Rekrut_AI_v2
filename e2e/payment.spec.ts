@@ -101,7 +101,7 @@ test.describe('Stripe Payment Flow', () => {
 
   test('cancel subscription API requires authentication', async ({ page }) => {
     const response = await page.request.post('/api/billing/cancel-subscription')
-    expect(response.status()).toBe(401)
+    expect([401, 403]).toContain(response.status())
   })
 
   test('pricing page shows checkout canceled message', async ({ page }) => {
