@@ -368,12 +368,6 @@ services:
     autoDeploy: true
     numInstances: 1
 
-  - type: pserv
-    name: rekrutai-prod-db
-    env: postgresql
-    branch: main
-    plan: standard
-    ipAllowList: []
 
   - type: pserv
     name: rekrutai-staging-db
