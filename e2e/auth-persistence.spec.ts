@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test'
 const CANDIDATE_STORAGE = 'e2e/.auth/candidate.json'
 const RECRUITER_STORAGE = 'e2e/.auth/recruiter.json'
 
-test.describe('Auth Persistence & Token Tests', () => {
+test.describe('Auth Persistence & Token Tests — Candidate', () => {
   test.use({ storageState: CANDIDATE_STORAGE })
 
   test('candidate token persists across page reloads', async ({ page }) => {
@@ -19,8 +19,6 @@ test.describe('Auth Persistence & Token Tests', () => {
     await expect(page).toHaveURL(/.*\/candidate/)
   })
 
-  test.use({ storageState: CANDIDATE_STORAGE })
-
   test('candidate can navigate directly to /candidate/jobs when authenticated', async ({ page }) => {
     // Navigate directly to protected route (already authenticated via storageState)
     await page.goto('/candidate/jobs')
@@ -28,8 +26,6 @@ test.describe('Auth Persistence & Token Tests', () => {
     await expect(page).toHaveURL(/.*\/candidate\/jobs/)
     await expect(page.locator('text=Jobs').first()).toBeVisible()
   })
-
-  test.use({ storageState: CANDIDATE_STORAGE })
 
   test('logout clears auth and redirects to login', async ({ page }) => {
     // Navigate to candidate dashboard (already authenticated via storageState)
@@ -69,7 +65,9 @@ test.describe('Auth Persistence & Token Tests', () => {
     await page.goto('/candidate/jobs')
     await expect(page).toHaveURL(/.*\/login/)
   })
+})
 
+test.describe('Auth Persistence & Token Tests — Recruiter', () => {
   test.use({ storageState: RECRUITER_STORAGE })
 
   test('recruiter token persists across page reloads', async ({ page }) => {
@@ -84,8 +82,6 @@ test.describe('Auth Persistence & Token Tests', () => {
     await expect(page.locator('text=Dashboard').first()).toBeVisible()
     await expect(page).toHaveURL(/.*\/recruiter/)
   })
-
-  test.use({ storageState: RECRUITER_STORAGE })
 
   test('recruiter can navigate directly to /recruiter/jobs when authenticated', async ({ page }) => {
     // Navigate directly to protected route (already authenticated via storageState)

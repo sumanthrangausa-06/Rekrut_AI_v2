@@ -25,12 +25,13 @@ test.describe('Mobile Navigation — Landing Page', () => {
     await openMenuBtn.click()
 
     // Mobile menu overlay should appear with links
-    await expect(page.getByRole('link', { name: 'Pricing' })).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole('link', { name: 'Blog' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'About' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Contact' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Get started' })).toBeVisible()
+    // Use first() to avoid strict-mode violations from multiple Pricing links on the page
+    await expect(page.getByRole('link', { name: 'Pricing' }).first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('link', { name: 'Blog' }).first()).toBeVisible()
+    await expect(page.getByRole('link', { name: 'About' }).first()).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Contact' }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Sign in' }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Get started' }).first()).toBeVisible()
   })
 
   test('mobile menu navigation to pricing works', async ({ page }) => {
@@ -38,7 +39,7 @@ test.describe('Mobile Navigation — Landing Page', () => {
     await page.waitForLoadState('networkidle')
 
     await page.getByRole('button', { name: 'Open menu' }).click()
-    await page.getByRole('link', { name: 'Pricing' }).click()
+    await page.getByRole('link', { name: 'Pricing' }).first().click()
 
     await expect(page).toHaveURL(/.*\/pricing/)
     await expect(page.getByRole('heading', { name: /Pricing/i })).toBeVisible({ timeout: 10000 })

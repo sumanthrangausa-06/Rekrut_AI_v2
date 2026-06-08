@@ -24,10 +24,10 @@ function Sheet({ open, onOpenChange, children, side = 'right', className }: Shee
   const handleClose = () => onOpenChange?.(false)
 
   const sideClasses = {
-    left: 'left-0 h-full w-full sm:w-96',
-    right: 'right-0 h-full w-full sm:w-96',
-    top: 'top-0 w-full h-full sm:h-auto sm:max-h-[80vh]',
-    bottom: 'bottom-0 w-full h-full sm:h-auto sm:max-h-[80vh]',
+    left: 'left-0 h-dvh w-full sm:w-96',
+    right: 'right-0 h-dvh w-full sm:w-96',
+    top: 'top-0 w-full h-dvh sm:h-auto sm:max-h-[80vh]',
+    bottom: 'bottom-0 w-full h-dvh sm:h-auto sm:max-h-[80vh]',
   }
 
   const animateClasses = {
