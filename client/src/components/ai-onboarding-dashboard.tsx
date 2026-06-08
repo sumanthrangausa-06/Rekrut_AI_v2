@@ -623,7 +623,7 @@ function ChatWidget({
   loading: boolean
   onInputChange: (v: string) => void
   onSend: () => void
-  chatEndRef: React.RefObject<HTMLDivElement>
+  chatEndRef: React.RefObject<HTMLDivElement | null>
 }) {
   return (
     <div>

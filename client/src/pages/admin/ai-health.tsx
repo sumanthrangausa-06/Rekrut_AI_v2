@@ -53,6 +53,7 @@ interface ProviderInfo {
   key: string
   available: boolean
   circuitOpen: boolean
+  verifyFailed: boolean
   failures: { count: number; lastFailure: string; error: string; status?: number } | null
 }
 

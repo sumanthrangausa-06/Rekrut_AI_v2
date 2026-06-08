@@ -8,6 +8,9 @@ const multer = require('multer');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
 
+const { rateLimits } = require('../lib/distributed-rate-limiter');
+const emailService = require('../lib/email-service');
+
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -57,8 +60,8 @@ const FALLBACK_QUESTIONS = [
   }
 ];
 
-// Start a new interview
-router.post('/start', authMiddleware, async (req, res) => {
+// Start a new interview - RATE LIMITED (AI call)
+router.post('/start', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { job_id, job_title, job_description, interview_type = 'mock' } = req.body;
 
@@ -323,7 +326,8 @@ router.get('/:id', authMiddleware, async (req, res) => {
 });
 
 // Upload video for interview response
-router.post('/upload-video', authMiddleware, upload.single('video'), async (req, res) => {
+// AI video analysis - RATE LIMITED
+router.post('/upload-video', authMiddleware, rateLimits.ai, upload.single('video'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No video file provided' });
@@ -538,8 +542,8 @@ function getFallbackMockQuestions(role) {
   ];
 }
 
-// Start a mock interview session — generates or pulls questions for the role
-router.post('/mock/start', authMiddleware, async (req, res) => {
+// Start a mock interview session — generates or pulls questions for the role (RATE LIMITED)
+router.post('/mock/start', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { target_role, job_description } = req.body;
 
@@ -710,8 +714,8 @@ router.post('/mock/start', authMiddleware, async (req, res) => {
   }
 });
 
-// Submit a response in a mock interview — AI responds conversationally
-router.post('/mock/:sessionId/respond', authMiddleware, async (req, res) => {
+// Submit a response in a mock interview — AI responds conversationally (RATE LIMITED)
+router.post('/mock/:sessionId/respond', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { response_text, frames, audio_data, duration_seconds } = req.body;
     const sessionId = req.params.sessionId;
@@ -1633,8 +1637,8 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 // =============== VOICE INTERVIEW (TTS + STT) ===============
 
 // Text-to-Speech endpoint — converts interviewer text to spoken audio
-// Real-time single-frame body language analysis (lightweight, called every ~20s during interview)
-router.post('/mock/analyze-frame', authMiddleware, async (req, res) => {
+// Real-time single-frame body language analysis (lightweight, called every ~20s during interview) — RATE LIMITED
+router.post('/mock/analyze-frame', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { frame } = req.body;
     if (!frame) {
@@ -2120,6 +2124,42 @@ router.post('/schedule', authMiddleware, async (req, res) => {
       interview,
       reminders_created: reminderCount
     });
+
+    // ── Send interview scheduled notification (non-blocking) ──
+    try {
+      const [candidate, job, recruiter] = await Promise.all([
+        pool.query('SELECT id, name, email FROM users WHERE id = $1', [candidate_id]),
+        pool.query('SELECT id, title FROM jobs WHERE id = $1', [job_id]),
+        pool.query('SELECT id, name FROM users WHERE id = $1', [req.user.id])
+      ]);
+
+      const candInfo = candidate.rows[0];
+      const jobInfo = job.rows[0];
+      const recruiterInfo = recruiter.rows[0];
+
+      if (candInfo?.email) {
+        const scheduledDate = new Date(scheduled_at);
+        await emailService.sendTemplatedEmail({
+          to: candInfo.email,
+          templateName: 'interview_scheduled',
+          templateData: {
+            candidate_name: candInfo.name || 'Candidate',
+            job_title: jobInfo?.title || 'the position',
+            company_name: req.user.company_name || 'Our Company',
+            interview_date: scheduledDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+            interview_time: scheduledDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }),
+            interview_location: interview_type === 'video' ? 'Virtual (Video)' : 'In-Person',
+            interviewer_name: recruiterInfo?.name || '',
+            meeting_link: meeting_link || '',
+            confirmation_link: `${process.env.FRONTEND_URL || 'https://rekrut.ai'}/candidate/interviews`
+          },
+          userId: candidate_id,
+          metadata: { job_id, company_id: companyId, interview_id: interview.id }
+        });
+      }
+    } catch (emailErr) {
+      console.error('[email] Failed to send interview scheduled email (non-blocking):', emailErr.message);
+    }
   } catch (err) {
     console.error('Schedule interview error:', err);
     res.status(500).json({ error: 'Failed to schedule interview' });

@@ -16,11 +16,61 @@ const {
 } = require('../lib/polsia-ai');
 
 const omniscoreService = require('../services/omniscore');
+const { rateLimits } = require('../lib/distributed-rate-limiter');
+const emailService = require('../lib/email-service');
+
 let matchingEngine;
 try { matchingEngine = require('../services/matching-engine'); } catch(e) { matchingEngine = null; }
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+function badRequest(message) {
+  const err = new Error(message);
+  err.statusCode = 400;
+  return err;
+}
+
+function normalizeTextField(value, maxLength, fieldName) {
+  if (value === undefined || value === null) return value;
+  const normalized = String(value).replace(/<[^>]*>/g, '').replace(/\u0000/g, '').trim();
+  if (!normalized) return null;
+  if (normalized.length > maxLength) {
+    throw badRequest(`${fieldName} must be ${maxLength} characters or fewer`);
+  }
+  return normalized;
+}
+
+function normalizeUrlField(value, fieldName) {
+  if (value === undefined || value === null) return value;
+  const normalized = String(value).trim();
+  if (!normalized) return null;
+  if (normalized.length > 2048) {
+    throw badRequest(`${fieldName} is too long`);
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw badRequest(`${fieldName} must be a valid URL`);
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw badRequest(`${fieldName} must use http or https`);
+  }
+
+  return parsed.toString();
+}
+
+function normalizePositiveInteger(value, fieldName, maxValue = Number.MAX_SAFE_INTEGER) {
+  if (value === undefined || value === null || value === '') return value;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > maxValue) {
+    throw badRequest(`${fieldName} must be a non-negative integer`);
+  }
+  return parsed;
+}
 
 // Helper: trigger async profile re-embedding + OmniScore recalc on profile changes
 function triggerProfileUpdate(userId, changeType) {
@@ -123,6 +173,24 @@ router.put('/profile', authMiddleware, async (req, res) => {
       remote_preference, years_experience
     } = req.body;
 
+    const sanitizedHeadline = normalizeTextField(headline, 120, 'Headline');
+    const sanitizedBio = normalizeTextField(bio, 2000, 'Bio');
+    const sanitizedLocation = normalizeTextField(location, 120, 'Location');
+    const sanitizedPhone = normalizeTextField(phone, 40, 'Phone');
+    const sanitizedLinkedinUrl = normalizeUrlField(linkedin_url, 'LinkedIn URL');
+    const sanitizedGithubUrl = normalizeUrlField(github_url, 'GitHub URL');
+    const sanitizedPortfolioUrl = normalizeUrlField(portfolio_url, 'Portfolio URL');
+    const sanitizedAvailability = normalizeTextField(availability, 60, 'Availability');
+    const sanitizedSalaryMin = normalizePositiveInteger(salary_min, 'salary_min');
+    const sanitizedSalaryMax = normalizePositiveInteger(salary_max, 'salary_max');
+    const sanitizedYearsExperience = normalizePositiveInteger(years_experience, 'years_experience', 80);
+
+    if (sanitizedSalaryMin !== undefined && sanitizedSalaryMax !== undefined &&
+        sanitizedSalaryMin !== null && sanitizedSalaryMax !== null &&
+        sanitizedSalaryMin > sanitizedSalaryMax) {
+      return res.status(400).json({ error: 'Minimum salary cannot exceed maximum salary' });
+    }
+
     // Check if profile exists
     const existing = await pool.query(
       'SELECT id FROM candidate_profiles WHERE user_id = $1',
@@ -150,11 +218,11 @@ router.put('/profile', authMiddleware, async (req, res) => {
           updated_at = NOW()
         WHERE user_id = $1
         RETURNING *
-      `, [req.user.id, headline, bio, location, phone,
-          linkedin_url, github_url, portfolio_url,
-          availability, salary_min, salary_max,
+      `, [req.user.id, sanitizedHeadline, sanitizedBio, sanitizedLocation, sanitizedPhone,
+          sanitizedLinkedinUrl, sanitizedGithubUrl, sanitizedPortfolioUrl,
+          sanitizedAvailability, sanitizedSalaryMin, sanitizedSalaryMax,
           JSON.stringify(preferred_job_types), JSON.stringify(preferred_locations),
-          remote_preference, years_experience]);
+          remote_preference, sanitizedYearsExperience]);
     } else {
       result = await pool.query(`
         INSERT INTO candidate_profiles (
@@ -165,22 +233,26 @@ router.put('/profile', authMiddleware, async (req, res) => {
           remote_preference, years_experience
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING *
-      `, [req.user.id, headline, bio, location, phone,
-          linkedin_url, github_url, portfolio_url,
-          availability, salary_min, salary_max,
+      `, [req.user.id, sanitizedHeadline, sanitizedBio, sanitizedLocation, sanitizedPhone,
+          sanitizedLinkedinUrl, sanitizedGithubUrl, sanitizedPortfolioUrl,
+          sanitizedAvailability, sanitizedSalaryMin, sanitizedSalaryMax,
           JSON.stringify(preferred_job_types || ['full-time']),
           JSON.stringify(preferred_locations || []),
-          remote_preference || 'hybrid', years_experience || 0]);
+          remote_preference || 'hybrid', sanitizedYearsExperience || 0]);
     }
 
     // Also update user name if provided
     if (req.body.name) {
+      const sanitizedName = normalizeTextField(req.body.name, 120, 'Name');
       await pool.query('UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2',
-        [req.body.name, req.user.id]);
+        [sanitizedName, req.user.id]);
     }
 
     res.json({ success: true, profile: result.rows[0] });
   } catch (err) {
+    if (err.statusCode === 400) {
+      return res.status(400).json({ error: err.message });
+    }
     console.error('Update profile error:', err);
     res.status(500).json({ error: 'Failed to update profile' });
   }
@@ -322,16 +394,16 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
                 portfolio_url = COALESCE(NULLIF($8, ''), candidate_profiles.portfolio_url),
                 years_experience = COALESCE($9, candidate_profiles.years_experience),
                 updated_at = NOW()
-            `, [
-              req.user.id,
-              parsedData.headline || null,
-              parsedData.bio || null,
-              parsedData.contact.location || null,
-              parsedData.contact.phone || null,
-              parsedData.contact.linkedin || null,
-              parsedData.contact.github || null,
-              parsedData.contact.portfolio || null,
-              parsedData.years_experience || null
+              RETURNING *
+            `, [req.user.id,
+              normalizeTextField(parsedData.contact.headline || parsedData.contact.title, 120, 'Headline'),
+              normalizeTextField(parsedData.contact.bio, 2000, 'Bio'),
+              normalizeTextField(parsedData.contact.location, 120, 'Location'),
+              normalizeTextField(parsedData.contact.phone, 40, 'Phone'),
+              normalizeUrlField(parsedData.contact.linkedin_url || parsedData.contact.linkedin, 'LinkedIn URL'),
+              normalizeUrlField(parsedData.contact.github_url || parsedData.contact.github, 'GitHub URL'),
+              normalizeUrlField(parsedData.contact.portfolio_url || parsedData.contact.website, 'Portfolio URL'),
+              normalizePositiveInteger(parsedData.contact.years_experience, 'years_experience', 80)
             ]);
             applySummary.profile = true;
 
@@ -1017,6 +1089,141 @@ router.delete('/projects/:id', authMiddleware, async (req, res) => {
 
 // ============= JOB MATCHING =============
 
+// Get all active jobs with candidate personalization
+router.get('/jobs', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      search, location, job_type, salary_min, salary_max,
+      remoteType, experienceLevel, skills, companySize,
+      sortBy = 'newest', limit = 20, offset = 0, page, pageSize
+    } = req.query;
+
+    // Support both page-based and offset-based pagination
+    const pageLimit = Math.min(parseInt(pageSize, 10) || parseInt(limit, 10) || 20, 50);
+    const pageOffset = page
+      ? (parseInt(page, 10) - 1) * pageLimit
+      : parseInt(offset, 10) || 0;
+
+    let whereClause = "WHERE j.status = 'active'";
+    const params = [];
+    let paramIndex = 1;
+
+    // Core text filters
+    if (search) {
+      whereClause += ` AND (j.title ILIKE $${paramIndex} OR j.description ILIKE $${paramIndex} OR j.company ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+    if (location) {
+      whereClause += ` AND j.location ILIKE $${paramIndex}`;
+      params.push(`%${location}%`);
+      paramIndex++;
+    }
+    if (job_type) {
+      whereClause += ` AND j.job_type = $${paramIndex}`;
+      params.push(job_type);
+      paramIndex++;
+    }
+    if (salary_min) {
+      whereClause += ` AND j.salary_max >= $${paramIndex}`;
+      params.push(parseInt(salary_min, 10));
+      paramIndex++;
+    }
+    if (salary_max) {
+      whereClause += ` AND j.salary_min <= $${paramIndex}`;
+      params.push(parseInt(salary_max, 10));
+      paramIndex++;
+    }
+
+    // Extended filters (graceful — if column missing, query will fail gracefully in catch)
+    if (remoteType) {
+      whereClause += ` AND (j.remote_type = $${paramIndex} OR j.location ILIKE $${paramIndex})`;
+      params.push(remoteType, `%${remoteType}%`);
+      paramIndex += 2;
+    }
+    if (experienceLevel) {
+      whereClause += ` AND j.experience_level = $${paramIndex}`;
+      params.push(experienceLevel);
+      paramIndex++;
+    }
+    if (skills) {
+      const skillList = Array.isArray(skills) ? skills : skills.split(',').filter(Boolean);
+      if (skillList.length > 0) {
+        const skillClauses = skillList.map((_, i) => `j.skills_required \:\:jsonb ? $${paramIndex + i}`).join(' OR ');
+        whereClause += ` AND (${skillClauses})`;
+        params.push(...skillList);
+        paramIndex += skillList.length;
+      }
+    }
+    if (companySize) {
+      whereClause += ` AND c.company_size = $${paramIndex}`;
+      params.push(companySize);
+      paramIndex++;
+    }
+
+    // ORDER BY clause
+    let orderBy = 'j.created_at DESC';
+    if (sortBy === 'salary_high') orderBy = 'j.salary_max DESC NULLS LAST';
+    else if (sortBy === 'salary_low') orderBy = 'j.salary_min ASC NULLS LAST';
+    else if (sortBy === 'match') orderBy = 'j.created_at DESC'; // placeholder until match scoring is integrated
+
+    const joinClause = companySize ? 'LEFT JOIN companies c ON j.company_id = c.id' : '';
+
+    const jobsQuery = `
+      SELECT
+        j.id, j.title, j.description, j.company, j.company as poster_company, j.location, j.job_type,
+        j.salary_min, j.salary_max, j.salary_range, j.currency_code, j.country_code,
+        j.skills_required, j.status, j.created_at, j.updated_at, j.screening_questions,
+        j.requirements, j.user_id, j.remote_type, j.experience_level,
+        c.company_size,
+        EXISTS(SELECT 1 FROM job_applications a WHERE a.job_id = j.id AND a.candidate_id = $${paramIndex} LIMIT 1) as has_applied,
+        EXISTS(SELECT 1 FROM saved_jobs sj WHERE sj.job_id = j.id AND sj.user_id = $${paramIndex} LIMIT 1) as has_saved
+      FROM jobs j
+      ${joinClause}
+      ${whereClause}
+      ORDER BY ${orderBy}
+      LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}
+    `;
+    params.push(userId, userId, pageLimit, pageOffset);
+
+    const jobsResult = await pool.query(jobsQuery, params);
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM jobs j
+      ${joinClause}
+      ${whereClause}
+    `;
+    const countResult = await pool.query(countQuery, params.slice(0, paramIndex - 1));
+    const total = parseInt(countResult.rows[0].total, 10);
+
+    res.json({
+      success: true,
+      data: jobsResult.rows.map(row => ({
+        ...row,
+        has_applied: row.has_applied,
+        has_saved: row.has_saved,
+      })),
+      jobs: jobsResult.rows.map(row => ({
+        ...row,
+        has_applied: row.has_applied,
+        has_saved: row.has_saved,
+      })),
+      pagination: {
+        total,
+        limit: pageLimit,
+        offset: pageOffset,
+        page: Math.floor(pageOffset / pageLimit) + 1,
+        has_more: pageOffset + jobsResult.rows.length < total
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching jobs:', error);
+    res.status(500).json({ error: 'Failed to fetch jobs', details: error.message });
+  }
+});
+
 // Get jobs with match scores
 router.get('/jobs/recommended', authMiddleware, async (req, res) => {
   try {
@@ -1073,7 +1280,11 @@ router.get('/jobs/recommended', authMiddleware, async (req, res) => {
     // Sort by match score
     jobsWithScores.sort((a, b) => (b.match?.match_score || 0) - (a.match?.match_score || 0));
 
-    res.json({ success: true, jobs: jobsWithScores });
+    res.json({
+      success: true,
+      jobs: jobsWithScores,
+      recommended_jobs: jobsWithScores
+    });
   } catch (err) {
     console.error('Get recommended jobs error:', err);
     res.status(500).json({ error: 'Failed to get recommended jobs' });
@@ -1128,6 +1339,56 @@ router.get('/jobs/saved', authMiddleware, async (req, res) => {
   }
 });
 
+// ════════════════════════════════════════════════════════════════════════
+// /saved-jobs — frontend-compatible alias routes
+// ════════════════════════════════════════════════════════════════════════
+
+// GET /saved-jobs — returns { saved_jobs: [{ job_id, saved_at }] }
+router.get('/saved-jobs', authMiddleware, async (req, res) => {
+  try {
+    const jobs = await pool.query(`
+      SELECT j.id as job_id, sj.saved_at
+      FROM saved_jobs sj
+      JOIN jobs j ON sj.job_id = j.id
+      WHERE sj.user_id = $1
+      ORDER BY sj.saved_at DESC
+    `, [req.user.id]);
+    res.json({ success: true, saved_jobs: jobs.rows, data: jobs.rows });
+  } catch (err) {
+    console.error('Get saved jobs error:', err);
+    res.status(500).json({ error: 'Failed to get saved jobs' });
+  }
+});
+
+// POST /saved-jobs — body { job_id, notes? }
+router.post('/saved-jobs', authMiddleware, async (req, res) => {
+  try {
+    const { job_id, notes } = req.body;
+    if (!job_id) return res.status(400).json({ error: 'job_id is required' });
+    await pool.query(`
+      INSERT INTO saved_jobs (user_id, job_id, notes)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (user_id, job_id) DO UPDATE SET notes = $3
+    `, [req.user.id, job_id, notes || null]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Save job error:', err);
+    res.status(500).json({ error: 'Failed to save job' });
+  }
+});
+
+// DELETE /saved-jobs/:jobId
+router.delete('/saved-jobs/:jobId', authMiddleware, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM saved_jobs WHERE user_id = $1 AND job_id = $2',
+      [req.user.id, req.params.jobId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Unsave job error:', err);
+    res.status(500).json({ error: 'Failed to unsave job' });
+  }
+});
+
 // Apply to a job
 router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
   try {
@@ -1152,6 +1413,14 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Job not found' });
     }
 
+    const existingApplication = await pool.query(
+      'SELECT id FROM job_applications WHERE candidate_id = $1 AND job_id = $2',
+      [req.user.id, req.params.jobId]
+    );
+    if (existingApplication.rows.length > 0) {
+      return res.status(400).json({ error: 'You have already applied to this job' });
+    }
+
     const candidateProfile = {
       ...profile.rows[0],
       skills: skills.rows
@@ -1172,10 +1441,6 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
     const result = await pool.query(`
       INSERT INTO job_applications (candidate_id, job_id, company_id, cover_letter, match_score, omniscore_at_apply, screening_answers)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
-      ON CONFLICT (job_id, candidate_id) DO UPDATE SET
-        cover_letter = $4,
-        screening_answers = $7,
-        updated_at = NOW()
       RETURNING *
     `, [req.user.id, req.params.jobId, job.rows[0].company_id, cover_letter, matchScore, omniscore, JSON.stringify(screening_answers || {})]);
 
@@ -1198,7 +1463,6 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
           } else if (q.category === 'availability') {
             updates.availability = String(answer);
           } else if (q.category === 'experience') {
-            // Map experience bracket to years
             const bracket = String(answer);
             if (bracket.includes('0-1')) updates.years_experience = 1;
             else if (bracket.includes('1-3')) updates.years_experience = 2;
@@ -1210,7 +1474,6 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
           }
         }
 
-        // Update profile with extracted data (only non-null fields)
         if (Object.keys(updates).length > 0) {
           const setClauses = [];
           const values = [req.user.id];
@@ -1233,6 +1496,28 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
     }
 
     res.json({ success: true, application: result.rows[0] });
+
+    // ── Send application received notification (non-blocking) ──
+    try {
+      const jobInfo = job.rows[0];
+      const userInfo = profile.rows[0];
+      await emailService.sendTemplatedEmail({
+        to: userInfo?.email,
+        templateName: 'application_received',
+        templateData: {
+          candidate_name: userInfo?.name || 'Candidate',
+          job_title: jobInfo?.title || 'the position',
+          company_name: jobInfo?.company || 'Our Company',
+          assessment_required: false,
+          assessment_deadline: '',
+          assessment_link: ''
+        },
+        userId: req.user.id,
+        metadata: { job_id: jobInfo?.id, company_id: jobInfo?.company_id }
+      });
+    } catch (emailErr) {
+      console.error('[email] Failed to send application received email (non-blocking):', emailErr.message);
+    }
   } catch (err) {
     console.error('Apply to job error:', err);
     res.status(500).json({ error: 'Failed to apply to job' });
@@ -1515,8 +1800,8 @@ router.put('/interviews/:id/reschedule', authMiddleware, async (req, res) => {
 
 // ============= AI FEATURES =============
 
-// AI Resume Optimizer — tailored suggestions for a specific job
-router.post('/ai/resume-optimizer', authMiddleware, async (req, res) => {
+// AI Resume Optimizer — tailored suggestions for a specific job (RATE LIMITED)
+router.post('/ai/resume-optimizer', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { job_id } = req.body;
     const { chat } = require('../lib/polsia-ai');
@@ -1576,8 +1861,8 @@ Only return JSON.`;
   }
 });
 
-// AI Cover Letter Generator — creates a tailored cover letter
-router.post('/ai/cover-letter', authMiddleware, async (req, res) => {
+// AI Cover Letter Generator — creates a tailored cover letter (RATE LIMITED)
+router.post('/ai/cover-letter', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { job_id } = req.body;
     if (!job_id) return res.status(400).json({ error: 'job_id required' });
@@ -1627,8 +1912,8 @@ Only return JSON.`;
   }
 });
 
-// AI Screening Answer Suggestions — based on stored profile and past answers
-router.post('/ai/screening-suggestions', authMiddleware, async (req, res) => {
+// AI Screening Answer Suggestions — based on stored profile and past answers (RATE LIMITED)
+router.post('/ai/screening-suggestions', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { job_id, questions } = req.body;
     if (!questions || !Array.isArray(questions)) return res.status(400).json({ error: 'questions array required' });
@@ -1907,8 +2192,8 @@ router.put('/offers/:id/decline', authMiddleware, async (req, res) => {
 
 // ============= AI AGENT ENDPOINTS (Phase 4) =============
 
-// AI Match Explanation — natural language explanation of why a job matches
-router.post('/ai/match-explanation', authMiddleware, async (req, res) => {
+// AI Match Explanation — natural language explanation of why a job matches (RATE LIMITED)
+router.post('/ai/match-explanation', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { job_id } = req.body;
     if (!job_id) return res.status(400).json({ error: 'job_id required' });
@@ -1979,8 +2264,8 @@ Only return JSON.`;
   }
 });
 
-// AI Smart Search — intent-based natural language job search
-router.post('/ai/smart-search', authMiddleware, async (req, res) => {
+// AI Smart Search — intent-based natural language job search (RATE LIMITED)
+router.post('/ai/smart-search', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { query } = req.body;
     if (!query || query.trim().length < 3) return res.status(400).json({ error: 'Search query required (min 3 chars)' });
@@ -2076,6 +2361,7 @@ Only return JSON.`;
       query: query,
       parsed_filters: filters,
       jobs: scoredJobs,
+      results: scoredJobs,
       total: scoredJobs.length
     });
   } catch (err) {
@@ -2084,8 +2370,8 @@ Only return JSON.`;
   }
 });
 
-// AI Application Review — checks completeness before submit
-router.post('/ai/application-review', authMiddleware, async (req, res) => {
+// AI Application Review — checks completeness before submit (RATE LIMITED)
+router.post('/ai/application-review', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { job_id, cover_letter, screening_answers } = req.body;
     if (!job_id) return res.status(400).json({ error: 'job_id required' });
@@ -2146,8 +2432,8 @@ Only return JSON.`;
   }
 });
 
-// AI Resume Score — rate resume quality and feed into OmniScore
-router.post('/ai/resume-score', authMiddleware, async (req, res) => {
+// AI Resume Score — rate resume quality and feed into OmniScore (RATE LIMITED)
+router.post('/ai/resume-score', authMiddleware, rateLimits.ai, async (req, res) => {
   try {
     const { chat } = require('../lib/polsia-ai');
     const omniscoreService = require('../services/omniscore');

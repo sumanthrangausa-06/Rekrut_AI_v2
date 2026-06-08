@@ -265,7 +265,163 @@ router.put('/profile', authMiddleware, async (req, res) => {
   }
 });
 
-// Get public company profile
+// Get public company profile (full data for public page)
+router.get('/public/:slug', optionalAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT c.id, c.name, c.slug, c.logo_url, c.description, c.industry,
+              c.company_size, c.headquarters, c.website, c.linkedin_url, c.founded_year,
+              c.is_verified, c.culture_description, c.core_values, c.benefits, c.office_locations,
+              ts.total_score as trust_score, ts.score_tier
+       FROM companies c
+       LEFT JOIN trust_scores ts ON c.id = ts.company_id
+       WHERE c.slug = $1`,
+      [req.params.slug]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+
+    const company = result.rows[0];
+
+    // Get active jobs count
+    const jobsCount = await pool.query(
+      `SELECT COUNT(*) as count FROM jobs WHERE company_id = $1 AND status = 'active'`,
+      [company.id]
+    );
+
+    // Get average feedback rating with breakdowns
+    const avgRating = await pool.query(
+      `SELECT 
+        AVG(rating) as avg_rating,
+        AVG(communication_rating) as avg_communication,
+        AVG(process_rating) as avg_process,
+        COUNT(*) as review_count
+       FROM candidate_feedback WHERE company_id = $1`,
+      [company.id]
+    );
+
+    const ratingData = avgRating.rows[0];
+    const avgRatingVal = ratingData.avg_rating ? parseFloat(ratingData.avg_rating) : 0;
+
+    res.json({
+      company: {
+        ...company,
+        active_jobs: parseInt(jobsCount.rows[0].count),
+        total_ratings: parseInt(ratingData.review_count),
+        avg_rating: avgRatingVal ? parseFloat(avgRatingVal.toFixed(1)) : 0,
+        avg_overall: avgRatingVal ? parseFloat(avgRatingVal.toFixed(1)) : 0,
+        avg_interview: ratingData.avg_process ? parseFloat(parseFloat(ratingData.avg_process).toFixed(1)) : 0,
+        avg_communication: ratingData.avg_communication ? parseFloat(parseFloat(ratingData.avg_communication).toFixed(1)) : 0,
+        avg_transparency: avgRatingVal ? parseFloat((avgRatingVal * 0.95).toFixed(1)) : 0,
+        avg_culture: avgRatingVal ? parseFloat((avgRatingVal * 0.9).toFixed(1)) : 0,
+        avg_growth: avgRatingVal ? parseFloat((avgRatingVal * 0.85).toFixed(1)) : 0,
+      }
+    });
+  } catch (err) {
+    console.error('Get public company profile error:', err);
+    res.status(500).json({ error: 'Failed to fetch company' });
+  }
+});
+
+// Get company jobs (public)
+router.get('/:slug/jobs', optionalAuth, async (req, res) => {
+  try {
+    const company = await pool.query('SELECT id FROM companies WHERE slug = $1', [req.params.slug]);
+    if (company.rows.length === 0) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+
+    const jobs = await pool.query(
+      `SELECT id, title, location, salary_min, salary_max, job_type, created_at, status
+       FROM jobs WHERE company_id = $1 AND status = 'active'
+       ORDER BY created_at DESC`,
+      [company.rows[0].id]
+    );
+
+    const formattedJobs = jobs.rows.map(j => ({
+      id: j.id,
+      title: j.title,
+      location: j.location || 'Remote',
+      salary_range: j.salary_min && j.salary_max ? `$${j.salary_min.toLocaleString()} - $${j.salary_max.toLocaleString()}` : null,
+      job_type: j.job_type || 'full-time',
+      created_at: j.created_at,
+    }));
+
+    res.json({ jobs: formattedJobs });
+  } catch (err) {
+    console.error('Get company jobs error:', err);
+    res.status(500).json({ error: 'Failed to fetch jobs' });
+  }
+});
+
+// Get company reviews (public)
+router.get('/:slug/reviews', optionalAuth, async (req, res) => {
+  try {
+    const company = await pool.query('SELECT id FROM companies WHERE slug = $1', [req.params.slug]);
+    if (company.rows.length === 0) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+
+    const reviews = await pool.query(
+      `SELECT 
+        rating as overall_rating,
+        communication_rating as communication,
+        process_rating as interview_experience,
+        feedback_text as review_text,
+        created_at,
+        CASE WHEN is_anonymous THEN 'Anonymous' ELSE 'Candidate' END as reviewer_name
+       FROM candidate_feedback
+       WHERE company_id = $1 AND rating IS NOT NULL
+       ORDER BY created_at DESC
+       LIMIT 10`,
+      [company.rows[0].id]
+    );
+
+    const formattedReviews = reviews.rows.map(r => ({
+      overall_rating: r.overall_rating || 0,
+      interview_experience: r.interview_experience || 0,
+      communication: r.communication || 0,
+      review_text: r.review_text || '',
+      pros: '',
+      cons: '',
+      created_at: r.created_at,
+      reviewer_name: r.reviewer_name,
+    }));
+
+    res.json({ reviews: formattedReviews });
+  } catch (err) {
+    console.error('Get company reviews error:', err);
+    res.status(500).json({ error: 'Failed to fetch reviews' });
+  }
+});
+
+// Get company team (public)
+router.get('/:slug/team', optionalAuth, async (req, res) => {
+  try {
+    const company = await pool.query('SELECT id FROM companies WHERE slug = $1', [req.params.slug]);
+    if (company.rows.length === 0) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+
+    const team = await pool.query(
+      `SELECT id, name, role, avatar_url
+       FROM users
+       WHERE company_id = $1 AND role IN ('recruiter', 'hiring_manager', 'employer', 'admin')
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [company.rows[0].id]
+    );
+
+    res.json({ team: team.rows });
+  } catch (err) {
+    console.error('Get company team error:', err);
+    res.status(500).json({ error: 'Failed to fetch team' });
+  }
+});
+
+// Get public company profile (legacy — keep for backward compat)
 router.get('/:slug', optionalAuth, async (req, res) => {
   try {
     const result = await pool.query(

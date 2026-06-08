@@ -5,6 +5,7 @@ const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const helmet = require('helmet');
 
 // Load environment variables from .env file
 require('dotenv').config();
@@ -32,10 +33,14 @@ const { requireAdmin } = require('./routes/admin');
 const memoryRoutes = require('./routes/memory');
 const communicationsRoutes = require('./routes/communications');
 const notificationsRoutes = require('./routes/notifications');
+const billingRoutes = require('./routes/billing');
 const screeningRoutes = require('./routes/screening');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Disable x-powered-by header
+app.disable('x-powered-by');
 
 // Trust proxy (Render runs behind a reverse proxy)
 app.set('trust proxy', 1);
@@ -45,32 +50,77 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Middleware
+// API health alias for monitoring consistency
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Security headers — MUST be early, before CORS and session middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://api.rekrutai.co", "https://rekrutai-dev.onrender.com"],
+      frameAncestors: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Allow embedded resources
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  }
+}));
+
+// CORS — whitelist origins in production, allow dev origins in development
+const corsOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
+  : process.env.NODE_ENV === 'production'
+    ? ['https://rekrutai.co', 'https://www.rekrutai.co', 'https://app.rekrutai.co', 'https://rekrutai-dev.onrender.com']
+    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173', 'http://127.0.0.1:4173', 'http://127.0.0.1:3000', 'https://hireloop-vzvw.polsia.app', 'https://rekrutai-dev.onrender.com'];
+
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g., mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (corsOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
 }));
 
-// Explicitly allow camera and microphone access (prevents CDN/proxy stripping)
+// Permissions-Policy: restrict to self (same-origin) only, no wildcard access
 app.use((req, res, next) => {
-  res.setHeader('Permissions-Policy', 'camera=*, microphone=*');
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self)');
   next();
 });
 
+app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+// Validate session secret before configuring session middleware
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) {
+  throw new Error('SESSION_SECRET environment variable is required. Set a strong random string.');
+}
+
 app.use(session({
   store: new pgSession({
     pool: pool,
     tableName: 'user_sessions',
     createTableIfMissing: true, // Auto-creates table on first run
   }),
-  secret: process.env.SESSION_SECRET || 'rekrutai-secret-key-change-in-prod',
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false, // Allow cookies over HTTP (Render terminates TLS at proxy)
+    secure: process.env.NODE_ENV === 'production', // Secure in production; allow HTTP in dev
     httpOnly: true,
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     sameSite: 'lax',
@@ -102,6 +152,8 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/interviews', quickPracticeRoutes);  // ISOLATED Quick Practice — must be BEFORE interview routes (#32717)
 app.use('/api/interviews', interviewRoutes);       // Mock Interview + video analysis (no practice routes)
 app.use('/api/omniscore', omniscoreRoutes);
+app.use('/api/candidate/omniscore', omniscoreRoutes);
+app.use('/api/recruiter/omniscore', omniscoreRoutes);
 app.use('/api/candidate', candidateRoutes);
 app.use('/api/assessments', assessmentRoutes);
 
@@ -139,6 +191,9 @@ app.use('/api/communications', communicationsRoutes);
 
 // API Routes - Email Notifications
 app.use('/api/notifications', notificationsRoutes);
+
+// API Routes - Billing and subscriptions
+app.use('/api/billing', billingRoutes);
 
 // API Routes - AI Screening (Recruiter AI Coach)
 app.use('/api/screening', screeningRoutes);
@@ -1165,11 +1220,22 @@ app.use(express.static(publicAssetsPath, {
 }));
 
 // Serve React app build
-app.use(express.static(reactBuildPath));
+app.use(express.static(reactBuildPath, {
+  // Don't serve index.html via static — we handle SPA fallback below
+  index: false,
+}));
 
-// SPA fallback — serve React index.html for all non-API routes
+// SPA fallback — serve React index.html for all non-API routes that don't match a file
 app.get('*', (req, res) => {
   if (!req.path.startsWith('/api')) {
+    // Check if the requested file exists as a static asset
+    const assetPath = path.join(reactBuildPath, req.path);
+    if (req.path !== '/' && fs.existsSync(assetPath) && fs.statSync(assetPath).isFile()) {
+      // File exists — let the static middleware handle it (shouldn't reach here normally)
+      res.sendFile(assetPath);
+      return;
+    }
+    // Serve index.html for SPA routes
     const indexPath = path.join(reactBuildPath, 'index.html');
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
@@ -1187,6 +1253,14 @@ app.get('*', (req, res) => {
 
 const server = app.listen(PORT, () => {
   console.log(`Rekrut AI running on port ${PORT}`);
+  
+  // Start distributed rate limiter cleanup
+  try {
+    const { distributedRateLimiter } = require('./lib/distributed-rate-limiter');
+    distributedRateLimiter.startCleanup(5 * 60 * 1000); // Clean every 5 minutes
+  } catch (err) {
+    console.warn('[server] Could not start rate limiter cleanup:', err.message);
+  }
 });
 
 // Wire up active HTTP connection tracking for the metrics dashboard

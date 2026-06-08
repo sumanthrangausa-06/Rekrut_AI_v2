@@ -15,13 +15,29 @@ const {
 
 const router = express.Router();
 
+// Rate limiting (distributed via PostgreSQL)
+const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-limiter');
+const emailService = require('../lib/email-service');
+
 function logAuth(message) {
   try {
-    // append to a file in project root (no nested directory required)
     fs.appendFileSync('auth.log', message + '\n');
   } catch (e) {
     console.error('Failed to write auth log', e);
   }
+}
+
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.length > 0) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+function isStrongPassword(password) {
+  if (typeof password !== 'string' || password.length < 8 || password.length > 128) return false;
+  return /[a-z]/.test(password) && /[A-Z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password);
 }
 
 // Email transporter (SMTP)
@@ -38,14 +54,13 @@ function initializeEmailTransporter() {
       emailTransporter = nodemailer.createTransport({
         host: smtpHost,
         port: smtpPort,
-        secure: smtpPort === 465, // true for 465, false for other ports
+        secure: smtpPort === 465,
         auth: {
           user: smtpUser,
           pass: smtpPass
         },
-        // Gmail/Outlook specific settings
         tls: {
-          rejectUnauthorized: false // For development/testing
+          rejectUnauthorized: true
         }
       });
 
@@ -68,7 +83,6 @@ async function sendEmail(to, subject, text, html) {
   }
 
   const mailOptions = {
-    // default sender address should be a no-reply address so personal email isn't exposed
     from: process.env.SMTP_FROM || 'no-reply@rekrutai.co',
     to,
     subject,
@@ -82,12 +96,18 @@ async function sendEmail(to, subject, text, html) {
 // ============= EMAIL/PASSWORD AUTH =============
 
 // Register
-router.post('/register', async (req, res) => {
+router.post('/register', rateLimits.strict, async (req, res) => {
   try {
     const { email, password, name, role = 'candidate', company_name } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        error: 'Password must be at least 8 characters and include uppercase, lowercase, number, and symbol'
+      });
     }
 
     // Check if user exists
@@ -155,6 +175,22 @@ router.post('/register', async (req, res) => {
       accessToken,
       refreshToken
     });
+
+    // ── Send welcome email (non-blocking) ──
+    try {
+      await emailService.sendTemplatedEmail({
+        to: user.email,
+        templateName: 'welcome',
+        templateData: {
+          name: user.name || 'Welcome',
+          dashboard_link: `${process.env.FRONTEND_URL || 'https://rekrut.ai'}/${role === 'candidate' ? 'candidate' : 'recruiter'}`
+        },
+        userId: user.id,
+        metadata: { role, signup_source: 'web' }
+      });
+    } catch (emailErr) {
+      console.error('[email] Failed to send welcome email (non-blocking):', emailErr.message);
+    }
   } catch (err) {
     console.error('Registration error:', err);
 
@@ -170,10 +206,10 @@ router.post('/register', async (req, res) => {
 });
 
 // Login
-router.post('/login', async (req, res) => {
+router.post('/login', rateLimits.strict, async (req, res) => {
   try {
     const { email, password } = req.body;
-    const logMsg = `[auth] login attempt email=${email}`;
+    const logMsg = '[auth] login attempt';
     console.log(logMsg);
     logAuth(logMsg);
 
@@ -201,7 +237,7 @@ router.post('/login', async (req, res) => {
 
     const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) {
-      const logMsg = `[auth] password mismatch for ${email}`;
+      const logMsg = '[auth] invalid credentials';
       console.log(logMsg);
       logAuth(logMsg);
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -344,6 +380,10 @@ router.get('/google/callback', async (req, res) => {
       return res.redirect('/login.html?error=No authorization code received');
     }
 
+    if (!verifyOauthState(req, state)) {
+      return res.redirect('/login.html?error=Invalid OAuth state');
+    }
+
     // Exchange code for tokens
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -463,6 +503,10 @@ router.get('/linkedin/callback', async (req, res) => {
 
     if (!code) {
       return res.redirect('/login.html?error=No authorization code received');
+    }
+
+    if (!verifyOauthState(req, state)) {
+      return res.redirect('/login.html?error=Invalid OAuth state');
     }
 
     // Exchange code for tokens
@@ -615,7 +659,7 @@ router.get('/verify-payment', authMiddleware, async (req, res) => {
 // ============= PASSWORD RESET =============
 
 // Forgot password - send reset email
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', rateLimits.strict, async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -675,7 +719,7 @@ router.post('/forgot-password', async (req, res) => {
 });
 
 // Reset password with token
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', rateLimits.strict, async (req, res) => {
   try {
     const { token, password } = req.body;
 
@@ -683,8 +727,10 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Token and password are required' });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        error: 'Password must be at least 8 characters and include uppercase, lowercase, number, and symbol'
+      });
     }
 
     // Find valid token

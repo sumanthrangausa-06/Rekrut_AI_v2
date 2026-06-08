@@ -108,7 +108,7 @@ export function CandidateDashboard() {
               <p className="mt-1 text-xs text-amber-700">{stats.profile_completeness}% complete — add skills, experience, and education</p>
             </div>
             <Link to="/candidate/profile">
-              <Button size="sm" variant="outline" className="border-amber-600 text-amber-700 hover:bg-amber-100">
+              <Button size="sm" variant="outline" className="border-amber-600 text-amber-700 hover:bg-amber-100 min-h-[44px]">
                 Complete Profile
               </Button>
             </Link>
@@ -189,7 +189,7 @@ export function CandidateDashboard() {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Recent Job Openings</CardTitle>
           <Link to="/candidate/jobs">
-            <Button variant="ghost" size="sm" className="gap-1">
+            <Button variant="ghost" size="sm" className="gap-1 min-h-[44px]">
               View all
               <ArrowRight className="h-3 w-3" />
             </Button>
@@ -223,7 +223,7 @@ export function CandidateDashboard() {
                       </Badge>
                     )}
                     <Link to={`/candidate/jobs/${job.id}`}>
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" className="min-h-[44px]">
                         View
                       </Button>
                     </Link>
