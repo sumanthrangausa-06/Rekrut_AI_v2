@@ -21,7 +21,7 @@ test.describe('Candidate Critical Flow — Desktop', () => {
     await expect(page.getByRole('heading', { name: /Create an account/i })).toBeVisible();
 
     // Select role: Job Seeker
-    await page.locator('select#role').selectOption('candidate');
+    await page.getByRole('combobox').selectOption('candidate');
     await page.fill('input#name', 'E2E Test Candidate');
     await page.fill('input#email', email);
     await page.fill('input#password', PASSWORD);
@@ -88,7 +88,7 @@ test.describe('Candidate Critical Flow — Mobile', () => {
     await page.goto('/register');
     await expect(page.getByRole('heading', { name: /Create an account/i })).toBeVisible();
 
-    await page.locator('select#role').selectOption('candidate');
+    await page.getByRole('combobox').selectOption('candidate');
     await page.fill('input#name', 'E2E Mobile Candidate');
     await page.fill('input#email', email);
     await page.fill('input#password', PASSWORD);
