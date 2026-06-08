@@ -161,85 +161,88 @@ test.describe('End-to-End Integration Flow', () => {
     });
     const recruiterPage = await recruiterContext.newPage();
 
-    await recruiterPage.goto('/recruiter/jobs/new');
-    await recruiterPage
-      .getByPlaceholder(/e\.g\. Senior Software Engineer/i)
-      .fill('E2E Integration Job');
-    await recruiterPage
-      .getByPlaceholder(/Leave blank to use your company name/i)
-      .fill('E2E Integration Co');
-    await recruiterPage
-      .getByPlaceholder(/e\.g\. New York, NY or Remote/i)
-      .fill('Remote');
-    await recruiterPage
-      .getByPlaceholder(/Describe the role, responsibilities/i)
-      .fill('Integration test job description.');
-
-    await recruiterPage.getByRole('button', { name: /Next/i }).click();
-    await recruiterPage.getByRole('button', { name: /Next/i }).click();
-    await recruiterPage.getByRole('button', { name: /Publish Job/i }).click();
-
-    await expect(
-      recruiterPage
-        .locator('text=E2E Integration Job')
-        .or(recruiterPage.locator('text=Success'))
-        .first()
-    ).toBeVisible({ timeout: 15000 });
-
-    // 2. Candidate finds and applies to the job
     const candidateContext = await browser.newContext({
       storageState: CANDIDATE_STORAGE,
     });
     const candidatePage = await candidateContext.newPage();
 
-    await candidatePage.goto('/candidate/jobs');
-    await candidatePage.waitForLoadState('networkidle');
+    try {
+      await recruiterPage.goto('/recruiter/jobs/new');
+      await recruiterPage
+        .getByPlaceholder(/e\.g\. Senior Software Engineer/i)
+        .fill('E2E Integration Job');
+      await recruiterPage
+        .getByPlaceholder(/Leave blank to use your company name/i)
+        .fill('E2E Integration Co');
+      await recruiterPage
+        .getByPlaceholder(/e\.g\. New York, NY or Remote/i)
+        .fill('Remote');
+      await recruiterPage
+        .getByPlaceholder(/Describe the role, responsibilities/i)
+        .fill('Integration test job description.');
 
-    // Search for the job
-    const searchInput = candidatePage.getByPlaceholder(/Search/i).first();
-    if (await searchInput.isVisible().catch(() => false)) {
-      await searchInput.fill('E2E Integration Job');
-      await searchInput.press('Enter');
-      await candidatePage.waitForTimeout(1500);
-    }
+      await recruiterPage.getByRole('button', { name: /Next/i }).click();
+      await recruiterPage.getByRole('button', { name: /Next/i }).click();
+      await recruiterPage.getByRole('button', { name: /Publish Job/i }).click();
 
-    // Apply to the job if visible
-    const applyBtn = candidatePage
-      .locator('button, a')
-      .filter({ hasText: /Apply|Apply Now/i })
-      .first();
-    if (await applyBtn.isVisible().catch(() => false)) {
-      await applyBtn.click();
       await expect(
-        candidatePage
-          .locator('text=Application')
-          .or(candidatePage.locator('text=Apply'))
+        recruiterPage
+          .locator('text=E2E Integration Job')
+          .or(recruiterPage.locator('text=Success'))
+          .first()
+      ).toBeVisible({ timeout: 15000 });
+
+      // 2. Candidate finds and applies to the job
+      await candidatePage.goto('/candidate/jobs');
+      await candidatePage.waitForLoadState('networkidle');
+
+      // Search for the job
+      const searchInput = candidatePage.getByPlaceholder(/Search/i).first();
+      if (await searchInput.isVisible().catch(() => false)) {
+        await searchInput.fill('E2E Integration Job');
+        await searchInput.press('Enter');
+        await candidatePage.waitForTimeout(1500);
+      }
+
+      // Apply to the job if visible
+      const applyBtn = candidatePage
+        .locator('button, a')
+        .filter({ hasText: /Apply|Apply Now/i })
+        .first();
+      if (await applyBtn.isVisible().catch(() => false)) {
+        await applyBtn.click();
+        await expect(
+          candidatePage
+            .locator('text=Application')
+            .or(candidatePage.locator('text=Apply'))
+            .first()
+        ).toBeVisible({ timeout: 10000 });
+      }
+
+      // 3. Recruiter views applicants for the job
+      await recruiterPage.goto('/recruiter/jobs');
+      await recruiterPage.waitForLoadState('networkidle');
+
+      // Click on the job to view applicants
+      const jobCard = recruiterPage
+        .locator('text=E2E Integration Job')
+        .first();
+      if (await jobCard.isVisible().catch(() => false)) {
+        await jobCard.click();
+      }
+
+      // Verify applicants section or job detail page
+      await expect(
+        recruiterPage
+          .locator('text=Applicants')
+          .or(recruiterPage.locator('text=Applications'))
+          .or(recruiterPage.locator('text=E2E Integration Job'))
           .first()
       ).toBeVisible({ timeout: 10000 });
+    } finally {
+      // Always close extra contexts to free memory
+      await recruiterContext.close().catch(() => {});
+      await candidateContext.close().catch(() => {});
     }
-
-    // 3. Recruiter views applicants for the job
-    await recruiterPage.goto('/recruiter/jobs');
-    await recruiterPage.waitForLoadState('networkidle');
-
-    // Click on the job to view applicants
-    const jobCard = recruiterPage
-      .locator('text=E2E Integration Job')
-      .first();
-    if (await jobCard.isVisible().catch(() => false)) {
-      await jobCard.click();
-    }
-
-    // Verify applicants section or job detail page
-    await expect(
-      recruiterPage
-        .locator('text=Applicants')
-        .or(recruiterPage.locator('text=Applications'))
-        .or(recruiterPage.locator('text=E2E Integration Job'))
-        .first()
-    ).toBeVisible({ timeout: 10000 });
-
-    await recruiterContext.close();
-    await candidateContext.close();
   });
 });

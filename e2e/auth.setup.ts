@@ -70,31 +70,37 @@ async function saveAuthState(
   };
 
   const context = await browser.newContext({ storageState });
-  const page = await context.newPage();
+  try {
+    const page = await context.newPage();
 
-  const dashboardPath = role === 'recruiter' ? '/recruiter' : '/candidate';
-  await page.goto(dashboardPath);
+    const dashboardPath = role === 'recruiter' ? '/recruiter' : '/candidate';
+    await page.goto(dashboardPath);
 
-  await expect(page).toHaveURL(new RegExp(`.*${dashboardPath}`));
-  await page.waitForLoadState('networkidle');
+    await expect(page).toHaveURL(new RegExp(`.*${dashboardPath}`));
+    await page.waitForLoadState('networkidle');
 
-  await page.context().storageState({ path });
-  await context.close();
+    await page.context().storageState({ path });
+  } finally {
+    await context.close().catch(() => {});
+  }
 }
 
 async function verifyExistingAuth(browser: any, path: string, role: 'candidate' | 'recruiter') {
   if (!fs.existsSync(path)) return false;
 
   const context = await browser.newContext({ storageState: path });
-  const page = await context.newPage();
-  const dashboardPath = role === 'recruiter' ? '/recruiter' : '/candidate';
-  await page.goto(dashboardPath);
-  await page.waitForLoadState('networkidle');
-  // Give React time to run the auth check and redirect if needed
-  await page.waitForTimeout(500);
-  const url = page.url();
-  await context.close();
-  return url.includes(dashboardPath);
+  try {
+    const page = await context.newPage();
+    const dashboardPath = role === 'recruiter' ? '/recruiter' : '/candidate';
+    await page.goto(dashboardPath);
+    await page.waitForLoadState('networkidle');
+    // Give React time to run the auth check and redirect if needed
+    await page.waitForTimeout(500);
+    const url = page.url();
+    return url.includes(dashboardPath);
+  } finally {
+    await context.close().catch(() => {});
+  }
 }
 
 setup('authenticate candidate', async ({ request, browser }) => {

@@ -4,16 +4,14 @@ const CANDIDATE_STORAGE = 'e2e/.auth/candidate.json'
 const RECRUITER_STORAGE = 'e2e/.auth/recruiter.json'
 
 test.describe('Auth Persistence & Token Tests', () => {
-  test('candidate token persists across page reloads', async ({ page }) => {
-    // Login as candidate
-    await page.goto('/login')
-    await page.getByRole('textbox', { name: 'Email' }).fill('test_candidate@rekrutai.co')
-    await page.getByRole('textbox', { name: 'Password' }).fill('Test123!')
-    await page.getByRole('button', { name: /Sign in/i }).click()
+  test.use({ storageState: CANDIDATE_STORAGE })
 
-    // Wait for redirect to dashboard
-    await page.waitForURL(/.*\/candidate/)
+  test('candidate token persists across page reloads', async ({ page }) => {
+    // Navigate to candidate dashboard (already authenticated via storageState)
+    await page.goto('/candidate')
+    await page.waitForLoadState('networkidle')
     await expect(page.locator('text=Dashboard').first()).toBeVisible()
+    await expect(page).toHaveURL(/.*\/candidate/)
 
     // Reload page and verify still authenticated
     await page.reload()
@@ -21,27 +19,23 @@ test.describe('Auth Persistence & Token Tests', () => {
     await expect(page).toHaveURL(/.*\/candidate/)
   })
 
-  test('candidate can navigate directly to /candidate/jobs when authenticated', async ({ page }) => {
-    // Login as candidate
-    await page.goto('/login')
-    await page.getByRole('textbox', { name: 'Email' }).fill('test_candidate@rekrutai.co')
-    await page.getByRole('textbox', { name: 'Password' }).fill('Test123!')
-    await page.getByRole('button', { name: /Sign in/i }).click()
-    await page.waitForURL(/.*\/candidate/)
+  test.use({ storageState: CANDIDATE_STORAGE })
 
-    // Direct navigation to protected route
+  test('candidate can navigate directly to /candidate/jobs when authenticated', async ({ page }) => {
+    // Navigate directly to protected route (already authenticated via storageState)
     await page.goto('/candidate/jobs')
+    await page.waitForLoadState('networkidle')
     await expect(page).toHaveURL(/.*\/candidate\/jobs/)
     await expect(page.locator('text=Jobs').first()).toBeVisible()
   })
 
+  test.use({ storageState: CANDIDATE_STORAGE })
+
   test('logout clears auth and redirects to login', async ({ page }) => {
-    // Login as candidate
-    await page.goto('/login')
-    await page.getByRole('textbox', { name: 'Email' }).fill('test_candidate@rekrutai.co')
-    await page.getByRole('textbox', { name: 'Password' }).fill('Test123!')
-    await page.getByRole('button', { name: /Sign in/i }).click()
-    await page.waitForURL(/.*\/candidate/)
+    // Navigate to candidate dashboard (already authenticated via storageState)
+    await page.goto('/candidate')
+    await page.waitForLoadState('networkidle')
+    await expect(page).toHaveURL(/.*\/candidate/)
 
     // Click logout (usually in sidebar or user menu)
     const logoutBtn = page.locator('button, a').filter({ hasText: /Logout|Sign out|Log out/i }).first()
@@ -61,16 +55,14 @@ test.describe('Auth Persistence & Token Tests', () => {
     await expect(page).toHaveURL(/.*\/login/)
   })
 
-  test('recruiter token persists across page reloads', async ({ page }) => {
-    // Login as recruiter
-    await page.goto('/login')
-    await page.getByRole('textbox', { name: 'Email' }).fill('test_recruiter@rekrutai.co')
-    await page.getByRole('textbox', { name: 'Password' }).fill('Test123!')
-    await page.getByRole('button', { name: /Sign in/i }).click()
+  test.use({ storageState: RECRUITER_STORAGE })
 
-    // Wait for redirect to dashboard
-    await page.waitForURL(/.*\/recruiter/)
+  test('recruiter token persists across page reloads', async ({ page }) => {
+    // Navigate to recruiter dashboard (already authenticated via storageState)
+    await page.goto('/recruiter')
+    await page.waitForLoadState('networkidle')
     await expect(page.locator('text=Dashboard').first()).toBeVisible()
+    await expect(page).toHaveURL(/.*\/recruiter/)
 
     // Reload page and verify still authenticated
     await page.reload()
@@ -78,16 +70,12 @@ test.describe('Auth Persistence & Token Tests', () => {
     await expect(page).toHaveURL(/.*\/recruiter/)
   })
 
-  test('recruiter can navigate directly to /recruiter/jobs when authenticated', async ({ page }) => {
-    // Login as recruiter
-    await page.goto('/login')
-    await page.getByRole('textbox', { name: 'Email' }).fill('test_recruiter@rekrutai.co')
-    await page.getByRole('textbox', { name: 'Password' }).fill('Test123!')
-    await page.getByRole('button', { name: /Sign in/i }).click()
-    await page.waitForURL(/.*\/recruiter/)
+  test.use({ storageState: RECRUITER_STORAGE })
 
-    // Direct navigation to protected route
+  test('recruiter can navigate directly to /recruiter/jobs when authenticated', async ({ page }) => {
+    // Navigate directly to protected route (already authenticated via storageState)
     await page.goto('/recruiter/jobs')
+    await page.waitForLoadState('networkidle')
     await expect(page).toHaveURL(/.*\/recruiter\/jobs/)
     await expect(page.locator('text=Jobs').first()).toBeVisible()
   })
