@@ -1168,7 +1168,7 @@ router.get('/jobs', authMiddleware, async (req, res) => {
     else if (sortBy === 'salary_low') orderBy = 'j.salary_min ASC NULLS LAST';
     else if (sortBy === 'match') orderBy = 'j.created_at DESC'; // placeholder until match scoring is integrated
 
-    const joinClause = companySize ? 'LEFT JOIN companies c ON j.company_id = c.id' : '';
+    const joinClause = 'LEFT JOIN companies c ON j.company_id = c.id';
 
     const jobsQuery = `
       SELECT
@@ -1185,7 +1185,7 @@ router.get('/jobs', authMiddleware, async (req, res) => {
       ORDER BY ${orderBy}
       LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}
     `;
-    params.push(userId, userId, pageLimit, pageOffset);
+    params.push(userId, pageLimit, pageOffset);
 
     const jobsResult = await pool.query(jobsQuery, params);
 

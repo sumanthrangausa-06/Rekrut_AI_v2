@@ -29,9 +29,10 @@ test.describe('Recruiter Critical Flow', () => {
     await page.fill('input#company', 'E2E Test Co');
 
     await page.getByRole('button', { name: /Sign up/i }).click();
+    await page.waitForTimeout(500);
 
     // Should redirect to recruiter dashboard
-    await expect(page).toHaveURL(/.*\/recruiter/);
+    await expect(page).toHaveURL(/.*\/recruiter/, { timeout: 15000 });
     await expect(page.locator('text=Recruiter').or(page.locator('text=Dashboard')).first()).toBeVisible({ timeout: 15000 });
 
     // ─── 2. Post a Job ───

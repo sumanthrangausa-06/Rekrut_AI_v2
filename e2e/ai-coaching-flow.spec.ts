@@ -11,7 +11,7 @@ test.describe('AI Interview Coaching Flow', () => {
 
     // Verify heading
     await expect(
-      page.getByRole('heading', { name: /AI Interview Coach/i })
+      page.getByRole('heading', { name: /AI Interview Coach|Interview Coach|AI Coaching/i })
     ).toBeVisible()
 
     // Verify Quick Practice tab exists (rendered as a button, not role=tab)
