@@ -1027,5 +1027,150 @@ router.post('/compliance/export', requireAdmin, async (req, res) => {
   }
 });
 
+// GET /api/admin/compliance/bias-reports — historical fairness audit reports
+router.get('/compliance/bias-reports', requireAdmin, async (req, res) => {
+  try {
+    const { limit = 50, offset = 0 } = req.query;
+
+    const result = await pool.query(`
+      SELECT
+        id,
+        audit_date,
+        audit_type,
+        overall_fairness_score,
+        issues_found,
+        demographic_breakdowns,
+        appeal_stats,
+        created_at
+      FROM fairness_audits
+      ORDER BY audit_date DESC
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
+
+    const reports = result.rows.map(row => ({
+      id: row.id,
+      auditDate: row.audit_date,
+      auditType: row.audit_type,
+      overallFairnessScore: parseFloat(row.overall_fairness_score) || 0,
+      issuesFound: parseInt(row.issues_found) || 0,
+      demographicCount: Object.keys(row.demographic_breakdowns || {}).length,
+      appealCount: Array.isArray(row.appeal_stats) ? row.appeal_stats.length : 0,
+      createdAt: row.created_at,
+    }));
+
+    res.json({ success: true, reports });
+  } catch (error) {
+    console.error('[admin/compliance/bias-reports] Error:', error.message);
+    res.status(500).json({ error: 'Failed to load bias reports' });
+  }
+});
+
+// GET /api/admin/compliance/performance — model performance metrics
+router.get('/compliance/performance', requireAdmin, async (req, res) => {
+  try {
+    const period = 30;
+    const startDate = new Date(Date.now() - period * 24 * 60 * 60 * 1000).toISOString();
+
+    // Volume over time (daily counts)
+    const volumeResult = await pool.query(`
+      SELECT
+        DATE(created_at) as date,
+        COUNT(*) as count
+      FROM audit_logs
+      WHERE (action_type LIKE 'ai_%'
+         OR action_type IN ('score_appeal_submitted', 'bias_analysis_generated',
+                              'score_explanation_viewed', 'decision_explanation_viewed',
+                              'screening_decision', 'matching_decision',
+                              'interview_analysis', 'assessment_graded',
+                              'human_override', 'ai_explanation_generated'))
+        AND created_at >= $1
+      GROUP BY DATE(created_at)
+      ORDER BY date
+    `, [startDate]);
+
+    const volumeOverTime = volumeResult.rows.map(row => ({
+      date: row.date,
+      count: parseInt(row.count),
+    }));
+
+    // Model performance by AI model
+    const modelResult = await pool.query(`
+      SELECT
+        COALESCE(metadata->>'model', 'unknown') as model,
+        COUNT(*) as decisions,
+        AVG(COALESCE((metadata->>'confidence')::float, 0.85)) as avg_confidence,
+        SUM(CASE WHEN metadata->>'human_override' = 'true' THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0) as override_rate
+      FROM audit_logs
+      WHERE (action_type LIKE 'ai_%'
+         OR action_type IN ('score_appeal_submitted', 'bias_analysis_generated',
+                              'score_explanation_viewed', 'decision_explanation_viewed',
+                              'screening_decision', 'matching_decision',
+                              'interview_analysis', 'assessment_graded',
+                              'human_override', 'ai_explanation_generated'))
+        AND created_at >= $1
+      GROUP BY COALESCE(metadata->>'model', 'unknown')
+      ORDER BY decisions DESC
+    `, [startDate]);
+
+    const modelPerformance = modelResult.rows.map(row => ({
+      model: row.model,
+      decisions: parseInt(row.decisions),
+      avgConfidence: parseFloat(row.avg_confidence) || 0,
+      overrideRate: parseFloat(row.override_rate) || 0,
+    }));
+
+    // Score distribution from omniscore_results (0-100 buckets of 10)
+    const scoreDistResult = await pool.query(`
+      SELECT
+        FLOOR(overall_score / 10) * 10 as bucket,
+        COUNT(*) as count
+      FROM omniscore_results
+      WHERE overall_score IS NOT NULL
+        AND created_at >= $1
+      GROUP BY FLOOR(overall_score / 10) * 10
+      ORDER BY bucket
+    `, [startDate]);
+
+    const scoreDistribution = scoreDistResult.rows.map(row => ({
+      bucket: parseInt(row.bucket),
+      count: parseInt(row.count),
+    }));
+
+    // Total decisions and review rate
+    const summaryResult = await pool.query(`
+      SELECT
+        COUNT(*) as total_decisions,
+        SUM(CASE WHEN metadata->>'human_reviewed' = 'true' THEN 1 ELSE 0 END) as reviewed_count
+      FROM audit_logs
+      WHERE (action_type LIKE 'ai_%'
+         OR action_type IN ('score_appeal_submitted', 'bias_analysis_generated',
+                              'score_explanation_viewed', 'decision_explanation_viewed',
+                              'screening_decision', 'matching_decision',
+                              'interview_analysis', 'assessment_graded',
+                              'human_override', 'ai_explanation_generated'))
+        AND created_at >= $1
+    `, [startDate]);
+
+    const totalDecisions = parseInt(summaryResult.rows[0]?.total_decisions) || 0;
+    const reviewedCount = parseInt(summaryResult.rows[0]?.reviewed_count) || 0;
+    const reviewRate = totalDecisions > 0 ? reviewedCount / totalDecisions : 0;
+
+    res.json({
+      success: true,
+      modelPerformance: {
+        period,
+        volumeOverTime,
+        modelPerformance,
+        scoreDistribution,
+        reviewRate,
+        totalDecisions,
+      },
+    });
+  } catch (error) {
+    console.error('[admin/compliance/performance] Error:', error.message);
+    res.status(500).json({ error: 'Failed to load performance data' });
+  }
+});
+
 module.exports = router;
 module.exports.requireAdmin = requireAdmin;

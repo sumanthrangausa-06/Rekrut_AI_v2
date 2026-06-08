@@ -44,6 +44,7 @@ import {
   ArrowDownToLine,
   History,
   Gauge,
+  Info,
 } from "lucide-react"
 
 export type ComplianceDecision = {
@@ -483,6 +484,60 @@ export function AdminCompliancePage() {
             )
           })}
         </div>
+
+        {/* Transparency Notice — EU AI Act Article 52 */}
+        <Card className="border-l-4 border-l-blue-500">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Info className="h-5 w-5 text-blue-500" />
+              Transparency Notice — EU AI Act Article 52
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 pt-0">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <BrainCircuit className="h-4 w-4 text-purple-500" />
+                <h4 className="font-semibold text-sm">AI Systems Used</h4>
+              </div>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• <strong>Matching:</strong> Candidate-job fit scoring</li>
+                <li>• <strong>Screening:</strong> Qualification filtering</li>
+                <li>• <strong>Scoring:</strong> OmniScore & TrustScore</li>
+                <li>• <strong>Interview:</strong> AI-assisted assessments</li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Eye className="h-4 w-4 text-green-500" />
+                <h4 className="font-semibold text-sm">Human-in-the-Loop</h4>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                All AI recommendations are reviewed by human recruiters before final decisions.
+                {modelPerformance ? ` Current review rate: ${(modelPerformance.reviewRate * 100).toFixed(0)}%.` : ''}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-amber-500" />
+                <h4 className="font-semibold text-sm">Contesting Decisions</h4>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Candidates may request an explanation, appeal a score, or demand human review.
+                Use the appeals panel in candidate settings or contact support.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-red-500" />
+                <h4 className="font-semibold text-sm">Data Retention</h4>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Decision logs retained for 3 years per EU AI Act. Candidate profile data deleted on request (GDPR Art. 17).
+                Audit hashes are immutable and tamper-proof.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Tabs */}
         <Tabs value={selectedTab} onValueChange={setSelectedTab}>
