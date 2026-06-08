@@ -101,6 +101,18 @@ function writeStorageState(token: string, refreshToken: string, path: string) {
   fs.writeFileSync(path, JSON.stringify(storageState, null, 2));
 }
 
+function isAuthValid(path: string): boolean {
+  if (!fs.existsSync(path)) return false;
+  try {
+    const data = JSON.parse(fs.readFileSync(path, 'utf-8'));
+    const origin = data.origins?.find((o: any) => o.origin === 'http://localhost:3000');
+    const token = origin?.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value;
+    return !!token;
+  } catch {
+    return false;
+  }
+}
+
 setup('authenticate candidate', async ({ request }) => {
   const path = 'e2e/.auth/candidate.json';
   if (isAuthValid(path)) {

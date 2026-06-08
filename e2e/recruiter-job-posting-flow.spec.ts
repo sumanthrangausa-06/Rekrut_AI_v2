@@ -88,6 +88,6 @@ test.describe('recruiter job posting flow', () => {
 
     // Verify update in job list
     await page.waitForURL('/recruiter/jobs')
-    await expect(page.getByText(updatedTitle)).toBeVisible({ timeout: 15000 })
+    await expect(page.getByText(updatedTitle).first()).toBeVisible({ timeout: 15000 })
   })
 })

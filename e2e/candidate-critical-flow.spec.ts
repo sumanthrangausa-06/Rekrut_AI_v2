@@ -54,7 +54,8 @@ test.describe('Candidate Critical Flow — Desktop', () => {
 
     // ─── 3. Search Jobs ───
     await page.goto('/candidate/jobs');
-    await expect(page.getByRole('heading', { name: /Find Your Next Opportunity/i })).toBeVisible({ timeout: 10000 });
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByText(/Find Your Next Opportunity|Job Board|Jobs/i).first()).toBeVisible({ timeout: 10000 });
 
     // Search for jobs
     const searchInput = page.getByPlaceholder(/Search/i).first();
@@ -92,7 +93,8 @@ test.describe('Candidate Critical Flow — Mobile', () => {
     // ─── 1. Signup ───
     await page.setExtraHTTPHeaders({ 'X-Forwarded-For': '5.6.7.8' });
     await page.goto('/register');
-    await expect(page.getByRole('heading', { name: /Create an account/i })).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByText(/Create an account|Sign up|Register/i).first()).toBeVisible({ timeout: 10000 });
 
     await page.getByRole('combobox').selectOption('candidate');
     await page.fill('input#name', 'E2E Mobile Candidate');

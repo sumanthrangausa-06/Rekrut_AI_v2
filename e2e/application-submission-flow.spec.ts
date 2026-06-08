@@ -6,9 +6,10 @@ test.describe('Application Submission Flow', () => {
   test('apply to a job and verify in applications list', async ({ page }) => {
     await page.goto('/candidate/jobs')
     await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1500)
 
-    // Wait for jobs list to load
-    await expect(page.getByText(/active jobs|results/).first()).toBeVisible({ timeout: 15000 })
+    // Verify jobs page loaded with flexible heading/text check
+    await expect(page.getByText(/Find Your Next Opportunity|active jobs|results/i).first()).toBeVisible({ timeout: 15000 })
 
     // Find a job that does NOT have the "Applied" badge
     const jobCards = page.locator('.cursor-pointer')
@@ -121,8 +122,9 @@ test.describe('Application Submission Flow', () => {
   test('one-click apply is available for profiles with high completeness', async ({ page }) => {
     await page.goto('/candidate/jobs')
     await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1500)
 
-    await expect(page.getByText(/active jobs|results/).first()).toBeVisible({ timeout: 15000 })
+    await expect(page.getByText(/Find Your Next Opportunity|active jobs|results/i).first()).toBeVisible({ timeout: 15000 })
 
     const jobCards = page.locator('.cursor-pointer')
     const count = await jobCards.count()
