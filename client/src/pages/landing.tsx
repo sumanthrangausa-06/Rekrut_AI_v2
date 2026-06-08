@@ -432,14 +432,14 @@ function HeroSection() {
                     { name: 'Product Manager at Netflix', score: 91, match: 'Strong fit' },
                     { name: 'UX Designer at Airbnb', score: 89, match: 'Great fit' },
                   ].map((job) => (
-                    <div key={job.name} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                  <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                      <div className="flex items-center gap-3 min-w-0 overflow-hidden">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary shrink-0">
                           {job.name.split(' ').slice(0, 2).map((n) => n[0]).join('')}
                         </div>
-                        <span className="text-sm font-medium">{job.name}</span>
+                        <span className="text-sm font-medium min-w-0 truncate">{job.name}</span>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 shrink-0">
                         <Badge variant="outline" className="text-xs">{job.match}</Badge>
                         <span className="text-sm font-bold text-primary">{job.score}%</span>
                       </div>
@@ -552,7 +552,7 @@ function SocialProofSection() {
           <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
             Candidates at companies like Google, Stripe, Airbnb, and thousands of startups trust Rekrut AI
           </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-4 gap-y-4 sm:gap-x-8">
             {companyLogos.map((logo) => (
               <div
                 key={logo}
@@ -640,7 +640,7 @@ function PricingTeaserSection() {
 
           {/* Pro plan */}
           <Card className="relative border-2 border-primary shadow-md">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-4 py-1 text-xs font-semibold text-primary-foreground">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-4 py-1 text-xs font-semibold text-primary-foreground z-10">
               Most popular
             </div>
             <CardContent className="p-8">
@@ -807,7 +807,7 @@ function FAQSection() {
                     trackEvent('faq_click', { question: item.question, open: openIndex !== index })
                   }}
                 >
-                  <span className="font-heading font-semibold pr-4">{item.question}</span>
+                  <span className="font-heading font-semibold pr-4 min-w-0 break-words">{item.question}</span>
                   {openIndex === index ? (
                     <ChevronUp className="h-5 w-5 shrink-0 text-muted-foreground" />
                   ) : (
