@@ -1262,7 +1262,17 @@ app.get('/api/admin/routes', requireAdmin, (req, res) => {
 const reactBuildPath = path.join(__dirname, 'client', 'dist');
 const publicAssetsPath = path.join(__dirname, 'public');
 
-console.log('[server] Serving React SPA from client/dist');
+// Cache the React SPA index.html in memory to avoid filesystem race conditions
+const indexPath = path.join(reactBuildPath, 'index.html');
+let indexHtml = null;
+try {
+  if (fs.existsSync(indexPath)) {
+    indexHtml = fs.readFileSync(indexPath, 'utf8');
+  }
+} catch (err) {
+  console.error('[server] Error reading React build:', err.message);
+}
+
 
 // Serve static assets from public/ (favicon, robots.txt, etc. — NOT HTML files)
 app.use(express.static(publicAssetsPath, {
@@ -1279,18 +1289,15 @@ app.use(express.static(reactBuildPath, {
 
 // SPA fallback — serve React index.html for all non-API routes that don't match a file
 app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api')) {
+  if (!req.path.startsWith('/api/') && req.path !== '/api') {
     // Check if the requested file exists as a static asset
     const assetPath = path.join(reactBuildPath, req.path);
     if (req.path !== '/' && fs.existsSync(assetPath) && fs.statSync(assetPath).isFile()) {
-      // File exists — let the static middleware handle it (shouldn't reach here normally)
       res.sendFile(assetPath);
       return;
     }
-    // Serve index.html for SPA routes
-    const indexPath = path.join(reactBuildPath, 'index.html');
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
+    if (indexHtml) {
+      res.send(indexHtml);
     } else {
       // Fallback message if React build doesn't exist
       res.status(503).json({
