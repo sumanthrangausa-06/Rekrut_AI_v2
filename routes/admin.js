@@ -46,7 +46,7 @@ async function initAdminCredentials() {
   const password = process.env.ADMIN_PASSWORD;
 
   if (password) {
-    ADMIN_PASSWORD_HASH = await bcrypt.hash(password, 12);
+    ADMIN_PASSWORD_HASH = await bcrypt.hash(password, 13);
     console.log('[admin] Admin credentials loaded from env vars');
   } else {
     throw new Error(
@@ -274,8 +274,13 @@ router.get('/revenue', requireAdmin, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('[admin/revenue] Error:', error.message);
-    res.status(500).json({ error: 'Failed to load revenue metrics', message: error.message });
+    const ref = require('crypto').randomUUID();
+    console.error(`[ERROR ref=${ref}] [admin/revenue] Error:`, error);
+    if (process.env.NODE_ENV === 'production') {
+      res.status(500).json({ error: 'Internal server error', ref });
+    } else {
+      res.status(500).json({ error: 'Failed to load revenue metrics', message: error.message, ref });
+    }
   }
 });
 
@@ -344,8 +349,13 @@ router.get('/agents', requireAdmin, async (req, res) => {
       data: data
     });
   } catch (error) {
-    console.error('[admin/agents] Error:', error.message);
-    res.status(500).json({ error: 'Failed to load agent status', message: error.message });
+    const ref = require('crypto').randomUUID();
+    console.error(`[ERROR ref=${ref}] [admin/agents] Error:`, error);
+    if (process.env.NODE_ENV === 'production') {
+      res.status(500).json({ error: 'Internal server error', ref });
+    } else {
+      res.status(500).json({ error: 'Failed to load agent status', message: error.message, ref });
+    }
   }
 });
 

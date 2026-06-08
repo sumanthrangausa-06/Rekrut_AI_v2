@@ -99,9 +99,10 @@ app.use(cors({
   credentials: true,
 }));
 
-// Permissions-Policy: restrict to self (same-origin) only, no wildcard access
+// Permissions-Policy: deny-by-default, allow only camera and microphone for same-origin
 app.use((req, res, next) => {
-  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self)');
+  res.setHeader('Permissions-Policy',
+    'camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), vr=(), ambient-light-sensor=()');
   next();
 });
 

@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const { authMiddleware, requireRole } = require('../lib/auth');
 const { AuditLogger } = require('../services/auditLogger');
 const {
@@ -10,6 +11,17 @@ const {
 } = require('../services/matching-engine');
 
 const router = express.Router();
+
+// Secure error response helper
+function sendError(res, err, consolePrefix) {
+  const ref = crypto.randomUUID();
+  console.error(`[ERROR ref=${ref}] ${consolePrefix}:`, err);
+  if (process.env.NODE_ENV === 'production') {
+    res.status(500).json({ error: 'Internal server error', ref });
+  } else {
+    res.status(500).json({ error: 'Internal server error', details: err.message, ref });
+  }
+}
 
 /**
  * GET /api/matching/recommendations
@@ -53,8 +65,7 @@ router.get('/recommendations', authMiddleware, async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Get recommendations error:', err);
-    res.status(500).json({ error: 'Failed to get recommendations', details: err.message });
+    sendError(res, err, 'Get recommendations error');
   }
 });
 
@@ -103,8 +114,7 @@ router.get('/candidates/:jobId', authMiddleware, requireRole('hiring_manager', '
       }
     });
   } catch (err) {
-    console.error('Get candidates error:', err);
-    res.status(500).json({ error: 'Failed to get candidate matches', details: err.message });
+    sendError(res, err, 'Get candidates error');
   }
 });
 
@@ -148,8 +158,7 @@ router.get('/explain/:candidateId/:jobId', authMiddleware, async (req, res) => {
       transparency_note: 'Our matching algorithm uses semantic analysis of skills and experience, combined with OmniScore and TrustScore for fairness and quality.'
     });
   } catch (err) {
-    console.error('Explain match error:', err);
-    res.status(500).json({ error: 'Failed to explain match', details: err.message });
+    sendError(res, err, 'Explain match error');
   }
 });
 
@@ -170,8 +179,7 @@ router.post('/update-profile-embedding', authMiddleware, async (req, res) => {
       message: 'Profile embedding updated successfully. Job recommendations will be refreshed.'
     });
   } catch (err) {
-    console.error('Update profile embedding error:', err);
-    res.status(500).json({ error: 'Failed to update profile embedding', details: err.message });
+    sendError(res, err, 'Update profile embedding error');
   }
 });
 
@@ -190,8 +198,7 @@ router.post('/update-job-embedding/:jobId', authMiddleware, requireRole('hiring_
       message: 'Job embedding updated successfully. Candidate matches will be refreshed.'
     });
   } catch (err) {
-    console.error('Update job embedding error:', err);
-    res.status(500).json({ error: 'Failed to update job embedding', details: err.message });
+    sendError(res, err, 'Update job embedding error');
   }
 });
 
@@ -245,8 +252,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
       });
     }
   } catch (err) {
-    console.error('Get stats error:', err);
-    res.status(500).json({ error: 'Failed to get stats', details: err.message });
+    sendError(res, err, 'Get stats error');
   }
 });
 
