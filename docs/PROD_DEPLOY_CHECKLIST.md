@@ -89,9 +89,9 @@ staging: 88e53f6 (3 commits ahead of main)
 | 1.3.4 | CORS whitelist | `server.js` | ✅ **FIXED** | Explicit callback, rejects unknown origins. |
 | 1.3.5 | Secure session cookies | `server.js` | ✅ **FIXED** | `secure: true` in production, `httpOnly`, `sameSite: lax`. |
 | 1.3.6 | `npm audit --audit-level high` | CI + local | ✅ **PASS** | `vite`/`rollup` path traversal fixed in recent commit. |
-| 1.3.7 | CSP `connectSrc` cleanup | `server.js` | ⚠️ **NEEDS FIX** | `https://rekrutai-dev.onrender.com` is in `connectSrc` for prod — should be conditional on `NODE_ENV`. |
-| 1.3.8 | Admin route brute-force protection | `routes/admin.js` | ⚠️ **GAP** | No dedicated rate limiter on `/api/admin` login. |
-| 1.3.9 | File upload security | `routes/documents.js` | ⚠️ **GAP** | Verify `multer` limits, file type validation, virus scan. |
+| 1.3.7 | CSP `connectSrc` cleanup | `server.js` | ✅ **FIXED** | Already conditional on `NODE_ENV` — dev URL only in development. |
+| 1.3.8 | Admin route brute-force protection | `routes/admin.js` | ✅ **FIXED** | Distributed rate limiter via PostgreSQL: 15-min window, 5 max attempts on `/api/admin/login`. |
+| 1.3.9 | File upload security | `routes/documents.js` | ✅ **PASS** | Multer: 50MB limit, mimetype filter (PDF/images/Word), memory storage, auth required. Virus scan = post-launch enhancement. |
 
 ### 1.4 Environment Variables & Secrets
 
