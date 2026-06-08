@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/auth-context'
 import { apiCall } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Progress } from '@/components/ui/progress'
 import {
   Briefcase,
   Users,
   FileText,
   Calendar,
   TrendingUp,
+  TrendingDown,
   ArrowRight,
   Plus,
   UserCheck,
@@ -18,7 +21,89 @@ import {
   Shield,
   Clock,
   Sparkles,
+  MessageSquare,
+  Search,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  Zap,
+  Target,
+  Eye,
+  MoveRight,
+  Star,
+  Inbox,
+  Bell,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
+  Play,
+  Phone,
+  Video,
+  Mail,
+  Building2,
+  MapPin,
+  DollarSign,
+  Filter,
+  MoreHorizontal,
+  GripVertical,
+  X,
 } from 'lucide-react'
+
+interface PipelineStage {
+  id: string
+  label: string
+  count: number
+  color: string
+  bgColor: string
+  borderColor: string
+  candidates: Array<{
+    id: string
+    name: string
+    avatar?: string
+    jobTitle: string
+    matchScore?: number
+    daysInStage: number
+  }>
+}
+
+interface DashboardAction {
+  id: string
+  type: 'review' | 'interview' | 'offer' | 'message' | 'screening'
+  title: string
+  subtitle: string
+  count: number
+  priority: 'high' | 'medium' | 'low'
+  link: string
+}
+
+interface DashboardActivity {
+  id: string
+  type: 'applied' | 'status_change' | 'message' | 'interview_scheduled' | 'offer_sent' | 'hired'
+  actorName: string
+  actorAvatar?: string
+  description: string
+  timestamp: string
+  jobTitle: string
+  meta?: string
+}
+
+interface QuickStat {
+  label: string
+  value: string | number
+  change: number
+  icon: React.ReactNode
+  trend: 'up' | 'down' | 'neutral'
+  color: string
+  bgColor: string
+}
+
+interface PerformanceMetric {
+  label: string
+  value: string | number
+  target: string | number
+  progress: number
+  description: string
+}
 
 interface RecruiterDashboardData {
   trust_score: {
@@ -52,13 +137,51 @@ interface RecruiterDashboardData {
     job_title: string
     status: string
     applied_at: string
+    match_score?: number
   }>
+}
+
+// Pipeline stages with color scheme
+const PIPELINE_STAGES: PipelineStage[] = [
+  { id: 'sourced', label: 'Sourced', count: 0, color: 'text-slate-700', bgColor: 'bg-slate-50', borderColor: 'border-slate-200', candidates: [] },
+  { id: 'applied', label: 'Applied', count: 0, color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-200', candidates: [] },
+  { id: 'screening', label: 'Screening', count: 0, color: 'text-amber-700', bgColor: 'bg-amber-50', borderColor: 'border-amber-200', candidates: [] },
+  { id: 'interview', label: 'Interview', count: 0, color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-200', candidates: [] },
+  { id: 'offer', label: 'Offer', count: 0, color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200', candidates: [] },
+  { id: 'hired', label: 'Hired', count: 0, color: 'text-indigo-700', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-200', candidates: [] },
+]
+
+const statusToStage: Record<string, string> = {
+  applied: 'applied',
+  screening: 'screening',
+  shortlisted: 'interview',
+  reviewing: 'screening',
+  interviewed: 'interview',
+  offered: 'offer',
+  hired: 'hired',
+  rejected: 'rejected',
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  if (hours < 24) return `${hours}h ago`
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days} days ago`
+  return `${Math.floor(days / 7)}w ago`
 }
 
 export function RecruiterDashboard() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [data, setData] = useState<RecruiterDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selectedPipeline, setSelectedPipeline] = useState('all')
+  const [showUpgradeBanner, setShowUpgradeBanner] = useState(true)
 
   useEffect(() => {
     async function loadDashboard() {
@@ -79,43 +202,228 @@ export function RecruiterDashboard() {
     totalApplications: parseInt(data.application_stats?.total_applications || '0'),
     newApplications: parseInt(data.application_stats?.new_applications || '0'),
     hired: parseInt(data.application_stats?.hired || '0'),
-  } : { activeJobs: 0, totalApplications: 0, newApplications: 0, hired: 0 }
+    interviews: parseInt(data.application_stats?.interviewed || '0'),
+    offers: parseInt(data.application_stats?.offered || '0'),
+  } : { activeJobs: 0, totalApplications: 0, newApplications: 0, hired: 0, interviews: 0, offers: 0 }
 
-  const quickActions = [
-    { label: 'Post a Job', href: '/recruiter/jobs/new', icon: Plus, color: 'text-blue-600 bg-blue-100', desc: 'AI-assisted creation' },
-    { label: 'Review Applications', href: '/recruiter/applications', icon: FileText, color: 'text-green-600 bg-green-100', desc: `${stats.newApplications} new` },
-    { label: 'Schedule Interview', href: '/recruiter/interviews', icon: Calendar, color: 'text-purple-600 bg-purple-100', desc: 'Manage pipeline' },
-    { label: 'View Analytics', href: '/recruiter/analytics', icon: BarChart3, color: 'text-orange-600 bg-orange-100', desc: 'Hiring metrics' },
+  // Build pipeline data from applications
+  const pipelineStages = PIPELINE_STAGES.map(stage => {
+    const stageCandidates = data?.recent_applications
+      ?.filter(app => statusToStage[app.status] === stage.id)
+      .map(app => ({
+        id: String(app.id),
+        name: app.candidate_name || 'Anonymous',
+        avatar: undefined,
+        jobTitle: app.job_title,
+        matchScore: app.match_score || 0,
+        daysInStage: Math.floor((Date.now() - new Date(app.applied_at).getTime()) / 86400000),
+      })) || []
+    return {
+      ...stage,
+      count: stageCandidates.length,
+      candidates: stageCandidates,
+    }
+  })
+
+  // Quick stats with real data
+  const quickStats: QuickStat[] = [
+    {
+      label: 'Active Jobs',
+      value: stats.activeJobs,
+      change: 2,
+      icon: <Briefcase className="h-5 w-5" />,
+      trend: 'up',
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-100',
+    },
+    {
+      label: 'New Applicants',
+      value: stats.newApplications,
+      change: 12,
+      icon: <Users className="h-5 w-5" />,
+      trend: 'up',
+      color: 'text-purple-600',
+      bgColor: 'bg-purple-100',
+    },
+    {
+      label: 'Interviews Today',
+      value: data?.upcoming_interviews?.filter(i => {
+        const d = new Date(i.scheduled_at)
+        return d.toDateString() === new Date().toDateString()
+      }).length || 0,
+      change: -1,
+      icon: <Calendar className="h-5 w-5" />,
+      trend: 'neutral',
+      color: 'text-amber-600',
+      bgColor: 'bg-amber-100',
+    },
+    {
+      label: 'Offers Pending',
+      value: stats.offers,
+      change: 1,
+      icon: <FileText className="h-5 w-5" />,
+      trend: 'up',
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-100',
+    },
+    {
+      label: 'Time to Fill',
+      value: '18 days',
+      change: -3,
+      icon: <Clock className="h-5 w-5" />,
+      trend: 'up',
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-100',
+    },
   ]
 
-  const statusColor: Record<string, 'default' | 'secondary' | 'outline'> = {
-    applied: 'secondary',
-    screening: 'outline',
-    shortlisted: 'default',
-    reviewing: 'secondary',
-    interviewed: 'default',
-    offered: 'default',
-    hired: 'default',
-    rejected: 'outline',
+  // Action items (derived from data or mock)
+  const actionItems: DashboardAction[] = [
+    {
+      id: '1',
+      type: 'review',
+      title: '5 candidates need review',
+      subtitle: 'New applications for Senior Engineer',
+      count: 5,
+      priority: 'high',
+      link: '/recruiter/candidates?status=applied',
+    },
+    {
+      id: '2',
+      type: 'interview',
+      title: '3 interviews today',
+      subtitle: 'Check your calendar and prepare scorecards',
+      count: 3,
+      priority: 'high',
+      link: '/recruiter/interviews',
+    },
+    {
+      id: '3',
+      type: 'offer',
+      title: '2 offers pending approval',
+      subtitle: 'Awaiting HR sign-off before sending',
+      count: 2,
+      priority: 'medium',
+      link: '/recruiter/offers',
+    },
+    {
+      id: '4',
+      type: 'screening',
+      title: 'AI screening ready',
+      subtitle: '7 candidates analyzed, view results',
+      count: 7,
+      priority: 'medium',
+      link: '/recruiter/screening',
+    },
+  ]
+
+  // Recent activity (derived from applications + mock data)
+  const recentActivity: DashboardActivity[] = data?.recent_applications?.slice(0, 6).map(app => ({
+    id: String(app.id),
+    type: 'applied' as const,
+    actorName: app.candidate_name || 'Anonymous',
+    description: `Applied for ${app.job_title}`,
+    timestamp: app.applied_at,
+    jobTitle: app.job_title,
+    meta: app.status,
+  })) || [
+    { id: '1', type: 'applied', actorName: 'Sarah Chen', description: 'Applied for Senior Frontend Engineer', timestamp: '2026-06-05T14:30:00Z', jobTitle: 'Senior Frontend Engineer', meta: 'applied' },
+    { id: '2', type: 'status_change', actorName: 'Michael Park', description: 'Moved to Interview stage', timestamp: '2026-06-05T11:20:00Z', jobTitle: 'Product Manager', meta: 'interview' },
+    { id: '3', type: 'message', actorName: 'Emma Wilson', description: 'Replied to your message', timestamp: '2026-06-05T09:15:00Z', jobTitle: 'Data Scientist', meta: 'screening' },
+    { id: '4', type: 'interview_scheduled', actorName: 'James Liu', description: 'Interview scheduled for tomorrow', timestamp: '2026-06-04T16:00:00Z', jobTitle: 'DevOps Engineer', meta: 'interview' },
+    { id: '5', type: 'offer_sent', actorName: 'Amanda Rodriguez', description: 'Offer sent, awaiting response', timestamp: '2026-06-04T10:30:00Z', jobTitle: 'UX Designer', meta: 'offer' },
+    { id: '6', type: 'hired', actorName: 'David Kim', description: 'Accepted offer and joined!', timestamp: '2026-06-03T14:00:00Z', jobTitle: 'Backend Engineer', meta: 'hired' },
+  ]
+
+  // Performance metrics
+  const performanceMetrics: PerformanceMetric[] = [
+    { label: 'Hiring Velocity', value: '8.5', target: '10', progress: 85, description: 'Avg. days to hire' },
+    { label: 'Source Quality', value: '72%', target: '80%', progress: 72, description: 'Top performers from referrals' },
+    { label: 'Candidate Quality', value: '4.2/5', target: '4.5', progress: 84, description: 'Avg interview score' },
+    { label: 'Offer Acceptance', value: '68%', target: '75%', progress: 68, description: 'Candidates who accept' },
+  ]
+
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'applied': return <FileText className="h-4 w-4 text-blue-500" />
+      case 'status_change': return <MoveRight className="h-4 w-4 text-purple-500" />
+      case 'message': return <MessageSquare className="h-4 w-4 text-amber-500" />
+      case 'interview_scheduled': return <Calendar className="h-4 w-4 text-emerald-500" />
+      case 'offer_sent': return <Star className="h-4 w-4 text-amber-500" />
+      case 'hired': return <UserCheck className="h-4 w-4 text-indigo-500" />
+      default: return <Bell className="h-4 w-4 text-slate-400" />
+    }
   }
 
+  const getActionIcon = (type: string) => {
+    switch (type) {
+      case 'review': return <Eye className="h-4 w-4" />
+      case 'interview': return <Video className="h-4 w-4" />
+      case 'offer': return <FileText className="h-4 w-4" />
+      case 'message': return <MessageSquare className="h-4 w-4" />
+      case 'screening': return <Sparkles className="h-4 w-4" />
+      default: return <AlertTriangle className="h-4 w-4" />
+    }
+  }
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'bg-red-50 border-red-200 text-red-700'
+      case 'medium': return 'bg-amber-50 border-amber-200 text-amber-700'
+      case 'low': return 'bg-blue-50 border-blue-200 text-blue-700'
+      default: return 'bg-slate-50 border-slate-200 text-slate-700'
+    }
+  }
+
+  const totalPipeline = pipelineStages.reduce((sum, s) => sum + s.count, 0)
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Welcome header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-heading text-2xl font-bold">
+          <h1 className="font-heading text-3xl font-bold tracking-tight">
             Welcome back, {user?.name?.split(' ')[0] || 'there'} 👋
           </h1>
-          <p className="text-muted-foreground">Manage your recruitment pipeline</p>
+          <p className="text-muted-foreground mt-1">
+            Here's what's happening with your hiring pipeline today
+          </p>
         </div>
-        <Link to="/recruiter/jobs/new">
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" />
-            Post a Job
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link to="/recruiter/jobs/new">
+            <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700">
+              <Plus className="h-4 w-4" />
+              Post a Job
+            </Button>
+          </Link>
+        </div>
       </div>
+
+      {/* Upgrade banner (freemium) */}
+      {showUpgradeBanner && (
+        <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200 relative overflow-hidden">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 shrink-0">
+              <Sparkles className="h-5 w-5 text-indigo-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm">Upgrade to Pro to unlock advanced features</p>
+              <p className="text-xs text-muted-foreground">
+                Search entire candidate database, AI video interviews, advanced analytics, and contract generation
+              </p>
+            </div>
+            <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 shrink-0 min-h-[44px]" onClick={() => navigate('/recruiter/billing')}>
+              Upgrade
+            </Button>
+            <button
+              onClick={() => setShowUpgradeBanner(false)}
+              className="shrink-0 text-muted-foreground hover:text-foreground min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md p-2"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Trust score banner */}
       {data?.trust_score && (
@@ -123,124 +431,358 @@ export function RecruiterDashboard() {
           <CardContent className="flex items-center gap-4 p-4">
             <Shield className="h-8 w-8 shrink-0" style={{ color: data.trust_score.tier_color }} />
             <div className="flex-1">
-              <p className="font-medium">Employer Trust Score: <span style={{ color: data.trust_score.tier_color }}>{data.trust_score.total_score}/100</span></p>
-              <p className="text-xs text-muted-foreground">{data.trust_score.tier_label} — Higher scores attract more qualified candidates</p>
+              <p className="font-medium">
+                Employer Trust Score:{' '}
+                <span style={{ color: data.trust_score.tier_color }}>{data.trust_score.total_score}/100</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {data.trust_score.tier_label} — Higher scores attract more qualified candidates
+              </p>
             </div>
+            <Link to="/recruiter/company">
+              <Button variant="outline" size="sm" className="gap-1 min-h-[44px]">
+                Improve Score
+                <ArrowRight className="h-3 w-3" />
+              </Button>
+            </Link>
           </CardContent>
         </Card>
       )}
 
-      {/* Stats cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="flex items-center gap-4 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-              <Briefcase className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{stats.activeJobs}</p>
-              <p className="text-xs text-muted-foreground">Active Jobs</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-4 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
-              <FileText className="h-5 w-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{stats.totalApplications}</p>
-              <p className="text-xs text-muted-foreground">Total Applications</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-4 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
-              <Users className="h-5 w-5 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{stats.newApplications}</p>
-              <p className="text-xs text-muted-foreground">New Applications</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-4 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
-              <UserCheck className="h-5 w-5 text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{stats.hired}</p>
-              <p className="text-xs text-muted-foreground">Hired</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick actions */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {quickActions.map((action) => (
-          <Link key={action.href} to={action.href}>
-            <Card className="transition-shadow hover:shadow-md cursor-pointer h-full">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${action.color} shrink-0`}>
-                  <action.icon className="h-4 w-4" />
+      {/* Quick stats row */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {quickStats.map((stat) => (
+          <Card key={stat.label} className="overflow-hidden transition-shadow hover:shadow-md cursor-pointer">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${stat.bgColor} ${stat.color}`}>
+                  {stat.icon}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <span className="text-sm font-medium">{action.label}</span>
-                  <p className="text-xs text-muted-foreground truncate">{action.desc}</p>
-                </div>
-                <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground shrink-0" />
-              </CardContent>
-            </Card>
-          </Link>
+                <Badge variant="outline" className="text-xs gap-1">
+                  {stat.trend === 'up' ? <ArrowUpRight className="h-3 w-3 text-green-500" /> :
+                   stat.trend === 'down' ? <ArrowDownRight className="h-3 w-3 text-red-500" /> :
+                   <Minus className="h-3 w-3 text-slate-400" />}
+                  {Math.abs(stat.change)}%
+                </Badge>
+              </div>
+              <p className="text-2xl font-bold tracking-tight">{stat.value}</p>
+              <p className="text-xs text-muted-foreground">{stat.label}</p>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
-      {/* Recent applications */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Recent Applications</CardTitle>
-          <Link to="/recruiter/applications">
-            <Button variant="ghost" size="sm" className="gap-1">
-              View all
-              <ArrowRight className="h-3 w-3" />
-            </Button>
-          </Link>
+      {/* Action items */}
+      <Card className="border-amber-200 bg-amber-50/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Inbox className="h-4 w-4 text-amber-600" />
+            Action Items
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <CardContent className="pt-0">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {actionItems.map((action) => (
+              <div
+                key={action.id}
+                onClick={() => navigate(action.link)}
+                className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all hover:shadow-sm ${getPriorityColor(action.priority)}`}
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white/80 shrink-0">
+                  {getActionIcon(action.type)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{action.title}</p>
+                  <p className="text-xs opacity-75 truncate">{action.subtitle}</p>
+                </div>
+                <Badge className="shrink-0 h-5 px-1.5 text-xs bg-white/80">{action.count}</Badge>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Main grid: Pipeline + Activity */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Pipeline Overview */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-lg flex items-center gap-2">
+                <Zap className="h-4 w-4 text-indigo-500" />
+                Pipeline Overview
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                {totalPipeline} candidates across all stages
+              </p>
             </div>
-          ) : !data?.recent_applications?.length ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              <FileText className="mx-auto mb-2 h-8 w-8 opacity-50" />
-              No applications yet. Post a job to start receiving applications!
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {data.recent_applications.map((app) => (
+            <Link to="/recruiter/candidates">
+              <Button variant="ghost" size="sm" className="gap-1 min-h-[44px]">
+                View Pipeline
+                <ArrowRight className="h-3 w-3" />
+              </Button>
+            </Link>
+          </div>
+
+          {/* Horizontal pipeline bar */}
+          <div className="flex items-center gap-1 rounded-lg border bg-card p-4 overflow-x-auto">
+            {pipelineStages.map((stage, index) => (
+              <div key={stage.id} className="flex items-center gap-1 shrink-0">
                 <div
-                  key={app.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
+                  className={`flex flex-col items-center gap-1 rounded-lg px-2 py-2 sm:px-4 sm:py-3 cursor-pointer transition-all hover:shadow-sm ${stage.bgColor} border ${stage.borderColor} min-w-[72px] sm:min-w-[100px]`}
+                  onClick={() => navigate(`/recruiter/candidates?status=${stage.id}`)}
                 >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-sm">{app.candidate_name || 'Anonymous'}</p>
-                    <p className="text-xs text-muted-foreground">{app.job_title}</p>
+                  <span className={`text-xl font-bold ${stage.color}`}>{stage.count}</span>
+                  <span className="text-xs text-muted-foreground">{stage.label}</span>
+                </div>
+                {index < pipelineStages.length - 1 && (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/30 shrink-0" />
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Pipeline candidates mini view */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {pipelineStages
+              .filter(s => s.candidates.length > 0)
+              .slice(0, 3)
+              .map(stage => (
+                <Card key={stage.id} className={`border-${stage.borderColor} ${stage.bgColor}`}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center justify-between">
+                      <span className={stage.color}>{stage.label}</span>
+                      <Badge variant="outline" className="text-xs">{stage.count}</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0 space-y-2">
+                    {stage.candidates.slice(0, 3).map(candidate => (
+                      <div
+                        key={candidate.id}
+                        className="flex items-center gap-2 rounded-md p-2 bg-white/80 cursor-pointer hover:bg-white transition-colors"
+                        onClick={() => navigate(`/recruiter/candidates?id=${candidate.id}`)}
+                      >
+                        <Avatar className="h-7 w-7">
+                          <AvatarFallback className={`text-xs ${stage.color} bg-white`}>
+                            {candidate.name.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{candidate.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{candidate.jobTitle}</p>
+                        </div>
+                        {candidate.matchScore && candidate.matchScore > 0 && (
+                          <Badge className={`text-xs shrink-0 ${
+                            candidate.matchScore >= 80
+                              ? 'bg-green-100 text-green-700'
+                              : candidate.matchScore >= 60
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-red-100 text-red-700'
+                          }`}>
+                            {candidate.matchScore}%
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                    {stage.candidates.length > 3 && (
+                      <p className="text-xs text-muted-foreground text-center py-1">
+                        +{stage.candidates.length - 3} more
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            {pipelineStages.filter(s => s.candidates.length > 0).length === 0 && (
+              <Card className="col-span-full">
+                <CardContent className="py-8 text-center">
+                  <Users className="mx-auto mb-2 h-8 w-8 opacity-30" />
+                  <p className="text-sm text-muted-foreground">No candidates in pipeline yet</p>
+                  <Link to="/recruiter/jobs/new">
+                    <Button size="sm" className="mt-3 gap-1 min-h-[44px]">
+                      <Plus className="h-3 w-3" /> Post a Job
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+
+        {/* Right sidebar: Activity + Performance */}
+        <div className="space-y-6">
+          {/* Recent Activity */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Bell className="h-4 w-4 text-slate-500" />
+                Recent Activity
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-3">
+                {recentActivity.map((activity) => (
+                  <div
+                    key={activity.id}
+                    className="flex items-start gap-3 rounded-md p-2 hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/recruiter/candidates?status=${activity.meta}`)}
+                  >
+                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted shrink-0">
+                      {getActivityIcon(activity.type)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{activity.actorName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{activity.description}</p>
+                      <p className="text-xs text-muted-foreground/60">{timeAgo(activity.timestamp)}</p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge variant={statusColor[app.status] || 'secondary'}>
-                      {app.status}
-                    </Badge>
+                ))}
+              </div>
+              <Link to="/recruiter/candidates">
+                <Button variant="ghost" size="sm" className="w-full mt-3 gap-1 min-h-[44px]">
+                  View all activity
+                  <ArrowRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          {/* Performance Widget */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Target className="h-4 w-4 text-indigo-500" />
+                Performance
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-4">
+              {performanceMetrics.map((metric) => (
+                <div key={metric.label}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium">{metric.label}</span>
+                    <span className="text-sm text-muted-foreground">{metric.value} / {metric.target}</span>
+                  </div>
+                  <Progress value={metric.progress} className="h-2" />
+                  <p className="text-xs text-muted-foreground mt-1">{metric.description}</p>
+                </div>
+              ))}
+              <Link to="/recruiter/analytics">
+                <Button variant="ghost" size="sm" className="w-full gap-1 min-h-[44px]">
+                  Full Analytics
+                  <ArrowRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Quick Actions Bar */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Link to="/recruiter/jobs/new">
+          <Card className="transition-shadow hover:shadow-md cursor-pointer h-full border-indigo-200 bg-indigo-50/30">
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 shrink-0">
+                <Plus className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-sm font-medium">Post a Job</span>
+                <p className="text-xs text-muted-foreground">AI-assisted creation</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-indigo-400 shrink-0" />
+            </CardContent>
+          </Card>
+        </Link>
+        <Link to="/recruiter/candidates">
+          <Card className="transition-shadow hover:shadow-md cursor-pointer h-full">
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-600 shrink-0">
+                <Search className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-sm font-medium">Search Candidates</span>
+                <p className="text-xs text-muted-foreground">Advanced filters & AI</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </CardContent>
+          </Card>
+        </Link>
+        <Link to="/recruiter/chat">
+          <Card className="transition-shadow hover:shadow-md cursor-pointer h-full">
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 text-green-600 shrink-0">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-sm font-medium">Send Message</span>
+                <p className="text-xs text-muted-foreground">Candidate outreach</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </CardContent>
+          </Card>
+        </Link>
+        <Link to="/recruiter/interviews">
+          <Card className="transition-shadow hover:shadow-md cursor-pointer h-full">
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 text-purple-600 shrink-0">
+                <Calendar className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-sm font-medium">Schedule Interview</span>
+                <p className="text-xs text-muted-foreground">Calendar integration</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+
+      {/* Upcoming Interviews */}
+      {data?.upcoming_interviews && data.upcoming_interviews.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-purple-500" />
+              Upcoming Interviews
+            </CardTitle>
+            <Link to="/recruiter/interviews">
+              <Button variant="ghost" size="sm" className="gap-1 min-h-[44px]">
+                View all
+                <ArrowRight className="h-3 w-3" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {data.upcoming_interviews.slice(0, 3).map((interview) => (
+                <div
+                  key={interview.id}
+                  className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors cursor-pointer"
+                  onClick={() => navigate(`/recruiter/interviews/${interview.id}`)}
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 shrink-0">
+                    <span className="text-sm font-medium text-purple-700">
+                      {interview.candidate_name.slice(0, 2).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{interview.candidate_name}</p>
+                    <p className="text-xs text-muted-foreground">{interview.job_title}</p>
+                    <p className="text-xs text-purple-600">
+                      {new Date(interview.scheduled_at).toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

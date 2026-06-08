@@ -1,0 +1,91 @@
+name: Bug Report
+about: Report a bug in Rekrut AI v2
+title: "[BUG] Brief description"
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Bug Report Template
+        
+  - type: dropdown
+    id: flow
+    attributes:
+      label: Which flow is affected?
+      options:
+        - Candidate - Homepage
+        - Candidate - Sign Up
+        - Candidate - Sign In
+        - Candidate - Dashboard
+        - Candidate - OmniScore
+        - Candidate - Documents
+        - Candidate - Job Search
+        - Candidate - Apply
+        - Recruiter - Homepage
+        - Recruiter - Sign Up
+        - Recruiter - Sign In
+        - Recruiter - Dashboard
+        - Recruiter - Candidates
+        - Recruiter - Jobs
+        - Recruiter - Screening
+        - Recruiter - Interviews
+        - Recruiter - Analytics
+        - General
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - P0 - Critical (App unusable)
+        - P1 - Major (Feature broken)
+        - P2 - Minor (UI issue)
+        - P3 - Cosmetic
+    validations:
+      required: true
+      
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      placeholder: What happened?
+    validations:
+      required: true
+      
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      placeholder: 1. Go to... 2. Click... 3. See...
+      
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      placeholder: What should happen?
+      
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      placeholder: What actually happened?
+      
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / Screen Recording
+      placeholder: Attach files or describe what you see
+      
+  - type: input
+    id: url
+    attributes:
+      label: URL where bug occurred
+      placeholder: https://rekrutai-dev.onrender.com/...
+      
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Chrome 120, Windows 11, etc.

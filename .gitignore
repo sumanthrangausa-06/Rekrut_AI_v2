@@ -8,5 +8,27 @@ bin/audio/
 # Polsia test fixtures (auto-injected, do not commit)
 test-fixtures/
 
+# Playwright test artifacts
+test-results/
+
+# Playwright auth state (contains tokens)
+e2e/.auth/
+
 # Client build is committed for deployment
 # client/node_modules/ is excluded via top-level node_modules/ rule
+.admin-credentials
+
+# Test artifacts and logs
+test-results/
+auth.log
+server.log
+client/test-responsive.html
+client/test-tailwind.js
+client/test-tailwind.mjs
+client/check-screens.mjs
+
+# Playwright auth state (local only, regenerate per run)
+e2e/.auth/
+
+# Stripe CLI (if installed locally)
+stripe

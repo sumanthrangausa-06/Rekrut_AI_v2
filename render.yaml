@@ -1,10 +1,391 @@
 services:
   - type: web
-    runtime: node
-    name: app
-    buildCommand: npm install && cd client && npm install && npm run build
-    startCommand: npm run build && npm start
+    name: rekrutai-prod
+    env: node
+    branch: main
+    buildCommand: cd client && npm install && npm run build && cd .. && npm install
+    startCommand: npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: rekrutai-prod-db
+          property: connectionString
+      - key: REKRUT_AI_URL
+        value: https://rekrutai.co
+      - key: APP_URL
+        value: https://rekrutai.co
+      - key: FRONTEND_URL
+        value: https://rekrutai.co
+      - key: BASE_URL
+        value: https://rekrutai.co
+      - key: CORS_ORIGINS
+        value: https://rekrutai.co,https://www.rekrutai.co
+      - key: JWT_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: POLSIA_API_KEY
+        sync: false
+      - key: POLSIA_API_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        sync: false
+      - key: OPENAI_DAILY_TOKEN_BUDGET
+        sync: false
+      - key: NVIDIA_NIM_API_KEY
+        sync: false
+      - key: NIM_BASE_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CEREBRAS_API_KEY
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: NIM_LLM_MODEL
+        sync: false
+      - key: NIM_LLM_LLAMA_8B
+        sync: false
+      - key: NIM_LLM_LLAMA_70B
+        sync: false
+      - key: NIM_LLM_GEMMA
+        sync: false
+      - key: NIM_LLM_GPT_OSS
+        sync: false
+      - key: NIM_LLM_NANO_30B
+        sync: false
+      - key: NIM_LLM_STEP_FLASH
+        sync: false
+      - key: NIM_LLM_ULTRA
+        sync: false
+      - key: NIM_REASONING_QWQ
+        sync: false
+      - key: NIM_SAFETY_MODEL
+        sync: false
+      - key: NIM_SAFETY_REASONING
+        sync: false
+      - key: NIM_VISION_GEMMA
+        sync: false
+      - key: NIM_VISION_FALLBACK_MODEL
+        sync: false
+      - key: NIM_EMBED_MODEL
+        sync: false
+      - key: NIM_EMBED_VL
+        sync: false
+      - key: NIM_DOCUMENT_MODEL
+        sync: false
+      - key: NIM_ASR_MODEL
+        sync: false
+      - key: NIM_ASR_V3
+        sync: false
+      - key: NIM_TTS_BASE_URL
+        sync: false
+      - key: NIM_FASTPITCH_BASE_URL
+        sync: false
+      - key: NIM_MAGPIE_ZERO_BASE_URL
+        sync: false
+      - key: NIM_MAGPIE_FLOW_BASE_URL
+        sync: false
+      - key: NIM_MAGPIE_MULTI_BASE_URL
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+      - key: EMAIL_FROM_NAME
+        sync: false
+      - key: EMAIL_RATE_LIMIT
+        sync: false
+      - key: EMAIL_RATE_LIMIT_HOUR
+        sync: false
+      - key: EMAIL_RETRY_ATTEMPTS
+        sync: false
+      - key: EMAIL_RETRY_DELAY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: LINKEDIN_CLIENT_ID
+        sync: false
+      - key: LINKEDIN_CLIENT_SECRET
+        sync: false
+      - key: LINKEDIN_REDIRECT_URI
+        sync: false
+      - key: FORCE_SSL_VERIFY
+        value: true
+    autoDeploy: true
+    numInstances: 1
+    plan: standard
+
+  - type: web
+    name: rekrutai-staging
+    env: node
+    branch: staging
+    buildCommand: cd client && npm install && npm run build && cd .. && npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: rekrutai-staging-db
+          property: connectionString
+      - key: REKRUT_AI_URL
+        value: https://rekrutai-staging.onrender.com
+      - key: APP_URL
+        value: https://rekrutai-staging.onrender.com
+      - key: FRONTEND_URL
+        value: https://rekrutai-staging.onrender.com
+      - key: BASE_URL
+        value: https://rekrutai-staging.onrender.com
+      - key: CORS_ORIGINS
+        value: https://rekrutai-staging.onrender.com
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: POLSIA_API_KEY
+        sync: false
+      - key: POLSIA_API_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        sync: false
+      - key: NVIDIA_NIM_API_KEY
+        sync: false
+      - key: NIM_BASE_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CEREBRAS_API_KEY
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+      - key: EMAIL_FROM_NAME
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: LINKEDIN_CLIENT_ID
+        sync: false
+      - key: LINKEDIN_CLIENT_SECRET
+        sync: false
+      - key: LINKEDIN_REDIRECT_URI
+        sync: false
+      - key: FORCE_SSL_VERIFY
+        value: true
+    autoDeploy: true
+    numInstances: 1
+
+  - type: web
+    name: rekrutai-dev
+    env: node
+    branch: dev
+    buildCommand: cd client && npm install && npm run build && cd .. && npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: development
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: rekrutai-dev-db
+          property: connectionString
+      - key: REKRUT_AI_URL
+        value: https://rekrutai-dev.onrender.com
+      - key: APP_URL
+        value: https://rekrutai-dev.onrender.com
+      - key: FRONTEND_URL
+        value: https://rekrutai-dev.onrender.com
+      - key: BASE_URL
+        value: https://rekrutai-dev.onrender.com
+      - key: CORS_ORIGINS
+        value: https://rekrutai-dev.onrender.com
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: POLSIA_API_KEY
+        sync: false
+      - key: POLSIA_API_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        sync: false
+      - key: NVIDIA_NIM_API_KEY
+        sync: false
+      - key: NIM_BASE_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CEREBRAS_API_KEY
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+      - key: EMAIL_FROM_NAME
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: LINKEDIN_CLIENT_ID
+        sync: false
+      - key: LINKEDIN_CLIENT_SECRET
+        sync: false
+      - key: LINKEDIN_REDIRECT_URI
+        sync: false
+      - key: FORCE_SSL_VERIFY
+        value: false
+    autoDeploy: true
+    numInstances: 1
+
+  - type: pserv
+    name: rekrutai-prod-db
+    env: postgresql
+    branch: main
+    plan: standard
+    ipAllowList: []
+
+  - type: pserv
+    name: rekrutai-staging-db
+    env: postgresql
+    branch: staging
+    plan: starter
+    ipAllowList: []
+
+  - type: pserv
+    name: rekrutai-dev-db
+    env: postgresql
+    branch: dev
+    plan: starter
+    ipAllowList: []

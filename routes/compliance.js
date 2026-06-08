@@ -6,6 +6,19 @@ const { AuditLogger } = require('../services/auditLogger');
 const BiasDetection = require('../services/biasDetection');
 const ScoreExplainer = require('../services/scoreExplainer');
 
+function canAccessUserRecord(req, userId) {
+  const targetId = Number(userId);
+  if (!Number.isInteger(targetId)) {
+    return { ok: false, status: 400, error: 'Valid user ID required' };
+  }
+
+  if (req.user?.role === 'admin' || req.user?.id === targetId) {
+    return { ok: true, targetId };
+  }
+
+  return { ok: false, status: 403, error: 'You can only access your own compliance data' };
+}
+
 /**
  * GDPR COMPLIANCE ENDPOINTS
  */
@@ -14,19 +27,22 @@ const ScoreExplainer = require('../services/scoreExplainer');
 router.post('/gdpr/export', authMiddleware, async (req, res) => {
   try {
     const { userId } = req.body;
+    const access = canAccessUserRecord(req, userId);
 
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID required' });
+    if (!access.ok) {
+      return res.status(access.status).json({ error: access.error });
     }
 
+    const targetUserId = access.targetId;
+
     // Gather all user data
-    const userData = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
-    const omniscoreData = await pool.query('SELECT * FROM omniscore_results WHERE user_id = $1', [userId]);
-    const interviewData = await pool.query('SELECT * FROM interviews WHERE user_id = $1', [userId]);
-    const assessmentData = await pool.query('SELECT * FROM assessment_results WHERE user_id = $1', [userId]);
-    const profileData = await pool.query('SELECT * FROM candidate_profiles WHERE user_id = $1', [userId]);
-    const consentData = await pool.query('SELECT * FROM consent_records WHERE user_id = $1', [userId]);
-    const auditData = await pool.query('SELECT * FROM audit_logs WHERE user_id = $1', [userId]);
+    const userData = await pool.query('SELECT * FROM users WHERE id = $1', [targetUserId]);
+    const omniscoreData = await pool.query('SELECT * FROM omniscore_results WHERE user_id = $1', [targetUserId]);
+    const interviewData = await pool.query('SELECT * FROM interviews WHERE user_id = $1', [targetUserId]);
+    const assessmentData = await pool.query('SELECT * FROM assessment_results WHERE user_id = $1', [targetUserId]);
+    const profileData = await pool.query('SELECT * FROM candidate_profiles WHERE user_id = $1', [targetUserId]);
+    const consentData = await pool.query('SELECT * FROM consent_records WHERE user_id = $1', [targetUserId]);
+    const auditData = await pool.query('SELECT * FROM audit_logs WHERE user_id = $1', [targetUserId]);
 
     const exportData = {
       user: userData.rows[0],
@@ -42,9 +58,9 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
     // Log the data export request
     await AuditLogger.log({
       actionType: 'gdpr_data_export',
-      userId,
+      userId: targetUserId,
       targetType: 'user',
-      targetId: userId,
+      targetId: targetUserId,
       metadata: { export_size: JSON.stringify(exportData).length },
       req
     });
@@ -53,7 +69,7 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
     await pool.query(
       `INSERT INTO data_requests (user_id, request_type, status, processed_at)
        VALUES ($1, 'export', 'completed', NOW())`,
-      [userId]
+      [targetUserId]
     );
 
     res.json({
@@ -70,13 +86,20 @@ router.post('/gdpr/export', authMiddleware, async (req, res) => {
 router.post('/gdpr/delete', authMiddleware, async (req, res) => {
   try {
     const { userId, confirmEmail } = req.body;
+    const access = canAccessUserRecord(req, userId);
 
-    if (!userId || !confirmEmail) {
+    if (!access.ok) {
+      return res.status(access.status).json({ error: access.error });
+    }
+
+    const targetUserId = access.targetId;
+
+    if (!confirmEmail) {
       return res.status(400).json({ error: 'User ID and email confirmation required' });
     }
 
     // Verify email matches
-    const userCheck = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
+    const userCheck = await pool.query('SELECT email FROM users WHERE id = $1', [targetUserId]);
     if (userCheck.rows.length === 0 || userCheck.rows[0].email !== confirmEmail) {
       return res.status(403).json({ error: 'Email confirmation failed' });
     }
@@ -86,14 +109,14 @@ router.post('/gdpr/delete', authMiddleware, async (req, res) => {
       `INSERT INTO data_requests (user_id, request_type, status, notes)
        VALUES ($1, 'deletion', 'pending', 'Awaiting compliance review')
        RETURNING id`,
-      [userId]
+      [targetUserId]
     );
 
     await AuditLogger.log({
       actionType: 'gdpr_deletion_requested',
-      userId,
+      userId: targetUserId,
       targetType: 'user',
-      targetId: userId,
+      targetId: targetUserId,
       metadata: { request_id: result.rows[0].id },
       req
     });
@@ -114,8 +137,15 @@ router.post('/gdpr/delete', authMiddleware, async (req, res) => {
 router.post('/gdpr/consent', authMiddleware, async (req, res) => {
   try {
     const { userId, consentType, consented } = req.body;
+    const access = canAccessUserRecord(req, userId);
 
-    if (!userId || !consentType || consented === undefined) {
+    if (!access.ok) {
+      return res.status(access.status).json({ error: access.error });
+    }
+
+    const targetUserId = access.targetId;
+
+    if (!consentType || consented === undefined) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
@@ -124,7 +154,7 @@ router.post('/gdpr/consent', authMiddleware, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5)
        RETURNING id`,
       [
-        userId,
+        targetUserId,
         consentType,
         consented,
         consented ? new Date() : null,
@@ -134,7 +164,7 @@ router.post('/gdpr/consent', authMiddleware, async (req, res) => {
 
     await AuditLogger.log({
       actionType: 'consent_recorded',
-      userId,
+      userId: targetUserId,
       targetType: 'consent',
       targetId: result.rows[0].id,
       metadata: { consent_type: consentType, consented },
@@ -152,10 +182,15 @@ router.post('/gdpr/consent', authMiddleware, async (req, res) => {
 router.get('/gdpr/consents/:userId', authMiddleware, async (req, res) => {
   try {
     const { userId } = req.params;
+    const access = canAccessUserRecord(req, userId);
+
+    if (!access.ok) {
+      return res.status(access.status).json({ error: access.error });
+    }
 
     const result = await pool.query(
       `SELECT * FROM consent_records WHERE user_id = $1 ORDER BY created_at DESC`,
-      [userId]
+      [access.targetId]
     );
 
     res.json({ success: true, consents: result.rows });
@@ -359,10 +394,15 @@ router.post('/appeal', authMiddleware, async (req, res) => {
 router.get('/appeal/:userId', authMiddleware, async (req, res) => {
   try {
     const { userId } = req.params;
+    const access = canAccessUserRecord(req, userId);
+
+    if (!access.ok) {
+      return res.status(access.status).json({ error: access.error });
+    }
 
     const result = await pool.query(
       `SELECT * FROM score_appeals WHERE user_id = $1 ORDER BY created_at DESC`,
-      [userId]
+      [access.targetId]
     );
 
     res.json({
