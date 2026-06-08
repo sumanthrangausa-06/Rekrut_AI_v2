@@ -27,9 +27,9 @@ test.describe('Recruiter Job Post and Pipeline Flow', () => {
     await page.getByPlaceholder(/Describe the role, responsibilities/i).fill('End-to-end testing position for pipeline verification.');
 
     // Step 2: Requirements
-    await page.getByRole('button', { name: /Next/i }).click();
+    await page.getByRole('button', { name: /Next/i }).first().click();
     await page.waitForSelector('text=Requirements');
-    await page.getByRole('button', { name: /Next/i }).click();
+    await page.getByRole('button', { name: /Next/i }).first().click();
 
     // Step 3: Preview & Post
     await page.waitForSelector('text=Preview');
@@ -111,12 +111,12 @@ test.describe('Recruiter Job Post and Pipeline Flow', () => {
     // Verify applicant is in the Offered column
     await expect(page.getByText('Offered').first()).toBeVisible({ timeout: 10000 });
 
-    // ─── 5. Verify Job Still Listed on Recruiter Dashboard ───
-    await page.goto('/recruiter');
+    // ─── 5. Verify Job Still Listed on Recruiter Jobs Page ───
+    await page.goto('/recruiter/jobs');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(800);
 
-    // Dashboard may show 'Welcome back', 'Active Jobs', or similar — be flexible
-    await expect(page.getByText(/Welcome back|Active Jobs|Dashboard/i).first()).toBeVisible({ timeout: 10000 });
+    // Jobs page shows 'Job Postings' heading — verify the page loaded
+    await expect(page.getByText(/Job Postings|Active Jobs|Posted Jobs/i).first()).toBeVisible({ timeout: 10000 });
   });
 });

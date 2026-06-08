@@ -42,9 +42,9 @@ test.describe('Mobile Navigation — Landing Page', () => {
     await page.getByRole('link', { name: 'Pricing' }).first().click()
 
     await expect(page).toHaveURL(/.*\/pricing/)
-    // Use a flexible locator: heading may be "Pricing", "Plans", or similar
+    // Use a flexible locator: heading may be "Choose a plan", "Pricing", or similar
     // Fallback: if no h1/h2 matches, check for any pricing-related text
-    const pricingHeading = page.locator('h1, h2').filter({ hasText: /Pricing|Plans/i }).first()
+    const pricingHeading = page.locator('h1, h2').filter({ hasText: /Choose a plan/i }).first()
     const hasHeading = await pricingHeading.isVisible().catch(() => false)
     if (!hasHeading) {
       // Some pricing pages render without a traditional heading; verify URL and any text

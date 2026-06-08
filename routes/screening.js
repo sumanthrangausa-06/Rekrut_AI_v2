@@ -8,6 +8,7 @@ const router = express.Router();
 const { authMiddleware } = require('../lib/auth');
 const screener = require('../lib/recruiter-screener');
 const pool = require('../lib/db');
+const { AuditLogger } = require('../services/auditLogger');
 
 /**
  * POST /api/screening/analyze
@@ -90,6 +91,24 @@ router.post('/analyze', authMiddleware, async (req, res) => {
         screened_at = NOW()
     `, [candidate_id, job_id, screeningResult.fit_score, screeningResult.recommendation, 
         JSON.stringify(screeningResult), req.user.id]);
+    
+    // Audit log: AI screening decision
+    await AuditLogger.log({
+      actionType: 'screening_decision',
+      userId: req.user.id,
+      targetType: 'job_application',
+      targetId: candidate_id,
+      metadata: {
+        candidate_id: candidate_id,
+        job_id: job_id,
+        fit_score: screeningResult.fit_score,
+        recommendation: screeningResult.recommendation,
+        model_version: 'recruiter-screener-v1',
+        confidence: screeningResult.fit_score / 100,
+        decision: screeningResult.recommendation
+      },
+      req
+    });
     
     res.json({
       success: true,
