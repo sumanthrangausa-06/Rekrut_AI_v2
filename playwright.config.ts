@@ -26,7 +26,7 @@ export default defineConfig({
   reporter: 'list',
 
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
 
@@ -90,7 +90,7 @@ export default defineConfig({
   // per-file test runs.
   // globalTeardown: require.resolve('./e2e/global-teardown.ts'),
 
-  webServer: {
+  webServer: process.env.BASE_URL ? undefined : {
     command: 'node server.js',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,

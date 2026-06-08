@@ -5,9 +5,11 @@ test.use({ storageState: 'e2e/.auth/recruiter.json' });
 
 function getToken(path: string): string {
   const data = JSON.parse(fs.readFileSync(path, 'utf-8'));
-  const origin = data.origins?.find((o: any) => o.origin === 'http://localhost:3000');
-  const token = origin?.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value;
-  return token || '';
+  const origin = data.origins?.find((o: any) => {
+    const token = o.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value;
+    return !!token;
+  });
+  return origin?.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value || '';
 }
 
 // ───────────────────────────────────────────────
