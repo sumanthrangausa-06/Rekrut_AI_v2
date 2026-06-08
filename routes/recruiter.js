@@ -995,8 +995,13 @@ router.get('/candidates/full', authMiddleware, requireRecruiter, async (req, res
       }
     });
   } catch (err) {
-    console.error('Get full candidates error:', err);
-    res.status(500).json({ error: 'Failed to fetch candidates', message: err.message });
+    const ref = require('crypto').randomUUID();
+    console.error(`[ERROR ref=${ref}] Get full candidates error:`, err);
+    if (process.env.NODE_ENV === 'production') {
+      res.status(500).json({ error: 'Internal server error', ref });
+    } else {
+      res.status(500).json({ error: 'Failed to fetch candidates', message: err.message, ref });
+    }
   }
 });
 
@@ -1053,8 +1058,13 @@ router.get('/pipeline-stats', authMiddleware, requireRecruiter, async (req, res)
       }
     });
   } catch (err) {
-    console.error('Get pipeline stats error:', err);
-    res.status(500).json({ error: 'Failed to fetch pipeline stats', message: err.message });
+    const ref = require('crypto').randomUUID();
+    console.error(`[ERROR ref=${ref}] Get pipeline stats error:`, err);
+    if (process.env.NODE_ENV === 'production') {
+      res.status(500).json({ error: 'Internal server error', ref });
+    } else {
+      res.status(500).json({ error: 'Failed to fetch pipeline stats', message: err.message, ref });
+    }
   }
 });
 

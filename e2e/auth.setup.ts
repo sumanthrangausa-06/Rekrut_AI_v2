@@ -1,5 +1,8 @@
 // Auth setup: purely API-based. No browser contexts are spawned here,
 // which avoids the major memory spike that caused SIGKILL in CI.
+//
+// Note: The suite runners (run-e2e-sequential.js / run-e2e-suite.sh) delete
+// auth files before every run, so tokens are always fresh.
 import { test as setup, expect } from '@playwright/test';
 import * as fs from 'fs';
 
@@ -7,22 +10,16 @@ const CANDIDATE_EMAIL = 'e2e-candidate@rekrutai.test';
 const RECRUITER_EMAIL = 'e2e-recruiter@rekrutai.test';
 const PASSWORD = 'TestPass123!';
 
-/** Return true if the token in the given storageState file is valid for at least 5 more minutes. */
 function isAuthValid(path: string): boolean {
   if (!fs.existsSync(path)) return false;
   try {
     const data = JSON.parse(fs.readFileSync(path, 'utf-8'));
-    const origin = data.origins?.find((o: any) => o.origin === 'http://localhost:3000');
-    const tokenEntry = origin?.localStorage?.find((entry: any) => entry.name === 'token');
-    if (!tokenEntry) return false;
-    const token = tokenEntry.value as string;
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
-    if (!payload.exp) return false;
-    const now = Math.floor(Date.now() / 1000);
-    // Require at least 5 minutes of remaining validity
-    return payload.exp - now > 300;
+    const origin = data.origins?.find((o: any) => {
+      const token = o.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value;
+      return !!token;
+    });
+    const token = origin?.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value;
+    return !!token;
   } catch {
     return false;
   }
@@ -101,11 +98,12 @@ async function getOrCreateUser(
 }
 
 function writeStorageState(token: string, refreshToken: string, path: string) {
+  const baseURL = process.env.BASE_URL || 'http://localhost:3000';
   const storageState = {
     cookies: [] as any[],
     origins: [
       {
-        origin: 'http://localhost:3000',
+        origin: baseURL,
         localStorage: [
           { name: 'rekrutai_token', value: token },
           { name: 'rekrutai_refresh', value: refreshToken },
@@ -120,7 +118,10 @@ function writeStorageState(token: string, refreshToken: string, path: string) {
 
 setup('authenticate candidate', async ({ request }) => {
   const path = 'e2e/.auth/candidate.json';
-  // Always regenerate to avoid setup-skip cascading to dependent tests
+  if (isAuthValid(path)) {
+    setup.skip(true, 'Candidate auth state is valid');
+    return;
+  }
   if (fs.existsSync(path)) fs.unlinkSync(path);
   const { token, refreshToken } = await getOrCreateUser(
     request,
@@ -133,7 +134,10 @@ setup('authenticate candidate', async ({ request }) => {
 
 setup('authenticate recruiter', async ({ request }) => {
   const path = 'e2e/.auth/recruiter.json';
-  // Always regenerate to avoid setup-skip cascading to dependent tests
+  if (isAuthValid(path)) {
+    setup.skip(true, 'Recruiter auth state is valid');
+    return;
+  }
   if (fs.existsSync(path)) fs.unlinkSync(path);
   const { token, refreshToken } = await getOrCreateUser(
     request,
@@ -141,6 +145,23 @@ setup('authenticate recruiter', async ({ request }) => {
     'recruiter',
     'E2E Recruiter',
     'E2E Test Co'
+  );
+  writeStorageState(token, refreshToken, path);
+});
+
+setup('authenticate admin', async ({ request }) => {
+  const path = 'e2e/.auth/admin.json';
+  if (isAuthValid(path)) {
+    setup.skip(true, 'Admin auth state is valid');
+    return;
+  }
+  if (fs.existsSync(path)) fs.unlinkSync(path);
+  const { token, refreshToken } = await getOrCreateUser(
+    request,
+    'e2e-admin-qa@rekrutai.test',
+    'recruiter',
+    'E2E Admin',
+    'E2E Admin Co'
   );
   writeStorageState(token, refreshToken, path);
 });

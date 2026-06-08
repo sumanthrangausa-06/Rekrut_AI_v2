@@ -1,4 +1,4 @@
-import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiCall } from '@/lib/api'
@@ -456,14 +456,13 @@ export function RecruiterJobsPage() {
       )}
 
       {/* === MOBILE JOB DETAIL DRAWER (Sheet) === */}
-      <Sheet open={showMobilePanel} onOpenChange={setShowMobilePanel}>
-        <SheetContent className="w-full overflow-x-hidden">
+      <Sheet open={showMobilePanel} onOpenChange={setShowMobilePanel} side="right">
+        <SheetContent className="w-full sm:max-w-md overflow-x-hidden">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <Briefcase className="h-5 w-5" />
               Job Details
             </SheetTitle>
-            <SheetClose />
           </SheetHeader>
           {selectedJob && (
             <JobDetailPanel
@@ -505,7 +504,7 @@ function JobDetailPanel({
     (job.hired_count || 0)
 
   return (
-    <div className="space-y-5 max-w-full pb-6">
+    <div className="space-y-5 max-w-full">
       {/* Header */}
       <div className="space-y-3">
         <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:flex-wrap">
@@ -516,7 +515,7 @@ function JobDetailPanel({
               {status.label}
             </Badge>
             {job.status === 'active' && (
-              <Badge variant="outline" className="text-xs gap-1 bg-green-50 text-green-700 border-green-200 shrink-0 max-w-full">
+              <Badge variant="outline" className="text-xs gap-1 bg-green-50 text-green-700 border-green-200 shrink-0 max-w-full truncate">
                 <ArrowUpRight className="h-3 w-3" />
                 Live
               </Badge>
@@ -525,20 +524,20 @@ function JobDetailPanel({
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           {job.department && (
-            <span className="flex items-center gap-1 max-w-full">
+            <span className="flex items-center gap-1 max-w-full min-w-0">
               <Briefcase className="h-3.5 w-3.5 shrink-0" />
               <span className="break-words">{job.department}</span>
             </span>
           )}
           {job.location && (
-            <span className="flex items-center gap-1 max-w-full">
+            <span className="flex items-center gap-1 max-w-full min-w-0">
               <MapPin className="h-3.5 w-3.5 shrink-0" />
               <span className="break-words">{job.location}</span>
             </span>
           )}
-          {job.job_type && <Badge variant="outline" className="text-xs max-w-full whitespace-normal">{job.job_type}</Badge>}
-          {job.salary_range && <Badge variant="outline" className="text-xs max-w-full whitespace-normal">{job.salary_range}</Badge>}
-          <span className="flex items-center gap-1 max-w-full">
+          {job.job_type && <Badge variant="outline" className="text-xs shrink-0 max-w-full truncate">{job.job_type}</Badge>}
+          {job.salary_range && <Badge variant="outline" className="text-xs shrink-0 max-w-full truncate">{job.salary_range}</Badge>}
+          <span className="flex items-center gap-1 max-w-full min-w-0">
             <Clock className="h-3 w-3 shrink-0" />
             <span className="break-words">{timeAgo(job.created_at)}</span>
           </span>
@@ -546,29 +545,29 @@ function JobDetailPanel({
       </div>
 
       {/* Pipeline Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
-          <p className="text-xl sm:text-2xl font-bold">{job.application_count || 0}</p>
+          <p className="text-xl sm:text-2xl font-bold truncate">{job.application_count || 0}</p>
           <p className="text-xs text-muted-foreground">Applicants</p>
         </div>
         <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
-          <p className="text-xl sm:text-2xl font-bold">{job.views || 0}</p>
+          <p className="text-xl sm:text-2xl font-bold truncate">{job.views || 0}</p>
           <p className="text-xs text-muted-foreground">Views</p>
         </div>
         <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
-          <p className="text-xl sm:text-2xl font-bold text-emerald-600">{job.hired_count || 0}</p>
+          <p className="text-xl sm:text-2xl font-bold text-emerald-600 truncate">{job.hired_count || 0}</p>
           <p className="text-xs text-muted-foreground">Hired</p>
         </div>
         <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
-          <p className="text-xl sm:text-2xl font-bold">{job.interviews || 0}</p>
+          <p className="text-xl sm:text-2xl font-bold truncate">{job.interviews || 0}</p>
           <p className="text-xs text-muted-foreground">Interviews</p>
         </div>
         <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
-          <p className="text-xl sm:text-2xl font-bold text-amber-600">{job.offer_count || 0}</p>
+          <p className="text-xl sm:text-2xl font-bold text-amber-600 truncate">{job.offer_count || 0}</p>
           <p className="text-xs text-muted-foreground">Offers</p>
         </div>
         <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
-          <p className="text-xl sm:text-2xl font-bold">{job.time_to_fill || '—'}</p>
+          <p className="text-xl sm:text-2xl font-bold truncate">{job.time_to_fill || '—'}</p>
           <p className="text-xs text-muted-foreground">Days to Fill</p>
         </div>
       </div>
@@ -621,7 +620,7 @@ function JobDetailPanel({
                           : 0
               if (count === 0) return null
               return (
-                <div key={stage.id} className="flex items-center gap-1 max-w-full">
+                <div key={stage.id} className="flex items-center gap-1 max-w-full min-w-0">
                   <div className={`h-2 w-2 rounded-full shrink-0 ${stage.color}`} />
                   <span className="text-xs text-muted-foreground break-words">
                     {stage.label}: {count}
@@ -643,7 +642,7 @@ function JobDetailPanel({
           View Applicants
         </Button>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Button
             variant="outline"
             className="gap-2 min-h-[48px]"

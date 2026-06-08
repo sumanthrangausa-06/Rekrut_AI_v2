@@ -94,7 +94,7 @@ router.post('/register', async (req, res) => {
       const company = companyResult.rows[0];
 
       // Create recruiter user
-      const password_hash = await bcrypt.hash(password, 10);
+      const password_hash = await bcrypt.hash(password, 13);
       const userResult = await client.query(
         `INSERT INTO users (email, password_hash, name, role, company_name, company_id)
          VALUES ($1, $2, $3, 'recruiter', $4, $5)
@@ -546,7 +546,7 @@ router.post('/team/invite', authMiddleware, async (req, res) => {
 
     // Generate temporary password
     const tempPassword = Math.random().toString(36).slice(-8);
-    const password_hash = await bcrypt.hash(tempPassword, 10);
+    const password_hash = await bcrypt.hash(tempPassword, 13);
 
     // Get company name
     const company = await pool.query('SELECT name FROM companies WHERE id = $1', [req.user.company_id]);

@@ -1,0 +1,1 @@
+import{j as r}from"./react-n0ZtisMb.js";import{C as t}from"./chat-sIANxwbI.js";import"./index-xrijTpRU.js";import"./react-dom-CiUt8qTp.js";import"./vendor-D2vs-GsL.js";import"./router-DpA6E-Ix.js";import"./input-DGjkYajv.js";import"./scroll-area-CFhKZpVD.js";function n(){return r.jsx(t,{mode:"recruiter"})}export{n as RecruiterChatPage};

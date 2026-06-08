@@ -12,15 +12,25 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          ui: ['lucide-react'],
+        manualChunks(id: string) {
+          // Vendor libraries
+          if (id.includes('node_modules')) {
+            if (id.includes('react-router')) return 'router'
+            if (id.includes('react-dom')) return 'react-dom'
+            if (id.includes('react')) return 'react'
+            if (id.includes('lucide-react')) return 'icons'
+            // Catch-all for any other heavy deps
+            return 'vendor'
+          }
         },
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash][extname]',
       },
     },
-    chunkSizeWarningLimit: 600,
   },
   server: {
     proxy: {

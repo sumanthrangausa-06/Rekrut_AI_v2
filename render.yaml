@@ -4,7 +4,7 @@ services:
     env: node
     branch: main
     buildCommand: cd client && npm install --include=dev && npm run build && cd .. && npm install
-    startCommand: npm start
+    startCommand: npm run migrate && npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -12,9 +12,7 @@ services:
       - key: PORT
         value: 10000
       - key: DATABASE_URL
-        fromDatabase:
-          name: rekrutai-prod-db
-          property: connectionString
+        sync: false
       - key: REKRUT_AI_URL
         value: https://rekrutai.co
       - key: APP_URL
@@ -168,7 +166,7 @@ services:
     env: node
     branch: staging
     buildCommand: cd client && npm install --include=dev && npm run build && cd .. && npm install
-    startCommand: npm start
+    startCommand: npm run migrate && npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -265,13 +263,14 @@ services:
         value: true
     autoDeploy: true
     numInstances: 1
+    plan: starter
 
   - type: web
     name: rekrutai-dev
     env: node
     branch: dev
     buildCommand: cd client && npm install --include=dev && npm run build && cd .. && npm install
-    startCommand: npm start
+    startCommand: npm run migrate && npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
