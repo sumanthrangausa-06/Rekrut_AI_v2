@@ -5,6 +5,7 @@ const { authMiddleware } = require('../lib/auth');
 const { chat, handleAIError } = require('../lib/polsia-ai');
 const omniscoreService = require('../services/omniscore');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
+const { AuditLogger } = require('../services/auditLogger');
 
 // Skill catalog - available to all candidates without pre-existing skills
 const SKILL_CATALOG = [
@@ -284,6 +285,23 @@ router.post('/answer', authMiddleware, async (req, res) => {
       isCorrect = evaluation.score >= 70;
       scorePoints = Math.round((evaluation.score / 100) * (question.difficulty_level || 2) * 15);
       aiFeedback = evaluation.feedback;
+
+      // Log AI explanation generation for compliance
+      await AuditLogger.log({
+        actionType: 'ai_explanation_generated',
+        userId: userId,
+        targetType: 'assessment_question',
+        targetId: questionId,
+        metadata: {
+          session_id: sessionId,
+          question_type: 'short_answer',
+          ai_score: evaluation.score,
+          model_version: 'adaptive-assessment-v1',
+          confidence: evaluation.score / 100,
+          explanation_type: 'answer_evaluation'
+        },
+        req: null
+      });
     }
 
     // Check for time anomaly (too fast)
@@ -661,6 +679,24 @@ async function completeAssessment(client, sessionId, userId) {
   } catch (err) {
     console.error('[OmniScore] Failed to update from assessment:', err.message);
   }
+
+  // Audit log: AI assessment graded
+  await AuditLogger.log({
+    actionType: 'assessment_graded',
+    userId: userId,
+    targetType: 'skill_assessment',
+    targetId: assessmentResult.rows[0].id,
+    metadata: {
+      session_id: sessionId,
+      skill_id: session.skill_id,
+      score: session.score || 0,
+      passed: passed,
+      anti_cheat_score: antiCheatScore,
+      model_version: 'adaptive-assessment-v1',
+      confidence: passed ? 0.85 : 0.6
+    },
+    req: null
+  });
 
   return assessmentResult.rows[0].id;
 }
