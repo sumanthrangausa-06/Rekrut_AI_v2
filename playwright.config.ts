@@ -83,8 +83,11 @@ export default defineConfig({
     // },
   ],
 
-  // Global teardown: clean up any orphaned browser processes after the suite
-  globalTeardown: require.resolve('./e2e/global-teardown.ts'),
+  // Global teardown: disabled — the pkill-based teardown was killing Playwright's
+  // own browser before it could finish graceful shutdown, causing the test runner
+  // to hang and receive SIGTERM. Playwright's built-in cleanup is sufficient for
+  // per-file test runs.
+  // globalTeardown: require.resolve('./e2e/global-teardown.ts'),
 
   webServer: {
     command: 'node server.js',
