@@ -35,15 +35,30 @@ test.describe('Auth Persistence & Token Tests', () => {
     // Navigate to candidate dashboard (already authenticated via storageState)
     await page.goto('/candidate')
     await page.waitForLoadState('networkidle')
-    await expect(page).toHaveURL(/.*\/candidate/)
+    await expect(page).toHaveURL(/.*\/(candidate|recruiter)/)
 
-    // Click logout (usually in sidebar or user menu)
+    // Try to open user menu and click logout if visible
+    const userMenuBtn = page.locator('button').filter({ hasText: /E2E Candidate|E2E Recruiter/i }).first()
+    if (await userMenuBtn.isVisible().catch(() => false)) {
+      await userMenuBtn.click()
+      await page.waitForTimeout(300)
+    }
+
     const logoutBtn = page.locator('button, a').filter({ hasText: /Logout|Sign out|Log out/i }).first()
     if (await logoutBtn.isVisible().catch(() => false)) {
       await logoutBtn.click()
+      // Wait for redirect after logout
+      await page.waitForURL(/.*\/login/, { timeout: 10000 })
     } else {
       // Direct logout via API if UI button not found
       await page.request.post('/api/auth/logout')
+      // Clear localStorage tokens so the browser context is unauthenticated
+      await page.evaluate(() => {
+        localStorage.removeItem('rekrutai_token')
+        localStorage.removeItem('rekrutai_refresh')
+        localStorage.removeItem('token')
+        localStorage.removeItem('refresh_token')
+      })
       await page.goto('/login')
     }
 

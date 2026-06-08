@@ -461,14 +461,14 @@ export function RecruiterJobsPage() {
         onOpenChange={setShowMobilePanel}
         className="w-full sm:w-[480px] md:w-[520px]"
       >
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              <Briefcase className="h-5 w-5" />
-              Job Details
-            </SheetTitle>
-            <SheetClose />
-          </SheetHeader>
+        <SheetContent className="overflow-x-hidden">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <Briefcase className="h-5 w-5" />
+            Job Details
+          </SheetTitle>
+          <SheetClose />
+        </SheetHeader>
           {selectedJob && (
             <JobDetailPanel
               job={selectedJob}
@@ -549,28 +549,28 @@ function JobDetailPanel({
 
       {/* Pipeline Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0">
-          <p className="text-2xl font-bold break-words">{job.application_count || 0}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
+          <p className="text-xl sm:text-2xl font-bold break-words">{job.application_count || 0}</p>
           <p className="text-[10px] text-muted-foreground">Applicants</p>
         </div>
-        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0">
-          <p className="text-2xl font-bold break-words">{job.views || 0}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
+          <p className="text-xl sm:text-2xl font-bold break-words">{job.views || 0}</p>
           <p className="text-[10px] text-muted-foreground">Views</p>
         </div>
-        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0">
-          <p className="text-2xl font-bold text-emerald-600 break-words">{job.hired_count || 0}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
+          <p className="text-xl sm:text-2xl font-bold text-emerald-600 break-words">{job.hired_count || 0}</p>
           <p className="text-[10px] text-muted-foreground">Hired</p>
         </div>
-        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0">
-          <p className="text-2xl font-bold break-words">{job.interviews || 0}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
+          <p className="text-xl sm:text-2xl font-bold break-words">{job.interviews || 0}</p>
           <p className="text-[10px] text-muted-foreground">Interviews</p>
         </div>
-        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0">
-          <p className="text-2xl font-bold text-amber-600 break-words">{job.offer_count || 0}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
+          <p className="text-xl sm:text-2xl font-bold text-amber-600 break-words">{job.offer_count || 0}</p>
           <p className="text-[10px] text-muted-foreground">Offers</p>
         </div>
-        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0">
-          <p className="text-2xl font-bold break-words">{job.time_to_fill || '—'}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden">
+          <p className="text-xl sm:text-2xl font-bold break-words">{job.time_to_fill || '—'}</p>
           <p className="text-[10px] text-muted-foreground">Days to Fill</p>
         </div>
       </div>
@@ -582,7 +582,7 @@ function JobDetailPanel({
             <h4 className="text-sm font-medium">Pipeline Progress</h4>
             <span className="text-xs text-muted-foreground">{totalPipeline} total</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 overflow-hidden min-w-0">
             {pipelineStages.map(stage => {
               const count =
                 stage.id === 'applied'
