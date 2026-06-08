@@ -24,10 +24,10 @@ function Sheet({ open, onOpenChange, children, side = 'right', className }: Shee
   const handleClose = () => onOpenChange?.(false)
 
   const sideClasses = {
-    left: 'left-0 h-full w-full sm:w-96',
-    right: 'right-0 h-full w-full sm:w-96',
-    top: 'top-0 w-full h-full sm:h-auto sm:max-h-[80vh]',
-    bottom: 'bottom-0 w-full h-full sm:h-auto sm:max-h-[80vh]',
+    left: 'left-0 h-dvh w-full sm:w-96',
+    right: 'right-0 h-dvh w-full sm:w-96',
+    top: 'top-0 w-full h-dvh sm:h-auto sm:max-h-[80vh]',
+    bottom: 'bottom-0 w-full h-dvh sm:h-auto sm:max-h-[80vh]',
   }
 
   const animateClasses = {
@@ -41,7 +41,7 @@ function Sheet({ open, onOpenChange, children, side = 'right', className }: Shee
     <div className="fixed inset-0 z-50">
       <div className="fixed inset-0 bg-black/50" onClick={handleClose} />
       <div className={cn(
-        'fixed z-50 bg-background shadow-lg border flex flex-col',
+        'fixed z-50 bg-background shadow-lg border flex flex-col min-w-0 overflow-x-hidden',
         sideClasses[side],
         animateClasses[side],
         className
@@ -55,7 +55,7 @@ function Sheet({ open, onOpenChange, children, side = 'right', className }: Shee
 }
 
 function SheetContent({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('flex-1 overflow-y-auto p-4', className)}>{children}</div>
+  return <div className={cn('flex-1 overflow-y-auto p-4 min-w-0', className)}>{children}</div>
 }
 
 function SheetHeader({ children, className }: { children: React.ReactNode; className?: string }) {

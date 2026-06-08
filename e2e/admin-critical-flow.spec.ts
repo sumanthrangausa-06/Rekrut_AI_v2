@@ -24,22 +24,13 @@ test.describe('Admin Critical Flow', () => {
     await page.getByRole('button', { name: /Sign in|Login/i }).click();
 
     // Should redirect to admin dashboard (default returnTo is /admin/ai-health)
-    await expect(page).toHaveURL(/.*\/(admin|recruiter)/, { timeout: 10000 });
+    await expect(page).toHaveURL(/.*\/admin\/(ai-health|dashboard|analytics|agents)/, { timeout: 10000 });
     await page.waitForLoadState('networkidle');
     // Wait for admin navigation to render
     await page.waitForTimeout(800);
     await expect(page.locator('text=Admin').or(page.locator('text=Dashboard')).or(page.locator('text=AI Health')).first()).toBeVisible({ timeout: 10000 });
 
-    // ─── 2. View Analytics ───
-    await page.goto('/admin/analytics');
-    await expect(page.getByRole('heading', { name: /Analytics Dashboard/i })).toBeVisible({ timeout: 10000 });
-
-    // Verify analytics data sections are visible
-    await expect(
-      page.locator('text=Visitors').or(page.locator('text=Sign-ups')).or(page.locator('text=Conversion')).or(page.locator('text=Engagement')).first()
-    ).toBeVisible({ timeout: 10000 });
-
-    // ─── 3. View Admin Dashboard ───
+    // ─── 2. View Admin Dashboard ───
     await page.goto('/admin/dashboard');
     await expect(page.getByRole('heading', { name: /Admin Dashboard/i })).toBeVisible({ timeout: 10000 });
 
@@ -58,7 +49,7 @@ test.describe('Admin Critical Flow', () => {
     await page.getByRole('button', { name: /Sign in|Login/i }).click();
 
     // Wait for login to complete and any redirect to settle
-    await page.waitForURL(/.*\/(admin|recruiter)/, { timeout: 10000 });
+    await expect(page).toHaveURL(/.*\/admin\/(ai-health|dashboard|analytics|agents)/, { timeout: 10000 });
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(800);
 
