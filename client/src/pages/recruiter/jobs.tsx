@@ -456,8 +456,8 @@ export function RecruiterJobsPage() {
       )}
 
       {/* === MOBILE JOB DETAIL DRAWER (Sheet) === */}
-      <Sheet open={showMobilePanel} onOpenChange={setShowMobilePanel}>
-        <SheetContent side="right" className="w-full sm:max-w-md overflow-x-hidden">
+      <Sheet open={showMobilePanel} onOpenChange={setShowMobilePanel} side="right">
+        <SheetContent className="w-full sm:max-w-md overflow-x-hidden">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <Briefcase className="h-5 w-5" />

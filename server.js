@@ -46,24 +46,14 @@ app.disable('x-powered-by');
 // Trust proxy (Render runs behind a reverse proxy)
 app.set('trust proxy', 1);
 
-// Health check — MUST be first, before all middleware
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// API health alias for monitoring consistency
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// Security headers — MUST be early, before CORS and session middleware
+// Security headers — MUST be first, before all middleware and routes
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: [
         "'self'",
@@ -81,6 +71,16 @@ app.use(helmet({
     preload: true
   }
 }));
+
+// Health check — available after helmet so security headers are present
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// API health alias for monitoring consistency
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // CORS — whitelist origins in production, allow dev origins in development
 const corsOrigins = process.env.CORS_ORIGINS
