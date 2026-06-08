@@ -2,6 +2,12 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './e2e',
+  outputDir: 'test-results',
+  preserveOutput: 'never',
+
+  // Shard note: For the full suite, use the shard runner (run-e2e-full-suite.sh)
+  // which splits the suite into sequential chunks. Each chunk runs in a fresh
+  // Playwright process, preventing browser memory accumulation across all ~35 files.
 
   // Run tests in files sequentially, not in parallel. Each file still gets
   // its own worker, but tests within a file run one after another.
@@ -22,6 +28,10 @@ export default defineConfig({
   // On this machine (7 GB RAM) 1 worker × 1 project = ~1 concurrent
   // browser instance max, which is safe.
   workers: 1,
+
+  // Prevent memory accumulation from trace files and screenshots on disk
+  // while still capturing them when needed for debugging.
+  // (trace is set to 'on-first-retry' in use:{} below)
 
   reporter: 'list',
 
