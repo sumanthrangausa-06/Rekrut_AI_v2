@@ -75,7 +75,7 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
             aria-expanded={dropdownOpen}
             aria-controls="user-menu"
           >
-            <Avatar src={user?.avatar_url} fallback={user?.name || 'U'} size="sm" />
+            <Avatar src={user?.avatar_url} fallback={user?.name || 'U'} seed={user?.email || user?.id || 'user'} size="sm" />
             <span className="hidden text-sm font-medium md:block">{user?.name || 'User'}</span>
             <ChevronDown className="hidden h-4 w-4 text-muted-foreground md:block" />
           </button>

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { trackEvent } from '@/lib/analytics'
+import { getDiceBearAvatar } from '@/lib/avatar'
 import { Logo } from '@/components/ui/logo'
 import {
   ArrowLeft,
@@ -258,9 +259,12 @@ export function AboutPage() {
                 <Card key={founder.name} className="border-0 bg-card shadow-sm">
                   <CardContent className="p-8">
                     <div className="flex items-start gap-5">
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-xl font-bold text-primary">
-                        {founder.avatar}
-                      </div>
+                      <img
+                        src={getDiceBearAvatar(founder.name, { backgroundColor: 'c0aede' })}
+                        alt={founder.name}
+                        className="h-16 w-16 rounded-2xl object-cover"
+                        loading="lazy"
+                      />
                       <div>
                         <h3 className="font-heading text-xl font-semibold">{founder.name}</h3>
                         <p className="text-sm text-primary font-medium">{founder.role}</p>
