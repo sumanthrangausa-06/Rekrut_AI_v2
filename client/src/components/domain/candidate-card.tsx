@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { getDiceBearAvatar } from "@/lib/avatar"
 import {
   MapPin,
   Briefcase,
@@ -88,7 +89,7 @@ export function CandidateCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <Avatar className="h-12 w-12 border">
-              <AvatarImage src={avatar} alt={name} />
+              <AvatarImage src={avatar} alt={name} fallbackSrc={getDiceBearAvatar(id)} />
               <AvatarFallback className="bg-primary/10 text-primary font-semibold">{initials}</AvatarFallback>
             </Avatar>
             <div className="min-w-0">

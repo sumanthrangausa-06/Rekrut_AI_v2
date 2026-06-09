@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { trackEvent } from '@/lib/analytics'
+import { getDiceBearAvatar, UNSPLASH_IMAGES } from '@/lib/avatar'
 import { Logo } from '@/components/ui/logo'
 import {
   Briefcase,
@@ -567,7 +568,7 @@ function SocialProofSection() {
 
         {/* Testimonials */}
         <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {testimonials.map((t) => (
+          {testimonials.map((t, i) => (
             <Card key={t.author} className="border-0 bg-card shadow-sm">
               <CardContent className="p-6">
                 <div className="flex gap-1">
@@ -577,9 +578,12 @@ function SocialProofSection() {
                 </div>
                 <p className="mt-4 text-sm leading-relaxed text-foreground">"{t.quote}"</p>
                 <div className="mt-6 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                    {t.avatar}
-                  </div>
+                  <img
+                    src={UNSPLASH_IMAGES[`testimonial${i + 1}` as keyof typeof UNSPLASH_IMAGES]}
+                    alt={t.author}
+                    className="h-10 w-10 rounded-full object-cover"
+                    loading="lazy"
+                  />
                   <div>
                     <p className="text-sm font-semibold">{t.author}</p>
                     <p className="text-xs text-muted-foreground">{t.role}</p>

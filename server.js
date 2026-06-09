@@ -36,6 +36,8 @@ const communicationsRoutes = require('./routes/communications');
 const notificationsRoutes = require('./routes/notifications');
 const billingRoutes = require('./routes/billing');
 const voiceNotificationsRoutes = require('./routes/voice-notifications');
+const screeningRoutes = require('./routes/screening');
+const settingsRoutes = require('./routes/settings');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -251,6 +253,13 @@ app.use('/api/billing', billingRoutes);
 
 // API Routes - AI Screening (Recruiter AI Coach)
 app.use('/api/screening', screeningRoutes);
+
+// API Routes - Settings (profile, notifications, privacy, avatar)
+app.use('/api/settings', settingsRoutes);
+
+// API Routes - TTS (Cartesia.ai voice synthesis)
+const ttsRoutes = require('./routes/tts');
+app.use('/api/tts', ttsRoutes);
 
 // Comprehensive Monitoring Metrics — protected by admin auth
 app.get('/api/admin/metrics', requireAdmin, async (req, res) => {
