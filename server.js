@@ -35,7 +35,7 @@ const memoryRoutes = require('./routes/memory');
 const communicationsRoutes = require('./routes/communications');
 const notificationsRoutes = require('./routes/notifications');
 const billingRoutes = require('./routes/billing');
-const screeningRoutes = require('./routes/screening');
+const voiceNotificationsRoutes = require('./routes/voice-notifications');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -244,6 +244,7 @@ app.use('/api/communications', communicationsRoutes);
 
 // API Routes - Email Notifications
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/notifications', voiceNotificationsRoutes);
 
 // API Routes - Billing and subscriptions
 app.use('/api/billing', billingRoutes);

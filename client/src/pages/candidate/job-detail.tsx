@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiCall } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
@@ -18,6 +18,7 @@ import {
   BarChart3, GraduationCap, TrendingUp, Brain, Shield, Bookmark, BookmarkPlus,
   Heart, Eye, ChevronRight, Star, Target, MessageSquare, CheckCircle2, X, Crown,
   Download, ExternalLink, Lock, Unlock, Award, ThumbsUp, Globe, BookOpen, Code2, Pencil,
+  Volume2,
 } from 'lucide-react'
 
 interface Job {
@@ -74,6 +75,10 @@ export function CandidateJobDetailPage() {
   const [generatingDocs, setGeneratingDocs] = useState(false)
   const [showDocs, setShowDocs] = useState(false)
   const [similarJobs, setSimilarJobs] = useState<Job[]>([])
+  const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [audioLoading, setAudioLoading] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     loadJob()
@@ -88,6 +93,42 @@ export function CandidateJobDetailPage() {
 
   async function loadJob() {
     try { const data = await apiCall<{ job: Job }>(`/jobs/${id}`); setJob(data.job) } catch {} finally { setLoading(false) }
+  }
+
+  async function handleListen() {
+    if (!job) return
+    if (audioUrl && audioRef.current) {
+      if (audioRef.current.paused) {
+        audioRef.current.play().catch(() => {})
+        setIsPlaying(true)
+      } else {
+        audioRef.current.pause()
+        setIsPlaying(false)
+      }
+      return
+    }
+    setAudioLoading(true)
+    try {
+      const data = await apiCall<{ audioUrl: string }>(`/jobs/${job.id}/audio`, { method: 'POST' })
+      if (data.audioUrl) {
+        setAudioUrl(data.audioUrl)
+        // Small delay to let React render the audio element
+        setTimeout(() => {
+          if (audioRef.current) {
+            audioRef.current.play().catch(() => {})
+            setIsPlaying(true)
+          }
+        }, 100)
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to generate audio')
+    } finally {
+      setAudioLoading(false)
+    }
+  }
+
+  function handleAudioEnded() {
+    setIsPlaying(false)
   }
 
   async function checkSaved() {
@@ -299,6 +340,16 @@ export function CandidateJobDetailPage() {
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto px-2 sm:px-0">
+      {audioUrl && (
+        <audio
+          ref={audioRef}
+          src={audioUrl}
+          onEnded={handleAudioEnded}
+          onPause={() => setIsPlaying(false)}
+          onPlay={() => setIsPlaying(true)}
+          className="hidden"
+        />
+      )}
       <Button variant="ghost" size="sm" onClick={() => navigate('/candidate/jobs')} className="gap-1 min-h-[44px]">
         <ArrowLeft className="h-4 w-4" /> Back to jobs
       </Button>
@@ -326,6 +377,17 @@ export function CandidateJobDetailPage() {
               <button onClick={toggleSave} className="p-2 rounded-lg hover:bg-muted transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center" aria-label={saved ? 'Unsave' : 'Save'}>
                 {saved ? <Bookmark className="h-5 w-5 text-amber-500 fill-amber-500" /> : <BookmarkPlus className="h-5 w-5 text-muted-foreground" />}
               </button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleListen}
+                disabled={audioLoading}
+                className="gap-1.5 min-h-[44px]"
+                aria-label={isPlaying ? 'Pause narration' : 'Listen to job description'}
+              >
+                {audioLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : isPlaying ? <Volume2 className="h-4 w-4 text-primary" /> : <Volume2 className="h-4 w-4" />}
+                {audioLoading ? 'Generating...' : isPlaying ? 'Playing...' : 'Listen'}
+              </Button>
               {applied ? (
                 <Badge variant="success" className="gap-1 text-sm py-1.5 px-3"><CheckCircle className="h-3.5 w-3.5" /> Applied</Badge>
               ) : user ? (

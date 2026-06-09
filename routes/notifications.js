@@ -14,6 +14,9 @@
  */
 
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const emailService = require('../lib/email-service');
@@ -665,6 +668,166 @@ router.post('/quick/offer-extended', authMiddleware, requireRecruiter, async (re
   } catch (err) {
     console.error('[notifications] Offer extended error:', err.message);
     res.status(500).json({ error: 'Failed to send notification', message: err.message });
+  }
+});
+
+// Cartesia TTS cache directory for voice notifications
+const CARTESIA_VOICE_CACHE_DIR = '/tmp/cartesia-cache';
+if (!fs.existsSync(CARTESIA_VOICE_CACHE_DIR)) {
+  fs.mkdirSync(CARTESIA_VOICE_CACHE_DIR, { recursive: true });
+}
+
+// Emotion mapping for voice notifications
+const EMOTION_CONFIG = {
+  neutral: { /* no emotion override — use base voice */ },
+  enthusiastic: { speed: 1.1, emotion: ['happiness:high'] },
+  calm: { speed: 0.9, emotion: ['calmness:high'] },
+};
+
+// Validate voice notification input
+function validateVoiceInput(text, emotion) {
+  if (!text || typeof text !== 'string') {
+    return { valid: false, error: 'Text is required and must be a string' };
+  }
+  if (text.length > 500) {
+    return { valid: false, error: 'Text must be under 500 characters (~30 seconds max)' };
+  }
+  if (emotion && !EMOTION_CONFIG[emotion]) {
+    return { valid: false, error: `Emotion must be one of: ${Object.keys(EMOTION_CONFIG).join(', ')}` };
+  }
+  return { valid: true };
+}
+
+// Generate a deterministic cache key from text + emotion
+function getVoiceCacheKey(text, emotion) {
+  const hash = crypto.createHash('sha256').update(`${emotion || 'neutral'}:${text}`).digest('hex').slice(0, 24);
+  return hash;
+}
+
+// Call Cartesia TTS API
+async function generateCartesiaAudio(text, emotion) {
+  const apiKey = process.env.CARTESIA_API_KEY;
+  if (!apiKey) {
+    throw new Error('Cartesia API key not configured');
+  }
+
+  const voice = {
+    id: 'f786b574-daa5-4673-aa0c-cbe3e8534c02',
+    mode: 'id',
+  };
+
+  const payload = {
+    model_id: 'sonic-3.5',
+    voice,
+    transcript: text,
+    output_format: { container: 'mp3', sample_rate: 24000 },
+  };
+
+  const emo = EMOTION_CONFIG[emotion];
+  if (emo && emo.emotion) {
+    payload.emotion = emo.emotion;
+  }
+  if (emo && emo.speed) {
+    payload.speed = emo.speed;
+  }
+
+  const response = await fetch('https://api.cartesia.ai/tts/bytes', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'Cartesia-Version': '2026-03-01',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => 'Unknown error');
+    console.error('[Cartesia TTS] HTTP', response.status, errText);
+    throw new Error(`Cartesia TTS generation failed: ${response.status}`);
+  }
+
+  return Buffer.from(await response.arrayBuffer());
+}
+
+// ─── Voice Notifications ───────────────────────────────────────────────────
+
+/**
+ * POST /api/notifications/voice
+ * Generate voice audio for a notification using Cartesia TTS
+ *
+ * Body:
+ * - text: string (notification text, max ~500 chars for <30s)
+ * - emotion: string ('neutral' | 'enthusiastic' | 'calm')
+ */
+router.post('/voice', async (req, res) => {
+  try {
+    const { text, emotion = 'neutral' } = req.body;
+
+    const validation = validateVoiceInput(text, emotion);
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.error });
+    }
+
+    const cacheKey = getVoiceCacheKey(text, emotion);
+    const cacheFile = require('path').join(CARTESIA_VOICE_CACHE_DIR, `voice-${cacheKey}.mp3`);
+
+    // If cached, return immediately
+    if (fs.existsSync(cacheFile)) {
+      return res.json({
+        audioUrl: `/api/notifications/voice/${cacheKey}`,
+        cached: true,
+        id: cacheKey,
+        emotion,
+        textLength: text.length,
+      });
+    }
+
+    // Generate audio via Cartesia
+    const buffer = await generateCartesiaAudio(text, emotion);
+    fs.writeFileSync(cacheFile, buffer);
+
+    res.json({
+      audioUrl: `/api/notifications/voice/${cacheKey}`,
+      cached: false,
+      id: cacheKey,
+      emotion,
+      textLength: text.length,
+      fileSize: buffer.length,
+    });
+  } catch (err) {
+    console.error('[notifications/voice] Generation error:', err.message);
+    res.status(500).json({ error: 'Failed to generate voice audio', message: err.message });
+  }
+});
+
+/**
+ * GET /api/notifications/voice/:id
+ * Serve cached voice audio MP3 file
+ */
+router.get('/voice/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate id format (hex chars only, max 32 chars)
+    if (!id || !/^[a-f0-9]{24,32}$/i.test(id)) {
+      return res.status(400).json({ error: 'Invalid audio ID' });
+    }
+
+    const cacheFile = require('path').join(CARTESIA_VOICE_CACHE_DIR, `voice-${id}.mp3`);
+    if (!fs.existsSync(cacheFile)) {
+      return res.status(404).json({ error: 'Audio not found. Generate it first via POST /api/notifications/voice' });
+    }
+
+    const stat = fs.statSync(cacheFile);
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Length', stat.size);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    const stream = fs.createReadStream(cacheFile);
+    stream.pipe(res);
+  } catch (err) {
+    console.error('[notifications/voice] Serve error:', err.message);
+    res.status(500).json({ error: 'Failed to serve audio file' });
   }
 });
 

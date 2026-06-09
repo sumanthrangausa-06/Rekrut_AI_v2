@@ -1,5 +1,7 @@
 const { query, validationResult } = require('express-validator');
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const pool = require('../lib/db');
 const { authMiddleware, optionalAuth, requireRole } = require('../lib/auth');
 
@@ -299,6 +301,101 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Delete job error:', err);
     res.status(500).json({ error: 'Failed to delete job' });
+  }
+});
+
+// Cartesia TTS cache directory
+const CARTESIA_CACHE_DIR = path.join('/tmp', 'cartesia-cache');
+if (!fs.existsSync(CARTESIA_CACHE_DIR)) {
+  fs.mkdirSync(CARTESIA_CACHE_DIR, { recursive: true });
+}
+
+// Generate audio narration for job description (POST /api/jobs/:id/audio)
+router.post('/:id/audio', optionalAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid job ID' });
+    }
+
+    // Fetch job from DB
+    const result = await pool.query(
+      `SELECT id, title, company, description, requirements, location, job_type
+       FROM jobs WHERE id = $1 AND status = 'active'`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    const job = result.rows[0];
+    const text = `${job.title} at ${job.company || 'our company'}. ${job.location ? 'Located in ' + job.location + '. ' : ''}${job.description || ''}`;
+
+    const cacheFile = path.join(CARTESIA_CACHE_DIR, `job-${id}.mp3`);
+
+    // If cached, return immediately
+    if (fs.existsSync(cacheFile)) {
+      return res.json({ audioUrl: `/api/jobs/${id}/audio-file` });
+    }
+
+    const apiKey = process.env.CARTESIA_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'Cartesia API key not configured' });
+    }
+
+    // Call Cartesia TTS API
+    const response = await fetch('https://api.cartesia.ai/tts/bytes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'Cartesia-Version': '2026-03-01',
+      },
+      body: JSON.stringify({
+        model_id: 'sonic-3.5',
+        voice: { id: 'f786b574-daa5-4673-aa0c-cbe3e8534c02', mode: 'id' },
+        transcript: text,
+        output_format: { container: 'mp3', sample_rate: 24000 },
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => 'Unknown error');
+      console.error('[Cartesia TTS] HTTP', response.status, errText);
+      return res.status(502).json({ error: 'Cartesia TTS generation failed', detail: errText });
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    fs.writeFileSync(cacheFile, buffer);
+
+    res.json({ audioUrl: `/api/jobs/${id}/audio-file` });
+  } catch (err) {
+    console.error('Generate audio error:', err);
+    res.status(500).json({ error: 'Failed to generate audio narration' });
+  }
+});
+
+// Serve cached audio file (GET /api/jobs/:id/audio-file)
+router.get('/:id/audio-file', optionalAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid job ID' });
+    }
+
+    const cacheFile = path.join(CARTESIA_CACHE_DIR, `job-${id}.mp3`);
+    if (!fs.existsSync(cacheFile)) {
+      return res.status(404).json({ error: 'Audio not found. Generate it first via POST /api/jobs/:id/audio' });
+    }
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Length', fs.statSync(cacheFile).size);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    const stream = fs.createReadStream(cacheFile);
+    stream.pipe(res);
+  } catch (err) {
+    console.error('Serve audio error:', err);
+    res.status(500).json({ error: 'Failed to serve audio file' });
   }
 });
 
