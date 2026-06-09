@@ -18,6 +18,7 @@ import {
   Clock,
   ChevronRight,
   Trash2,
+  Volume2,
 } from "lucide-react"
 
 export type Notification = {
@@ -47,6 +48,8 @@ export function NotificationCenter({ className }: { className?: string }) {
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(false)
+  const [playingId, setPlayingId] = useState<string | null>(null)
+  const [audioError, setAudioError] = useState<string | null>(null)
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
@@ -121,6 +124,90 @@ export function NotificationCenter({ className }: { className?: string }) {
     trackEvent("notification_delete", { notification_id: id })
   }
 
+  const playNotification = async (notification: Notification) => {
+    // Don't start if already playing this one
+    if (playingId === notification.id) return
+
+    setPlayingId(notification.id)
+    setAudioError(null)
+
+    try {
+      // Create a cache key from notification content (simple hash)
+      const cacheKey = btoa(`${notification.id}:${notification.message}`).replace(/[^a-zA-Z0-9]/g, "")
+
+      const response = await fetch(`/api/notifications/voice/${cacheKey}`)
+
+      if (!response.ok) {
+        // If cache miss, generate voice via POST
+        const genResponse = await fetch("/api/notifications/voice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: `${notification.title}. ${notification.message}`,
+            voice_id: "sonic-2",
+            speed: 1.0,
+            language: "en",
+          }),
+        })
+
+        if (!genResponse.ok) {
+          throw new Error(`Voice generation failed: ${genResponse.status}`)
+        }
+
+        const genData = await genResponse.json()
+        if (!genData.audio_url) {
+          throw new Error("No audio URL returned")
+        }
+
+        // Fetch the generated audio
+        const audioResponse = await fetch(genData.audio_url)
+        if (!audioResponse.ok) {
+          throw new Error("Failed to fetch generated audio")
+        }
+
+        const audioBlob = await audioResponse.blob()
+        const audioUrl = URL.createObjectURL(audioBlob)
+        const audio = new Audio(audioUrl)
+
+        audio.onended = () => {
+          setPlayingId(null)
+          URL.revokeObjectURL(audioUrl)
+        }
+
+        audio.onerror = () => {
+          setPlayingId(null)
+          setAudioError("Failed to play audio")
+          URL.revokeObjectURL(audioUrl)
+        }
+
+        await audio.play()
+        return
+      }
+
+      // Cache hit — play directly
+      const audioBlob = await response.blob()
+      const audioUrl = URL.createObjectURL(audioBlob)
+      const audio = new Audio(audioUrl)
+
+      audio.onended = () => {
+        setPlayingId(null)
+        URL.revokeObjectURL(audioUrl)
+      }
+
+      audio.onerror = () => {
+        setPlayingId(null)
+        setAudioError("Failed to play audio")
+        URL.revokeObjectURL(audioUrl)
+      }
+
+      await audio.play()
+    } catch (err: any) {
+      console.error("[NotificationCenter] Voice playback error:", err)
+      setPlayingId(null)
+      setAudioError(err.message || "Voice playback failed")
+    }
+  }
+
   const timeAgo = (timestamp: string) => {
     const seconds = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000)
     if (seconds < 60) return "just now"
@@ -161,6 +248,17 @@ export function NotificationCenter({ className }: { className?: string }) {
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto space-y-2 -mx-2 px-2">
+            {audioError && (
+              <div className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-md flex items-center gap-2">
+                <span className="flex-1">{audioError}</span>
+                <button
+                  className="text-red-700 hover:text-red-900 font-medium"
+                  onClick={() => setAudioError(null)}
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
             {loading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
@@ -211,6 +309,21 @@ export function NotificationCenter({ className }: { className?: string }) {
                           )}
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          "h-6 w-6 p-0 opacity-0 group-hover:opacity-100",
+                          playingId === n.id && "opacity-100 text-primary animate-pulse"
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          playNotification(n)
+                        }}
+                        title={playingId === n.id ? "Playing..." : "Listen to notification"}
+                      >
+                        <Volume2 className={cn("h-3.5 w-3.5", playingId === n.id ? "text-primary" : "text-muted-foreground")} />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
