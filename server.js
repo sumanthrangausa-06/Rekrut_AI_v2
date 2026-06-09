@@ -255,6 +255,10 @@ app.use('/api/screening', screeningRoutes);
 // API Routes - Settings (profile, notifications, privacy, avatar)
 app.use('/api/settings', settingsRoutes);
 
+// API Routes - TTS (Cartesia.ai voice synthesis)
+const ttsRoutes = require('./routes/tts');
+app.use('/api/tts', ttsRoutes);
+
 // Comprehensive Monitoring Metrics — protected by admin auth
 app.get('/api/admin/metrics', requireAdmin, async (req, res) => {
   try {
