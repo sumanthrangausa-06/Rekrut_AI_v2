@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AiOnboardingDashboard } from '@/components/ai-onboarding-dashboard'
+import { Skeleton } from '@/components/domain/skeleton'
+import { EmptyState } from '@/components/domain/empty-state'
 import {
   CheckCircle, Circle, ArrowRight, ArrowLeft, Shield, FileText,
   User, Phone, Building2, CreditCard, PenTool, Loader2, Lock,

@@ -19,7 +19,8 @@ import {
   BarChart3,
   TrendingUp,
   TrendingDown,
-  Filter
+  Filter,
+  Inbox
 } from 'lucide-react';
 
 interface BiasReport {
@@ -218,7 +219,14 @@ export function ComplianceDashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {biasReports.map(report => (
+                  {biasReports.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <Inbox className="h-12 w-12 text-slate-300 mb-4" />
+                      <h3 className="text-lg font-medium text-slate-700">No bias reports yet</h3>
+                      <p className="text-sm text-slate-500 mt-1">Bias detection reports will appear here once generated.</p>
+                    </div>
+                  ) : (
+                    biasReports.map(report => (
                     <div key={report.id} className="p-4 border rounded-lg">
                       <div className="flex items-center justify-between mb-3">
                         <div>
@@ -241,7 +249,8 @@ export function ComplianceDashboardPage() {
                         ))}
                       </div>
                     </div>
-                  ))}
+                  ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -273,6 +282,17 @@ export function ComplianceDashboardPage() {
                     log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     log.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     log.target.toLowerCase().includes(searchQuery.toLowerCase())
+                  ).length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <Inbox className="h-12 w-12 text-slate-300 mb-4" />
+                      <h3 className="text-lg font-medium text-slate-700">No audit logs found</h3>
+                      <p className="text-sm text-slate-500 mt-1">Try adjusting your search or check back later.</p>
+                    </div>
+                  ) : (
+                    auditLogs.filter(log => 
+                    log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    log.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    log.target.toLowerCase().includes(searchQuery.toLowerCase())
                   ).map(log => (
                     <div key={log.id} className="p-4 border rounded-lg">
                       <div className="flex items-center justify-between mb-2">
@@ -297,7 +317,8 @@ export function ComplianceDashboardPage() {
                         <span className="font-mono">{log.ip}</span>
                       </div>
                     </div>
-                  ))}
+                  ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -310,7 +331,14 @@ export function ComplianceDashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {gdprRequests.map(request => (
+                  {gdprRequests.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <Inbox className="h-12 w-12 text-slate-300 mb-4" />
+                      <h3 className="text-lg font-medium text-slate-700">No GDPR requests yet</h3>
+                      <p className="text-sm text-slate-500 mt-1">GDPR requests will appear here when users submit them.</p>
+                    </div>
+                  ) : (
+                    gdprRequests.map(request => (
                     <div key={request.id} className="p-4 border rounded-lg">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
@@ -336,7 +364,8 @@ export function ComplianceDashboardPage() {
                         </Button>
                       </div>
                     </div>
-                  ))}
+                  ))
+                  )}
                 </div>
               </CardContent>
             </Card>

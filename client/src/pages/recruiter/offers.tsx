@@ -9,10 +9,12 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Skeleton } from '@/components/domain/skeleton'
+import { EmptyState } from '@/components/domain/empty-state'
 import {
   Gift, Plus, Send, DollarSign, Calendar, CheckCircle, XCircle, Clock, Eye,
   Ban, FileText, User, Briefcase, Building2, Sparkles, Download, RefreshCw,
-  MapPin, UserCheck, PenTool,
+  MapPin, UserCheck, PenTool, AlertCircle,
 } from 'lucide-react'
 
 interface Offer {
@@ -78,6 +80,7 @@ export function RecruiterOffersPage() {
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null)
   const [withdrawing, setWithdrawing] = useState(false)
   const [statusFilter, setStatusFilter] = useState('')
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [generating, setGenerating] = useState(false)
   const [previewHtml, setPreviewHtml] = useState('')
   const [showPreview, setShowPreview] = useState(false)
@@ -112,6 +115,13 @@ export function RecruiterOffersPage() {
     }
   }, [searchParams])
 
+  useEffect(() => {
+    if (message) {
+      const t = setTimeout(() => setMessage(null), 4000)
+      return () => clearTimeout(t)
+    }
+  }, [message])
+
   async function loadData() {
     try {
       const [offersRes, candidatesRes, jobsRes] = await Promise.allSettled([
@@ -131,7 +141,7 @@ export function RecruiterOffersPage() {
 
   async function createOffer() {
     if (!candidateId || !jobId || !salary) {
-      alert('Please fill in candidate, job, and salary')
+      setMessage({ type: 'error', text: 'Please fill in candidate, job, and salary' })
       return
     }
     setSaving(true)
@@ -159,7 +169,7 @@ export function RecruiterOffersPage() {
         setSelectedOffer(refreshed as Offer)
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to create offer')
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to create offer' })
     } finally {
       setSaving(false)
     }
@@ -182,7 +192,7 @@ export function RecruiterOffersPage() {
         }
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to generate offer letter')
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to generate offer letter' })
     } finally {
       setGenerating(false)
     }
@@ -197,7 +207,7 @@ export function RecruiterOffersPage() {
         setShowPreview(true)
       }
     } catch {
-      alert('Failed to load offer letter')
+      setMessage({ type: 'error', text: 'Failed to load offer letter' })
     }
   }
 
@@ -225,7 +235,7 @@ export function RecruiterOffersPage() {
       setSelectedOffer(null)
       loadData()
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to withdraw offer')
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to withdraw offer' })
     } finally {
       setWithdrawing(false)
     }
@@ -257,6 +267,16 @@ export function RecruiterOffersPage() {
 
   return (
     <div className="space-y-6">
+      {/* Toast */}
+      {message && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg transition-all ${
+          message.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-destructive text-white'
+        }`}>
+          {message.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+          {message.text}
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-heading text-2xl font-bold">Offers</h1>
@@ -325,23 +345,16 @@ export function RecruiterOffersPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <div className="space-y-4">
+          <Skeleton variant="card" count={3} />
         </div>
       ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center">
-            <Gift className="mx-auto mb-3 h-10 w-10 opacity-30" />
-            <p className="text-muted-foreground mb-4">
-              {offers.length === 0 ? 'No offers created yet' : 'No offers match this filter'}
-            </p>
-            {offers.length === 0 && (
-              <Button onClick={() => setShowCreate(true)} className="gap-2">
-                <Plus className="h-4 w-4" /> Create Your First Offer
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Gift}
+          title={offers.length === 0 ? 'No offers created yet' : 'No offers match this filter'}
+          description={offers.length === 0 ? 'Create your first offer to start hiring candidates.' : 'Try adjusting your filters to see more results.'}
+          action={offers.length === 0 ? { label: 'Create Your First Offer', onClick: () => setShowCreate(true) } : undefined}
+        />
       ) : (
         <div className="space-y-6">
           {/* Draft offers */}

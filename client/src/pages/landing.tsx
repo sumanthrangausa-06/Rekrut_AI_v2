@@ -37,7 +37,55 @@ import {
   Lock,
   EyeOff,
   FileCheck,
+  Search,
+  Calendar,
+  Clock,
+  User,
+  BookOpen,
 } from 'lucide-react'
+
+const blogPosts = [
+  {
+    id: '1',
+    title: 'How AI is Changing the Job Search in 2026',
+    excerpt: 'From resume parsing to interview coaching, AI tools are reshaping how candidates find their next role.',
+    tag: 'AI Trends',
+    author: 'Ranga Sumanth',
+    date: 'June 5, 2026',
+    readTime: '5 min',
+    image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&q=80',
+  },
+  {
+    id: '2',
+    title: 'The OmniScore Guide: What Employers Actually See',
+    excerpt: 'Your unified credibility score combines skills, assessments, and interview performance. Here is how to improve it.',
+    tag: 'Product',
+    author: 'Suga',
+    date: 'May 28, 2026',
+    readTime: '4 min',
+    image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80',
+  },
+  {
+    id: '3',
+    title: '5 Mock Interview Mistakes Everyone Makes',
+    excerpt: 'We analyzed 10,000 practice interviews. These are the patterns that predict real interview failure.',
+    tag: 'Career Tips',
+    author: 'Rekrut AI Team',
+    date: 'May 20, 2026',
+    readTime: '6 min',
+    image: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=800&q=80',
+  },
+  {
+    id: '4',
+    title: 'Why We Built KYC In-House Instead of Outsourcing',
+    excerpt: 'Identity verification is a trust signal. Here is why we chose to build it ourselves rather than use a third-party vendor.',
+    tag: 'Security',
+    author: 'Security Team',
+    date: 'May 15, 2026',
+    readTime: '7 min',
+    image: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?w=800&q=80',
+  },
+]
 
 // ─── Data ─────────────────────────────────────────────────────────────
 
@@ -337,6 +385,29 @@ function HeroSection() {
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground sm:text-xl">
             Match with jobs that fit your skills. Practice interviews with AI. Get hired faster — no spam, no noise.
           </p>
+
+          {/* Hero search bar */}
+          <div className="mx-auto mt-8 max-w-xl">
+            <div className="flex items-center gap-2 rounded-xl border bg-background px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary/20"
+                 onClick={() => trackEvent('hero_search_focus')}
+            >
+              <Search className="h-5 w-5 text-muted-foreground shrink-0" />
+              <input
+                type="text"
+                placeholder="Search jobs, companies, or skills..."
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const query = (e.target as HTMLInputElement).value
+                    if (query.trim()) {
+                      trackEvent('hero_search_submit', { query })
+                      window.location.href = `/candidate/jobs?q=${encodeURIComponent(query)}`
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
 
           <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             {isAuthenticated && user ? (
@@ -886,6 +957,131 @@ function CTABannerSection() {
   )
 }
 
+function BlogSection() {
+  return (
+    <section className="py-20 sm:py-24">
+      <div className="mx-auto max-w-7xl px-4">
+        <div className="mx-auto max-w-2xl text-center">
+          <Badge variant="outline" className="mb-4">Blog</Badge>
+          <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+            Latest insights from the team
+          </h2>
+          <p className="mt-4 text-lg text-muted-foreground">
+            AI trends, career tips, and product updates from the people building Rekrut AI.
+          </p>
+        </div>
+
+        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {blogPosts.map((post) => (
+            <Card key={post.id} className="group overflow-hidden border-0 bg-card shadow-sm transition-all hover:shadow-md">
+              <div className="aspect-video overflow-hidden">
+                <img
+                  src={post.image}
+                  alt={post.title}
+                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  loading="lazy"
+                />
+              </div>
+              <CardContent className="p-5">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="secondary" className="text-xs">{post.tag}</Badge>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    {post.date}
+                  </span>
+                </div>
+                <h3 className="mt-3 font-heading text-base font-semibold leading-snug line-clamp-2">
+                  {post.title}
+                </h3>
+                <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+                  {post.excerpt}
+                </p>
+                <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+                  <User className="h-3 w-3" />
+                  <span>{post.author}</span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {post.readTime}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="mt-10 text-center">
+          <Link to="/blog" onClick={() => trackEvent('blog_view_all_click')}>
+            <Button variant="ghost" className="gap-2 text-primary">
+              View all articles
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function NewsletterSection() {
+  const [email, setEmail] = useState('')
+  const [submitted, setSubmitted] = useState(false)
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (email.trim()) {
+      trackEvent('newsletter_subscribe', { email_domain: email.split('@')[1] })
+      setSubmitted(true)
+      setEmail('')
+    }
+  }
+
+  return (
+    <section className="border-y bg-muted/30 py-20 sm:py-24">
+      <div className="mx-auto max-w-7xl px-4">
+        <div className="mx-auto max-w-2xl text-center">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <BookOpen className="h-5 w-5 text-primary" />
+            <Badge variant="outline">Newsletter</Badge>
+          </div>
+          <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+            Get AI hiring insights in your inbox
+          </h2>
+          <p className="mt-4 text-lg text-muted-foreground">
+            Weekly updates on AI trends, career tips, and product features. No spam. Unsubscribe anytime.
+          </p>
+
+          {submitted ? (
+            <div className="mt-8 inline-flex items-center gap-2 rounded-xl bg-green-50 px-6 py-4 text-sm text-green-700 dark:bg-green-950/30 dark:text-green-400">
+              <CheckCircle2 className="h-5 w-5" />
+              <span>Thanks for subscribing! Check your inbox for confirmation.</span>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="mt-8 mx-auto max-w-md">
+              <div className="flex items-center gap-2 rounded-xl border bg-background px-4 py-2 shadow-sm focus-within:ring-2 focus-within:ring-primary/20">
+                <Mail className="h-5 w-5 text-muted-foreground shrink-0" />
+                <input
+                  type="email"
+                  placeholder="Enter your email address"
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+                <Button type="submit" size="sm" className="shrink-0">
+                  <Send className="h-4 w-4 mr-1" />
+                  Subscribe
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function Footer() {
   const productLinks = [
     { label: 'Features', href: '/#features', event: 'footer_features_click' },
@@ -1028,7 +1224,9 @@ export function LandingPage() {
         <SocialProofSection />
         <PricingTeaserSection />
         <SecurityTrustSection />
+        <BlogSection />
         <FAQSection />
+        <NewsletterSection />
         <CTABannerSection />
       </main>
       <Footer />

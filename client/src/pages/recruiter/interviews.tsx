@@ -9,11 +9,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Skeleton } from '@/components/domain/skeleton'
+import { EmptyState } from '@/components/domain/empty-state'
 import {
   Calendar, Plus, Video, Phone, MapPin, Clock, User, Briefcase,
   CheckCircle, XCircle, AlertCircle, MessageSquare, Edit2,
   ChevronLeft, ChevronRight, Trash2, RefreshCw, Star,
-  Sparkles, Send, FileText, Brain, Zap, ClipboardList,
+  Sparkles, Send, FileText, Brain, Zap, ClipboardList, Inbox,
 } from 'lucide-react'
 
 interface Interview {
@@ -143,6 +145,14 @@ export function RecruiterInterviewsPage() {
   const [templateTitle, setTemplateTitle] = useState('')
   const [creatingTemplate, setCreatingTemplate] = useState(false)
   const [showScreeningReport, setShowScreeningReport] = useState<any>(null)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  useEffect(() => {
+    if (message) {
+      const t = setTimeout(() => setMessage(null), 4000)
+      return () => clearTimeout(t)
+    }
+  }, [message])
 
   // AI Evaluation
   const [evaluating, setEvaluating] = useState<number | null>(null)
@@ -228,7 +238,7 @@ export function RecruiterInterviewsPage() {
       resetScheduleForm()
       await loadData()
     } catch (err: any) {
-      alert(err.message || 'Failed to schedule')
+      setMessage({ type: 'error', text: err.message || 'Failed to schedule' })
     } finally {
       setSaving(false)
     }
@@ -261,7 +271,7 @@ export function RecruiterInterviewsPage() {
       setTemplateTitle('')
       await loadData()
     } catch (err: any) {
-      alert(err.message || 'Failed to create template')
+      setMessage({ type: 'error', text: err.message || 'Failed to create template' })
     } finally {
       setCreatingTemplate(false)
     }
@@ -276,7 +286,7 @@ export function RecruiterInterviewsPage() {
       })
       await loadData()
     } catch (err: any) {
-      alert(err.message || 'Failed to send screening')
+      setMessage({ type: 'error', text: err.message || 'Failed to send screening' })
     }
   }
 
@@ -286,7 +296,7 @@ export function RecruiterInterviewsPage() {
       const res = await apiCall<any>(`/interviews/screening/${sessionId}/report`)
       setShowScreeningReport(res)
     } catch (err: any) {
-      alert(err.message || 'Failed to load report')
+      setMessage({ type: 'error', text: err.message || 'Failed to load report' })
     }
   }
 
@@ -301,7 +311,7 @@ export function RecruiterInterviewsPage() {
       setShowAiScores(res)
       await loadData()
     } catch (err: any) {
-      alert(err.message || 'Failed to run AI evaluation')
+      setMessage({ type: 'error', text: err.message || 'Failed to run AI evaluation' })
     } finally {
       setEvaluating(null)
     }
@@ -327,7 +337,7 @@ export function RecruiterInterviewsPage() {
       setShowFeedback(null)
       await loadData()
     } catch (err: any) {
-      alert(err.message || 'Failed to save feedback')
+      setMessage({ type: 'error', text: err.message || 'Failed to save feedback' })
     } finally {
       setSaving(false)
     }
@@ -339,7 +349,7 @@ export function RecruiterInterviewsPage() {
       await apiCall(`/recruiter/interviews/${id}`, { method: 'DELETE' })
       await loadData()
     } catch (err: any) {
-      alert(err.message || 'Failed to cancel')
+      setMessage({ type: 'error', text: err.message || 'Failed to cancel' })
     }
   }
 
@@ -351,7 +361,7 @@ export function RecruiterInterviewsPage() {
       })
       await loadData()
     } catch (err: any) {
-      alert(err.message || 'Failed to update')
+      setMessage({ type: 'error', text: err.message || 'Failed to update' })
     }
   }
 
@@ -378,14 +388,44 @@ export function RecruiterInterviewsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <div className="h-8 w-40 rounded bg-muted animate-pulse" />
+            <div className="h-4 w-64 rounded bg-muted animate-pulse" />
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <div className="h-10 w-40 rounded bg-muted animate-pulse" />
+            <div className="h-10 w-36 rounded bg-muted animate-pulse" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Skeleton variant="card" />
+          <Skeleton variant="card" />
+          <Skeleton variant="card" />
+          <Skeleton variant="card" />
+        </div>
+        <div className="space-y-3">
+          <Skeleton variant="list" />
+          <Skeleton variant="list" />
+          <Skeleton variant="list" />
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
+      {/* Toast */}
+      {message && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg transition-all ${
+          message.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-destructive text-white'
+        }`}>
+          {message.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+          {message.text}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -501,16 +541,12 @@ export function RecruiterInterviewsPage() {
         {/* Upcoming list */}
         <TabsContent value="upcoming">
           {upcoming.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                <h3 className="font-semibold mb-1">No upcoming interviews</h3>
-                <p className="text-sm text-muted-foreground mb-4">Schedule interviews with candidates from your applications</p>
-                <Button onClick={() => setShowSchedule(true)}>
-                  <Plus className="h-4 w-4 mr-2" /> Schedule Interview
-                </Button>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={Calendar}
+              title="No upcoming interviews"
+              description="Schedule interviews with candidates from your applications."
+              action={{ label: 'Schedule Interview', onClick: () => setShowSchedule(true) }}
+            />
           ) : (
             <div className="space-y-3">
               {upcoming.map(interview => (
@@ -689,11 +725,11 @@ export function RecruiterInterviewsPage() {
         {/* Past interviews */}
         <TabsContent value="past">
           {past.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center text-muted-foreground">
-                No past interviews yet.
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={Inbox}
+              title="No past interviews yet"
+              description="Completed, cancelled, or declined interviews will appear here."
+            />
           ) : (
             <div className="space-y-3">
               {past.map(interview => (

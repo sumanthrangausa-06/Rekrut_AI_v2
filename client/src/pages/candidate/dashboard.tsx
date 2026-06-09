@@ -66,7 +66,7 @@ export function CandidateDashboard() {
   }, [])
 
   const quickActions = [
-    { label: 'Browse Jobs', href: '/candidate/jobs', icon: Briefcase, color: 'text-blue-600 bg-blue-100', desc: 'AI-matched recommendations' },
+    { label: 'Browse Jobs', href: '/candidate/jobs', icon: Briefcase, color: 'text-blue-600 bg-blue-100', desc: 'AI-matched jobs' },
     { label: 'My Applications', href: '/candidate/applications', icon: FileText, color: 'text-green-600 bg-green-100', desc: `${stats?.applications || 0} active` },
     { label: 'My Profile', href: '/candidate/profile', icon: User, color: 'text-indigo-600 bg-indigo-100', desc: `${stats?.profile_completeness || 0}% complete` },
     { label: 'Practice Interview', href: '/candidate/interviews', icon: MessageSquare, color: 'text-orange-600 bg-orange-100', desc: 'AI coaching' },
@@ -105,7 +105,7 @@ export function CandidateDashboard() {
                   style={{ width: `${stats.profile_completeness}%` }}
                 />
               </div>
-              <p className="mt-1 text-xs text-amber-700">{stats.profile_completeness}% complete — add skills, experience, and education</p>
+              <p className="mt-1 text-xs text-amber-700">{stats.profile_completeness}% complete — <Link to="/candidate/profile" className="underline">add skills, experience, education</Link></p>
             </div>
             <Link to="/candidate/profile">
               <Button size="sm" variant="outline" className="border-amber-600 text-amber-700 hover:bg-amber-100 min-h-[44px]">
@@ -123,9 +123,14 @@ export function CandidateDashboard() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
               <FileText className="h-5 w-5 text-blue-600" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-2xl font-bold">{stats?.applications || 0}</p>
               <p className="text-xs text-muted-foreground">Applications</p>
+              {(!stats || stats.applications === 0) && (
+                <Link to="/candidate/jobs" className="text-xs text-blue-600 hover:underline block mt-1">
+                  Browse jobs →
+                </Link>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -134,9 +139,14 @@ export function CandidateDashboard() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
               <MessageSquare className="h-5 w-5 text-green-600" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-2xl font-bold">{stats?.interviews?.total || 0}</p>
               <p className="text-xs text-muted-foreground">Interviews</p>
+              {(!stats || stats.interviews?.total === 0) && (
+                <Link to="/candidate/interviews" className="text-xs text-green-600 hover:underline block mt-1">
+                  Practice now →
+                </Link>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -145,9 +155,14 @@ export function CandidateDashboard() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
               <GraduationCap className="h-5 w-5 text-purple-600" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-2xl font-bold">{stats?.skills?.total || 0}</p>
               <p className="text-xs text-muted-foreground">Skills {stats?.skills?.verified ? `(${stats.skills.verified} verified)` : ''}</p>
+              {(!stats || stats.skills?.total === 0) && (
+                <Link to="/candidate/profile" className="text-xs text-purple-600 hover:underline block mt-1">
+                  Add skills →
+                </Link>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -156,9 +171,16 @@ export function CandidateDashboard() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100">
               <Star className="h-5 w-5 text-amber-600" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-2xl font-bold">{stats?.omniscore?.total_score || '—'}</p>
               <p className="text-xs text-muted-foreground">OmniScore</p>
+              {stats?.omniscore?.total_score ? (
+                <p className="text-xs text-muted-foreground mt-1">{stats.omniscore.score_tier || 'Good'} — AI-powered rating</p>
+              ) : (
+                <Link to="/candidate/profile" className="text-xs text-amber-600 hover:underline block mt-1">
+                  Complete profile →
+                </Link>
+              )}
             </div>
           </CardContent>
         </Card>

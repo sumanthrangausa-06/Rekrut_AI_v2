@@ -12,6 +12,8 @@ import { Select } from '@/components/ui/select'
 import { Avatar } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/domain/skeleton'
+import { EmptyState } from '@/components/domain/empty-state'
 import {
   ArrowLeft, MapPin, DollarSign, Building2, Clock, Briefcase, Send,
   CheckCircle, AlertCircle, FileText, ListChecks, Sparkles, Loader2, Wand2, Zap,
@@ -335,7 +337,16 @@ export function CandidateJobDetailPage() {
   const matchingSkills = matchBreakdown?.dimensions?.skills?.matching || []
   const missingSkills = matchBreakdown?.dimensions?.skills?.missing || []
 
-  if (loading) return <div className="flex items-center justify-center py-16"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>
+  if (loading) return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        <div className="h-8 w-8 rounded bg-muted animate-pulse" />
+        <div className="h-6 w-40 rounded bg-muted animate-pulse" />
+      </div>
+      <Skeleton variant="card" />
+      <Skeleton variant="card" />
+    </div>
+  )
   if (!job) return <div className="py-16 text-center"><Briefcase className="mx-auto mb-3 h-10 w-10 opacity-30" /><p className="text-muted-foreground">Job not found</p><Button variant="ghost" className="mt-4" onClick={() => navigate('/candidate/jobs')}>Back to jobs</Button></div>
 
   return (

@@ -7,9 +7,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Skeleton } from '@/components/domain/skeleton'
+import { EmptyState } from '@/components/domain/empty-state'
 import {
   Gift, DollarSign, Calendar, Building2, CheckCircle, XCircle, Clock, Eye,
-  FileText, PenTool, Shield,
+  FileText, PenTool, Shield, AlertCircle,
 } from 'lucide-react'
 
 interface Offer {
@@ -54,10 +56,18 @@ export function CandidateOffersPage() {
   const [signDialog, setSignDialog] = useState(false)
   const [signatureName, setSignatureName] = useState('')
   const [signing, setSigning] = useState(false)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
     loadOffers()
   }, [])
+
+  useEffect(() => {
+    if (message) {
+      const t = setTimeout(() => setMessage(null), 4000)
+      return () => clearTimeout(t)
+    }
+  }, [message])
 
   async function loadOffers() {
     try {
@@ -89,10 +99,10 @@ export function CandidateOffersPage() {
         setLetterHtml(result.offer_letter_html)
         setShowLetter(true)
       } else {
-        alert('No offer letter document available yet.')
+        setMessage({ type: 'error', text: 'No offer letter document available yet.' })
       }
     } catch {
-      alert('Failed to load offer letter')
+      setMessage({ type: 'error', text: 'Failed to load offer letter' })
     } finally {
       setLoadingLetter(false)
     }
@@ -100,7 +110,7 @@ export function CandidateOffersPage() {
 
   async function acceptWithSignature() {
     if (!selectedOffer || !signatureName.trim()) {
-      alert('Please type your full legal name to sign')
+      setMessage({ type: 'error', text: 'Please type your full legal name to sign' })
       return
     }
     setSigning(true)
@@ -120,7 +130,7 @@ export function CandidateOffersPage() {
       setSelectedOffer(null)
       loadOffers()
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to accept offer')
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to accept offer' })
     } finally {
       setSigning(false)
     }
@@ -139,7 +149,7 @@ export function CandidateOffersPage() {
       setDeclineReason('')
       loadOffers()
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to decline offer')
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to decline offer' })
     } finally {
       setActing(false)
     }
@@ -150,23 +160,31 @@ export function CandidateOffersPage() {
 
   return (
     <div className="space-y-6">
+      {/* Toast */}
+      {message && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg transition-all ${
+          message.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-destructive text-white'
+        }`}>
+          {message.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+          {message.text}
+        </div>
+      )}
+
       <div>
         <h1 className="font-heading text-2xl font-bold">My Offers</h1>
         <p className="text-muted-foreground">Review and respond to job offers</p>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <div className="space-y-4">
+          <Skeleton variant="card" count={3} />
         </div>
       ) : offers.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center">
-            <Gift className="mx-auto mb-3 h-10 w-10 opacity-30" />
-            <p className="text-muted-foreground">No offers yet</p>
-            <p className="text-sm text-muted-foreground mt-1">When a recruiter makes you an offer, it will appear here</p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Gift}
+          title="No offers yet"
+          description="When a recruiter makes you an offer, it will appear here."
+        />
       ) : (
         <div className="space-y-6">
           {pendingOffers.length > 0 && (

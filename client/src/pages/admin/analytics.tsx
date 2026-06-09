@@ -4,10 +4,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { EmptyState } from '@/components/domain/empty-state'
 import {
   BarChart3, Users, MousePointer, TrendingUp, ArrowUpRight, ArrowDownRight,
   Loader2, Calendar, Eye, FileText, MessageSquare, Mic, Briefcase,
-  Zap,
+  Zap, Inbox,
 } from 'lucide-react'
 
 // ─── Types ──────────────────────────────────────────────────────────────
@@ -201,7 +202,14 @@ export function AdminAnalyticsPage() {
                   Daily Visitors (Last 30 Days)
                 </h2>
                 <div className="h-72 flex items-end gap-2 overflow-x-auto pb-6">
-                  {data.daily_visitors.map((day) => {
+                  {data.daily_visitors.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center w-full h-full text-center">
+                      <Inbox className="h-12 w-12 text-slate-400 mb-4" />
+                      <h3 className="text-lg font-medium text-slate-300">No visitor data yet</h3>
+                      <p className="text-sm text-slate-500 mt-1">Visitor data will appear here as users visit the site.</p>
+                    </div>
+                  ) : (
+                    data.daily_visitors.map((day) => {
                     const visitors = parseInt(String(day.visitors)) || 0
                     const height = maxVisitors > 0 ? Math.max((visitors / maxVisitors) * 100, 5) : 0
                     return (
@@ -216,7 +224,8 @@ export function AdminAnalyticsPage() {
                         </div>
                       </div>
                     )
-                  })}
+                  })
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -238,7 +247,18 @@ export function AdminAnalyticsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.feature_engagement.map((feature) => {
+                      {data.feature_engagement.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="py-12">
+                            <div className="flex flex-col items-center justify-center text-center">
+                              <Inbox className="h-12 w-12 text-slate-400 mb-4" />
+                              <h3 className="text-lg font-medium text-slate-300">No feature engagement yet</h3>
+                              <p className="text-sm text-slate-500 mt-1">Feature usage data will appear as users interact with the platform.</p>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        data.feature_engagement.map((feature) => {
                         const meta = FEATURE_NAMES[feature.event_type] || { icon: FileText, label: feature.event_type }
                         return (
                           <tr key={feature.event_type} className="border-b border-white/5 hover:bg-white/5">
@@ -252,7 +272,8 @@ export function AdminAnalyticsPage() {
                             <td className="py-4 px-4 text-sm text-slate-400">{feature.unique_users || 0}</td>
                           </tr>
                         )
-                      })}
+                      })
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -276,7 +297,18 @@ export function AdminAnalyticsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.page_views.map((page) => {
+                      {data.page_views.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="py-12">
+                            <div className="flex flex-col items-center justify-center text-center">
+                              <Inbox className="h-12 w-12 text-slate-400 mb-4" />
+                              <h3 className="text-lg font-medium text-slate-300">No page views yet</h3>
+                              <p className="text-sm text-slate-500 mt-1">Page view data will appear as users navigate the platform.</p>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        data.page_views.map((page) => {
                         const meta = PAGE_NAMES[page.event_type] || { icon: FileText, label: page.event_type }
                         return (
                           <tr key={page.event_type} className="border-b border-white/5 hover:bg-white/5">
@@ -290,7 +322,8 @@ export function AdminAnalyticsPage() {
                             <td className="py-4 px-4 text-sm text-slate-400">{page.unique_visitors}</td>
                           </tr>
                         )
-                      })}
+                      })
+                      )}
                     </tbody>
                   </table>
                 </div>

@@ -13,6 +13,8 @@ import { Progress } from '@/components/ui/progress'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip } from '@/components/ui/tooltip'
+import { Skeleton } from '@/components/domain/skeleton'
+import { EmptyState } from '@/components/domain/empty-state'
 import {
   User, Briefcase, GraduationCap, Wrench, FileText,
   Plus, Pencil, Trash2, Save, Upload, MapPin, Phone, Link2,
@@ -245,8 +247,27 @@ export function CandidateProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/20 rounded-2xl border p-6 sm:p-8">
+          <div className="flex flex-col lg:flex-row gap-6 items-start">
+            <div className="h-20 w-20 rounded-xl bg-muted animate-pulse shrink-0" />
+            <div className="space-y-3 flex-1 min-w-0">
+              <div className="h-8 w-48 rounded bg-muted animate-pulse" />
+              <div className="h-4 w-64 rounded bg-muted animate-pulse" />
+              <div className="h-4 w-40 rounded bg-muted animate-pulse" />
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-4">
+            <Skeleton variant="card" />
+            <Skeleton variant="card" />
+          </div>
+          <div className="space-y-4">
+            <Skeleton variant="card" />
+            <Skeleton variant="card" />
+          </div>
+        </div>
       </div>
     )
   }

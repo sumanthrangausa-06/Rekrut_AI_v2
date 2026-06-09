@@ -8,6 +8,8 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Skeleton } from '@/components/domain/skeleton'
+import { EmptyState } from '@/components/domain/empty-state'
 import {
   ArrowLeft, Users, Star, Calendar, Search, LayoutGrid, List,
   Mail, FileText, Send, CheckCircle, Clock, Gift, MessageSquare,
@@ -312,8 +314,19 @@ export function RecruiterJobApplicantsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded bg-muted animate-pulse" />
+          <div className="space-y-2 flex-1">
+            <div className="h-8 w-40 rounded bg-muted animate-pulse" />
+            <div className="h-4 w-64 rounded bg-muted animate-pulse" />
+          </div>
+        </div>
+        <div className="space-y-3">
+          <Skeleton variant="card" />
+          <Skeleton variant="card" />
+          <Skeleton variant="card" />
+        </div>
       </div>
     )
   }
@@ -522,14 +535,11 @@ export function RecruiterJobApplicantsPage() {
           </div>
 
           {filtered.length === 0 ? (
-            <Card>
-              <CardContent className="py-16 text-center">
-                <Users className="mx-auto mb-3 h-10 w-10 opacity-30" />
-                <p className="text-muted-foreground">
-                  {applicants.length === 0 ? 'No applicants yet' : 'No matches'}
-                </p>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={Users}
+              title={applicants.length === 0 ? 'No applicants yet' : 'No matches'}
+              description={applicants.length === 0 ? 'When candidates apply to this job, they will appear here.' : 'Try adjusting your filters to see more candidates.'}
+            />
           ) : (
             <div className="space-y-2">
               {filtered.map(app => {

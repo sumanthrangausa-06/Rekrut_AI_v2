@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Skeleton } from '@/components/domain/skeleton'
+import { EmptyState } from '@/components/domain/empty-state'
 import {
   GraduationCap, Users, Trophy, TrendingUp, Search, ChevronDown,
   CheckCircle, XCircle, Clock, Shield, Eye, BarChart3, AlertTriangle,
@@ -258,19 +260,15 @@ export function RecruiterAssessmentsPage() {
         <TabsContent value="job_assessments">
           <div className="space-y-3 mt-4">
             {loading ? (
-              <div className="flex items-center justify-center py-16">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <div className="space-y-4">
+                <Skeleton variant="card" count={3} />
               </div>
             ) : jobAssessmentResults.length === 0 ? (
-              <Card>
-                <CardContent className="py-16 text-center">
-                  <Sparkles className="mx-auto mb-3 h-10 w-10 opacity-30" />
-                  <p className="font-medium">No job assessment results yet</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Generate AI assessments from your job postings. Go to any job → ✨ Assessment.
-                  </p>
-                </CardContent>
-              </Card>
+              <EmptyState
+                icon={Sparkles}
+                title="No job assessment results yet"
+                description="Generate AI assessments from your job postings. Go to any job → ✨ Assessment."
+              />
             ) : (
               <>
                 <p className="text-xs text-muted-foreground">{jobAssessmentResults.length} scored results</p>
@@ -404,19 +402,15 @@ export function RecruiterAssessmentsPage() {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <div className="space-y-4">
+              <Skeleton variant="card" count={3} />
             </div>
           ) : filteredAssessments.length === 0 ? (
-            <Card>
-              <CardContent className="py-16 text-center">
-                <GraduationCap className="mx-auto mb-3 h-10 w-10 opacity-30" />
-                <p className="text-muted-foreground">No assessment results yet</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Candidates can take skill tests from their Assessments page
-                </p>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={GraduationCap}
+              title="No assessment results yet"
+              description="Candidates can take skill tests from their Assessments page."
+            />
           ) : (
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
@@ -486,12 +480,12 @@ export function RecruiterAssessmentsPage() {
         {/* ===== SKILLS TAB ===== */}
         <TabsContent value="skills">
           {skillBreakdown.length === 0 ? (
-            <Card className="mt-4">
-              <CardContent className="py-16 text-center">
-                <BarChart3 className="mx-auto mb-3 h-10 w-10 opacity-30" />
-                <p className="text-muted-foreground">No skill data yet</p>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={BarChart3}
+              title="No skill data yet"
+              description="Once candidates complete assessments, skill breakdowns will appear here."
+              className="mt-4"
+            />
           ) : (
             <div className="space-y-3 mt-4">
               {skillBreakdown.map(s => {

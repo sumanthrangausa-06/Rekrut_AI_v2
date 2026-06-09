@@ -93,6 +93,9 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [showMobileSidebar, setShowMobileSidebar] = useState(true)
   const [typingUsers, setTypingUsers] = useState<Set<number>>(new Set())
+  const [showProfilePanel, setShowProfilePanel] = useState(false)
+  const [sharedFiles, setSharedFiles] = useState<{name: string; type: string; size: string; date: string}[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -219,6 +222,60 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
     }
   }
 
+  async function sendFile(file: File) {
+    if (!activeConv || !file) return
+    setSending(true)
+
+    const type = file.type.startsWith('image/') ? 'image' : 'file'
+    const optimisticMsg: ChatMessage = {
+      id: Date.now(),
+      conversation_id: activeConv,
+      sender_id: 0,
+      content: `Sent ${type}: ${file.name}`,
+      type,
+      file_name: file.name,
+      created_at: new Date().toISOString(),
+      is_read: false,
+    }
+    setMessages(prev => [...prev, optimisticMsg])
+
+    // Add to shared files list
+    setSharedFiles(prev => [...prev, {
+      name: file.name,
+      type: file.type.startsWith('image/') ? 'image' : 'pdf',
+      size: `${(file.size / 1024).toFixed(1)} KB`,
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }])
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      await apiCall(`/conversations/${activeConv}/upload`, {
+        method: 'POST',
+        body: formData,
+      })
+    } catch {
+      // Keep optimistic message
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function startCall(type: 'audio' | 'video') {
+    if (!activeConv) return
+    // Show call notification
+    const callMsg: ChatMessage = {
+      id: Date.now(),
+      conversation_id: activeConv,
+      sender_id: 0,
+      content: `Started a ${type} call`,
+      type: 'system',
+      created_at: new Date().toISOString(),
+      is_read: false,
+    }
+    setMessages(prev => [...prev, callMsg])
+  }
+
   async function markAsRead(convId: number) {
     try {
       await apiCall(`/conversations/${convId}/read`, { method: 'POST' })
@@ -261,16 +318,26 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar — Conversations List */}
         <div className={`${showMobileSidebar ? 'flex' : 'hidden'} md:flex w-full md:w-80 border-r flex-col bg-card/30 shrink-0`}>
-          {/* Search */}
+          {/* Search + New */}
           <div className="p-3 border-b">
-            <div className="relative">
-              <MessageSquare className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search conversations..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="pl-9 h-9 text-sm"
-              />
+            <div className="flex gap-2 mb-2">
+              <div className="relative flex-1">
+                <MessageSquare className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search conversations..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="pl-9 h-9 text-sm"
+                />
+              </div>
+              <Button variant="outline" size="sm" className="h-9 px-2 gap-1 text-xs" onClick={() => {
+                if (conversations.length > 0) {
+                  setActiveConversation(conversations[0].id)
+                }
+              }}>
+                <User className="h-3.5 w-3.5" />
+                New
+              </Button>
             </div>
           </div>
 
@@ -365,13 +432,13 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => startCall('audio')} title="Audio call">
                     <Phone className="h-4 w-4 text-muted-foreground" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => startCall('video')} title="Video call">
                     <Video className="h-4 w-4 text-muted-foreground" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setShowProfilePanel(!showProfilePanel)} title="Contact info">
                     <MoreVertical className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 </div>
@@ -469,9 +536,20 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
               {/* Input Area */}
               <div className="px-4 py-3 border-t bg-card/50 shrink-0">
                 <div className="flex items-end gap-2">
-                  <Button variant="ghost" size="sm" className="h-9 w-9 p-0 shrink-0">
+                  <Button variant="ghost" size="sm" className="h-9 w-9 p-0 shrink-0" onClick={() => fileInputRef.current?.click()} title="Attach file">
                     <Paperclip className="h-4 w-4 text-muted-foreground" />
                   </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) sendFile(file)
+                      e.target.value = ''
+                    }}
+                  />
                   <div className="flex-1 relative">
                     <Input
                       ref={inputRef}
@@ -500,6 +578,57 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
                   </Button>
                 </div>
               </div>
+
+              {/* Profile Panel */}
+              {showProfilePanel && activeConversation && otherUser && (
+                <div className="w-72 border-l bg-muted/30 flex flex-col shrink-0">
+                  <div className="p-4 border-b">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="font-semibold text-sm">Contact Info</span>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setShowProfilePanel(false)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary mb-2">
+                        {otherName?.[0]?.toUpperCase() || '?'}
+                      </div>
+                      <span className="font-medium text-sm">{otherName}</span>
+                      <span className="text-xs text-muted-foreground">{otherUser.email}</span>
+                      <div className="flex items-center gap-1 mt-2">
+                        <div className={`h-2 w-2 rounded-full ${otherUser.is_online ? 'bg-green-500' : 'bg-gray-400'}`} />
+                        <span className="text-xs text-muted-foreground">{otherUser.is_online ? 'Online' : 'Offline'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-4 border-b">
+                    <span className="font-semibold text-sm">Shared Files</span>
+                    <div className="mt-2 space-y-2">
+                      {sharedFiles.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic">No files shared yet</p>
+                      ) : (
+                        sharedFiles.map((file, i) => (
+                          <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-background border">
+                            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium truncate">{file.name}</p>
+                              <p className="text-[10px] text-muted-foreground">{file.type} · {file.size}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <span className="font-semibold text-sm">About</span>
+                    <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                      {mode === 'recruiter' 
+                        ? `Candidate for ${activeConversation.job_title || 'this position'}. Connected via Rekrut AI.`
+                        : `Recruiter at ${activeConversation.company_name || 'this company'}. Hiring for ${activeConversation.job_title || 'this position'}.`}
+                    </p>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center">

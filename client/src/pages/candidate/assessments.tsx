@@ -5,8 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Skeleton } from '@/components/domain/skeleton'
+import { EmptyState } from '@/components/domain/empty-state'
 import {
-  GraduationCap, Play, Trophy, Clock, Shield, AlertTriangle, CheckCircle,
+  GraduationCap, Play, Trophy, Clock, Shield, AlertTriangle, CheckCircle, Inbox,
 } from 'lucide-react'
 
 interface SkillCatalog {
@@ -145,8 +147,8 @@ export function CandidateAssessmentsPage() {
 
         <TabsContent value="available">
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <div className="space-y-4 mt-4">
+              <Skeleton variant="card" count={3} />
             </div>
           ) : (
             <div className="space-y-6 mt-4">
@@ -210,15 +212,13 @@ export function CandidateAssessmentsPage() {
 
         <TabsContent value="results">
           {results.length === 0 ? (
-            <Card className="mt-4">
-              <CardContent className="py-16 text-center">
-                <Trophy className="mx-auto mb-3 h-10 w-10 opacity-30" />
-                <p className="text-muted-foreground">No assessment results yet</p>
-                <Button className="mt-4" onClick={() => setTab('available')}>
-                  Take a Test
-                </Button>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={Trophy}
+              title="No assessment results yet"
+              description="Take a skill test to see your results and verify your abilities."
+              action={{ label: 'Take a Test', onClick: () => setTab('available') }}
+              className="mt-4"
+            />
           ) : (
             <div className="space-y-3 mt-4">
               {results.map(r => (

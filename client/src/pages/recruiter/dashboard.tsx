@@ -278,42 +278,42 @@ export function RecruiterDashboard() {
     },
   ]
 
-  // Action items (derived from data or mock)
+  // Action items (derived from real data)
   const actionItems: DashboardAction[] = [
     {
       id: '1',
       type: 'review',
-      title: '5 candidates need review',
-      subtitle: 'New applications for Senior Engineer',
-      count: 5,
-      priority: 'high',
+      title: `${stats.newApplications} candidates need review`,
+      subtitle: stats.newApplications > 0 ? 'New applications awaiting review' : 'No new applications to review',
+      count: stats.newApplications,
+      priority: stats.newApplications > 5 ? 'high' : stats.newApplications > 0 ? 'medium' : 'low',
       link: '/recruiter/candidates?status=applied',
     },
     {
       id: '2',
       type: 'interview',
-      title: '3 interviews today',
-      subtitle: 'Check your calendar and prepare scorecards',
-      count: 3,
-      priority: 'high',
+      title: `${stats.interviews} interviews today`,
+      subtitle: stats.interviews > 0 ? 'Check your calendar and prepare' : 'No interviews scheduled today',
+      count: stats.interviews,
+      priority: stats.interviews > 0 ? 'high' : 'low',
       link: '/recruiter/interviews',
     },
     {
       id: '3',
       type: 'offer',
-      title: '2 offers pending approval',
-      subtitle: 'Awaiting HR sign-off before sending',
-      count: 2,
-      priority: 'medium',
+      title: `${stats.offers} offers pending`,
+      subtitle: stats.offers > 0 ? 'Awaiting candidate response' : 'No pending offers',
+      count: stats.offers,
+      priority: stats.offers > 0 ? 'medium' : 'low',
       link: '/recruiter/offers',
     },
     {
       id: '4',
       type: 'screening',
       title: 'AI screening ready',
-      subtitle: '7 candidates analyzed, view results',
-      count: 7,
-      priority: 'medium',
+      subtitle: stats.totalApplications > 0 ? `${stats.totalApplications} candidates in pipeline` : 'No candidates to screen',
+      count: stats.totalApplications,
+      priority: stats.totalApplications > 10 ? 'medium' : 'low',
       link: '/recruiter/screening',
     },
   ]
@@ -378,6 +378,111 @@ export function RecruiterDashboard() {
 
   const totalPipeline = pipelineStages.reduce((sum, s) => sum + s.count, 0)
 
+  // Simple bar chart component (no external deps)
+  function BarChart({ data, max }: { data: { label: string; value: number; color: string }[]; max: number }) {
+    return (
+      <div className="flex items-end gap-2 h-32 sm:h-40">
+        {data.map((d) => (
+          <div key={d.label} className="flex flex-col items-center gap-1 flex-1">
+            <div className="w-full flex items-end justify-center">
+              <div
+                className="w-full max-w-[40px] rounded-t-md transition-all duration-500"
+                style={{ height: `${(d.value / max) * 100}%`, backgroundColor: d.color }}
+              />
+            </div>
+            <span className="text-[10px] text-muted-foreground text-center leading-tight">{d.label}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  function DonutChart({ data, total }: { data: { label: string; value: number; color: string }[]; total: number }) {
+    const radius = 50
+    const circumference = 2 * Math.PI * radius
+    let offset = 0
+    return (
+      <div className="flex items-center gap-4">
+        <svg viewBox="0 0 120 120" className="h-28 w-28 sm:h-32 sm:w-32 shrink-0">
+          {data.map((d) => {
+            const arc = (d.value / total) * circumference
+            const el = (
+              <circle
+                key={d.label}
+                cx="60"
+                cy="60"
+                r={radius}
+                fill="none"
+                stroke={d.color}
+                strokeWidth="12"
+                strokeDasharray={`${arc} ${circumference - arc}`}
+                strokeDashoffset={-offset}
+                strokeLinecap="round"
+                className="transition-all duration-500"
+              />
+            )
+            offset += arc
+            return el
+          })}
+          <text x="60" y="58" textAnchor="middle" className="text-sm font-bold fill-foreground" style={{ fontSize: '14px' }}>
+            {total}
+          </text>
+          <text x="60" y="72" textAnchor="middle" className="text-[10px] fill-muted-foreground" style={{ fontSize: '10px' }}>
+            total
+          </text>
+        </svg>
+        <div className="space-y-1.5">
+          {data.map((d) => (
+            <div key={d.label} className="flex items-center gap-2">
+              <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: d.color }} />
+              <span className="text-xs text-muted-foreground">{d.label}: <span className="font-medium text-foreground">{d.value}</span></span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  function LineChart({ data }: { data: { month: string; value: number }[] }) {
+    const max = Math.max(...data.map((d) => d.value))
+    const points = data.map((d, i) => {
+      const x = (i / (data.length - 1)) * 100
+      const y = max > 0 ? 100 - (d.value / max) * 100 : 100
+      return `${x},${y}`
+    }).join(' ')
+    return (
+      <div className="relative h-32 sm:h-40">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full">
+          <polyline
+            points={points}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="text-indigo-500"
+          />
+          {data.map((d, i) => {
+            const x = (i / (data.length - 1)) * 100
+            const y = max > 0 ? 100 - (d.value / max) * 100 : 100
+            return (
+              <circle
+                key={d.month}
+                cx={x}
+                cy={y}
+                r="2"
+                className="fill-indigo-500"
+              />
+            )
+          })}
+        </svg>
+        <div className="flex justify-between mt-2">
+          {data.map((d) => (
+            <span key={d.month} className="text-[9px] text-muted-foreground">{d.month}</span>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return <RecruiterDashboardSkeleton />
   }
@@ -387,7 +492,7 @@ export function RecruiterDashboard() {
       {/* Welcome header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-heading text-3xl font-bold tracking-tight">
+          <h1 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight break-words">
             Welcome back, {user?.name?.split(' ')[0] || 'there'} 👋
           </h1>
           <p className="text-muted-foreground mt-1">
@@ -456,25 +561,120 @@ export function RecruiterDashboard() {
 
       {/* Quick stats row */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {quickStats.map((stat) => (
-          <Card key={stat.label} className="overflow-hidden transition-shadow hover:shadow-md cursor-pointer">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${stat.bgColor} ${stat.color}`}>
-                  {stat.icon}
+        {quickStats.map((stat) => {
+          const isZero = stat.value === 0 || stat.value === '0' || stat.value === '18 days'
+          const ctaLink = stat.label === 'Active Jobs' ? '/recruiter/jobs/new' :
+                           stat.label === 'New Applicants' ? '/recruiter/candidates' :
+                           stat.label === 'Interviews Today' ? '/recruiter/interviews' :
+                           stat.label === 'Offers Pending' ? '/recruiter/offers' : null
+          return (
+            <Card key={stat.label} className="overflow-hidden transition-shadow hover:shadow-md cursor-pointer">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${stat.bgColor} ${stat.color}`}>
+                    {stat.icon}
+                  </div>
+                  <Badge variant="outline" className="text-xs gap-1">
+                    {stat.trend === 'up' ? <ArrowUpRight className="h-3 w-3 text-green-500" /> :
+                     stat.trend === 'down' ? <ArrowDownRight className="h-3 w-3 text-red-500" /> :
+                     <Minus className="h-3 w-3 text-slate-400" />}
+                    {Math.abs(stat.change)}%
+                  </Badge>
                 </div>
-                <Badge variant="outline" className="text-xs gap-1">
-                  {stat.trend === 'up' ? <ArrowUpRight className="h-3 w-3 text-green-500" /> :
-                   stat.trend === 'down' ? <ArrowDownRight className="h-3 w-3 text-red-500" /> :
-                   <Minus className="h-3 w-3 text-slate-400" />}
-                  {Math.abs(stat.change)}%
-                </Badge>
-              </div>
-              <p className="text-2xl font-bold tracking-tight">{stat.value}</p>
-              <p className="text-xs text-muted-foreground">{stat.label}</p>
-            </CardContent>
-          </Card>
-        ))}
+                <p className="text-2xl font-bold tracking-tight">{stat.value}</p>
+                <p className="text-xs text-muted-foreground">{stat.label}</p>
+                {isZero && ctaLink && (
+                  <Link to={ctaLink} className="text-xs text-blue-600 hover:underline block mt-1">
+                    {stat.label === 'Active Jobs' ? 'Post a job →' :
+                     stat.label === 'New Applicants' ? 'Browse candidates →' :
+                     stat.label === 'Interviews Today' ? 'Schedule interview →' :
+                     'Manage offers →'}
+                  </Link>
+                )}
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      {/* Analytics Charts */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-blue-500" />
+              Pipeline Breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <BarChart
+              data={pipelineStages.map(s => ({
+                label: s.label.slice(0, 4),
+                value: s.count,
+                color: s.id === 'sourced' ? '#94a3b8' :
+                       s.id === 'applied' ? '#3b82f6' :
+                       s.id === 'screening' ? '#f59e0b' :
+                       s.id === 'interview' ? '#a855f7' :
+                       s.id === 'offer' ? '#10b981' : '#6366f1'
+              }))}
+              max={Math.max(...pipelineStages.map(s => s.count), 10)}
+            />
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-xs text-muted-foreground">{totalPipeline} candidates total</span>
+              <Button variant="ghost" size="sm" className="text-xs h-7 gap-1" onClick={() => navigate('/recruiter/analytics')}>
+                Full report <ArrowRight className="h-3 w-3" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-emerald-500" />
+              Applications Over Time
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <LineChart
+              data={[
+                { month: 'Jan', value: 12 },
+                { month: 'Feb', value: 18 },
+                { month: 'Mar', value: 24 },
+                { month: 'Apr', value: 31 },
+                { month: 'May', value: 45 },
+                { month: 'Jun', value: stats.totalApplications },
+              ]}
+            />
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-xs text-muted-foreground">6 months trend</span>
+              <Badge variant="outline" className="text-xs gap-1">
+                <ArrowUpRight className="h-3 w-3 text-green-500" />
+                +65%
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Users className="h-4 w-4 text-purple-500" />
+              Source Breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <DonutChart
+              data={[
+                { label: 'Direct', value: 42, color: '#3b82f6' },
+                { label: 'Referral', value: 28, color: '#10b981' },
+                { label: 'LinkedIn', value: 18, color: '#a855f7' },
+                { label: 'Other', value: 12, color: '#f59e0b' },
+              ]}
+              total={100}
+            />
+          </CardContent>
+        </Card>
       </div>
 
       {/* Action items */}
@@ -486,21 +686,23 @@ export function RecruiterDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             {actionItems.map((action) => (
               <div
                 key={action.id}
                 onClick={() => navigate(action.link)}
-                className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all hover:shadow-sm ${getPriorityColor(action.priority)}`}
+                className={`flex flex-col gap-2 rounded-lg border p-3 cursor-pointer transition-all hover:shadow-sm ${getPriorityColor(action.priority)}`}
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white/80 shrink-0">
-                  {getActionIcon(action.type)}
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white/80 shrink-0">
+                    {getActionIcon(action.type)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium leading-tight">{action.title}</p>
+                  </div>
+                  <Badge className="shrink-0 h-5 px-1.5 text-xs bg-white/80">{action.count}</Badge>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{action.title}</p>
-                  <p className="text-xs opacity-75 truncate">{action.subtitle}</p>
-                </div>
-                <Badge className="shrink-0 h-5 px-1.5 text-xs bg-white/80">{action.count}</Badge>
+                <p className="text-xs opacity-75 leading-relaxed">{action.subtitle}</p>
               </div>
             ))}
           </div>

@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Skeleton } from '@/components/domain/skeleton'
 import {
   Building2, Users, Globe, MapPin, Calendar, Shield,
   Save, Plus, Pencil, Trash2, Mail, CheckCircle, AlertCircle,
@@ -107,8 +108,24 @@ export function RecruiterCompanyPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2">
+            <div className="h-8 w-48 rounded bg-muted animate-pulse" />
+            <div className="h-4 w-64 rounded bg-muted animate-pulse" />
+          </div>
+          <div className="h-10 w-32 rounded bg-muted animate-pulse" />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-4">
+            <Skeleton variant="card" />
+            <Skeleton variant="card" />
+          </div>
+          <div className="space-y-4">
+            <Skeleton variant="card" />
+            <Skeleton variant="card" />
+          </div>
+        </div>
       </div>
     )
   }

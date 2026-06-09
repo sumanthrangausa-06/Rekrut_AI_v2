@@ -9,10 +9,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Skeleton } from '@/components/domain/skeleton'
+import { EmptyState } from '@/components/domain/empty-state'
 import {
   Video, Phone, MapPin, Clock, CheckCircle, XCircle, AlertCircle,
   Calendar, Briefcase, Building2, User, RefreshCw, ExternalLink,
-  Lightbulb, BookOpen, Target, MessageSquare,
+  Lightbulb, BookOpen, Target, MessageSquare, Inbox,
 } from 'lucide-react'
 
 interface Interview {
@@ -98,10 +100,18 @@ export function CandidateInterviewsPage() {
   const [rescheduleReason, setRescheduleReason] = useState('')
   const [rescheduleTime, setRescheduleTime] = useState('')
   const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
     loadInterviews()
   }, [])
+
+  useEffect(() => {
+    if (message) {
+      const t = setTimeout(() => setMessage(null), 4000)
+      return () => clearTimeout(t)
+    }
+  }, [message])
 
   async function loadInterviews() {
     setLoading(true)
@@ -120,7 +130,7 @@ export function CandidateInterviewsPage() {
       await apiCall(`/candidate/interviews/${id}/accept`, { method: 'PUT' })
       await loadInterviews()
     } catch (err: any) {
-      alert(err.message || 'Failed to accept')
+      setMessage({ type: 'error', text: err.message || 'Failed to accept' })
     }
   }
 
@@ -136,7 +146,7 @@ export function CandidateInterviewsPage() {
       setDeclineReason('')
       await loadInterviews()
     } catch (err: any) {
-      alert(err.message || 'Failed to decline')
+      setMessage({ type: 'error', text: err.message || 'Failed to decline' })
     } finally {
       setSaving(false)
     }
@@ -158,7 +168,7 @@ export function CandidateInterviewsPage() {
       setRescheduleTime('')
       await loadInterviews()
     } catch (err: any) {
-      alert(err.message || 'Failed to request reschedule')
+      setMessage({ type: 'error', text: err.message || 'Failed to request reschedule' })
     } finally {
       setSaving(false)
     }
@@ -169,14 +179,35 @@ export function CandidateInterviewsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-8 w-40 rounded bg-muted animate-pulse" />
+            <div className="h-4 w-64 rounded bg-muted animate-pulse" />
+          </div>
+          <div className="h-10 w-40 rounded bg-muted animate-pulse" />
+        </div>
+        <div className="space-y-3">
+          <Skeleton variant="card" />
+          <Skeleton variant="card" />
+          <Skeleton variant="card" />
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
+      {/* Toast */}
+      {message && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg transition-all ${
+          message.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-destructive text-white'
+        }`}>
+          {message.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+          {message.text}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -206,13 +237,11 @@ export function CandidateInterviewsPage() {
         {/* Upcoming */}
         <TabsContent value="upcoming">
           {upcoming.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                <h3 className="font-semibold mb-1">No upcoming interviews</h3>
-                <p className="text-sm text-muted-foreground">When recruiters schedule interviews, they'll appear here.</p>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={Calendar}
+              title="No upcoming interviews"
+              description="When recruiters schedule interviews, they'll appear here."
+            />
           ) : (
             <div className="space-y-3">
               {upcoming
@@ -234,11 +263,11 @@ export function CandidateInterviewsPage() {
         {/* Past */}
         <TabsContent value="past">
           {past.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center text-muted-foreground">
-                No past interviews.
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={Inbox}
+              title="No past interviews"
+              description="Completed, cancelled, or declined interviews will appear here."
+            />
           ) : (
             <div className="space-y-3">
               {past.map(interview => (

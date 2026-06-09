@@ -1,3 +1,5 @@
+import { Skeleton } from '@/components/domain/skeleton'
+import { EmptyState } from '@/components/domain/empty-state'
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -9,7 +11,7 @@ import { trackEvent } from '@/lib/analytics'
 import {
   Eye, FileText, Target, Clock, Briefcase, Users, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
   Zap, Star, CheckCircle2, XCircle, AlertTriangle, BarChart3, Calendar, Filter, Download,
-  ChevronRight, Minus, Activity, MousePointer, Percent, Timer, Award, ChevronUp, ChevronDown,
+  ChevronRight, Minus, Activity, MousePointer, Percent, Timer, Award, ChevronUp, ChevronDown, BarChart,
 } from 'lucide-react'
 
 interface AnalyticsData {
@@ -196,8 +198,27 @@ export function RecruiterAnalyticsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2">
+            <div className="h-8 w-48 rounded bg-muted animate-pulse" />
+            <div className="h-4 w-64 rounded bg-muted animate-pulse" />
+          </div>
+          <div className="flex gap-2">
+            <div className="h-10 w-32 rounded bg-muted animate-pulse" />
+            <div className="h-10 w-24 rounded bg-muted animate-pulse" />
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Skeleton variant="card" />
+          <Skeleton variant="card" />
+          <Skeleton variant="card" />
+          <Skeleton variant="card" />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Skeleton variant="card" />
+          <Skeleton variant="card" />
+        </div>
       </div>
     )
   }
@@ -442,10 +463,11 @@ export function RecruiterAnalyticsPage() {
           </CardHeader>
           <CardContent>
             {!data?.jobs?.length ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">
-                <Briefcase className="mx-auto mb-2 h-8 w-8 opacity-50" />
-                No job data yet. Post a job to see performance metrics.
-              </div>
+              <EmptyState
+                icon={BarChart}
+                title="No job data yet"
+                description="Post a job to see performance metrics and analytics."
+              />
             ) : (
               <div className="space-y-3">
                 {data.jobs.slice(0, 5).map((job) => (
