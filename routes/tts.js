@@ -1,17 +1,26 @@
 // TTS (Text-to-Speech) API Routes — Cartesia.ai integration
-// Phase 1: Basic synthesis endpoint
+// Refactored to use services/tts-service.js for clean separation of concerns
 // Fixes: GitHub issue #1 from agent-collaboration repo
 
 const express = require('express');
 const router = express.Router();
+
 const { authMiddleware } = require('../lib/auth');
 const _pool = require('../lib/db');
 
-const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
-const CARTESIA_API_URL = 'https://api.cartesia.ai/tts/bytes';
-const CARTESIA_DEFAULT_VOICE_ID = process.env.CARTESIA_DEFAULT_VOICE_ID || 'sonic-2';
+const ttsService = require('../services/tts-service');
+const {
+	CartesiaRateLimitError,
+	CartesiaAuthError,
+	CartesiaNetworkError,
+	CartesiaServerError,
+	CartesiaError,
+} = ttsService;
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
+const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
+const CARTESIA_DEFAULT_VOICE_ID = process.env.CARTESIA_DEFAULT_VOICE_ID || 'f9fc912e-52f0-448a-8bfa-47e9ca75f25a';
+
+// ─── Middleware ──────────────────────────────────────────────────────────────
 
 function requireCartesiaKey(_req, res, next) {
 	if (!CARTESIA_API_KEY) {
@@ -23,40 +32,51 @@ function requireCartesiaKey(_req, res, next) {
 	next();
 }
 
-async function cartesiaSynthesize({ text, voiceId, speed, emotion, language }) {
-	const body = {
-		model_id: 'sonic-2',
-		transcript: text,
-		voice: { mode: 'id', id: voiceId || CARTESIA_DEFAULT_VOICE_ID },
-		output_format: {
-			container: 'mp3',
-			encoding: 'mp3',
-			sample_rate: 44100,
-		},
-		language: language || 'en',
-	};
+// ─── Error Response Helper ───────────────────────────────────────────────────
 
-	if (speed) {
-		body.speed = speed; // 0.5 - 2.0
+function handleTtsError(res, err) {
+	console.error('[tts] Error:', err.message);
+
+	if (err instanceof CartesiaRateLimitError) {
+		return res.status(429).json({
+			error: 'TTS rate limit exceeded',
+			message: err.message,
+			retry_after: err.retryAfter,
+		});
 	}
 
-	const res = await fetch(CARTESIA_API_URL, {
-		method: 'POST',
-		headers: {
-			'Cartesia-Version': '2024-06-10',
-			'X-API-Key': CARTESIA_API_KEY,
-			'Content-Type': 'application/json',
-		},
-		body: JSON.stringify(body),
+	if (err instanceof CartesiaAuthError) {
+		return res.status(401).json({
+			error: 'TTS authentication failed',
+			message: err.message,
+		});
+	}
+
+	if (err instanceof CartesiaNetworkError) {
+		return res.status(502).json({
+			error: 'TTS network error',
+			message: err.message,
+		});
+	}
+
+	if (err instanceof CartesiaServerError) {
+		return res.status(502).json({
+			error: 'TTS upstream server error',
+			message: err.message,
+		});
+	}
+
+	if (err instanceof CartesiaError) {
+		return res.status(err.statusCode || 500).json({
+			error: 'TTS API error',
+			message: err.message,
+		});
+	}
+
+	return res.status(500).json({
+		error: 'TTS synthesis failed',
+		message: err.message,
 	});
-
-	if (!res.ok) {
-		const errText = await res.text();
-		throw new Error(`Cartesia API error ${res.status}: ${errText}`);
-	}
-
-	const buffer = Buffer.from(await res.arrayBuffer());
-	return buffer;
 }
 
 // ─── POST /api/tts/synthesize ──────────────────────────────────────────────
@@ -66,7 +86,7 @@ router.post('/synthesize', authMiddleware, requireCartesiaKey, async (req, res) 
 		const { text, voice_id, speed, emotion, language } = req.body;
 
 		if (!text || typeof text !== 'string' || text.length === 0) {
-			return res.status(400).json({ error: 'text is required' });
+			return res.status(400).json({ error: 'text is required and must be a non-empty string' });
 		}
 		if (text.length > 5000) {
 			return res.status(400).json({ error: 'text exceeds 5000 character limit' });
@@ -74,28 +94,25 @@ router.post('/synthesize', authMiddleware, requireCartesiaKey, async (req, res) 
 
 		const voiceId = voice_id || CARTESIA_DEFAULT_VOICE_ID;
 
-		// Simple in-memory cache key (no persistence for Phase 1)
-		// Phase 2: add DB cache table to avoid re-synthesis
-		const audioBuffer = await cartesiaSynthesize({
+		const audioBuffer = await ttsService.synthesize({
 			text,
 			voiceId,
-			speed: speed ? parseFloat(speed) : undefined,
+			speed: speed !== undefined ? parseFloat(speed) : undefined,
 			emotion,
 			language,
 		});
 
 		// Track usage (Phase 1: log only, Phase 2: monthly credit tracking)
-		console.log(`[tts] ${req.user.id} synthesized ${text.length} chars, voice=${voiceId}`);
+		console.log(
+			`[tts] user=${req.user?.id || 'unknown'} chars=${text.length} voice=${voiceId}`,
+		);
 
 		res.set('Content-Type', 'audio/mpeg');
 		res.set('Content-Length', audioBuffer.length);
+		res.set('Cache-Control', 'private, max-age=3600');
 		res.send(audioBuffer);
 	} catch (err) {
-		console.error('[tts] Synthesis error:', err.message);
-		res.status(502).json({
-			error: 'TTS synthesis failed',
-			message: err.message,
-		});
+		handleTtsError(res, err);
 	}
 });
 
@@ -103,51 +120,37 @@ router.post('/synthesize', authMiddleware, requireCartesiaKey, async (req, res) 
 
 router.get('/voices', authMiddleware, requireCartesiaKey, async (_req, res) => {
 	try {
-		const response = await fetch('https://api.cartesia.ai/voices', {
-			headers: {
-				'Cartesia-Version': '2024-06-10',
-				'X-API-Key': CARTESIA_API_KEY,
-			},
-		});
-
-		if (!response.ok) {
-			const errText = await response.text();
-			throw new Error(`Cartesia API error ${response.status}: ${errText}`);
-		}
-
-		const voices = await response.json();
+		const voices = await ttsService.listVoices();
 		res.json({ success: true, voices });
 	} catch (err) {
-		console.error('[tts] Voices list error:', err.message);
-		res.status(502).json({
-			error: 'Failed to fetch voices',
-			message: err.message,
-		});
+		handleTtsError(res, err);
 	}
 });
 
-// ─── GET /api/tts/health ───────────────────────────────────────────────────
+// ─── GET /api/tts/health ─────────────────────────────────────────────────────
+// Health check for the TTS service (no auth required for monitoring)
 
-router.get('/health', requireCartesiaKey, async (_req, res) => {
+router.get('/health', async (_req, res) => {
 	try {
-		const response = await fetch('https://api.cartesia.ai/voices', {
-			headers: {
-				'Cartesia-Version': '2024-06-10',
-				'X-API-Key': CARTESIA_API_KEY,
-			},
-		});
-
-		res.json({
-			success: true,
-			cartesia_connected: response.ok,
-			api_key_configured: true,
+		const health = await ttsService.healthCheck();
+		const statusCode = health.healthy ? 200 : 503;
+		res.status(statusCode).json({
+			success: health.healthy,
+			service: 'tts',
+			provider: 'cartesia',
+			configured: health.configured,
+			status: health.status,
+			error: health.error,
+			timestamp: new Date().toISOString(),
 		});
 	} catch (err) {
-		res.json({
+		console.error('[tts] Health check error:', err.message);
+		res.status(503).json({
 			success: false,
-			cartesia_connected: false,
-			api_key_configured: true,
+			service: 'tts',
+			provider: 'cartesia',
 			error: err.message,
+			timestamp: new Date().toISOString(),
 		});
 	}
 });
