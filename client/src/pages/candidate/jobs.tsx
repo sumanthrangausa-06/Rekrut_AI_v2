@@ -28,7 +28,7 @@ import {
 	X,
 	Zap,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -190,11 +190,6 @@ export function CandidateJobsPage() {
 		} catch {}
 	}, [])
 
-	useEffect(() => {
-		loadJobs()
-		if (user) loadSavedJobs()
-	}, [user, loadJobs, loadSavedJobs])
-
 	// Save search to history when filters change significantly
 	useEffect(() => {
 		const timer = setTimeout(() => {
@@ -221,10 +216,26 @@ export function CandidateJobsPage() {
 		})
 	}
 
-	async function loadJobs() {
+	const loadJobs = useCallback(async () => {
 		try {
+			const params = new URLSearchParams()
+			params.set('limit', '200')
+			if (filters.search) params.set('search', filters.search)
+			if (filters.type) params.set('type', filters.type)
+			if (filters.location) params.set('location', filters.location)
+			if (filters.remoteType) params.set('remote_type', filters.remoteType)
+			if (filters.experienceLevel) params.set('experience_level', filters.experienceLevel)
+			if (filters.salaryMin > 0) params.set('salary_min', String(filters.salaryMin))
+			if (filters.salaryMax < 300000) params.set('salary_max', String(filters.salaryMax))
+			if (filters.companySize) params.set('company_size', filters.companySize)
+			if (filters.skills.length) params.set('skills', filters.skills.join(','))
+			if (filters.sortBy !== 'match') params.set('sort_by', filters.sortBy)
+
+			const queryString = params.toString()
+			const url = queryString ? `/candidate/jobs?${queryString}` : '/candidate/jobs?limit=200'
+
 			const [allData, recData] = await Promise.allSettled([
-				apiCall<{ data: Job[]; pagination: { total: number } }>('/candidate/jobs?limit=200'),
+				apiCall<{ data: Job[]; pagination: { total: number } }>(url),
 				apiCall<{ recommended_jobs: Job[] }>('/candidate/jobs/recommended'),
 			])
 			const allJobs = allData.status === 'fulfilled' ? allData.value.data || [] : []
@@ -244,16 +255,21 @@ export function CandidateJobsPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [filters])
 
-	async function loadSavedJobs() {
+	const loadSavedJobs = useCallback(async () => {
 		try {
 			const data = await apiCall<{ saved_jobs: SavedJob[] }>('/candidate/saved-jobs')
 			if (data.saved_jobs) {
 				setSavedJobIds(new Set(data.saved_jobs.map((sj) => sj.job_id)))
 			}
 		} catch {}
-	}
+	}, [])
+
+	useEffect(() => {
+		loadJobs()
+		if (user) loadSavedJobs()
+	}, [user, loadJobs, loadSavedJobs])
 
 	async function toggleSaveJob(jobId: number, e: React.MouseEvent) {
 		e.preventDefault()
@@ -865,6 +881,7 @@ export function CandidateJobsPage() {
 								setSelectedJob(null)
 							}}
 							onApply={() => navigate(`/candidate/jobs/${selectedJob.id}?apply=true`)}
+							onViewFullPage={() => navigate(`/candidate/jobs/${selectedJob.id}`)}
 						/>
 					) : (
 						<div className='flex flex-col items-center justify-center h-full text-center p-8'>
@@ -903,6 +920,7 @@ export function CandidateJobsPage() {
 									setSelectedJob(null)
 								}}
 								onApply={() => navigate(`/candidate/jobs/${selectedJob.id}?apply=true`)}
+								onViewFullPage={() => navigate(`/candidate/jobs/${selectedJob.id}`)}
 							/>
 						)}
 					</SheetContent>
@@ -1139,12 +1157,14 @@ function JobDetailPanel({
 	onToggleSave,
 	onClose,
 	onApply,
+	onViewFullPage,
 }: {
 	job: Job
 	isSaved: boolean
 	onToggleSave: (e: React.MouseEvent) => void
 	onClose: () => void
 	onApply: () => void
+	onViewFullPage?: () => void
 }) {
 	const score = job.weighted_score ? Math.round(job.weighted_score) : null
 	const screeningQuestions = (() => {
@@ -1315,7 +1335,7 @@ function JobDetailPanel({
 					</p>
 					<div className='space-y-2'>
 						{screeningQuestions.map((q, i) => (
-							<div key={`job-`} className='text-sm p-2 rounded-lg bg-muted/50'>
+							<div key={`job-${i}`} className='text-sm p-2 rounded-lg bg-muted/50'>
 								<p className='font-medium text-xs'>
 									{q.question}
 									{q.required && <span className='text-destructive'> *</span>}
@@ -1332,7 +1352,7 @@ function JobDetailPanel({
 					<Button className='flex-1 gap-2' onClick={onApply}>
 						<Send className='h-4 w-4' /> Apply Now
 					</Button>
-					<Button variant='outline' className='gap-2' onClick={onApply}>
+					<Button variant='outline' className='gap-2' onClick={onViewFullPage || onApply}>
 						<ExternalLink className='h-4 w-4' /> View Full Page
 					</Button>
 				</div>
