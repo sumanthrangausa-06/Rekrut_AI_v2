@@ -661,7 +661,8 @@ export function RecruiterDashboard() {
 			<div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
 				<div>
 					<h1 className='font-heading text-2xl sm:text-3xl font-bold tracking-tight'>
-						Welcome back, <span className="text-primary">{user?.name?.split(' ')[0] || 'Recruiter'}</span> 👋
+						Welcome back,{' '}
+						<span className='text-primary'>{user?.name?.split(' ')[0] || 'Recruiter'}</span> 👋
 					</h1>
 					<p className='text-muted-foreground mt-1'>
 						Here's what's happening with your hiring pipeline today

@@ -197,10 +197,10 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 		candidateRecording,
 		playInterviewerAudio,
 		aiSpeaking,
-		mockSession.status,
+		mockSession?.status,
 		voiceProcessing,
-		mockSession.conversation.length,
-		mockSession.conversation,
+		mockSession?.conversation?.length,
+		mockSession?.conversation,
 		mockSession,
 	]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1276,7 +1276,6 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 							autoPlay
 							muted
 							playsInline
-							// @ts-expect-error
 							webkit-playsinline=''
 							className='absolute inset-0 w-full h-full object-cover'
 							style={{ transform: 'scaleX(-1)' }}

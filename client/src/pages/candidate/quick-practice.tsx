@@ -804,7 +804,6 @@ export function QuickPractice({
 												autoPlay
 												muted
 												playsInline
-												// @ts-expect-error
 												webkit-playsinline=''
 												className='absolute inset-0 w-full h-full object-cover'
 												style={{ transform: 'scaleX(-1)' }}

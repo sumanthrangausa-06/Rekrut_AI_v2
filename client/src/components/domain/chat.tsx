@@ -330,6 +330,8 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 				: activeConversation?.candidate_name,
 		role: mode === 'candidate' ? 'Recruiter' : 'Candidate',
 		is_online: false,
+		email: '',
+		id: 0,
 	}
 
 	return (
@@ -369,7 +371,7 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 								className='h-9 px-2 gap-1 text-xs'
 								onClick={() => {
 									if (conversations.length > 0) {
-										setActiveConversation(conversations[0].id)
+										setActiveConv(conversations[0].id)
 									}
 								}}
 							>
@@ -525,7 +527,7 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 											</div>
 
 											<div className='space-y-3'>
-												{group.messages.map((msg) => {
+												{group.messages.map((msg, mi) => {
 													const isSelf =
 														msg.sender_id === 0 ||
 														(msg.sender?.role === 'candidate' && mode === 'candidate') ||
@@ -706,10 +708,12 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 										</div>
 										<div className='flex flex-col items-center'>
 											<div className='h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary mb-2'>
-												{otherName?.[0]?.toUpperCase() || '?'}
+												{otherUser?.name?.[0]?.toUpperCase() || '?'}
 											</div>
-											<span className='font-medium text-sm'>{otherName}</span>
-											<span className='text-xs text-muted-foreground'>{otherUser.email}</span>
+											<span className='font-medium text-sm'>{otherUser?.name}</span>
+											<span className='text-xs text-muted-foreground'>
+												{otherUser?.email || ''}
+											</span>
 											<div className='flex items-center gap-1 mt-2'>
 												<div
 													className={`h-2 w-2 rounded-full ${otherUser.is_online ? 'bg-green-500' : 'bg-gray-400'}`}

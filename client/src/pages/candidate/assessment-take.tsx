@@ -103,62 +103,6 @@ export function AssessmentTakePage() {
 		}
 	}
 
-	// Timer countdown
-	useEffect(() => {
-		if (!question || completed || timeLeft <= 0) return
-		const timer = setInterval(() => {
-			setTimeLeft((prev) => {
-				if (prev <= 1) {
-					clearInterval(timer)
-					handleSubmit(true)
-					return 0
-				}
-				return prev - 1
-			})
-		}, 1000)
-		return () => clearInterval(timer)
-	}, [question, completed, timeLeft, handleSubmit])
-
-	// Track tab switches
-	useEffect(() => {
-		function handleVisibility() {
-			if (document.hidden && sessionId) {
-				apiCall('/assessments/event', {
-					method: 'POST',
-					body: {
-						sessionId: Number(sessionId),
-						eventType: 'tab_switch',
-						eventData: { timestamp: new Date() },
-					},
-				}).catch(() => {})
-			}
-		}
-		document.addEventListener('visibilitychange', handleVisibility)
-		return () => document.removeEventListener('visibilitychange', handleVisibility)
-	}, [sessionId])
-
-	// Track copy-paste
-	useEffect(() => {
-		function handleCopy() {
-			if (sessionId) {
-				apiCall('/assessments/event', {
-					method: 'POST',
-					body: {
-						sessionId: Number(sessionId),
-						eventType: 'copy_paste',
-						eventData: { timestamp: new Date() },
-					},
-				}).catch(() => {})
-			}
-		}
-		document.addEventListener('copy', handleCopy)
-		document.addEventListener('paste', handleCopy)
-		return () => {
-			document.removeEventListener('copy', handleCopy)
-			document.removeEventListener('paste', handleCopy)
-		}
-	}, [sessionId])
-
 	const handleSubmit = useCallback(
 		async (timedOut = false) => {
 			if (!question || submitting) return
@@ -217,6 +161,61 @@ export function AssessmentTakePage() {
 		},
 		[question, selectedAnswer, shortAnswer, sessionId, submitting, navigate],
 	)
+	// Timer countdown
+	useEffect(() => {
+		if (!question || completed || timeLeft <= 0) return
+		const timer = setInterval(() => {
+			setTimeLeft((prev) => {
+				if (prev <= 1) {
+					clearInterval(timer)
+					handleSubmit(true)
+					return 0
+				}
+				return prev - 1
+			})
+		}, 1000)
+		return () => clearInterval(timer)
+	}, [question, completed, timeLeft, handleSubmit])
+
+	// Track tab switches
+	useEffect(() => {
+		function handleVisibility() {
+			if (document.hidden && sessionId) {
+				apiCall('/assessments/event', {
+					method: 'POST',
+					body: {
+						sessionId: Number(sessionId),
+						eventType: 'tab_switch',
+						eventData: { timestamp: new Date() },
+					},
+				}).catch(() => {})
+			}
+		}
+		document.addEventListener('visibilitychange', handleVisibility)
+		return () => document.removeEventListener('visibilitychange', handleVisibility)
+	}, [sessionId])
+
+	// Track copy-paste
+	useEffect(() => {
+		function handleCopy() {
+			if (sessionId) {
+				apiCall('/assessments/event', {
+					method: 'POST',
+					body: {
+						sessionId: Number(sessionId),
+						eventType: 'copy_paste',
+						eventData: { timestamp: new Date() },
+					},
+				}).catch(() => {})
+			}
+		}
+		document.addEventListener('copy', handleCopy)
+		document.addEventListener('paste', handleCopy)
+		return () => {
+			document.removeEventListener('copy', handleCopy)
+			document.removeEventListener('paste', handleCopy)
+		}
+	}, [sessionId])
 
 	if (loading) {
 		return (

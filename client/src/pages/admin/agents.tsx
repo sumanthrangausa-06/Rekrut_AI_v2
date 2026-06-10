@@ -137,10 +137,6 @@ export function AdminAgentsDashboardPage() {
 	const [searchQuery, setSearchQuery] = useState('')
 	const [statusFilter, setStatusFilter] = useState<string>('all')
 
-	useEffect(() => {
-		loadData()
-	}, [loadData])
-
 	const loadData = async () => {
 		setLoading(true)
 		try {
@@ -162,6 +158,10 @@ export function AdminAgentsDashboardPage() {
 			setLoading(false)
 		}
 	}
+
+	useEffect(() => {
+		loadData()
+	}, [loadData])
 
 	const handleRefresh = async () => {
 		setRefreshing(true)
