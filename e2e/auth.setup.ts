@@ -5,6 +5,13 @@
 // auth files before every run, so tokens are always fresh.
 import { test as setup, expect } from '@playwright/test';
 import * as fs from 'fs';
+import * as path from 'path';
+
+// Load env vars from .env so ADMIN_PASSWORD is available in setup
+const dotenvPath = path.resolve(process.cwd(), '.env');
+if (fs.existsSync(dotenvPath)) {
+  require('dotenv').config({ path: dotenvPath });
+}
 
 const CANDIDATE_EMAIL = 'e2e-candidate@rekrutai.test';
 const RECRUITER_EMAIL = 'e2e-recruiter@rekrutai.test';
@@ -42,18 +49,39 @@ function isAuthValid(path: string): boolean {
   if (!fs.existsSync(path)) return false;
   try {
     const data = JSON.parse(fs.readFileSync(path, 'utf-8'));
+    // Check for JWT token in localStorage
     const origin = data.origins?.find((o: any) => {
       const token = o.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value;
       return !!token;
     });
     const token = origin?.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value;
-    if (!token) return false;
-    const decoded = decodeJWT(token);
-    if (!decoded || !decoded.exp) return false;
-    return Date.now() < decoded.exp * 1000;
+    if (token) {
+      const decoded = decodeJWT(token);
+      if (decoded && decoded.exp) {
+        return Date.now() < decoded.exp * 1000;
+      }
+    }
+    // Check for admin session cookies (no JWT, just session cookies)
+    if (data.cookies && data.cookies.some((c: any) => c.name === 'connect.sid')) {
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
+}
+
+async function getCsrfToken(request: any): Promise<string> {
+  const csrfRes = await request.get('/csrf-token');
+  if (!csrfRes.ok()) {
+    const text = await csrfRes.text().catch(() => '');
+    throw new Error(`Failed to fetch CSRF token: ${csrfRes.status()} ${text}`);
+  }
+  const data = await csrfRes.json();
+  if (!data.csrfToken) {
+    throw new Error('CSRF token missing from response');
+  }
+  return data.csrfToken;
 }
 
 async function getOrCreateUser(
@@ -66,6 +94,8 @@ async function getOrCreateUser(
 ) {
   let lastError: Error | null = null;
 
+  const csrfToken = await getCsrfToken(request);
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (attempt > 0) {
       const delay = Math.floor(1000 * Math.pow(2, attempt - 1) + Math.random() * 500);
@@ -74,6 +104,7 @@ async function getOrCreateUser(
 
     const loginRes = await request.post('/api/auth/login', {
       data: { email, password: PASSWORD },
+      headers: { 'X-CSRF-Token': csrfToken },
     });
 
     if (loginRes.ok()) {
@@ -106,7 +137,10 @@ async function getOrCreateUser(
     const body: any = { name, email, password: PASSWORD, role };
     if (companyName) body.company_name = companyName;
 
-    const regRes = await request.post('/api/auth/register', { data: body });
+    const regRes = await request.post('/api/auth/register', {
+      data: body,
+      headers: { 'X-CSRF-Token': csrfToken },
+    });
     if (regRes.ok()) {
       const data = await regRes.json();
       return {
@@ -184,6 +218,30 @@ setup('authenticate recruiter', async ({ request }) => {
   writeStorageState(token, refreshToken, path);
 });
 
+async function getAdminSession(request: any, path: string): Promise<void> {
+  const csrfToken = await getCsrfToken(request);
+  const username = process.env.ADMIN_USERNAME || 'admin';
+  const password = process.env.ADMIN_PASSWORD || '';
+
+  if (!password) {
+    throw new Error('ADMIN_PASSWORD environment variable is required for admin setup');
+  }
+
+  const loginRes = await request.post('/api/admin/login', {
+    data: { username, password },
+    headers: { 'X-CSRF-Token': csrfToken },
+  });
+
+  if (!loginRes.ok()) {
+    const text = await loginRes.text().catch(() => '');
+    throw new Error(`Admin login failed: ${loginRes.status()} ${text}`);
+  }
+
+  // Save session cookies from request context
+  const storageState = await request.storageState();
+  fs.writeFileSync(path, JSON.stringify(storageState, null, 2));
+}
+
 setup('authenticate admin', async ({ request }) => {
   const path = 'e2e/.auth/admin.json';
   if (isAuthValid(path)) {
@@ -191,12 +249,5 @@ setup('authenticate admin', async ({ request }) => {
     return;
   }
   if (fs.existsSync(path)) fs.unlinkSync(path);
-  const { token, refreshToken } = await getOrCreateUser(
-    request,
-    'e2e-admin-qa@rekrutai.test',
-    'recruiter',
-    'E2E Admin',
-    'E2E Admin Co'
-  );
-  writeStorageState(token, refreshToken, path);
+  await getAdminSession(request, path);
 });

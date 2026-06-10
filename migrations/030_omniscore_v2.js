@@ -1,9 +1,9 @@
 // OmniScore v2 Migration - Two-sided scoring system
 module.exports = {
-  name: 'omniscore_v2_two_sided',
-  up: async (client) => {
-    // Company ratings from candidates (richer than candidate_feedback)
-    await client.query(`
+	name: 'omniscore_v2_two_sided',
+	up: async (client) => {
+		// Company ratings from candidates (richer than candidate_feedback)
+		await client.query(`
       CREATE TABLE IF NOT EXISTS company_ratings (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
@@ -28,8 +28,8 @@ module.exports = {
       )
     `);
 
-    // Mutual match scores (precomputed)
-    await client.query(`
+		// Mutual match scores (precomputed)
+		await client.query(`
       CREATE TABLE IF NOT EXISTS mutual_matches (
         id SERIAL PRIMARY KEY,
         candidate_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -46,8 +46,8 @@ module.exports = {
       )
     `);
 
-    // Indexes
-    await client.query(`
+		// Indexes
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_company_ratings_company ON company_ratings(company_id);
       CREATE INDEX IF NOT EXISTS idx_company_ratings_candidate ON company_ratings(candidate_id);
       CREATE INDEX IF NOT EXISTS idx_mutual_matches_candidate ON mutual_matches(candidate_id);
@@ -55,6 +55,6 @@ module.exports = {
       CREATE INDEX IF NOT EXISTS idx_mutual_matches_fit ON mutual_matches(mutual_fit_score DESC);
     `);
 
-    console.log('OmniScore v2 tables created successfully');
-  }
+		console.log('OmniScore v2 tables created successfully');
+	},
 };

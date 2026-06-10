@@ -4,11 +4,17 @@ const pool = require('../lib/db');
 
 // ─── COMMUNICATION TYPE GENERATORS ──────────────────────────────────────
 
-async function generateOutreach({ candidate, job, tone = 'professional', companyName, recruiterName }) {
-  const candidateContext = buildCandidateContext(candidate);
-  const jobContext = buildJobContext(job);
+async function generateOutreach({
+	candidate,
+	job,
+	tone = 'professional',
+	companyName,
+	recruiterName,
+}) {
+	const candidateContext = buildCandidateContext(candidate);
+	const jobContext = buildJobContext(job);
 
-  const prompt = `You are an expert recruiter writing a personalized outreach message to a potential candidate.
+	const prompt = `You are an expert recruiter writing a personalized outreach message to a potential candidate.
 
 CANDIDATE:
 ${candidateContext}
@@ -39,14 +45,22 @@ Return JSON:
 
 Only return JSON.`;
 
-  return callAI(prompt, 'recruiter-outreach');
+	return callAI(prompt, 'recruiter-outreach');
 }
 
-async function generateFollowUp({ candidate, job, previousComms, daysSinceLastContact, tone = 'friendly', companyName }) {
-  const candidateContext = buildCandidateContext(candidate);
-  const lastComm = previousComms && previousComms.length > 0 ? previousComms[previousComms.length - 1] : null;
+async function generateFollowUp({
+	candidate,
+	job,
+	previousComms,
+	daysSinceLastContact,
+	tone = 'friendly',
+	companyName,
+}) {
+	const candidateContext = buildCandidateContext(candidate);
+	const lastComm =
+		previousComms && previousComms.length > 0 ? previousComms[previousComms.length - 1] : null;
 
-  const prompt = `You are a recruiter writing a follow-up message to a candidate who hasn't responded.
+	const prompt = `You are a recruiter writing a follow-up message to a candidate who hasn't responded.
 
 CANDIDATE:
 ${candidateContext}
@@ -76,25 +90,32 @@ Return JSON:
 
 Only return JSON.`;
 
-  return callAI(prompt, 'recruiter-follow-up');
+	return callAI(prompt, 'recruiter-follow-up');
 }
 
-async function generateRejection({ candidate, job, reason, feedback, tone = 'empathetic', companyName }) {
-  const reasonMap = {
-    'experience': 'insufficient experience for the role requirements',
-    'skills': 'missing key technical skills required for the position',
-    'culture_fit': 'alignment with team culture and working style',
-    'other_candidate': 'another candidate was a stronger match for specific requirements',
-    'position_filled': 'the position has been filled',
-    'position_closed': 'the position has been put on hold',
-    'salary': 'compensation expectations did not align',
-    'location': 'location/remote work requirements did not align',
-    'other': reason || 'the role requirements'
-  };
+async function generateRejection({
+	candidate,
+	job,
+	reason,
+	feedback,
+	tone = 'empathetic',
+	companyName,
+}) {
+	const reasonMap = {
+		experience: 'insufficient experience for the role requirements',
+		skills: 'missing key technical skills required for the position',
+		culture_fit: 'alignment with team culture and working style',
+		other_candidate: 'another candidate was a stronger match for specific requirements',
+		position_filled: 'the position has been filled',
+		position_closed: 'the position has been put on hold',
+		salary: 'compensation expectations did not align',
+		location: 'location/remote work requirements did not align',
+		other: reason || 'the role requirements',
+	};
 
-  const reasonText = reasonMap[reason] || reason || 'other candidates were a stronger match';
+	const reasonText = reasonMap[reason] || reason || 'other candidates were a stronger match';
 
-  const prompt = `You are a recruiter writing a professional rejection email that maintains a positive relationship.
+	const prompt = `You are a recruiter writing a professional rejection email that maintains a positive relationship.
 
 CANDIDATE: ${candidate?.name || 'Candidate'}
 JOB: ${job?.title || 'The position'} at ${companyName || 'our company'}
@@ -127,11 +148,21 @@ Return JSON:
 
 Only return JSON.`;
 
-  return callAI(prompt, 'recruiter-rejection');
+	return callAI(prompt, 'recruiter-rejection');
 }
 
-async function generateOfferLetter({ candidate, job, compensation, benefits, startDate, reportingTo, companyName, location, employmentType }) {
-  const prompt = `You are an HR professional drafting a formal offer letter.
+async function generateOfferLetter({
+	candidate,
+	job,
+	compensation,
+	benefits,
+	startDate,
+	reportingTo,
+	companyName,
+	location,
+	employmentType,
+}) {
+	const prompt = `You are an HR professional drafting a formal offer letter.
 
 CANDIDATE: ${candidate?.name || 'Candidate'}
 POSITION: ${job?.title || 'Position'}
@@ -175,11 +206,19 @@ Return JSON:
 
 Only return JSON.`;
 
-  return callAI(prompt, 'offer-letter');
+	return callAI(prompt, 'offer-letter');
 }
 
-async function generateInterviewConfirmation({ candidate, job, interviewDate, interviewType, interviewerName, location, companyName }) {
-  const prompt = `Write a professional interview confirmation email.
+async function generateInterviewConfirmation({
+	candidate,
+	job,
+	interviewDate,
+	interviewType,
+	interviewerName,
+	location,
+	companyName,
+}) {
+	const prompt = `Write a professional interview confirmation email.
 
 CANDIDATE: ${candidate?.name || 'Candidate'}
 POSITION: ${job?.title || 'Position'} at ${companyName || 'our company'}
@@ -204,36 +243,37 @@ Return JSON:
 
 Only return JSON.`;
 
-  return callAI(prompt, 'interview-confirmation');
+	return callAI(prompt, 'interview-confirmation');
 }
 
 // ─── MULTI-AGENT PIPELINE ───────────────────────────────────────────────
 
 async function runCommunicationPipeline({ draft, candidate, job, companyName, type }) {
-  // Stage 1: Personalization — enrich with candidate-specific details
-  const personalized = await personalizeMessage(draft, candidate);
+	// Stage 1: Personalization — enrich with candidate-specific details
+	const personalized = await personalizeMessage(draft, candidate);
 
-  // Stage 2: Tone check — ensure appropriate tone for the message type
-  const toneChecked = await checkTone(personalized, type);
+	// Stage 2: Tone check — ensure appropriate tone for the message type
+	const toneChecked = await checkTone(personalized, type);
 
-  // Stage 3: Compliance — check for discriminatory language, legal issues
-  const compliant = await checkCompliance(toneChecked, type);
+	// Stage 3: Compliance — check for discriminatory language, legal issues
+	const compliant = await checkCompliance(toneChecked, type);
 
-  return {
-    final_message: compliant.message,
-    pipeline_results: {
-      personalization: personalized.changes,
-      tone_check: toneChecked.assessment,
-      compliance: compliant.assessment,
-      passed_all_checks: compliant.passed && toneChecked.passed
-    }
-  };
+	return {
+		final_message: compliant.message,
+		pipeline_results: {
+			personalization: personalized.changes,
+			tone_check: toneChecked.assessment,
+			compliance: compliant.assessment,
+			passed_all_checks: compliant.passed && toneChecked.passed,
+		},
+	};
 }
 
 async function personalizeMessage(draft, candidate) {
-  if (!candidate) return { message: draft, changes: 'No candidate data available for personalization' };
+	if (!candidate)
+		return { message: draft, changes: 'No candidate data available for personalization' };
 
-  const prompt = `Review this recruiter message and add personalization based on candidate data.
+	const prompt = `Review this recruiter message and add personalization based on candidate data.
 
 MESSAGE:
 ${typeof draft === 'string' ? draft : draft.body}
@@ -255,21 +295,26 @@ Return JSON:
 
 Only return JSON.`;
 
-  const result = await callAI(prompt, 'personalization-agent');
-  return result || { message: typeof draft === 'string' ? draft : draft.body, changes: 'Personalization unavailable' };
+	const result = await callAI(prompt, 'personalization-agent');
+	return (
+		result || {
+			message: typeof draft === 'string' ? draft : draft.body,
+			changes: 'Personalization unavailable',
+		}
+	);
 }
 
 async function checkTone(messageData, type) {
-  const expectedTones = {
-    outreach: 'engaging, professional, not pushy',
-    follow_up: 'friendly, persistent but respectful, not desperate',
-    rejection: 'empathetic, clear, constructive',
-    offer_letter: 'enthusiastic, professional, formal',
-    interview_confirmation: 'professional, helpful, clear',
-    custom: 'appropriate for context'
-  };
+	const expectedTones = {
+		outreach: 'engaging, professional, not pushy',
+		follow_up: 'friendly, persistent but respectful, not desperate',
+		rejection: 'empathetic, clear, constructive',
+		offer_letter: 'enthusiastic, professional, formal',
+		interview_confirmation: 'professional, helpful, clear',
+		custom: 'appropriate for context',
+	};
 
-  const prompt = `You are a tone analysis agent. Check if this recruiter message has the right tone.
+	const prompt = `You are a tone analysis agent. Check if this recruiter message has the right tone.
 
 MESSAGE:
 ${typeof messageData === 'string' ? messageData : messageData.message || messageData}
@@ -292,12 +337,19 @@ Return JSON:
 
 Only return JSON.`;
 
-  const result = await callAI(prompt, 'tone-check-agent');
-  return result || { passed: true, assessment: 'Tone check unavailable', message: typeof messageData === 'string' ? messageData : messageData.message || messageData, suggestions: [] };
+	const result = await callAI(prompt, 'tone-check-agent');
+	return (
+		result || {
+			passed: true,
+			assessment: 'Tone check unavailable',
+			message: typeof messageData === 'string' ? messageData : messageData.message || messageData,
+			suggestions: [],
+		}
+	);
 }
 
 async function checkCompliance(messageData, type) {
-  const prompt = `You are a compliance agent reviewing a recruiter message for legal and policy issues.
+	const prompt = `You are a compliance agent reviewing a recruiter message for legal and policy issues.
 
 MESSAGE:
 ${typeof messageData === 'string' ? messageData : messageData.message || messageData}
@@ -324,70 +376,86 @@ Return JSON:
 
 Only return JSON.`;
 
-  const result = await callAI(prompt, 'compliance-agent');
-  return result || { passed: true, assessment: 'Compliance check unavailable', message: typeof messageData === 'string' ? messageData : messageData.message || messageData, flags: [], severity: 'none' };
+	const result = await callAI(prompt, 'compliance-agent');
+	return (
+		result || {
+			passed: true,
+			assessment: 'Compliance check unavailable',
+			message: typeof messageData === 'string' ? messageData : messageData.message || messageData,
+			flags: [],
+			severity: 'none',
+		}
+	);
 }
 
 // ─── HELPERS ────────────────────────────────────────────────────────────
 
 function buildCandidateContext(candidate) {
-  if (!candidate) return 'No candidate data available';
-  const parts = [];
-  if (candidate.name) parts.push(`Name: ${candidate.name}`);
-  if (candidate.email) parts.push(`Email: ${candidate.email}`);
-  if (candidate.headline) parts.push(`Headline: ${candidate.headline}`);
-  if (candidate.bio) parts.push(`Bio: ${candidate.bio}`);
-  if (candidate.skills) parts.push(`Skills: ${typeof candidate.skills === 'string' ? candidate.skills : JSON.stringify(candidate.skills)}`);
-  if (candidate.years_experience) parts.push(`Experience: ${candidate.years_experience} years`);
-  if (candidate.location) parts.push(`Location: ${candidate.location}`);
-  if (candidate.education) parts.push(`Education: ${typeof candidate.education === 'string' ? candidate.education : JSON.stringify(candidate.education)}`);
-  return parts.join('\n') || 'No candidate data available';
+	if (!candidate) return 'No candidate data available';
+	const parts = [];
+	if (candidate.name) parts.push(`Name: ${candidate.name}`);
+	if (candidate.email) parts.push(`Email: ${candidate.email}`);
+	if (candidate.headline) parts.push(`Headline: ${candidate.headline}`);
+	if (candidate.bio) parts.push(`Bio: ${candidate.bio}`);
+	if (candidate.skills)
+		parts.push(
+			`Skills: ${typeof candidate.skills === 'string' ? candidate.skills : JSON.stringify(candidate.skills)}`,
+		);
+	if (candidate.years_experience) parts.push(`Experience: ${candidate.years_experience} years`);
+	if (candidate.location) parts.push(`Location: ${candidate.location}`);
+	if (candidate.education)
+		parts.push(
+			`Education: ${typeof candidate.education === 'string' ? candidate.education : JSON.stringify(candidate.education)}`,
+		);
+	return parts.join('\n') || 'No candidate data available';
 }
 
 function buildJobContext(job) {
-  if (!job) return 'No job data available';
-  const parts = [];
-  if (job.title) parts.push(`Title: ${job.title}`);
-  if (job.company) parts.push(`Company: ${job.company}`);
-  if (job.description) parts.push(`Description: ${job.description.substring(0, 800)}`);
-  if (job.requirements) parts.push(`Requirements: ${job.requirements.substring(0, 500)}`);
-  if (job.location) parts.push(`Location: ${job.location}`);
-  if (job.salary_range) parts.push(`Salary: ${job.salary_range}`);
-  if (job.job_type) parts.push(`Type: ${job.job_type}`);
-  return parts.join('\n') || 'No job data available';
+	if (!job) return 'No job data available';
+	const parts = [];
+	if (job.title) parts.push(`Title: ${job.title}`);
+	if (job.company) parts.push(`Company: ${job.company}`);
+	if (job.description) parts.push(`Description: ${job.description.substring(0, 800)}`);
+	if (job.requirements) parts.push(`Requirements: ${job.requirements.substring(0, 500)}`);
+	if (job.location) parts.push(`Location: ${job.location}`);
+	if (job.salary_range) parts.push(`Salary: ${job.salary_range}`);
+	if (job.job_type) parts.push(`Type: ${job.job_type}`);
+	return parts.join('\n') || 'No job data available';
 }
 
 function toneInstructions(tone) {
-  const tones = {
-    formal: 'Use formal, corporate language. "Dear [Name]," opening. Professional sign-off.',
-    professional: 'Professional but approachable. First-name basis. Clear and direct.',
-    conversational: 'Casual and friendly. Like a colleague reaching out. Short sentences.',
-    executive: 'Executive-level communication. Sophisticated vocabulary. Concise and impactful.',
-    friendly: 'Warm and inviting. Personal touches. Encouraging tone.',
-    empathetic: 'Compassionate and understanding. Acknowledge emotions. Supportive language.'
-  };
-  return `TONE GUIDE: ${tones[tone] || tones.professional}`;
+	const tones = {
+		formal: 'Use formal, corporate language. "Dear [Name]," opening. Professional sign-off.',
+		professional: 'Professional but approachable. First-name basis. Clear and direct.',
+		conversational: 'Casual and friendly. Like a colleague reaching out. Short sentences.',
+		executive: 'Executive-level communication. Sophisticated vocabulary. Concise and impactful.',
+		friendly: 'Warm and inviting. Personal touches. Encouraging tone.',
+		empathetic: 'Compassionate and understanding. Acknowledge emotions. Supportive language.',
+	};
+	return `TONE GUIDE: ${tones[tone] || tones.professional}`;
 }
 
 async function callAI(prompt, module) {
-  try {
-    const result = await chat(prompt, {
-      system: 'You are an expert recruiter communication specialist. Generate professional, personalized messages. Always return valid JSON only, no markdown fences.',
-      maxTokens: 2048,
-      module
-    });
-    return safeParseJSON(result);
-  } catch (err) {
-    console.error(`[communication-generator] ${module} failed:`, err.message);
-    return null;
-  }
+	try {
+		const result = await chat(prompt, {
+			system:
+				'You are an expert recruiter communication specialist. Generate professional, personalized messages. Always return valid JSON only, no markdown fences.',
+			maxTokens: 2048,
+			module,
+		});
+		return safeParseJSON(result);
+	} catch (err) {
+		console.error(`[communication-generator] ${module} failed:`, err.message);
+		return null;
+	}
 }
 
 // ─── COMMUNICATION HISTORY ─────────────────────────────────────────────
 
 async function getCommunicationHistory(candidateId, companyId) {
-  try {
-    const result = await pool.query(`
+	try {
+		const result = await pool.query(
+			`
       SELECT c.*,
         u_recruiter.name as recruiter_name,
         u_candidate.name as candidate_name,
@@ -398,49 +466,85 @@ async function getCommunicationHistory(candidateId, companyId) {
       LEFT JOIN jobs j ON c.job_id = j.id
       WHERE c.candidate_id = $1 AND c.company_id = $2
       ORDER BY c.created_at DESC
-    `, [candidateId, companyId]);
-    return result.rows;
-  } catch (err) {
-    console.error('[communication-generator] History fetch failed:', err.message);
-    return [];
-  }
+    `,
+			[candidateId, companyId],
+		);
+		return result.rows;
+	} catch (err) {
+		console.error('[communication-generator] History fetch failed:', err.message);
+		return [];
+	}
 }
 
-async function saveCommunication({ companyId, recruiterId, candidateId, jobId, type, subject, body, tone, status, metadata, parentId, sequenceId, sequenceStep }) {
-  try {
-    const result = await pool.query(`
+async function saveCommunication({
+	companyId,
+	recruiterId,
+	candidateId,
+	jobId,
+	type,
+	subject,
+	body,
+	tone,
+	status,
+	metadata,
+	parentId,
+	sequenceId,
+	sequenceStep,
+}) {
+	try {
+		const result = await pool.query(
+			`
       INSERT INTO communications (company_id, recruiter_id, candidate_id, job_id, type, subject, body, tone, status, metadata, parent_id, sequence_id, sequence_step)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
-    `, [companyId, recruiterId, candidateId, jobId, type, subject, body, tone || 'professional', status || 'draft', JSON.stringify(metadata || {}), parentId, sequenceId, sequenceStep]);
-    return result.rows[0];
-  } catch (err) {
-    console.error('[communication-generator] Save failed:', err.message);
-    return null;
-  }
+    `,
+			[
+				companyId,
+				recruiterId,
+				candidateId,
+				jobId,
+				type,
+				subject,
+				body,
+				tone || 'professional',
+				status || 'draft',
+				JSON.stringify(metadata || {}),
+				parentId,
+				sequenceId,
+				sequenceStep,
+			],
+		);
+		return result.rows[0];
+	} catch (err) {
+		console.error('[communication-generator] Save failed:', err.message);
+		return null;
+	}
 }
 
 async function markCommunicationSent(commId) {
-  try {
-    await pool.query(`UPDATE communications SET status = 'sent', sent_at = NOW(), updated_at = NOW() WHERE id = $1`, [commId]);
-    return true;
-  } catch (err) {
-    console.error('[communication-generator] Mark sent failed:', err.message);
-    return false;
-  }
+	try {
+		await pool.query(
+			`UPDATE communications SET status = 'sent', sent_at = NOW(), updated_at = NOW() WHERE id = $1`,
+			[commId],
+		);
+		return true;
+	} catch (err) {
+		console.error('[communication-generator] Mark sent failed:', err.message);
+		return false;
+	}
 }
 
 module.exports = {
-  generateOutreach,
-  generateFollowUp,
-  generateRejection,
-  generateOfferLetter,
-  generateInterviewConfirmation,
-  runCommunicationPipeline,
-  personalizeMessage,
-  checkTone,
-  checkCompliance,
-  getCommunicationHistory,
-  saveCommunication,
-  markCommunicationSent,
+	generateOutreach,
+	generateFollowUp,
+	generateRejection,
+	generateOfferLetter,
+	generateInterviewConfirmation,
+	runCommunicationPipeline,
+	personalizeMessage,
+	checkTone,
+	checkCompliance,
+	getCommunicationHistory,
+	saveCommunication,
+	markCommunicationSent,
 };

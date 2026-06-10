@@ -1,17 +1,17 @@
 module.exports = {
-  name: 'p3_schema_optimizations',
-  up: async (db) => {
-    // =============================================
-    // P3 SCHEMA OPTIMIZATIONS — Nice-to-have fixes
-    // 64 FK indexes + ~182 timestamptz conversions +
-    // 6 partial indexes + 7 unique constraints
-    // =============================================
+	name: 'p3_schema_optimizations',
+	up: async (db) => {
+		// =============================================
+		// P3 SCHEMA OPTIMIZATIONS — Nice-to-have fixes
+		// 64 FK indexes + ~182 timestamptz conversions +
+		// 6 partial indexes + 7 unique constraints
+		// =============================================
 
-    // PART 1: Missing FK indexes (64 indexes)
-    // PostgreSQL does NOT auto-create indexes on FK columns.
-    // Missing FK indexes cause slow JOINs, slow cascading deletes,
-    // and lock contention during parent row updates.
-    await db.query(`
+		// PART 1: Missing FK indexes (64 indexes)
+		// PostgreSQL does NOT auto-create indexes on FK columns.
+		// Missing FK indexes cause slow JOINs, slow cascading deletes,
+		// and lock contention during parent row updates.
+		await db.query(`
       CREATE INDEX IF NOT EXISTS idx_ai_ab_tests_prompt_id ON ai_ab_tests(prompt_id);
       CREATE INDEX IF NOT EXISTS idx_assessment_conversations_question_id ON assessment_conversations(question_id);
       CREATE INDEX IF NOT EXISTS idx_assessment_sessions_job_id ON assessment_sessions(job_id);
@@ -77,13 +77,13 @@ module.exports = {
       CREATE INDEX IF NOT EXISTS idx_users_company_id ON users(company_id);
       CREATE INDEX IF NOT EXISTS idx_verified_credentials_document_id ON verified_credentials(document_id);
     `);
-    console.log('P3 Part 1 complete: 64 FK indexes created');
+		console.log('P3 Part 1 complete: 64 FK indexes created');
 
-    // PART 2a: Remaining timestamp -> timestamptz conversions (batch 1)
-    // P1 fixed 20 columns, P2 fixed 5 in screening_sessions.
-    // ~182 columns across 82 tables still use timestamp without timezone.
-    // Skipping: _migrations (internal), user_sessions (session store).
-    await db.query(`
+		// PART 2a: Remaining timestamp -> timestamptz conversions (batch 1)
+		// P1 fixed 20 columns, P2 fixed 5 in screening_sessions.
+		// ~182 columns across 82 tables still use timestamp without timezone.
+		// Skipping: _migrations (internal), user_sessions (session store).
+		await db.query(`
       ALTER TABLE agent_data ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC';
       ALTER TABLE assessment_conversations ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC';
       ALTER TABLE assessment_events ALTER COLUMN timestamp TYPE timestamptz USING timestamp AT TIME ZONE 'UTC';
@@ -142,10 +142,10 @@ module.exports = {
       ALTER TABLE events ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC';
       ALTER TABLE fairness_audits ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC';
     `);
-    console.log('P3 Part 2a complete: timestamptz batch 1 (57 columns)');
+		console.log('P3 Part 2a complete: timestamptz batch 1 (57 columns)');
 
-    // PART 2b: Remaining timestamp -> timestamptz conversions (batch 2)
-    await db.query(`
+		// PART 2b: Remaining timestamp -> timestamptz conversions (batch 2)
+		await db.query(`
       ALTER TABLE job_analytics ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC';
       ALTER TABLE job_analytics ALTER COLUMN last_view_at TYPE timestamptz USING last_view_at AT TIME ZONE 'UTC';
       ALTER TABLE job_analytics ALTER COLUMN updated_at TYPE timestamptz USING updated_at AT TIME ZONE 'UTC';
@@ -204,10 +204,10 @@ module.exports = {
       ALTER TABLE onboarding_plans ALTER COLUMN started_at TYPE timestamptz USING started_at AT TIME ZONE 'UTC';
       ALTER TABLE onboarding_plans ALTER COLUMN updated_at TYPE timestamptz USING updated_at AT TIME ZONE 'UTC';
     `);
-    console.log('P3 Part 2b complete: timestamptz batch 2 (57 columns)');
+		console.log('P3 Part 2b complete: timestamptz batch 2 (57 columns)');
 
-    // PART 2c: Remaining timestamp -> timestamptz conversions (batch 3)
-    await db.query(`
+		// PART 2c: Remaining timestamp -> timestamptz conversions (batch 3)
+		await db.query(`
       ALTER TABLE onboarding_tasks ALTER COLUMN completed_at TYPE timestamptz USING completed_at AT TIME ZONE 'UTC';
       ALTER TABLE onboarding_tasks ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC';
       ALTER TABLE onboarding_tasks ALTER COLUMN updated_at TYPE timestamptz USING updated_at AT TIME ZONE 'UTC';
@@ -277,11 +277,11 @@ module.exports = {
       ALTER TABLE verified_credentials ALTER COLUMN verified_at TYPE timestamptz USING verified_at AT TIME ZONE 'UTC';
       ALTER TABLE work_experience ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC';
     `);
-    console.log('P3 Part 2c complete: timestamptz batch 3 (68 columns)');
+		console.log('P3 Part 2c complete: timestamptz batch 3 (68 columns)');
 
-    // PART 3: Partial indexes for hot query paths
-    // These accelerate common filtered queries by indexing only active/pending records
-    await db.query(`
+		// PART 3: Partial indexes for hot query paths
+		// These accelerate common filtered queries by indexing only active/pending records
+		await db.query(`
       CREATE INDEX IF NOT EXISTS idx_jobs_status_active ON jobs(id) WHERE status = 'active';
       CREATE INDEX IF NOT EXISTS idx_job_applications_status_pipeline ON job_applications(job_id, candidate_id) WHERE status IN ('applied', 'screening', 'interviewed');
       CREATE INDEX IF NOT EXISTS idx_interviews_status_pending ON interviews(user_id, job_id) WHERE status IN ('pending', 'in_progress');
@@ -289,11 +289,11 @@ module.exports = {
       CREATE INDEX IF NOT EXISTS idx_offers_status_pending ON offers(candidate_id) WHERE status IN ('sent', 'negotiating');
       CREATE INDEX IF NOT EXISTS idx_refresh_tokens_active ON refresh_tokens(user_id) WHERE is_revoked = false;
     `);
-    console.log('P3 Part 3 complete: 6 partial indexes');
+		console.log('P3 Part 3 complete: 6 partial indexes');
 
-    // PART 4: UNIQUE constraints for 1:1 relationships
-    // Verified zero duplicate rows in all target tables before adding
-    await db.query(`
+		// PART 4: UNIQUE constraints for 1:1 relationships
+		// Verified zero duplicate rows in all target tables before adding
+		await db.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_candidate_profiles_user_unique ON candidate_profiles(user_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_candidate_embeddings_user_unique ON candidate_embeddings(user_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_job_embeddings_job_unique ON job_embeddings(job_id);
@@ -302,9 +302,11 @@ module.exports = {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_scheduling_preferences_user_unique ON scheduling_preferences(user_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_saved_jobs_user_job_unique ON saved_jobs(user_id, job_id);
     `);
-    console.log('P3 Part 4 complete: 7 unique constraints');
+		console.log('P3 Part 4 complete: 7 unique constraints');
 
-    console.log('=== P3 SCHEMA OPTIMIZATIONS COMPLETE ===');
-    console.log('Summary: +64 FK indexes, ~182 timestamp->timestamptz, +6 partial indexes, +7 unique constraints');
-  }
+		console.log('=== P3 SCHEMA OPTIMIZATIONS COMPLETE ===');
+		console.log(
+			'Summary: +64 FK indexes, ~182 timestamp->timestamptz, +6 partial indexes, +7 unique constraints',
+		);
+	},
 };

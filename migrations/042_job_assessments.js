@@ -2,10 +2,10 @@
 // Links AI-generated assessments to jobs with multi-category questions, scoring, and conversational mode
 
 module.exports = {
-  name: '042_job_assessments',
-  up: async (client) => {
-    // Job assessments — AI-generated assessment templates linked to job postings
-    await client.query(`
+	name: '042_job_assessments',
+	up: async (client) => {
+		// Job assessments — AI-generated assessment templates linked to job postings
+		await client.query(`
       CREATE TABLE IF NOT EXISTS job_assessments (
         id SERIAL PRIMARY KEY,
         job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
@@ -25,8 +25,8 @@ module.exports = {
       )
     `);
 
-    // Job assessment questions — individual questions in a job assessment
-    await client.query(`
+		// Job assessment questions — individual questions in a job assessment
+		await client.query(`
       CREATE TABLE IF NOT EXISTS job_assessment_questions (
         id SERIAL PRIMARY KEY,
         assessment_id INTEGER REFERENCES job_assessments(id) ON DELETE CASCADE,
@@ -46,8 +46,8 @@ module.exports = {
       )
     `);
 
-    // Candidate assessment attempts — tracks a candidate taking a job assessment
-    await client.query(`
+		// Candidate assessment attempts — tracks a candidate taking a job assessment
+		await client.query(`
       CREATE TABLE IF NOT EXISTS job_assessment_attempts (
         id SERIAL PRIMARY KEY,
         assessment_id INTEGER REFERENCES job_assessments(id) ON DELETE CASCADE,
@@ -73,8 +73,8 @@ module.exports = {
       )
     `);
 
-    // Conversational assessment turns — for CAMEL-style follow-up conversations
-    await client.query(`
+		// Conversational assessment turns — for CAMEL-style follow-up conversations
+		await client.query(`
       CREATE TABLE IF NOT EXISTS assessment_conversations (
         id SERIAL PRIMARY KEY,
         attempt_id INTEGER REFERENCES job_assessment_attempts(id) ON DELETE CASCADE,
@@ -86,13 +86,23 @@ module.exports = {
       )
     `);
 
-    // Indexes
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_job_assessments_job ON job_assessments(job_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_job_assessment_questions_assessment ON job_assessment_questions(assessment_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_job_assessment_attempts_assessment ON job_assessment_attempts(assessment_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_job_assessment_attempts_candidate ON job_assessment_attempts(candidate_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_assessment_conversations_attempt ON assessment_conversations(attempt_id)`);
+		// Indexes
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_job_assessments_job ON job_assessments(job_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_job_assessment_questions_assessment ON job_assessment_questions(assessment_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_job_assessment_attempts_assessment ON job_assessment_attempts(assessment_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_job_assessment_attempts_candidate ON job_assessment_attempts(candidate_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_assessment_conversations_attempt ON assessment_conversations(attempt_id)`,
+		);
 
-    console.log('[migration] Job assessment engine tables created');
-  }
+		console.log('[migration] Job assessment engine tables created');
+	},
 };

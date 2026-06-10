@@ -1,9 +1,9 @@
 // Conversion Tracking - Analytics Events System
 module.exports = {
-  name: 'conversion_tracking',
-  up: async (client) => {
-    // Events table - tracks user actions and page views
-    await client.query(`
+	name: 'conversion_tracking',
+	up: async (client) => {
+		// Events table - tracks user actions and page views
+		await client.query(`
       CREATE TABLE IF NOT EXISTS events (
         id SERIAL PRIMARY KEY,
         event_type VARCHAR(100) NOT NULL,
@@ -14,14 +14,14 @@ module.exports = {
       )
     `);
 
-    // Create indexes for analytics queries
-    await client.query(`
+		// Create indexes for analytics queries
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
       CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id);
       CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at);
       CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);
     `);
 
-    console.log('Conversion tracking tables created successfully');
-  }
+		console.log('Conversion tracking tables created successfully');
+	},
 };

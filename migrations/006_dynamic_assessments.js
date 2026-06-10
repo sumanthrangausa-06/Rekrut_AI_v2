@@ -2,10 +2,10 @@
 // Adds question bank, difficulty tracking, and anti-cheat detection
 
 module.exports = {
-  name: '006_dynamic_assessments',
-  up: async (client) => {
-    // Question bank for assessments
-    await client.query(`
+	name: '006_dynamic_assessments',
+	up: async (client) => {
+		// Question bank for assessments
+		await client.query(`
       CREATE TABLE IF NOT EXISTS assessment_questions (
         id SERIAL PRIMARY KEY,
         skill_category VARCHAR(100) NOT NULL,
@@ -20,8 +20,8 @@ module.exports = {
       )
     `);
 
-    // Assessment sessions with anti-cheat tracking
-    await client.query(`
+		// Assessment sessions with anti-cheat tracking
+		await client.query(`
       CREATE TABLE IF NOT EXISTS assessment_sessions (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -44,8 +44,8 @@ module.exports = {
       )
     `);
 
-    // Anti-cheat event log
-    await client.query(`
+		// Anti-cheat event log
+		await client.query(`
       CREATE TABLE IF NOT EXISTS assessment_events (
         id SERIAL PRIMARY KEY,
         session_id INTEGER REFERENCES assessment_sessions(id) ON DELETE CASCADE,
@@ -55,21 +55,27 @@ module.exports = {
       )
     `);
 
-    // Update skill_assessments table to link to sessions
-    await client.query(`
+		// Update skill_assessments table to link to sessions
+		await client.query(`
       ALTER TABLE skill_assessments
       ADD COLUMN IF NOT EXISTS session_id INTEGER REFERENCES assessment_sessions(id) ON DELETE SET NULL,
       ADD COLUMN IF NOT EXISTS anti_cheat_score INTEGER DEFAULT 100,
       ADD COLUMN IF NOT EXISTS behavioral_flags JSONB DEFAULT '[]'
     `);
 
-    // Create indexes
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_assessment_questions_skill ON assessment_questions(skill_category)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_assessment_sessions_user ON assessment_sessions(user_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_assessment_events_session ON assessment_events(session_id)`);
+		// Create indexes
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_assessment_questions_skill ON assessment_questions(skill_category)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_assessment_sessions_user ON assessment_sessions(user_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_assessment_events_session ON assessment_events(session_id)`,
+		);
 
-    // Seed initial question bank with common tech/behavioral questions
-    await client.query(`
+		// Seed initial question bank with common tech/behavioral questions
+		await client.query(`
       INSERT INTO assessment_questions (skill_category, difficulty_level, question_type, question_text, options, correct_answer, explanation, time_limit_seconds)
       VALUES
       ('JavaScript', 2, 'multiple_choice', 'What is the output of: console.log(typeof null)?',
@@ -97,6 +103,6 @@ module.exports = {
        'Good answers include: gather data, reproduce, isolate, hypothesize, test, fix, verify, document.', 240)
     `);
 
-    console.log('Dynamic assessment tables created and seeded');
-  }
+		console.log('Dynamic assessment tables created and seeded');
+	},
 };

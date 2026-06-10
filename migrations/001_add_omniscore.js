@@ -1,9 +1,9 @@
 // OmniScore Migration - Candidate Credit Score System
 module.exports = {
-  name: 'add_omniscore_tables',
-  up: async (client) => {
-    // OmniScore main table - stores current score and history
-    await client.query(`
+	name: 'add_omniscore_tables',
+	up: async (client) => {
+		// OmniScore main table - stores current score and history
+		await client.query(`
       CREATE TABLE IF NOT EXISTS omni_scores (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
@@ -18,8 +18,8 @@ module.exports = {
       )
     `);
 
-    // Score components - individual score factors with time decay
-    await client.query(`
+		// Score components - individual score factors with time decay
+		await client.query(`
       CREATE TABLE IF NOT EXISTS score_components (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -36,8 +36,8 @@ module.exports = {
       )
     `);
 
-    // Score history - track score changes over time
-    await client.query(`
+		// Score history - track score changes over time
+		await client.query(`
       CREATE TABLE IF NOT EXISTS score_history (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -50,8 +50,8 @@ module.exports = {
       )
     `);
 
-    // Role-specific scores
-    await client.query(`
+		// Role-specific scores
+		await client.query(`
       CREATE TABLE IF NOT EXISTS role_scores (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -63,13 +63,13 @@ module.exports = {
       )
     `);
 
-    // Create indexes for performance
-    await client.query(`
+		// Create indexes for performance
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_score_components_user ON score_components(user_id);
       CREATE INDEX IF NOT EXISTS idx_score_history_user ON score_history(user_id);
       CREATE INDEX IF NOT EXISTS idx_role_scores_user ON role_scores(user_id);
     `);
 
-    console.log('OmniScore tables created successfully');
-  }
+		console.log('OmniScore tables created successfully');
+	},
 };

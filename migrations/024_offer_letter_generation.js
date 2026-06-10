@@ -1,8 +1,8 @@
 module.exports = {
-  name: '024_offer_letter_generation',
-  async up(client) {
-    // Add offer letter content columns
-    await client.query(`
+	name: '024_offer_letter_generation',
+	async up(client) {
+		// Add offer letter content columns
+		await client.query(`
       ALTER TABLE offers
       ADD COLUMN IF NOT EXISTS offer_letter_html TEXT,
       ADD COLUMN IF NOT EXISTS offer_letter_generated_at TIMESTAMP,
@@ -14,6 +14,6 @@ module.exports = {
       ADD COLUMN IF NOT EXISTS candidate_sign_ip VARCHAR(100)
     `);
 
-    console.log('Added offer letter generation columns to offers table');
-  }
+		console.log('Added offer letter generation columns to offers table');
+	},
 };

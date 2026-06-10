@@ -186,7 +186,9 @@ export function QuickPractice({
 					const vt = videoStream.getVideoTracks()[0]
 					if (vt?.readyState !== 'live') {
 						console.warn(`[camera] ${label}: no live video track`)
-						videoStream.getTracks().forEach((t) => t.stop())
+						videoStream.getTracks().forEach((t) => {
+							t.stop()
+						})
 						videoStream = null
 						continue
 					}
@@ -275,7 +277,9 @@ export function QuickPractice({
 
 	function stopCamera() {
 		if (streamRef.current) {
-			streamRef.current.getTracks().forEach((track) => track.stop())
+			streamRef.current.getTracks().forEach((track) => {
+				track.stop()
+			})
 			streamRef.current = null
 		}
 		if (videoRef.current) {

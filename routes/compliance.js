@@ -7,16 +7,16 @@ const BiasDetection = require('../services/biasDetection');
 const ScoreExplainer = require('../services/scoreExplainer');
 
 function canAccessUserRecord(req, userId) {
-  const targetId = Number(userId);
-  if (!Number.isInteger(targetId)) {
-    return { ok: false, status: 400, error: 'Valid user ID required' };
-  }
+	const targetId = Number(userId);
+	if (!Number.isInteger(targetId)) {
+		return { ok: false, status: 400, error: 'Valid user ID required' };
+	}
 
-  if (req.user?.role === 'admin' || req.user?.id === targetId) {
-    return { ok: true, targetId };
-  }
+	if (req.user?.role === 'admin' || req.user?.id === targetId) {
+		return { ok: true, targetId };
+	}
 
-  return { ok: false, status: 403, error: 'You can only access your own compliance data' };
+	return { ok: false, status: 403, error: 'You can only access your own compliance data' };
 }
 
 /**
@@ -25,179 +25,185 @@ function canAccessUserRecord(req, userId) {
 
 // Export user data (Right to portability)
 router.post('/gdpr/export', authMiddleware, async (req, res) => {
-  try {
-    const { userId } = req.body;
-    const access = canAccessUserRecord(req, userId);
+	try {
+		const { userId } = req.body;
+		const access = canAccessUserRecord(req, userId);
 
-    if (!access.ok) {
-      return res.status(access.status).json({ error: access.error });
-    }
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
+		}
 
-    const targetUserId = access.targetId;
+		const targetUserId = access.targetId;
 
-    // Gather all user data
-    const userData = await pool.query('SELECT * FROM users WHERE id = $1', [targetUserId]);
-    const omniscoreData = await pool.query('SELECT * FROM omniscore_results WHERE user_id = $1', [targetUserId]);
-    const interviewData = await pool.query('SELECT * FROM interviews WHERE user_id = $1', [targetUserId]);
-    const assessmentData = await pool.query('SELECT * FROM assessment_results WHERE user_id = $1', [targetUserId]);
-    const profileData = await pool.query('SELECT * FROM candidate_profiles WHERE user_id = $1', [targetUserId]);
-    const consentData = await pool.query('SELECT * FROM consent_records WHERE user_id = $1', [targetUserId]);
-    const auditData = await pool.query('SELECT * FROM audit_logs WHERE user_id = $1', [targetUserId]);
+		// Gather all user data
+		const userData = await pool.query('SELECT * FROM users WHERE id = $1', [targetUserId]);
+		const omniscoreData = await pool.query('SELECT * FROM omniscore_results WHERE user_id = $1', [
+			targetUserId,
+		]);
+		const interviewData = await pool.query('SELECT * FROM interviews WHERE user_id = $1', [
+			targetUserId,
+		]);
+		const assessmentData = await pool.query('SELECT * FROM assessment_results WHERE user_id = $1', [
+			targetUserId,
+		]);
+		const profileData = await pool.query('SELECT * FROM candidate_profiles WHERE user_id = $1', [
+			targetUserId,
+		]);
+		const consentData = await pool.query('SELECT * FROM consent_records WHERE user_id = $1', [
+			targetUserId,
+		]);
+		const auditData = await pool.query('SELECT * FROM audit_logs WHERE user_id = $1', [
+			targetUserId,
+		]);
 
-    const exportData = {
-      user: userData.rows[0],
-      omniscore: omniscoreData.rows,
-      interviews: interviewData.rows,
-      assessments: assessmentData.rows,
-      profile: profileData.rows[0],
-      consents: consentData.rows,
-      audit_trail: auditData.rows,
-      exported_at: new Date().toISOString()
-    };
+		const exportData = {
+			user: userData.rows[0],
+			omniscore: omniscoreData.rows,
+			interviews: interviewData.rows,
+			assessments: assessmentData.rows,
+			profile: profileData.rows[0],
+			consents: consentData.rows,
+			audit_trail: auditData.rows,
+			exported_at: new Date().toISOString(),
+		};
 
-    // Log the data export request
-    await AuditLogger.log({
-      actionType: 'gdpr_data_export',
-      userId: targetUserId,
-      targetType: 'user',
-      targetId: targetUserId,
-      metadata: { export_size: JSON.stringify(exportData).length },
-      req
-    });
+		// Log the data export request
+		await AuditLogger.log({
+			actionType: 'gdpr_data_export',
+			userId: targetUserId,
+			targetType: 'user',
+			targetId: targetUserId,
+			metadata: { export_size: JSON.stringify(exportData).length },
+			req,
+		});
 
-    // Create data request record
-    await pool.query(
-      `INSERT INTO data_requests (user_id, request_type, status, processed_at)
+		// Create data request record
+		await pool.query(
+			`INSERT INTO data_requests (user_id, request_type, status, processed_at)
        VALUES ($1, 'export', 'completed', NOW())`,
-      [targetUserId]
-    );
+			[targetUserId],
+		);
 
-    res.json({
-      success: true,
-      data: exportData
-    });
-  } catch (error) {
-    console.error('Data export failed:', error);
-    res.status(500).json({ error: 'Export failed' });
-  }
+		res.json({
+			success: true,
+			data: exportData,
+		});
+	} catch (error) {
+		console.error('Data export failed:', error);
+		res.status(500).json({ error: 'Export failed' });
+	}
 });
 
 // Right to be forgotten
 router.post('/gdpr/delete', authMiddleware, async (req, res) => {
-  try {
-    const { userId, confirmEmail } = req.body;
-    const access = canAccessUserRecord(req, userId);
+	try {
+		const { userId, confirmEmail } = req.body;
+		const access = canAccessUserRecord(req, userId);
 
-    if (!access.ok) {
-      return res.status(access.status).json({ error: access.error });
-    }
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
+		}
 
-    const targetUserId = access.targetId;
+		const targetUserId = access.targetId;
 
-    if (!confirmEmail) {
-      return res.status(400).json({ error: 'User ID and email confirmation required' });
-    }
+		if (!confirmEmail) {
+			return res.status(400).json({ error: 'User ID and email confirmation required' });
+		}
 
-    // Verify email matches
-    const userCheck = await pool.query('SELECT email FROM users WHERE id = $1', [targetUserId]);
-    if (userCheck.rows.length === 0 || userCheck.rows[0].email !== confirmEmail) {
-      return res.status(403).json({ error: 'Email confirmation failed' });
-    }
+		// Verify email matches
+		const userCheck = await pool.query('SELECT email FROM users WHERE id = $1', [targetUserId]);
+		if (userCheck.rows.length === 0 || userCheck.rows[0].email !== confirmEmail) {
+			return res.status(403).json({ error: 'Email confirmation failed' });
+		}
 
-    // Create deletion request (manual review required for compliance)
-    const result = await pool.query(
-      `INSERT INTO data_requests (user_id, request_type, status, notes)
+		// Create deletion request (manual review required for compliance)
+		const result = await pool.query(
+			`INSERT INTO data_requests (user_id, request_type, status, notes)
        VALUES ($1, 'deletion', 'pending', 'Awaiting compliance review')
        RETURNING id`,
-      [targetUserId]
-    );
+			[targetUserId],
+		);
 
-    await AuditLogger.log({
-      actionType: 'gdpr_deletion_requested',
-      userId: targetUserId,
-      targetType: 'user',
-      targetId: targetUserId,
-      metadata: { request_id: result.rows[0].id },
-      req
-    });
+		await AuditLogger.log({
+			actionType: 'gdpr_deletion_requested',
+			userId: targetUserId,
+			targetType: 'user',
+			targetId: targetUserId,
+			metadata: { request_id: result.rows[0].id },
+			req,
+		});
 
-    res.json({
-      success: true,
-      message: 'Deletion request submitted for review',
-      requestId: result.rows[0].id,
-      note: 'Data will be anonymized within 30 days after compliance review'
-    });
-  } catch (error) {
-    console.error('Deletion request failed:', error);
-    res.status(500).json({ error: 'Request failed' });
-  }
+		res.json({
+			success: true,
+			message: 'Deletion request submitted for review',
+			requestId: result.rows[0].id,
+			note: 'Data will be anonymized within 30 days after compliance review',
+		});
+	} catch (error) {
+		console.error('Deletion request failed:', error);
+		res.status(500).json({ error: 'Request failed' });
+	}
 });
 
 // Record consent
 router.post('/gdpr/consent', authMiddleware, async (req, res) => {
-  try {
-    const { userId, consentType, consented } = req.body;
-    const access = canAccessUserRecord(req, userId);
+	try {
+		const { userId, consentType, consented } = req.body;
+		const access = canAccessUserRecord(req, userId);
 
-    if (!access.ok) {
-      return res.status(access.status).json({ error: access.error });
-    }
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
+		}
 
-    const targetUserId = access.targetId;
+		const targetUserId = access.targetId;
 
-    if (!consentType || consented === undefined) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
+		if (!consentType || consented === undefined) {
+			return res.status(400).json({ error: 'Missing required fields' });
+		}
 
-    const result = await pool.query(
-      `INSERT INTO consent_records (user_id, consent_type, consented, consented_at, ip_address)
+		const result = await pool.query(
+			`INSERT INTO consent_records (user_id, consent_type, consented, consented_at, ip_address)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING id`,
-      [
-        targetUserId,
-        consentType,
-        consented,
-        consented ? new Date() : null,
-        req.ip
-      ]
-    );
+			[targetUserId, consentType, consented, consented ? new Date() : null, req.ip],
+		);
 
-    await AuditLogger.log({
-      actionType: 'consent_recorded',
-      userId: targetUserId,
-      targetType: 'consent',
-      targetId: result.rows[0].id,
-      metadata: { consent_type: consentType, consented },
-      req
-    });
+		await AuditLogger.log({
+			actionType: 'consent_recorded',
+			userId: targetUserId,
+			targetType: 'consent',
+			targetId: result.rows[0].id,
+			metadata: { consent_type: consentType, consented },
+			req,
+		});
 
-    res.json({ success: true, consentId: result.rows[0].id });
-  } catch (error) {
-    console.error('Consent recording failed:', error);
-    res.status(500).json({ error: 'Failed to record consent' });
-  }
+		res.json({ success: true, consentId: result.rows[0].id });
+	} catch (error) {
+		console.error('Consent recording failed:', error);
+		res.status(500).json({ error: 'Failed to record consent' });
+	}
 });
 
 // Get user consents
 router.get('/gdpr/consents/:userId', authMiddleware, async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const access = canAccessUserRecord(req, userId);
+	try {
+		const { userId } = req.params;
+		const access = canAccessUserRecord(req, userId);
 
-    if (!access.ok) {
-      return res.status(access.status).json({ error: access.error });
-    }
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
+		}
 
-    const result = await pool.query(
-      `SELECT * FROM consent_records WHERE user_id = $1 ORDER BY created_at DESC`,
-      [access.targetId]
-    );
+		const result = await pool.query(
+			`SELECT * FROM consent_records WHERE user_id = $1 ORDER BY created_at DESC`,
+			[access.targetId],
+		);
 
-    res.json({ success: true, consents: result.rows });
-  } catch (error) {
-    console.error('Failed to fetch consents:', error);
-    res.status(500).json({ error: 'Failed to fetch consents' });
-  }
+		res.json({ success: true, consents: result.rows });
+	} catch (error) {
+		console.error('Failed to fetch consents:', error);
+		res.status(500).json({ error: 'Failed to fetch consents' });
+	}
 });
 
 /**
@@ -206,56 +212,56 @@ router.get('/gdpr/consents/:userId', authMiddleware, async (req, res) => {
 
 // Generate bias report
 router.post('/bias/analyze', authMiddleware, async (req, res) => {
-  try {
-    const report = await BiasDetection.generateReport();
+	try {
+		const report = await BiasDetection.generateReport();
 
-    await AuditLogger.log({
-      actionType: 'bias_analysis_generated',
-      userId: req.user?.id,
-      targetType: 'bias_report',
-      targetId: report.reportId,
-      metadata: {
-        flagged_patterns: report.demographicAnalysis.flaggedPatterns.length,
-        anomalies: report.distributionAnalysis.anomalies.length
-      },
-      req
-    });
+		await AuditLogger.log({
+			actionType: 'bias_analysis_generated',
+			userId: req.user?.id,
+			targetType: 'bias_report',
+			targetId: report.reportId,
+			metadata: {
+				flagged_patterns: report.demographicAnalysis.flaggedPatterns.length,
+				anomalies: report.distributionAnalysis.anomalies.length,
+			},
+			req,
+		});
 
-    res.json({
-      success: true,
-      report
-    });
-  } catch (error) {
-    console.error('Bias analysis failed:', error);
-    res.status(500).json({ error: 'Analysis failed' });
-  }
+		res.json({
+			success: true,
+			report,
+		});
+	} catch (error) {
+		console.error('Bias analysis failed:', error);
+		res.status(500).json({ error: 'Analysis failed' });
+	}
 });
 
 // Get bias reports
 router.get('/bias/reports', authMiddleware, async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 10;
-    const offset = parseInt(req.query.offset) || 0;
+	try {
+		const limit = parseInt(req.query.limit, 10) || 10;
+		const offset = parseInt(req.query.offset, 10) || 0;
 
-    const reports = await BiasDetection.getReports({ limit, offset });
+		const reports = await BiasDetection.getReports({ limit, offset });
 
-    res.json({
-      success: true,
-      reports
-    });
-  } catch (error) {
-    console.error('Failed to fetch bias reports:', error);
-    res.status(500).json({ error: 'Failed to fetch reports' });
-  }
+		res.json({
+			success: true,
+			reports,
+		});
+	} catch (error) {
+		console.error('Failed to fetch bias reports:', error);
+		res.status(500).json({ error: 'Failed to fetch reports' });
+	}
 });
 
 // Create fairness audit
-router.post('/fairness/audit', authMiddleware, async (req, res) => {
-  try {
-    const auditDate = new Date().toISOString().split('T')[0];
+router.post('/fairness/audit', authMiddleware, async (_req, res) => {
+	try {
+		const auditDate = new Date().toISOString().split('T')[0];
 
-    // Get score distribution
-    const scoreDistribution = await pool.query(`
+		// Get score distribution
+		const scoreDistribution = await pool.query(`
       SELECT
         FLOOR(overall_score / 10) * 10 as bucket,
         COUNT(*) as count,
@@ -266,8 +272,8 @@ router.post('/fairness/audit', authMiddleware, async (req, res) => {
       ORDER BY bucket
     `);
 
-    // Get demographic breakdowns
-    const demographics = await pool.query(`
+		// Get demographic breakdowns
+		const demographics = await pool.query(`
       SELECT
         cp.gender,
         cp.ethnicity,
@@ -279,8 +285,8 @@ router.post('/fairness/audit', authMiddleware, async (req, res) => {
       GROUP BY cp.gender, cp.ethnicity
     `);
 
-    // Get appeal statistics
-    const appeals = await pool.query(`
+		// Get appeal statistics
+		const appeals = await pool.query(`
       SELECT
         status,
         COUNT(*) as count,
@@ -289,65 +295,64 @@ router.post('/fairness/audit', authMiddleware, async (req, res) => {
       GROUP BY status
     `);
 
-    // Calculate overall fairness score (simplified metric)
-    const avgScores = demographics.rows.map(r => parseFloat(r.avg_score));
-    const fairnessScore = avgScores.length > 0
-      ? 100 - (Math.max(...avgScores) - Math.min(...avgScores))
-      : 100;
+		// Calculate overall fairness score (simplified metric)
+		const avgScores = demographics.rows.map((r) => parseFloat(r.avg_score));
+		const fairnessScore =
+			avgScores.length > 0 ? 100 - (Math.max(...avgScores) - Math.min(...avgScores)) : 100;
 
-    const result = await pool.query(
-      `INSERT INTO fairness_audits
+		const result = await pool.query(
+			`INSERT INTO fairness_audits
        (audit_date, audit_type, score_distribution, demographic_breakdowns, appeal_stats, overall_fairness_score, issues_found)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id`,
-      [
-        auditDate,
-        'automated',
-        JSON.stringify(scoreDistribution.rows),
-        JSON.stringify(demographics.rows),
-        JSON.stringify(appeals.rows),
-        fairnessScore,
-        0
-      ]
-    );
+			[
+				auditDate,
+				'automated',
+				JSON.stringify(scoreDistribution.rows),
+				JSON.stringify(demographics.rows),
+				JSON.stringify(appeals.rows),
+				fairnessScore,
+				0,
+			],
+		);
 
-    res.json({
-      success: true,
-      auditId: result.rows[0].id,
-      fairnessScore,
-      summary: {
-        score_distribution: scoreDistribution.rows,
-        demographics: demographics.rows,
-        appeals: appeals.rows
-      }
-    });
-  } catch (error) {
-    console.error('Fairness audit failed:', error);
-    res.status(500).json({ error: 'Audit failed' });
-  }
+		res.json({
+			success: true,
+			auditId: result.rows[0].id,
+			fairnessScore,
+			summary: {
+				score_distribution: scoreDistribution.rows,
+				demographics: demographics.rows,
+				appeals: appeals.rows,
+			},
+		});
+	} catch (error) {
+		console.error('Fairness audit failed:', error);
+		res.status(500).json({ error: 'Audit failed' });
+	}
 });
 
 // Get fairness audits
 router.get('/fairness/audits', authMiddleware, async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 10;
-    const offset = parseInt(req.query.offset) || 0;
+	try {
+		const limit = parseInt(req.query.limit, 10) || 10;
+		const offset = parseInt(req.query.offset, 10) || 0;
 
-    const result = await pool.query(
-      `SELECT * FROM fairness_audits
+		const result = await pool.query(
+			`SELECT * FROM fairness_audits
        ORDER BY audit_date DESC
        LIMIT $1 OFFSET $2`,
-      [limit, offset]
-    );
+			[limit, offset],
+		);
 
-    res.json({
-      success: true,
-      audits: result.rows
-    });
-  } catch (error) {
-    console.error('Failed to fetch audits:', error);
-    res.status(500).json({ error: 'Failed to fetch audits' });
-  }
+		res.json({
+			success: true,
+			audits: result.rows,
+		});
+	} catch (error) {
+		console.error('Failed to fetch audits:', error);
+		res.status(500).json({ error: 'Failed to fetch audits' });
+	}
 });
 
 /**
@@ -356,63 +361,63 @@ router.get('/fairness/audits', authMiddleware, async (req, res) => {
 
 // Submit appeal
 router.post('/appeal', authMiddleware, async (req, res) => {
-  try {
-    const { userId, scoreType, originalScore, appealReason } = req.body;
+	try {
+		const { userId, scoreType, originalScore, appealReason } = req.body;
 
-    if (!userId || !scoreType || !appealReason) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
+		if (!userId || !scoreType || !appealReason) {
+			return res.status(400).json({ error: 'Missing required fields' });
+		}
 
-    const result = await pool.query(
-      `INSERT INTO score_appeals (user_id, score_type, original_score, appeal_reason)
+		const result = await pool.query(
+			`INSERT INTO score_appeals (user_id, score_type, original_score, appeal_reason)
        VALUES ($1, $2, $3, $4)
        RETURNING id`,
-      [userId, scoreType, originalScore, appealReason]
-    );
+			[userId, scoreType, originalScore, appealReason],
+		);
 
-    await AuditLogger.log({
-      actionType: 'score_appeal_submitted',
-      userId,
-      targetType: 'appeal',
-      targetId: result.rows[0].id,
-      metadata: { score_type: scoreType, original_score: originalScore },
-      req
-    });
+		await AuditLogger.log({
+			actionType: 'score_appeal_submitted',
+			userId,
+			targetType: 'appeal',
+			targetId: result.rows[0].id,
+			metadata: { score_type: scoreType, original_score: originalScore },
+			req,
+		});
 
-    res.json({
-      success: true,
-      appealId: result.rows[0].id,
-      message: 'Appeal submitted successfully'
-    });
-  } catch (error) {
-    console.error('Appeal submission failed:', error);
-    res.status(500).json({ error: 'Failed to submit appeal' });
-  }
+		res.json({
+			success: true,
+			appealId: result.rows[0].id,
+			message: 'Appeal submitted successfully',
+		});
+	} catch (error) {
+		console.error('Appeal submission failed:', error);
+		res.status(500).json({ error: 'Failed to submit appeal' });
+	}
 });
 
 // Get user appeals
 router.get('/appeal/:userId', authMiddleware, async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const access = canAccessUserRecord(req, userId);
+	try {
+		const { userId } = req.params;
+		const access = canAccessUserRecord(req, userId);
 
-    if (!access.ok) {
-      return res.status(access.status).json({ error: access.error });
-    }
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
+		}
 
-    const result = await pool.query(
-      `SELECT * FROM score_appeals WHERE user_id = $1 ORDER BY created_at DESC`,
-      [access.targetId]
-    );
+		const result = await pool.query(
+			`SELECT * FROM score_appeals WHERE user_id = $1 ORDER BY created_at DESC`,
+			[access.targetId],
+		);
 
-    res.json({
-      success: true,
-      appeals: result.rows
-    });
-  } catch (error) {
-    console.error('Failed to fetch appeals:', error);
-    res.status(500).json({ error: 'Failed to fetch appeals' });
-  }
+		res.json({
+			success: true,
+			appeals: result.rows,
+		});
+	} catch (error) {
+		console.error('Failed to fetch appeals:', error);
+		res.status(500).json({ error: 'Failed to fetch appeals' });
+	}
 });
 
 /**
@@ -421,69 +426,72 @@ router.get('/appeal/:userId', authMiddleware, async (req, res) => {
 
 // Query audit logs
 router.get('/audit/logs', authMiddleware, async (req, res) => {
-  try {
-    const { userId, actionType, startDate, endDate, limit, offset } = req.query;
+	try {
+		const { userId, actionType, startDate, endDate, limit, offset } = req.query;
 
-    const logs = await AuditLogger.query({
-      userId: userId ? parseInt(userId) : undefined,
-      actionType,
-      startDate,
-      endDate,
-      limit: limit ? parseInt(limit) : 100,
-      offset: offset ? parseInt(offset) : 0
-    });
+		const logs = await AuditLogger.query({
+			userId: userId ? parseInt(userId, 10) : undefined,
+			actionType,
+			startDate,
+			endDate,
+			limit: limit ? parseInt(limit, 10) : 100,
+			offset: offset ? parseInt(offset, 10) : 0,
+		});
 
-    res.json({
-      success: true,
-      logs
-    });
-  } catch (error) {
-    console.error('Failed to query audit logs:', error);
-    res.status(500).json({ error: 'Query failed' });
-  }
+		res.json({
+			success: true,
+			logs,
+		});
+	} catch (error) {
+		console.error('Failed to query audit logs:', error);
+		res.status(500).json({ error: 'Query failed' });
+	}
 });
 
 // Export audit logs
 router.post('/audit/export', authMiddleware, async (req, res) => {
-  try {
-    const { startDate, endDate, format } = req.body;
+	try {
+		const { startDate, endDate, format } = req.body;
 
-    if (!startDate || !endDate) {
-      return res.status(400).json({ error: 'Start and end dates required' });
-    }
+		if (!startDate || !endDate) {
+			return res.status(400).json({ error: 'Start and end dates required' });
+		}
 
-    const logs = await AuditLogger.exportLogs({
-      startDate,
-      endDate,
-      format: format || 'json'
-    });
+		const logs = await AuditLogger.exportLogs({
+			startDate,
+			endDate,
+			format: format || 'json',
+		});
 
-    await AuditLogger.log({
-      actionType: 'audit_logs_exported',
-      userId: req.user?.id,
-      targetType: 'audit_export',
-      metadata: {
-        start_date: startDate,
-        end_date: endDate,
-        format
-      },
-      req
-    });
+		await AuditLogger.log({
+			actionType: 'audit_logs_exported',
+			userId: req.user?.id,
+			targetType: 'audit_export',
+			metadata: {
+				start_date: startDate,
+				end_date: endDate,
+				format,
+			},
+			req,
+		});
 
-    if (format === 'csv') {
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename=audit-logs-${startDate}-to-${endDate}.csv`);
-      res.send(logs);
-    } else {
-      res.json({
-        success: true,
-        logs
-      });
-    }
-  } catch (error) {
-    console.error('Audit export failed:', error);
-    res.status(500).json({ error: 'Export failed' });
-  }
+		if (format === 'csv') {
+			res.setHeader('Content-Type', 'text/csv');
+			res.setHeader(
+				'Content-Disposition',
+				`attachment; filename=audit-logs-${startDate}-to-${endDate}.csv`,
+			);
+			res.send(logs);
+		} else {
+			res.json({
+				success: true,
+				logs,
+			});
+		}
+	} catch (error) {
+		console.error('Audit export failed:', error);
+		res.status(500).json({ error: 'Export failed' });
+	}
 });
 
 /**
@@ -491,47 +499,47 @@ router.post('/audit/export', authMiddleware, async (req, res) => {
  */
 
 // Get retention policies
-router.get('/retention/policies', authMiddleware, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM data_retention_policies ORDER BY data_type');
+router.get('/retention/policies', authMiddleware, async (_req, res) => {
+	try {
+		const result = await pool.query('SELECT * FROM data_retention_policies ORDER BY data_type');
 
-    res.json({
-      success: true,
-      policies: result.rows
-    });
-  } catch (error) {
-    console.error('Failed to fetch retention policies:', error);
-    res.status(500).json({ error: 'Failed to fetch policies' });
-  }
+		res.json({
+			success: true,
+			policies: result.rows,
+		});
+	} catch (error) {
+		console.error('Failed to fetch retention policies:', error);
+		res.status(500).json({ error: 'Failed to fetch policies' });
+	}
 });
 
 // Update retention policy (admin only)
 router.put('/retention/policies/:id', authMiddleware, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { retention_days, auto_delete } = req.body;
+	try {
+		const { id } = req.params;
+		const { retention_days, auto_delete } = req.body;
 
-    await pool.query(
-      `UPDATE data_retention_policies
+		await pool.query(
+			`UPDATE data_retention_policies
        SET retention_days = $1, auto_delete = $2, updated_at = NOW()
        WHERE id = $3`,
-      [retention_days, auto_delete, id]
-    );
+			[retention_days, auto_delete, id],
+		);
 
-    await AuditLogger.log({
-      actionType: 'retention_policy_updated',
-      userId: req.user?.id,
-      targetType: 'retention_policy',
-      targetId: parseInt(id),
-      metadata: { retention_days, auto_delete },
-      req
-    });
+		await AuditLogger.log({
+			actionType: 'retention_policy_updated',
+			userId: req.user?.id,
+			targetType: 'retention_policy',
+			targetId: parseInt(id, 10),
+			metadata: { retention_days, auto_delete },
+			req,
+		});
 
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Failed to update policy:', error);
-    res.status(500).json({ error: 'Update failed' });
-  }
+		res.json({ success: true });
+	} catch (error) {
+		console.error('Failed to update policy:', error);
+		res.status(500).json({ error: 'Update failed' });
+	}
 });
 
 /**
@@ -540,54 +548,54 @@ router.put('/retention/policies/:id', authMiddleware, async (req, res) => {
 
 // Explain OmniScore
 router.get('/explain/omniscore/:userId', authMiddleware, async (req, res) => {
-  try {
-    const { userId } = req.params;
+	try {
+		const { userId } = req.params;
 
-    const explanation = await ScoreExplainer.explainOmniScore(parseInt(userId));
+		const explanation = await ScoreExplainer.explainOmniScore(parseInt(userId, 10));
 
-    await AuditLogger.log({
-      actionType: 'score_explanation_viewed',
-      userId: req.user?.id,
-      targetType: 'user',
-      targetId: parseInt(userId),
-      metadata: { explanation_type: 'omniscore' },
-      req
-    });
+		await AuditLogger.log({
+			actionType: 'score_explanation_viewed',
+			userId: req.user?.id,
+			targetType: 'user',
+			targetId: parseInt(userId, 10),
+			metadata: { explanation_type: 'omniscore' },
+			req,
+		});
 
-    res.json({
-      success: true,
-      explanation
-    });
-  } catch (error) {
-    console.error('Score explanation failed:', error);
-    res.status(500).json({ error: 'Failed to explain score' });
-  }
+		res.json({
+			success: true,
+			explanation,
+		});
+	} catch (error) {
+		console.error('Score explanation failed:', error);
+		res.status(500).json({ error: 'Failed to explain score' });
+	}
 });
 
 // Explain application decision
 router.get('/explain/decision/:applicationId', authMiddleware, async (req, res) => {
-  try {
-    const { applicationId } = req.params;
+	try {
+		const { applicationId } = req.params;
 
-    const explanation = await ScoreExplainer.explainDecision(parseInt(applicationId));
+		const explanation = await ScoreExplainer.explainDecision(parseInt(applicationId, 10));
 
-    await AuditLogger.log({
-      actionType: 'decision_explanation_viewed',
-      userId: req.user?.id,
-      targetType: 'job_application',
-      targetId: parseInt(applicationId),
-      metadata: { explanation_type: 'decision' },
-      req
-    });
+		await AuditLogger.log({
+			actionType: 'decision_explanation_viewed',
+			userId: req.user?.id,
+			targetType: 'job_application',
+			targetId: parseInt(applicationId, 10),
+			metadata: { explanation_type: 'decision' },
+			req,
+		});
 
-    res.json({
-      success: true,
-      explanation
-    });
-  } catch (error) {
-    console.error('Decision explanation failed:', error);
-    res.status(500).json({ error: 'Failed to explain decision' });
-  }
+		res.json({
+			success: true,
+			explanation,
+		});
+	} catch (error) {
+		console.error('Decision explanation failed:', error);
+		res.status(500).json({ error: 'Failed to explain decision' });
+	}
 });
 
 module.exports = router;

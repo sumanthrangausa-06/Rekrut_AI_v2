@@ -249,7 +249,9 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 					stream = await navigator.mediaDevices.getUserMedia(c)
 					const vt = stream.getVideoTracks()[0]
 					if (vt?.readyState === 'live') break
-					stream.getTracks().forEach((t) => t.stop())
+					stream.getTracks().forEach((t) => {
+						t.stop()
+					})
 					stream = null
 				} catch {
 					stream = null
@@ -279,7 +281,9 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 
 	function stopMockCamera() {
 		if (mockStreamRef.current) {
-			mockStreamRef.current.getTracks().forEach((t) => t.stop())
+			mockStreamRef.current.getTracks().forEach((t) => {
+				t.stop()
+			})
 			mockStreamRef.current = null
 		}
 		setMockCameraReady(false)

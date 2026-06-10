@@ -1,8 +1,8 @@
 module.exports = {
-  name: '011_payroll_system',
-  async up(client) {
-    // Employee table - links to users who have been hired
-    await client.query(`
+	name: '011_payroll_system',
+	async up(client) {
+		// Employee table - links to users who have been hired
+		await client.query(`
       CREATE TABLE IF NOT EXISTS employees (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -19,8 +19,8 @@ module.exports = {
       )
     `);
 
-    // Payroll configuration for each employee
-    await client.query(`
+		// Payroll configuration for each employee
+		await client.query(`
       CREATE TABLE IF NOT EXISTS payroll_configs (
         id SERIAL PRIMARY KEY,
         employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
@@ -40,8 +40,8 @@ module.exports = {
       )
     `);
 
-    // Payroll runs - scheduled payment batches
-    await client.query(`
+		// Payroll runs - scheduled payment batches
+		await client.query(`
       CREATE TABLE IF NOT EXISTS payroll_runs (
         id SERIAL PRIMARY KEY,
         employer_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -59,8 +59,8 @@ module.exports = {
       )
     `);
 
-    // Individual paychecks
-    await client.query(`
+		// Individual paychecks
+		await client.query(`
       CREATE TABLE IF NOT EXISTS paychecks (
         id SERIAL PRIMARY KEY,
         payroll_run_id INTEGER REFERENCES payroll_runs(id) ON DELETE CASCADE,
@@ -84,8 +84,8 @@ module.exports = {
       )
     `);
 
-    // Benefits enrollment
-    await client.query(`
+		// Benefits enrollment
+		await client.query(`
       CREATE TABLE IF NOT EXISTS employee_benefits (
         id SERIAL PRIMARY KEY,
         employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
@@ -102,8 +102,8 @@ module.exports = {
       )
     `);
 
-    // Tax documents (W-2, 1099)
-    await client.query(`
+		// Tax documents (W-2, 1099)
+		await client.query(`
       CREATE TABLE IF NOT EXISTS tax_documents (
         id SERIAL PRIMARY KEY,
         employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
@@ -123,12 +123,18 @@ module.exports = {
       )
     `);
 
-    // Indexes for performance
-    await client.query('CREATE INDEX IF NOT EXISTS idx_employees_user_id ON employees(user_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_employees_employer_id ON employees(employer_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_paychecks_employee_id ON paychecks(employee_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_payroll_runs_employer_id ON payroll_runs(employer_id)');
+		// Indexes for performance
+		await client.query('CREATE INDEX IF NOT EXISTS idx_employees_user_id ON employees(user_id)');
+		await client.query(
+			'CREATE INDEX IF NOT EXISTS idx_employees_employer_id ON employees(employer_id)',
+		);
+		await client.query(
+			'CREATE INDEX IF NOT EXISTS idx_paychecks_employee_id ON paychecks(employee_id)',
+		);
+		await client.query(
+			'CREATE INDEX IF NOT EXISTS idx_payroll_runs_employer_id ON payroll_runs(employer_id)',
+		);
 
-    console.log('✓ Payroll system tables created');
-  }
+		console.log('✓ Payroll system tables created');
+	},
 };

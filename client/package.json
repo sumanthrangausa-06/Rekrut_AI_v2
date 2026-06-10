@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "npx biome check",
+    "lint:fix": "npx biome check --write"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -17,6 +19,7 @@
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",

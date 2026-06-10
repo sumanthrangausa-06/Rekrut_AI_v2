@@ -1,9 +1,9 @@
 // Question Bank & Mock Interview Sessions — Dynamic AI Coaching
 module.exports = {
-  name: 'question_bank_and_mock_sessions',
-  up: async (client) => {
-    // Question bank — stores AI-generated questions keyed by role/JD
-    await client.query(`
+	name: 'question_bank_and_mock_sessions',
+	up: async (client) => {
+		// Question bank — stores AI-generated questions keyed by role/JD
+		await client.query(`
       CREATE TABLE IF NOT EXISTS question_bank (
         id SERIAL PRIMARY KEY,
         role VARCHAR(255) NOT NULL,
@@ -19,14 +19,14 @@ module.exports = {
       )
     `);
 
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_qbank_role ON question_bank(role);
       CREATE INDEX IF NOT EXISTS idx_qbank_jd_hash ON question_bank(jd_hash);
       CREATE INDEX IF NOT EXISTS idx_qbank_type ON question_bank(question_type);
     `);
 
-    // Mock interview sessions — conversational interview tracking
-    await client.query(`
+		// Mock interview sessions — conversational interview tracking
+		await client.query(`
       CREATE TABLE IF NOT EXISTS mock_interview_sessions (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -46,11 +46,11 @@ module.exports = {
       )
     `);
 
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_mock_sessions_user ON mock_interview_sessions(user_id);
       CREATE INDEX IF NOT EXISTS idx_mock_sessions_status ON mock_interview_sessions(status);
     `);
 
-    console.log('Question bank and mock interview sessions tables created');
-  }
+		console.log('Question bank and mock interview sessions tables created');
+	},
 };

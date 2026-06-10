@@ -3,9 +3,9 @@ const { chat } = require('../lib/polsia-ai');
 
 // Analyze job posting and provide authenticity score + suggestions
 async function analyzeJobPosting(jobData) {
-  const { title, description, requirements, salary_range, location, job_type, company } = jobData;
+	const { title, description, requirements, salary_range, location, job_type, company } = jobData;
 
-  const prompt = `Analyze this job posting for authenticity, clarity, and completeness:
+	const prompt = `Analyze this job posting for authenticity, clarity, and completeness:
 
 Job Title: ${title}
 Company: ${company || 'Not specified'}
@@ -39,36 +39,44 @@ Analyze and return a JSON object with:
 
 Only return the JSON object, no other text.`;
 
-  const response = await chat(prompt, {
-    system: 'You are an expert HR consultant and job market analyst. Analyze job postings for quality, authenticity, and candidate appeal. Be specific and actionable. Always return valid JSON.',
-    module: 'job_optimizer', feature: 'analyze_posting'
-  });
+	const response = await chat(prompt, {
+		system:
+			'You are an expert HR consultant and job market analyst. Analyze job postings for quality, authenticity, and candidate appeal. Be specific and actionable. Always return valid JSON.',
+		module: 'job_optimizer',
+		feature: 'analyze_posting',
+	});
 
-  try {
-    return JSON.parse(response);
-  } catch (e) {
-    const match = response.match(/\{[\s\S]*\}/);
-    if (match) {
-      return JSON.parse(match[0]);
-    }
-    return {
-      authenticity_score: 50,
-      completeness_score: 50,
-      clarity_score: 50,
-      overall_score: 50,
-      issues: [{ severity: 'medium', issue: 'Could not fully analyze', suggestion: 'Please provide more details' }],
-      strengths: [],
-      missing_elements: ['detailed description', 'clear requirements', 'salary information'],
-      improvement_suggestions: []
-    };
-  }
+	try {
+		return JSON.parse(response);
+	} catch (_e) {
+		const match = response.match(/\{[\s\S]*\}/);
+		if (match) {
+			return JSON.parse(match[0]);
+		}
+		return {
+			authenticity_score: 50,
+			completeness_score: 50,
+			clarity_score: 50,
+			overall_score: 50,
+			issues: [
+				{
+					severity: 'medium',
+					issue: 'Could not fully analyze',
+					suggestion: 'Please provide more details',
+				},
+			],
+			strengths: [],
+			missing_elements: ['detailed description', 'clear requirements', 'salary information'],
+			improvement_suggestions: [],
+		};
+	}
 }
 
 // Generate an optimized job description
 async function optimizeJobDescription(jobData, targetAudience = 'general') {
-  const { title, description, requirements, salary_range, location, job_type, company } = jobData;
+	const { title, description, requirements, salary_range, location, job_type, company } = jobData;
 
-  const prompt = `Optimize this job posting to attract top talent:
+	const prompt = `Optimize this job posting to attract top talent:
 
 Current Job Title: ${title}
 Company: ${company || 'Company Name'}
@@ -99,32 +107,34 @@ Create an optimized version and return a JSON object with:
 
 Only return the JSON object.`;
 
-  const response = await chat(prompt, {
-    system: 'You are a professional copywriter specializing in job postings. Create compelling, honest job descriptions that attract quality candidates. Use inclusive language and focus on growth opportunities. Always return valid JSON.',
-    module: 'job_optimizer', feature: 'optimize_description'
-  });
+	const response = await chat(prompt, {
+		system:
+			'You are a professional copywriter specializing in job postings. Create compelling, honest job descriptions that attract quality candidates. Use inclusive language and focus on growth opportunities. Always return valid JSON.',
+		module: 'job_optimizer',
+		feature: 'optimize_description',
+	});
 
-  try {
-    return JSON.parse(response);
-  } catch (e) {
-    const match = response.match(/\{[\s\S]*\}/);
-    if (match) {
-      return JSON.parse(match[0]);
-    }
-    throw new Error('Failed to generate optimized job description');
-  }
+	try {
+		return JSON.parse(response);
+	} catch (_e) {
+		const match = response.match(/\{[\s\S]*\}/);
+		if (match) {
+			return JSON.parse(match[0]);
+		}
+		throw new Error('Failed to generate optimized job description');
+	}
 }
 
 // Generate interview questions for a job
 async function generateInterviewQuestionsForJob(jobData, count = 8) {
-  const { title, description, requirements } = jobData;
+	const { title, description, requirements } = jobData;
 
-  const prompt = `Generate ${count} tailored interview questions for this position:
+	const prompt = `Generate ${count} tailored interview questions for this position:
 
 Job Title: ${title}
 
 Job Description:
-${description || 'General ' + title + ' role'}
+${description || `General ${title} role`}
 
 Requirements:
 ${requirements || 'Standard requirements'}
@@ -145,25 +155,27 @@ Create a mix of behavioral, technical, and situational questions. Return a JSON 
 Include at least 2 behavioral, 2 technical, and 2 situational questions.
 Only return the JSON array.`;
 
-  const response = await chat(prompt, {
-    system: 'You are an expert interviewer who designs effective interview processes. Create questions that reveal candidate capabilities and cultural fit. Always return valid JSON.',
-    module: 'job_optimizer', feature: 'interview_questions'
-  });
+	const response = await chat(prompt, {
+		system:
+			'You are an expert interviewer who designs effective interview processes. Create questions that reveal candidate capabilities and cultural fit. Always return valid JSON.',
+		module: 'job_optimizer',
+		feature: 'interview_questions',
+	});
 
-  try {
-    return JSON.parse(response);
-  } catch (e) {
-    const match = response.match(/\[[\s\S]*\]/);
-    if (match) {
-      return JSON.parse(match[0]);
-    }
-    throw new Error('Failed to generate interview questions');
-  }
+	try {
+		return JSON.parse(response);
+	} catch (_e) {
+		const match = response.match(/\[[\s\S]*\]/);
+		if (match) {
+			return JSON.parse(match[0]);
+		}
+		throw new Error('Failed to generate interview questions');
+	}
 }
 
 // Analyze a candidate's fit for a job
 async function analyzeCandidateFit(candidateProfile, jobData) {
-  const prompt = `Analyze how well this candidate fits the job:
+	const prompt = `Analyze how well this candidate fits the job:
 
 CANDIDATE PROFILE:
 Name: ${candidateProfile.name || 'Candidate'}
@@ -191,25 +203,27 @@ Return a JSON object:
 
 Only return the JSON object.`;
 
-  const response = await chat(prompt, {
-    system: 'You are an experienced recruiter evaluating candidate-job fit. Be objective and data-driven. Always return valid JSON.',
-    module: 'job_optimizer', feature: 'candidate_fit'
-  });
+	const response = await chat(prompt, {
+		system:
+			'You are an experienced recruiter evaluating candidate-job fit. Be objective and data-driven. Always return valid JSON.',
+		module: 'job_optimizer',
+		feature: 'candidate_fit',
+	});
 
-  try {
-    return JSON.parse(response);
-  } catch (e) {
-    const match = response.match(/\{[\s\S]*\}/);
-    if (match) {
-      return JSON.parse(match[0]);
-    }
-    return { fit_score: 50, fit_level: 'moderate', recommendation: 'Unable to fully analyze fit' };
-  }
+	try {
+		return JSON.parse(response);
+	} catch (_e) {
+		const match = response.match(/\{[\s\S]*\}/);
+		if (match) {
+			return JSON.parse(match[0]);
+		}
+		return { fit_score: 50, fit_level: 'moderate', recommendation: 'Unable to fully analyze fit' };
+	}
 }
 
 // Generate salary insights
 async function getSalaryInsights(title, location, experience_level = 'mid') {
-  const prompt = `Provide salary market data for this role:
+	const prompt = `Provide salary market data for this role:
 
 Job Title: ${title}
 Location: ${location || 'United States (average)'}
@@ -233,31 +247,33 @@ Return a JSON object with:
 
 Use realistic 2024-2025 US market data. Only return the JSON object.`;
 
-  const response = await chat(prompt, {
-    system: 'You are a compensation analyst with access to current salary data. Provide accurate, realistic salary ranges based on current market conditions. Always return valid JSON.',
-    module: 'job_optimizer', feature: 'salary_insights'
-  });
+	const response = await chat(prompt, {
+		system:
+			'You are a compensation analyst with access to current salary data. Provide accurate, realistic salary ranges based on current market conditions. Always return valid JSON.',
+		module: 'job_optimizer',
+		feature: 'salary_insights',
+	});
 
-  try {
-    return JSON.parse(response);
-  } catch (e) {
-    const match = response.match(/\{[\s\S]*\}/);
-    if (match) {
-      return JSON.parse(match[0]);
-    }
-    return {
-      salary_range: { low: 50000, median: 75000, high: 100000, currency: 'USD' },
-      market_demand: 'medium',
-      salary_trend: 'stable'
-    };
-  }
+	try {
+		return JSON.parse(response);
+	} catch (_e) {
+		const match = response.match(/\{[\s\S]*\}/);
+		if (match) {
+			return JSON.parse(match[0]);
+		}
+		return {
+			salary_range: { low: 50000, median: 75000, high: 100000, currency: 'USD' },
+			market_demand: 'medium',
+			salary_trend: 'stable',
+		};
+	}
 }
 
 // Generate a complete job description from just a title + optional brief notes
 async function generateJobDescription(title, briefNotes = '', options = {}) {
-  const { location, job_type, company } = options;
+	const { location, job_type, company } = options;
 
-  const prompt = `Generate a complete, professional job description for this role:
+	const prompt = `Generate a complete, professional job description for this role:
 
 Job Title: ${title}
 Company: ${company || 'A growing company'}
@@ -279,25 +295,27 @@ Create a compelling, detailed job description and return a JSON object:
 Make the description specific to the role, not generic. Use inclusive language.
 Only return the JSON object.`;
 
-  const response = await chat(prompt, {
-    system: 'You are a senior talent acquisition specialist who writes compelling job descriptions that attract top talent. Your descriptions are specific, inclusive, and highlight growth opportunities. Always return valid JSON.',
-    module: 'job_optimizer', feature: 'generate_description'
-  });
+	const response = await chat(prompt, {
+		system:
+			'You are a senior talent acquisition specialist who writes compelling job descriptions that attract top talent. Your descriptions are specific, inclusive, and highlight growth opportunities. Always return valid JSON.',
+		module: 'job_optimizer',
+		feature: 'generate_description',
+	});
 
-  try {
-    return JSON.parse(response);
-  } catch (e) {
-    const match = response.match(/\{[\s\S]*\}/);
-    if (match) {
-      return JSON.parse(match[0]);
-    }
-    throw new Error('Failed to generate job description');
-  }
+	try {
+		return JSON.parse(response);
+	} catch (_e) {
+		const match = response.match(/\{[\s\S]*\}/);
+		if (match) {
+			return JSON.parse(match[0]);
+		}
+		throw new Error('Failed to generate job description');
+	}
 }
 
 // Suggest relevant skills and requirements for a role
 async function suggestSkillsForRole(title, description = '', currentSkills = []) {
-  const prompt = `Suggest relevant skills and requirements for this job:
+	const prompt = `Suggest relevant skills and requirements for this job:
 
 Job Title: ${title}
 ${description ? `Current Description:\n${description}` : ''}
@@ -324,25 +342,27 @@ Return a JSON object with:
 Be specific to the role. Don't suggest generic skills like "communication" unless highly relevant.
 Only return the JSON object.`;
 
-  const response = await chat(prompt, {
-    system: 'You are a technical recruiter with deep knowledge of role requirements across industries. Provide specific, actionable skill requirements. Always return valid JSON.',
-    module: 'job_optimizer', feature: 'suggest_skills'
-  });
+	const response = await chat(prompt, {
+		system:
+			'You are a technical recruiter with deep knowledge of role requirements across industries. Provide specific, actionable skill requirements. Always return valid JSON.',
+		module: 'job_optimizer',
+		feature: 'suggest_skills',
+	});
 
-  try {
-    return JSON.parse(response);
-  } catch (e) {
-    const match = response.match(/\{[\s\S]*\}/);
-    if (match) {
-      return JSON.parse(match[0]);
-    }
-    throw new Error('Failed to suggest skills');
-  }
+	try {
+		return JSON.parse(response);
+	} catch (_e) {
+		const match = response.match(/\{[\s\S]*\}/);
+		if (match) {
+			return JSON.parse(match[0]);
+		}
+		throw new Error('Failed to suggest skills');
+	}
 }
 
 // Suggest optimized job titles that attract more candidates
 async function suggestJobTitles(currentTitle, description = '') {
-  const prompt = `Suggest better job title alternatives for this position:
+	const prompt = `Suggest better job title alternatives for this position:
 
 Current Title: ${currentTitle}
 ${description ? `Description:\n${description.substring(0, 500)}` : ''}
@@ -369,29 +389,31 @@ Focus on titles that:
 
 Suggest 3-5 alternatives. Only return the JSON object.`;
 
-  const response = await chat(prompt, {
-    system: 'You are a job market expert who optimizes job titles for maximum candidate reach and clarity. You know what candidates search for on LinkedIn, Indeed, and Glassdoor. Always return valid JSON.',
-    module: 'job_optimizer', feature: 'suggest_titles'
-  });
+	const response = await chat(prompt, {
+		system:
+			'You are a job market expert who optimizes job titles for maximum candidate reach and clarity. You know what candidates search for on LinkedIn, Indeed, and Glassdoor. Always return valid JSON.',
+		module: 'job_optimizer',
+		feature: 'suggest_titles',
+	});
 
-  try {
-    return JSON.parse(response);
-  } catch (e) {
-    const match = response.match(/\{[\s\S]*\}/);
-    if (match) {
-      return JSON.parse(match[0]);
-    }
-    throw new Error('Failed to suggest job titles');
-  }
+	try {
+		return JSON.parse(response);
+	} catch (_e) {
+		const match = response.match(/\{[\s\S]*\}/);
+		if (match) {
+			return JSON.parse(match[0]);
+		}
+		throw new Error('Failed to suggest job titles');
+	}
 }
 
 module.exports = {
-  analyzeJobPosting,
-  optimizeJobDescription,
-  generateInterviewQuestionsForJob,
-  analyzeCandidateFit,
-  getSalaryInsights,
-  generateJobDescription,
-  suggestSkillsForRole,
-  suggestJobTitles
+	analyzeJobPosting,
+	optimizeJobDescription,
+	generateInterviewQuestionsForJob,
+	analyzeCandidateFit,
+	getSalaryInsights,
+	generateJobDescription,
+	suggestSkillsForRole,
+	suggestJobTitles,
 };

@@ -1,8 +1,8 @@
 module.exports = {
-  name: '019_candidate_onboarding_wizard',
-  async up(client) {
-    // Table to store candidate personal data collected during onboarding wizard
-    await client.query(`
+	name: '019_candidate_onboarding_wizard',
+	async up(client) {
+		// Table to store candidate personal data collected during onboarding wizard
+		await client.query(`
       CREATE TABLE IF NOT EXISTS candidate_onboarding_data (
         id SERIAL PRIMARY KEY,
         candidate_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -36,34 +36,34 @@ module.exports = {
       )
     `);
 
-    // Add signature fields to onboarding_documents
-    await client.query(`
+		// Add signature fields to onboarding_documents
+		await client.query(`
       ALTER TABLE onboarding_documents
       ADD COLUMN IF NOT EXISTS signature_data TEXT
     `);
-    await client.query(`
+		await client.query(`
       ALTER TABLE onboarding_documents
       ADD COLUMN IF NOT EXISTS signer_ip VARCHAR(50)
     `);
-    await client.query(`
+		await client.query(`
       ALTER TABLE onboarding_documents
       ADD COLUMN IF NOT EXISTS signer_user_agent TEXT
     `);
-    await client.query(`
+		await client.query(`
       ALTER TABLE onboarding_documents
       ADD COLUMN IF NOT EXISTS document_content JSONB
     `);
 
-    // Indexes
-    await client.query(`
+		// Indexes
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_candidate_onboarding_data_candidate
       ON candidate_onboarding_data(candidate_id)
     `);
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_candidate_onboarding_data_checklist
       ON candidate_onboarding_data(checklist_id)
     `);
 
-    console.log('Candidate onboarding wizard tables created successfully');
-  }
+		console.log('Candidate onboarding wizard tables created successfully');
+	},
 };

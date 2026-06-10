@@ -106,7 +106,9 @@ export function VideoInterviewPage() {
 
 	function stopCamera() {
 		if (streamRef.current) {
-			streamRef.current.getTracks().forEach((track) => track.stop())
+			streamRef.current.getTracks().forEach((track) => {
+				track.stop()
+			})
 			streamRef.current = null
 		}
 	}

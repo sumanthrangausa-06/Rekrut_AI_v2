@@ -1,8 +1,8 @@
 module.exports = {
-  name: '013_compliance_system',
-  async up(client) {
-    // Audit logs - track all AI decisions and recruiter actions
-    await client.query(`
+	name: '013_compliance_system',
+	async up(client) {
+		// Audit logs - track all AI decisions and recruiter actions
+		await client.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id SERIAL PRIMARY KEY,
         action_type VARCHAR(100) NOT NULL,
@@ -16,15 +16,15 @@ module.exports = {
       )
     `);
 
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
       CREATE INDEX IF NOT EXISTS idx_audit_logs_action_type ON audit_logs(action_type);
       CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
       CREATE INDEX IF NOT EXISTS idx_audit_logs_target ON audit_logs(target_type, target_id);
     `);
 
-    // Consent records - GDPR consent management
-    await client.query(`
+		// Consent records - GDPR consent management
+		await client.query(`
       CREATE TABLE IF NOT EXISTS consent_records (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -38,13 +38,13 @@ module.exports = {
       )
     `);
 
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_consent_records_user_id ON consent_records(user_id);
       CREATE INDEX IF NOT EXISTS idx_consent_records_type ON consent_records(consent_type);
     `);
 
-    // Data requests - Right to be forgotten, data export
-    await client.query(`
+		// Data requests - Right to be forgotten, data export
+		await client.query(`
       CREATE TABLE IF NOT EXISTS data_requests (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -59,14 +59,14 @@ module.exports = {
       )
     `);
 
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_data_requests_user_id ON data_requests(user_id);
       CREATE INDEX IF NOT EXISTS idx_data_requests_status ON data_requests(status);
       CREATE INDEX IF NOT EXISTS idx_data_requests_type ON data_requests(request_type);
     `);
 
-    // Bias reports - Demographic parity analysis
-    await client.query(`
+		// Bias reports - Demographic parity analysis
+		await client.query(`
       CREATE TABLE IF NOT EXISTS bias_reports (
         id SERIAL PRIMARY KEY,
         report_date DATE NOT NULL,
@@ -79,13 +79,13 @@ module.exports = {
       )
     `);
 
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_bias_reports_date ON bias_reports(report_date);
       CREATE INDEX IF NOT EXISTS idx_bias_reports_type ON bias_reports(analysis_type);
     `);
 
-    // Fairness audits - Regular automated fairness reports
-    await client.query(`
+		// Fairness audits - Regular automated fairness reports
+		await client.query(`
       CREATE TABLE IF NOT EXISTS fairness_audits (
         id SERIAL PRIMARY KEY,
         audit_date DATE NOT NULL,
@@ -100,13 +100,13 @@ module.exports = {
       )
     `);
 
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_fairness_audits_date ON fairness_audits(audit_date);
       CREATE INDEX IF NOT EXISTS idx_fairness_audits_type ON fairness_audits(audit_type);
     `);
 
-    // Appeals - Candidate appeal workflow
-    await client.query(`
+		// Appeals - Candidate appeal workflow
+		await client.query(`
       CREATE TABLE IF NOT EXISTS score_appeals (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -123,13 +123,13 @@ module.exports = {
       )
     `);
 
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_score_appeals_user_id ON score_appeals(user_id);
       CREATE INDEX IF NOT EXISTS idx_score_appeals_status ON score_appeals(status);
     `);
 
-    // Data retention settings
-    await client.query(`
+		// Data retention settings
+		await client.query(`
       CREATE TABLE IF NOT EXISTS data_retention_policies (
         id SERIAL PRIMARY KEY,
         data_type VARCHAR(100) NOT NULL UNIQUE,
@@ -141,8 +141,8 @@ module.exports = {
       )
     `);
 
-    // Insert default retention policies
-    await client.query(`
+		// Insert default retention policies
+		await client.query(`
       INSERT INTO data_retention_policies (data_type, retention_days, auto_delete, description)
       VALUES
         ('audit_logs', 2555, false, 'Keep audit logs for 7 years for compliance'),
@@ -152,6 +152,6 @@ module.exports = {
       ON CONFLICT (data_type) DO NOTHING
     `);
 
-    console.log('Compliance system tables created successfully');
-  }
+		console.log('Compliance system tables created successfully');
+	},
 };

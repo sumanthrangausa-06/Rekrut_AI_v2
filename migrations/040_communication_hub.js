@@ -1,8 +1,8 @@
 module.exports = {
-  name: '040_communication_hub',
-  async up(client) {
-    // Core communications table — every message (outreach, follow-up, rejection, offer letter, etc.)
-    await client.query(`
+	name: '040_communication_hub',
+	async up(client) {
+		// Core communications table — every message (outreach, follow-up, rejection, offer letter, etc.)
+		await client.query(`
       CREATE TABLE IF NOT EXISTS communications (
         id SERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
@@ -26,8 +26,8 @@ module.exports = {
       )
     `);
 
-    // Communication templates — reusable AI-generated or custom templates
-    await client.query(`
+		// Communication templates — reusable AI-generated or custom templates
+		await client.query(`
       CREATE TABLE IF NOT EXISTS communication_templates (
         id SERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
@@ -45,8 +45,8 @@ module.exports = {
       )
     `);
 
-    // Communication sequences — automated follow-up chains
-    await client.query(`
+		// Communication sequences — automated follow-up chains
+		await client.query(`
       CREATE TABLE IF NOT EXISTS communication_sequences (
         id SERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL,
@@ -61,8 +61,8 @@ module.exports = {
       )
     `);
 
-    // Candidate sequence enrollment — tracks which candidates are in which sequences
-    await client.query(`
+		// Candidate sequence enrollment — tracks which candidates are in which sequences
+		await client.query(`
       CREATE TABLE IF NOT EXISTS sequence_enrollments (
         id SERIAL PRIMARY KEY,
         sequence_id INTEGER REFERENCES communication_sequences(id) ON DELETE CASCADE,
@@ -78,16 +78,34 @@ module.exports = {
       )
     `);
 
-    // Indexes for performance
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_communications_company ON communications(company_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_communications_candidate ON communications(candidate_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_communications_type ON communications(type)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_communications_status ON communications(status)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_comm_templates_company ON communication_templates(company_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_comm_sequences_company ON communication_sequences(company_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_seq_enrollments_next_send ON sequence_enrollments(next_send_at) WHERE status = 'active'`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_seq_enrollments_candidate ON sequence_enrollments(candidate_id)`);
+		// Indexes for performance
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_communications_company ON communications(company_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_communications_candidate ON communications(candidate_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_communications_type ON communications(type)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_communications_status ON communications(status)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_comm_templates_company ON communication_templates(company_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_comm_sequences_company ON communication_sequences(company_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_seq_enrollments_next_send ON sequence_enrollments(next_send_at) WHERE status = 'active'`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_seq_enrollments_candidate ON sequence_enrollments(candidate_id)`,
+		);
 
-    console.log('Created communication hub tables: communications, communication_templates, communication_sequences, sequence_enrollments');
-  }
+		console.log(
+			'Created communication hub tables: communications, communication_templates, communication_sequences, sequence_enrollments',
+		);
+	},
 };

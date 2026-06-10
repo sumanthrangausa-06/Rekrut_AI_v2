@@ -9,10 +9,10 @@
  */
 
 module.exports = {
-  name: '039_ai_health_monitoring',
-  async up(client) {
-    // ─── AI Call Log — comprehensive per-call tracking ───
-    await client.query(`
+	name: '039_ai_health_monitoring',
+	async up(client) {
+		// ─── AI Call Log — comprehensive per-call tracking ───
+		await client.query(`
       CREATE TABLE IF NOT EXISTS ai_call_log (
         id SERIAL PRIMARY KEY,
         module VARCHAR(100) NOT NULL,
@@ -35,14 +35,22 @@ module.exports = {
       )
     `);
 
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_call_log_created ON ai_call_log (created_at)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_call_log_module ON ai_call_log (module)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_call_log_provider ON ai_call_log (provider)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_call_log_modality ON ai_call_log (modality)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_call_log_success ON ai_call_log (success)`);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_ai_call_log_created ON ai_call_log (created_at)`,
+		);
+		await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_call_log_module ON ai_call_log (module)`);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_ai_call_log_provider ON ai_call_log (provider)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_ai_call_log_modality ON ai_call_log (modality)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_ai_call_log_success ON ai_call_log (success)`,
+		);
 
-    // ─── AI Prompts — central registry ───
-    await client.query(`
+		// ─── AI Prompts — central registry ───
+		await client.query(`
       CREATE TABLE IF NOT EXISTS ai_prompts (
         id SERIAL PRIMARY KEY,
         slug VARCHAR(200) UNIQUE NOT NULL,
@@ -62,8 +70,8 @@ module.exports = {
       )
     `);
 
-    // ─── AI Prompt Versions — version history ───
-    await client.query(`
+		// ─── AI Prompt Versions — version history ───
+		await client.query(`
       CREATE TABLE IF NOT EXISTS ai_prompt_versions (
         id SERIAL PRIMARY KEY,
         prompt_id INTEGER REFERENCES ai_prompts(id) ON DELETE CASCADE,
@@ -84,8 +92,8 @@ module.exports = {
       )
     `);
 
-    // ─── AI A/B Tests ───
-    await client.query(`
+		// ─── AI A/B Tests ───
+		await client.query(`
       CREATE TABLE IF NOT EXISTS ai_ab_tests (
         id SERIAL PRIMARY KEY,
         prompt_id INTEGER REFERENCES ai_prompts(id) ON DELETE CASCADE,
@@ -109,6 +117,6 @@ module.exports = {
       )
     `);
 
-    console.log('[migration-039] AI health monitoring tables created');
-  }
+		console.log('[migration-039] AI health monitoring tables created');
+	},
 };

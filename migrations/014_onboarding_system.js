@@ -1,8 +1,8 @@
 module.exports = {
-  name: '014_onboarding_system',
-  async up(client) {
-    // Offer letters table
-    await client.query(`
+	name: '014_onboarding_system',
+	async up(client) {
+		// Offer letters table
+		await client.query(`
       CREATE TABLE IF NOT EXISTS offers (
         id SERIAL PRIMARY KEY,
         candidate_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -26,8 +26,8 @@ module.exports = {
       )
     `);
 
-    // Onboarding checklists
-    await client.query(`
+		// Onboarding checklists
+		await client.query(`
       CREATE TABLE IF NOT EXISTS onboarding_checklists (
         id SERIAL PRIMARY KEY,
         offer_id INTEGER REFERENCES offers(id) ON DELETE CASCADE,
@@ -44,8 +44,8 @@ module.exports = {
       )
     `);
 
-    // Document collection for onboarding
-    await client.query(`
+		// Document collection for onboarding
+		await client.query(`
       CREATE TABLE IF NOT EXISTS onboarding_documents (
         id SERIAL PRIMARY KEY,
         checklist_id INTEGER REFERENCES onboarding_checklists(id) ON DELETE CASCADE,
@@ -61,8 +61,8 @@ module.exports = {
       )
     `);
 
-    // Post-hire feedback tracking
-    await client.query(`
+		// Post-hire feedback tracking
+		await client.query(`
       CREATE TABLE IF NOT EXISTS post_hire_feedback (
         id SERIAL PRIMARY KEY,
         employee_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -82,8 +82,8 @@ module.exports = {
       )
     `);
 
-    // Company policies for AI Q&A
-    await client.query(`
+		// Company policies for AI Q&A
+		await client.query(`
       CREATE TABLE IF NOT EXISTS company_policies (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -99,8 +99,8 @@ module.exports = {
       )
     `);
 
-    // Onboarding AI chat sessions
-    await client.query(`
+		// Onboarding AI chat sessions
+		await client.query(`
       CREATE TABLE IF NOT EXISTS onboarding_chats (
         id SERIAL PRIMARY KEY,
         candidate_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -112,8 +112,8 @@ module.exports = {
       )
     `);
 
-    // Offer letter templates
-    await client.query(`
+		// Offer letter templates
+		await client.query(`
       CREATE TABLE IF NOT EXISTS offer_templates (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -126,8 +126,8 @@ module.exports = {
       )
     `);
 
-    // Indexes for performance
-    await client.query(`
+		// Indexes for performance
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_offers_candidate ON offers(candidate_id);
       CREATE INDEX IF NOT EXISTS idx_offers_status ON offers(status);
       CREATE INDEX IF NOT EXISTS idx_onboarding_checklists_candidate ON onboarding_checklists(candidate_id);
@@ -136,6 +136,6 @@ module.exports = {
       CREATE INDEX IF NOT EXISTS idx_company_policies_company ON company_policies(company_id);
     `);
 
-    console.log('Onboarding system tables created successfully');
-  }
+		console.log('Onboarding system tables created successfully');
+	},
 };

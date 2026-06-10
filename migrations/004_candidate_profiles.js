@@ -2,10 +2,10 @@
 // Adds tables for full candidate profiles, skills, assessments, and job matching
 
 module.exports = {
-  name: '004_candidate_profiles',
-  up: async (client) => {
-    // Candidate profiles - extended user info
-    await client.query(`
+	name: '004_candidate_profiles',
+	up: async (client) => {
+		// Candidate profiles - extended user info
+		await client.query(`
       CREATE TABLE IF NOT EXISTS candidate_profiles (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
@@ -30,8 +30,8 @@ module.exports = {
       )
     `);
 
-    // Work experience entries
-    await client.query(`
+		// Work experience entries
+		await client.query(`
       CREATE TABLE IF NOT EXISTS work_experience (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -49,8 +49,8 @@ module.exports = {
       )
     `);
 
-    // Education entries
-    await client.query(`
+		// Education entries
+		await client.query(`
       CREATE TABLE IF NOT EXISTS education (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -67,8 +67,8 @@ module.exports = {
       )
     `);
 
-    // Skills with categories and levels
-    await client.query(`
+		// Skills with categories and levels
+		await client.query(`
       CREATE TABLE IF NOT EXISTS candidate_skills (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -84,8 +84,8 @@ module.exports = {
       )
     `);
 
-    // Skill assessments
-    await client.query(`
+		// Skill assessments
+		await client.query(`
       CREATE TABLE IF NOT EXISTS skill_assessments (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -105,8 +105,8 @@ module.exports = {
       )
     `);
 
-    // Portfolio projects
-    await client.query(`
+		// Portfolio projects
+		await client.query(`
       CREATE TABLE IF NOT EXISTS portfolio_projects (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -125,8 +125,8 @@ module.exports = {
       )
     `);
 
-    // Saved jobs for candidates
-    await client.query(`
+		// Saved jobs for candidates
+		await client.query(`
       CREATE TABLE IF NOT EXISTS saved_jobs (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -137,15 +137,15 @@ module.exports = {
       )
     `);
 
-    // Job applications - table already created in migration 002 with candidate_id
-    // Add match_score column if not exists
-    await client.query(`
+		// Job applications - table already created in migration 002 with candidate_id
+		// Add match_score column if not exists
+		await client.query(`
       ALTER TABLE job_applications
       ADD COLUMN IF NOT EXISTS match_score INTEGER
     `);
 
-    // Parsed resume data (from AI parsing)
-    await client.query(`
+		// Parsed resume data (from AI parsing)
+		await client.query(`
       CREATE TABLE IF NOT EXISTS parsed_resumes (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -158,14 +158,20 @@ module.exports = {
       )
     `);
 
-    // Create indexes for performance
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_candidate_skills_user ON candidate_skills(user_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_work_experience_user ON work_experience(user_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_education_user ON education(user_id)`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_saved_jobs_user ON saved_jobs(user_id)`);
-    // Note: job_applications index already exists from migration 002 (idx_job_applications_candidate)
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_job_applications_job ON job_applications(job_id)`);
+		// Create indexes for performance
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_candidate_skills_user ON candidate_skills(user_id)`,
+		);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_work_experience_user ON work_experience(user_id)`,
+		);
+		await client.query(`CREATE INDEX IF NOT EXISTS idx_education_user ON education(user_id)`);
+		await client.query(`CREATE INDEX IF NOT EXISTS idx_saved_jobs_user ON saved_jobs(user_id)`);
+		// Note: job_applications index already exists from migration 002 (idx_job_applications_candidate)
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_job_applications_job ON job_applications(job_id)`,
+		);
 
-    console.log('Candidate profiles tables created');
-  }
+		console.log('Candidate profiles tables created');
+	},
 };

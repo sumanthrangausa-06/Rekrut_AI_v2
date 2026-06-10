@@ -3,9 +3,9 @@
 const pool = require('../lib/db');
 
 async function up() {
-  const client = await pool.connect();
-  try {
-    await client.query(`
+	const client = await pool.connect();
+	try {
+		await client.query(`
       CREATE TABLE IF NOT EXISTS user_settings (
         user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
         notifications JSONB NOT NULL DEFAULT '{
@@ -27,8 +27,8 @@ async function up() {
       )
     `);
 
-    // Add updated_at trigger
-    await client.query(`
+		// Add updated_at trigger
+		await client.query(`
       CREATE OR REPLACE FUNCTION update_user_settings_updated_at()
       RETURNS TRIGGER AS $$
       BEGIN
@@ -38,7 +38,7 @@ async function up() {
       $$ LANGUAGE plpgsql;
     `);
 
-    await client.query(`
+		await client.query(`
       DO $$
       BEGIN
         IF NOT EXISTS (
@@ -52,26 +52,26 @@ async function up() {
       END $$;
     `);
 
-    console.log('[migration 060] user_settings table created');
-  } catch (err) {
-    console.error('[migration 060] Error:', err.message);
-    throw err;
-  } finally {
-    client.release();
-  }
+		console.log('[migration 060] user_settings table created');
+	} catch (err) {
+		console.error('[migration 060] Error:', err.message);
+		throw err;
+	} finally {
+		client.release();
+	}
 }
 
 async function down() {
-  const client = await pool.connect();
-  try {
-    await client.query('DROP TABLE IF EXISTS user_settings CASCADE');
-    console.log('[migration 060] user_settings table dropped');
-  } catch (err) {
-    console.error('[migration 060] Rollback error:', err.message);
-    throw err;
-  } finally {
-    client.release();
-  }
+	const client = await pool.connect();
+	try {
+		await client.query('DROP TABLE IF EXISTS user_settings CASCADE');
+		console.log('[migration 060] user_settings table dropped');
+	} catch (err) {
+		console.error('[migration 060] Rollback error:', err.message);
+		throw err;
+	} finally {
+		client.release();
+	}
 }
 
 module.exports = { up, down };

@@ -1,8 +1,8 @@
 module.exports = {
-  name: '044_ai_onboarding_plans',
-  async up(client) {
-    // AI-generated onboarding plans (role-specific, multi-phase)
-    await client.query(`
+	name: '044_ai_onboarding_plans',
+	async up(client) {
+		// AI-generated onboarding plans (role-specific, multi-phase)
+		await client.query(`
       CREATE TABLE IF NOT EXISTS onboarding_plans (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -26,8 +26,8 @@ module.exports = {
       )
     `);
 
-    // Individual onboarding tasks within a plan
-    await client.query(`
+		// Individual onboarding tasks within a plan
+		await client.query(`
       CREATE TABLE IF NOT EXISTS onboarding_tasks (
         id SERIAL PRIMARY KEY,
         plan_id INTEGER REFERENCES onboarding_plans(id) ON DELETE CASCADE,
@@ -49,16 +49,16 @@ module.exports = {
       )
     `);
 
-    // Enhanced chat sessions with memory
-    await client.query(`
+		// Enhanced chat sessions with memory
+		await client.query(`
       ALTER TABLE onboarding_chats
       ADD COLUMN IF NOT EXISTS plan_id INTEGER REFERENCES onboarding_plans(id) ON DELETE SET NULL,
       ADD COLUMN IF NOT EXISTS context_memory JSONB DEFAULT '{}',
       ADD COLUMN IF NOT EXISTS total_messages INTEGER DEFAULT 0
     `);
 
-    // Document intelligence results
-    await client.query(`
+		// Document intelligence results
+		await client.query(`
       ALTER TABLE onboarding_documents
       ADD COLUMN IF NOT EXISTS ai_extraction JSONB,
       ADD COLUMN IF NOT EXISTS ai_validation JSONB,
@@ -67,8 +67,8 @@ module.exports = {
       ADD COLUMN IF NOT EXISTS plan_id INTEGER REFERENCES onboarding_plans(id) ON DELETE SET NULL
     `);
 
-    // Indexes
-    await client.query(`
+		// Indexes
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_onboarding_plans_company ON onboarding_plans(company_id);
       CREATE INDEX IF NOT EXISTS idx_onboarding_plans_candidate ON onboarding_plans(candidate_id);
       CREATE INDEX IF NOT EXISTS idx_onboarding_plans_status ON onboarding_plans(status);
@@ -77,6 +77,6 @@ module.exports = {
       CREATE INDEX IF NOT EXISTS idx_onboarding_tasks_assigned ON onboarding_tasks(assigned_to);
     `);
 
-    console.log('AI onboarding plans + tasks + enhanced chat + doc intelligence tables created');
-  }
+		console.log('AI onboarding plans + tasks + enhanced chat + doc intelligence tables created');
+	},
 };

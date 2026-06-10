@@ -1,14 +1,14 @@
 module.exports = {
-  name: '027_multi_country_support',
-  async up(client) {
-    // ═══════════════════════════════════════════════════════
-    // MULTI-COUNTRY ARCHITECTURE
-    // Adds country_code to key tables, country configuration,
-    // and country-specific onboarding document definitions.
-    // ═══════════════════════════════════════════════════════
+	name: '027_multi_country_support',
+	async up(client) {
+		// ═══════════════════════════════════════════════════════
+		// MULTI-COUNTRY ARCHITECTURE
+		// Adds country_code to key tables, country configuration,
+		// and country-specific onboarding document definitions.
+		// ═══════════════════════════════════════════════════════
 
-    // 1. Country configurations table — master reference for supported countries
-    await client.query(`
+		// 1. Country configurations table — master reference for supported countries
+		await client.query(`
       CREATE TABLE IF NOT EXISTS country_configs (
         id SERIAL PRIMARY KEY,
         country_code VARCHAR(2) NOT NULL UNIQUE,
@@ -30,8 +30,8 @@ module.exports = {
       )
     `);
 
-    // 2. Seed supported countries
-    await client.query(`
+		// 2. Seed supported countries
+		await client.query(`
       INSERT INTO country_configs (country_code, country_name, currency_code, currency_symbol, date_format, default_pay_frequency, timezone, tax_system, employment_model, notice_period_days, statutory_deductions, required_onboarding_docs, legal_requirements) VALUES
       ('US', 'United States', 'USD', '$', 'MM/DD/YYYY', 'bi-weekly', 'America/New_York', 'federal_state', 'at-will', 0,
         '["federal_income_tax","state_income_tax","social_security","medicare"]'::jsonb,
@@ -76,15 +76,15 @@ module.exports = {
       ON CONFLICT (country_code) DO NOTHING
     `);
 
-    // 3. Add country_code to companies (with operating_countries for multi-country ops)
-    await client.query(`
+		// 3. Add country_code to companies (with operating_countries for multi-country ops)
+		await client.query(`
       ALTER TABLE companies
       ADD COLUMN IF NOT EXISTS primary_country VARCHAR(2) DEFAULT 'US',
       ADD COLUMN IF NOT EXISTS operating_countries JSONB DEFAULT '["US"]'
     `);
 
-    // 4. Add country_code to jobs
-    await client.query(`
+		// 4. Add country_code to jobs
+		await client.query(`
       ALTER TABLE jobs
       ADD COLUMN IF NOT EXISTS country_code VARCHAR(2) DEFAULT 'US',
       ADD COLUMN IF NOT EXISTS currency_code VARCHAR(3) DEFAULT 'USD',
@@ -92,29 +92,29 @@ module.exports = {
       ADD COLUMN IF NOT EXISTS salary_max NUMERIC(12,2)
     `);
 
-    // 5. Add country_code to offers
-    await client.query(`
+		// 5. Add country_code to offers
+		await client.query(`
       ALTER TABLE offers
       ADD COLUMN IF NOT EXISTS country_code VARCHAR(2) DEFAULT 'US',
       ADD COLUMN IF NOT EXISTS currency_code VARCHAR(3) DEFAULT 'USD'
     `);
 
-    // 6. Add country_code to employees
-    await client.query(`
+		// 6. Add country_code to employees
+		await client.query(`
       ALTER TABLE employees
       ADD COLUMN IF NOT EXISTS country_code VARCHAR(2) DEFAULT 'US',
       ADD COLUMN IF NOT EXISTS currency_code VARCHAR(3) DEFAULT 'USD'
     `);
 
-    // 7. Add country_code to candidate_onboarding_data
-    await client.query(`
+		// 7. Add country_code to candidate_onboarding_data
+		await client.query(`
       ALTER TABLE candidate_onboarding_data
       ADD COLUMN IF NOT EXISTS country_code VARCHAR(2) DEFAULT 'US',
       ADD COLUMN IF NOT EXISTS country_specific_data JSONB DEFAULT '{}'
     `);
 
-    // 8. Country-specific onboarding document types reference
-    await client.query(`
+		// 8. Country-specific onboarding document types reference
+		await client.query(`
       CREATE TABLE IF NOT EXISTS country_document_types (
         id SERIAL PRIMARY KEY,
         country_code VARCHAR(2) NOT NULL,
@@ -131,8 +131,8 @@ module.exports = {
       )
     `);
 
-    // 9. Seed document types for each country
-    await client.query(`
+		// 9. Seed document types for each country
+		await client.query(`
       INSERT INTO country_document_types (country_code, document_key, document_name, description, is_required, government_form_id, wizard_step) VALUES
       -- USA
       ('US', 'i9', 'Form I-9 Employment Eligibility', 'USCIS Form I-9 — verifies identity and work authorization', true, 'USCIS I-9 (01/20/2025)', 1),
@@ -200,14 +200,16 @@ module.exports = {
       ON CONFLICT (country_code, document_key) DO NOTHING
     `);
 
-    // 10. Add index for fast country lookups
-    await client.query(`
+		// 10. Add index for fast country lookups
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_jobs_country_code ON jobs(country_code);
       CREATE INDEX IF NOT EXISTS idx_offers_country_code ON offers(country_code);
       CREATE INDEX IF NOT EXISTS idx_employees_country_code ON employees(country_code);
       CREATE INDEX IF NOT EXISTS idx_country_document_types_country ON country_document_types(country_code);
     `);
 
-    console.log('Multi-country support migration complete — 8 countries seeded with document types');
-  }
+		console.log(
+			'Multi-country support migration complete — 8 countries seeded with document types',
+		);
+	},
 };

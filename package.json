@@ -12,6 +12,7 @@
     "test:e2e:debug": "./run-e2e-full-suite.sh --debug",
     "test:e2e:perfile": "./run-e2e-perfile.sh",
     "migrate": "node migrate.js",
+    "lint": "npx @biomejs/biome check",
     "postinstall": "bash scripts/setup-audio.sh 2>&1 || echo '[postinstall] Audio setup skipped (non-fatal)'"
   },
   "dependencies": {
@@ -37,6 +38,7 @@
     "pgvector": "^0.1.5"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
     "@playwright/test": "^1.60.0"
   }
 }

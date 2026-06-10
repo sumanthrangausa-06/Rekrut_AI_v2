@@ -1,10 +1,10 @@
 module.exports = {
-  name: '005_backfill_application_company_id',
-  async up(client) {
-    console.log('Backfilling company_id for job_applications...');
+	name: '005_backfill_application_company_id',
+	async up(client) {
+		console.log('Backfilling company_id for job_applications...');
 
-    // Update applications with missing company_id by joining with jobs table
-    await client.query(`
+		// Update applications with missing company_id by joining with jobs table
+		await client.query(`
       UPDATE job_applications ja
       SET company_id = j.company_id
       FROM jobs j
@@ -13,6 +13,6 @@ module.exports = {
         AND j.company_id IS NOT NULL
     `);
 
-    console.log('job_applications company_id backfill complete');
-  }
+		console.log('job_applications company_id backfill complete');
+	},
 };

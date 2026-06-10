@@ -2,13 +2,13 @@
 // Adds vector embeddings and matching infrastructure for intelligent job-candidate matching
 
 module.exports = {
-  name: '008_matching_engine',
-  up: async (client) => {
-    // Enable pgvector extension for vector similarity search
-    await client.query(`CREATE EXTENSION IF NOT EXISTS vector`);
+	name: '008_matching_engine',
+	up: async (client) => {
+		// Enable pgvector extension for vector similarity search
+		await client.query(`CREATE EXTENSION IF NOT EXISTS vector`);
 
-    // Candidate embeddings - semantic representation of candidate profiles
-    await client.query(`
+		// Candidate embeddings - semantic representation of candidate profiles
+		await client.query(`
       CREATE TABLE IF NOT EXISTS candidate_embeddings (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
@@ -21,8 +21,8 @@ module.exports = {
       )
     `);
 
-    // Job embeddings - semantic representation of job postings
-    await client.query(`
+		// Job embeddings - semantic representation of job postings
+		await client.query(`
       CREATE TABLE IF NOT EXISTS job_embeddings (
         id SERIAL PRIMARY KEY,
         job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE UNIQUE,
@@ -34,8 +34,8 @@ module.exports = {
       )
     `);
 
-    // Match results - cached matching scores with explanations
-    await client.query(`
+		// Match results - cached matching scores with explanations
+		await client.query(`
       CREATE TABLE IF NOT EXISTS match_results (
         id SERIAL PRIMARY KEY,
         candidate_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -53,8 +53,8 @@ module.exports = {
       )
     `);
 
-    // Job recommendations - personalized job feed for candidates
-    await client.query(`
+		// Job recommendations - personalized job feed for candidates
+		await client.query(`
       CREATE TABLE IF NOT EXISTS job_recommendations (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -70,8 +70,8 @@ module.exports = {
       )
     `);
 
-    // Create indexes for performance
-    await client.query(`
+		// Create indexes for performance
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_candidate_embeddings_user ON candidate_embeddings(user_id);
       CREATE INDEX IF NOT EXISTS idx_job_embeddings_job ON job_embeddings(job_id);
       CREATE INDEX IF NOT EXISTS idx_match_results_candidate ON match_results(candidate_id);
@@ -81,19 +81,19 @@ module.exports = {
       CREATE INDEX IF NOT EXISTS idx_job_recommendations_score ON job_recommendations(match_score DESC);
     `);
 
-    // Create vector similarity index (IVFFlat for faster similarity search)
-    await client.query(`
+		// Create vector similarity index (IVFFlat for faster similarity search)
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_candidate_embeddings_vector
       ON candidate_embeddings USING ivfflat (embedding vector_cosine_ops)
       WITH (lists = 100)
     `);
 
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_job_embeddings_vector
       ON job_embeddings USING ivfflat (embedding vector_cosine_ops)
       WITH (lists = 100)
     `);
 
-    console.log('Matching engine tables created successfully');
-  }
+		console.log('Matching engine tables created successfully');
+	},
 };

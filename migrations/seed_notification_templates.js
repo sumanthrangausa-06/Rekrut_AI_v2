@@ -3,11 +3,11 @@
  * Templates for: application_received, interview_scheduled, offer_extended, status_update, welcome, password_reset
  */
 const templates = [
-  {
-    name: 'application_received',
-    type: 'application',
-    subject_template: 'Application Received — {{job_title}} at {{company_name}}',
-    body_template: `Hi {{candidate_name}},
+	{
+		name: 'application_received',
+		type: 'application',
+		subject_template: 'Application Received — {{job_title}} at {{company_name}}',
+		body_template: `Hi {{candidate_name}},
 
 Thank you for applying to the {{job_title}} position at {{company_name}}. We have received your application and are reviewing it.
 
@@ -22,7 +22,7 @@ We'll be in touch soon with next steps.
 
 Best regards,
 {{company_name}} Hiring Team`,
-    html_template: `<!DOCTYPE html>
+		html_template: `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -48,14 +48,21 @@ Best regards,
   </p>
 </body>
 </html>`,
-    variables: JSON.stringify(['candidate_name', 'job_title', 'company_name', 'assessment_required', 'assessment_deadline', 'assessment_link']),
-    is_system: true
-  },
-  {
-    name: 'interview_scheduled',
-    type: 'interview',
-    subject_template: 'Interview Scheduled — {{job_title}} at {{company_name}}',
-    body_template: `Hi {{candidate_name}},
+		variables: JSON.stringify([
+			'candidate_name',
+			'job_title',
+			'company_name',
+			'assessment_required',
+			'assessment_deadline',
+			'assessment_link',
+		]),
+		is_system: true,
+	},
+	{
+		name: 'interview_scheduled',
+		type: 'interview',
+		subject_template: 'Interview Scheduled — {{job_title}} at {{company_name}}',
+		body_template: `Hi {{candidate_name}},
 
 Your interview for the {{job_title}} position at {{company_name}} has been scheduled.
 
@@ -76,7 +83,7 @@ If you need to reschedule, please reply to this email as soon as possible.
 
 Best regards,
 {{company_name}} Hiring Team`,
-    html_template: `<!DOCTYPE html>
+		html_template: `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -103,14 +110,24 @@ Best regards,
   </p>
 </body>
 </html>`,
-    variables: JSON.stringify(['candidate_name', 'job_title', 'company_name', 'interview_date', 'interview_time', 'interview_location', 'interviewer_name', 'meeting_link', 'confirmation_link']),
-    is_system: true
-  },
-  {
-    name: 'offer_extended',
-    type: 'offer',
-    subject_template: 'Job Offer — {{job_title}} at {{company_name}}',
-    body_template: `Hi {{candidate_name}},
+		variables: JSON.stringify([
+			'candidate_name',
+			'job_title',
+			'company_name',
+			'interview_date',
+			'interview_time',
+			'interview_location',
+			'interviewer_name',
+			'meeting_link',
+			'confirmation_link',
+		]),
+		is_system: true,
+	},
+	{
+		name: 'offer_extended',
+		type: 'offer',
+		subject_template: 'Job Offer — {{job_title}} at {{company_name}}',
+		body_template: `Hi {{candidate_name}},
 
 We are pleased to offer you the position of {{job_title}} at {{company_name}}.
 
@@ -129,7 +146,7 @@ We are excited about the possibility of you joining our team!
 
 Best regards,
 {{company_name}} Hiring Team`,
-    html_template: `<!DOCTYPE html>
+		html_template: `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -155,14 +172,24 @@ Best regards,
   </p>
 </body>
 </html>`,
-    variables: JSON.stringify(['candidate_name', 'job_title', 'company_name', 'salary', 'work_location', 'start_date', 'benefits', 'offer_link', 'offer_deadline']),
-    is_system: true
-  },
-  {
-    name: 'status_update',
-    type: 'status',
-    subject_template: 'Application Update — {{job_title}} at {{company_name}}',
-    body_template: `Hi {{candidate_name}},
+		variables: JSON.stringify([
+			'candidate_name',
+			'job_title',
+			'company_name',
+			'salary',
+			'work_location',
+			'start_date',
+			'benefits',
+			'offer_link',
+			'offer_deadline',
+		]),
+		is_system: true,
+	},
+	{
+		name: 'status_update',
+		type: 'status',
+		subject_template: 'Application Update — {{job_title}} at {{company_name}}',
+		body_template: `Hi {{candidate_name}},
 
 We have an update regarding your application for the {{job_title}} position at {{company_name}}.
 
@@ -177,7 +204,7 @@ Next Steps: {{next_steps}}
 
 Best regards,
 {{company_name}} Hiring Team`,
-    html_template: `<!DOCTYPE html>
+		html_template: `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -200,14 +227,21 @@ Best regards,
   </p>
 </body>
 </html>`,
-    variables: JSON.stringify(['candidate_name', 'job_title', 'company_name', 'status', 'feedback', 'next_steps']),
-    is_system: true
-  },
-  {
-    name: 'welcome',
-    type: 'welcome',
-    subject_template: 'Welcome to Rekrut AI!',
-    body_template: `Hi {{name}},
+		variables: JSON.stringify([
+			'candidate_name',
+			'job_title',
+			'company_name',
+			'status',
+			'feedback',
+			'next_steps',
+		]),
+		is_system: true,
+	},
+	{
+		name: 'welcome',
+		type: 'welcome',
+		subject_template: 'Welcome to Rekrut AI!',
+		body_template: `Hi {{name}},
 
 Welcome to Rekrut AI — your AI-powered career companion.
 
@@ -223,7 +257,7 @@ If you have any questions, reply to this email.
 
 Best,
 The Rekrut AI Team`,
-    html_template: `<!DOCTYPE html>
+		html_template: `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -251,14 +285,14 @@ The Rekrut AI Team`,
   </p>
 </body>
 </html>`,
-    variables: JSON.stringify(['name', 'dashboard_link']),
-    is_system: true
-  },
-  {
-    name: 'password_reset',
-    type: 'security',
-    subject_template: 'Password Reset — Rekrut AI',
-    body_template: `Hi {{name}},
+		variables: JSON.stringify(['name', 'dashboard_link']),
+		is_system: true,
+	},
+	{
+		name: 'password_reset',
+		type: 'security',
+		subject_template: 'Password Reset — Rekrut AI',
+		body_template: `Hi {{name}},
 
 You requested a password reset for your Rekrut AI account.
 
@@ -270,7 +304,7 @@ If you didn't request this, you can safely ignore this email.
 
 Best,
 The Rekrut AI Team`,
-    html_template: `<!DOCTYPE html>
+		html_template: `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -291,30 +325,31 @@ The Rekrut AI Team`,
   </p>
 </body>
 </html>`,
-    variables: JSON.stringify(['name', 'reset_link', 'expires_in']),
-    is_system: true
-  }
+		variables: JSON.stringify(['name', 'reset_link', 'expires_in']),
+		is_system: true,
+	},
 ];
 
 module.exports = {
-  name: 'seed_notification_templates',
-  async up(client) {
-    // Check if table exists first
-    const tableCheck = await client.query(`
+	name: 'seed_notification_templates',
+	async up(client) {
+		// Check if table exists first
+		const tableCheck = await client.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' AND table_name = 'notification_templates'
       )
     `);
 
-    if (!tableCheck.rows[0].exists) {
-      console.log('⚠️ notification_templates table does not exist, skipping template seed');
-      return;
-    }
+		if (!tableCheck.rows[0].exists) {
+			console.log('⚠️ notification_templates table does not exist, skipping template seed');
+			return;
+		}
 
-    for (const template of templates) {
-      // Use ON CONFLICT to avoid duplicates
-      await client.query(`
+		for (const template of templates) {
+			// Use ON CONFLICT to avoid duplicates
+			await client.query(
+				`
         INSERT INTO notification_templates 
           (name, type, subject_template, body_template, html_template, variables, is_system, is_active, created_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW())
@@ -327,17 +362,19 @@ module.exports = {
           is_system = EXCLUDED.is_system,
           is_active = true,
           updated_at = NOW()
-      `, [
-        template.name,
-        template.type,
-        template.subject_template,
-        template.body_template,
-        template.html_template,
-        template.variables,
-        template.is_system
-      ]);
-    }
+      `,
+				[
+					template.name,
+					template.type,
+					template.subject_template,
+					template.body_template,
+					template.html_template,
+					template.variables,
+					template.is_system,
+				],
+			);
+		}
 
-    console.log(`✅ Seeded ${templates.length} default notification templates`);
-  }
+		console.log(`✅ Seeded ${templates.length} default notification templates`);
+	},
 };

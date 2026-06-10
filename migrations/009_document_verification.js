@@ -2,13 +2,20 @@
 // Adds document processing, fraud detection, and verification scoring
 
 module.exports = {
-  name: '009_document_verification',
-  up: async (client) => {
-    // Document types enum
-    const docTypes = ['resume', 'education_certificate', 'employment_letter', 'id_document', 'certification', 'reference_letter'];
+	name: '009_document_verification',
+	up: async (client) => {
+		// Document types enum
+		const _docTypes = [
+			'resume',
+			'education_certificate',
+			'employment_letter',
+			'id_document',
+			'certification',
+			'reference_letter',
+		];
 
-    // Uploaded documents table
-    await client.query(`
+		// Uploaded documents table
+		await client.query(`
       CREATE TABLE IF NOT EXISTS verification_documents (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -39,8 +46,8 @@ module.exports = {
       )
     `);
 
-    // Document verification results
-    await client.query(`
+		// Document verification results
+		await client.query(`
       CREATE TABLE IF NOT EXISTS document_verifications (
         id SERIAL PRIMARY KEY,
         document_id INTEGER REFERENCES verification_documents(id) ON DELETE CASCADE,
@@ -73,8 +80,8 @@ module.exports = {
       )
     `);
 
-    // Document access audit trail
-    await client.query(`
+		// Document access audit trail
+		await client.query(`
       CREATE TABLE IF NOT EXISTS document_access_logs (
         id SERIAL PRIMARY KEY,
         document_id INTEGER REFERENCES verification_documents(id) ON DELETE CASCADE,
@@ -88,8 +95,8 @@ module.exports = {
       )
     `);
 
-    // Verified credentials tracking
-    await client.query(`
+		// Verified credentials tracking
+		await client.query(`
       CREATE TABLE IF NOT EXISTS verified_credentials (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -107,8 +114,8 @@ module.exports = {
       )
     `);
 
-    // Document score contributions to OmniScore
-    await client.query(`
+		// Document score contributions to OmniScore
+		await client.query(`
       CREATE TABLE IF NOT EXISTS document_score_impacts (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -123,8 +130,8 @@ module.exports = {
       )
     `);
 
-    // Create indexes for performance
-    await client.query(`
+		// Create indexes for performance
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_verification_documents_user ON verification_documents(user_id);
       CREATE INDEX IF NOT EXISTS idx_verification_documents_status ON verification_documents(status);
       CREATE INDEX IF NOT EXISTS idx_document_verifications_document ON document_verifications(document_id);
@@ -136,6 +143,6 @@ module.exports = {
       CREATE INDEX IF NOT EXISTS idx_document_verifications_duplicate_hash ON document_verifications(duplicate_hash);
     `);
 
-    console.log('Document verification tables created successfully');
-  }
+		console.log('Document verification tables created successfully');
+	},
 };

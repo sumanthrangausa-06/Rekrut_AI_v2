@@ -1,8 +1,8 @@
 module.exports = {
-  name: '021_payroll_company_bridge',
-  async up(client) {
-    // Add company_id to employees table for proper multi-recruiter company support
-    await client.query(`
+	name: '021_payroll_company_bridge',
+	async up(client) {
+		// Add company_id to employees table for proper multi-recruiter company support
+		await client.query(`
       DO $$ BEGIN
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
@@ -13,8 +13,8 @@ module.exports = {
       END $$;
     `);
 
-    // Add company_id to payroll_runs table so payroll runs are company-scoped
-    await client.query(`
+		// Add company_id to payroll_runs table so payroll runs are company-scoped
+		await client.query(`
       DO $$ BEGIN
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
@@ -25,11 +25,15 @@ module.exports = {
       END $$;
     `);
 
-    await client.query('CREATE INDEX IF NOT EXISTS idx_employees_company_id ON employees(company_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_payroll_runs_company_id ON payroll_runs(company_id)');
+		await client.query(
+			'CREATE INDEX IF NOT EXISTS idx_employees_company_id ON employees(company_id)',
+		);
+		await client.query(
+			'CREATE INDEX IF NOT EXISTS idx_payroll_runs_company_id ON payroll_runs(company_id)',
+		);
 
-    // Auto-create employee records from accepted offers that don't have employees yet
-    const acceptedOffers = await client.query(`
+		// Auto-create employee records from accepted offers that don't have employees yet
+		const acceptedOffers = await client.query(`
       SELECT o.*, u.name as candidate_name
       FROM offers o
       JOIN users u ON o.candidate_id = u.id
@@ -39,41 +43,47 @@ module.exports = {
         )
     `);
 
-    for (const offer of acceptedOffers.rows) {
-      const empNum = 'EMP-' + String(offer.candidate_id).padStart(4, '0');
+		for (const offer of acceptedOffers.rows) {
+			const empNum = `EMP-${String(offer.candidate_id).padStart(4, '0')}`;
 
-      // Create employee record
-      const empResult = await client.query(`
+			// Create employee record
+			const empResult = await client.query(
+				`
         INSERT INTO employees (user_id, employer_id, company_id, employee_number, position, employment_type, start_date, status)
         VALUES ($1, $2, $3, $4, $5, 'full-time', $6, 'active')
         ON CONFLICT DO NOTHING
         RETURNING id
-      `, [
-        offer.candidate_id,
-        offer.recruiter_id,
-        offer.company_id,
-        empNum,
-        offer.title,
-        offer.start_date || new Date()
-      ]);
+      `,
+				[
+					offer.candidate_id,
+					offer.recruiter_id,
+					offer.company_id,
+					empNum,
+					offer.title,
+					offer.start_date || new Date(),
+				],
+			);
 
-      if (empResult.rows.length > 0) {
-        const employeeId = empResult.rows[0].id;
-        const annualSalary = parseFloat(offer.salary || 50000);
+			if (empResult.rows.length > 0) {
+				const employeeId = empResult.rows[0].id;
+				const annualSalary = parseFloat(offer.salary || 50000);
 
-        // Create payroll config
-        await client.query(`
+				// Create payroll config
+				await client.query(
+					`
           INSERT INTO payroll_configs (employee_id, salary_type, salary_amount, pay_frequency, payment_method, tax_filing_status)
           VALUES ($1, 'salary', $2, 'bi-weekly', 'direct_deposit', 'single')
           ON CONFLICT (employee_id) DO NOTHING
-        `, [employeeId, annualSalary]);
+        `,
+					[employeeId, annualSalary],
+				);
 
-        console.log(`  Created employee record for ${offer.candidate_name} (${empNum})`);
-      }
-    }
+				console.log(`  Created employee record for ${offer.candidate_name} (${empNum})`);
+			}
+		}
 
-    // Backfill company_id for any existing employees that have employer_id but no company_id
-    await client.query(`
+		// Backfill company_id for any existing employees that have employer_id but no company_id
+		await client.query(`
       UPDATE employees e
       SET company_id = u.company_id
       FROM users u
@@ -82,8 +92,8 @@ module.exports = {
         AND u.company_id IS NOT NULL
     `);
 
-    // Backfill company_id for existing payroll_runs
-    await client.query(`
+		// Backfill company_id for existing payroll_runs
+		await client.query(`
       UPDATE payroll_runs pr
       SET company_id = u.company_id
       FROM users u
@@ -92,6 +102,6 @@ module.exports = {
         AND u.company_id IS NOT NULL
     `);
 
-    console.log('Payroll company bridge migration complete');
-  }
+		console.log('Payroll company bridge migration complete');
+	},
 };

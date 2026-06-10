@@ -1,9 +1,9 @@
 // TrustScore Migration - Employer Credit Score System
 module.exports = {
-  name: 'add_trustscore_tables',
-  up: async (client) => {
-    // Companies table - extended company profiles
-    await client.query(`
+	name: 'add_trustscore_tables',
+	up: async (client) => {
+		// Companies table - extended company profiles
+		await client.query(`
       CREATE TABLE IF NOT EXISTS companies (
         id SERIAL PRIMARY KEY,
         owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -25,8 +25,8 @@ module.exports = {
       )
     `);
 
-    // TrustScore main table - employer credibility score (0-1000)
-    await client.query(`
+		// TrustScore main table - employer credibility score (0-1000)
+		await client.query(`
       CREATE TABLE IF NOT EXISTS trust_scores (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE UNIQUE,
@@ -42,8 +42,8 @@ module.exports = {
       )
     `);
 
-    // TrustScore components - individual score factors
-    await client.query(`
+		// TrustScore components - individual score factors
+		await client.query(`
       CREATE TABLE IF NOT EXISTS trust_score_components (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
@@ -60,8 +60,8 @@ module.exports = {
       )
     `);
 
-    // TrustScore history
-    await client.query(`
+		// TrustScore history
+		await client.query(`
       CREATE TABLE IF NOT EXISTS trust_score_history (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
@@ -74,8 +74,8 @@ module.exports = {
       )
     `);
 
-    // Job analytics - track job performance
-    await client.query(`
+		// Job analytics - track job performance
+		await client.query(`
       CREATE TABLE IF NOT EXISTS job_analytics (
         id SERIAL PRIMARY KEY,
         job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
@@ -90,8 +90,8 @@ module.exports = {
       )
     `);
 
-    // Candidate feedback on companies
-    await client.query(`
+		// Candidate feedback on companies
+		await client.query(`
       CREATE TABLE IF NOT EXISTS candidate_feedback (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
@@ -108,8 +108,8 @@ module.exports = {
       )
     `);
 
-    // Scheduled interviews (recruiter-side)
-    await client.query(`
+		// Scheduled interviews (recruiter-side)
+		await client.query(`
       CREATE TABLE IF NOT EXISTS scheduled_interviews (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
@@ -129,8 +129,8 @@ module.exports = {
       )
     `);
 
-    // Job applications
-    await client.query(`
+		// Job applications
+		await client.query(`
       CREATE TABLE IF NOT EXISTS job_applications (
         id SERIAL PRIMARY KEY,
         job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
@@ -147,18 +147,18 @@ module.exports = {
       )
     `);
 
-    // Add company_id to jobs table if not exists
-    await client.query(`
+		// Add company_id to jobs table if not exists
+		await client.query(`
       ALTER TABLE jobs ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL
     `);
 
-    // Add recruiter role fields to users
-    await client.query(`
+		// Add recruiter role fields to users
+		await client.query(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL
     `);
 
-    // Create indexes
-    await client.query(`
+		// Create indexes
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_trust_score_company ON trust_scores(company_id);
       CREATE INDEX IF NOT EXISTS idx_trust_components_company ON trust_score_components(company_id);
       CREATE INDEX IF NOT EXISTS idx_job_analytics_job ON job_analytics(job_id);
@@ -169,6 +169,6 @@ module.exports = {
       CREATE INDEX IF NOT EXISTS idx_job_applications_candidate ON job_applications(candidate_id);
     `);
 
-    console.log('TrustScore tables created successfully');
-  }
+		console.log('TrustScore tables created successfully');
+	},
 };

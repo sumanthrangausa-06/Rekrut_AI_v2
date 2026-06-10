@@ -2,21 +2,21 @@ const pool = require('../lib/db');
 const aiProvider = require('../lib/ai-provider');
 
 // Defensive pgvector import — fallback to manual vector formatting if unavailable
-let toSql, registerType;
+let toSql, _registerType;
 try {
-  const pgvectorPg = require('pgvector/pg');
-  toSql = pgvectorPg.toSql;
-  registerType = pgvectorPg.registerType;
-} catch (e) {
-  console.warn('pgvector/pg not available, using vector string fallback');
+	const pgvectorPg = require('pgvector/pg');
+	toSql = pgvectorPg.toSql;
+	_registerType = pgvectorPg.registerType;
+} catch (_e) {
+	console.warn('pgvector/pg not available, using vector string fallback');
 }
 
 // Fallback: format array as Postgres vector literal
 if (typeof toSql !== 'function') {
-  toSql = function(vec) {
-    if (!Array.isArray(vec)) throw new Error('expected array for toSql');
-    return '[' + vec.join(',') + ']';
-  };
+	toSql = (vec) => {
+		if (!Array.isArray(vec)) throw new Error('expected array for toSql');
+		return `[${vec.join(',')}]`;
+	};
 }
 
 /**
@@ -24,139 +24,144 @@ if (typeof toSql !== 'function') {
  * Chain: OpenAI text-embedding-3-small → NIM NV-EmbedQA → NIM Nemotron-Embed-VL
  */
 async function generateEmbedding(text) {
-  if (!text || text.trim().length === 0) {
-    throw new Error('Cannot generate embedding for empty text');
-  }
+	if (!text || text.trim().length === 0) {
+		throw new Error('Cannot generate embedding for empty text');
+	}
 
-  return aiProvider.generateEmbedding(text.substring(0, 8000), { module: 'matching' });
+	return aiProvider.generateEmbedding(text.substring(0, 8000), { module: 'matching' });
 }
 
 /**
  * Build text representation of candidate profile for embedding
  */
 function buildCandidateProfileText(profile) {
-  const parts = [];
+	const parts = [];
 
-  // Headline and bio
-  if (profile.headline) parts.push(`Headline: ${profile.headline}`);
-  if (profile.bio) parts.push(`Bio: ${profile.bio}`);
+	// Headline and bio
+	if (profile.headline) parts.push(`Headline: ${profile.headline}`);
+	if (profile.bio) parts.push(`Bio: ${profile.bio}`);
 
-  // Skills
-  if (profile.skills && profile.skills.length > 0) {
-    const skillsText = profile.skills
-      .map(s => `${s.skill_name} (level ${s.level})`)
-      .join(', ');
-    parts.push(`Skills: ${skillsText}`);
-  }
+	// Skills
+	if (profile.skills && profile.skills.length > 0) {
+		const skillsText = profile.skills.map((s) => `${s.skill_name} (level ${s.level})`).join(', ');
+		parts.push(`Skills: ${skillsText}`);
+	}
 
-  // Experience
-  if (profile.experience && profile.experience.length > 0) {
-    profile.experience.forEach(exp => {
-      parts.push(`Experience: ${exp.title} at ${exp.company_name || exp.company || 'Unknown'}. ${exp.description || ''}`);
-      if (exp.skills_used && exp.skills_used.length > 0) {
-        parts.push(`Skills used: ${exp.skills_used.join(', ')}`);
-      }
-    });
-  }
+	// Experience
+	if (profile.experience && profile.experience.length > 0) {
+		profile.experience.forEach((exp) => {
+			parts.push(
+				`Experience: ${exp.title} at ${exp.company_name || exp.company || 'Unknown'}. ${exp.description || ''}`,
+			);
+			if (exp.skills_used && exp.skills_used.length > 0) {
+				parts.push(`Skills used: ${exp.skills_used.join(', ')}`);
+			}
+		});
+	}
 
-  // Education
-  if (profile.education && profile.education.length > 0) {
-    profile.education.forEach(edu => {
-      parts.push(`Education: ${edu.degree || ''} ${edu.field_of_study || ''} from ${edu.institution}`);
-    });
-  }
+	// Education
+	if (profile.education && profile.education.length > 0) {
+		profile.education.forEach((edu) => {
+			parts.push(
+				`Education: ${edu.degree || ''} ${edu.field_of_study || ''} from ${edu.institution}`,
+			);
+		});
+	}
 
-  // Job preferences
-  if (profile.years_experience) parts.push(`Years of experience: ${profile.years_experience}`);
-  if (profile.location) parts.push(`Location: ${profile.location}`);
-  if (profile.preferred_job_types) parts.push(`Preferred job types: ${JSON.stringify(profile.preferred_job_types)}`);
+	// Job preferences
+	if (profile.years_experience) parts.push(`Years of experience: ${profile.years_experience}`);
+	if (profile.location) parts.push(`Location: ${profile.location}`);
+	if (profile.preferred_job_types)
+		parts.push(`Preferred job types: ${JSON.stringify(profile.preferred_job_types)}`);
 
-  return parts.join('\n');
+	return parts.join('\n');
 }
 
 /**
  * Build text representation of job posting for embedding
  */
 function buildJobText(job) {
-  const parts = [];
+	const parts = [];
 
-  parts.push(`Job Title: ${job.title}`);
-  if (job.company) parts.push(`Company: ${job.company}`);
-  if (job.description) parts.push(`Description: ${job.description}`);
-  if (job.requirements) parts.push(`Requirements: ${job.requirements}`);
-  if (job.location) parts.push(`Location: ${job.location}`);
-  if (job.salary_range) parts.push(`Salary: ${job.salary_range}`);
-  if (job.job_type) parts.push(`Job Type: ${job.job_type}`);
+	parts.push(`Job Title: ${job.title}`);
+	if (job.company) parts.push(`Company: ${job.company}`);
+	if (job.description) parts.push(`Description: ${job.description}`);
+	if (job.requirements) parts.push(`Requirements: ${job.requirements}`);
+	if (job.location) parts.push(`Location: ${job.location}`);
+	if (job.salary_range) parts.push(`Salary: ${job.salary_range}`);
+	if (job.job_type) parts.push(`Job Type: ${job.job_type}`);
 
-  return parts.join('\n');
+	return parts.join('\n');
 }
 
 /**
  * Update or create candidate embedding
  */
 async function updateCandidateEmbedding(userId) {
-  const client = await pool.connect();
-  try {
-    // Fetch complete candidate profile
-    const profileResult = await client.query(`
+	const client = await pool.connect();
+	try {
+		// Fetch complete candidate profile
+		const profileResult = await client.query(
+			`
       SELECT cp.*, u.name, u.email
       FROM users u
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
       WHERE u.id = $1
-    `, [userId]);
+    `,
+			[userId],
+		);
 
-    if (profileResult.rows.length === 0) {
-      throw new Error('User not found');
-    }
+		if (profileResult.rows.length === 0) {
+			throw new Error('User not found');
+		}
 
-    const profile = profileResult.rows[0];
+		const profile = profileResult.rows[0];
 
-    // Fetch skills
-    const skillsResult = await client.query(
-      'SELECT * FROM candidate_skills WHERE user_id = $1',
-      [userId]
-    );
-    profile.skills = skillsResult.rows;
+		// Fetch skills
+		const skillsResult = await client.query('SELECT * FROM candidate_skills WHERE user_id = $1', [
+			userId,
+		]);
+		profile.skills = skillsResult.rows;
 
-    // Fetch experience
-    const experienceResult = await client.query(
-      'SELECT * FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC',
-      [userId]
-    );
-    profile.experience = experienceResult.rows;
+		// Fetch experience
+		const experienceResult = await client.query(
+			'SELECT * FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC',
+			[userId],
+		);
+		profile.experience = experienceResult.rows;
 
-    // Fetch education
-    const educationResult = await client.query(
-      'SELECT * FROM education WHERE user_id = $1',
-      [userId]
-    );
-    profile.education = educationResult.rows;
+		// Fetch education
+		const educationResult = await client.query('SELECT * FROM education WHERE user_id = $1', [
+			userId,
+		]);
+		profile.education = educationResult.rows;
 
-    // Build text for embedding
-    const profileText = buildCandidateProfileText(profile);
+		// Build text for embedding
+		const profileText = buildCandidateProfileText(profile);
 
-    if (!profileText || profileText.trim().length === 0) {
-      console.log(`Skipping embedding for user ${userId} - empty profile`);
-      return null;
-    }
+		if (!profileText || profileText.trim().length === 0) {
+			console.log(`Skipping embedding for user ${userId} - empty profile`);
+			return null;
+		}
 
-    // Generate embedding
-    const embedding = await generateEmbedding(profileText);
+		// Generate embedding
+		const embedding = await generateEmbedding(profileText);
 
-    if (!embedding || !Array.isArray(embedding)) {
-      console.warn(`Skipping embedding for user ${userId} - embedding generation failed`);
-      return null;
-    }
+		if (!embedding || !Array.isArray(embedding)) {
+			console.warn(`Skipping embedding for user ${userId} - embedding generation failed`);
+			return null;
+		}
 
-    // Build summaries
-    const skillsSummary = profile.skills.map(s => s.skill_name).join(', ');
-    const experienceSummary = profile.experience
-      .map(e => `${e.title} at ${e.company_name || e.company || 'Unknown'}`)
-      .slice(0, 3)
-      .join('; ');
+		// Build summaries
+		const skillsSummary = profile.skills.map((s) => s.skill_name).join(', ');
+		const experienceSummary = profile.experience
+			.map((e) => `${e.title} at ${e.company_name || e.company || 'Unknown'}`)
+			.slice(0, 3)
+			.join('; ');
 
-    // Upsert embedding
-    await client.query(`
+		// Upsert embedding
+		await client.query(
+			`
       INSERT INTO candidate_embeddings (user_id, embedding, profile_text, skills_summary, experience_summary, last_updated)
       VALUES ($1, $2, $3, $4, $5, NOW())
       ON CONFLICT (user_id)
@@ -166,49 +171,49 @@ async function updateCandidateEmbedding(userId) {
         skills_summary = $4,
         experience_summary = $5,
         last_updated = NOW()
-    `, [userId, toSql(embedding), profileText, skillsSummary, experienceSummary]);
+    `,
+			[userId, toSql(embedding), profileText, skillsSummary, experienceSummary],
+		);
 
-    console.log(`Updated embedding for candidate ${userId}`);
-    return embedding;
-  } finally {
-    client.release();
-  }
+		console.log(`Updated embedding for candidate ${userId}`);
+		return embedding;
+	} finally {
+		client.release();
+	}
 }
 
 /**
  * Update or create job embedding
  */
 async function updateJobEmbedding(jobId) {
-  const client = await pool.connect();
-  try {
-    // Fetch job details
-    const jobResult = await client.query(
-      'SELECT * FROM jobs WHERE id = $1',
-      [jobId]
-    );
+	const client = await pool.connect();
+	try {
+		// Fetch job details
+		const jobResult = await client.query('SELECT * FROM jobs WHERE id = $1', [jobId]);
 
-    if (jobResult.rows.length === 0) {
-      throw new Error('Job not found');
-    }
+		if (jobResult.rows.length === 0) {
+			throw new Error('Job not found');
+		}
 
-    const job = jobResult.rows[0];
-    const jobText = buildJobText(job);
+		const job = jobResult.rows[0];
+		const jobText = buildJobText(job);
 
-    if (!jobText || jobText.trim().length === 0) {
-      console.log(`Skipping embedding for job ${jobId} - empty job text`);
-      return null;
-    }
+		if (!jobText || jobText.trim().length === 0) {
+			console.log(`Skipping embedding for job ${jobId} - empty job text`);
+			return null;
+		}
 
-    // Generate embedding
-    const embedding = await generateEmbedding(jobText);
+		// Generate embedding
+		const embedding = await generateEmbedding(jobText);
 
-    if (!embedding || !Array.isArray(embedding)) {
-      console.warn(`Skipping embedding for job ${jobId} - embedding generation failed`);
-      return null;
-    }
+		if (!embedding || !Array.isArray(embedding)) {
+			console.warn(`Skipping embedding for job ${jobId} - embedding generation failed`);
+			return null;
+		}
 
-    // Upsert embedding
-    await client.query(`
+		// Upsert embedding
+		await client.query(
+			`
       INSERT INTO job_embeddings (job_id, embedding, job_text, requirements_summary, last_updated)
       VALUES ($1, $2, $3, $4, NOW())
       ON CONFLICT (job_id)
@@ -217,52 +222,55 @@ async function updateJobEmbedding(jobId) {
         job_text = $3,
         requirements_summary = $4,
         last_updated = NOW()
-    `, [jobId, toSql(embedding), jobText, job.requirements]);
+    `,
+			[jobId, toSql(embedding), jobText, job.requirements],
+		);
 
-    console.log(`Updated embedding for job ${jobId}`);
-    return embedding;
-  } finally {
-    client.release();
-  }
+		console.log(`Updated embedding for job ${jobId}`);
+		return embedding;
+	} finally {
+		client.release();
+	}
 }
 
 /**
  * Calculate cosine similarity between two vectors
  */
-function cosineSimilarity(vecA, vecB) {
-  if (!vecA || !vecB || vecA.length !== vecB.length) {
-    return 0;
-  }
+function _cosineSimilarity(vecA, vecB) {
+	if (!vecA || !vecB || vecA.length !== vecB.length) {
+		return 0;
+	}
 
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
+	let dotProduct = 0;
+	let normA = 0;
+	let normB = 0;
 
-  for (let i = 0; i < vecA.length; i++) {
-    dotProduct += vecA[i] * vecB[i];
-    normA += vecA[i] * vecA[i];
-    normB += vecB[i] * vecB[i];
-  }
+	for (let i = 0; i < vecA.length; i++) {
+		dotProduct += vecA[i] * vecB[i];
+		normA += vecA[i] * vecA[i];
+		normB += vecB[i] * vecB[i];
+	}
 
-  const magnitude = Math.sqrt(normA) * Math.sqrt(normB);
-  return magnitude === 0 ? 0 : dotProduct / magnitude;
+	const magnitude = Math.sqrt(normA) * Math.sqrt(normB);
+	return magnitude === 0 ? 0 : dotProduct / magnitude;
 }
 
 /**
  * Extract skills keywords from job requirements text
  */
 function extractSkillsFromText(text) {
-  if (!text) return [];
-  // Normalize and extract comma/semicolon/bullet separated items
-  const normalized = text.toLowerCase()
-    .replace(/[•\-\*\n\r]+/g, ',')
-    .replace(/\band\b/g, ',')
-    .replace(/[()]/g, '')
-    .split(',')
-    .map(s => s.trim())
-    .filter(s => s.length > 1 && s.length < 60);
-  // Deduplicate
-  return [...new Set(normalized)];
+	if (!text) return [];
+	// Normalize and extract comma/semicolon/bullet separated items
+	const normalized = text
+		.toLowerCase()
+		.replace(/[•\-*\n\r]+/g, ',')
+		.replace(/\band\b/g, ',')
+		.replace(/[()]/g, '')
+		.split(',')
+		.map((s) => s.trim())
+		.filter((s) => s.length > 1 && s.length < 60);
+	// Deduplicate
+	return [...new Set(normalized)];
 }
 
 /**
@@ -270,63 +278,65 @@ function extractSkillsFromText(text) {
  * Returns { matching, missing, extra } skill arrays
  */
 function compareSkills(candidateSkills, jobRequirementsText) {
-  const candidateSkillNames = (candidateSkills || []).map(s =>
-    (typeof s === 'string' ? s : s.skill_name || s.name || '').toLowerCase().trim()
-  ).filter(Boolean);
+	const candidateSkillNames = (candidateSkills || [])
+		.map((s) => (typeof s === 'string' ? s : s.skill_name || s.name || '').toLowerCase().trim())
+		.filter(Boolean);
 
-  const jobSkillHints = extractSkillsFromText(jobRequirementsText);
+	const jobSkillHints = extractSkillsFromText(jobRequirementsText);
 
-  const matching = [];
-  const missing = [];
+	const matching = [];
+	const missing = [];
 
-  for (const reqSkill of jobSkillHints) {
-    const found = candidateSkillNames.some(cs =>
-      cs.includes(reqSkill) || reqSkill.includes(cs)
-    );
-    if (found) {
-      matching.push(reqSkill);
-    } else {
-      missing.push(reqSkill);
-    }
-  }
+	for (const reqSkill of jobSkillHints) {
+		const found = candidateSkillNames.some((cs) => cs.includes(reqSkill) || reqSkill.includes(cs));
+		if (found) {
+			matching.push(reqSkill);
+		} else {
+			missing.push(reqSkill);
+		}
+	}
 
-  return { matching, missing };
+	return { matching, missing };
 }
 
 /**
  * Find top matching candidates for a job
  */
 async function findMatchingCandidates(jobId, options = {}) {
-  const limit = options.limit || 20;
-  const minScore = options.minScore || 0.5;
+	const limit = options.limit || 20;
+	const minScore = options.minScore || 0.5;
 
-  const client = await pool.connect();
-  try {
-    // Ensure job embedding exists (non-blocking if it fails)
-    try {
-      await updateJobEmbedding(jobId);
-    } catch (embedErr) {
-      console.warn(`Failed to update job embedding for ${jobId}:`, embedErr.message);
-    }
+	const client = await pool.connect();
+	try {
+		// Ensure job embedding exists (non-blocking if it fails)
+		try {
+			await updateJobEmbedding(jobId);
+		} catch (embedErr) {
+			console.warn(`Failed to update job embedding for ${jobId}:`, embedErr.message);
+		}
 
-    // Get job details and TrustScore
-    const jobResult = await client.query(`
+		// Get job details and TrustScore
+		const jobResult = await client.query(
+			`
       SELECT j.*, c.name as company_name, ts.total_score as trustscore
       FROM jobs j
       LEFT JOIN companies c ON j.company_id = c.id
       LEFT JOIN trust_scores ts ON c.id = ts.company_id
       WHERE j.id = $1
-    `, [jobId]);
+    `,
+			[jobId],
+		);
 
-    if (jobResult.rows.length === 0) {
-      throw new Error('Job not found');
-    }
+		if (jobResult.rows.length === 0) {
+			throw new Error('Job not found');
+		}
 
-    const job = jobResult.rows[0];
-    const trustscore = job.trustscore || 500;
+		const job = jobResult.rows[0];
+		const trustscore = job.trustscore || 500;
 
-    // Find similar candidates using vector similarity + fetch their skills
-    const matchResult = await client.query(`
+		// Find similar candidates using vector similarity + fetch their skills
+		const matchResult = await client.query(
+			`
       SELECT
         ce.user_id,
         ce.skills_summary,
@@ -350,73 +360,79 @@ async function findMatchingCandidates(jobId, options = {}) {
         AND 1 - (ce.embedding <=> je.embedding) >= $2
       ORDER BY similarity_score DESC
       LIMIT $3
-    `, [jobId, minScore, limit]);
+    `,
+			[jobId, minScore, limit],
+		);
 
-    // Calculate weighted scores with OmniScore and TrustScore
-    const matches = matchResult.rows.map(candidate => {
-      const omniscore = candidate.omniscore || 300;
-      const similarityScore = candidate.similarity_score;
+		// Calculate weighted scores with OmniScore and TrustScore
+		const matches = matchResult.rows.map((candidate) => {
+			const omniscore = candidate.omniscore || 300;
+			const similarityScore = candidate.similarity_score;
 
-      // Skills comparison (SmartRecruiters-style breakdown)
-      const { matching: matchingSkills, missing: missingSkills } = compareSkills(
-        candidate.skills || [],
-        job.requirements
-      );
-      const skillMatchPct = matchingSkills.length + missingSkills.length > 0
-        ? Math.round((matchingSkills.length / (matchingSkills.length + missingSkills.length)) * 100)
-        : 50;
+			// Skills comparison (SmartRecruiters-style breakdown)
+			const { matching: matchingSkills, missing: missingSkills } = compareSkills(
+				candidate.skills || [],
+				job.requirements,
+			);
+			const skillMatchPct =
+				matchingSkills.length + missingSkills.length > 0
+					? Math.round(
+							(matchingSkills.length / (matchingSkills.length + missingSkills.length)) * 100,
+						)
+					: 50;
 
-      // Weighted score formula:
-      // Semantic similarity: 45% (reduced from 60% to make room for skills)
-      // Skills match: 20% (new — direct skills comparison)
-      // OmniScore: 25% (platform credibility)
-      // TrustScore: 10% (company quality)
-      const omniNormalized = Math.min(omniscore / 1000, 1);
-      const trustNormalized = Math.min(trustscore / 1000, 1);
-      const skillNormalized = skillMatchPct / 100;
+			// Weighted score formula:
+			// Semantic similarity: 45% (reduced from 60% to make room for skills)
+			// Skills match: 20% (new — direct skills comparison)
+			// OmniScore: 25% (platform credibility)
+			// TrustScore: 10% (company quality)
+			const omniNormalized = Math.min(omniscore / 1000, 1);
+			const trustNormalized = Math.min(trustscore / 1000, 1);
+			const skillNormalized = skillMatchPct / 100;
 
-      const weightedScore = (
-        (similarityScore * 0.45) +
-        (skillNormalized * 0.20) +
-        (omniNormalized * 0.25) +
-        (trustNormalized * 0.10)
-      ) * 100;
+			const weightedScore =
+				(similarityScore * 0.45 +
+					skillNormalized * 0.2 +
+					omniNormalized * 0.25 +
+					trustNormalized * 0.1) *
+				100;
 
-      // Determine match level
-      let matchLevel = 'poor';
-      if (weightedScore >= 85) matchLevel = 'excellent';
-      else if (weightedScore >= 70) matchLevel = 'good';
-      else if (weightedScore >= 55) matchLevel = 'fair';
+			// Determine match level
+			let matchLevel = 'poor';
+			if (weightedScore >= 85) matchLevel = 'excellent';
+			else if (weightedScore >= 70) matchLevel = 'good';
+			else if (weightedScore >= 55) matchLevel = 'fair';
 
-      return {
-        candidate_id: candidate.user_id,
-        name: candidate.name,
-        avatar_url: candidate.avatar_url,
-        headline: candidate.headline,
-        location: candidate.location,
-        years_experience: candidate.years_experience,
-        omniscore: omniscore,
-        score_tier: candidate.score_tier,
-        skills_summary: candidate.skills_summary,
-        experience_summary: candidate.experience_summary,
-        similarity_score: Math.round(similarityScore * 100) / 100,
-        weighted_score: Math.round(weightedScore * 100) / 100,
-        match_level: matchLevel,
-        matching_skills: matchingSkills,
-        missing_skills: missingSkills,
-        skill_match_pct: skillMatchPct,
-        explanation: {
-          semantic_match: `${Math.round(similarityScore * 100)}% profile alignment`,
-          skills_match: `${skillMatchPct}% skills match (${matchingSkills.length} matched, ${missingSkills.length} gaps)`,
-          omniscore_boost: `OmniScore ${omniscore} (${candidate.score_tier || 'new'} tier)`,
-          company_trustscore: `Company TrustScore ${trustscore}`
-        }
-      };
-    });
+			return {
+				candidate_id: candidate.user_id,
+				name: candidate.name,
+				avatar_url: candidate.avatar_url,
+				headline: candidate.headline,
+				location: candidate.location,
+				years_experience: candidate.years_experience,
+				omniscore: omniscore,
+				score_tier: candidate.score_tier,
+				skills_summary: candidate.skills_summary,
+				experience_summary: candidate.experience_summary,
+				similarity_score: Math.round(similarityScore * 100) / 100,
+				weighted_score: Math.round(weightedScore * 100) / 100,
+				match_level: matchLevel,
+				matching_skills: matchingSkills,
+				missing_skills: missingSkills,
+				skill_match_pct: skillMatchPct,
+				explanation: {
+					semantic_match: `${Math.round(similarityScore * 100)}% profile alignment`,
+					skills_match: `${skillMatchPct}% skills match (${matchingSkills.length} matched, ${missingSkills.length} gaps)`,
+					omniscore_boost: `OmniScore ${omniscore} (${candidate.score_tier || 'new'} tier)`,
+					company_trustscore: `Company TrustScore ${trustscore}`,
+				},
+			};
+		});
 
-    // Cache results with skills data
-    for (const match of matches) {
-      await client.query(`
+		// Cache results with skills data
+		for (const match of matches) {
+			await client.query(
+				`
         INSERT INTO match_results (
           candidate_id, job_id, similarity_score, weighted_score,
           omniscore_at_match, trustscore_at_match, match_level,
@@ -434,60 +450,66 @@ async function findMatchingCandidates(jobId, options = {}) {
           missing_skills = $9,
           match_explanation = $10,
           calculated_at = NOW()
-      `, [
-        match.candidate_id,
-        jobId,
-        match.similarity_score,
-        match.weighted_score,
-        match.omniscore,
-        trustscore,
-        match.match_level,
-        JSON.stringify(match.matching_skills),
-        JSON.stringify(match.missing_skills),
-        JSON.stringify(match.explanation)
-      ]);
-    }
+      `,
+				[
+					match.candidate_id,
+					jobId,
+					match.similarity_score,
+					match.weighted_score,
+					match.omniscore,
+					trustscore,
+					match.match_level,
+					JSON.stringify(match.matching_skills),
+					JSON.stringify(match.missing_skills),
+					JSON.stringify(match.explanation),
+				],
+			);
+		}
 
-    return matches;
-  } finally {
-    client.release();
-  }
+		return matches;
+	} finally {
+		client.release();
+	}
 }
 
 /**
  * Find top matching jobs for a candidate
  */
 async function findMatchingJobs(userId, options = {}) {
-  const limit = options.limit || 20;
-  const minScore = options.minScore || 0.5;
+	const limit = options.limit || 20;
+	const minScore = options.minScore || 0.5;
 
-  const client = await pool.connect();
-  try {
-    // Ensure candidate embedding exists (non-blocking if it fails)
-    try {
-      await updateCandidateEmbedding(userId);
-    } catch (embedErr) {
-      console.warn(`Failed to update candidate embedding for ${userId}:`, embedErr.message);
-    }
+	const client = await pool.connect();
+	try {
+		// Ensure candidate embedding exists (non-blocking if it fails)
+		try {
+			await updateCandidateEmbedding(userId);
+		} catch (embedErr) {
+			console.warn(`Failed to update candidate embedding for ${userId}:`, embedErr.message);
+		}
 
-    // Get candidate's OmniScore
-    const userResult = await client.query(`
+		// Get candidate's OmniScore
+		const userResult = await client.query(
+			`
       SELECT os.total_score as omniscore
       FROM users u
       LEFT JOIN omni_scores os ON u.id = os.user_id
       WHERE u.id = $1
-    `, [userId]);
+    `,
+			[userId],
+		);
 
-    const omniscore = userResult.rows[0]?.omniscore || 300;
+		const omniscore = userResult.rows[0]?.omniscore || 300;
 
-    // Get candidate skills for comparison
-    const candidateSkills = await client.query(
-      'SELECT skill_name, level, is_verified FROM candidate_skills WHERE user_id = $1',
-      [userId]
-    );
+		// Get candidate skills for comparison
+		const candidateSkills = await client.query(
+			'SELECT skill_name, level, is_verified FROM candidate_skills WHERE user_id = $1',
+			[userId],
+		);
 
-    // Find similar jobs using vector similarity
-    const matchResult = await client.query(`
+		// Find similar jobs using vector similarity
+		const matchResult = await client.query(
+			`
       SELECT
         je.job_id,
         j.title,
@@ -512,79 +534,88 @@ async function findMatchingJobs(userId, options = {}) {
         AND 1 - (je.embedding <=> ce.embedding) >= $2
       ORDER BY similarity_score DESC
       LIMIT $3
-    `, [userId, minScore, limit]);
+    `,
+			[userId, minScore, limit],
+		);
 
-    // Calculate weighted scores with skills breakdown
-    const matches = matchResult.rows.map(job => {
-      const trustscore = job.trustscore || 500;
-      const similarityScore = job.similarity_score;
+		// Calculate weighted scores with skills breakdown
+		const matches = matchResult.rows.map((job) => {
+			const trustscore = job.trustscore || 500;
+			const similarityScore = job.similarity_score;
 
-      // Skills comparison
-      const { matching: matchingSkills, missing: missingSkills } = compareSkills(
-        candidateSkills.rows,
-        job.requirements
-      );
-      const skillMatchPct = matchingSkills.length + missingSkills.length > 0
-        ? Math.round((matchingSkills.length / (matchingSkills.length + missingSkills.length)) * 100)
-        : 50;
+			// Skills comparison
+			const { matching: matchingSkills, missing: missingSkills } = compareSkills(
+				candidateSkills.rows,
+				job.requirements,
+			);
+			const skillMatchPct =
+				matchingSkills.length + missingSkills.length > 0
+					? Math.round(
+							(matchingSkills.length / (matchingSkills.length + missingSkills.length)) * 100,
+						)
+					: 50;
 
-      // Weighted score: similarity 45%, skills 20%, trust 25%, omni 10%
-      const trustNormalized = Math.min(trustscore / 1000, 1);
-      const omniNormalized = Math.min(omniscore / 1000, 1);
-      const skillNormalized = skillMatchPct / 100;
+			// Weighted score: similarity 45%, skills 20%, trust 25%, omni 10%
+			const trustNormalized = Math.min(trustscore / 1000, 1);
+			const omniNormalized = Math.min(omniscore / 1000, 1);
+			const skillNormalized = skillMatchPct / 100;
 
-      const weightedScore = (
-        (similarityScore * 0.45) +
-        (skillNormalized * 0.20) +
-        (trustNormalized * 0.25) +
-        (omniNormalized * 0.10)
-      ) * 100;
+			const weightedScore =
+				(similarityScore * 0.45 +
+					skillNormalized * 0.2 +
+					trustNormalized * 0.25 +
+					omniNormalized * 0.1) *
+				100;
 
-      // Determine match level
-      let matchLevel = 'poor';
-      if (weightedScore >= 85) matchLevel = 'excellent';
-      else if (weightedScore >= 70) matchLevel = 'good';
-      else if (weightedScore >= 55) matchLevel = 'fair';
+			// Determine match level
+			let matchLevel = 'poor';
+			if (weightedScore >= 85) matchLevel = 'excellent';
+			else if (weightedScore >= 70) matchLevel = 'good';
+			else if (weightedScore >= 55) matchLevel = 'fair';
 
-      // Success prediction based on match score
-      let successPrediction = 'Low';
-      if (weightedScore >= 85) successPrediction = 'Very High';
-      else if (weightedScore >= 75) successPrediction = 'High';
-      else if (weightedScore >= 60) successPrediction = 'Moderate';
+			// Success prediction based on match score
+			let successPrediction = 'Low';
+			if (weightedScore >= 85) successPrediction = 'Very High';
+			else if (weightedScore >= 75) successPrediction = 'High';
+			else if (weightedScore >= 60) successPrediction = 'Moderate';
 
-      return {
-        job_id: job.job_id,
-        title: job.title,
-        company: job.company_name || job.company,
-        company_logo: job.company_logo,
-        location: job.location,
-        salary_range: job.salary_range,
-        job_type: job.job_type,
-        description: job.description?.substring(0, 200),
-        created_at: job.created_at,
-        trustscore: trustscore,
-        trust_tier: job.trust_tier,
-        similarity_score: Math.round(similarityScore * 100) / 100,
-        weighted_score: Math.round(weightedScore * 100) / 100,
-        match_level: matchLevel,
-        success_prediction: successPrediction,
-        matching_skills: matchingSkills,
-        missing_skills: missingSkills,
-        skill_match_pct: skillMatchPct,
-        explanation: {
-          why_matched: `${Math.round(similarityScore * 100)}% profile match`,
-          skills_match: `${skillMatchPct}% skills match (${matchingSkills.length} matched, ${missingSkills.length} gaps)`,
-          company_quality: `Company TrustScore ${trustscore} (${job.trust_tier || 'new'} tier)`,
-          your_strength: omniscore >= 700 ? 'Your strong OmniScore makes you highly competitive' :
-                         omniscore >= 500 ? 'Your OmniScore is solid for this position' :
-                         'Build your OmniScore to increase visibility'
-        }
-      };
-    });
+			return {
+				job_id: job.job_id,
+				title: job.title,
+				company: job.company_name || job.company,
+				company_logo: job.company_logo,
+				location: job.location,
+				salary_range: job.salary_range,
+				job_type: job.job_type,
+				description: job.description?.substring(0, 200),
+				created_at: job.created_at,
+				trustscore: trustscore,
+				trust_tier: job.trust_tier,
+				similarity_score: Math.round(similarityScore * 100) / 100,
+				weighted_score: Math.round(weightedScore * 100) / 100,
+				match_level: matchLevel,
+				success_prediction: successPrediction,
+				matching_skills: matchingSkills,
+				missing_skills: missingSkills,
+				skill_match_pct: skillMatchPct,
+				explanation: {
+					why_matched: `${Math.round(similarityScore * 100)}% profile match`,
+					skills_match: `${skillMatchPct}% skills match (${matchingSkills.length} matched, ${missingSkills.length} gaps)`,
+					company_quality: `Company TrustScore ${trustscore} (${job.trust_tier || 'new'} tier)`,
+					your_strength:
+						omniscore >= 700
+							? 'Your strong OmniScore makes you highly competitive'
+							: omniscore >= 500
+								? 'Your OmniScore is solid for this position'
+								: 'Build your OmniScore to increase visibility',
+				},
+			};
+		});
 
-    // Cache recommendations
-    for (const match of matches) {
-      await client.query(`
+		// Cache recommendations
+		for (const match of matches) {
+			await client.query(
+				`
         INSERT INTO job_recommendations (
           user_id, job_id, match_score, recommendation_reason, created_at
         )
@@ -593,70 +624,72 @@ async function findMatchingJobs(userId, options = {}) {
         DO UPDATE SET
           match_score = $3,
           recommendation_reason = $4
-      `, [
-        userId,
-        match.job_id,
-        match.weighted_score,
-        `${match.match_level} match - ${match.explanation.why_matched}`
-      ]);
-    }
+      `,
+				[
+					userId,
+					match.job_id,
+					match.weighted_score,
+					`${match.match_level} match - ${match.explanation.why_matched}`,
+				],
+			);
+		}
 
-    return matches;
-  } finally {
-    client.release();
-  }
+		return matches;
+	} finally {
+		client.release();
+	}
 }
 
 /**
  * Explain why a candidate matched (or didn't match) a job
  */
 async function explainMatch(candidateId, jobId) {
-  const client = await pool.connect();
-  try {
-    // Check if match result exists
-    const matchResult = await client.query(
-      'SELECT * FROM match_results WHERE candidate_id = $1 AND job_id = $2',
-      [candidateId, jobId]
-    );
+	const client = await pool.connect();
+	try {
+		// Check if match result exists
+		const matchResult = await client.query(
+			'SELECT * FROM match_results WHERE candidate_id = $1 AND job_id = $2',
+			[candidateId, jobId],
+		);
 
-    if (matchResult.rows.length > 0) {
-      return matchResult.rows[0];
-    }
+		if (matchResult.rows.length > 0) {
+			return matchResult.rows[0];
+		}
 
-    // Calculate match on-demand if not cached
-    await updateCandidateEmbedding(candidateId);
-    await updateJobEmbedding(jobId);
+		// Calculate match on-demand if not cached
+		await updateCandidateEmbedding(candidateId);
+		await updateJobEmbedding(jobId);
 
-    const matches = await findMatchingCandidates(jobId, { limit: 100 });
-    const match = matches.find(m => m.candidate_id === candidateId);
+		const matches = await findMatchingCandidates(jobId, { limit: 100 });
+		const match = matches.find((m) => m.candidate_id === candidateId);
 
-    if (match) {
-      return {
-        match_level: match.match_level,
-        weighted_score: match.weighted_score,
-        similarity_score: match.similarity_score,
-        explanation: match.explanation
-      };
-    }
+		if (match) {
+			return {
+				match_level: match.match_level,
+				weighted_score: match.weighted_score,
+				similarity_score: match.similarity_score,
+				explanation: match.explanation,
+			};
+		}
 
-    return {
-      match_level: 'none',
-      weighted_score: 0,
-      explanation: {
-        reason: 'Profile does not meet minimum requirements for this position'
-      }
-    };
-  } finally {
-    client.release();
-  }
+		return {
+			match_level: 'none',
+			weighted_score: 0,
+			explanation: {
+				reason: 'Profile does not meet minimum requirements for this position',
+			},
+		};
+	} finally {
+		client.release();
+	}
 }
 
 module.exports = {
-  generateEmbedding,
-  updateCandidateEmbedding,
-  updateJobEmbedding,
-  findMatchingCandidates,
-  findMatchingJobs,
-  explainMatch,
-  compareSkills
+	generateEmbedding,
+	updateCandidateEmbedding,
+	updateJobEmbedding,
+	findMatchingCandidates,
+	findMatchingJobs,
+	explainMatch,
+	compareSkills,
 };

@@ -1,11 +1,11 @@
 // Phase 3: Smart Profile + MemGPT-Style Memory + Enhanced Matching
 module.exports = {
-  name: '037_smart_profile_memory',
-  up: async (pool) => {
-    // ============================================================
-    // 1. MemGPT-Style AI Memory System
-    // ============================================================
-    await pool.query(`
+	name: '037_smart_profile_memory',
+	up: async (pool) => {
+		// ============================================================
+		// 1. MemGPT-Style AI Memory System
+		// ============================================================
+		await pool.query(`
       CREATE TABLE IF NOT EXISTS user_memory (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -22,16 +22,16 @@ module.exports = {
       )
     `);
 
-    await pool.query(`
+		await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_user_memory_user ON user_memory(user_id);
       CREATE INDEX IF NOT EXISTS idx_user_memory_type ON user_memory(user_id, memory_type);
       CREATE INDEX IF NOT EXISTS idx_user_memory_key ON user_memory(user_id, memory_key);
     `);
 
-    // ============================================================
-    // 2. Screening Answers (linked to candidate profile for reuse)
-    // ============================================================
-    await pool.query(`
+		// ============================================================
+		// 2. Screening Answers (linked to candidate profile for reuse)
+		// ============================================================
+		await pool.query(`
       CREATE TABLE IF NOT EXISTS screening_answers (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -46,17 +46,17 @@ module.exports = {
       )
     `);
 
-    await pool.query(`
+		await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_screening_answers_user ON screening_answers(user_id);
       CREATE INDEX IF NOT EXISTS idx_screening_answers_question ON screening_answers(question_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_screening_answers_user_question
         ON screening_answers(user_id, question_text) WHERE question_text IS NOT NULL;
     `);
 
-    // ============================================================
-    // 3. Recruiter Preferences (saved templates, patterns)
-    // ============================================================
-    await pool.query(`
+		// ============================================================
+		// 3. Recruiter Preferences (saved templates, patterns)
+		// ============================================================
+		await pool.query(`
       CREATE TABLE IF NOT EXISTS recruiter_preferences (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
@@ -70,10 +70,10 @@ module.exports = {
       )
     `);
 
-    // ============================================================
-    // 4. Extended Match Results with more dimensions
-    // ============================================================
-    await pool.query(`
+		// ============================================================
+		// 4. Extended Match Results with more dimensions
+		// ============================================================
+		await pool.query(`
       ALTER TABLE match_results ADD COLUMN IF NOT EXISTS experience_score DECIMAL(5,2) DEFAULT 0;
       ALTER TABLE match_results ADD COLUMN IF NOT EXISTS education_score DECIMAL(5,2) DEFAULT 0;
       ALTER TABLE match_results ADD COLUMN IF NOT EXISTS salary_fit_score DECIMAL(5,2) DEFAULT 0;
@@ -83,17 +83,17 @@ module.exports = {
       ALTER TABLE match_results ADD COLUMN IF NOT EXISTS dimension_breakdown JSONB DEFAULT '{}';
     `);
 
-    // ============================================================
-    // 5. OmniScore History for trending
-    // ============================================================
-    await pool.query(`
+		// ============================================================
+		// 5. OmniScore History for trending
+		// ============================================================
+		await pool.query(`
       ALTER TABLE score_history ADD COLUMN IF NOT EXISTS score_snapshot JSONB DEFAULT '{}';
     `);
 
-    // ============================================================
-    // 6. Recruiter Feedback on Candidates (calibrates scoring)
-    // ============================================================
-    await pool.query(`
+		// ============================================================
+		// 6. Recruiter Feedback on Candidates (calibrates scoring)
+		// ============================================================
+		await pool.query(`
       CREATE TABLE IF NOT EXISTS recruiter_feedback (
         id SERIAL PRIMARY KEY,
         recruiter_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -106,15 +106,15 @@ module.exports = {
       )
     `);
 
-    await pool.query(`
+		await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_recruiter_feedback_candidate ON recruiter_feedback(candidate_id);
       CREATE INDEX IF NOT EXISTS idx_recruiter_feedback_recruiter ON recruiter_feedback(recruiter_id);
     `);
 
-    // ============================================================
-    // 7. Extend candidate_profiles with more fields for auto-fill
-    // ============================================================
-    await pool.query(`
+		// ============================================================
+		// 7. Extend candidate_profiles with more fields for auto-fill
+		// ============================================================
+		await pool.query(`
       ALTER TABLE candidate_profiles ADD COLUMN IF NOT EXISTS work_authorization VARCHAR(100);
       ALTER TABLE candidate_profiles ADD COLUMN IF NOT EXISTS visa_sponsorship_needed BOOLEAN DEFAULT false;
       ALTER TABLE candidate_profiles ADD COLUMN IF NOT EXISTS notice_period VARCHAR(50);
@@ -123,6 +123,6 @@ module.exports = {
       ALTER TABLE candidate_profiles ADD COLUMN IF NOT EXISTS cover_letter_template TEXT;
     `);
 
-    console.log('[migration] 037_smart_profile_memory complete');
-  }
+		console.log('[migration] 037_smart_profile_memory complete');
+	},
 };

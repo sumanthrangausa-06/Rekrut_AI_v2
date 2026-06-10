@@ -11,52 +11,76 @@ const countryConfig = require('../services/country-config');
 
 // Create offer
 router.post('/offers', authMiddleware, async (req, res) => {
-  try {
-    const { candidate_id, job_id, salary, start_date, benefits, template_data,
-            reporting_to, location, employment_type } = req.body;
-    // title can come from body or be derived from the job
-    let title = req.body.title;
+	try {
+		const {
+			candidate_id,
+			job_id,
+			salary,
+			start_date,
+			benefits,
+			template_data,
+			reporting_to,
+			location,
+			employment_type,
+		} = req.body;
+		// title can come from body or be derived from the job
+		let title = req.body.title;
 
-    if (!candidate_id || !job_id) {
-      return res.status(400).json({ error: 'candidate_id and job_id are required' });
-    }
+		if (!candidate_id || !job_id) {
+			return res.status(400).json({ error: 'candidate_id and job_id are required' });
+		}
 
-    const job = await pool.query('SELECT * FROM jobs WHERE id = $1 AND company_id = $2', [job_id, req.user.company_id]);
-    if (job.rows.length === 0) {
-      return res.status(404).json({ error: 'Job not found' });
-    }
+		const job = await pool.query('SELECT * FROM jobs WHERE id = $1 AND company_id = $2', [
+			job_id,
+			req.user.company_id,
+		]);
+		if (job.rows.length === 0) {
+			return res.status(404).json({ error: 'Job not found' });
+		}
 
-    // Default title to job title if not provided
-    if (!title || !title.trim()) {
-      title = job.rows[0].title || 'Employment Offer';
-    }
+		// Default title to job title if not provided
+		if (!title?.trim()) {
+			title = job.rows[0].title || 'Employment Offer';
+		}
 
-    const result = await pool.query(
-      `INSERT INTO offers (
+		const result = await pool.query(
+			`INSERT INTO offers (
         candidate_id, job_id, recruiter_id, company_id, title, company_name,
         salary, start_date, benefits, template_data, reporting_to, location,
         employment_type, status
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *`,
-      [candidate_id, job_id, req.user.id, req.user.company_id, title, job.rows[0].company || 'Rekrut AI',
-       parseFloat(salary) || 0, start_date, benefits, JSON.stringify(template_data || {}),
-       reporting_to || null, location || job.rows[0].location || null,
-       employment_type || 'full-time', 'draft']
-    );
+			[
+				candidate_id,
+				job_id,
+				req.user.id,
+				req.user.company_id,
+				title,
+				job.rows[0].company || 'Rekrut AI',
+				parseFloat(salary) || 0,
+				start_date,
+				benefits,
+				JSON.stringify(template_data || {}),
+				reporting_to || null,
+				location || job.rows[0].location || null,
+				employment_type || 'full-time',
+				'draft',
+			],
+		);
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error creating offer:', err);
-    res.status(500).json({ error: 'Failed to create offer' });
-  }
+		res.json(result.rows[0]);
+	} catch (err) {
+		console.error('Error creating offer:', err);
+		res.status(500).json({ error: 'Failed to create offer' });
+	}
 });
 
 // AI-generate professional offer letter
 router.post('/offers/:id/generate-letter', authMiddleware, async (req, res) => {
-  try {
-    // Get offer with all related data
-    const offerResult = await pool.query(
-      `SELECT o.*,
+	try {
+		// Get offer with all related data
+		const offerResult = await pool.query(
+			`SELECT o.*,
         u.name as candidate_name,
         u.email as candidate_email,
         j.title as job_title,
@@ -68,16 +92,16 @@ router.post('/offers/:id/generate-letter', authMiddleware, async (req, res) => {
       LEFT JOIN jobs j ON o.job_id = j.id
       LEFT JOIN users r ON o.recruiter_id = r.id
       WHERE o.id = $1 AND o.company_id = $2`,
-      [req.params.id, req.user.company_id]
-    );
+			[req.params.id, req.user.company_id],
+		);
 
-    if (offerResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Offer not found' });
-    }
+		if (offerResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Offer not found' });
+		}
 
-    const offer = offerResult.rows[0];
+		const offer = offerResult.rows[0];
 
-    const prompt = `Generate a professional, formal employment offer letter. Return ONLY the HTML content (no markdown, no code fences). Use clean, semantic HTML with inline styles for professional formatting.
+		const prompt = `Generate a professional, formal employment offer letter. Return ONLY the HTML content (no markdown, no code fences). Use clean, semantic HTML with inline styles for professional formatting.
 
 OFFER DETAILS:
 - Company Name: ${offer.company_name || 'The Company'}
@@ -114,74 +138,76 @@ FORMAT RULES:
 - Include horizontal rules to separate sections
 - The signature block should have clear lines for name, signature, and date`;
 
-    const letterHtml = await polsiaAI.chat(prompt, {
-      system: 'You are an expert HR document writer. Generate professional, legally appropriate employment offer letters. Return ONLY clean HTML with inline styles. No markdown, no code blocks, no explanations.',
-      module: 'onboarding', feature: 'offer_letter'
-    });
+		const letterHtml = await polsiaAI.chat(prompt, {
+			system:
+				'You are an expert HR document writer. Generate professional, legally appropriate employment offer letters. Return ONLY clean HTML with inline styles. No markdown, no code blocks, no explanations.',
+			module: 'onboarding',
+			feature: 'offer_letter',
+		});
 
-    // Clean up any accidental code fences
-    let cleanHtml = letterHtml.trim();
-    if (cleanHtml.startsWith('```')) {
-      cleanHtml = cleanHtml.replace(/^```(?:html)?\n?/, '').replace(/\n?```$/, '');
-    }
+		// Clean up any accidental code fences
+		let cleanHtml = letterHtml.trim();
+		if (cleanHtml.startsWith('```')) {
+			cleanHtml = cleanHtml.replace(/^```(?:html)?\n?/, '').replace(/\n?```$/, '');
+		}
 
-    // Store the generated letter
-    await pool.query(
-      `UPDATE offers SET
+		// Store the generated letter
+		await pool.query(
+			`UPDATE offers SET
         offer_letter_html = $1,
         offer_letter_generated_at = NOW(),
         updated_at = NOW()
       WHERE id = $2`,
-      [cleanHtml, req.params.id]
-    );
+			[cleanHtml, req.params.id],
+		);
 
-    res.json({
-      success: true,
-      offer_letter_html: cleanHtml,
-      generated_at: new Date().toISOString()
-    });
-  } catch (err) {
-    console.error('Error generating offer letter:', err);
-    res.status(500).json({ error: 'Failed to generate offer letter' });
-  }
+		res.json({
+			success: true,
+			offer_letter_html: cleanHtml,
+			generated_at: new Date().toISOString(),
+		});
+	} catch (err) {
+		console.error('Error generating offer letter:', err);
+		res.status(500).json({ error: 'Failed to generate offer letter' });
+	}
 });
 
 // Get offer letter HTML for viewing
 router.get('/offers/:id/letter', authMiddleware, async (req, res) => {
-  try {
-    // Allow both recruiter (company_id match) and candidate (candidate_id match)
-    const result = await pool.query(
-      `SELECT offer_letter_html, offer_letter_generated_at, status, candidate_signature, candidate_signed_at
+	try {
+		// Allow both recruiter (company_id match) and candidate (candidate_id match)
+		const result = await pool.query(
+			`SELECT offer_letter_html, offer_letter_generated_at, status, candidate_signature, candidate_signed_at
        FROM offers
        WHERE id = $1 AND (company_id = $2 OR candidate_id = $2)`,
-      [req.params.id, req.user.company_id || req.user.id]
-    );
+			[req.params.id, req.user.company_id || req.user.id],
+		);
 
-    if (result.rows.length === 0) {
-      // Try candidate match specifically
-      const candidateResult = await pool.query(
-        `SELECT offer_letter_html, offer_letter_generated_at, status, candidate_signature, candidate_signed_at
+		if (result.rows.length === 0) {
+			// Try candidate match specifically
+			const candidateResult = await pool.query(
+				`SELECT offer_letter_html, offer_letter_generated_at, status, candidate_signature, candidate_signed_at
          FROM offers WHERE id = $1 AND candidate_id = $2`,
-        [req.params.id, req.user.id]
-      );
-      if (candidateResult.rows.length === 0) {
-        return res.status(404).json({ error: 'Offer not found' });
-      }
-      return res.json(candidateResult.rows[0]);
-    }
+				[req.params.id, req.user.id],
+			);
+			if (candidateResult.rows.length === 0) {
+				return res.status(404).json({ error: 'Offer not found' });
+			}
+			return res.json(candidateResult.rows[0]);
+		}
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error fetching offer letter:', err);
-    res.status(500).json({ error: 'Failed to fetch offer letter' });
-  }
+		res.json(result.rows[0]);
+	} catch (err) {
+		console.error('Error fetching offer letter:', err);
+		res.status(500).json({ error: 'Failed to fetch offer letter' });
+	}
 });
 
 // Get all offers for recruiter's company
 router.get('/offers', authMiddleware, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT o.*,
+	try {
+		const result = await pool.query(
+			`SELECT o.*,
         u.name as candidate_name,
         u.email as candidate_email,
         j.title as job_title,
@@ -193,21 +219,21 @@ router.get('/offers', authMiddleware, async (req, res) => {
       LEFT JOIN users r ON o.recruiter_id = r.id
       WHERE o.company_id = $1
       ORDER BY o.created_at DESC`,
-      [req.user.company_id]
-    );
+			[req.user.company_id],
+		);
 
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching offers:', err);
-    res.status(500).json({ error: 'Failed to fetch offers' });
-  }
+		res.json(result.rows);
+	} catch (err) {
+		console.error('Error fetching offers:', err);
+		res.status(500).json({ error: 'Failed to fetch offers' });
+	}
 });
 
 // Get candidate's offers
 router.get('/offers/me', authMiddleware, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT o.*,
+	try {
+		const result = await pool.query(
+			`SELECT o.*,
         j.title as job_title,
         j.company,
         CASE WHEN o.offer_letter_html IS NOT NULL THEN true ELSE false END as has_letter
@@ -215,242 +241,252 @@ router.get('/offers/me', authMiddleware, async (req, res) => {
       LEFT JOIN jobs j ON o.job_id = j.id
       WHERE o.candidate_id = $1
       ORDER BY o.created_at DESC`,
-      [req.user.id]
-    );
+			[req.user.id],
+		);
 
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching offers:', err);
-    res.status(500).json({ error: 'Failed to fetch offers' });
-  }
+		res.json(result.rows);
+	} catch (err) {
+		console.error('Error fetching offers:', err);
+		res.status(500).json({ error: 'Failed to fetch offers' });
+	}
 });
 
 // Send offer to candidate
 router.post('/offers/:id/send', authMiddleware, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `UPDATE offers
+	try {
+		const result = await pool.query(
+			`UPDATE offers
        SET status = 'sent', sent_at = NOW(), updated_at = NOW()
        WHERE id = $1 AND company_id = $2
        RETURNING *`,
-      [req.params.id, req.user.company_id]
-    );
+			[req.params.id, req.user.company_id],
+		);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Offer not found' });
-    }
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Offer not found' });
+		}
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error sending offer:', err);
-    res.status(500).json({ error: 'Failed to send offer' });
-  }
+		res.json(result.rows[0]);
+	} catch (err) {
+		console.error('Error sending offer:', err);
+		res.status(500).json({ error: 'Failed to send offer' });
+	}
 });
 
 // Candidate views offer (track engagement)
 router.post('/offers/:id/view', authMiddleware, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `UPDATE offers
+	try {
+		const result = await pool.query(
+			`UPDATE offers
        SET viewed_at = COALESCE(viewed_at, NOW()),
            status = CASE WHEN status = 'sent' THEN 'viewed' ELSE status END,
            updated_at = NOW()
        WHERE id = $1 AND candidate_id = $2
        RETURNING *`,
-      [req.params.id, req.user.id]
-    );
+			[req.params.id, req.user.id],
+		);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Offer not found' });
-    }
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Offer not found' });
+		}
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error marking offer as viewed:', err);
-    res.status(500).json({ error: 'Failed to update offer' });
-  }
+		res.json(result.rows[0]);
+	} catch (err) {
+		console.error('Error marking offer as viewed:', err);
+		res.status(500).json({ error: 'Failed to update offer' });
+	}
 });
 
 // Accept offer (with e-signature)
 router.post('/offers/:id/accept', authMiddleware, async (req, res) => {
-  try {
-    const { signature_url, signature_data } = req.body;
-    const signerIp = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+	try {
+		const { signature_url, signature_data } = req.body;
+		const signerIp = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
 
-    const result = await pool.query(
-      `UPDATE offers
+		const result = await pool.query(
+			`UPDATE offers
        SET status = 'accepted', accepted_at = NOW(), signature_url = $3,
            candidate_signature = $4, candidate_signed_at = NOW(), candidate_sign_ip = $5,
            updated_at = NOW()
        WHERE id = $1 AND candidate_id = $2
        RETURNING *`,
-      [req.params.id, req.user.id, signature_url, signature_data || null, signerIp]
-    );
+			[req.params.id, req.user.id, signature_url, signature_data || null, signerIp],
+		);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Offer not found' });
-    }
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Offer not found' });
+		}
 
-    // Create country-aware onboarding checklist
-    const offer = result.rows[0];
+		// Create country-aware onboarding checklist
+		const offer = result.rows[0];
 
-    // Determine country from the offer/job
-    let offerCountryCode = offer.country_code || 'US';
-    if (!offer.country_code) {
-      // Try to get from job
-      try {
-        const jobCountry = await pool.query('SELECT country_code FROM jobs WHERE id = $1', [offer.job_id]);
-        if (jobCountry.rows.length > 0 && jobCountry.rows[0].country_code) {
-          offerCountryCode = jobCountry.rows[0].country_code;
-        }
-      } catch (e) { /* fallback to US */ }
-    }
+		// Determine country from the offer/job
+		let offerCountryCode = offer.country_code || 'US';
+		if (!offer.country_code) {
+			// Try to get from job
+			try {
+				const jobCountry = await pool.query('SELECT country_code FROM jobs WHERE id = $1', [
+					offer.job_id,
+				]);
+				if (jobCountry.rows.length > 0 && jobCountry.rows[0].country_code) {
+					offerCountryCode = jobCountry.rows[0].country_code;
+				}
+			} catch (_e) {
+				/* fallback to US */
+			}
+		}
 
-    // Get country-specific checklist items
-    let defaultItems;
-    const COUNTRY_CHECKLIST_ITEMS = {
-      US: [
-        { id: 1, task: 'Complete I-9 form (Employment Eligibility)', required: true },
-        { id: 2, task: 'Upload government-issued ID', required: true },
-        { id: 3, task: 'Set up direct deposit', required: true },
-        { id: 4, task: 'Complete tax withholding (W-4)', required: true },
-        { id: 5, task: 'Sign employee handbook acknowledgment', required: true },
-        { id: 6, task: 'Submit emergency contact information', required: true },
-        { id: 7, task: 'Complete IT setup (email, laptop)', required: false },
-        { id: 8, task: 'Schedule first day orientation', required: true },
-      ],
-      IN: [
-        { id: 1, task: 'Submit PAN card details', required: true },
-        { id: 2, task: 'Submit Aadhaar verification', required: true },
-        { id: 3, task: 'Complete PF Form 11 declaration', required: true },
-        { id: 4, task: 'Submit PF nomination (Form 2)', required: true },
-        { id: 5, task: 'Complete ESI form (if applicable)', required: false },
-        { id: 6, task: 'Submit gratuity nomination (Form F)', required: true },
-        { id: 7, task: 'Provide bank account details', required: true },
-        { id: 8, task: 'Sign employee handbook acknowledgment', required: true },
-        { id: 9, task: 'Submit emergency contact information', required: true },
-      ],
-      GB: [
-        { id: 1, task: 'Complete Right to Work check', required: true },
-        { id: 2, task: 'Submit P45 or Starter Checklist', required: true },
-        { id: 3, task: 'Provide National Insurance number', required: true },
-        { id: 4, task: 'Provide bank account details', required: true },
-        { id: 5, task: 'Sign employee handbook acknowledgment', required: true },
-        { id: 6, task: 'Submit emergency contact information', required: true },
-      ],
-      CA: [
-        { id: 1, task: 'Complete TD1 Federal tax credits form', required: true },
-        { id: 2, task: 'Complete TD1 Provincial tax credits form', required: true },
-        { id: 3, task: 'Provide Social Insurance Number (SIN)', required: true },
-        { id: 4, task: 'Provide bank account details', required: true },
-        { id: 5, task: 'Sign employee handbook acknowledgment', required: true },
-        { id: 6, task: 'Submit emergency contact information', required: true },
-      ],
-      DE: [
-        { id: 1, task: 'Sign GDPR data processing consent', required: true },
-        { id: 2, task: 'Provide Tax ID (Steuer-ID)', required: true },
-        { id: 3, task: 'Submit social insurance details', required: true },
-        { id: 4, task: 'Provide work permit (non-EU only)', required: false },
-        { id: 5, task: 'Provide IBAN for salary', required: true },
-        { id: 6, task: 'Sign employee handbook', required: true },
-      ],
-    };
-    defaultItems = COUNTRY_CHECKLIST_ITEMS[offerCountryCode] || COUNTRY_CHECKLIST_ITEMS['US'];
+		// Get country-specific checklist items
+		let defaultItems;
+		const COUNTRY_CHECKLIST_ITEMS = {
+			US: [
+				{ id: 1, task: 'Complete I-9 form (Employment Eligibility)', required: true },
+				{ id: 2, task: 'Upload government-issued ID', required: true },
+				{ id: 3, task: 'Set up direct deposit', required: true },
+				{ id: 4, task: 'Complete tax withholding (W-4)', required: true },
+				{ id: 5, task: 'Sign employee handbook acknowledgment', required: true },
+				{ id: 6, task: 'Submit emergency contact information', required: true },
+				{ id: 7, task: 'Complete IT setup (email, laptop)', required: false },
+				{ id: 8, task: 'Schedule first day orientation', required: true },
+			],
+			IN: [
+				{ id: 1, task: 'Submit PAN card details', required: true },
+				{ id: 2, task: 'Submit Aadhaar verification', required: true },
+				{ id: 3, task: 'Complete PF Form 11 declaration', required: true },
+				{ id: 4, task: 'Submit PF nomination (Form 2)', required: true },
+				{ id: 5, task: 'Complete ESI form (if applicable)', required: false },
+				{ id: 6, task: 'Submit gratuity nomination (Form F)', required: true },
+				{ id: 7, task: 'Provide bank account details', required: true },
+				{ id: 8, task: 'Sign employee handbook acknowledgment', required: true },
+				{ id: 9, task: 'Submit emergency contact information', required: true },
+			],
+			GB: [
+				{ id: 1, task: 'Complete Right to Work check', required: true },
+				{ id: 2, task: 'Submit P45 or Starter Checklist', required: true },
+				{ id: 3, task: 'Provide National Insurance number', required: true },
+				{ id: 4, task: 'Provide bank account details', required: true },
+				{ id: 5, task: 'Sign employee handbook acknowledgment', required: true },
+				{ id: 6, task: 'Submit emergency contact information', required: true },
+			],
+			CA: [
+				{ id: 1, task: 'Complete TD1 Federal tax credits form', required: true },
+				{ id: 2, task: 'Complete TD1 Provincial tax credits form', required: true },
+				{ id: 3, task: 'Provide Social Insurance Number (SIN)', required: true },
+				{ id: 4, task: 'Provide bank account details', required: true },
+				{ id: 5, task: 'Sign employee handbook acknowledgment', required: true },
+				{ id: 6, task: 'Submit emergency contact information', required: true },
+			],
+			DE: [
+				{ id: 1, task: 'Sign GDPR data processing consent', required: true },
+				{ id: 2, task: 'Provide Tax ID (Steuer-ID)', required: true },
+				{ id: 3, task: 'Submit social insurance details', required: true },
+				{ id: 4, task: 'Provide work permit (non-EU only)', required: false },
+				{ id: 5, task: 'Provide IBAN for salary', required: true },
+				{ id: 6, task: 'Sign employee handbook', required: true },
+			],
+		};
+		defaultItems = COUNTRY_CHECKLIST_ITEMS[offerCountryCode] || COUNTRY_CHECKLIST_ITEMS.US;
 
-    await pool.query(
-      `INSERT INTO onboarding_checklists
+		await pool.query(
+			`INSERT INTO onboarding_checklists
        (offer_id, candidate_id, title, description, items, due_date)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        offer.id,
-        offer.candidate_id,
-        'Pre-Onboarding Checklist',
-        'Complete these tasks before your first day',
-        JSON.stringify(defaultItems),
-        offer.start_date
-      ]
-    );
+			[
+				offer.id,
+				offer.candidate_id,
+				'Pre-Onboarding Checklist',
+				'Complete these tasks before your first day',
+				JSON.stringify(defaultItems),
+				offer.start_date,
+			],
+		);
 
-    // Auto-create employee record for payroll (bridges hiring → payroll pipeline)
-    try {
-      const empNum = 'EMP-' + String(offer.candidate_id).padStart(4, '0');
-      const empResult = await pool.query(`
+		// Auto-create employee record for payroll (bridges hiring → payroll pipeline)
+		try {
+			const empNum = `EMP-${String(offer.candidate_id).padStart(4, '0')}`;
+			const empResult = await pool.query(
+				`
         INSERT INTO employees (user_id, employer_id, company_id, employee_number, position, employment_type, start_date, status)
         VALUES ($1, $2, $3, $4, $5, 'full-time', $6, 'active')
         ON CONFLICT DO NOTHING
         RETURNING id
-      `, [
-        offer.candidate_id,
-        offer.recruiter_id,
-        offer.company_id,
-        empNum,
-        offer.title,
-        offer.start_date || new Date()
-      ]);
+      `,
+				[
+					offer.candidate_id,
+					offer.recruiter_id,
+					offer.company_id,
+					empNum,
+					offer.title,
+					offer.start_date || new Date(),
+				],
+			);
 
-      if (empResult.rows.length > 0) {
-        const annualSalary = parseFloat(offer.salary || 50000);
-        await pool.query(`
+			if (empResult.rows.length > 0) {
+				const annualSalary = parseFloat(offer.salary || 50000);
+				await pool.query(
+					`
           INSERT INTO payroll_configs (employee_id, salary_type, salary_amount, pay_frequency, payment_method, tax_filing_status)
           VALUES ($1, 'salary', $2, 'bi-weekly', 'direct_deposit', 'single')
           ON CONFLICT (employee_id) DO NOTHING
-        `, [empResult.rows[0].id, annualSalary]);
-      }
-    } catch (empErr) {
-      console.error('Auto-create employee record failed (non-blocking):', empErr.message);
-    }
+        `,
+					[empResult.rows[0].id, annualSalary],
+				);
+			}
+		} catch (empErr) {
+			console.error('Auto-create employee record failed (non-blocking):', empErr.message);
+		}
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error accepting offer:', err);
-    res.status(500).json({ error: 'Failed to accept offer' });
-  }
+		res.json(result.rows[0]);
+	} catch (err) {
+		console.error('Error accepting offer:', err);
+		res.status(500).json({ error: 'Failed to accept offer' });
+	}
 });
 
 // Withdraw offer (recruiter-side)
 router.post('/offers/:id/withdraw', authMiddleware, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `UPDATE offers
+	try {
+		const result = await pool.query(
+			`UPDATE offers
        SET status = 'withdrawn', updated_at = NOW()
        WHERE id = $1 AND company_id = $2 AND status IN ('draft', 'sent', 'viewed')
        RETURNING *`,
-      [req.params.id, req.user.company_id]
-    );
+			[req.params.id, req.user.company_id],
+		);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Offer not found or cannot be withdrawn' });
-    }
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Offer not found or cannot be withdrawn' });
+		}
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error withdrawing offer:', err);
-    res.status(500).json({ error: 'Failed to withdraw offer' });
-  }
+		res.json(result.rows[0]);
+	} catch (err) {
+		console.error('Error withdrawing offer:', err);
+		res.status(500).json({ error: 'Failed to withdraw offer' });
+	}
 });
 
 // Decline offer
 router.post('/offers/:id/decline', authMiddleware, async (req, res) => {
-  try {
-    const { reason, decline_reason } = req.body;
+	try {
+		const { reason, decline_reason } = req.body;
 
-    const result = await pool.query(
-      `UPDATE offers
+		const result = await pool.query(
+			`UPDATE offers
        SET status = 'declined', declined_at = NOW(), decline_reason = $3, updated_at = NOW()
        WHERE id = $1 AND candidate_id = $2
        RETURNING *`,
-      [req.params.id, req.user.id, decline_reason || reason || null]
-    );
+			[req.params.id, req.user.id, decline_reason || reason || null],
+		);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Offer not found' });
-    }
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Offer not found' });
+		}
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error declining offer:', err);
-    res.status(500).json({ error: 'Failed to decline offer' });
-  }
+		res.json(result.rows[0]);
+	} catch (err) {
+		console.error('Error declining offer:', err);
+		res.status(500).json({ error: 'Failed to decline offer' });
+	}
 });
 
 // ============================================
@@ -459,64 +495,64 @@ router.post('/offers/:id/decline', authMiddleware, async (req, res) => {
 
 // Get candidate's checklists
 router.get('/checklists', authMiddleware, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT * FROM onboarding_checklists
+	try {
+		const result = await pool.query(
+			`SELECT * FROM onboarding_checklists
        WHERE candidate_id = $1
        ORDER BY created_at DESC`,
-      [req.user.id]
-    );
+			[req.user.id],
+		);
 
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching checklists:', err);
-    res.status(500).json({ error: 'Failed to fetch checklists' });
-  }
+		res.json(result.rows);
+	} catch (err) {
+		console.error('Error fetching checklists:', err);
+		res.status(500).json({ error: 'Failed to fetch checklists' });
+	}
 });
 
 // Update checklist item completion
 router.post('/checklists/:id/complete', authMiddleware, async (req, res) => {
-  try {
-    const { item_id } = req.body;
+	try {
+		const { item_id } = req.body;
 
-    const checklist = await pool.query(
-      'SELECT * FROM onboarding_checklists WHERE id = $1 AND candidate_id = $2',
-      [req.params.id, req.user.id]
-    );
+		const checklist = await pool.query(
+			'SELECT * FROM onboarding_checklists WHERE id = $1 AND candidate_id = $2',
+			[req.params.id, req.user.id],
+		);
 
-    if (checklist.rows.length === 0) {
-      return res.status(404).json({ error: 'Checklist not found' });
-    }
+		if (checklist.rows.length === 0) {
+			return res.status(404).json({ error: 'Checklist not found' });
+		}
 
-    const completedItems = checklist.rows[0].completed_items || [];
-    if (!completedItems.includes(item_id)) {
-      completedItems.push(item_id);
-    }
+		const completedItems = checklist.rows[0].completed_items || [];
+		if (!completedItems.includes(item_id)) {
+			completedItems.push(item_id);
+		}
 
-    const items = checklist.rows[0].items || [];
-    const allCompleted = items.every(item => completedItems.includes(item.id));
+		const items = checklist.rows[0].items || [];
+		const allCompleted = items.every((item) => completedItems.includes(item.id));
 
-    const result = await pool.query(
-      `UPDATE onboarding_checklists
+		const result = await pool.query(
+			`UPDATE onboarding_checklists
        SET completed_items = $1,
            status = $2,
            completed_at = $3,
            updated_at = NOW()
        WHERE id = $4
        RETURNING *`,
-      [
-        JSON.stringify(completedItems),
-        allCompleted ? 'completed' : 'in_progress',
-        allCompleted ? new Date() : null,
-        req.params.id
-      ]
-    );
+			[
+				JSON.stringify(completedItems),
+				allCompleted ? 'completed' : 'in_progress',
+				allCompleted ? new Date() : null,
+				req.params.id,
+			],
+		);
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error updating checklist:', err);
-    res.status(500).json({ error: 'Failed to update checklist' });
-  }
+		res.json(result.rows[0]);
+	} catch (err) {
+		console.error('Error updating checklist:', err);
+		res.status(500).json({ error: 'Failed to update checklist' });
+	}
 });
 
 // ============================================
@@ -525,39 +561,39 @@ router.post('/checklists/:id/complete', authMiddleware, async (req, res) => {
 
 // Upload onboarding document
 router.post('/documents', authMiddleware, async (req, res) => {
-  try {
-    const { checklist_id, document_type, document_url } = req.body;
+	try {
+		const { checklist_id, document_type, document_url } = req.body;
 
-    const result = await pool.query(
-      `INSERT INTO onboarding_documents
+		const result = await pool.query(
+			`INSERT INTO onboarding_documents
        (checklist_id, candidate_id, document_type, document_url, status, uploaded_at)
        VALUES ($1, $2, $3, $4, $5, NOW())
        RETURNING *`,
-      [checklist_id, req.user.id, document_type, document_url, 'pending']
-    );
+			[checklist_id, req.user.id, document_type, document_url, 'pending'],
+		);
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error uploading document:', err);
-    res.status(500).json({ error: 'Failed to upload document' });
-  }
+		res.json(result.rows[0]);
+	} catch (err) {
+		console.error('Error uploading document:', err);
+		res.status(500).json({ error: 'Failed to upload document' });
+	}
 });
 
 // Get documents for checklist
 router.get('/checklists/:id/documents', authMiddleware, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT * FROM onboarding_documents
+	try {
+		const result = await pool.query(
+			`SELECT * FROM onboarding_documents
        WHERE checklist_id = $1 AND candidate_id = $2
        ORDER BY created_at DESC`,
-      [req.params.id, req.user.id]
-    );
+			[req.params.id, req.user.id],
+		);
 
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching documents:', err);
-    res.status(500).json({ error: 'Failed to fetch documents' });
-  }
+		res.json(result.rows);
+	} catch (err) {
+		console.error('Error fetching documents:', err);
+		res.status(500).json({ error: 'Failed to fetch documents' });
+	}
 });
 
 // ============================================
@@ -566,76 +602,76 @@ router.get('/checklists/:id/documents', authMiddleware, async (req, res) => {
 
 // Create feedback survey (auto-scheduled by system)
 router.post('/feedback/schedule', authMiddleware, async (req, res) => {
-  try {
-    const { employee_id, day_mark } = req.body;
+	try {
+		const { employee_id, day_mark } = req.body;
 
-    const questions = {
-      30: [
-        'How would you rate your onboarding experience?',
-        'Do you feel prepared to do your job?',
-        'Is there anything we could improve?'
-      ],
-      60: [
-        'How satisfied are you with your role?',
-        'Do you have the resources you need to succeed?',
-        'How would you rate communication with your manager?'
-      ],
-      90: [
-        'Would you recommend this company to a friend?',
-        'What has been your biggest challenge so far?',
-        'What has exceeded your expectations?'
-      ]
-    };
+		const questions = {
+			30: [
+				'How would you rate your onboarding experience?',
+				'Do you feel prepared to do your job?',
+				'Is there anything we could improve?',
+			],
+			60: [
+				'How satisfied are you with your role?',
+				'Do you have the resources you need to succeed?',
+				'How would you rate communication with your manager?',
+			],
+			90: [
+				'Would you recommend this company to a friend?',
+				'What has been your biggest challenge so far?',
+				'What has exceeded your expectations?',
+			],
+		};
 
-    const result = await pool.query(
-      `INSERT INTO post_hire_feedback
+		const result = await pool.query(
+			`INSERT INTO post_hire_feedback
        (employee_id, manager_id, feedback_type, day_mark, questions, status, sent_at)
        VALUES ($1, $2, $3, $4, $5, $6, NOW())
        RETURNING *`,
-      [
-        employee_id,
-        req.user.id,
-        'check_in',
-        day_mark,
-        JSON.stringify(questions[day_mark] || questions[30]),
-        'sent'
-      ]
-    );
+			[
+				employee_id,
+				req.user.id,
+				'check_in',
+				day_mark,
+				JSON.stringify(questions[day_mark] || questions[30]),
+				'sent',
+			],
+		);
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error scheduling feedback:', err);
-    res.status(500).json({ error: 'Failed to schedule feedback' });
-  }
+		res.json(result.rows[0]);
+	} catch (err) {
+		console.error('Error scheduling feedback:', err);
+		res.status(500).json({ error: 'Failed to schedule feedback' });
+	}
 });
 
 // Get employee's pending feedback
 router.get('/feedback/pending', authMiddleware, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT * FROM post_hire_feedback
+	try {
+		const result = await pool.query(
+			`SELECT * FROM post_hire_feedback
        WHERE employee_id = $1 AND status = 'sent'
        ORDER BY created_at DESC`,
-      [req.user.id]
-    );
+			[req.user.id],
+		);
 
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching feedback:', err);
-    res.status(500).json({ error: 'Failed to fetch feedback' });
-  }
+		res.json(result.rows);
+	} catch (err) {
+		console.error('Error fetching feedback:', err);
+		res.status(500).json({ error: 'Failed to fetch feedback' });
+	}
 });
 
 // Submit feedback responses
 router.post('/feedback/:id/submit', authMiddleware, async (req, res) => {
-  try {
-    const { responses, satisfaction_score, would_recommend, comments } = req.body;
+	try {
+		const { responses, satisfaction_score, would_recommend, comments } = req.body;
 
-    // Analyze feedback with AI
-    const aiAnalysis = await analyzeFeedbackWithAI(responses, comments);
+		// Analyze feedback with AI
+		const aiAnalysis = await analyzeFeedbackWithAI(responses, comments);
 
-    const result = await pool.query(
-      `UPDATE post_hire_feedback
+		const result = await pool.query(
+			`UPDATE post_hire_feedback
        SET responses = $1,
            satisfaction_score = $2,
            would_recommend = $3,
@@ -645,33 +681,33 @@ router.post('/feedback/:id/submit', authMiddleware, async (req, res) => {
            completed_at = NOW()
        WHERE id = $6 AND employee_id = $7
        RETURNING *`,
-      [
-        JSON.stringify(responses),
-        satisfaction_score,
-        would_recommend,
-        comments,
-        JSON.stringify(aiAnalysis),
-        req.params.id,
-        req.user.id
-      ]
-    );
+			[
+				JSON.stringify(responses),
+				satisfaction_score,
+				would_recommend,
+				comments,
+				JSON.stringify(aiAnalysis),
+				req.params.id,
+				req.user.id,
+			],
+		);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Feedback not found' });
-    }
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Feedback not found' });
+		}
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error submitting feedback:', err);
-    res.status(500).json({ error: 'Failed to submit feedback' });
-  }
+		res.json(result.rows[0]);
+	} catch (err) {
+		console.error('Error submitting feedback:', err);
+		res.status(500).json({ error: 'Failed to submit feedback' });
+	}
 });
 
 // Get feedback analytics for manager
 router.get('/feedback/analytics', authMiddleware, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT
+	try {
+		const result = await pool.query(
+			`SELECT
         day_mark,
         AVG(satisfaction_score) as avg_satisfaction,
         COUNT(*) as total_responses,
@@ -680,14 +716,14 @@ router.get('/feedback/analytics', authMiddleware, async (req, res) => {
       WHERE manager_id = $1 AND status = 'completed'
       GROUP BY day_mark
       ORDER BY day_mark`,
-      [req.user.id]
-    );
+			[req.user.id],
+		);
 
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching analytics:', err);
-    res.status(500).json({ error: 'Failed to fetch analytics' });
-  }
+		res.json(result.rows);
+	} catch (err) {
+		console.error('Error fetching analytics:', err);
+		res.status(500).json({ error: 'Failed to fetch analytics' });
+	}
 });
 
 // ============================================
@@ -696,100 +732,96 @@ router.get('/feedback/analytics', authMiddleware, async (req, res) => {
 
 // Start or continue chat session
 router.post('/assistant/chat', authMiddleware, async (req, res) => {
-  try {
-    const { message, checklist_id } = req.body;
+	try {
+		const { message, checklist_id } = req.body;
 
-    // Get or create chat session
-    let session = await pool.query(
-      `SELECT * FROM onboarding_chats
+		// Get or create chat session
+		const session = await pool.query(
+			`SELECT * FROM onboarding_chats
        WHERE candidate_id = $1 AND checklist_id = $2 AND is_active = true
        ORDER BY session_started DESC LIMIT 1`,
-      [req.user.id, checklist_id || null]
-    );
+			[req.user.id, checklist_id || null],
+		);
 
-    let sessionId;
-    let messages = [];
+		let sessionId;
+		let messages = [];
 
-    if (session.rows.length === 0) {
-      const newSession = await pool.query(
-        `INSERT INTO onboarding_chats (candidate_id, checklist_id, messages)
+		if (session.rows.length === 0) {
+			const newSession = await pool.query(
+				`INSERT INTO onboarding_chats (candidate_id, checklist_id, messages)
          VALUES ($1, $2, $3)
          RETURNING *`,
-        [req.user.id, checklist_id || null, JSON.stringify([])]
-      );
-      sessionId = newSession.rows[0].id;
-    } else {
-      sessionId = session.rows[0].id;
-      messages = session.rows[0].messages || [];
-    }
+				[req.user.id, checklist_id || null, JSON.stringify([])],
+			);
+			sessionId = newSession.rows[0].id;
+		} else {
+			sessionId = session.rows[0].id;
+			messages = session.rows[0].messages || [];
+		}
 
-    // Get company policies for context
-    const policies = await pool.query(
-      `SELECT category, title, content
+		// Get company policies for context
+		const policies = await pool.query(
+			`SELECT category, title, content
        FROM company_policies
        WHERE is_active = true
-       ORDER BY category`
-    );
+       ORDER BY category`,
+		);
 
-    // Build context from policies
-    const policyContext = policies.rows.map(p =>
-      `${p.category}: ${p.title}\n${p.content}`
-    ).join('\n\n');
+		// Build context from policies
+		const policyContext = policies.rows
+			.map((p) => `${p.category}: ${p.title}\n${p.content}`)
+			.join('\n\n');
 
-    // Add user message
-    messages.push({
-      role: 'user',
-      content: message,
-      timestamp: new Date().toISOString()
-    });
+		// Add user message
+		messages.push({
+			role: 'user',
+			content: message,
+			timestamp: new Date().toISOString(),
+		});
 
-    // Get AI response
-    const aiResponse = await getOnboardingAssistantResponse(
-      messages,
-      policyContext,
-      req.user
-    );
+		// Get AI response
+		const aiResponse = await getOnboardingAssistantResponse(messages, policyContext, req.user);
 
-    // Add AI response
-    messages.push({
-      role: 'assistant',
-      content: aiResponse,
-      timestamp: new Date().toISOString()
-    });
+		// Add AI response
+		messages.push({
+			role: 'assistant',
+			content: aiResponse,
+			timestamp: new Date().toISOString(),
+		});
 
-    // Update session
-    await pool.query(
-      `UPDATE onboarding_chats
+		// Update session
+		await pool.query(
+			`UPDATE onboarding_chats
        SET messages = $1, last_activity = NOW()
        WHERE id = $2`,
-      [JSON.stringify(messages), sessionId]
-    );
+			[JSON.stringify(messages), sessionId],
+		);
 
-    res.json({ response: aiResponse, session_id: sessionId });
-  } catch (err) {
-    console.error('Error in assistant chat:', err);
-    res.status(500).json({ error: 'Failed to process chat message' });
-  }
+		res.json({ response: aiResponse, session_id: sessionId });
+	} catch (err) {
+		console.error('Error in assistant chat:', err);
+		res.status(500).json({ error: 'Failed to process chat message' });
+	}
 });
 
 // Get chat history
 router.get('/assistant/history/:session_id', authMiddleware, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT * FROM onboarding_chats
+	try {
+		const result = await pool.query(
+			`SELECT * FROM onboarding_chats
        WHERE id = $1 AND candidate_id = $2`,
-      [req.params.session_id, req.user.id]
-    );
+			[req.params.session_id, req.user.id],
+		);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Session not found' });
-    }
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Session not found' });
+		}
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error fetching chat history:', err);
-    res.status(500).json({ error: 'Failed to fetch chat history' });
-  }
+		res.json(result.rows[0]);
+	} catch (err) {
+		console.error('Error fetching chat history:', err);
+		res.status(500).json({ error: 'Failed to fetch chat history' });
+	}
 });
 
 // ============================================
@@ -798,14 +830,14 @@ router.get('/assistant/history/:session_id', authMiddleware, async (req, res) =>
 
 // Get all onboarding documents for recruiter's company (all candidates)
 router.get('/recruiter/documents', authMiddleware, async (req, res) => {
-  try {
-    // Verify user is a recruiter with company_id
-    if (!req.user.company_id) {
-      return res.status(403).json({ error: 'Only recruiters can view onboarding documents' });
-    }
+	try {
+		// Verify user is a recruiter with company_id
+		if (!req.user.company_id) {
+			return res.status(403).json({ error: 'Only recruiters can view onboarding documents' });
+		}
 
-    const result = await pool.query(
-      `SELECT
+		const result = await pool.query(
+			`SELECT
         od.*,
         u.name as candidate_name,
         u.email as candidate_email,
@@ -819,36 +851,36 @@ router.get('/recruiter/documents', authMiddleware, async (req, res) => {
         SELECT id FROM offers WHERE company_id = $2
       )
       ORDER BY od.created_at DESC`,
-      [req.user.company_id, req.user.company_id]
-    );
+			[req.user.company_id, req.user.company_id],
+		);
 
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching recruiter onboarding documents:', err);
-    res.status(500).json({ error: 'Failed to fetch documents' });
-  }
+		res.json(result.rows);
+	} catch (err) {
+		console.error('Error fetching recruiter onboarding documents:', err);
+		res.status(500).json({ error: 'Failed to fetch documents' });
+	}
 });
 
 // Get onboarding documents for a specific candidate (recruiter view)
 router.get('/recruiter/candidate/:candidate_id/documents', authMiddleware, async (req, res) => {
-  try {
-    // Verify user is a recruiter
-    if (!req.user.company_id) {
-      return res.status(403).json({ error: 'Only recruiters can view onboarding documents' });
-    }
+	try {
+		// Verify user is a recruiter
+		if (!req.user.company_id) {
+			return res.status(403).json({ error: 'Only recruiters can view onboarding documents' });
+		}
 
-    // Verify candidate is associated with recruiter's company
-    const candidateCheck = await pool.query(
-      `SELECT id FROM offers WHERE candidate_id = $1 AND company_id = $2 LIMIT 1`,
-      [req.params.candidate_id, req.user.company_id]
-    );
+		// Verify candidate is associated with recruiter's company
+		const candidateCheck = await pool.query(
+			`SELECT id FROM offers WHERE candidate_id = $1 AND company_id = $2 LIMIT 1`,
+			[req.params.candidate_id, req.user.company_id],
+		);
 
-    if (candidateCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Candidate not associated with your company' });
-    }
+		if (candidateCheck.rows.length === 0) {
+			return res.status(403).json({ error: 'Candidate not associated with your company' });
+		}
 
-    const result = await pool.query(
-      `SELECT od.*, od.document_content, od.signer_ip, od.signer_user_agent,
+		const result = await pool.query(
+			`SELECT od.*, od.document_content, od.signer_ip, od.signer_user_agent,
         u.name as candidate_name,
         u.email as candidate_email,
         oc.title as checklist_title,
@@ -864,26 +896,26 @@ router.get('/recruiter/candidate/:candidate_id/documents', authMiddleware, async
       LEFT JOIN jobs j ON o.job_id = j.id
       WHERE od.candidate_id = $1
       ORDER BY od.created_at DESC`,
-      [req.params.candidate_id]
-    );
+			[req.params.candidate_id],
+		);
 
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching candidate onboarding documents:', err);
-    res.status(500).json({ error: 'Failed to fetch documents' });
-  }
+		res.json(result.rows);
+	} catch (err) {
+		console.error('Error fetching candidate onboarding documents:', err);
+		res.status(500).json({ error: 'Failed to fetch documents' });
+	}
 });
 
 // Get onboarding summary for recruiter dashboard (candidates with pending docs)
 router.get('/recruiter/summary', authMiddleware, async (req, res) => {
-  try {
-    // Verify user is a recruiter
-    if (!req.user.company_id) {
-      return res.status(403).json({ error: 'Only recruiters can view onboarding documents' });
-    }
+	try {
+		// Verify user is a recruiter
+		if (!req.user.company_id) {
+			return res.status(403).json({ error: 'Only recruiters can view onboarding documents' });
+		}
 
-    const result = await pool.query(
-      `SELECT
+		const result = await pool.query(
+			`SELECT
         u.id as candidate_id,
         u.name as candidate_name,
         u.email as candidate_email,
@@ -904,42 +936,42 @@ router.get('/recruiter/summary', authMiddleware, async (req, res) => {
       WHERE o.company_id = $1 AND o.status IN ('accepted', 'completed')
       GROUP BY u.id, u.name, u.email, oc.status, oc.due_date, j.title, cod.wizard_status, cod.current_step
       ORDER BY u.created_at DESC`,
-      [req.user.company_id]
-    );
+			[req.user.company_id],
+		);
 
-    // Derive real status from actual document progress (not checklist which may be fake-completed)
-    const candidates = result.rows.map(r => {
-      const totalDocs = parseInt(r.total_documents) || 0;
-      const signedDocs = parseInt(r.signed_documents) || 0;
-      let onboarding_status;
+		// Derive real status from actual document progress (not checklist which may be fake-completed)
+		const candidates = result.rows.map((r) => {
+			const totalDocs = parseInt(r.total_documents, 10) || 0;
+			const signedDocs = parseInt(r.signed_documents, 10) || 0;
+			let onboarding_status;
 
-      if (r.wizard_status === 'completed' && totalDocs > 0 && signedDocs === totalDocs) {
-        onboarding_status = 'completed';
-      } else if (totalDocs > 0 || r.wizard_step > 1) {
-        onboarding_status = 'in_progress';
-      } else {
-        onboarding_status = 'pending';
-      }
+			if (r.wizard_status === 'completed' && totalDocs > 0 && signedDocs === totalDocs) {
+				onboarding_status = 'completed';
+			} else if (totalDocs > 0 || r.wizard_step > 1) {
+				onboarding_status = 'in_progress';
+			} else {
+				onboarding_status = 'pending';
+			}
 
-      return {
-        candidate_id: r.candidate_id,
-        candidate_name: r.candidate_name,
-        candidate_email: r.candidate_email,
-        total_documents: r.total_documents,
-        signed_documents: r.signed_documents,
-        last_activity: r.last_activity,
-        onboarding_status,
-        due_date: r.due_date,
-        job_title: r.job_title,
-        wizard_step: r.wizard_step
-      };
-    });
+			return {
+				candidate_id: r.candidate_id,
+				candidate_name: r.candidate_name,
+				candidate_email: r.candidate_email,
+				total_documents: r.total_documents,
+				signed_documents: r.signed_documents,
+				last_activity: r.last_activity,
+				onboarding_status,
+				due_date: r.due_date,
+				job_title: r.job_title,
+				wizard_step: r.wizard_step,
+			};
+		});
 
-    res.json(candidates);
-  } catch (err) {
-    console.error('Error fetching onboarding summary:', err);
-    res.status(500).json({ error: 'Failed to fetch summary' });
-  }
+		res.json(candidates);
+	} catch (err) {
+		console.error('Error fetching onboarding summary:', err);
+		res.status(500).json({ error: 'Failed to fetch summary' });
+	}
 });
 
 // ============================================
@@ -948,147 +980,148 @@ router.get('/recruiter/summary', authMiddleware, async (req, res) => {
 
 // Get wizard progress for current candidate
 router.get('/wizard/progress', authMiddleware, async (req, res) => {
-  try {
-    // Get candidate's active checklist
-    const checklist = await pool.query(
-      `SELECT oc.*, o.title as offer_title, o.company_name, o.salary, o.start_date,
+	try {
+		// Get candidate's active checklist
+		const checklist = await pool.query(
+			`SELECT oc.*, o.title as offer_title, o.company_name, o.salary, o.start_date,
               j.title as job_title
        FROM onboarding_checklists oc
        JOIN offers o ON oc.offer_id = o.id
        LEFT JOIN jobs j ON o.job_id = j.id
        WHERE oc.candidate_id = $1
        ORDER BY oc.created_at DESC LIMIT 1`,
-      [req.user.id]
-    );
+			[req.user.id],
+		);
 
-    if (checklist.rows.length === 0) {
-      return res.json({ has_onboarding: false });
-    }
+		if (checklist.rows.length === 0) {
+			return res.json({ has_onboarding: false });
+		}
 
-    const cl = checklist.rows[0];
+		const cl = checklist.rows[0];
 
-    // Get or create wizard data
-    let wizardData = await pool.query(
-      'SELECT * FROM candidate_onboarding_data WHERE candidate_id = $1 AND checklist_id = $2',
-      [req.user.id, cl.id]
-    );
+		// Get or create wizard data
+		let wizardData = await pool.query(
+			'SELECT * FROM candidate_onboarding_data WHERE candidate_id = $1 AND checklist_id = $2',
+			[req.user.id, cl.id],
+		);
 
-    if (wizardData.rows.length === 0) {
-      // First time visiting the real wizard — create fresh wizard data
-      wizardData = await pool.query(
-        `INSERT INTO candidate_onboarding_data (candidate_id, checklist_id)
+		if (wizardData.rows.length === 0) {
+			// First time visiting the real wizard — create fresh wizard data
+			wizardData = await pool.query(
+				`INSERT INTO candidate_onboarding_data (candidate_id, checklist_id)
          VALUES ($1, $2)
          RETURNING *`,
-        [req.user.id, cl.id]
-      );
+				[req.user.id, cl.id],
+			);
 
-      // If the old fake auto-complete system marked the checklist as "completed"
-      // but no real wizard data exists, reset the checklist so the candidate
-      // can go through the real flow
-      if (cl.status === 'completed' || cl.status === 'in_progress') {
-        const existingDocs = await pool.query(
-          'SELECT COUNT(*) as cnt FROM onboarding_documents WHERE candidate_id = $1 AND checklist_id = $2',
-          [req.user.id, cl.id]
-        );
-        if (parseInt(existingDocs.rows[0].cnt) === 0) {
-          // No real documents = the old system faked it. Reset.
-          await pool.query(
-            `UPDATE onboarding_checklists SET
+			// If the old fake auto-complete system marked the checklist as "completed"
+			// but no real wizard data exists, reset the checklist so the candidate
+			// can go through the real flow
+			if (cl.status === 'completed' || cl.status === 'in_progress') {
+				const existingDocs = await pool.query(
+					'SELECT COUNT(*) as cnt FROM onboarding_documents WHERE candidate_id = $1 AND checklist_id = $2',
+					[req.user.id, cl.id],
+				);
+				if (parseInt(existingDocs.rows[0].cnt, 10) === 0) {
+					// No real documents = the old system faked it. Reset.
+					await pool.query(
+						`UPDATE onboarding_checklists SET
               status = 'in_progress',
               completed_items = '[]'::jsonb,
               completed_at = NULL,
               updated_at = NOW()
              WHERE id = $1`,
-            [cl.id]
-          );
-          cl.status = 'in_progress';
-          cl.completed_items = [];
-        }
-      }
-    }
+						[cl.id],
+					);
+					cl.status = 'in_progress';
+					cl.completed_items = [];
+				}
+			}
+		}
 
-    // Get existing documents
-    const documents = await pool.query(
-      'SELECT * FROM onboarding_documents WHERE candidate_id = $1 AND checklist_id = $2 ORDER BY created_at',
-      [req.user.id, cl.id]
-    );
+		// Get existing documents
+		const documents = await pool.query(
+			'SELECT * FROM onboarding_documents WHERE candidate_id = $1 AND checklist_id = $2 ORDER BY created_at',
+			[req.user.id, cl.id],
+		);
 
-    // Determine country from offer → job → company chain
-    const offerCountry = await pool.query(
-      `SELECT o.country_code as offer_country, j.country_code as job_country,
+		// Determine country from offer → job → company chain
+		const offerCountry = await pool.query(
+			`SELECT o.country_code as offer_country, j.country_code as job_country,
               c.primary_country as company_country
        FROM offers o
        LEFT JOIN jobs j ON o.job_id = j.id
        LEFT JOIN companies c ON o.company_id = c.id
        WHERE o.id = $1`,
-      [cl.offer_id]
-    );
+			[cl.offer_id],
+		);
 
-    let employeeCountry = 'US'; // default
-    if (offerCountry.rows.length > 0) {
-      const oc = offerCountry.rows[0];
-      employeeCountry = oc.offer_country || oc.job_country || oc.company_country || 'US';
-    }
+		let employeeCountry = 'US'; // default
+		if (offerCountry.rows.length > 0) {
+			const oc = offerCountry.rows[0];
+			employeeCountry = oc.offer_country || oc.job_country || oc.company_country || 'US';
+		}
 
-    // Get country-specific wizard steps
-    let wizardSteps = [];
-    let countryInfo = null;
-    try {
-      wizardSteps = await countryConfig.getWizardSteps(employeeCountry);
-      countryInfo = await countryConfig.getCountry(employeeCountry);
-    } catch (e) {
-      console.error('Error loading country config:', e.message);
-    }
+		// Get country-specific wizard steps
+		let wizardSteps = [];
+		let countryInfo = null;
+		try {
+			wizardSteps = await countryConfig.getWizardSteps(employeeCountry);
+			countryInfo = await countryConfig.getCountry(employeeCountry);
+		} catch (e) {
+			console.error('Error loading country config:', e.message);
+		}
 
-    res.json({
-      has_onboarding: true,
-      checklist: cl,
-      wizard: wizardData.rows[0],
-      documents: documents.rows,
-      country_code: employeeCountry,
-      country_info: countryInfo ? {
-        country_name: countryInfo.country_name,
-        currency_code: countryInfo.currency_code,
-        currency_symbol: countryInfo.currency_symbol,
-        date_format: countryInfo.date_format,
-        employment_model: countryInfo.employment_model,
-      } : null,
-      wizard_steps: wizardSteps,
-    });
-  } catch (err) {
-    console.error('Error getting wizard progress:', err);
-    res.status(500).json({ error: 'Failed to get wizard progress' });
-  }
+		res.json({
+			has_onboarding: true,
+			checklist: cl,
+			wizard: wizardData.rows[0],
+			documents: documents.rows,
+			country_code: employeeCountry,
+			country_info: countryInfo
+				? {
+						country_name: countryInfo.country_name,
+						currency_code: countryInfo.currency_code,
+						currency_symbol: countryInfo.currency_symbol,
+						date_format: countryInfo.date_format,
+						employment_model: countryInfo.employment_model,
+					}
+				: null,
+			wizard_steps: wizardSteps,
+		});
+	} catch (err) {
+		console.error('Error getting wizard progress:', err);
+		res.status(500).json({ error: 'Failed to get wizard progress' });
+	}
 });
 
 // Save wizard step data
 router.post('/wizard/save-step', authMiddleware, async (req, res) => {
-  try {
-    const { checklist_id, step, data } = req.body;
+	try {
+		const { checklist_id, step, data } = req.body;
 
-    // Verify checklist belongs to this candidate
-    const checklist = await pool.query(
-      'SELECT * FROM onboarding_checklists WHERE id = $1 AND candidate_id = $2',
-      [checklist_id, req.user.id]
-    );
-    if (checklist.rows.length === 0) {
-      return res.status(404).json({ error: 'Checklist not found' });
-    }
+		// Verify checklist belongs to this candidate
+		const checklist = await pool.query(
+			'SELECT * FROM onboarding_checklists WHERE id = $1 AND candidate_id = $2',
+			[checklist_id, req.user.id],
+		);
+		if (checklist.rows.length === 0) {
+			return res.status(404).json({ error: 'Checklist not found' });
+		}
 
-    // Get company_id from the offer
-    const offer = await pool.query(
-      'SELECT company_id FROM offers WHERE id = $1',
-      [checklist.rows[0].offer_id]
-    );
-    const companyId = offer.rows.length > 0 ? offer.rows[0].company_id : null;
+		// Get company_id from the offer
+		const offer = await pool.query('SELECT company_id FROM offers WHERE id = $1', [
+			checklist.rows[0].offer_id,
+		]);
+		const _companyId = offer.rows.length > 0 ? offer.rows[0].company_id : null;
 
-    let updateFields = {};
-    let updateQuery = '';
+		const _updateFields = {};
+		let updateQuery = '';
 
-    if (step === 1) {
-      // Personal Information + I-9 Section 1 Attestation (USCIS Form I-9, Edition 01/20/2025)
-      const ssnEncrypted = data.ssn ? Buffer.from(data.ssn).toString('base64') : null;
-      updateQuery = `
+		if (step === 1) {
+			// Personal Information + I-9 Section 1 Attestation (USCIS Form I-9, Edition 01/20/2025)
+			const ssnEncrypted = data.ssn ? Buffer.from(data.ssn).toString('base64') : null;
+			updateQuery = `
         UPDATE candidate_onboarding_data SET
           legal_first_name = $1, legal_middle_name = $2, legal_last_name = $3,
           date_of_birth = $4, ssn_encrypted = COALESCE($5, ssn_encrypted),
@@ -1109,30 +1142,38 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
         WHERE candidate_id = $21 AND checklist_id = $22
         RETURNING *
       `;
-      const result = await pool.query(updateQuery, [
-        data.legal_first_name, data.legal_middle_name || null, data.legal_last_name,
-        data.date_of_birth, ssnEncrypted,
-        data.address_line1, data.address_line2 || null, data.city,
-        data.state, data.zip_code, data.phone,
-        data.i9_citizenship_status || 'citizen',
-        data.i9_alien_number || null,
-        data.i9_admission_number || null,
-        data.i9_passport_number || null,
-        data.i9_country_of_issuance || null,
-        data.i9_work_auth_expiry || null,
-        data.i9_other_last_names || null,
-        data.i9_email || null,
-        data.i9_preparer_used || false,
-        req.user.id, checklist_id
-      ]);
+			const result = await pool.query(updateQuery, [
+				data.legal_first_name,
+				data.legal_middle_name || null,
+				data.legal_last_name,
+				data.date_of_birth,
+				ssnEncrypted,
+				data.address_line1,
+				data.address_line2 || null,
+				data.city,
+				data.state,
+				data.zip_code,
+				data.phone,
+				data.i9_citizenship_status || 'citizen',
+				data.i9_alien_number || null,
+				data.i9_admission_number || null,
+				data.i9_passport_number || null,
+				data.i9_country_of_issuance || null,
+				data.i9_work_auth_expiry || null,
+				data.i9_other_last_names || null,
+				data.i9_email || null,
+				data.i9_preparer_used || false,
+				req.user.id,
+				checklist_id,
+			]);
 
-      await completeChecklistItem(checklist_id, req.user.id, 1);
-      return res.json({ success: true, wizard: result.rows[0] });
-    }
+			await completeChecklistItem(checklist_id, req.user.id, 1);
+			return res.json({ success: true, wizard: result.rows[0] });
+		}
 
-    if (step === 2) {
-      // Emergency Contact
-      updateQuery = `
+		if (step === 2) {
+			// Emergency Contact
+			updateQuery = `
         UPDATE candidate_onboarding_data SET
           emergency_contact_name = $1, emergency_contact_relationship = $2,
           emergency_contact_phone = $3, emergency_contact_email = $4,
@@ -1142,21 +1183,24 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
         WHERE candidate_id = $5 AND checklist_id = $6
         RETURNING *
       `;
-      const result = await pool.query(updateQuery, [
-        data.emergency_contact_name, data.emergency_contact_relationship,
-        data.emergency_contact_phone, data.emergency_contact_email || null,
-        req.user.id, checklist_id
-      ]);
+			const result = await pool.query(updateQuery, [
+				data.emergency_contact_name,
+				data.emergency_contact_relationship,
+				data.emergency_contact_phone,
+				data.emergency_contact_email || null,
+				req.user.id,
+				checklist_id,
+			]);
 
-      // Complete checklist item 6 (emergency contact)
-      await completeChecklistItem(checklist_id, req.user.id, 6);
+			// Complete checklist item 6 (emergency contact)
+			await completeChecklistItem(checklist_id, req.user.id, 6);
 
-      return res.json({ success: true, wizard: result.rows[0] });
-    }
+			return res.json({ success: true, wizard: result.rows[0] });
+		}
 
-    if (step === 3) {
-      // Banking / Direct Deposit only
-      updateQuery = `
+		if (step === 3) {
+			// Banking / Direct Deposit only
+			updateQuery = `
         UPDATE candidate_onboarding_data SET
           bank_name = $1,
           routing_number_encrypted = COALESCE($2, routing_number_encrypted),
@@ -1168,21 +1212,22 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
         WHERE candidate_id = $5 AND checklist_id = $6
         RETURNING *
       `;
-      const result = await pool.query(updateQuery, [
-        data.bank_name,
-        data.routing_number ? Buffer.from(data.routing_number).toString('base64') : null,
-        data.account_number ? Buffer.from(data.account_number).toString('base64') : null,
-        data.account_type,
-        req.user.id, checklist_id
-      ]);
+			const result = await pool.query(updateQuery, [
+				data.bank_name,
+				data.routing_number ? Buffer.from(data.routing_number).toString('base64') : null,
+				data.account_number ? Buffer.from(data.account_number).toString('base64') : null,
+				data.account_type,
+				req.user.id,
+				checklist_id,
+			]);
 
-      await completeChecklistItem(checklist_id, req.user.id, 3);
-      return res.json({ success: true, wizard: result.rows[0] });
-    }
+			await completeChecklistItem(checklist_id, req.user.id, 3);
+			return res.json({ success: true, wizard: result.rows[0] });
+		}
 
-    if (step === 4) {
-      // Full W-4 Tax Withholding (IRS Form W-4 Steps 1-4)
-      updateQuery = `
+		if (step === 4) {
+			// Full W-4 Tax Withholding (IRS Form W-4 Steps 1-4)
+			updateQuery = `
         UPDATE candidate_onboarding_data SET
           w4_filing_status = $1,
           w4_multiple_jobs = $2,
@@ -1199,39 +1244,41 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
         WHERE candidate_id = $10 AND checklist_id = $11
         RETURNING *
       `;
-      const result = await pool.query(updateQuery, [
-        data.w4_filing_status || 'single',
-        data.w4_multiple_jobs || false,
-        data.w4_spouse_works || false,
-        parseInt(data.w4_num_dependents_under_17) || 0,
-        parseInt(data.w4_num_other_dependents) || 0,
-        parseFloat(data.w4_other_income) || 0,
-        parseFloat(data.w4_deductions) || 0,
-        parseFloat(data.w4_extra_withholding) || 0,
-        data.w4_exempt || false,
-        req.user.id, checklist_id
-      ]);
+			const result = await pool.query(updateQuery, [
+				data.w4_filing_status || 'single',
+				data.w4_multiple_jobs || false,
+				data.w4_spouse_works || false,
+				parseInt(data.w4_num_dependents_under_17, 10) || 0,
+				parseInt(data.w4_num_other_dependents, 10) || 0,
+				parseFloat(data.w4_other_income) || 0,
+				parseFloat(data.w4_deductions) || 0,
+				parseFloat(data.w4_extra_withholding) || 0,
+				data.w4_exempt || false,
+				req.user.id,
+				checklist_id,
+			]);
 
-      await completeChecklistItem(checklist_id, req.user.id, 4);
-      return res.json({ success: true, wizard: result.rows[0] });
-    }
+			await completeChecklistItem(checklist_id, req.user.id, 4);
+			return res.json({ success: true, wizard: result.rows[0] });
+		}
 
-    // ── Country-specific step handling (non-US countries) ──
-    // If the save includes country_code and country_specific_data, store in JSONB
-    if (data.country_code && data.country_code !== 'US') {
-      const cc = data.country_code;
-      const csd = data.country_specific_data || {};
+		// ── Country-specific step handling (non-US countries) ──
+		// If the save includes country_code and country_specific_data, store in JSONB
+		if (data.country_code && data.country_code !== 'US') {
+			const cc = data.country_code;
+			const csd = data.country_specific_data || {};
 
-      // Merge new country-specific data with existing
-      const existing = await pool.query(
-        'SELECT country_specific_data, country_code FROM candidate_onboarding_data WHERE candidate_id = $1 AND checklist_id = $2',
-        [req.user.id, checklist_id]
-      );
+			// Merge new country-specific data with existing
+			const existing = await pool.query(
+				'SELECT country_specific_data, country_code FROM candidate_onboarding_data WHERE candidate_id = $1 AND checklist_id = $2',
+				[req.user.id, checklist_id],
+			);
 
-      const existingData = existing.rows[0]?.country_specific_data || {};
-      const mergedData = { ...existingData, ...csd };
+			const existingData = existing.rows[0]?.country_specific_data || {};
+			const mergedData = { ...existingData, ...csd };
 
-      const result = await pool.query(`
+			const result = await pool.query(
+				`
         UPDATE candidate_onboarding_data SET
           country_code = $1,
           country_specific_data = $2,
@@ -1253,288 +1300,313 @@ router.post('/wizard/save-step', authMiddleware, async (req, res) => {
           updated_at = NOW()
         WHERE candidate_id = $14 AND checklist_id = $15
         RETURNING *
-      `, [
-        cc,
-        JSON.stringify(mergedData),
-        data.legal_first_name || null,
-        data.legal_last_name || null,
-        data.date_of_birth || null,
-        data.phone || null,
-        data.address_line1 || null,
-        data.city || null,
-        data.emergency_contact_name || null,
-        data.emergency_contact_phone || null,
-        data.bank_name || null,
-        step + 1,
-        String(step),
-        req.user.id,
-        checklist_id,
-      ]);
+      `,
+				[
+					cc,
+					JSON.stringify(mergedData),
+					data.legal_first_name || null,
+					data.legal_last_name || null,
+					data.date_of_birth || null,
+					data.phone || null,
+					data.address_line1 || null,
+					data.city || null,
+					data.emergency_contact_name || null,
+					data.emergency_contact_phone || null,
+					data.bank_name || null,
+					step + 1,
+					String(step),
+					req.user.id,
+					checklist_id,
+				],
+			);
 
-      await completeChecklistItem(checklist_id, req.user.id, step);
-      return res.json({ success: true, wizard: result.rows[0] });
-    }
+			await completeChecklistItem(checklist_id, req.user.id, step);
+			return res.json({ success: true, wizard: result.rows[0] });
+		}
 
-    res.status(400).json({ error: 'Invalid step' });
-  } catch (err) {
-    console.error('Error saving wizard step:', err);
-    res.status(500).json({ error: 'Failed to save step data' });
-  }
+		res.status(400).json({ error: 'Invalid step' });
+	} catch (err) {
+		console.error('Error saving wizard step:', err);
+		res.status(500).json({ error: 'Failed to save step data' });
+	}
 });
 
 // Generate documents from collected data
 router.post('/wizard/generate-documents', authMiddleware, async (req, res) => {
-  try {
-    const { checklist_id } = req.body;
+	try {
+		const { checklist_id } = req.body;
 
-    // Get wizard data
-    const wizardData = await pool.query(
-      'SELECT * FROM candidate_onboarding_data WHERE candidate_id = $1 AND checklist_id = $2',
-      [req.user.id, checklist_id]
-    );
+		// Get wizard data
+		const wizardData = await pool.query(
+			'SELECT * FROM candidate_onboarding_data WHERE candidate_id = $1 AND checklist_id = $2',
+			[req.user.id, checklist_id],
+		);
 
-    if (wizardData.rows.length === 0) {
-      return res.status(404).json({ error: 'No onboarding data found' });
-    }
+		if (wizardData.rows.length === 0) {
+			return res.status(404).json({ error: 'No onboarding data found' });
+		}
 
-    const wd = wizardData.rows[0];
+		const wd = wizardData.rows[0];
 
-    // Get offer details for the documents
-    const checklist = await pool.query(
-      `SELECT oc.*, o.company_name, o.title as offer_title, o.salary, o.start_date
+		// Get offer details for the documents
+		const checklist = await pool.query(
+			`SELECT oc.*, o.company_name, o.title as offer_title, o.salary, o.start_date
        FROM onboarding_checklists oc
        JOIN offers o ON oc.offer_id = o.id
        WHERE oc.id = $1 AND oc.candidate_id = $2`,
-      [checklist_id, req.user.id]
-    );
+			[checklist_id, req.user.id],
+		);
 
-    if (checklist.rows.length === 0) {
-      return res.status(404).json({ error: 'Checklist not found' });
-    }
+		if (checklist.rows.length === 0) {
+			return res.status(404).json({ error: 'Checklist not found' });
+		}
 
-    const cl = checklist.rows[0];
-    const companyId = cl.company_id || null;
+		const cl = checklist.rows[0];
+		const _companyId = cl.company_id || null;
 
-    // Get company_id from the offer
-    const offer = await pool.query(
-      'SELECT company_id FROM offers WHERE id = $1',
-      [cl.offer_id]
-    );
-    const offerCompanyId = offer.rows.length > 0 ? offer.rows[0].company_id : null;
+		// Get company_id from the offer
+		const offer = await pool.query('SELECT company_id FROM offers WHERE id = $1', [cl.offer_id]);
+		const offerCompanyId = offer.rows.length > 0 ? offer.rows[0].company_id : null;
 
-    const fullName = [wd.legal_first_name, wd.legal_middle_name, wd.legal_last_name]
-      .filter(Boolean).join(' ');
+		const fullName = [wd.legal_first_name, wd.legal_middle_name, wd.legal_last_name]
+			.filter(Boolean)
+			.join(' ');
 
-    const documents = [];
+		const documents = [];
 
-    // ── I-9 Employment Eligibility Verification (USCIS Form I-9, Edition 01/20/2025, OMB No. 1615-0047) ──
-    const citizenshipLabels = {
-      citizen: 'A citizen of the United States',
-      noncitizen_national: 'A noncitizen national of the United States',
-      permanent_resident: 'A lawful permanent resident',
-      work_authorized: 'An alien authorized to work'
-    };
+		// ── I-9 Employment Eligibility Verification (USCIS Form I-9, Edition 01/20/2025, OMB No. 1615-0047) ──
+		const citizenshipLabels = {
+			citizen: 'A citizen of the United States',
+			noncitizen_national: 'A noncitizen national of the United States',
+			permanent_resident: 'A lawful permanent resident',
+			work_authorized: 'An alien authorized to work',
+		};
 
-    const i9Content = {
-      form_type: 'I-9',
-      form_edition: '01/20/2025',
-      omb_number: '1615-0047',
-      omb_expiry: '05/31/2027',
-      employee_name: fullName,
-      first_name: wd.legal_first_name,
-      middle_initial: wd.legal_middle_name ? wd.legal_middle_name.charAt(0).toUpperCase() : '',
-      last_name: wd.legal_last_name,
-      other_last_names: wd.i9_other_last_names || 'N/A',
-      date_of_birth: wd.date_of_birth,
-      address: `${wd.address_line1}${wd.address_line2 ? ', ' + wd.address_line2 : ''}`,
-      apt_number: wd.address_line2 || '',
-      city: wd.city,
-      state: wd.state,
-      zip: wd.zip_code,
-      ssn_last_four: wd.ssn_encrypted ? '****' : 'N/A',
-      email: wd.i9_email || '',
-      phone: wd.phone || '',
-      citizenship_status: wd.i9_citizenship_status || 'citizen',
-      citizenship_label: citizenshipLabels[wd.i9_citizenship_status] || citizenshipLabels.citizen,
-      alien_number: wd.i9_alien_number || null,
-      admission_number: wd.i9_admission_number || null,
-      passport_number: wd.i9_passport_number || null,
-      country_of_issuance: wd.i9_country_of_issuance || null,
-      work_auth_expiry: wd.i9_work_auth_expiry || null,
-      preparer_used: wd.i9_preparer_used || false,
-      anti_discrimination_notice: 'It is illegal to discriminate against work-authorized individuals in hiring, firing, recruitment or referral for a fee, or in the employment eligibility verification (Form I-9 and E-Verify) process based on that individual\'s citizenship status, immigration status, or national origin. For more information, call the Immigrant and Employee Rights Section (IER) in the Department of Justice\'s Civil Rights Division at 1-800-255-7688 (employees), 1-800-255-8155 (employers), or 1-800-237-2515 (TTY).',
-      perjury_statement: 'I attest, under penalty of perjury, that I am (check one of the following boxes):',
-      false_statements_warning: 'I am aware that federal law provides for imprisonment and/or fines for false statements, or the use of false documents, in connection with the completion of this form. I attest, under penalty of perjury, that the information I have provided is true and correct.',
-      generated_at: new Date().toISOString(),
-      company: cl.company_name
-    };
+		const i9Content = {
+			form_type: 'I-9',
+			form_edition: '01/20/2025',
+			omb_number: '1615-0047',
+			omb_expiry: '05/31/2027',
+			employee_name: fullName,
+			first_name: wd.legal_first_name,
+			middle_initial: wd.legal_middle_name ? wd.legal_middle_name.charAt(0).toUpperCase() : '',
+			last_name: wd.legal_last_name,
+			other_last_names: wd.i9_other_last_names || 'N/A',
+			date_of_birth: wd.date_of_birth,
+			address: `${wd.address_line1}${wd.address_line2 ? `, ${wd.address_line2}` : ''}`,
+			apt_number: wd.address_line2 || '',
+			city: wd.city,
+			state: wd.state,
+			zip: wd.zip_code,
+			ssn_last_four: wd.ssn_encrypted ? '****' : 'N/A',
+			email: wd.i9_email || '',
+			phone: wd.phone || '',
+			citizenship_status: wd.i9_citizenship_status || 'citizen',
+			citizenship_label: citizenshipLabels[wd.i9_citizenship_status] || citizenshipLabels.citizen,
+			alien_number: wd.i9_alien_number || null,
+			admission_number: wd.i9_admission_number || null,
+			passport_number: wd.i9_passport_number || null,
+			country_of_issuance: wd.i9_country_of_issuance || null,
+			work_auth_expiry: wd.i9_work_auth_expiry || null,
+			preparer_used: wd.i9_preparer_used || false,
+			anti_discrimination_notice:
+				"It is illegal to discriminate against work-authorized individuals in hiring, firing, recruitment or referral for a fee, or in the employment eligibility verification (Form I-9 and E-Verify) process based on that individual's citizenship status, immigration status, or national origin. For more information, call the Immigrant and Employee Rights Section (IER) in the Department of Justice's Civil Rights Division at 1-800-255-7688 (employees), 1-800-255-8155 (employers), or 1-800-237-2515 (TTY).",
+			perjury_statement:
+				'I attest, under penalty of perjury, that I am (check one of the following boxes):',
+			false_statements_warning:
+				'I am aware that federal law provides for imprisonment and/or fines for false statements, or the use of false documents, in connection with the completion of this form. I attest, under penalty of perjury, that the information I have provided is true and correct.',
+			generated_at: new Date().toISOString(),
+			company: cl.company_name,
+		};
 
-    // Generate AI-formatted I-9 HTML
-    let i9Html = null;
-    try {
-      i9Html = await generateAIDocument('I-9', i9Content, cl.company_name);
-    } catch (e) {
-      console.error('AI I-9 generation failed, using template:', e.message);
-    }
+		// Generate AI-formatted I-9 HTML
+		let i9Html = null;
+		try {
+			i9Html = await generateAIDocument('I-9', i9Content, cl.company_name);
+		} catch (e) {
+			console.error('AI I-9 generation failed, using template:', e.message);
+		}
 
-    const i9 = await upsertDocument(
-      checklist_id, req.user.id, offerCompanyId,
-      'I-9 Employment Eligibility', i9Content,
-      `I-9 form for ${fullName} - ${cl.company_name}`,
-      i9Html
-    );
-    documents.push(i9);
+		const i9 = await upsertDocument(
+			checklist_id,
+			req.user.id,
+			offerCompanyId,
+			'I-9 Employment Eligibility',
+			i9Content,
+			`I-9 form for ${fullName} - ${cl.company_name}`,
+			i9Html,
+		);
+		documents.push(i9);
 
-    // ── W-4 Employee's Withholding Certificate (IRS Form W-4, 2025, OMB No. 1545-0074) ──
-    const filingStatusLabels = {
-      single: 'Single or Married filing separately',
-      married: 'Married filing jointly or Qualifying surviving spouse',
-      head_of_household: 'Head of household'
-    };
+		// ── W-4 Employee's Withholding Certificate (IRS Form W-4, 2025, OMB No. 1545-0074) ──
+		const filingStatusLabels = {
+			single: 'Single or Married filing separately',
+			married: 'Married filing jointly or Qualifying surviving spouse',
+			head_of_household: 'Head of household',
+		};
 
-    const dependentCredits = ((parseInt(wd.w4_num_dependents_under_17) || 0) * 2000) +
-                             ((parseInt(wd.w4_num_other_dependents) || 0) * 500);
+		const dependentCredits =
+			(parseInt(wd.w4_num_dependents_under_17, 10) || 0) * 2000 +
+			(parseInt(wd.w4_num_other_dependents, 10) || 0) * 500;
 
-    const w4Content = {
-      form_type: 'W-4',
-      form_year: '2025',
-      omb_number: '1545-0074',
-      employee_name: fullName,
-      first_name: wd.legal_first_name,
-      middle_initial: wd.legal_middle_name ? wd.legal_middle_name.charAt(0).toUpperCase() : '',
-      last_name: wd.legal_last_name,
-      ssn_last_four: wd.ssn_encrypted ? '****' : 'N/A',
-      address: `${wd.address_line1}${wd.address_line2 ? ', ' + wd.address_line2 : ''}`,
-      city_state_zip: `${wd.city}, ${wd.state} ${wd.zip_code}`,
-      filing_status: wd.w4_filing_status || 'single',
-      filing_status_label: filingStatusLabels[wd.w4_filing_status] || filingStatusLabels.single,
-      // Step 2: Multiple Jobs or Spouse Works (Option c checkbox)
-      multiple_jobs_checkbox: wd.w4_multiple_jobs || false,
-      // Step 3: Claim Dependents
-      num_dependents_under_17: parseInt(wd.w4_num_dependents_under_17) || 0,
-      num_other_dependents: parseInt(wd.w4_num_other_dependents) || 0,
-      dependent_credits: dependentCredits,
-      child_tax_credit_amount: 2000,
-      other_dependent_credit_amount: 500,
-      income_threshold_single: 200000,
-      income_threshold_married: 400000,
-      // Step 4: Other Adjustments
-      other_income: parseFloat(wd.w4_other_income) || 0,
-      deductions: parseFloat(wd.w4_deductions) || 0,
-      extra_withholding: parseFloat(wd.w4_extra_withholding) || 0,
-      // Exempt
-      exempt: wd.w4_exempt || false,
-      exempt_note: 'To claim exemption, employee must have had no federal income tax liability last year and expect none this year. Must submit new W-4 by February 17 of next year.',
-      // Employer section (Step 5)
-      employer: cl.company_name,
-      employer_address: 'On file',
-      employer_ein: 'On file',
-      first_date_of_employment: cl.start_date ? new Date(cl.start_date).toLocaleDateString('en-US') : 'TBD',
-      privacy_act_notice: 'The IRS asks for the information on this form to carry out the Internal Revenue laws of the United States. You are required to give this information to your employer but you do not have to respond to any questions that are not relevant to your tax situation.',
-      generated_at: new Date().toISOString(),
-      company: cl.company_name
-    };
+		const w4Content = {
+			form_type: 'W-4',
+			form_year: '2025',
+			omb_number: '1545-0074',
+			employee_name: fullName,
+			first_name: wd.legal_first_name,
+			middle_initial: wd.legal_middle_name ? wd.legal_middle_name.charAt(0).toUpperCase() : '',
+			last_name: wd.legal_last_name,
+			ssn_last_four: wd.ssn_encrypted ? '****' : 'N/A',
+			address: `${wd.address_line1}${wd.address_line2 ? `, ${wd.address_line2}` : ''}`,
+			city_state_zip: `${wd.city}, ${wd.state} ${wd.zip_code}`,
+			filing_status: wd.w4_filing_status || 'single',
+			filing_status_label: filingStatusLabels[wd.w4_filing_status] || filingStatusLabels.single,
+			// Step 2: Multiple Jobs or Spouse Works (Option c checkbox)
+			multiple_jobs_checkbox: wd.w4_multiple_jobs || false,
+			// Step 3: Claim Dependents
+			num_dependents_under_17: parseInt(wd.w4_num_dependents_under_17, 10) || 0,
+			num_other_dependents: parseInt(wd.w4_num_other_dependents, 10) || 0,
+			dependent_credits: dependentCredits,
+			child_tax_credit_amount: 2000,
+			other_dependent_credit_amount: 500,
+			income_threshold_single: 200000,
+			income_threshold_married: 400000,
+			// Step 4: Other Adjustments
+			other_income: parseFloat(wd.w4_other_income) || 0,
+			deductions: parseFloat(wd.w4_deductions) || 0,
+			extra_withholding: parseFloat(wd.w4_extra_withholding) || 0,
+			// Exempt
+			exempt: wd.w4_exempt || false,
+			exempt_note:
+				'To claim exemption, employee must have had no federal income tax liability last year and expect none this year. Must submit new W-4 by February 17 of next year.',
+			// Employer section (Step 5)
+			employer: cl.company_name,
+			employer_address: 'On file',
+			employer_ein: 'On file',
+			first_date_of_employment: cl.start_date
+				? new Date(cl.start_date).toLocaleDateString('en-US')
+				: 'TBD',
+			privacy_act_notice:
+				'The IRS asks for the information on this form to carry out the Internal Revenue laws of the United States. You are required to give this information to your employer but you do not have to respond to any questions that are not relevant to your tax situation.',
+			generated_at: new Date().toISOString(),
+			company: cl.company_name,
+		};
 
-    let w4Html = null;
-    try {
-      w4Html = await generateAIDocument('W-4', w4Content, cl.company_name);
-    } catch (e) {
-      console.error('AI W-4 generation failed, using template:', e.message);
-    }
+		let w4Html = null;
+		try {
+			w4Html = await generateAIDocument('W-4', w4Content, cl.company_name);
+		} catch (e) {
+			console.error('AI W-4 generation failed, using template:', e.message);
+		}
 
-    const w4 = await upsertDocument(
-      checklist_id, req.user.id, offerCompanyId,
-      'W-4 Tax Withholding', w4Content,
-      `W-4 form for ${fullName} - ${cl.company_name}`,
-      w4Html
-    );
-    documents.push(w4);
+		const w4 = await upsertDocument(
+			checklist_id,
+			req.user.id,
+			offerCompanyId,
+			'W-4 Tax Withholding',
+			w4Content,
+			`W-4 form for ${fullName} - ${cl.company_name}`,
+			w4Html,
+		);
+		documents.push(w4);
 
-    // ── Direct Deposit Authorization ──
-    const ddContent = {
-      form_type: 'Direct Deposit Authorization',
-      employee_name: fullName,
-      bank_name: wd.bank_name,
-      routing_last_four: wd.routing_number_encrypted ? '****' : 'N/A',
-      account_last_four: wd.account_number_encrypted ? '****' : 'N/A',
-      account_type: wd.account_type,
-      generated_at: new Date().toISOString(),
-      company: cl.company_name
-    };
+		// ── Direct Deposit Authorization ──
+		const ddContent = {
+			form_type: 'Direct Deposit Authorization',
+			employee_name: fullName,
+			bank_name: wd.bank_name,
+			routing_last_four: wd.routing_number_encrypted ? '****' : 'N/A',
+			account_last_four: wd.account_number_encrypted ? '****' : 'N/A',
+			account_type: wd.account_type,
+			generated_at: new Date().toISOString(),
+			company: cl.company_name,
+		};
 
-    const dd = await upsertDocument(
-      checklist_id, req.user.id, offerCompanyId,
-      'Direct Deposit Authorization', ddContent,
-      `Direct deposit form for ${fullName} - ${cl.company_name}`,
-      null
-    );
-    documents.push(dd);
+		const dd = await upsertDocument(
+			checklist_id,
+			req.user.id,
+			offerCompanyId,
+			'Direct Deposit Authorization',
+			ddContent,
+			`Direct deposit form for ${fullName} - ${cl.company_name}`,
+			null,
+		);
+		documents.push(dd);
 
-    // ── AI-Generated Employee Handbook Acknowledgment ──
-    let handbookHtml = null;
-    try {
-      const handbookPrompt = `Generate a professional Employee Handbook Acknowledgment for ${cl.company_name}, employee: ${fullName}. Include: at-will employment, equal opportunity, anti-harassment, confidentiality, code of conduct, tech use policy, attendance, safety, grievance procedures, and acknowledgment statement. Return ONLY HTML with inline styles. Professional format with navy (#1e3a5f) headers.`;
-      handbookHtml = await polsiaAI.chat(handbookPrompt, {
-        system: 'You are an expert HR document writer. Generate professional, legally appropriate documents. Return ONLY clean HTML with inline styles. No markdown, no code blocks.',
-        module: 'onboarding', feature: 'handbook'
-      });
-      if (handbookHtml.startsWith('```')) {
-        handbookHtml = handbookHtml.trim().replace(/^```(?:html)?\n?/, '').replace(/\n?```$/, '');
-      }
-    } catch (e) {
-      console.error('AI handbook generation failed:', e.message);
-    }
+		// ── AI-Generated Employee Handbook Acknowledgment ──
+		let handbookHtml = null;
+		try {
+			const handbookPrompt = `Generate a professional Employee Handbook Acknowledgment for ${cl.company_name}, employee: ${fullName}. Include: at-will employment, equal opportunity, anti-harassment, confidentiality, code of conduct, tech use policy, attendance, safety, grievance procedures, and acknowledgment statement. Return ONLY HTML with inline styles. Professional format with navy (#1e3a5f) headers.`;
+			handbookHtml = await polsiaAI.chat(handbookPrompt, {
+				system:
+					'You are an expert HR document writer. Generate professional, legally appropriate documents. Return ONLY clean HTML with inline styles. No markdown, no code blocks.',
+				module: 'onboarding',
+				feature: 'handbook',
+			});
+			if (handbookHtml.startsWith('```')) {
+				handbookHtml = handbookHtml
+					.trim()
+					.replace(/^```(?:html)?\n?/, '')
+					.replace(/\n?```$/, '');
+			}
+		} catch (e) {
+			console.error('AI handbook generation failed:', e.message);
+		}
 
-    const handbookContent = {
-      form_type: 'Employee Handbook Acknowledgment',
-      employee_name: fullName,
-      generated_at: new Date().toISOString(),
-      company: cl.company_name,
-      acknowledgment_text: `I, ${fullName}, acknowledge that I have received, read, and understand the employee handbook and policies of ${cl.company_name}. I agree to comply with all policies, procedures, and guidelines contained therein. I understand that this handbook is not a contract of employment and that my employment is at-will, meaning either party may terminate the employment relationship at any time, with or without cause or notice.`
-    };
+		const handbookContent = {
+			form_type: 'Employee Handbook Acknowledgment',
+			employee_name: fullName,
+			generated_at: new Date().toISOString(),
+			company: cl.company_name,
+			acknowledgment_text: `I, ${fullName}, acknowledge that I have received, read, and understand the employee handbook and policies of ${cl.company_name}. I agree to comply with all policies, procedures, and guidelines contained therein. I understand that this handbook is not a contract of employment and that my employment is at-will, meaning either party may terminate the employment relationship at any time, with or without cause or notice.`,
+		};
 
-    const handbook = await upsertDocument(
-      checklist_id, req.user.id, offerCompanyId,
-      'Employee Handbook Acknowledgment', handbookContent,
-      `Handbook acknowledgment for ${fullName}`,
-      handbookHtml
-    );
-    documents.push(handbook);
+		const handbook = await upsertDocument(
+			checklist_id,
+			req.user.id,
+			offerCompanyId,
+			'Employee Handbook Acknowledgment',
+			handbookContent,
+			`Handbook acknowledgment for ${fullName}`,
+			handbookHtml,
+		);
+		documents.push(handbook);
 
-    // Complete checklist items for W-4 and handbook
-    await completeChecklistItem(checklist_id, req.user.id, 4); // W-4
-    await completeChecklistItem(checklist_id, req.user.id, 5); // handbook
+		// Complete checklist items for W-4 and handbook
+		await completeChecklistItem(checklist_id, req.user.id, 4); // W-4
+		await completeChecklistItem(checklist_id, req.user.id, 5); // handbook
 
-    res.json({ success: true, documents });
-  } catch (err) {
-    console.error('Error generating documents:', err);
-    res.status(500).json({ error: 'Failed to generate documents' });
-  }
+		res.json({ success: true, documents });
+	} catch (err) {
+		console.error('Error generating documents:', err);
+		res.status(500).json({ error: 'Failed to generate documents' });
+	}
 });
 
 // E-sign a document
 router.post('/wizard/sign-document', authMiddleware, async (req, res) => {
-  try {
-    const { document_id, signature_data } = req.body;
-    const signerIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
-    const signerUserAgent = req.headers['user-agent'] || 'unknown';
+	try {
+		const { document_id, signature_data } = req.body;
+		const signerIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
+		const signerUserAgent = req.headers['user-agent'] || 'unknown';
 
-    // Verify document belongs to this candidate
-    const doc = await pool.query(
-      'SELECT * FROM onboarding_documents WHERE id = $1 AND candidate_id = $2',
-      [document_id, req.user.id]
-    );
+		// Verify document belongs to this candidate
+		const doc = await pool.query(
+			'SELECT * FROM onboarding_documents WHERE id = $1 AND candidate_id = $2',
+			[document_id, req.user.id],
+		);
 
-    if (doc.rows.length === 0) {
-      return res.status(404).json({ error: 'Document not found' });
-    }
+		if (doc.rows.length === 0) {
+			return res.status(404).json({ error: 'Document not found' });
+		}
 
-    if (doc.rows[0].signed_at) {
-      return res.json({ success: true, message: 'Already signed', document: doc.rows[0] });
-    }
+		if (doc.rows[0].signed_at) {
+			return res.json({ success: true, message: 'Already signed', document: doc.rows[0] });
+		}
 
-    const result = await pool.query(
-      `UPDATE onboarding_documents SET
+		const result = await pool.query(
+			`UPDATE onboarding_documents SET
         status = 'completed',
         signed_at = NOW(),
         signature_data = $1,
@@ -1543,25 +1615,25 @@ router.post('/wizard/sign-document', authMiddleware, async (req, res) => {
         content_summary = COALESCE(content_summary, '') || ' [Signed by candidate]'
        WHERE id = $4 AND candidate_id = $5
        RETURNING *`,
-      [signature_data, signerIp, signerUserAgent, document_id, req.user.id]
-    );
+			[signature_data, signerIp, signerUserAgent, document_id, req.user.id],
+		);
 
-    res.json({ success: true, document: result.rows[0] });
-  } catch (err) {
-    console.error('Error signing document:', err);
-    res.status(500).json({ error: 'Failed to sign document' });
-  }
+		res.json({ success: true, document: result.rows[0] });
+	} catch (err) {
+		console.error('Error signing document:', err);
+		res.status(500).json({ error: 'Failed to sign document' });
+	}
 });
 
 // Sign all documents at once
 router.post('/wizard/sign-all', authMiddleware, async (req, res) => {
-  try {
-    const { checklist_id, signature_data } = req.body;
-    const signerIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
-    const signerUserAgent = req.headers['user-agent'] || 'unknown';
+	try {
+		const { checklist_id, signature_data } = req.body;
+		const signerIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
+		const signerUserAgent = req.headers['user-agent'] || 'unknown';
 
-    const result = await pool.query(
-      `UPDATE onboarding_documents SET
+		const result = await pool.query(
+			`UPDATE onboarding_documents SET
         status = 'completed',
         signed_at = NOW(),
         signature_data = $1,
@@ -1569,57 +1641,57 @@ router.post('/wizard/sign-all', authMiddleware, async (req, res) => {
         signer_user_agent = $3
        WHERE checklist_id = $4 AND candidate_id = $5 AND signed_at IS NULL
        RETURNING *`,
-      [signature_data, signerIp, signerUserAgent, checklist_id, req.user.id]
-    );
+			[signature_data, signerIp, signerUserAgent, checklist_id, req.user.id],
+		);
 
-    // Complete remaining checklist items
-    await completeChecklistItem(checklist_id, req.user.id, 2); // Upload ID
-    await completeChecklistItem(checklist_id, req.user.id, 7); // IT setup
-    await completeChecklistItem(checklist_id, req.user.id, 8); // Orientation
+		// Complete remaining checklist items
+		await completeChecklistItem(checklist_id, req.user.id, 2); // Upload ID
+		await completeChecklistItem(checklist_id, req.user.id, 7); // IT setup
+		await completeChecklistItem(checklist_id, req.user.id, 8); // Orientation
 
-    // Mark wizard as completed
-    await pool.query(
-      `UPDATE candidate_onboarding_data SET
+		// Mark wizard as completed
+		await pool.query(
+			`UPDATE candidate_onboarding_data SET
         wizard_status = 'completed',
         current_step = 6,
         steps_completed = CASE WHEN steps_completed @> '"5"'::jsonb THEN steps_completed ELSE steps_completed || '"5"'::jsonb END,
         completed_at = NOW(),
         updated_at = NOW()
        WHERE candidate_id = $1 AND checklist_id = $2`,
-      [req.user.id, checklist_id]
-    );
+			[req.user.id, checklist_id],
+		);
 
-    // Mark checklist as completed
-    await pool.query(
-      `UPDATE onboarding_checklists SET
+		// Mark checklist as completed
+		await pool.query(
+			`UPDATE onboarding_checklists SET
         status = 'completed',
         completed_at = NOW(),
         updated_at = NOW()
        WHERE id = $1 AND candidate_id = $2`,
-      [checklist_id, req.user.id]
-    );
+			[checklist_id, req.user.id],
+		);
 
-    res.json({ success: true, signed_documents: result.rows });
-  } catch (err) {
-    console.error('Error signing all documents:', err);
-    res.status(500).json({ error: 'Failed to sign documents' });
-  }
+		res.json({ success: true, signed_documents: result.rows });
+	} catch (err) {
+		console.error('Error signing all documents:', err);
+		res.status(500).json({ error: 'Failed to sign documents' });
+	}
 });
 
 // Get candidate's documents for the wizard
 router.get('/wizard/documents/:checklist_id', authMiddleware, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT * FROM onboarding_documents
+	try {
+		const result = await pool.query(
+			`SELECT * FROM onboarding_documents
        WHERE checklist_id = $1 AND candidate_id = $2
        ORDER BY created_at`,
-      [req.params.checklist_id, req.user.id]
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error fetching wizard documents:', err);
-    res.status(500).json({ error: 'Failed to fetch documents' });
-  }
+			[req.params.checklist_id, req.user.id],
+		);
+		res.json(result.rows);
+	} catch (err) {
+		console.error('Error fetching wizard documents:', err);
+		res.status(500).json({ error: 'Failed to fetch documents' });
+	}
 });
 
 // ============================================
@@ -1628,100 +1700,104 @@ router.get('/wizard/documents/:checklist_id', authMiddleware, async (req, res) =
 
 // Download/export a document as printable HTML
 router.get('/recruiter/document/:document_id/download', authMiddleware, async (req, res) => {
-  try {
-    if (!req.user.company_id) {
-      return res.status(403).json({ error: 'Only recruiters can download documents' });
-    }
+	try {
+		if (!req.user.company_id) {
+			return res.status(403).json({ error: 'Only recruiters can download documents' });
+		}
 
-    const doc = await pool.query(
-      `SELECT od.*, u.name as candidate_name, u.email as candidate_email
+		const doc = await pool.query(
+			`SELECT od.*, u.name as candidate_name, u.email as candidate_email
        FROM onboarding_documents od
        JOIN users u ON od.candidate_id = u.id
        WHERE od.id = $1`,
-      [req.params.document_id]
-    );
+			[req.params.document_id],
+		);
 
-    if (doc.rows.length === 0) {
-      return res.status(404).json({ error: 'Document not found' });
-    }
+		if (doc.rows.length === 0) {
+			return res.status(404).json({ error: 'Document not found' });
+		}
 
-    const d = doc.rows[0];
+		const d = doc.rows[0];
 
-    // Verify access: document must belong to a candidate from this recruiter's company
-    const offerCheck = await pool.query(
-      `SELECT id FROM offers WHERE candidate_id = $1 AND company_id = $2 LIMIT 1`,
-      [d.candidate_id, req.user.company_id]
-    );
-    if (offerCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
+		// Verify access: document must belong to a candidate from this recruiter's company
+		const offerCheck = await pool.query(
+			`SELECT id FROM offers WHERE candidate_id = $1 AND company_id = $2 LIMIT 1`,
+			[d.candidate_id, req.user.company_id],
+		);
+		if (offerCheck.rows.length === 0) {
+			return res.status(403).json({ error: 'Access denied' });
+		}
 
-    const content = typeof d.document_content === 'string'
-      ? JSON.parse(d.document_content)
-      : (d.document_content || {});
+		const content =
+			typeof d.document_content === 'string'
+				? JSON.parse(d.document_content)
+				: d.document_content || {};
 
-    // Generate printable HTML document (uses AI-generated HTML if available)
-    const html = generatePrintableDocument(d, content);
+		// Generate printable HTML document (uses AI-generated HTML if available)
+		const html = generatePrintableDocument(d, content);
 
-    res.setHeader('Content-Type', 'text/html');
-    res.setHeader('Content-Disposition', `inline; filename="${d.document_type.replace(/[^a-zA-Z0-9]/g, '_')}_${d.candidate_name.replace(/[^a-zA-Z0-9]/g, '_')}.html"`);
-    res.send(html);
-  } catch (err) {
-    console.error('Error downloading document:', err);
-    res.status(500).json({ error: 'Failed to download document' });
-  }
+		res.setHeader('Content-Type', 'text/html');
+		res.setHeader(
+			'Content-Disposition',
+			`inline; filename="${d.document_type.replace(/[^a-zA-Z0-9]/g, '_')}_${d.candidate_name.replace(/[^a-zA-Z0-9]/g, '_')}.html"`,
+		);
+		res.send(html);
+	} catch (err) {
+		console.error('Error downloading document:', err);
+		res.status(500).json({ error: 'Failed to download document' });
+	}
 });
 
 // Get document JSON content for recruiter (for API consumers)
 router.get('/recruiter/document/:document_id/json', authMiddleware, async (req, res) => {
-  try {
-    if (!req.user.company_id) {
-      return res.status(403).json({ error: 'Only recruiters can access documents' });
-    }
+	try {
+		if (!req.user.company_id) {
+			return res.status(403).json({ error: 'Only recruiters can access documents' });
+		}
 
-    const doc = await pool.query(
-      `SELECT od.*, u.name as candidate_name, u.email as candidate_email
+		const doc = await pool.query(
+			`SELECT od.*, u.name as candidate_name, u.email as candidate_email
        FROM onboarding_documents od
        JOIN users u ON od.candidate_id = u.id
        WHERE od.id = $1`,
-      [req.params.document_id]
-    );
+			[req.params.document_id],
+		);
 
-    if (doc.rows.length === 0) {
-      return res.status(404).json({ error: 'Document not found' });
-    }
+		if (doc.rows.length === 0) {
+			return res.status(404).json({ error: 'Document not found' });
+		}
 
-    const d = doc.rows[0];
-    const offerCheck = await pool.query(
-      `SELECT id FROM offers WHERE candidate_id = $1 AND company_id = $2 LIMIT 1`,
-      [d.candidate_id, req.user.company_id]
-    );
-    if (offerCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
+		const d = doc.rows[0];
+		const offerCheck = await pool.query(
+			`SELECT id FROM offers WHERE candidate_id = $1 AND company_id = $2 LIMIT 1`,
+			[d.candidate_id, req.user.company_id],
+		);
+		if (offerCheck.rows.length === 0) {
+			return res.status(403).json({ error: 'Access denied' });
+		}
 
-    res.json(d);
-  } catch (err) {
-    console.error('Error fetching document JSON:', err);
-    res.status(500).json({ error: 'Failed to fetch document' });
-  }
+		res.json(d);
+	} catch (err) {
+		console.error('Error fetching document JSON:', err);
+		res.status(500).json({ error: 'Failed to fetch document' });
+	}
 });
 
 // Helper: Generate printable HTML document
 function generatePrintableDocument(doc, content) {
-  const signedInfo = doc.signed_at
-    ? `<div class="signature-block">
+	const signedInfo = doc.signed_at
+		? `<div class="signature-block">
         <p><strong>✅ Electronically Signed</strong></p>
         <p>Signed by: ${escapeHtmlServer(doc.candidate_name)}</p>
         <p>Date: ${new Date(doc.signed_at).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'medium' })}</p>
         <p>IP Address: ${escapeHtmlServer(doc.signer_ip || 'N/A')}</p>
         <p>User Agent: ${escapeHtmlServer((doc.signer_user_agent || 'N/A').substring(0, 80))}</p>
        </div>`
-    : '<p class="pending">⏳ Awaiting Signature</p>';
+		: '<p class="pending">⏳ Awaiting Signature</p>';
 
-  // If we have AI-generated HTML, use it
-  if (doc.ai_generated_html) {
-    return `<!DOCTYPE html>
+	// If we have AI-generated HTML, use it
+	if (doc.ai_generated_html) {
+		return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -1752,12 +1828,12 @@ function generatePrintableDocument(doc, content) {
   </div>
 </body>
 </html>`;
-  }
+	}
 
-  let bodyContent = '';
+	let bodyContent = '';
 
-  if (content.form_type === 'I-9') {
-    bodyContent = `
+	if (content.form_type === 'I-9') {
+		bodyContent = `
       <div class="form-header">
         <h2>Employment Eligibility Verification</h2>
         <p class="subtitle">Department of Homeland Security — U.S. Citizenship and Immigration Services</p>
@@ -1792,11 +1868,11 @@ function generatePrintableDocument(doc, content) {
       </div>
       <p style="font-size:11px;color:#666;margin-top:16px;font-style:italic;">Anti-Discrimination Notice: It is illegal to discriminate against work-authorized individuals in hiring, firing, recruitment, or referral for a fee because of their citizenship status or national origin.</p>
     `;
-  } else if (content.form_type === 'W-4') {
-    const depUnder17 = content.num_dependents_under_17 || 0;
-    const depOther = content.num_other_dependents || 0;
-    const totalCredits = content.dependent_credits || 0;
-    bodyContent = `
+	} else if (content.form_type === 'W-4') {
+		const depUnder17 = content.num_dependents_under_17 || 0;
+		const depOther = content.num_other_dependents || 0;
+		const totalCredits = content.dependent_credits || 0;
+		bodyContent = `
       <div class="form-header">
         <h2>Employee's Withholding Certificate</h2>
         <p class="subtitle">Department of the Treasury — Internal Revenue Service</p>
@@ -1842,8 +1918,8 @@ function generatePrintableDocument(doc, content) {
         </table>
       </div>
     `;
-  } else if (content.form_type === 'Direct Deposit Authorization') {
-    bodyContent = `
+	} else if (content.form_type === 'Direct Deposit Authorization') {
+		bodyContent = `
       <div class="form-header">
         <h2>Direct Deposit Authorization</h2>
         <p class="subtitle">Payroll Direct Deposit Setup</p>
@@ -1860,8 +1936,8 @@ function generatePrintableDocument(doc, content) {
         <p class="authorization">I hereby authorize my employer to deposit my pay directly into the bank account listed above. This authorization remains in effect until I provide written notice of cancellation.</p>
       </div>
     `;
-  } else if (content.form_type === 'Employee Handbook Acknowledgment') {
-    bodyContent = `
+	} else if (content.form_type === 'Employee Handbook Acknowledgment') {
+		bodyContent = `
       <div class="form-header">
         <h2>Employee Handbook Acknowledgment</h2>
         <p class="subtitle">${escapeHtmlServer(content.company || '')} — Employee Agreement</p>
@@ -1870,11 +1946,11 @@ function generatePrintableDocument(doc, content) {
         <p class="authorization">${escapeHtmlServer(content.acknowledgment_text || '')}</p>
       </div>
     `;
-  } else {
-    bodyContent = `<pre>${JSON.stringify(content, null, 2)}</pre>`;
-  }
+	} else {
+		bodyContent = `<pre>${JSON.stringify(content, null, 2)}</pre>`;
+	}
 
-  return `<!DOCTYPE html>
+	return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -1917,46 +1993,62 @@ function generatePrintableDocument(doc, content) {
 }
 
 function escapeHtmlServer(text) {
-  if (!text) return '';
-  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-  return String(text).replace(/[&<>"']/g, m => map[m]);
+	if (!text) return '';
+	const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+	return String(text).replace(/[&<>"']/g, (m) => map[m]);
 }
 
 // Helper: upsert a document (with optional AI-generated HTML)
-async function upsertDocument(checklistId, candidateId, companyId, docType, content, summary, aiHtml) {
-  const existing = await pool.query(
-    'SELECT * FROM onboarding_documents WHERE checklist_id = $1 AND candidate_id = $2 AND document_type = $3',
-    [checklistId, candidateId, docType]
-  );
+async function upsertDocument(
+	checklistId,
+	candidateId,
+	companyId,
+	docType,
+	content,
+	summary,
+	aiHtml,
+) {
+	const existing = await pool.query(
+		'SELECT * FROM onboarding_documents WHERE checklist_id = $1 AND candidate_id = $2 AND document_type = $3',
+		[checklistId, candidateId, docType],
+	);
 
-  if (existing.rows.length > 0) {
-    const updated = await pool.query(
-      `UPDATE onboarding_documents SET
+	if (existing.rows.length > 0) {
+		const updated = await pool.query(
+			`UPDATE onboarding_documents SET
         document_content = $1, content_summary = $2, status = 'pending', uploaded_at = NOW(),
         ai_generated_html = COALESCE($3, ai_generated_html),
         ai_generated_at = CASE WHEN $3 IS NOT NULL THEN NOW() ELSE ai_generated_at END
        WHERE id = $4 RETURNING *`,
-      [JSON.stringify(content), summary, aiHtml || null, existing.rows[0].id]
-    );
-    return updated.rows[0];
-  }
+			[JSON.stringify(content), summary, aiHtml || null, existing.rows[0].id],
+		);
+		return updated.rows[0];
+	}
 
-  const result = await pool.query(
-    `INSERT INTO onboarding_documents
+	const result = await pool.query(
+		`INSERT INTO onboarding_documents
      (checklist_id, candidate_id, company_id, document_type, document_content, content_summary, status, uploaded_at, ai_generated_html, ai_generated_at)
      VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW(), $7, CASE WHEN $7 IS NOT NULL THEN NOW() ELSE NULL END)
      RETURNING *`,
-    [checklistId, candidateId, companyId, docType, JSON.stringify(content), summary, aiHtml || null]
-  );
-  return result.rows[0];
+		[
+			checklistId,
+			candidateId,
+			companyId,
+			docType,
+			JSON.stringify(content),
+			summary,
+			aiHtml || null,
+		],
+	);
+	return result.rows[0];
 }
 
 // Helper: Generate AI-formatted document HTML
-async function generateAIDocument(formType, content, companyName) {
-  let prompt = '';
+async function generateAIDocument(formType, content, _companyName) {
+	let prompt = '';
 
-  if (formType === 'I-9') {
-    prompt = `Generate a professional HTML version of USCIS Form I-9 (Employment Eligibility Verification) Section 1 — Employee Information and Attestation.
+	if (formType === 'I-9') {
+		prompt = `Generate a professional HTML version of USCIS Form I-9 (Employment Eligibility Verification) Section 1 — Employee Information and Attestation.
 This is the official USCIS Form I-9, Edition ${content.form_edition || '01/20/2025'}, OMB No. ${content.omb_number || '1615-0047'}, Expires ${content.omb_expiry || '05/31/2027'}.
 
 PRE-FILLED EMPLOYEE DATA:
@@ -2003,8 +2095,8 @@ EXACT LAYOUT REQUIREMENTS (match official USCIS form):
 10. False statements warning: "${content.false_statements_warning}"
 11. Use professional formatting: max-width 800px, centered, serif font, light border
 12. Use navy (#1e3a5f) for headers, #333 for body text, gray (#f5f5f5) backgrounds for field boxes`;
-  } else if (formType === 'W-4') {
-    prompt = `Generate a professional HTML version of IRS Form W-4 (Employee's Withholding Certificate) ${content.form_year || '2025'}, OMB No. ${content.omb_number || '1545-0074'}.
+	} else if (formType === 'W-4') {
+		prompt = `Generate a professional HTML version of IRS Form W-4 (Employee's Withholding Certificate) ${content.form_year || '2025'}, OMB No. ${content.omb_number || '1545-0074'}.
 
 PRE-FILLED EMPLOYEE DATA:
 - First name and middle initial: ${content.first_name} ${content.middle_initial || ''}
@@ -2054,54 +2146,56 @@ EXACT LAYOUT REQUIREMENTS:
 7. Step 5: Signature line, date, employer section below
 8. Professional formatting: max-width 800px, centered, serif font, light border
 9. Use navy (#1e3a5f) for headers, light gray (#f5f5f5) boxes for data fields, clear step separators`;
-  }
+	}
 
-  const html = await polsiaAI.chat(prompt, {
-    system: 'You are an expert at generating government-compliant form documents in HTML. Generate clean, professional HTML with inline styles that closely matches the official form layout. Return ONLY HTML, no markdown, no code blocks, no explanations.',
-    module: 'onboarding', feature: 'gov_forms'
-  });
+	const html = await polsiaAI.chat(prompt, {
+		system:
+			'You are an expert at generating government-compliant form documents in HTML. Generate clean, professional HTML with inline styles that closely matches the official form layout. Return ONLY HTML, no markdown, no code blocks, no explanations.',
+		module: 'onboarding',
+		feature: 'gov_forms',
+	});
 
-  let cleanHtml = html.trim();
-  if (cleanHtml.startsWith('```')) {
-    cleanHtml = cleanHtml.replace(/^```(?:html)?\n?/, '').replace(/\n?```$/, '');
-  }
-  return cleanHtml;
+	let cleanHtml = html.trim();
+	if (cleanHtml.startsWith('```')) {
+		cleanHtml = cleanHtml.replace(/^```(?:html)?\n?/, '').replace(/\n?```$/, '');
+	}
+	return cleanHtml;
 }
 
 // Helper: complete a checklist item
 async function completeChecklistItem(checklistId, candidateId, itemId) {
-  try {
-    const checklist = await pool.query(
-      'SELECT * FROM onboarding_checklists WHERE id = $1 AND candidate_id = $2',
-      [checklistId, candidateId]
-    );
-    if (checklist.rows.length === 0) return;
+	try {
+		const checklist = await pool.query(
+			'SELECT * FROM onboarding_checklists WHERE id = $1 AND candidate_id = $2',
+			[checklistId, candidateId],
+		);
+		if (checklist.rows.length === 0) return;
 
-    const completedItems = checklist.rows[0].completed_items || [];
-    if (!completedItems.includes(itemId)) {
-      completedItems.push(itemId);
-    }
+		const completedItems = checklist.rows[0].completed_items || [];
+		if (!completedItems.includes(itemId)) {
+			completedItems.push(itemId);
+		}
 
-    const items = checklist.rows[0].items || [];
-    const allCompleted = items.every(item => completedItems.includes(item.id));
+		const items = checklist.rows[0].items || [];
+		const allCompleted = items.every((item) => completedItems.includes(item.id));
 
-    await pool.query(
-      `UPDATE onboarding_checklists SET
+		await pool.query(
+			`UPDATE onboarding_checklists SET
         completed_items = $1,
         status = $2,
         completed_at = $3,
         updated_at = NOW()
        WHERE id = $4`,
-      [
-        JSON.stringify(completedItems),
-        allCompleted ? 'completed' : 'in_progress',
-        allCompleted ? new Date() : null,
-        checklistId
-      ]
-    );
-  } catch (err) {
-    console.error('Error completing checklist item:', err);
-  }
+			[
+				JSON.stringify(completedItems),
+				allCompleted ? 'completed' : 'in_progress',
+				allCompleted ? new Date() : null,
+				checklistId,
+			],
+		);
+	} catch (err) {
+		console.error('Error completing checklist item:', err);
+	}
 }
 
 // ============================================
@@ -2110,93 +2204,98 @@ async function completeChecklistItem(checklistId, candidateId, itemId) {
 
 // AI Pre-fill: Pull candidate data from profile/application
 router.get('/wizard/ai-prefill', authMiddleware, async (req, res) => {
-  try {
-    // Get candidate profile data
-    const user = await pool.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
-    if (user.rows.length === 0) return res.json({ prefill: {} });
+	try {
+		// Get candidate profile data
+		const user = await pool.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+		if (user.rows.length === 0) return res.json({ prefill: {} });
 
-    const u = user.rows[0];
+		const u = user.rows[0];
 
-    // Get candidate profile if exists
-    const profile = await pool.query(
-      'SELECT * FROM candidate_profiles WHERE user_id = $1',
-      [req.user.id]
-    );
+		// Get candidate profile if exists
+		const profile = await pool.query('SELECT * FROM candidate_profiles WHERE user_id = $1', [
+			req.user.id,
+		]);
 
-    // Get most recent application data
-    const application = await pool.query(
-      `SELECT a.*, j.title as job_title, j.company
+		// Get most recent application data
+		const application = await pool.query(
+			`SELECT a.*, j.title as job_title, j.company
        FROM job_applications a
        LEFT JOIN jobs j ON a.job_id = j.id
        WHERE a.candidate_id = $1
        ORDER BY a.applied_at DESC LIMIT 1`,
-      [req.user.id]
-    );
+			[req.user.id],
+		);
 
-    // Get accepted offer
-    const offer = await pool.query(
-      `SELECT o.*, j.title as job_title
+		// Get accepted offer
+		const offer = await pool.query(
+			`SELECT o.*, j.title as job_title
        FROM offers o
        LEFT JOIN jobs j ON o.job_id = j.id
        WHERE o.candidate_id = $1 AND o.status = 'accepted'
        ORDER BY o.created_at DESC LIMIT 1`,
-      [req.user.id]
-    );
+			[req.user.id],
+		);
 
-    const p = profile.rows[0] || {};
-    const app = application.rows[0] || {};
-    const off = offer.rows[0] || {};
+		const p = profile.rows[0] || {};
+		const app = application.rows[0] || {};
+		const off = offer.rows[0] || {};
 
-    // Build pre-fill data from available sources
-    const nameParts = (u.name || '').split(' ');
-    const prefill = {
-      legal_first_name: nameParts[0] || '',
-      legal_middle_name: nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '',
-      legal_last_name: nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
-      phone: p.phone || '',
-      address_line1: p.address || '',
-      city: p.city || '',
-      state: p.state || '',
-      zip_code: p.zip_code || '',
-      job_title: off.job_title || off.title || app.job_title || '',
-      company_name: off.company_name || app.company || '',
-      start_date: off.start_date || '',
-      salary: off.salary || '',
-    };
+		// Build pre-fill data from available sources
+		const nameParts = (u.name || '').split(' ');
+		const prefill = {
+			legal_first_name: nameParts[0] || '',
+			legal_middle_name: nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '',
+			legal_last_name: nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
+			phone: p.phone || '',
+			address_line1: p.address || '',
+			city: p.city || '',
+			state: p.state || '',
+			zip_code: p.zip_code || '',
+			job_title: off.job_title || off.title || app.job_title || '',
+			company_name: off.company_name || app.company || '',
+			start_date: off.start_date || '',
+			salary: off.salary || '',
+		};
 
-    // Use AI to suggest filing status based on salary
-    let ai_suggestions = null;
-    try {
-      const salary = parseFloat(off.salary || 0);
-      if (salary > 0) {
-        const aiResponse = await polsiaAI.chat(
-          `Based on a new employee starting at $${salary.toLocaleString()} annual salary, provide brief W-4 guidance. Return JSON only: { "suggested_filing_status": "single|married|head_of_household", "filing_tip": "1 sentence tip", "withholding_note": "1 sentence about expected withholding" }`,
-          { system: 'You are a tax advisor assistant. Return ONLY valid JSON, no markdown, no code blocks.', module: 'onboarding', feature: 'w4_guidance' }
-        );
-        let cleaned = aiResponse.trim();
-        if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-        ai_suggestions = JSON.parse(cleaned);
-      }
-    } catch (e) {
-      console.error('AI prefill suggestions failed (non-blocking):', e.message);
-    }
+		// Use AI to suggest filing status based on salary
+		let ai_suggestions = null;
+		try {
+			const salary = parseFloat(off.salary || 0);
+			if (salary > 0) {
+				const aiResponse = await polsiaAI.chat(
+					`Based on a new employee starting at $${salary.toLocaleString()} annual salary, provide brief W-4 guidance. Return JSON only: { "suggested_filing_status": "single|married|head_of_household", "filing_tip": "1 sentence tip", "withholding_note": "1 sentence about expected withholding" }`,
+					{
+						system:
+							'You are a tax advisor assistant. Return ONLY valid JSON, no markdown, no code blocks.',
+						module: 'onboarding',
+						feature: 'w4_guidance',
+					},
+				);
+				let cleaned = aiResponse.trim();
+				if (cleaned.startsWith('```'))
+					cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+				ai_suggestions = JSON.parse(cleaned);
+			}
+		} catch (e) {
+			console.error('AI prefill suggestions failed (non-blocking):', e.message);
+		}
 
-    res.json({ prefill, ai_suggestions });
-  } catch (err) {
-    console.error('Error getting AI prefill:', err);
-    res.status(500).json({ error: 'Failed to get prefill data' });
-  }
+		res.json({ prefill, ai_suggestions });
+	} catch (err) {
+		console.error('Error getting AI prefill:', err);
+		res.status(500).json({ error: 'Failed to get prefill data' });
+	}
 });
 
 // AI W-4 Guidance: Explain withholding options in plain language
 router.post('/wizard/w4-guidance', authMiddleware, async (req, res) => {
-  try {
-    const { filing_status, salary, multiple_jobs, num_dependents, question } = req.body;
+	try {
+		const { filing_status, salary, multiple_jobs, num_dependents, question } = req.body;
 
-    const prompt = `You are a friendly HR assistant helping a new employee fill out their IRS Form W-4 (Employee's Withholding Certificate).
+		const prompt = `You are a friendly HR assistant helping a new employee fill out their IRS Form W-4 (Employee's Withholding Certificate).
 
 EMPLOYEE SITUATION:
-- Annual salary: ${salary ? '$' + Number(salary).toLocaleString() : 'Not provided'}
+- Annual salary: ${salary ? `$${Number(salary).toLocaleString()}` : 'Not provided'}
 - Filing status: ${filing_status || 'Not selected yet'}
 - Multiple jobs: ${multiple_jobs ? 'Yes' : 'No'}
 - Number of dependents: ${num_dependents || 0}
@@ -2214,66 +2313,79 @@ Return JSON: {
   "withholding_impact": "Brief note on how their choices affect their paycheck"
 }`;
 
-    const aiResponse = await polsiaAI.chat(prompt, {
-      system: 'You are a helpful HR/tax assistant. Explain W-4 concepts in simple language anyone can understand. Always return valid JSON only, no markdown or code blocks.',
-      module: 'onboarding', feature: 'w4_guidance'
-    });
+		const aiResponse = await polsiaAI.chat(prompt, {
+			system:
+				'You are a helpful HR/tax assistant. Explain W-4 concepts in simple language anyone can understand. Always return valid JSON only, no markdown or code blocks.',
+			module: 'onboarding',
+			feature: 'w4_guidance',
+		});
 
-    let cleaned = aiResponse.trim();
-    if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-    const guidance = JSON.parse(cleaned);
+		let cleaned = aiResponse.trim();
+		if (cleaned.startsWith('```'))
+			cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+		const guidance = JSON.parse(cleaned);
 
-    res.json({ guidance });
-  } catch (err) {
-    console.error('Error getting W-4 guidance:', err);
-    // Return fallback guidance instead of error
-    res.json({
-      guidance: {
-        step1_guidance: 'Choose "Single" if unmarried, "Married Filing Jointly" if married and filing together, or "Head of Household" if you pay more than half the cost of keeping up a home for a qualifying person.',
-        step2_guidance: 'Check this box only if you have more than one job at the same time, or if you\'re married filing jointly and your spouse also works.',
-        step3_guidance: 'Enter $2,000 for each child under 17, and $500 for other dependents. Multiply and add.',
-        step4_guidance: 'Most people can skip Step 4. Use it if you have investment income, want to claim extra deductions, or want extra tax withheld.',
-        personalized_tip: 'If this is your only job and you have a simple tax situation, the default settings are usually fine.',
-        estimated_credits: '0',
-        withholding_impact: 'More credits and deductions = larger paycheck but potentially smaller refund.'
-      }
-    });
-  }
+		res.json({ guidance });
+	} catch (err) {
+		console.error('Error getting W-4 guidance:', err);
+		// Return fallback guidance instead of error
+		res.json({
+			guidance: {
+				step1_guidance:
+					'Choose "Single" if unmarried, "Married Filing Jointly" if married and filing together, or "Head of Household" if you pay more than half the cost of keeping up a home for a qualifying person.',
+				step2_guidance:
+					"Check this box only if you have more than one job at the same time, or if you're married filing jointly and your spouse also works.",
+				step3_guidance:
+					'Enter $2,000 for each child under 17, and $500 for other dependents. Multiply and add.',
+				step4_guidance:
+					'Most people can skip Step 4. Use it if you have investment income, want to claim extra deductions, or want extra tax withheld.',
+				personalized_tip:
+					'If this is your only job and you have a simple tax situation, the default settings are usually fine.',
+				estimated_credits: '0',
+				withholding_impact:
+					'More credits and deductions = larger paycheck but potentially smaller refund.',
+			},
+		});
+	}
 });
 
 // AI-generated Employee Handbook
 router.post('/wizard/generate-handbook', authMiddleware, async (req, res) => {
-  try {
-    const { checklist_id } = req.body;
+	try {
+		const { checklist_id } = req.body;
 
-    // Get company info
-    const checklist = await pool.query(
-      `SELECT oc.*, o.company_name, o.title as offer_title
+		// Get company info
+		const checklist = await pool.query(
+			`SELECT oc.*, o.company_name, o.title as offer_title
        FROM onboarding_checklists oc
        JOIN offers o ON oc.offer_id = o.id
        WHERE oc.id = $1 AND oc.candidate_id = $2`,
-      [checklist_id, req.user.id]
-    );
+			[checklist_id, req.user.id],
+		);
 
-    if (checklist.rows.length === 0) {
-      return res.status(404).json({ error: 'Checklist not found' });
-    }
+		if (checklist.rows.length === 0) {
+			return res.status(404).json({ error: 'Checklist not found' });
+		}
 
-    const cl = checklist.rows[0];
-    const companyName = cl.company_name || 'The Company';
+		const cl = checklist.rows[0];
+		const companyName = cl.company_name || 'The Company';
 
-    // Get company policies if available
-    let policyContext = '';
-    try {
-      const policies = await pool.query(
-        'SELECT category, title, content FROM company_policies WHERE is_active = true ORDER BY category'
-      );
-      if (policies.rows.length > 0) {
-        policyContext = policies.rows.map(p => `${p.category}: ${p.title} - ${p.content}`).join('\n');
-      }
-    } catch (e) { /* company_policies table may not exist */ }
+		// Get company policies if available
+		let policyContext = '';
+		try {
+			const policies = await pool.query(
+				'SELECT category, title, content FROM company_policies WHERE is_active = true ORDER BY category',
+			);
+			if (policies.rows.length > 0) {
+				policyContext = policies.rows
+					.map((p) => `${p.category}: ${p.title} - ${p.content}`)
+					.join('\n');
+			}
+		} catch (_e) {
+			/* company_policies table may not exist */
+		}
 
-    const prompt = `Generate a professional Employee Handbook Acknowledgment document for ${companyName}.
+		const prompt = `Generate a professional Employee Handbook Acknowledgment document for ${companyName}.
 
 ${policyContext ? `EXISTING COMPANY POLICIES:\n${policyContext}\n\n` : ''}
 
@@ -2298,21 +2410,23 @@ Return ONLY clean HTML with inline styles. Format it as a professional document.
 
 Make it look like a real corporate handbook acknowledgment form.`;
 
-    const handbookHtml = await polsiaAI.chat(prompt, {
-      system: 'You are an expert HR document writer. Generate professional, legally appropriate employee handbook acknowledgments. Return ONLY clean HTML with inline styles. No markdown, no code blocks, no explanations.',
-      module: 'onboarding', feature: 'handbook'
-    });
+		const handbookHtml = await polsiaAI.chat(prompt, {
+			system:
+				'You are an expert HR document writer. Generate professional, legally appropriate employee handbook acknowledgments. Return ONLY clean HTML with inline styles. No markdown, no code blocks, no explanations.',
+			module: 'onboarding',
+			feature: 'handbook',
+		});
 
-    let cleanHtml = handbookHtml.trim();
-    if (cleanHtml.startsWith('```')) {
-      cleanHtml = cleanHtml.replace(/^```(?:html)?\n?/, '').replace(/\n?```$/, '');
-    }
+		let cleanHtml = handbookHtml.trim();
+		if (cleanHtml.startsWith('```')) {
+			cleanHtml = cleanHtml.replace(/^```(?:html)?\n?/, '').replace(/\n?```$/, '');
+		}
 
-    res.json({ handbook_html: cleanHtml });
-  } catch (err) {
-    console.error('Error generating handbook:', err);
-    res.status(500).json({ error: 'Failed to generate handbook' });
-  }
+		res.json({ handbook_html: cleanHtml });
+	} catch (err) {
+		console.error('Error generating handbook:', err);
+		res.status(500).json({ error: 'Failed to generate handbook' });
+	}
 });
 
 // ============================================
@@ -2320,8 +2434,8 @@ Make it look like a real corporate handbook acknowledgment form.`;
 // ============================================
 
 async function analyzeFeedbackWithAI(responses, comments) {
-  try {
-    const prompt = `Analyze this employee feedback and provide insights:
+	try {
+		const prompt = `Analyze this employee feedback and provide insights:
 
 Responses: ${JSON.stringify(responses)}
 Comments: ${comments}
@@ -2332,20 +2446,22 @@ Provide:
 3. Action items for management
 4. Risk level (low/medium/high) if negative patterns detected`;
 
-    const analysis = await polsiaAI.chat([
-      { role: 'user', content: prompt }
-    ], { max_tokens: 1024, module: 'onboarding', feature: 'compliance_analysis' });
+		const analysis = await polsiaAI.chat([{ role: 'user', content: prompt }], {
+			max_tokens: 1024,
+			module: 'onboarding',
+			feature: 'compliance_analysis',
+		});
 
-    return { analysis: analysis, analyzed_at: new Date().toISOString() };
-  } catch (err) {
-    console.error('Error analyzing feedback:', err);
-    return { error: 'Analysis failed' };
-  }
+		return { analysis: analysis, analyzed_at: new Date().toISOString() };
+	} catch (err) {
+		console.error('Error analyzing feedback:', err);
+		return { error: 'Analysis failed' };
+	}
 }
 
 async function getOnboardingAssistantResponse(messages, policyContext, user) {
-  try {
-    const systemPrompt = `You are an onboarding assistant for new employees. You help them understand company policies, complete paperwork, and answer questions about their first days.
+	try {
+		const systemPrompt = `You are an onboarding assistant for new employees. You help them understand company policies, complete paperwork, and answer questions about their first days.
 
 Company Policies and Information:
 ${policyContext}
@@ -2354,16 +2470,19 @@ Employee name: ${user.name || 'there'}
 
 Be friendly, helpful, and direct. If you don't know something, say so and suggest they contact HR.`;
 
-    const response = await polsiaAI.chat([
-      { role: 'system', content: systemPrompt },
-      ...messages.map(m => ({ role: m.role, content: m.content }))
-    ], { max_tokens: 512, module: 'onboarding', feature: 'hr_chatbot' });
+		const response = await polsiaAI.chat(
+			[
+				{ role: 'system', content: systemPrompt },
+				...messages.map((m) => ({ role: m.role, content: m.content })),
+			],
+			{ max_tokens: 512, module: 'onboarding', feature: 'hr_chatbot' },
+		);
 
-    return response;
-  } catch (err) {
-    console.error('Error getting AI response:', err);
-    return "I'm having trouble connecting right now. Please try again or contact HR directly.";
-  }
+		return response;
+	} catch (err) {
+		console.error('Error getting AI response:', err);
+		return "I'm having trouble connecting right now. Please try again or contact HR directly.";
+	}
 }
 
 // ============================================
@@ -2372,33 +2491,33 @@ Be friendly, helpful, and direct. If you don't know something, say so and sugges
 
 // Generate an AI onboarding plan for a new hire
 router.post('/generate-plan', authMiddleware, async (req, res) => {
-  try {
-    const { candidate_id, job_id, role_title, department, offer_id } = req.body;
+	try {
+		const { candidate_id, job_id, role_title, department, offer_id } = req.body;
 
-    if (!role_title) {
-      return res.status(400).json({ error: 'role_title is required' });
-    }
+		if (!role_title) {
+			return res.status(400).json({ error: 'role_title is required' });
+		}
 
-    // Get job details if provided
-    let jobContext = '';
-    if (job_id) {
-      const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [job_id]);
-      if (job.rows.length > 0) {
-        const j = job.rows[0];
-        jobContext = `\nJob Title: ${j.title}\nDescription: ${(j.description || '').substring(0, 500)}\nLocation: ${j.location || 'Not specified'}\nRequirements: ${(j.requirements || '').substring(0, 300)}`;
-      }
-    }
+		// Get job details if provided
+		let jobContext = '';
+		if (job_id) {
+			const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [job_id]);
+			if (job.rows.length > 0) {
+				const j = job.rows[0];
+				jobContext = `\nJob Title: ${j.title}\nDescription: ${(j.description || '').substring(0, 500)}\nLocation: ${j.location || 'Not specified'}\nRequirements: ${(j.requirements || '').substring(0, 300)}`;
+			}
+		}
 
-    // Get candidate info if provided
-    let candidateContext = '';
-    if (candidate_id) {
-      const cand = await pool.query('SELECT name, email FROM users WHERE id = $1', [candidate_id]);
-      if (cand.rows.length > 0) {
-        candidateContext = `\nNew Hire Name: ${cand.rows[0].name}\nEmail: ${cand.rows[0].email}`;
-      }
-    }
+		// Get candidate info if provided
+		let candidateContext = '';
+		if (candidate_id) {
+			const cand = await pool.query('SELECT name, email FROM users WHERE id = $1', [candidate_id]);
+			if (cand.rows.length > 0) {
+				candidateContext = `\nNew Hire Name: ${cand.rows[0].name}\nEmail: ${cand.rows[0].email}`;
+			}
+		}
 
-    const prompt = `Generate a comprehensive onboarding plan for a new "${role_title}" hire${department ? ` in the ${department} department` : ''}.
+		const prompt = `Generate a comprehensive onboarding plan for a new "${role_title}" hire${department ? ` in the ${department} department` : ''}.
 ${jobContext}${candidateContext}
 
 Create a structured onboarding plan with tasks organized into 3 phases:
@@ -2466,138 +2585,142 @@ Return a JSON object:
 Generate 8-12 tasks for Day 1, 8-10 for Week 1, and 6-8 for Month 1.
 Only return the JSON object, no other text.`;
 
-    const result = await polsiaAI.chat(prompt, {
-      system: 'You are an expert HR onboarding specialist. Generate role-specific, practical onboarding plans. Always return valid JSON.',
-      module: 'onboarding', feature: 'plan_generation'
-    });
+		const result = await polsiaAI.chat(prompt, {
+			system:
+				'You are an expert HR onboarding specialist. Generate role-specific, practical onboarding plans. Always return valid JSON.',
+			module: 'onboarding',
+			feature: 'plan_generation',
+		});
 
-    const planData = polsiaAI.safeParseJSON(result);
-    if (!planData || !planData.phases) {
-      return res.status(500).json({ error: 'Failed to generate plan — AI returned invalid format' });
-    }
+		const planData = polsiaAI.safeParseJSON(result);
+		if (!planData?.phases) {
+			return res
+				.status(500)
+				.json({ error: 'Failed to generate plan — AI returned invalid format' });
+		}
 
-    // Calculate target completion (30 days from now)
-    const targetDate = new Date();
-    targetDate.setDate(targetDate.getDate() + 30);
+		// Calculate target completion (30 days from now)
+		const targetDate = new Date();
+		targetDate.setDate(targetDate.getDate() + 30);
 
-    // Insert the plan
-    const planResult = await pool.query(
-      `INSERT INTO onboarding_plans
+		// Insert the plan
+		const planResult = await pool.query(
+			`INSERT INTO onboarding_plans
        (company_id, candidate_id, offer_id, job_id, role_title, department,
         plan_data, total_tasks, target_completion, created_by, started_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
        RETURNING *`,
-      [
-        req.user.company_id || req.user.id,
-        candidate_id || null,
-        offer_id || null,
-        job_id || null,
-        role_title,
-        department || null,
-        JSON.stringify(planData),
-        planData.total_tasks || 0,
-        targetDate,
-        req.user.id
-      ]
-    );
+			[
+				req.user.company_id || req.user.id,
+				candidate_id || null,
+				offer_id || null,
+				job_id || null,
+				role_title,
+				department || null,
+				JSON.stringify(planData),
+				planData.total_tasks || 0,
+				targetDate,
+				req.user.id,
+			],
+		);
 
-    const plan = planResult.rows[0];
+		const plan = planResult.rows[0];
 
-    // Insert individual tasks
-    let totalInserted = 0;
-    for (const phase of planData.phases) {
-      for (const task of (phase.tasks || [])) {
-        await pool.query(
-          `INSERT INTO onboarding_tasks
+		// Insert individual tasks
+		let totalInserted = 0;
+		for (const phase of planData.phases) {
+			for (const task of phase.tasks || []) {
+				await pool.query(
+					`INSERT INTO onboarding_tasks
            (plan_id, title, description, phase, day_range, category, assigned_to,
             is_required, sort_order, status)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')`,
-          [
-            plan.id,
-            task.title,
-            task.description || '',
-            phase.name,
-            phase.name === 'day_1' ? 'Day 1' : phase.name === 'week_1' ? 'Days 2-5' : 'Weeks 2-4',
-            task.category || 'general',
-            task.assigned_to || 'new_hire',
-            task.is_required !== false,
-            task.sort_order || totalInserted
-          ]
-        );
-        totalInserted++;
-      }
-    }
+					[
+						plan.id,
+						task.title,
+						task.description || '',
+						phase.name,
+						phase.name === 'day_1' ? 'Day 1' : phase.name === 'week_1' ? 'Days 2-5' : 'Weeks 2-4',
+						task.category || 'general',
+						task.assigned_to || 'new_hire',
+						task.is_required !== false,
+						task.sort_order || totalInserted,
+					],
+				);
+				totalInserted++;
+			}
+		}
 
-    // Update total tasks count
-    await pool.query(
-      'UPDATE onboarding_plans SET total_tasks = $1 WHERE id = $2',
-      [totalInserted, plan.id]
-    );
+		// Update total tasks count
+		await pool.query('UPDATE onboarding_plans SET total_tasks = $1 WHERE id = $2', [
+			totalInserted,
+			plan.id,
+		]);
 
-    res.json({
-      success: true,
-      plan: { ...plan, total_tasks: totalInserted },
-      plan_data: planData
-    });
-  } catch (err) {
-    console.error('Error generating onboarding plan:', err);
-    res.status(500).json({ error: 'Failed to generate onboarding plan' });
-  }
+		res.json({
+			success: true,
+			plan: { ...plan, total_tasks: totalInserted },
+			plan_data: planData,
+		});
+	} catch (err) {
+		console.error('Error generating onboarding plan:', err);
+		res.status(500).json({ error: 'Failed to generate onboarding plan' });
+	}
 });
 
 // Get an onboarding plan with tasks
 router.get('/:id/plan', authMiddleware, async (req, res) => {
-  try {
-    const planId = parseInt(req.params.id);
-    const plan = await pool.query(
-      `SELECT op.*, u.name as candidate_name, u.email as candidate_email
+	try {
+		const planId = parseInt(req.params.id, 10);
+		const plan = await pool.query(
+			`SELECT op.*, u.name as candidate_name, u.email as candidate_email
        FROM onboarding_plans op
        LEFT JOIN users u ON op.candidate_id = u.id
        WHERE op.id = $1 AND (op.company_id = $2 OR op.candidate_id = $3)`,
-      [planId, req.user.company_id || req.user.id, req.user.id]
-    );
+			[planId, req.user.company_id || req.user.id, req.user.id],
+		);
 
-    if (plan.rows.length === 0) {
-      return res.status(404).json({ error: 'Plan not found' });
-    }
+		if (plan.rows.length === 0) {
+			return res.status(404).json({ error: 'Plan not found' });
+		}
 
-    // Get all tasks for this plan
-    const tasks = await pool.query(
-      `SELECT * FROM onboarding_tasks WHERE plan_id = $1 ORDER BY sort_order, created_at`,
-      [planId]
-    );
+		// Get all tasks for this plan
+		const tasks = await pool.query(
+			`SELECT * FROM onboarding_tasks WHERE plan_id = $1 ORDER BY sort_order, created_at`,
+			[planId],
+		);
 
-    // Group tasks by phase
-    const tasksByPhase = {};
-    for (const task of tasks.rows) {
-      if (!tasksByPhase[task.phase]) tasksByPhase[task.phase] = [];
-      tasksByPhase[task.phase].push(task);
-    }
+		// Group tasks by phase
+		const tasksByPhase = {};
+		for (const task of tasks.rows) {
+			if (!tasksByPhase[task.phase]) tasksByPhase[task.phase] = [];
+			tasksByPhase[task.phase].push(task);
+		}
 
-    // Calculate progress
-    const total = tasks.rows.length;
-    const completed = tasks.rows.filter(t => t.status === 'completed').length;
-    const progressPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+		// Calculate progress
+		const total = tasks.rows.length;
+		const completed = tasks.rows.filter((t) => t.status === 'completed').length;
+		const progressPct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-    res.json({
-      ...plan.rows[0],
-      progress_pct: progressPct,
-      completed_tasks: completed,
-      total_tasks: total,
-      tasks_by_phase: tasksByPhase,
-      tasks: tasks.rows
-    });
-  } catch (err) {
-    console.error('Error fetching plan:', err);
-    res.status(500).json({ error: 'Failed to fetch onboarding plan' });
-  }
+		res.json({
+			...plan.rows[0],
+			progress_pct: progressPct,
+			completed_tasks: completed,
+			total_tasks: total,
+			tasks_by_phase: tasksByPhase,
+			tasks: tasks.rows,
+		});
+	} catch (err) {
+		console.error('Error fetching plan:', err);
+		res.status(500).json({ error: 'Failed to fetch onboarding plan' });
+	}
 });
 
 // List all plans (for recruiter/HR view)
 router.get('/plans/list', authMiddleware, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT op.*,
+	try {
+		const result = await pool.query(
+			`SELECT op.*,
         u.name as candidate_name,
         u.email as candidate_email,
         (SELECT COUNT(*) FROM onboarding_tasks WHERE plan_id = op.id AND status = 'completed') as completed_count,
@@ -2606,78 +2729,76 @@ router.get('/plans/list', authMiddleware, async (req, res) => {
        LEFT JOIN users u ON op.candidate_id = u.id
        WHERE op.company_id = $1
        ORDER BY op.created_at DESC`,
-      [req.user.company_id || req.user.id]
-    );
+			[req.user.company_id || req.user.id],
+		);
 
-    const plans = result.rows.map(p => ({
-      ...p,
-      progress_pct: p.total_count > 0 ? Math.round((p.completed_count / p.total_count) * 100) : 0
-    }));
+		const plans = result.rows.map((p) => ({
+			...p,
+			progress_pct: p.total_count > 0 ? Math.round((p.completed_count / p.total_count) * 100) : 0,
+		}));
 
-    res.json(plans);
-  } catch (err) {
-    console.error('Error listing plans:', err);
-    res.status(500).json({ error: 'Failed to list onboarding plans' });
-  }
+		res.json(plans);
+	} catch (err) {
+		console.error('Error listing plans:', err);
+		res.status(500).json({ error: 'Failed to list onboarding plans' });
+	}
 });
 
 // Complete a task in a plan
 router.post('/tasks/:taskId/complete', authMiddleware, async (req, res) => {
-  try {
-    const taskId = parseInt(req.params.taskId);
-    const { notes } = req.body;
+	try {
+		const taskId = parseInt(req.params.taskId, 10);
+		const { notes } = req.body;
 
-    // Check dependencies
-    const task = await pool.query('SELECT * FROM onboarding_tasks WHERE id = $1', [taskId]);
-    if (task.rows.length === 0) {
-      return res.status(404).json({ error: 'Task not found' });
-    }
+		// Check dependencies
+		const task = await pool.query('SELECT * FROM onboarding_tasks WHERE id = $1', [taskId]);
+		if (task.rows.length === 0) {
+			return res.status(404).json({ error: 'Task not found' });
+		}
 
-    const t = task.rows[0];
-    if (t.depends_on && t.depends_on.length > 0) {
-      const deps = await pool.query(
-        'SELECT id, status FROM onboarding_tasks WHERE id = ANY($1)',
-        [t.depends_on]
-      );
-      const incomplete = deps.rows.filter(d => d.status !== 'completed');
-      if (incomplete.length > 0) {
-        return res.status(400).json({
-          error: 'Cannot complete — dependent tasks not finished',
-          blocking_tasks: incomplete.map(d => d.id)
-        });
-      }
-    }
+		const t = task.rows[0];
+		if (t.depends_on && t.depends_on.length > 0) {
+			const deps = await pool.query('SELECT id, status FROM onboarding_tasks WHERE id = ANY($1)', [
+				t.depends_on,
+			]);
+			const incomplete = deps.rows.filter((d) => d.status !== 'completed');
+			if (incomplete.length > 0) {
+				return res.status(400).json({
+					error: 'Cannot complete — dependent tasks not finished',
+					blocking_tasks: incomplete.map((d) => d.id),
+				});
+			}
+		}
 
-    // Mark complete
-    await pool.query(
-      `UPDATE onboarding_tasks
+		// Mark complete
+		await pool.query(
+			`UPDATE onboarding_tasks
        SET status = 'completed', completed_at = NOW(), completed_by = $1, notes = $2, updated_at = NOW()
        WHERE id = $3`,
-      [req.user.id, notes || null, taskId]
-    );
+			[req.user.id, notes || null, taskId],
+		);
 
-    // Update plan progress
-    const planTasks = await pool.query(
-      `SELECT status FROM onboarding_tasks WHERE plan_id = $1`,
-      [t.plan_id]
-    );
-    const total = planTasks.rows.length;
-    const completed = planTasks.rows.filter(pt => pt.status === 'completed').length;
-    const pct = total > 0 ? Math.round((completed / total) * 100 * 100) / 100 : 0;
+		// Update plan progress
+		const planTasks = await pool.query(`SELECT status FROM onboarding_tasks WHERE plan_id = $1`, [
+			t.plan_id,
+		]);
+		const total = planTasks.rows.length;
+		const completed = planTasks.rows.filter((pt) => pt.status === 'completed').length;
+		const pct = total > 0 ? Math.round((completed / total) * 100 * 100) / 100 : 0;
 
-    await pool.query(
-      `UPDATE onboarding_plans
+		await pool.query(
+			`UPDATE onboarding_plans
        SET progress_pct = $1, completed_tasks = $2, updated_at = NOW()
        ${pct >= 100 ? ", completed_at = NOW(), status = 'completed'" : ''}
        WHERE id = $3`,
-      [pct, completed, t.plan_id]
-    );
+			[pct, completed, t.plan_id],
+		);
 
-    res.json({ success: true, task_id: taskId, plan_progress: pct });
-  } catch (err) {
-    console.error('Error completing task:', err);
-    res.status(500).json({ error: 'Failed to complete task' });
-  }
+		res.json({ success: true, task_id: taskId, plan_progress: pct });
+	} catch (err) {
+		console.error('Error completing task:', err);
+		res.status(500).json({ error: 'Failed to complete task' });
+	}
 });
 
 // ============================================
@@ -2686,113 +2807,122 @@ router.post('/tasks/:taskId/complete', authMiddleware, async (req, res) => {
 
 // Enhanced chatbot with plan awareness + memory
 router.post('/chat', authMiddleware, async (req, res) => {
-  try {
-    const { message, plan_id } = req.body;
-    if (!message) return res.status(400).json({ error: 'message is required' });
+	try {
+		const { message, plan_id } = req.body;
+		if (!message) return res.status(400).json({ error: 'message is required' });
 
-    // Get or create chat session for this plan
-    let session = await pool.query(
-      `SELECT * FROM onboarding_chats
+		// Get or create chat session for this plan
+		const session = await pool.query(
+			`SELECT * FROM onboarding_chats
        WHERE candidate_id = $1 AND ${plan_id ? 'plan_id = $2' : 'plan_id IS NULL'} AND is_active = true
        ORDER BY session_started DESC LIMIT 1`,
-      plan_id ? [req.user.id, plan_id] : [req.user.id]
-    );
+			plan_id ? [req.user.id, plan_id] : [req.user.id],
+		);
 
-    let sessionId, messages = [], contextMemory = {};
+		let sessionId,
+			messages = [],
+			contextMemory = {};
 
-    if (session.rows.length === 0) {
-      const newSession = await pool.query(
-        `INSERT INTO onboarding_chats (candidate_id, plan_id, messages, context_memory, total_messages)
+		if (session.rows.length === 0) {
+			const newSession = await pool.query(
+				`INSERT INTO onboarding_chats (candidate_id, plan_id, messages, context_memory, total_messages)
          VALUES ($1, $2, '[]', '{}', 0) RETURNING *`,
-        [req.user.id, plan_id || null]
-      );
-      sessionId = newSession.rows[0].id;
-    } else {
-      sessionId = session.rows[0].id;
-      messages = session.rows[0].messages || [];
-      contextMemory = session.rows[0].context_memory || {};
-    }
+				[req.user.id, plan_id || null],
+			);
+			sessionId = newSession.rows[0].id;
+		} else {
+			sessionId = session.rows[0].id;
+			messages = session.rows[0].messages || [];
+			contextMemory = session.rows[0].context_memory || {};
+		}
 
-    // Gather context: plan progress, pending tasks, company policies
-    let planContext = '';
-    if (plan_id) {
-      const plan = await pool.query('SELECT * FROM onboarding_plans WHERE id = $1', [plan_id]);
-      if (plan.rows.length > 0) {
-        const p = plan.rows[0];
-        planContext += `\nOnboarding Plan: ${p.role_title} (${p.progress_pct}% complete)`;
+		// Gather context: plan progress, pending tasks, company policies
+		let planContext = '';
+		if (plan_id) {
+			const plan = await pool.query('SELECT * FROM onboarding_plans WHERE id = $1', [plan_id]);
+			if (plan.rows.length > 0) {
+				const p = plan.rows[0];
+				planContext += `\nOnboarding Plan: ${p.role_title} (${p.progress_pct}% complete)`;
 
-        const tasks = await pool.query(
-          `SELECT title, phase, status, category, assigned_to FROM onboarding_tasks
+				const tasks = await pool.query(
+					`SELECT title, phase, status, category, assigned_to FROM onboarding_tasks
            WHERE plan_id = $1 ORDER BY sort_order`,
-          [plan_id]
-        );
+					[plan_id],
+				);
 
-        const pending = tasks.rows.filter(t => t.status === 'pending');
-        const completed = tasks.rows.filter(t => t.status === 'completed');
-        const inProgress = tasks.rows.filter(t => t.status === 'in_progress');
+				const pending = tasks.rows.filter((t) => t.status === 'pending');
+				const completed = tasks.rows.filter((t) => t.status === 'completed');
+				const inProgress = tasks.rows.filter((t) => t.status === 'in_progress');
 
-        planContext += `\nTotal tasks: ${tasks.rows.length}, Completed: ${completed.length}, In Progress: ${inProgress.length}, Pending: ${pending.length}`;
-        planContext += `\n\nPENDING TASKS (what the new hire needs to do next):`;
-        pending.slice(0, 8).forEach((t, i) => {
-          planContext += `\n${i + 1}. [${t.phase}] ${t.title} (assigned to: ${t.assigned_to})`;
-        });
+				planContext += `\nTotal tasks: ${tasks.rows.length}, Completed: ${completed.length}, In Progress: ${inProgress.length}, Pending: ${pending.length}`;
+				planContext += `\n\nPENDING TASKS (what the new hire needs to do next):`;
+				pending.slice(0, 8).forEach((t, i) => {
+					planContext += `\n${i + 1}. [${t.phase}] ${t.title} (assigned to: ${t.assigned_to})`;
+				});
 
-        if (completed.length > 0) {
-          planContext += `\n\nRECENTLY COMPLETED:`;
-          completed.slice(-3).forEach(t => {
-            planContext += `\n✓ ${t.title}`;
-          });
-        }
-      }
-    }
+				if (completed.length > 0) {
+					planContext += `\n\nRECENTLY COMPLETED:`;
+					completed.slice(-3).forEach((t) => {
+						planContext += `\n✓ ${t.title}`;
+					});
+				}
+			}
+		}
 
-    // Get company policies
-    let policyContext = '';
-    try {
-      const policies = await pool.query(
-        'SELECT category, title, content FROM company_policies WHERE is_active = true ORDER BY category LIMIT 10'
-      );
-      if (policies.rows.length > 0) {
-        policyContext = '\n\nCOMPANY POLICIES:\n' + policies.rows.map(p =>
-          `${p.category}: ${p.title} — ${(p.content || '').substring(0, 200)}`
-        ).join('\n');
-      }
-    } catch (e) { /* table may not exist */ }
+		// Get company policies
+		let policyContext = '';
+		try {
+			const policies = await pool.query(
+				'SELECT category, title, content FROM company_policies WHERE is_active = true ORDER BY category LIMIT 10',
+			);
+			if (policies.rows.length > 0) {
+				policyContext = `\n\nCOMPANY POLICIES:\n${policies.rows
+					.map((p) => `${p.category}: ${p.title} — ${(p.content || '').substring(0, 200)}`)
+					.join('\n')}`;
+			}
+		} catch (_e) {
+			/* table may not exist */
+		}
 
-    // Get user/org info
-    let orgContext = '';
-    try {
-      const user = await pool.query('SELECT name, email, role FROM users WHERE id = $1', [req.user.id]);
-      if (user.rows.length > 0) {
-        orgContext = `\nEmployee: ${user.rows[0].name} (${user.rows[0].email})`;
-      }
-      // Get manager info from the plan's offer
-      if (plan_id) {
-        const offerInfo = await pool.query(
-          `SELECT o.reporting_to, o.company_name, j.title as job_title
+		// Get user/org info
+		let orgContext = '';
+		try {
+			const user = await pool.query('SELECT name, email, role FROM users WHERE id = $1', [
+				req.user.id,
+			]);
+			if (user.rows.length > 0) {
+				orgContext = `\nEmployee: ${user.rows[0].name} (${user.rows[0].email})`;
+			}
+			// Get manager info from the plan's offer
+			if (plan_id) {
+				const offerInfo = await pool.query(
+					`SELECT o.reporting_to, o.company_name, j.title as job_title
            FROM onboarding_plans op
            LEFT JOIN offers o ON op.offer_id = o.id
            LEFT JOIN jobs j ON op.job_id = j.id
            WHERE op.id = $1`,
-          [plan_id]
-        );
-        if (offerInfo.rows.length > 0 && offerInfo.rows[0].reporting_to) {
-          orgContext += `\nManager: ${offerInfo.rows[0].reporting_to}`;
-          orgContext += `\nCompany: ${offerInfo.rows[0].company_name || 'The Company'}`;
-        }
-      }
-    } catch (e) { /* non-fatal */ }
+					[plan_id],
+				);
+				if (offerInfo.rows.length > 0 && offerInfo.rows[0].reporting_to) {
+					orgContext += `\nManager: ${offerInfo.rows[0].reporting_to}`;
+					orgContext += `\nCompany: ${offerInfo.rows[0].company_name || 'The Company'}`;
+				}
+			}
+		} catch (_e) {
+			/* non-fatal */
+		}
 
-    // Memory context — what we remember from past conversations
-    const memoryStr = Object.keys(contextMemory).length > 0
-      ? `\n\nMEMORY FROM PREVIOUS CONVERSATIONS:\n${JSON.stringify(contextMemory)}`
-      : '';
+		// Memory context — what we remember from past conversations
+		const memoryStr =
+			Object.keys(contextMemory).length > 0
+				? `\n\nMEMORY FROM PREVIOUS CONVERSATIONS:\n${JSON.stringify(contextMemory)}`
+				: '';
 
-    // Build messages for AI
-    const recentMessages = messages.slice(-10); // Keep last 10 for context window
-    recentMessages.push({ role: 'user', content: message, timestamp: new Date().toISOString() });
+		// Build messages for AI
+		const recentMessages = messages.slice(-10); // Keep last 10 for context window
+		recentMessages.push({ role: 'user', content: message, timestamp: new Date().toISOString() });
 
-    const systemPrompt = `You are an AI onboarding assistant helping a new employee through their onboarding process. You are friendly, knowledgeable, and proactive.
+		const systemPrompt = `You are an AI onboarding assistant helping a new employee through their onboarding process. You are friendly, knowledgeable, and proactive.
 ${orgContext}${planContext}${policyContext}${memoryStr}
 
 YOUR CAPABILITIES:
@@ -2810,125 +2940,138 @@ GUIDELINES:
 - Keep responses concise (2-4 paragraphs max)
 - Use markdown for formatting (bold for emphasis, bullet lists for tasks)`;
 
-    const aiMessages = [
-      { role: 'system', content: systemPrompt },
-      ...recentMessages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }))
-    ];
+		const aiMessages = [
+			{ role: 'system', content: systemPrompt },
+			...recentMessages.map((m) => ({
+				role: m.role === 'assistant' ? 'assistant' : 'user',
+				content: m.content,
+			})),
+		];
 
-    const aiResponse = await polsiaAI.chat(aiMessages, {
-      max_tokens: 1024,
-      module: 'onboarding', feature: 'smart_chatbot'
-    });
+		const aiResponse = await polsiaAI.chat(aiMessages, {
+			max_tokens: 1024,
+			module: 'onboarding',
+			feature: 'smart_chatbot',
+		});
 
-    // Update memory — extract key facts from conversation
-    const updatedMemory = { ...contextMemory };
-    if (message.toLowerCase().includes('prefer') || message.toLowerCase().includes('style')) {
-      updatedMemory.preferences = (updatedMemory.preferences || '') + ' ' + message.substring(0, 200);
-    }
-    updatedMemory.last_topic = message.substring(0, 100);
-    updatedMemory.last_active = new Date().toISOString();
-    updatedMemory.message_count = (updatedMemory.message_count || 0) + 1;
+		// Update memory — extract key facts from conversation
+		const updatedMemory = { ...contextMemory };
+		if (message.toLowerCase().includes('prefer') || message.toLowerCase().includes('style')) {
+			updatedMemory.preferences = `${updatedMemory.preferences || ''} ${message.substring(0, 200)}`;
+		}
+		updatedMemory.last_topic = message.substring(0, 100);
+		updatedMemory.last_active = new Date().toISOString();
+		updatedMemory.message_count = (updatedMemory.message_count || 0) + 1;
 
-    // Save to session
-    recentMessages.push({ role: 'assistant', content: aiResponse, timestamp: new Date().toISOString() });
-    const allMessages = [...messages.slice(0, -10), ...recentMessages]; // Keep full history
+		// Save to session
+		recentMessages.push({
+			role: 'assistant',
+			content: aiResponse,
+			timestamp: new Date().toISOString(),
+		});
+		const allMessages = [...messages.slice(0, -10), ...recentMessages]; // Keep full history
 
-    await pool.query(
-      `UPDATE onboarding_chats
+		await pool.query(
+			`UPDATE onboarding_chats
        SET messages = $1, context_memory = $2, last_activity = NOW(),
            total_messages = $3
        WHERE id = $4`,
-      [JSON.stringify(allMessages.slice(-50)), JSON.stringify(updatedMemory), allMessages.length, sessionId]
-    );
+			[
+				JSON.stringify(allMessages.slice(-50)),
+				JSON.stringify(updatedMemory),
+				allMessages.length,
+				sessionId,
+			],
+		);
 
-    res.json({
-      response: aiResponse,
-      session_id: sessionId,
-      plan_progress: plan_id ? undefined : null
-    });
-  } catch (err) {
-    console.error('Error in AI onboarding chat:', err);
-    res.status(500).json({ error: 'Failed to process chat message' });
-  }
+		res.json({
+			response: aiResponse,
+			session_id: sessionId,
+			plan_progress: plan_id ? undefined : null,
+		});
+	} catch (err) {
+		console.error('Error in AI onboarding chat:', err);
+		res.status(500).json({ error: 'Failed to process chat message' });
+	}
 });
 
 // Get onboarding progress for a plan
 router.get('/:id/progress', authMiddleware, async (req, res) => {
-  try {
-    const planId = parseInt(req.params.id);
+	try {
+		const planId = parseInt(req.params.id, 10);
 
-    const plan = await pool.query(
-      `SELECT op.*, u.name as candidate_name
+		const plan = await pool.query(
+			`SELECT op.*, u.name as candidate_name
        FROM onboarding_plans op
        LEFT JOIN users u ON op.candidate_id = u.id
        WHERE op.id = $1 AND (op.company_id = $2 OR op.candidate_id = $3)`,
-      [planId, req.user.company_id || req.user.id, req.user.id]
-    );
+			[planId, req.user.company_id || req.user.id, req.user.id],
+		);
 
-    if (plan.rows.length === 0) {
-      return res.status(404).json({ error: 'Plan not found' });
-    }
+		if (plan.rows.length === 0) {
+			return res.status(404).json({ error: 'Plan not found' });
+		}
 
-    // Get tasks grouped by phase
-    const tasks = await pool.query(
-      `SELECT * FROM onboarding_tasks WHERE plan_id = $1 ORDER BY sort_order`,
-      [planId]
-    );
+		// Get tasks grouped by phase
+		const tasks = await pool.query(
+			`SELECT * FROM onboarding_tasks WHERE plan_id = $1 ORDER BY sort_order`,
+			[planId],
+		);
 
-    const phases = {};
-    for (const t of tasks.rows) {
-      if (!phases[t.phase]) {
-        phases[t.phase] = { total: 0, completed: 0, tasks: [] };
-      }
-      phases[t.phase].total++;
-      if (t.status === 'completed') phases[t.phase].completed++;
-      phases[t.phase].tasks.push(t);
-    }
+		const phases = {};
+		for (const t of tasks.rows) {
+			if (!phases[t.phase]) {
+				phases[t.phase] = { total: 0, completed: 0, tasks: [] };
+			}
+			phases[t.phase].total++;
+			if (t.status === 'completed') phases[t.phase].completed++;
+			phases[t.phase].tasks.push(t);
+		}
 
-    // Phase progress
-    const phaseProgress = Object.entries(phases).map(([name, data]) => ({
-      phase: name,
-      total: data.total,
-      completed: data.completed,
-      progress_pct: data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0,
-      tasks: data.tasks
-    }));
+		// Phase progress
+		const phaseProgress = Object.entries(phases).map(([name, data]) => ({
+			phase: name,
+			total: data.total,
+			completed: data.completed,
+			progress_pct: data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0,
+			tasks: data.tasks,
+		}));
 
-    // Find next action items
-    const nextActions = tasks.rows
-      .filter(t => t.status === 'pending' && t.assigned_to === 'new_hire')
-      .slice(0, 5);
+		// Find next action items
+		const nextActions = tasks.rows
+			.filter((t) => t.status === 'pending' && t.assigned_to === 'new_hire')
+			.slice(0, 5);
 
-    // Overdue check
-    const today = new Date();
-    const startDate = new Date(plan.rows[0].started_at || plan.rows[0].created_at);
-    const daysSinceStart = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
+		// Overdue check
+		const today = new Date();
+		const startDate = new Date(plan.rows[0].started_at || plan.rows[0].created_at);
+		const daysSinceStart = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
 
-    const overdueTasks = tasks.rows.filter(t => {
-      if (t.status === 'completed') return false;
-      if (t.phase === 'day_1' && daysSinceStart > 1) return true;
-      if (t.phase === 'week_1' && daysSinceStart > 7) return true;
-      return false;
-    });
+		const overdueTasks = tasks.rows.filter((t) => {
+			if (t.status === 'completed') return false;
+			if (t.phase === 'day_1' && daysSinceStart > 1) return true;
+			if (t.phase === 'week_1' && daysSinceStart > 7) return true;
+			return false;
+		});
 
-    const total = tasks.rows.length;
-    const completed = tasks.rows.filter(t => t.status === 'completed').length;
+		const total = tasks.rows.length;
+		const completed = tasks.rows.filter((t) => t.status === 'completed').length;
 
-    res.json({
-      plan: plan.rows[0],
-      overall_progress: total > 0 ? Math.round((completed / total) * 100) : 0,
-      total_tasks: total,
-      completed_tasks: completed,
-      days_since_start: daysSinceStart,
-      phase_progress: phaseProgress,
-      next_actions: nextActions,
-      overdue_tasks: overdueTasks,
-      is_on_track: overdueTasks.length === 0
-    });
-  } catch (err) {
-    console.error('Error fetching progress:', err);
-    res.status(500).json({ error: 'Failed to fetch progress' });
-  }
+		res.json({
+			plan: plan.rows[0],
+			overall_progress: total > 0 ? Math.round((completed / total) * 100) : 0,
+			total_tasks: total,
+			completed_tasks: completed,
+			days_since_start: daysSinceStart,
+			phase_progress: phaseProgress,
+			next_actions: nextActions,
+			overdue_tasks: overdueTasks,
+			is_on_track: overdueTasks.length === 0,
+		});
+	} catch (err) {
+		console.error('Error fetching progress:', err);
+		res.status(500).json({ error: 'Failed to fetch progress' });
+	}
 });
 
 // ============================================
@@ -2937,40 +3080,48 @@ router.get('/:id/progress', authMiddleware, async (req, res) => {
 
 // Process an uploaded document with AI
 router.post('/documents/process', authMiddleware, async (req, res) => {
-  try {
-    const { document_id, document_url, document_type, plan_id } = req.body;
+	try {
+		const { document_id, document_url, document_type, plan_id } = req.body;
 
-    if (!document_url && !document_id) {
-      return res.status(400).json({ error: 'document_url or document_id required' });
-    }
+		if (!document_url && !document_id) {
+			return res.status(400).json({ error: 'document_url or document_id required' });
+		}
 
-    // If document_id provided, get existing document
-    let docUrl = document_url;
-    let docType = document_type;
-    let docId = document_id;
+		// If document_id provided, get existing document
+		let docUrl = document_url;
+		let docType = document_type;
+		const docId = document_id;
 
-    if (document_id) {
-      const doc = await pool.query('SELECT * FROM onboarding_documents WHERE id = $1', [document_id]);
-      if (doc.rows.length === 0) return res.status(404).json({ error: 'Document not found' });
-      docUrl = doc.rows[0].document_url;
-      docType = doc.rows[0].document_type;
-    }
+		if (document_id) {
+			const doc = await pool.query('SELECT * FROM onboarding_documents WHERE id = $1', [
+				document_id,
+			]);
+			if (doc.rows.length === 0) return res.status(404).json({ error: 'Document not found' });
+			docUrl = doc.rows[0].document_url;
+			docType = doc.rows[0].document_type;
+		}
 
-    // AI analysis prompt based on document type
-    const typeInstructions = {
-      'id_document': 'Extract: full name, date of birth, document number, expiration date, issuing authority. Flag if expired.',
-      'tax_form': 'Extract: filing status, exemptions, additional withholding, SSN last 4 (mask rest). Validate completeness of W-4 fields.',
-      'contract': 'Extract: parties involved, start date, compensation, key terms, termination clauses. Flag missing signatures.',
-      'nda': 'Extract: parties, effective date, confidentiality scope, duration, penalties. Check for signature.',
-      'direct_deposit': 'Extract: bank name, routing number (partial), account type. Validate form completeness.',
-      'emergency_contact': 'Extract: contact name, relationship, phone numbers. Flag if incomplete.',
-      'benefits_enrollment': 'Extract: selected plans, dependents, effective date. Note any elections.',
-      'default': 'Extract key information, identify document type, and flag any issues or missing fields.'
-    };
+		// AI analysis prompt based on document type
+		const typeInstructions = {
+			id_document:
+				'Extract: full name, date of birth, document number, expiration date, issuing authority. Flag if expired.',
+			tax_form:
+				'Extract: filing status, exemptions, additional withholding, SSN last 4 (mask rest). Validate completeness of W-4 fields.',
+			contract:
+				'Extract: parties involved, start date, compensation, key terms, termination clauses. Flag missing signatures.',
+			nda: 'Extract: parties, effective date, confidentiality scope, duration, penalties. Check for signature.',
+			direct_deposit:
+				'Extract: bank name, routing number (partial), account type. Validate form completeness.',
+			emergency_contact: 'Extract: contact name, relationship, phone numbers. Flag if incomplete.',
+			benefits_enrollment:
+				'Extract: selected plans, dependents, effective date. Note any elections.',
+			default:
+				'Extract key information, identify document type, and flag any issues or missing fields.',
+		};
 
-    const instruction = typeInstructions[docType] || typeInstructions['default'];
+		const instruction = typeInstructions[docType] || typeInstructions.default;
 
-    const prompt = `Analyze this onboarding document.
+		const prompt = `Analyze this onboarding document.
 Document Type: ${docType || 'unknown'}
 Document URL: ${docUrl}
 
@@ -2994,126 +3145,130 @@ Return a JSON object:
 
 Only return the JSON object.`;
 
-    const result = await polsiaAI.chat(prompt, {
-      system: 'You are an expert HR document processor. Analyze onboarding documents accurately. Flag any compliance issues. Always return valid JSON. If you cannot see the actual document content (just a URL), provide guidance on what should be verified manually.',
-      module: 'onboarding', feature: 'document_intelligence'
-    });
+		const result = await polsiaAI.chat(prompt, {
+			system:
+				'You are an expert HR document processor. Analyze onboarding documents accurately. Flag any compliance issues. Always return valid JSON. If you cannot see the actual document content (just a URL), provide guidance on what should be verified manually.',
+			module: 'onboarding',
+			feature: 'document_intelligence',
+		});
 
-    const analysis = polsiaAI.safeParseJSON(result);
-    if (!analysis) {
-      return res.status(500).json({ error: 'Failed to analyze document' });
-    }
+		const analysis = polsiaAI.safeParseJSON(result);
+		if (!analysis) {
+			return res.status(500).json({ error: 'Failed to analyze document' });
+		}
 
-    // Update document record with AI analysis
-    if (docId) {
-      await pool.query(
-        `UPDATE onboarding_documents
+		// Update document record with AI analysis
+		if (docId) {
+			await pool.query(
+				`UPDATE onboarding_documents
          SET ai_extraction = $1, ai_validation = $2, ai_processed_at = NOW(),
              completeness_score = $3, plan_id = $4, updated_at = NOW()
          WHERE id = $5`,
-        [
-          JSON.stringify(analysis.extracted_data || {}),
-          JSON.stringify(analysis.validation || {}),
-          analysis.completeness_score || 0,
-          plan_id || null,
-          docId
-        ]
-      );
-    }
+				[
+					JSON.stringify(analysis.extracted_data || {}),
+					JSON.stringify(analysis.validation || {}),
+					analysis.completeness_score || 0,
+					plan_id || null,
+					docId,
+				],
+			);
+		}
 
-    // Auto-flag missing documents for the plan
-    if (plan_id) {
-      const flagResult = analysis.validation?.missing_fields || [];
-      if (flagResult.length > 0) {
-        // Update the plan's AI memory with document status
-        await pool.query(
-          `UPDATE onboarding_plans
+		// Auto-flag missing documents for the plan
+		if (plan_id) {
+			const flagResult = analysis.validation?.missing_fields || [];
+			if (flagResult.length > 0) {
+				// Update the plan's AI memory with document status
+				await pool.query(
+					`UPDATE onboarding_plans
            SET ai_memory = jsonb_set(
              COALESCE(ai_memory, '{}'),
              '{document_flags}',
              $1::jsonb
            ), updated_at = NOW()
            WHERE id = $2`,
-          [JSON.stringify({ [docType || 'unknown']: flagResult }), plan_id]
-        );
-      }
-    }
+					[JSON.stringify({ [docType || 'unknown']: flagResult }), plan_id],
+				);
+			}
+		}
 
-    res.json({
-      success: true,
-      document_id: docId,
-      analysis
-    });
-  } catch (err) {
-    console.error('Error processing document:', err);
-    res.status(500).json({ error: 'Failed to process document' });
-  }
+		res.json({
+			success: true,
+			document_id: docId,
+			analysis,
+		});
+	} catch (err) {
+		console.error('Error processing document:', err);
+		res.status(500).json({ error: 'Failed to process document' });
+	}
 });
 
 // Get documents for a plan with AI analysis
 router.get('/:id/documents', authMiddleware, async (req, res) => {
-  try {
-    const planId = parseInt(req.params.id);
+	try {
+		const planId = parseInt(req.params.id, 10);
 
-    const docs = await pool.query(
-      `SELECT od.*, u.name as candidate_name
+		const docs = await pool.query(
+			`SELECT od.*, u.name as candidate_name
        FROM onboarding_documents od
        LEFT JOIN users u ON od.candidate_id = u.id
        WHERE od.plan_id = $1
        ORDER BY od.created_at DESC`,
-      [planId]
-    );
+			[planId],
+		);
 
-    // Calculate overall document status
-    const total = docs.rows.length;
-    const processed = docs.rows.filter(d => d.ai_processed_at).length;
-    const complete = docs.rows.filter(d => d.completeness_score >= 80).length;
-    const flagged = docs.rows.filter(d => d.ai_validation && d.ai_validation.issues && d.ai_validation.issues.length > 0).length;
+		// Calculate overall document status
+		const total = docs.rows.length;
+		const processed = docs.rows.filter((d) => d.ai_processed_at).length;
+		const complete = docs.rows.filter((d) => d.completeness_score >= 80).length;
+		const flagged = docs.rows.filter(
+			(d) => d.ai_validation?.issues && d.ai_validation.issues.length > 0,
+		).length;
 
-    // Required document types for typical onboarding
-    const requiredTypes = ['id_document', 'tax_form', 'direct_deposit', 'emergency_contact', 'nda'];
-    const submittedTypes = docs.rows.map(d => d.document_type);
-    const missingTypes = requiredTypes.filter(t => !submittedTypes.includes(t));
+		// Required document types for typical onboarding
+		const requiredTypes = ['id_document', 'tax_form', 'direct_deposit', 'emergency_contact', 'nda'];
+		const submittedTypes = docs.rows.map((d) => d.document_type);
+		const missingTypes = requiredTypes.filter((t) => !submittedTypes.includes(t));
 
-    res.json({
-      documents: docs.rows,
-      stats: {
-        total,
-        processed,
-        complete,
-        flagged,
-        missing_required: missingTypes
-      }
-    });
-  } catch (err) {
-    console.error('Error fetching plan documents:', err);
-    res.status(500).json({ error: 'Failed to fetch documents' });
-  }
+		res.json({
+			documents: docs.rows,
+			stats: {
+				total,
+				processed,
+				complete,
+				flagged,
+				missing_required: missingTypes,
+			},
+		});
+	} catch (err) {
+		console.error('Error fetching plan documents:', err);
+		res.status(500).json({ error: 'Failed to fetch documents' });
+	}
 });
 
 // My plans - for candidate view
 router.get('/plans/mine', authMiddleware, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT op.*,
+	try {
+		const result = await pool.query(
+			`SELECT op.*,
         (SELECT COUNT(*) FROM onboarding_tasks WHERE plan_id = op.id AND status = 'completed') as completed_count,
         (SELECT COUNT(*) FROM onboarding_tasks WHERE plan_id = op.id) as total_count
        FROM onboarding_plans op
        WHERE op.candidate_id = $1
        ORDER BY op.created_at DESC`,
-      [req.user.id]
-    );
+			[req.user.id],
+		);
 
-    const plans = result.rows.map(p => ({
-      ...p,
-      progress_pct: p.total_count > 0 ? Math.round((p.completed_count / p.total_count) * 100) : 0
-    }));
+		const plans = result.rows.map((p) => ({
+			...p,
+			progress_pct: p.total_count > 0 ? Math.round((p.completed_count / p.total_count) * 100) : 0,
+		}));
 
-    res.json(plans);
-  } catch (err) {
-    console.error('Error listing my plans:', err);
-    res.status(500).json({ error: 'Failed to list plans' });
-  }
+		res.json(plans);
+	} catch (err) {
+		console.error('Error listing my plans:', err);
+		res.status(500).json({ error: 'Failed to list plans' });
+	}
 });
 
 module.exports = router;

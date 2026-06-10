@@ -1,8 +1,8 @@
 module.exports = {
-  name: '025_real_onboarding_documents',
-  async up(client) {
-    // I-9 attestation fields
-    await client.query(`
+	name: '025_real_onboarding_documents',
+	async up(client) {
+		// I-9 attestation fields
+		await client.query(`
       ALTER TABLE candidate_onboarding_data
       ADD COLUMN IF NOT EXISTS i9_citizenship_status VARCHAR(50),
       ADD COLUMN IF NOT EXISTS i9_alien_number VARCHAR(50),
@@ -16,8 +16,8 @@ module.exports = {
       ADD COLUMN IF NOT EXISTS i9_document_expiry DATE
     `);
 
-    // Full W-4 fields (Steps 2-4)
-    await client.query(`
+		// Full W-4 fields (Steps 2-4)
+		await client.query(`
       ALTER TABLE candidate_onboarding_data
       ADD COLUMN IF NOT EXISTS w4_multiple_jobs BOOLEAN DEFAULT false,
       ADD COLUMN IF NOT EXISTS w4_spouse_works BOOLEAN DEFAULT false,
@@ -29,13 +29,13 @@ module.exports = {
       ADD COLUMN IF NOT EXISTS w4_exempt BOOLEAN DEFAULT false
     `);
 
-    // AI-generated content fields
-    await client.query(`
+		// AI-generated content fields
+		await client.query(`
       ALTER TABLE onboarding_documents
       ADD COLUMN IF NOT EXISTS ai_generated_html TEXT,
       ADD COLUMN IF NOT EXISTS ai_generated_at TIMESTAMP
     `);
 
-    console.log('Added real onboarding document fields (I-9 attestation, full W-4, AI HTML)');
-  }
+		console.log('Added real onboarding document fields (I-9 attestation, full W-4, AI HTML)');
+	},
 };

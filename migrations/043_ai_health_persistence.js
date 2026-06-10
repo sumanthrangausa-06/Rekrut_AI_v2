@@ -8,10 +8,10 @@
  */
 
 module.exports = {
-  name: '043_ai_health_persistence',
-  async up(client) {
-    // ─── Provider Verification Results — persist verify results across deploys ───
-    await client.query(`
+	name: '043_ai_health_persistence',
+	async up(client) {
+		// ─── Provider Verification Results — persist verify results across deploys ───
+		await client.query(`
       CREATE TABLE IF NOT EXISTS ai_provider_verification (
         id SERIAL PRIMARY KEY,
         provider_key VARCHAR(100) NOT NULL,
@@ -25,10 +25,12 @@ module.exports = {
         UNIQUE(provider_key, modality)
       )
     `);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_pv_verified ON ai_provider_verification (verified_at)`);
+		await client.query(
+			`CREATE INDEX IF NOT EXISTS idx_ai_pv_verified ON ai_provider_verification (verified_at)`,
+		);
 
-    // ─── Token Budget Daily — persist daily token usage history ───
-    await client.query(`
+		// ─── Token Budget Daily — persist daily token usage history ───
+		await client.query(`
       CREATE TABLE IF NOT EXISTS ai_token_budget_daily (
         id SERIAL PRIMARY KEY,
         date VARCHAR(10) NOT NULL UNIQUE,
@@ -49,8 +51,8 @@ module.exports = {
       )
     `);
 
-    // ─── Provider Stats — persist cumulative call stats ───
-    await client.query(`
+		// ─── Provider Stats — persist cumulative call stats ───
+		await client.query(`
       CREATE TABLE IF NOT EXISTS ai_provider_stats (
         id SERIAL PRIMARY KEY,
         stat_key VARCHAR(50) NOT NULL UNIQUE,
@@ -59,8 +61,8 @@ module.exports = {
       )
     `);
 
-    // ─── Verification metadata — when was last full verify run ───
-    await client.query(`
+		// ─── Verification metadata — when was last full verify run ───
+		await client.query(`
       CREATE TABLE IF NOT EXISTS ai_verification_meta (
         id SERIAL PRIMARY KEY,
         total_tested INTEGER DEFAULT 0,
@@ -70,6 +72,6 @@ module.exports = {
       )
     `);
 
-    console.log('[migration-043] AI health persistence tables created');
-  }
+		console.log('[migration-043] AI health persistence tables created');
+	},
 };

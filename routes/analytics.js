@@ -5,38 +5,39 @@ const { optionalAuth, authMiddleware } = require('../lib/auth');
 
 // Log an event (client-side tracking)
 router.post('/events', optionalAuth, async (req, res) => {
-  try {
-    const { event_type, metadata = {} } = req.body;
-    const user_id = req.user?.id || null;
-    const session_id = req.headers['x-session-id'] || `anon_${req.ip}`;
+	try {
+		const { event_type, metadata = {} } = req.body;
+		const user_id = req.user?.id || null;
+		const session_id = req.headers['x-session-id'] || `anon_${req.ip}`;
 
-    if (!event_type) {
-      return res.status(400).json({ error: 'event_type is required' });
-    }
+		if (!event_type) {
+			return res.status(400).json({ error: 'event_type is required' });
+		}
 
-    await pool.query(
-      'INSERT INTO events (event_type, user_id, session_id, metadata) VALUES ($1, $2, $3, $4)',
-      [event_type, user_id, session_id, JSON.stringify(metadata)]
-    );
+		await pool.query(
+			'INSERT INTO events (event_type, user_id, session_id, metadata) VALUES ($1, $2, $3, $4)',
+			[event_type, user_id, session_id, JSON.stringify(metadata)],
+		);
 
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error logging event:', error);
-    res.status(500).json({ error: 'Failed to log event' });
-  }
+		res.json({ success: true });
+	} catch (error) {
+		console.error('Error logging event:', error);
+		res.status(500).json({ error: 'Failed to log event' });
+	}
 });
 
 // Get analytics dashboard data (authenticated recruiters only)
 router.get('/dashboard', authMiddleware, async (req, res) => {
-  try {
-    const { start_date, end_date } = req.query;
+	try {
+		const { start_date, end_date } = req.query;
 
-    // Default to last 30 days if no dates provided
-    const startDate = start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const endDate = end_date || new Date().toISOString();
+		// Default to last 30 days if no dates provided
+		const startDate = start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+		const endDate = end_date || new Date().toISOString();
 
-    // Page views by type
-    const pageViewsResult = await pool.query(`
+		// Page views by type
+		const pageViewsResult = await pool.query(
+			`
       SELECT
         event_type,
         COUNT(*) as count,
@@ -47,10 +48,13 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
         AND created_at <= $2
       GROUP BY event_type
       ORDER BY count DESC
-    `, [startDate, endDate]);
+    `,
+			[startDate, endDate],
+		);
 
-    // Sign-up funnel
-    const signupFunnelResult = await pool.query(`
+		// Sign-up funnel
+		const signupFunnelResult = await pool.query(
+			`
       SELECT
         event_type,
         COUNT(DISTINCT session_id) as sessions
@@ -59,10 +63,13 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
         AND created_at >= $1
         AND created_at <= $2
       GROUP BY event_type
-    `, [startDate, endDate]);
+    `,
+			[startDate, endDate],
+		);
 
-    // Revenue funnel
-    const revenueFunnelResult = await pool.query(`
+		// Revenue funnel
+		const revenueFunnelResult = await pool.query(
+			`
       SELECT
         event_type,
         COUNT(*) as count,
@@ -80,10 +87,13 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
         AND created_at >= $1
         AND created_at <= $2
       GROUP BY event_type
-    `, [startDate, endDate]);
+    `,
+			[startDate, endDate],
+		);
 
-    // Feature engagement
-    const featureEngagementResult = await pool.query(`
+		// Feature engagement
+		const featureEngagementResult = await pool.query(
+			`
       SELECT
         event_type,
         COUNT(*) as count,
@@ -94,10 +104,13 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
         AND created_at <= $2
       GROUP BY event_type
       ORDER BY count DESC
-    `, [startDate, endDate]);
+    `,
+			[startDate, endDate],
+		);
 
-    // Daily visitors (last 30 days)
-    const dailyVisitorsResult = await pool.query(`
+		// Daily visitors (last 30 days)
+		const dailyVisitorsResult = await pool.query(
+			`
       SELECT
         DATE(created_at) as date,
         COUNT(DISTINCT session_id) as visitors
@@ -107,56 +120,83 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
         AND created_at <= $2
       GROUP BY DATE(created_at)
       ORDER BY date ASC
-    `, [startDate, endDate]);
+    `,
+			[startDate, endDate],
+		);
 
-    // Conversion rates
-    const landingViews = pageViewsResult.rows.find(r => r.event_type === 'page_view_landing')?.unique_visitors || 0;
-    const signupPageViews = pageViewsResult.rows.find(r => r.event_type === 'page_view_signup')?.unique_visitors || 0;
-    const pricingViews = pageViewsResult.rows.find(r => r.event_type === 'page_view_pricing')?.unique_visitors || 0;
-    const signupClicks = signupFunnelResult.rows.find(r => r.event_type === 'signup_click')?.sessions || 0;
-    const candidateSignups = signupFunnelResult.rows.find(r => r.event_type === 'signup_complete_candidate')?.sessions || 0;
-    const recruiterSignups = signupFunnelResult.rows.find(r => r.event_type === 'signup_complete_recruiter')?.sessions || 0;
-    const totalSignups = candidateSignups + recruiterSignups;
-    const billingCycleToggles = revenueFunnelResult.rows.find(r => r.event_type === 'pricing_cycle_change')?.sessions || revenueFunnelResult.rows.find(r => r.event_type === 'pricing_cycle_toggle_click')?.sessions || 0;
-    const checkoutClicks = revenueFunnelResult.rows.find(r => r.event_type === 'pricing_checkout_click')?.sessions || 0;
-    const checkoutConfirmed = revenueFunnelResult.rows.find(r => r.event_type === 'pricing_checkout_confirmed')?.sessions || 0;
-    const checkoutCanceled = revenueFunnelResult.rows.find(r => r.event_type === 'pricing_checkout_canceled')?.sessions || 0;
-    const contactSalesClicks = revenueFunnelResult.rows.find(r => r.event_type === 'pricing_contact_sales_click')?.sessions || 0;
+		// Conversion rates
+		const landingViews =
+			pageViewsResult.rows.find((r) => r.event_type === 'page_view_landing')?.unique_visitors || 0;
+		const signupPageViews =
+			pageViewsResult.rows.find((r) => r.event_type === 'page_view_signup')?.unique_visitors || 0;
+		const pricingViews =
+			pageViewsResult.rows.find((r) => r.event_type === 'page_view_pricing')?.unique_visitors || 0;
+		const signupClicks =
+			signupFunnelResult.rows.find((r) => r.event_type === 'signup_click')?.sessions || 0;
+		const candidateSignups =
+			signupFunnelResult.rows.find((r) => r.event_type === 'signup_complete_candidate')?.sessions ||
+			0;
+		const recruiterSignups =
+			signupFunnelResult.rows.find((r) => r.event_type === 'signup_complete_recruiter')?.sessions ||
+			0;
+		const totalSignups = candidateSignups + recruiterSignups;
+		const billingCycleToggles =
+			revenueFunnelResult.rows.find((r) => r.event_type === 'pricing_cycle_change')?.sessions ||
+			revenueFunnelResult.rows.find((r) => r.event_type === 'pricing_cycle_toggle_click')
+				?.sessions ||
+			0;
+		const checkoutClicks =
+			revenueFunnelResult.rows.find((r) => r.event_type === 'pricing_checkout_click')?.sessions ||
+			0;
+		const checkoutConfirmed =
+			revenueFunnelResult.rows.find((r) => r.event_type === 'pricing_checkout_confirmed')
+				?.sessions || 0;
+		const checkoutCanceled =
+			revenueFunnelResult.rows.find((r) => r.event_type === 'pricing_checkout_canceled')
+				?.sessions || 0;
+		const contactSalesClicks =
+			revenueFunnelResult.rows.find((r) => r.event_type === 'pricing_contact_sales_click')
+				?.sessions || 0;
 
-    res.json({
-      success: true,
-      data: {
-        page_views: pageViewsResult.rows,
-        signup_funnel: {
-          landing_views: landingViews,
-          signup_page_views: signupPageViews,
-          signup_clicks: signupClicks,
-          candidate_signups: candidateSignups,
-          recruiter_signups: recruiterSignups,
-          total_signups: totalSignups,
-          conversion_rate: landingViews > 0 ? ((totalSignups / landingViews) * 100).toFixed(2) : '0.00',
-          click_through_rate: landingViews > 0 ? ((signupClicks / landingViews) * 100).toFixed(2) : '0.00'
-        },
-        revenue_funnel: {
-          pricing_views: pricingViews,
-          billing_cycle_toggles: billingCycleToggles,
-          checkout_clicks: checkoutClicks,
-          checkout_confirmed: checkoutConfirmed,
-          checkout_canceled: checkoutCanceled,
-          contact_sales_clicks: contactSalesClicks,
-          pricing_to_checkout_rate: pricingViews > 0 ? ((checkoutClicks / pricingViews) * 100).toFixed(2) : '0.00',
-          checkout_completion_rate: checkoutClicks > 0 ? ((checkoutConfirmed / checkoutClicks) * 100).toFixed(2) : '0.00',
-          enterprise_contact_rate: pricingViews > 0 ? ((contactSalesClicks / pricingViews) * 100).toFixed(2) : '0.00'
-        },
-        feature_engagement: featureEngagementResult.rows,
-        daily_visitors: dailyVisitorsResult.rows,
-        date_range: { start: startDate, end: endDate }
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching analytics:', error);
-    res.status(500).json({ error: 'Failed to fetch analytics data' });
-  }
+		res.json({
+			success: true,
+			data: {
+				page_views: pageViewsResult.rows,
+				signup_funnel: {
+					landing_views: landingViews,
+					signup_page_views: signupPageViews,
+					signup_clicks: signupClicks,
+					candidate_signups: candidateSignups,
+					recruiter_signups: recruiterSignups,
+					total_signups: totalSignups,
+					conversion_rate:
+						landingViews > 0 ? ((totalSignups / landingViews) * 100).toFixed(2) : '0.00',
+					click_through_rate:
+						landingViews > 0 ? ((signupClicks / landingViews) * 100).toFixed(2) : '0.00',
+				},
+				revenue_funnel: {
+					pricing_views: pricingViews,
+					billing_cycle_toggles: billingCycleToggles,
+					checkout_clicks: checkoutClicks,
+					checkout_confirmed: checkoutConfirmed,
+					checkout_canceled: checkoutCanceled,
+					contact_sales_clicks: contactSalesClicks,
+					pricing_to_checkout_rate:
+						pricingViews > 0 ? ((checkoutClicks / pricingViews) * 100).toFixed(2) : '0.00',
+					checkout_completion_rate:
+						checkoutClicks > 0 ? ((checkoutConfirmed / checkoutClicks) * 100).toFixed(2) : '0.00',
+					enterprise_contact_rate:
+						pricingViews > 0 ? ((contactSalesClicks / pricingViews) * 100).toFixed(2) : '0.00',
+				},
+				feature_engagement: featureEngagementResult.rows,
+				daily_visitors: dailyVisitorsResult.rows,
+				date_range: { start: startDate, end: endDate },
+			},
+		});
+	} catch (error) {
+		console.error('Error fetching analytics:', error);
+		res.status(500).json({ error: 'Failed to fetch analytics data' });
+	}
 });
 
 module.exports = router;

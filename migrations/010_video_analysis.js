@@ -1,8 +1,8 @@
 module.exports = {
-  name: '010_video_analysis',
-  async up(client) {
-    // Interview video analysis table
-    await client.query(`
+	name: '010_video_analysis',
+	async up(client) {
+		// Interview video analysis table
+		await client.query(`
       CREATE TABLE IF NOT EXISTS interview_analysis (
         id SERIAL PRIMARY KEY,
         interview_id INTEGER REFERENCES interviews(id) ON DELETE CASCADE,
@@ -18,12 +18,12 @@ module.exports = {
       )
     `);
 
-    // Index for fast lookups
-    await client.query(`
+		// Index for fast lookups
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_interview_analysis_interview_id
       ON interview_analysis(interview_id)
     `);
 
-    console.log('Created interview_analysis table');
-  }
+		console.log('Created interview_analysis table');
+	},
 };

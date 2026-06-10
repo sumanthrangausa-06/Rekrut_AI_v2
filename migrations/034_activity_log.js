@@ -1,7 +1,7 @@
 module.exports = {
-  name: '034_activity_log',
-  async up(client) {
-    await client.query(`
+	name: '034_activity_log',
+	async up(client) {
+		await client.query(`
       CREATE TABLE IF NOT EXISTS activity_log (
         id SERIAL PRIMARY KEY,
         event_type VARCHAR(100) NOT NULL,
@@ -15,18 +15,18 @@ module.exports = {
       )
     `);
 
-    // Indexes for fast queries
-    await client.query(`
+		// Indexes for fast queries
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log (created_at DESC)
     `);
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_activity_log_category ON activity_log (category)
     `);
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_activity_log_event_type ON activity_log (event_type)
     `);
-    await client.query(`
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_activity_log_user_id ON activity_log (user_id)
     `);
-  },
+	},
 };

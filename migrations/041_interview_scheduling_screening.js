@@ -1,8 +1,8 @@
 // Migration 041: AI Interview Scheduling, Screening Pipeline, Multi-Evaluator tables
 module.exports = {
-  up: async (client) => {
-    // Screening interview templates (recruiter creates per job)
-    await client.query(`
+	up: async (client) => {
+		// Screening interview templates (recruiter creates per job)
+		await client.query(`
       CREATE TABLE IF NOT EXISTS screening_templates (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
@@ -19,8 +19,8 @@ module.exports = {
       )
     `);
 
-    // AI Screening sessions (candidate completes async)
-    await client.query(`
+		// AI Screening sessions (candidate completes async)
+		await client.query(`
       CREATE TABLE IF NOT EXISTS screening_sessions (
         id SERIAL PRIMARY KEY,
         template_id INTEGER REFERENCES screening_templates(id) ON DELETE SET NULL,
@@ -44,8 +44,8 @@ module.exports = {
       )
     `);
 
-    // Multi-evaluator AI scores per interview/screening
-    await client.query(`
+		// Multi-evaluator AI scores per interview/screening
+		await client.query(`
       CREATE TABLE IF NOT EXISTS interview_evaluations (
         id SERIAL PRIMARY KEY,
         interview_id INTEGER,
@@ -62,8 +62,8 @@ module.exports = {
       )
     `);
 
-    // Composite evaluation (synthesis of all evaluators)
-    await client.query(`
+		// Composite evaluation (synthesis of all evaluators)
+		await client.query(`
       CREATE TABLE IF NOT EXISTS interview_composite_scores (
         id SERIAL PRIMARY KEY,
         interview_id INTEGER,
@@ -83,8 +83,8 @@ module.exports = {
       )
     `);
 
-    // Smart scheduling: recruiter availability patterns
-    await client.query(`
+		// Smart scheduling: recruiter availability patterns
+		await client.query(`
       CREATE TABLE IF NOT EXISTS scheduling_preferences (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
@@ -99,8 +99,8 @@ module.exports = {
       )
     `);
 
-    // Interview reminders
-    await client.query(`
+		// Interview reminders
+		await client.query(`
       CREATE TABLE IF NOT EXISTS interview_reminders (
         id SERIAL PRIMARY KEY,
         interview_id INTEGER REFERENCES scheduled_interviews(id) ON DELETE CASCADE,
@@ -112,24 +112,24 @@ module.exports = {
       )
     `);
 
-    // Add screening_status to job_applications if not exists
-    await client.query(`
+		// Add screening_status to job_applications if not exists
+		await client.query(`
       ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS screening_status VARCHAR(50) DEFAULT NULL
     `);
-    await client.query(`
+		await client.query(`
       ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS screening_score NUMERIC(5,2) DEFAULT NULL
     `);
 
-    // Add ai_evaluation to scheduled_interviews
-    await client.query(`
+		// Add ai_evaluation to scheduled_interviews
+		await client.query(`
       ALTER TABLE scheduled_interviews ADD COLUMN IF NOT EXISTS ai_evaluation JSONB DEFAULT NULL
     `);
-    await client.query(`
+		await client.query(`
       ALTER TABLE scheduled_interviews ADD COLUMN IF NOT EXISTS ai_composite_score NUMERIC(5,2) DEFAULT NULL
     `);
 
-    // Indexes
-    await client.query(`
+		// Indexes
+		await client.query(`
       CREATE INDEX IF NOT EXISTS idx_screening_templates_job ON screening_templates(job_id);
       CREATE INDEX IF NOT EXISTS idx_screening_sessions_candidate ON screening_sessions(candidate_id);
       CREATE INDEX IF NOT EXISTS idx_screening_sessions_job ON screening_sessions(job_id);
@@ -142,6 +142,6 @@ module.exports = {
       CREATE INDEX IF NOT EXISTS idx_interview_reminders_send ON interview_reminders(send_at) WHERE sent = false;
     `);
 
-    console.log('Migration 041: Interview scheduling, screening & evaluation tables created');
-  }
+		console.log('Migration 041: Interview scheduling, screening & evaluation tables created');
+	},
 };

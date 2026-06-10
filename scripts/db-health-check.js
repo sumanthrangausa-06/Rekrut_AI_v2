@@ -1,27 +1,27 @@
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 5,
-  connectionTimeoutMillis: 10000,
+	connectionString: process.env.DATABASE_URL,
+	ssl: { rejectUnauthorized: false },
+	max: 5,
+	connectionTimeoutMillis: 10000,
 });
 
 async function safeQuery(queryText, fallback) {
-  try {
-    const result = await pool.query(queryText);
-    return result.rows;
-  } catch (err) {
-    return { error: err.message, fallback };
-  }
+	try {
+		const result = await pool.query(queryText);
+		return result.rows;
+	} catch (err) {
+		return { error: err.message, fallback };
+	}
 }
 
 async function runHealthCheck() {
-  const results = {};
+	const results = {};
 
-  try {
-    // 1. Connection pool status
-    results.poolStatus = await safeQuery(`
+	try {
+		// 1. Connection pool status
+		results.poolStatus = await safeQuery(`
       SELECT 
         count(*) as total_connections,
         count(*) FILTER (WHERE state = 'active') as active_connections,
@@ -31,23 +31,26 @@ async function runHealthCheck() {
       WHERE datname = current_database()
     `);
 
-    // Connection settings
-    results.settings = await safeQuery(`
+		// Connection settings
+		results.settings = await safeQuery(`
       SELECT name, setting, unit FROM pg_settings 
       WHERE name IN ('max_connections', 'shared_buffers', 'effective_cache_size', 'work_mem', 'maintenance_work_mem', 'random_page_cost', 'effective_io_concurrency')
     `);
 
-    // 2. Slow queries (from pg_stat_statements if available)
-    results.slowQueries = await safeQuery(`
+		// 2. Slow queries (from pg_stat_statements if available)
+		results.slowQueries = await safeQuery(
+			`
       SELECT query, calls, mean_exec_time, total_exec_time, rows
       FROM pg_stat_statements
       WHERE mean_exec_time > 200
       ORDER BY mean_exec_time DESC
       LIMIT 20
-    `, 'pg_stat_statements not available');
+    `,
+			'pg_stat_statements not available',
+		);
 
-    // 3. Table sizes and bloat
-    results.tableSizes = await safeQuery(`
+		// 3. Table sizes and bloat
+		results.tableSizes = await safeQuery(`
       SELECT 
         schemaname,
         relname as table_name,
@@ -69,8 +72,8 @@ async function runHealthCheck() {
       LIMIT 50
     `);
 
-    // 4. Index usage
-    results.indexUsage = await safeQuery(`
+		// 4. Index usage
+		results.indexUsage = await safeQuery(`
       SELECT 
         schemaname,
         relname as table_name,
@@ -85,8 +88,8 @@ async function runHealthCheck() {
       LIMIT 50
     `);
 
-    // 5. Missing indexes (tables with high seq scans)
-    results.missingIndexes = await safeQuery(`
+		// 5. Missing indexes (tables with high seq scans)
+		results.missingIndexes = await safeQuery(`
       SELECT 
         schemaname,
         relname as table_name,
@@ -104,8 +107,8 @@ async function runHealthCheck() {
       LIMIT 20
     `);
 
-    // 6. Unused indexes
-    results.unusedIndexes = await safeQuery(`
+		// 6. Unused indexes
+		results.unusedIndexes = await safeQuery(`
       SELECT 
         schemaname,
         relname as table_name,
@@ -118,8 +121,8 @@ async function runHealthCheck() {
       LIMIT 30
     `);
 
-    // 7. Database size and age
-    results.dbSize = await safeQuery(`
+		// 7. Database size and age
+		results.dbSize = await safeQuery(`
       SELECT 
         pg_size_pretty(pg_database_size(current_database())) as database_size,
         pg_database_size(current_database()) as size_bytes,
@@ -129,8 +132,8 @@ async function runHealthCheck() {
       WHERE datname = current_database()
     `);
 
-    // 8. Long-running queries
-    results.longRunningQueries = await safeQuery(`
+		// 8. Long-running queries
+		results.longRunningQueries = await safeQuery(`
       SELECT 
         pid,
         usename,
@@ -147,8 +150,8 @@ async function runHealthCheck() {
       ORDER BY query_start
     `);
 
-    // 9. Lock waits
-    results.lockWaits = await safeQuery(`
+		// 9. Lock waits
+		results.lockWaits = await safeQuery(`
       SELECT 
         blocked_locks.pid as blocked_pid,
         blocked_activity.usename as blocked_user,
@@ -165,8 +168,8 @@ async function runHealthCheck() {
       WHERE NOT blocked_locks.granted
     `);
 
-    // 10. Duplicate indexes
-    results.duplicateIndexes = await safeQuery(`
+		// 10. Duplicate indexes
+		results.duplicateIndexes = await safeQuery(`
       SELECT 
         t.tablename,
         array_agg(i.indexname) as duplicate_indexes,
@@ -178,8 +181,8 @@ async function runHealthCheck() {
       HAVING count(*) > 1
     `);
 
-    // 11. FK constraints without indexes
-    results.fkWithoutIndexes = await safeQuery(`
+		// 11. FK constraints without indexes
+		results.fkWithoutIndexes = await safeQuery(`
       SELECT
         tc.table_name,
         kcu.column_name,
@@ -198,8 +201,8 @@ async function runHealthCheck() {
       ORDER BY tc.table_name
     `);
 
-    // 12. Schema overview - table list
-    results.tables = await safeQuery(`
+		// 12. Schema overview - table list
+		results.tables = await safeQuery(`
       SELECT 
         table_name,
         count(*) as column_count
@@ -209,8 +212,8 @@ async function runHealthCheck() {
       ORDER BY table_name
     `);
 
-    // 13. Constraint summary
-    results.constraints = await safeQuery(`
+		// 13. Constraint summary
+		results.constraints = await safeQuery(`
       SELECT 
         tc.table_name,
         tc.constraint_type,
@@ -221,8 +224,8 @@ async function runHealthCheck() {
       ORDER BY tc.table_name, tc.constraint_type
     `);
 
-    // 14. Index summary
-    results.indexSummary = await safeQuery(`
+		// 14. Index summary
+		results.indexSummary = await safeQuery(`
       SELECT 
         tablename,
         count(*) as index_count
@@ -232,8 +235,8 @@ async function runHealthCheck() {
       ORDER BY tablename
     `);
 
-    // 15. Check for tables without primary keys
-    results.noPrimaryKey = await safeQuery(`
+		// 15. Check for tables without primary keys
+		results.noPrimaryKey = await safeQuery(`
       SELECT tab.table_name
       FROM information_schema.tables tab
       LEFT JOIN information_schema.table_constraints tco 
@@ -246,14 +249,13 @@ async function runHealthCheck() {
       ORDER BY tab.table_name
     `);
 
-    console.log(JSON.stringify(results, null, 2));
-
-  } catch (err) {
-    console.error('Health check error:', err.message);
-    console.error(err.stack);
-  } finally {
-    await pool.end();
-  }
+		console.log(JSON.stringify(results, null, 2));
+	} catch (err) {
+		console.error('Health check error:', err.message);
+		console.error(err.stack);
+	} finally {
+		await pool.end();
+	}
 }
 
 runHealthCheck();

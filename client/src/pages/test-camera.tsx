@@ -53,7 +53,9 @@ function Level1({
 			try {
 				const stream = await navigator.mediaDevices.getUserMedia({ video: true })
 				if (cancelled) {
-					stream.getTracks().forEach((t) => t.stop())
+					stream.getTracks().forEach((t) => {
+						t.stop()
+					})
 					return
 				}
 
@@ -136,7 +138,9 @@ function Level1({
 		start()
 		return () => {
 			cancelled = true
-			streamRef.current?.getTracks().forEach((t) => t.stop())
+			streamRef.current?.getTracks().forEach((t) => {
+				t.stop()
+			})
 		}
 	}, [onLog, onResult])
 
@@ -179,7 +183,9 @@ function Level2({
 			try {
 				const stream = await navigator.mediaDevices.getUserMedia({ video: true })
 				if (cancelled) {
-					stream.getTracks().forEach((t) => t.stop())
+					stream.getTracks().forEach((t) => {
+						t.stop()
+					})
 					return
 				}
 
@@ -248,7 +254,9 @@ function Level2({
 		start()
 		return () => {
 			cancelled = true
-			streamRef.current?.getTracks().forEach((t) => t.stop())
+			streamRef.current?.getTracks().forEach((t) => {
+				t.stop()
+			})
 		}
 	}, [onLog, onResult])
 
@@ -307,7 +315,9 @@ function Level3({
 			try {
 				const stream = await navigator.mediaDevices.getUserMedia({ video: true })
 				if (cancelled) {
-					stream.getTracks().forEach((t) => t.stop())
+					stream.getTracks().forEach((t) => {
+						t.stop()
+					})
 					return
 				}
 
@@ -332,7 +342,9 @@ function Level3({
 		start()
 		return () => {
 			cancelled = true
-			streamRef.current?.getTracks().forEach((t) => t.stop())
+			streamRef.current?.getTracks().forEach((t) => {
+				t.stop()
+			})
 		}
 	}, [onLog, onResult])
 
@@ -456,7 +468,9 @@ function Level4({
 			try {
 				const stream = await navigator.mediaDevices.getUserMedia({ video: true })
 				if (cancelled) {
-					stream.getTracks().forEach((t) => t.stop())
+					stream.getTracks().forEach((t) => {
+						t.stop()
+					})
 					return
 				}
 
@@ -553,7 +567,9 @@ function Level4({
 		start()
 		return () => {
 			cancelled = true
-			streamRef.current?.getTracks().forEach((t) => t.stop())
+			streamRef.current?.getTracks().forEach((t) => {
+				t.stop()
+			})
 		}
 	}, [onResult, onLog])
 
@@ -618,7 +634,9 @@ function Level5({
 			try {
 				const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
 				if (cancelled) {
-					stream.getTracks().forEach((t) => t.stop())
+					stream.getTracks().forEach((t) => {
+						t.stop()
+					})
 					return
 				}
 
@@ -645,7 +663,9 @@ function Level5({
 		start()
 		return () => {
 			cancelled = true
-			streamRef.current?.getTracks().forEach((t) => t.stop())
+			streamRef.current?.getTracks().forEach((t) => {
+				t.stop()
+			})
 		}
 	}, [onResult, onLog])
 
