@@ -94,7 +94,6 @@ const corsOrigins = process.env.CORS_ORIGINS
 				'https://rekrutai.co',
 				'https://www.rekrutai.co',
 				'https://app.rekrutai.co',
-				'https://rekrutai-dev.onrender.com',
 			]
 		: [
 				'http://localhost:3000',

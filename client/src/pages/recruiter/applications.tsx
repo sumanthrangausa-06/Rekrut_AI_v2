@@ -242,13 +242,13 @@ export function RecruiterApplicationsPage() {
 
 	return (
 		<div className='space-y-6'>
-			<div className='flex items-start justify-between gap-4'>
+			<div className='flex flex-col sm:flex-row items-start justify-between gap-4'>
 				<div>
 					<h1 className='font-heading text-2xl font-bold'>Applications</h1>
 					<p className='text-muted-foreground'>Review and manage candidate applications</p>
 				</div>
 				{/* Job filter dropdown */}
-				<div className='shrink-0 w-56'>
+				<div className='shrink-0 w-full sm:w-56'>
 					<Select
 						value={jobFilter}
 						onChange={(e) => setJobFilter(e.target.value)}
@@ -521,7 +521,7 @@ export function RecruiterApplicationsPage() {
 						<DialogTitle>Application: {selected.candidate_name}</DialogTitle>
 					</DialogHeader>
 					<div className='space-y-4'>
-						<div className='grid grid-cols-2 gap-3'>
+						<div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
 							<div className='rounded-lg bg-muted/50 p-3'>
 								<p className='text-xs text-muted-foreground'>Position</p>
 								<p className='font-medium'>{selected.job_title}</p>
@@ -734,7 +734,7 @@ function CandidateCoachingSection({ candidateId }: { candidateId: number }) {
 			{expanded && (
 				<div className='mt-2 space-y-3'>
 					{/* Summary stats */}
-					<div className='grid grid-cols-4 gap-2'>
+					<div className='grid grid-cols-2 sm:grid-cols-4 gap-2'>
 						<div className='p-2.5 rounded-lg bg-muted/50 text-center'>
 							<div
 								className={`text-lg font-bold ${stats.average_score ? scoreColor(stats.average_score) : ''}`}

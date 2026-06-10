@@ -566,7 +566,7 @@ export function RecruiterInterviewsPage() {
 							<Sparkles className='h-5 w-5 text-purple-600' />
 							<h3 className='font-semibold text-purple-900'>AI Screening Pipeline</h3>
 						</div>
-						<div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3'>
+						<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'>
 							{screeningTemplates.map((t) => (
 								<div key={t.id} className='p-3 bg-white rounded-lg border border-purple-100'>
 									<div className='flex items-center justify-between mb-1'>
@@ -595,7 +595,7 @@ export function RecruiterInterviewsPage() {
 
 			{/* Main content */}
 			<Tabs value={tab} onValueChange={setTab}>
-				<TabsList>
+				<TabsList className='flex-wrap h-auto'>
 					<TabsTrigger value='upcoming'>Upcoming ({upcoming.length})</TabsTrigger>
 					<TabsTrigger value='screening'>Screening</TabsTrigger>
 					<TabsTrigger value='calendar'>Calendar</TabsTrigger>
@@ -789,17 +789,18 @@ export function RecruiterInterviewsPage() {
 								</Button>
 							</div>
 
-							<div className='grid grid-cols-7 gap-px bg-muted rounded-lg overflow-hidden'>
+							<div className='overflow-x-auto'>
+								<div className='grid grid-cols-7 gap-px bg-muted rounded-lg overflow-hidden min-w-[300px]'>
 								{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
 									<div
 										key={day}
-										className='bg-background p-2 text-center text-xs font-medium text-muted-foreground'
+										className='bg-background p-1 sm:p-2 text-center text-[10px] sm:text-xs font-medium text-muted-foreground'
 									>
 										{day}
 									</div>
 								))}
 								{Array.from({ length: getFirstDayOfMonth(calMonth) }).map((_, i) => (
-									<div key={`empty-${i}`} className='bg-background p-2 min-h-[80px]' />
+									<div key={`empty-${i}`} className='bg-background p-1 sm:p-2 min-h-[60px] sm:min-h-[80px]' />
 								))}
 								{Array.from({ length: getDaysInMonth(calMonth) }).map((_, i) => {
 									const day = i + 1
@@ -812,7 +813,7 @@ export function RecruiterInterviewsPage() {
 									return (
 										<div
 											key={day}
-											className={`bg-background p-2 min-h-[80px] ${isCurrentDay ? 'ring-2 ring-primary ring-inset' : ''}`}
+											className={`bg-background p-1 sm:p-2 min-h-[60px] sm:min-h-[80px] ${isCurrentDay ? 'ring-2 ring-primary ring-inset' : ''}`}
 										>
 											<span className={`text-sm ${isCurrentDay ? 'font-bold text-primary' : ''}`}>
 												{day}
@@ -842,6 +843,7 @@ export function RecruiterInterviewsPage() {
 										</div>
 									)
 								})}
+								</div>
 							</div>
 						</CardContent>
 					</Card>
@@ -927,7 +929,7 @@ export function RecruiterInterviewsPage() {
 							</Button>
 						</div>
 						{suggestedSlots.length > 0 && (
-							<div className='grid grid-cols-2 gap-2 mt-2'>
+							<div className='grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2'>
 								{suggestedSlots.map((slot, i) => (
 									<button
 										key={slot.start}
@@ -950,7 +952,7 @@ export function RecruiterInterviewsPage() {
 						)}
 					</div>
 
-					<div className='grid grid-cols-2 gap-4'>
+					<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
 						<div>
 							<Label>Date</Label>
 							<Input type='date' value={schedDate} onChange={(e) => setSchedDate(e.target.value)} />
@@ -960,7 +962,7 @@ export function RecruiterInterviewsPage() {
 							<Input type='time' value={schedTime} onChange={(e) => setSchedTime(e.target.value)} />
 						</div>
 					</div>
-					<div className='grid grid-cols-2 gap-4'>
+					<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
 						<div>
 							<Label>Duration</Label>
 							<Select value={duration} onChange={(e) => setDuration(e.target.value)}>
@@ -1176,7 +1178,7 @@ export function RecruiterInterviewsPage() {
 						)}
 
 						{/* Individual evaluator scores */}
-						<div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
+						<div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
 							{showAiScores.evaluations &&
 								Object.entries(showAiScores.evaluations).map(([type, eval_]: [string, any]) => (
 									<div key={type} className='p-3 border rounded-lg'>
@@ -1295,7 +1297,7 @@ export function RecruiterInterviewsPage() {
 								<h4 className='font-medium text-sm mb-2 flex items-center gap-1.5'>
 									<Brain className='h-4 w-4 text-purple-600' /> AI Multi-Evaluator
 								</h4>
-								<div className='grid grid-cols-3 gap-2 text-center'>
+								<div className='grid grid-cols-1 sm:grid-cols-3 gap-2 text-center'>
 									<div>
 										<div className='text-lg font-bold'>
 											{showScreeningReport.composite.technical_score}

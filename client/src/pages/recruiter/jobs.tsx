@@ -619,7 +619,7 @@ function JobDetailPanel({
 			</div>
 
 			{/* Pipeline Stats */}
-			<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'>
+			<div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3'>
 				<div className='rounded-lg bg-muted/50 p-3 text-center min-w-0 overflow-hidden'>
 					<p className='text-xl sm:text-2xl font-bold truncate'>{job.application_count || 0}</p>
 					<p className='text-xs text-muted-foreground'>Applicants</p>

@@ -1,3 +1,7 @@
+if (process.env.NODE_ENV === 'production') {
+  throw new Error('Test scripts cannot run in production');
+}
+
 async function testLogin() {
   try {
     const response = await fetch('https://rekrutai-dev.onrender.com/api/auth/login', {

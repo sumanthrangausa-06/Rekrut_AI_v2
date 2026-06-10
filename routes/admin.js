@@ -64,6 +64,26 @@ initAdminCredentials();
 function requireAdmin(req, res, next) {
 	// Path 1: Already authenticated via admin login
 	if (req.session?.isAdmin) {
+		// Admin session timeout enforcement
+		const ADMIN_IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+		const ADMIN_ABSOLUTE_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours
+		const now = Date.now();
+		const lastActivity = req.session.lastAdminActivity ? new Date(req.session.lastAdminActivity).getTime() : now;
+		const loginAt = req.session.adminLoginAt ? new Date(req.session.adminLoginAt).getTime() : now;
+
+		if (now - lastActivity > ADMIN_IDLE_TIMEOUT) {
+			req.session.isAdmin = false;
+			req.session.adminLoginAt = null;
+			req.session.lastAdminActivity = null;
+			return res.status(401).json({ error: 'Admin session expired due to inactivity' });
+		}
+		if (now - loginAt > ADMIN_ABSOLUTE_TIMEOUT) {
+			req.session.isAdmin = false;
+			req.session.adminLoginAt = null;
+			req.session.lastAdminActivity = null;
+			return res.status(401).json({ error: 'Admin session expired (absolute timeout)' });
+		}
+		req.session.lastAdminActivity = new Date().toISOString();
 		return next();
 	}
 
@@ -75,6 +95,7 @@ function requireAdmin(req, res, next) {
 			// Bridge: set admin session so subsequent requests don't re-verify
 			req.session.isAdmin = true;
 			req.session.adminLoginAt = new Date().toISOString();
+			req.session.lastAdminActivity = new Date().toISOString();
 			req.session.adminBridgedFrom = decoded.email;
 			return next();
 		}
@@ -120,6 +141,7 @@ router.post('/login', async (req, res) => {
 	// Set admin session
 	req.session.isAdmin = true;
 	req.session.adminLoginAt = new Date().toISOString();
+	req.session.lastAdminActivity = new Date().toISOString();
 
 	logAuthEvent('admin_login_success', null, ADMIN_USERNAME, ip);
 
@@ -152,6 +174,7 @@ router.get('/me', (req, res) => {
 		if (decoded && decoded.role === 'admin') {
 			req.session.isAdmin = true;
 			req.session.adminLoginAt = new Date().toISOString();
+			req.session.lastAdminActivity = new Date().toISOString();
 			req.session.adminBridgedFrom = decoded.email;
 			return res.json({
 				authenticated: true,
@@ -345,6 +368,7 @@ router.post('/bridge', (req, res) => {
 	// Bridge the session
 	req.session.isAdmin = true;
 	req.session.adminLoginAt = new Date().toISOString();
+	req.session.lastAdminActivity = new Date().toISOString();
 	req.session.adminBridgedFrom = decoded.email;
 
 	const ip = req.ip || req.connection.remoteAddress || 'unknown';
@@ -362,6 +386,7 @@ router.post('/logout', (req, res) => {
 	if (req.session) {
 		req.session.isAdmin = false;
 		req.session.adminLoginAt = null;
+		req.session.lastAdminActivity = null;
 	}
 	return res.json({ success: true, message: 'Logged out' });
 });

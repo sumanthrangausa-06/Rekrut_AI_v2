@@ -1,3 +1,7 @@
+if (process.env.NODE_ENV === 'production') {
+  throw new Error('Test scripts cannot run in production');
+}
+
 const http = require('node:http');
 
 const _BASE_URL = 'http://localhost:3000';

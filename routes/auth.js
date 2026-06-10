@@ -353,6 +353,15 @@ router.post('/logout-all', authMiddleware, async (req, res) => {
 	}
 });
 
+// ============= OAUTH HELPERS =============
+
+function verifyOauthState(req, state) {
+	if (!req.session || !state || !req.session.oauth_state) return false;
+	const valid = req.session.oauth_state === state;
+	delete req.session.oauth_state;
+	return valid;
+}
+
 // ============= OAUTH: GOOGLE =============
 
 // Get Google OAuth URL
@@ -486,10 +495,13 @@ router.get('/google/callback', async (req, res) => {
 		const accessToken = generateToken(user);
 		const { token: refreshToken } = await generateRefreshToken(user.id);
 
-		// Redirect with tokens
+		// Store tokens in httpOnly session cookie, redirect cleanly
+		req.session.token = accessToken;
+		req.session.refreshToken = refreshToken;
+
 		const redirectUrl =
 			user.role === 'recruiter' ? '/recruiter-dashboard.html' : '/candidate-dashboard.html';
-		res.redirect(`${redirectUrl}?token=${accessToken}&refresh=${refreshToken}`);
+		res.redirect(redirectUrl);
 	} catch (err) {
 		console.error('Google OAuth error:', err);
 		res.redirect('/login.html?error=Authentication failed');
@@ -623,10 +635,13 @@ router.get('/linkedin/callback', async (req, res) => {
 		const accessToken = generateToken(user);
 		const { token: refreshToken } = await generateRefreshToken(user.id);
 
-		// Redirect with tokens
+		// Store tokens in httpOnly session cookie, redirect cleanly
+		req.session.token = accessToken;
+		req.session.refreshToken = refreshToken;
+
 		const redirectUrl =
 			user.role === 'recruiter' ? '/recruiter-dashboard.html' : '/candidate-dashboard.html';
-		res.redirect(`${redirectUrl}?token=${accessToken}&refresh=${refreshToken}`);
+		res.redirect(redirectUrl);
 	} catch (err) {
 		console.error('LinkedIn OAuth error:', err);
 		res.redirect('/login.html?error=Authentication failed');

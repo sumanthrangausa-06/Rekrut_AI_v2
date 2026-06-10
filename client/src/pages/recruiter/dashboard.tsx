@@ -736,7 +736,7 @@ export function RecruiterDashboard() {
 			)}
 
 			{/* Quick stats row */}
-			<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-5'>
+			<div className='grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5'>
 				{quickStats.map((stat) => {
 					const isZero = stat.value === 0 || stat.value === '0' || stat.value === '18 days'
 					const ctaLink =
@@ -792,7 +792,7 @@ export function RecruiterDashboard() {
 			</div>
 
 			{/* Analytics Charts */}
-			<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+			<div className='grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3'>
 				<Card>
 					<CardHeader className='pb-2'>
 						<CardTitle className='text-sm flex items-center gap-2'>
@@ -918,7 +918,7 @@ export function RecruiterDashboard() {
 			</Card>
 
 			{/* Main grid: Pipeline + Activity */}
-			<div className='grid gap-6 lg:grid-cols-3'>
+			<div className='grid gap-6 lg:grid-cols-2 xl:grid-cols-3'>
 				{/* Pipeline Overview */}
 				<div className='lg:col-span-2 space-y-4'>
 					<div className='flex items-center justify-between'>
@@ -1104,7 +1104,7 @@ export function RecruiterDashboard() {
 			</div>
 
 			{/* Quick Actions Bar */}
-			<div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+			<div className='grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'>
 				<Link to='/recruiter/jobs/new'>
 					<Card className='transition-shadow hover:shadow-md cursor-pointer h-full border-indigo-200 bg-indigo-50/30'>
 						<CardContent className='flex items-center gap-3 p-4'>
@@ -1179,7 +1179,7 @@ export function RecruiterDashboard() {
 						</Link>
 					</CardHeader>
 					<CardContent className='pt-0'>
-						<div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+						<div className='grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3'>
 							{data.upcoming_interviews.slice(0, 3).map((interview) => (
 								<div
 									key={interview.id}
