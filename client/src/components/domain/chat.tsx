@@ -515,8 +515,8 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 							{/* Messages Area */}
 							<ScrollArea className='flex-1 px-4 py-4' ref={scrollAreaRef}>
 								<div className='space-y-6'>
-									{groupedMessages.map((group, gi) => (
-										<div key={gi}>
+									{groupedMessages.map((group) => (
+										<div key={group.date}>
 											{/* Date separator */}
 											<div className='flex items-center justify-center mb-4'>
 												<div className='bg-muted px-3 py-1 rounded-full text-[10px] text-muted-foreground font-medium'>
@@ -525,7 +525,7 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 											</div>
 
 											<div className='space-y-3'>
-												{group.messages.map((msg, mi) => {
+												{group.messages.map((msg) => {
 													const isSelf =
 														msg.sender_id === 0 ||
 														(msg.sender?.role === 'candidate' && mode === 'candidate') ||

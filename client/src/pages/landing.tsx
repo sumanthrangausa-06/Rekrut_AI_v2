@@ -529,9 +529,22 @@ function HeroSection() {
 					</div>
 				</div>
 
-				{/* Hero visual — abstract dashboard preview */}
+				{/* Hero visual — browser mockup dashboard preview */}
 				<div className='mx-auto mt-16 max-w-5xl'>
 					<div className='relative rounded-2xl border bg-card shadow-2xl overflow-hidden'>
+						{/* Browser chrome */}
+						<div className='relative z-10 bg-muted/80 border-b px-4 py-2 flex items-center gap-2'>
+							<div className='flex gap-1.5'>
+								<div className='h-3 w-3 rounded-full bg-red-400' />
+								<div className='h-3 w-3 rounded-full bg-amber-400' />
+								<div className='h-3 w-3 rounded-full bg-green-400' />
+							</div>
+							<div className='flex-1 flex justify-center'>
+								<div className='bg-background rounded-md px-3 py-1 text-xs text-muted-foreground max-w-xs truncate'>
+									rekrutai.co/dashboard
+								</div>
+							</div>
+						</div>
 						<div className='absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-purple-500/5' />
 						<div className='relative p-6 sm:p-10'>
 							<div className='grid gap-6 sm:grid-cols-3'>
@@ -1013,7 +1026,7 @@ function FAQSection() {
 									)}
 								</button>
 								{openIndex === index && (
-									<div className='px-6 pb-6'>
+									<div className='px-6 pb-6 max-h-[60vh] overflow-y-auto'>
 										<p className='text-sm leading-relaxed text-muted-foreground'>{item.answer}</p>
 									</div>
 								)}

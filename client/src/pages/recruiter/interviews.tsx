@@ -84,17 +84,6 @@ interface ScreeningTemplate {
 	auto_send_on_apply: boolean
 }
 
-interface ScreeningSession {
-	id: number
-	candidate_name: string
-	candidate_email: string
-	job_title: string
-	status: string
-	overall_score: number | null
-	started_at: string | null
-	completed_at: string | null
-}
-
 interface SlotSuggestion {
 	start: string
 	end: string

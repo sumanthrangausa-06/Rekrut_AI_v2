@@ -69,7 +69,7 @@ interface TeamMember {
 // ============= Main Component =============
 
 export function RecruiterCompanyPage() {
-	const { user } = useAuth()
+	const { user: _user } = useAuth()
 	const [tab, setTab] = useState('overview')
 	const [company, setCompany] = useState<Company>({})
 	const [members, setMembers] = useState<TeamMember[]>([])
