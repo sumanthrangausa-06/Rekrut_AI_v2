@@ -1338,7 +1338,7 @@ export function QuickPractice({
 													</h5>
 													<ul className='space-y-1'>
 														{coaching.content.strengths.map((s, i) => (
-															<li key={i} className='text-xs text-green-700'>
+															<li key={s} className='text-xs text-green-700'>
 																{s}
 															</li>
 														))}
@@ -1350,7 +1350,7 @@ export function QuickPractice({
 													<h5 className='text-xs font-semibold text-amber-800 mb-1.5'>↑ Improve</h5>
 													<ul className='space-y-1'>
 														{coaching.content.improvements.map((s, i) => (
-															<li key={i} className='text-xs text-amber-700'>
+															<li key={s} className='text-xs text-amber-700'>
 																{s}
 															</li>
 														))}
@@ -1363,7 +1363,7 @@ export function QuickPractice({
 														<h5 className='text-xs font-semibold text-blue-800 mb-1.5'>💡 Tips</h5>
 														<ul className='space-y-1'>
 															{coaching.content.specific_tips.map((s, i) => (
-																<li key={i} className='text-xs text-blue-700'>
+																<li key={s} className='text-xs text-blue-700'>
 																	{s}
 																</li>
 															))}
@@ -1490,7 +1490,7 @@ export function QuickPractice({
 													</h5>
 													<ul className='space-y-1'>
 														{coaching.communication.tips.map((tip, i) => (
-															<li key={i} className='text-xs text-blue-700'>
+															<li key={tip} className='text-xs text-blue-700'>
 																{tip}
 															</li>
 														))}
@@ -1552,7 +1552,7 @@ export function QuickPractice({
 																<ul className='space-y-1'>
 																	{coaching.communication.voice_analysis.voice_tips.map(
 																		(tip: string, i: number) => (
-																			<li key={i} className='text-xs text-violet-700'>
+																			<li key={tip} className='text-xs text-violet-700'>
 																				{tip}
 																			</li>
 																		),
@@ -1642,7 +1642,7 @@ export function QuickPractice({
 														<ul className='space-y-1'>
 															{coaching.presentation.timestamped_notes.map((note, i) => (
 																<li
-																	key={i}
+																	key={note.frame}
 																	className='text-xs text-muted-foreground flex items-start gap-1.5'
 																>
 																	<Badge variant='outline' className='text-[9px] shrink-0 mt-0.5'>
@@ -1703,7 +1703,7 @@ export function QuickPractice({
 									</h4>
 									<ul className='space-y-1.5'>
 										{textCoaching.strengths.map((s, i) => (
-											<li key={i} className='text-sm text-green-700 flex items-start gap-2'>
+											<li key={s} className='text-sm text-green-700 flex items-start gap-2'>
 												<span className='mt-1 h-1.5 w-1.5 rounded-full bg-green-500 shrink-0' />
 												{s}
 											</li>
@@ -1719,7 +1719,7 @@ export function QuickPractice({
 									</h4>
 									<ul className='space-y-1.5'>
 										{textCoaching.improvements.map((imp, i) => (
-											<li key={i} className='text-sm text-amber-700 flex items-start gap-2'>
+											<li key={imp} className='text-sm text-amber-700 flex items-start gap-2'>
 												<span className='mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0' />
 												{imp}
 											</li>
@@ -1735,7 +1735,7 @@ export function QuickPractice({
 									</h4>
 									<ul className='space-y-1.5'>
 										{textCoaching.specific_tips.map((tip, i) => (
-											<li key={i} className='text-sm text-blue-700 flex items-start gap-2'>
+											<li key={tip} className='text-sm text-blue-700 flex items-start gap-2'>
 												<span className='mt-1 h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0' />
 												{tip}
 											</li>

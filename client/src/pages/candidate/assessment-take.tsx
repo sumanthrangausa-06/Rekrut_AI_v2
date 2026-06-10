@@ -345,7 +345,7 @@ export function AssessmentTakePage() {
 						<div className='space-y-2'>
 							{question.options.map((option, i) => (
 								<button
-									key={i}
+									key={option}
 									onClick={() => setSelectedAnswer(option)}
 									className={`w-full text-left rounded-lg border p-3 text-sm transition-colors ${
 										selectedAnswer === option

@@ -533,7 +533,7 @@ export function CandidateJobsPage() {
 							<span className='text-xs text-indigo-200 shrink-0'>Recent:</span>
 							{recentSearches.slice(0, 3).map((rs, i) => (
 								<button
-									key={i}
+									key={rs.query || `rs-${i}`}
 									onClick={() => setFilters(rs.filters)}
 									className='text-xs text-white/80 hover:text-white bg-white/10 rounded-full px-2.5 py-1 transition-colors whitespace-nowrap flex items-center gap-1'
 								>
@@ -1315,7 +1315,7 @@ function JobDetailPanel({
 					</p>
 					<div className='space-y-2'>
 						{screeningQuestions.map((q, i) => (
-							<div key={i} className='text-sm p-2 rounded-lg bg-muted/50'>
+							<div key={`job-`} className='text-sm p-2 rounded-lg bg-muted/50'>
 								<p className='font-medium text-xs'>
 									{q.question}
 									{q.required && <span className='text-destructive'> *</span>}

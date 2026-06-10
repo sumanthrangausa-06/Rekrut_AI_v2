@@ -982,7 +982,7 @@ function ScreeningDetail({
 							<CardContent>
 								<ul className='space-y-3'>
 									{screening.strengths.map((item, i) => (
-										<li key={i} className='flex items-start gap-2 text-sm'>
+										<li key={item} className='flex items-start gap-2 text-sm'>
 											<CheckCircle2 className='h-4 w-4 text-emerald-500 mt-0.5 shrink-0' />
 											<span>{item}</span>
 										</li>
@@ -1001,7 +1001,7 @@ function ScreeningDetail({
 							<CardContent>
 								<ul className='space-y-3'>
 									{screening.concerns.map((item, i) => (
-										<li key={i} className='flex items-start gap-2 text-sm'>
+										<li key={item} className='flex items-start gap-2 text-sm'>
 											<AlertTriangle className='h-4 w-4 text-amber-500 mt-0.5 shrink-0' />
 											<span>{item}</span>
 										</li>
@@ -1208,7 +1208,7 @@ function ScreeningDetail({
 								</p>
 								<ul className='space-y-2'>
 									{screening.cultureFit.alignment.map((item, i) => (
-										<li key={i} className='flex items-start gap-2 text-sm'>
+										<li key={item} className='flex items-start gap-2 text-sm'>
 											<CheckCircle2 className='h-4 w-4 text-emerald-500 mt-0.5 shrink-0' />
 											{item}
 										</li>
@@ -1222,7 +1222,7 @@ function ScreeningDetail({
 								</p>
 								<ul className='space-y-2'>
 									{screening.cultureFit.concerns.map((item, i) => (
-										<li key={i} className='flex items-start gap-2 text-sm text-muted-foreground'>
+										<li key={item} className='flex items-start gap-2 text-sm text-muted-foreground'>
 											<AlertTriangle className='h-4 w-4 text-amber-500 mt-0.5 shrink-0' />
 											{item}
 										</li>
@@ -1249,7 +1249,7 @@ function ScreeningDetail({
 						<CardContent>
 							<div className='grid gap-3'>
 								{screening.autoQuestions.map((q, i) => (
-									<QuestionCard key={i} q={q} index={i} />
+									<QuestionCard key={q} q={q} index={i} />
 								))}
 							</div>
 						</CardContent>
@@ -1270,7 +1270,7 @@ function ScreeningDetail({
 							{screening.aiNotes && screening.aiNotes.length > 0 ? (
 								<div className='space-y-3'>
 									{screening.aiNotes.map((note, i) => (
-										<div key={i} className='flex items-start gap-3 p-3 rounded-lg bg-muted/50'>
+										<div key={note} className='flex items-start gap-3 p-3 rounded-lg bg-muted/50'>
 											<Sparkles className='h-4 w-4 text-indigo-500 mt-0.5 shrink-0' />
 											<p className='text-sm'>{note}</p>
 										</div>

@@ -240,7 +240,7 @@ function TaskCard({ task }: { task: AgentTask }) {
 				)}
 				<div className='flex flex-wrap gap-1'>
 					{task.files.slice(0, 3).map((file, i) => (
-						<Badge key={i} variant='secondary' className='text-[10px] gap-1'>
+						<Badge key={file} variant='secondary' className='text-[10px] gap-1'>
 							<FileCode className='h-2.5 w-2.5' />
 							{file.split('/').pop()}
 						</Badge>
@@ -324,7 +324,7 @@ function TeamMemberCard({ member }: { member: TeamMember }) {
 							Blockers
 						</div>
 						{member.blockers.map((b, i) => (
-							<p key={i} className='text-xs text-red-600'>
+							<p key={b} className='text-xs text-red-600'>
 								• {b}
 							</p>
 						))}
@@ -335,7 +335,7 @@ function TeamMemberCard({ member }: { member: TeamMember }) {
 						<p className='text-xs font-medium text-muted-foreground'>Recent Updates</p>
 						<ul className='space-y-0.5'>
 							{member.notes.slice(0, 3).map((n, i) => (
-								<li key={i} className='text-xs text-muted-foreground'>
+								<li key={n} className='text-xs text-muted-foreground'>
 									• {n}
 								</li>
 							))}
@@ -797,7 +797,7 @@ export function AgentDashboardPage() {
 								))}
 							{!teamData &&
 								Array.from({ length: 3 }).map((_, i) => (
-									<Card key={i} className='border shadow-sm animate-pulse'>
+									<Card key={`skeleton-3-${i}`} className='border shadow-sm animate-pulse'>
 										<CardContent className='p-4 h-32' />
 									</Card>
 								))}
@@ -816,7 +816,7 @@ export function AgentDashboardPage() {
 							))}
 							{!teamData &&
 								Array.from({ length: 5 }).map((_, i) => (
-									<Card key={i} className='border shadow-sm animate-pulse'>
+									<Card key={`skeleton-5-${i}`} className='border shadow-sm animate-pulse'>
 										<CardContent className='p-4 h-64' />
 									</Card>
 								))}
@@ -834,7 +834,7 @@ export function AgentDashboardPage() {
 								<ScrollArea className='h-48'>
 									<div className='divide-y'>
 										{teamData?.recent_commits.map((c, i) => (
-											<div key={i} className='p-3 flex items-start gap-3'>
+											<div key={c.sha || c.message || `commit-${i}`} className='p-3 flex items-start gap-3'>
 												<div className='p-1.5 rounded-md bg-primary/10 shrink-0'>
 													<GitBranch className='h-3.5 w-3.5 text-primary' />
 												</div>

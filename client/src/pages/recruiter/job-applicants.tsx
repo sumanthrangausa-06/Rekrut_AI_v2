@@ -1024,14 +1024,14 @@ export function RecruiterJobApplicantsPage() {
 										const boldMatch = paragraph.match(/^\*\*(.+?):\*\*\s*(.+)$/)
 										if (boldMatch) {
 											return (
-												<div key={i}>
+												<div key={paragraph}>
 													<span className='font-semibold text-blue-900'>{boldMatch[1]}:</span>{' '}
 													<span className='text-blue-800'>{boldMatch[2]}</span>
 												</div>
 											)
 										}
 										return (
-											<p key={i} className='text-blue-800'>
+											<p key={paragraph} className='text-blue-800'>
 												{paragraph}
 											</p>
 										)

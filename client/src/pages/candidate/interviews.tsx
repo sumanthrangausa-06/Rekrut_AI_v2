@@ -360,7 +360,7 @@ export function CandidateInterviewsPage() {
 				<TabsContent value='tips'>
 					<div className='grid gap-4 sm:grid-cols-2'>
 						{INTERVIEW_TIPS.map((tip, i) => (
-							<Card key={i}>
+							<Card key={tip.title || `tip-${i}`}>
 								<CardContent className='p-4'>
 									<div className='flex gap-3'>
 										<div className='p-2 rounded-lg bg-primary/10 text-primary h-fit'>

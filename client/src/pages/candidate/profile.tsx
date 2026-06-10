@@ -498,7 +498,7 @@ export function CandidateProfilePage() {
 								<ul className='space-y-1.5'>
 									{aiTips.map((tip, i) => (
 										<li
-											key={i}
+											key={tip}
 											className='text-sm text-blue-800 dark:text-blue-200 flex items-start gap-2'
 										>
 											<CheckCircle className='h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-500' />
@@ -1524,7 +1524,7 @@ function ExperienceTab({
 														<ul className='mt-2 space-y-1'>
 															{exp.achievements.map((a, i) => (
 																<li
-																	key={i}
+																	key={tip}
 																	className='text-xs text-muted-foreground flex items-start gap-1.5'
 																>
 																	<Star className='h-3 w-3 text-amber-400 mt-0.5 shrink-0' />

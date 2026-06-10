@@ -930,7 +930,7 @@ export function RecruiterInterviewsPage() {
 							<div className='grid grid-cols-2 gap-2 mt-2'>
 								{suggestedSlots.map((slot, i) => (
 									<button
-										key={i}
+										key={slot.start}
 										onClick={() => selectSlot(slot)}
 										className='text-left p-2 bg-white rounded border border-blue-100 hover:border-blue-400 hover:bg-blue-50 transition-colors text-xs'
 									>
@@ -1200,7 +1200,7 @@ export function RecruiterInterviewsPage() {
 										{eval_.key_observations && (
 											<ul className='mt-2 space-y-1'>
 												{eval_.key_observations.slice(0, 3).map((obs: string, i: number) => (
-													<li key={i} className='text-xs flex items-start gap-1'>
+													<li key={obs} className='text-xs flex items-start gap-1'>
 														<span className='text-muted-foreground'>•</span> {obs}
 													</li>
 												))}
@@ -1267,7 +1267,7 @@ export function RecruiterInterviewsPage() {
 								<h4 className='font-medium text-sm mb-1 text-green-700'>Strengths</h4>
 								<ul className='space-y-1'>
 									{showScreeningReport.report.strengths.map((s: string, i: number) => (
-										<li key={i} className='text-sm flex items-start gap-1.5'>
+										<li key={s} className='text-sm flex items-start gap-1.5'>
 											<CheckCircle className='h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0' /> {s}
 										</li>
 									))}
@@ -1281,7 +1281,7 @@ export function RecruiterInterviewsPage() {
 									<h4 className='font-medium text-sm mb-1 text-red-700'>Red Flags</h4>
 									<ul className='space-y-1'>
 										{showScreeningReport.report.red_flags.map((f: string, i: number) => (
-											<li key={i} className='text-sm flex items-start gap-1.5'>
+											<li key={f} className='text-sm flex items-start gap-1.5'>
 												<AlertCircle className='h-3.5 w-3.5 text-red-500 mt-0.5 shrink-0' /> {f}
 											</li>
 										))}
@@ -1417,7 +1417,7 @@ function InterviewCard({
 									{feedback.rating && (
 										<span className='flex items-center gap-0.5'>
 											{Array.from({ length: feedback.rating }).map((_, i) => (
-												<Star key={i} className='h-3 w-3 fill-yellow-400 text-yellow-400' />
+												<Star key={`star-${i}`} className='h-3 w-3 fill-yellow-400 text-yellow-400' />
 											))}
 										</span>
 									)}

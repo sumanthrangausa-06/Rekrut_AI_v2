@@ -98,7 +98,7 @@ export function ProgressTab({ categoryProgress, recentSessions }: ProgressTabPro
 							{recentSessions.map((s, i) => {
 								const catCfg = categoryConfig[s.category] || categoryConfig.behavioral
 								return (
-									<div key={i} className='flex items-start gap-3 p-3 rounded-lg bg-muted/50'>
+									<div key={s.created_at} className='flex items-start gap-3 p-3 rounded-lg bg-muted/50'>
 										<div className='flex items-center justify-center h-10 w-10 rounded-lg bg-primary/10 text-primary font-bold text-sm shrink-0'>
 											{s.score}/10
 										</div>
@@ -424,7 +424,7 @@ export function HistoryTab({
 																		</h5>
 																		<ul className='space-y-1'>
 																			{cd.content.strengths.map((s: string, i: number) => (
-																				<li key={i} className='text-xs text-green-700'>
+																				<li key={s} className='text-xs text-green-700'>
 																					{s}
 																				</li>
 																			))}
@@ -438,7 +438,7 @@ export function HistoryTab({
 																		</h5>
 																		<ul className='space-y-1'>
 																			{cd.content.improvements.map((s: string, i: number) => (
-																				<li key={i} className='text-xs text-amber-700'>
+																				<li key={s} className='text-xs text-amber-700'>
 																					{s}
 																				</li>
 																			))}
@@ -452,7 +452,7 @@ export function HistoryTab({
 																		</h5>
 																		<ul className='space-y-1'>
 																			{cd.content.specific_tips.map((s: string, i: number) => (
-																				<li key={i} className='text-xs text-blue-700'>
+																				<li key={s} className='text-xs text-blue-700'>
 																					{s}
 																				</li>
 																			))}
@@ -630,7 +630,7 @@ export function HistoryTab({
 																		</h5>
 																		<ul className='space-y-1'>
 																			{cd.communication.tips.map((t: string, i: number) => (
-																				<li key={i} className='text-xs text-blue-700'>
+																				<li key={t} className='text-xs text-blue-700'>
 																					{t}
 																				</li>
 																			))}
@@ -810,7 +810,7 @@ export function HistoryTab({
 													<div className='space-y-2'>
 														{cd.question_scores.map((qs: any, i: number) => (
 															<div
-																key={i}
+																key={qs.question_summary || `qs-${i}`}
 																className='flex items-start gap-3 p-2 rounded-lg bg-muted/30'
 															>
 																<div
@@ -840,7 +840,7 @@ export function HistoryTab({
 															</h5>
 															<ul className='space-y-1'>
 																{cd.strengths.map((s: string, i: number) => (
-																	<li key={i} className='text-xs text-green-700'>
+																	<li key={s} className='text-xs text-green-700'>
 																		{s}
 																	</li>
 																))}
@@ -854,7 +854,7 @@ export function HistoryTab({
 															</h5>
 															<ul className='space-y-1'>
 																{cd.improvements.map((s: string, i: number) => (
-																	<li key={i} className='text-xs text-amber-700'>
+																	<li key={s} className='text-xs text-amber-700'>
 																		{s}
 																	</li>
 																))}
@@ -983,7 +983,7 @@ export function HistoryTab({
 																	</h5>
 																	<ul className='space-y-1'>
 																		{cd.content.strengths.map((s: string, i: number) => (
-																			<li key={i} className='text-xs text-green-700'>
+																			<li key={s} className='text-xs text-green-700'>
 																				{s}
 																			</li>
 																		))}
@@ -997,7 +997,7 @@ export function HistoryTab({
 																	</h5>
 																	<ul className='space-y-1'>
 																		{cd.content.improvements.map((s: string, i: number) => (
-																			<li key={i} className='text-xs text-amber-700'>
+																			<li key={s} className='text-xs text-amber-700'>
 																				{s}
 																			</li>
 																		))}
@@ -1011,7 +1011,7 @@ export function HistoryTab({
 																	</h5>
 																	<ul className='space-y-1'>
 																		{cd.content.specific_tips.map((s: string, i: number) => (
-																			<li key={i} className='text-xs text-blue-700'>
+																			<li key={s} className='text-xs text-blue-700'>
 																				{s}
 																			</li>
 																		))}
@@ -1123,7 +1123,7 @@ export function HistoryTab({
 																	</h5>
 																	<ul className='space-y-1'>
 																		{cd.communication.tips.map((t: string, i: number) => (
-																			<li key={i} className='text-xs text-blue-700'>
+																			<li key={t} className='text-xs text-blue-700'>
 																				{t}
 																			</li>
 																		))}
@@ -1274,7 +1274,7 @@ export function HistoryTab({
 													</h5>
 													<ul className='space-y-1'>
 														{cd.strengths.map((s: string, i: number) => (
-															<li key={i} className='text-xs text-green-700'>
+															<li key={s} className='text-xs text-green-700'>
 																{s}
 															</li>
 														))}
@@ -1288,7 +1288,7 @@ export function HistoryTab({
 													</h5>
 													<ul className='space-y-1'>
 														{cd.improvements.map((s: string, i: number) => (
-															<li key={i} className='text-xs text-amber-700'>
+															<li key={s} className='text-xs text-amber-700'>
 																{s}
 															</li>
 														))}
@@ -1300,7 +1300,7 @@ export function HistoryTab({
 													<h5 className='text-xs font-semibold text-blue-800 mb-1.5'>💡 Tips</h5>
 													<ul className='space-y-1'>
 														{cd.specific_tips.map((s: string, i: number) => (
-															<li key={i} className='text-xs text-blue-700'>
+															<li key={s} className='text-xs text-blue-700'>
 																{s}
 															</li>
 														))}

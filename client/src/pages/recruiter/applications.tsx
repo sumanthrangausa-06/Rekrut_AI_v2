@@ -841,7 +841,7 @@ function CandidateCoachingSection({ candidateId }: { candidateId: number }) {
 													<ul className='space-y-0.5'>
 														{(cd.content?.strengths || cd.strengths || []).map(
 															(s: string, i: number) => (
-																<li key={i} className='text-[10px] text-green-700'>
+																<li key={s} className='text-[10px] text-green-700'>
 																	{s}
 																</li>
 															),
@@ -857,7 +857,7 @@ function CandidateCoachingSection({ candidateId }: { candidateId: number }) {
 													<ul className='space-y-0.5'>
 														{(cd.content?.improvements || cd.improvements || []).map(
 															(s: string, i: number) => (
-																<li key={i} className='text-[10px] text-amber-700'>
+																<li key={s} className='text-[10px] text-amber-700'>
 																	{s}
 																</li>
 															),

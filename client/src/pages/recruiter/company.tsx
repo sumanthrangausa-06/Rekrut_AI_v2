@@ -635,7 +635,7 @@ function CompanyBrandingTab({
 						<Label className='mb-2 block'>Core Values</Label>
 						<div className='flex flex-wrap gap-2 mb-3'>
 							{values.map((v, i) => (
-								<Badge key={i} variant='secondary' className='gap-1 pr-1'>
+								<Badge key={v} variant='secondary' className='gap-1 pr-1'>
 									<Star className='h-3 w-3 text-amber-500' />
 									{v}
 									<button
@@ -665,7 +665,7 @@ function CompanyBrandingTab({
 						<Label className='mb-2 block'>Benefits & Perks</Label>
 						<div className='flex flex-wrap gap-2 mb-3'>
 							{benefits.map((b, i) => (
-								<Badge key={i} variant='outline' className='gap-1 pr-1'>
+								<Badge key={b} variant='outline' className='gap-1 pr-1'>
 									<Award className='h-3 w-3 text-emerald-500' />
 									{b}
 									<button

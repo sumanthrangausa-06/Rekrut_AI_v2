@@ -594,7 +594,7 @@ function Level4({
 						<div className='flex gap-1 flex-wrap'>
 							{frames.map((f, i) => (
 								<img
-									key={i}
+									key={f}
 									src={f}
 									alt={`frame-${i}`}
 									style={{ width: 80, height: 60, borderRadius: 4, border: '1px solid #ddd' }}
@@ -937,7 +937,7 @@ export function TestCameraPage() {
 				)}
 				{logs.map((l, i) => (
 					<div
-						key={i}
+						key={l.time || l.msg || `log-${i}`}
 						style={{
 							color:
 								l.type === 'error'

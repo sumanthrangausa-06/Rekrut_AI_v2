@@ -1236,7 +1236,7 @@ export function AdminCompliancePage() {
 									<CardContent>
 										<ul className='space-y-2'>
 											{biasReport.topConcerns.map((concern, i) => (
-												<li key={i} className='flex items-start gap-2 text-sm'>
+												<li key={concern} className='flex items-start gap-2 text-sm'>
 													<AlertTriangle className='h-4 w-4 text-amber-500 mt-0.5 shrink-0' />
 													{concern}
 												</li>
@@ -1254,7 +1254,7 @@ export function AdminCompliancePage() {
 									<CardContent>
 										<ul className='space-y-2'>
 											{biasReport.improvements.map((item, i) => (
-												<li key={i} className='flex items-start gap-2 text-sm'>
+												<li key={item} className='flex items-start gap-2 text-sm'>
 													<CheckCircle className='h-4 w-4 text-green-500 mt-0.5 shrink-0' />
 													{item}
 												</li>
@@ -3113,7 +3113,7 @@ export function AdminCompliancePage() {
 									<CardContent>
 										<ul className='space-y-2'>
 											{biasReport.topConcerns.map((concern, i) => (
-												<li key={i} className='flex items-start gap-2 text-sm'>
+												<li key={concern} className='flex items-start gap-2 text-sm'>
 													<AlertTriangle className='h-4 w-4 text-amber-500 mt-0.5 shrink-0' />
 													{concern}
 												</li>
@@ -3131,7 +3131,7 @@ export function AdminCompliancePage() {
 									<CardContent>
 										<ul className='space-y-2'>
 											{biasReport.improvements.map((item, i) => (
-												<li key={i} className='flex items-start gap-2 text-sm'>
+												<li key={item} className='flex items-start gap-2 text-sm'>
 													<CheckCircle className='h-4 w-4 text-green-500 mt-0.5 shrink-0' />
 													{item}
 												</li>

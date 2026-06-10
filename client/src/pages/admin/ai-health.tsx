@@ -798,7 +798,7 @@ function TokenBudgetPanel({ budget }: { budget: TokenBudgetData }) {
 									const h = day.tokensUsed > 0 ? Math.max(8, (day.tokensUsed / maxTokens) * 100) : 4
 									return (
 										<div
-											key={i}
+											key={day.date || `day-${i}`}
 											className={cn(
 												'flex-1 rounded-t-sm transition-all',
 												i === allDays.length - 1
@@ -1022,7 +1022,7 @@ function MetricsOverview({ metrics }: { metrics: MetricsData }) {
 								</p>
 								<div className='space-y-1 max-h-40 overflow-y-auto'>
 									{metrics.api.topEndpoints.slice(0, 10).map((ep, i) => (
-										<div key={i} className='flex items-center gap-2 text-xs'>
+										<div key={ep.path} className='flex items-center gap-2 text-xs'>
 											<span className='font-mono truncate flex-1 text-muted-foreground'>
 												{ep.path}
 											</span>
@@ -1114,7 +1114,7 @@ function MetricsOverview({ metrics }: { metrics: MetricsData }) {
 								</p>
 								<div className='space-y-1 max-h-48 overflow-y-auto'>
 									{metrics.database.tables.map((t, i) => (
-										<div key={i} className='flex items-center justify-between text-xs'>
+										<div key={t.name} className='flex items-center justify-between text-xs'>
 											<span className='font-mono text-muted-foreground'>{t.name}</span>
 											<span className='font-semibold tabular-nums'>{t.rows.toLocaleString()}</span>
 										</div>
@@ -1751,7 +1751,7 @@ function RecentLogs({ logs }: { logs: HealthData['recent_logs'] }) {
 		<div className='space-y-2 max-h-64 overflow-y-auto'>
 			{[...logs].reverse().map((log, i) => (
 				<div
-					key={i}
+					key={log.timestamp || log.time || `log-${i}`}
 					className='flex items-start gap-3 text-xs border-l-2 border-amber-400 pl-3 py-1'
 				>
 					<Clock className='h-3 w-3 text-muted-foreground mt-0.5 shrink-0' />
@@ -1821,7 +1821,7 @@ function ModuleMetricCard({
 			<CardContent className='pt-0'>
 				<div className='grid grid-cols-2 gap-x-4 gap-y-1.5'>
 					{metrics.map((m, i) => (
-						<div key={i} className='flex justify-between items-baseline'>
+						<div key={m.label} className='flex justify-between items-baseline'>
 							<span className='text-[11px] text-muted-foreground'>{m.label}</span>
 							<span
 								className={cn(
@@ -2479,7 +2479,7 @@ function HourlyUsageChart({ hourly }: { hourly: AiUsageData['hourly'] }) {
 					const height = Math.max(2, (val / maxVal) * 100)
 					return (
 						<div
-							key={i}
+							key={h.hour || `h-${i}`}
 							className={cn(
 								'flex-1 rounded-t-sm',
 								val > 0 ? 'bg-primary/60 hover:bg-primary/80' : 'bg-muted/30',
@@ -3215,7 +3215,7 @@ export function AiHealthPage() {
 											</thead>
 											<tbody>
 												{verifyStatus.results.map((r, i) => (
-													<tr key={i} className='border-b last:border-0'>
+													<tr key={r.modality || `result-${i}`} className='border-b last:border-0'>
 														<td className='py-2'>
 															<Badge variant='outline' className='text-[10px]'>
 																{r.modality.toUpperCase()}

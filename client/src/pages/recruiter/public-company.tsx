@@ -334,7 +334,7 @@ export function PublicCompanyPage() {
 						{c.core_values && c.core_values.length > 0 && (
 							<div className='flex flex-wrap gap-2 mt-4'>
 								{c.core_values.map((v, i) => (
-									<Badge key={i} variant='secondary' className='gap-1'>
+									<Badge key={v} variant='secondary' className='gap-1'>
 										<Sparkles className='h-3 w-3 text-amber-500' /> {v}
 									</Badge>
 								))}
@@ -350,7 +350,7 @@ export function PublicCompanyPage() {
 						</h2>
 						<div className='grid grid-cols-2 gap-2'>
 							{c.benefits.map((b, i) => (
-								<div key={i} className='flex items-center gap-2 text-sm'>
+								<div key={b} className='flex items-center gap-2 text-sm'>
 									<CheckCircle className='h-4 w-4 text-emerald-500 shrink-0' />
 									<span>{b}</span>
 								</div>
@@ -369,7 +369,7 @@ export function PublicCompanyPage() {
 						</h2>
 						<div className='flex flex-wrap gap-2'>
 							{c.office_locations.map((loc, i) => (
-								<Badge key={i} variant='outline' className='gap-1'>
+								<Badge key={loc} variant='outline' className='gap-1'>
 									<MapPin className='h-3 w-3' /> {loc}
 								</Badge>
 							))}
@@ -472,7 +472,7 @@ export function PublicCompanyPage() {
 					</h2>
 					<div className='grid gap-4 md:grid-cols-2'>
 						{reviews.slice(0, 4).map((review, i) => (
-							<Card key={i}>
+							<Card key={review.created_at || `review-${i}`}>
 								<CardContent className='p-4'>
 									<div className='flex items-center justify-between mb-2'>
 										<div className='flex items-center gap-2'>

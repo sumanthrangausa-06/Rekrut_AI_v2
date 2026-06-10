@@ -726,7 +726,7 @@ export function RecruiterJobFormPage() {
 					</div>
 					{previousPostings.slice(0, 5).map((p, i) => (
 						<button
-							key={i}
+							key={p.id || p.title || `posting-${i}`}
 							onClick={() => applyTemplate(p)}
 							className='w-full text-left rounded-md border bg-white p-3 text-sm hover:border-indigo-300 hover:bg-blue-50/60 transition-colors cursor-pointer'
 						>
@@ -811,7 +811,7 @@ export function RecruiterJobFormPage() {
 									</div>
 									{titleSuggestions.map((s, i) => (
 										<button
-											key={i}
+											key={s.title}
 											onClick={() => {
 												setTitle(s.title)
 												setShowTitleSuggestions(false)
@@ -1053,7 +1053,7 @@ export function RecruiterJobFormPage() {
 											<div className='flex flex-wrap gap-1.5'>
 												{skillSuggestions.map((s, i) => (
 													<span
-														key={i}
+														key={s.skill}
 														className={`text-[11px] rounded-full px-2.5 py-1 border ${
 															s.importance === 'must-have'
 																? 'bg-violet-100 text-violet-700 border-violet-200 font-medium'
@@ -1071,7 +1071,7 @@ export function RecruiterJobFormPage() {
 										{suggestedRequirements.length > 0 && (
 											<div className='text-xs text-muted-foreground space-y-1'>
 												{suggestedRequirements.slice(0, 5).map((r, i) => (
-													<p key={i} className='flex items-start gap-1.5'>
+													<p key={r} className='flex items-start gap-1.5'>
 														<CheckCircle2 className='h-3 w-3 text-violet-400 mt-0.5 shrink-0' />
 														{r}
 													</p>
@@ -1191,7 +1191,7 @@ export function RecruiterJobFormPage() {
 										)
 										return (
 											<button
-												key={i}
+												key={t.question}
 												onClick={() => !alreadyAdded && addQuestion(t)}
 												disabled={alreadyAdded}
 												className={`w-full text-left rounded-md border p-2.5 text-sm transition-colors ${

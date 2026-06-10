@@ -328,7 +328,7 @@ export function JobAssessmentTakePage() {
 						<div className='space-y-2'>
 							{question.options.map((opt, i) => (
 								<button
-									key={i}
+									key={opt || `opt-${i}`}
 									className={`w-full text-left rounded-lg border-2 p-3.5 transition-all ${
 										selectedAnswer === opt
 											? 'border-violet-500 bg-violet-50 ring-1 ring-violet-200'
@@ -371,7 +371,7 @@ export function JobAssessmentTakePage() {
 							<div className='space-y-2 max-h-48 overflow-y-auto'>
 								{conversation.map((msg, i) => (
 									<div
-										key={i}
+										key={opt || `opt-${i}`}
 										className={`flex ${msg.role === 'candidate' ? 'justify-end' : 'justify-start'}`}
 									>
 										<div

@@ -364,7 +364,7 @@ export function RecruiterOmniScorePage() {
 								<h3 className='font-heading text-lg font-semibold mb-3'>Improve Your TrustScore</h3>
 								<div className='space-y-3'>
 									{recommendations.map((rec, i) => (
-										<Card key={i} className={rec.priority === 'high' ? 'border-red-500/30' : ''}>
+										<Card key={rec.title || `rec-${i}`} className={rec.priority === 'high' ? 'border-red-500/30' : ''}>
 											<CardContent className='p-4'>
 												<div className='flex items-start gap-3'>
 													<div className='flex-1'>
@@ -564,7 +564,7 @@ export function RecruiterOmniScorePage() {
 							</Card>
 						) : (
 							reviews.map((review, i) => (
-								<Card key={i}>
+								<Card key={review.created_at || `review-${i}`}>
 									<CardContent className='p-4'>
 										<div className='flex items-center justify-between mb-3'>
 											<div className='flex items-center gap-2'>
