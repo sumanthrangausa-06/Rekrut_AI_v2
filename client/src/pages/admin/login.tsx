@@ -25,7 +25,7 @@ export function AdminLoginPage() {
 			// Read CSRF token from cookie for double-submit pattern
 			const csrfToken = document.cookie
 				.split('; ')
-				.find((row) => row.startsWith('csrf_token='))
+				.find((row) => row.startsWith('_csrf='))
 				?.split('=')[1]
 
 			const res = await fetch('/api/admin/login', {
