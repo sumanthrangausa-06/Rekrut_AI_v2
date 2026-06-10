@@ -1677,7 +1677,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 												<ul className='space-y-1'>
 													{(mockFeedback as any).content.specific_tips.map(
 														(s: string, i: number) => (
-															<li key={tip} className="text-xs text-blue-700">
+															<li key={i} className="text-xs text-blue-700">
 																{s}
 															</li>
 														),
@@ -1859,7 +1859,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 												<ul className='space-y-1'>
 													{(mockFeedback as any).communication.tips.map(
 														(tip: string, i: number) => (
-															<li key={tip} className="text-xs text-blue-700">
+															<li key={i} className="text-xs text-blue-700">
 																{tip}
 															</li>
 														),

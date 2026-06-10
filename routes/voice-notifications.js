@@ -4,6 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
+const { authMiddleware } = require('../lib/auth');
+
 const CACHE_DIR = '/tmp/cartesia-cache';
 
 // Ensure cache directory exists
@@ -16,7 +18,7 @@ if (!fs.existsSync(CACHE_DIR)) {
  * Generate voice audio for a notification
  * Body: { text: string, emotion?: 'neutral' | 'enthusiastic' | 'calm' }
  */
-router.post('/voice', async (req, res) => {
+router.post('/voice', authMiddleware, async (req, res) => {
 	try {
 		const { text, emotion = 'neutral' } = req.body;
 

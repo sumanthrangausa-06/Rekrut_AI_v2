@@ -844,7 +844,7 @@ async function generateCartesiaAudio(text, emotion) {
  * - text: string (notification text, max ~500 chars for <30s)
  * - emotion: string ('neutral' | 'enthusiastic' | 'calm')
  */
-router.post('/voice', async (req, res) => {
+router.post('/voice', authMiddleware, async (req, res) => {
 	try {
 		const { text, emotion = 'neutral' } = req.body;
 
@@ -889,7 +889,7 @@ router.post('/voice', async (req, res) => {
  * GET /api/notifications/voice/:id
  * Serve cached voice audio MP3 file
  */
-router.get('/voice/:id', async (req, res) => {
+router.get('/voice/:id', authMiddleware, async (req, res) => {
 	try {
 		const { id } = req.params;
 

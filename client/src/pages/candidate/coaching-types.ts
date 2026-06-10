@@ -114,6 +114,7 @@ export interface HistorySession {
 }
 
 export interface MockConversationTurn {
+	id?: number | string
 	role: 'interviewer' | 'candidate'
 	text: string
 	action?: string
