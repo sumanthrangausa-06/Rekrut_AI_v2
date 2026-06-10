@@ -2,16 +2,12 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 const ScrollArea = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & { children: React.ReactNode }
+	HTMLDivElement,
+	React.HTMLAttributes<HTMLDivElement> & { children: React.ReactNode }
 >(({ className, children, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn('overflow-auto', className)}
-    {...props}
-  >
-    {children}
-  </div>
+	<div ref={ref} className={cn('overflow-auto', className)} {...props}>
+		{children}
+	</div>
 ))
 ScrollArea.displayName = 'ScrollArea'
 
