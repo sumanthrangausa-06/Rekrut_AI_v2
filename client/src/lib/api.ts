@@ -1,5 +1,7 @@
 const TOKEN_KEY = 'rekrutai_token'
 const REFRESH_KEY = 'rekrutai_refresh'
+const CSRF_TOKEN_KEY = 'rekrutai_csrf'
+const CSRF_TOKEN_KEY = 'rekrutai_csrf'
 
 // Legacy keys from older versions — check in priority order and migrate
 const LEGACY_TOKEN_KEYS = ['token', 'hireloop_token']
