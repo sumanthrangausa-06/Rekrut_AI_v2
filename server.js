@@ -1461,6 +1461,17 @@ app.get('*', (req, res) => {
 	}
 });
 
+// Global error handler — return JSON for API routes, HTML for everything else
+app.use((err, _req, res, _next) => {
+	console.error('[error]', err.stack || err.message || err);
+	if (res.headersSent) return;
+	// If the request is for an API endpoint or static asset, return JSON
+	if (_req.path.startsWith('/api/') || _req.path.startsWith('/assets/')) {
+		return res.status(500).json({ error: 'Internal server error', message: err.message });
+	}
+	res.status(500).json({ error: 'Internal server error', message: err.message });
+});
+
 const server = app.listen(PORT, () => {
 	console.log(`Rekrut AI running on port ${PORT}`);
 
