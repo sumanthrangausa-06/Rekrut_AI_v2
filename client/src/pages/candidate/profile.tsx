@@ -490,7 +490,7 @@ export function CandidateProfilePage() {
 										variant='ghost'
 										size='sm'
 										onClick={() => setAiTips(null)}
-										className='h-6 w-6 p-0'
+										className='h-6 w-6 min-h-[44px] min-w-[44px] p-0'
 									>
 										<X className='h-3 w-3' />
 									</Button>
@@ -2649,7 +2649,7 @@ function JobAlertsTab({
 											variant='ghost'
 											size='sm'
 											onClick={() => deleteAlert(alert.id)}
-											className='text-destructive hover:text-destructive h-8 w-8 p-0'
+											className='text-destructive hover:text-destructive h-8 w-8 min-h-[44px] min-w-[44px] p-0'
 										>
 											<Trash2 className='h-3.5 w-3.5' />
 										</Button>

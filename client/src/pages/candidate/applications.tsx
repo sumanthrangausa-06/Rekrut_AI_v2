@@ -575,7 +575,7 @@ function ApplicationTimeline({
 								className={`flex items-center gap-1.5 ${isComplete ? 'text-primary' : 'text-muted-foreground/50'}`}
 							>
 								<div
-									className={`flex h-7 w-7 items-center justify-center rounded-full border-2 transition-all ${
+									className={`flex h-7 w-7 min-h-[44px] min-w-[44px] items-center justify-center rounded-full border-2 transition-all ${
 										isCurrent
 											? 'border-primary bg-primary text-white'
 											: isComplete

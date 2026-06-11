@@ -222,7 +222,7 @@ export function AiCoachingPage() {
 			</div>
 
 			{/* Stats Cards */}
-			<div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
+			<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
 				<Card>
 					<CardContent className='p-4 text-center'>
 						<div className='inline-flex p-2 rounded-lg bg-primary/10 mb-2'>

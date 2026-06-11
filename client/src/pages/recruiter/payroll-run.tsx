@@ -289,11 +289,11 @@ export function RecruiterPayrollRunPage() {
 								<thead>
 									<tr className='border-b text-left text-muted-foreground'>
 										<th className='pb-2 font-medium'>Employee</th>
-										<th className='pb-2 font-medium'>Hours</th>
-										<th className='pb-2 font-medium'>Gross Pay</th>
-										<th className='pb-2 font-medium'>Federal Tax</th>
-										<th className='pb-2 font-medium'>State Tax</th>
-										<th className='pb-2 font-medium'>FICA</th>
+										<th className='pb-2 font-medium hidden sm:table-cell'>Hours</th>
+										<th className='pb-2 font-medium hidden sm:table-cell'>Gross Pay</th>
+										<th className='pb-2 font-medium hidden sm:table-cell'>Federal Tax</th>
+										<th className='pb-2 font-medium hidden sm:table-cell'>State Tax</th>
+										<th className='pb-2 font-medium hidden sm:table-cell'>FICA</th>
 										<th className='pb-2 font-medium'>Net Pay</th>
 										<th className='pb-2 font-medium'>Status</th>
 									</tr>
@@ -308,10 +308,10 @@ export function RecruiterPayrollRunPage() {
 													<p className='text-xs text-muted-foreground'>#{pc.employee_number}</p>
 												</td>
 												<td className='py-3'>{pc.hours_worked ?? '—'}</td>
-												<td className='py-3'>{fmtCurrency(pc.gross_pay)}</td>
-												<td className='py-3'>{fmtCurrency(pc.federal_tax)}</td>
-												<td className='py-3'>{fmtCurrency(pc.state_tax)}</td>
-												<td className='py-3'>{fmtCurrency(fica)}</td>
+												<td className='py-3 hidden sm:table-cell'>{fmtCurrency(pc.gross_pay)}</td>
+												<td className='py-3 hidden sm:table-cell'>{fmtCurrency(pc.federal_tax)}</td>
+												<td className='py-3 hidden sm:table-cell'>{fmtCurrency(pc.state_tax)}</td>
+												<td className='py-3 hidden sm:table-cell'>{fmtCurrency(fica)}</td>
 												<td className='py-3 font-medium text-emerald-600'>
 													{fmtCurrency(pc.net_pay)}
 												</td>
