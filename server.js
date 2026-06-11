@@ -104,6 +104,7 @@ const corsOrigins = process.env.CORS_ORIGINS
 				'http://127.0.0.1:3000',
 				'https://hireloop-vzvw.polsia.app',
 				'https://rekrutai-dev.onrender.com',
+				'https://rekrutai-staging.onrender.com',
 			];
 
 app.use(
