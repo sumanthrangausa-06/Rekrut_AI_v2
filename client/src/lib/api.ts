@@ -60,6 +60,39 @@ export function clearTokens() {
 	}
 }
 
+// CSRF token management — read from cookie directly (most reliable)
+function getCsrfTokenFromCookie(): string | null {
+	const match = document.cookie.match(new RegExp('(^| )_csrf=([^;]+)'))
+	return match ? decodeURIComponent(match[2]) : null
+}
+
+async function getCsrfToken(): Promise<string | null> {
+	// 1. Try cookie directly (avoids stale localStorage cache)
+	const cookieToken = getCsrfTokenFromCookie()
+	if (cookieToken) {
+		localStorage.setItem(CSRF_TOKEN_KEY, cookieToken)
+		return cookieToken
+	}
+
+	// 2. Fallback to localStorage cache
+	const cached = localStorage.getItem(CSRF_TOKEN_KEY)
+	if (cached) return cached
+
+	// 3. Fetch from server (for environments where cookie isn't set yet)
+	try {
+		const res = await fetch('/csrf-token', { credentials: 'include' })
+		if (res.ok) {
+			const data = await res.json()
+			if (data.csrfToken) {
+				localStorage.setItem(CSRF_TOKEN_KEY, data.csrfToken)
+				return data.csrfToken
+			}
+		}
+	} catch {
+		// CSRF endpoint not critical for all requests
+	}
+	return null
+}
 let isRefreshing = false
 let refreshPromise: Promise<string | null> | null = null
 
@@ -74,8 +107,12 @@ async function refreshAccessToken(): Promise<string | null> {
 
 			const res = await fetch('/api/auth/refresh', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {
+					'Content-Type': 'application/json',
+					'X-CSRF-Token': getCsrfTokenFromCookie() || localStorage.getItem(CSRF_TOKEN_KEY) || '',
+				},
 				body: JSON.stringify({ refreshToken }),
+				credentials: 'include',
 			})
 
 			if (!res.ok) return null
@@ -104,7 +141,7 @@ interface ApiCallOptions extends Omit<RequestInit, 'body'> {
 }
 
 export async function apiCall<T = unknown>(url: string, options: ApiCallOptions = {}): Promise<T> {
-	const { body, isFormData, headers: customHeaders, skipAuthCheck, ...rest } = options
+	const { body, isFormData, headers: customHeaders, skipAuthCheck, method, ...rest } = options
 	const token = getToken()
 
 	const headers: Record<string, string> = {
@@ -119,10 +156,22 @@ export async function apiCall<T = unknown>(url: string, options: ApiCallOptions 
 		headers['Content-Type'] = 'application/json'
 	}
 
+	// Add CSRF token for state-changing requests
+	const isStateChanging =
+		method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'PATCH'
+	if (isStateChanging) {
+		const csrfToken = await getCsrfToken()
+		if (csrfToken) {
+			headers['X-CSRF-Token'] = csrfToken
+		}
+	}
+
 	const fetchOptions: RequestInit = {
 		...rest,
+		method: method || 'GET',
 		headers,
 		body: isFormData ? (body as BodyInit) : body ? JSON.stringify(body) : undefined,
+		credentials: 'include',
 	}
 
 	let res = await fetch(`/api${url}`, fetchOptions)

@@ -160,9 +160,21 @@ function csrfProtection(req, res, next) {
 	if (req.path === '/csrf-token') {
 		return next();
 	}
+	// Exempt auth endpoints from CSRF — these don't have a session yet
+	// and the login/register forms are protected by other means (rate limits, CORS)
+	if (req.path.startsWith('/api/auth/login') || req.path.startsWith('/api/auth/register')) {
+		return next();
+	}
 	const cookieToken = req.cookies[CSRF_COOKIE_NAME];
 	const headerToken = req.headers['x-csrf-token'] || req.headers['X-CSRF-Token'];
 	if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+		console.log('[csrf] Validation failed:', {
+			path: req.path,
+			method: req.method,
+			hasCookie: !!cookieToken,
+			hasHeader: !!headerToken,
+			match: cookieToken === headerToken,
+		});
 		return res.status(403).json({ error: 'CSRF token validation failed', code: 'CSRF_INVALID' });
 	}
 	next();
