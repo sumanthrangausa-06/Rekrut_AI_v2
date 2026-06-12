@@ -291,8 +291,9 @@ app.use('/api/screening', screeningRoutes);
 // API Routes - Settings (profile, notifications, privacy, avatar)
 app.use('/api/settings', settingsRoutes);
 
-// API Routes - TTS (Cartesia.ai voice synthesis)
+const voiceRoutes = require('./routes/voice');
 const ttsRoutes = require('./routes/tts');
+app.use('/api/voice', voiceRoutes);
 app.use('/api/tts', ttsRoutes);
 
 // API Routes - Calendar Integration (Google + Outlook)
