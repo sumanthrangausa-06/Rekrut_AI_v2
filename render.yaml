@@ -165,7 +165,7 @@ services:
     name: rekrutai-staging
     env: node
     branch: staging
-    buildCommand: cd client && npm install --include=dev && npm run build && cd .. && npm install
+    buildCommand: cd client && npm install --include=dev && npm run build && cd .. && npm install --ignore-scripts
     startCommand: npm run migrate && npm start
     healthCheckPath: /health
     envVars:

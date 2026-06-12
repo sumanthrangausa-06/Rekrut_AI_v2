@@ -10,7 +10,7 @@
     "test": "npx playwright test",
     "migrate": "node migrate.js",
     "lint": "npx @biomejs/biome check",
-    "postinstall": "bash scripts/setup-audio.sh 2>&1 || echo '[postinstall] Audio setup skipped (non-fatal)'"
+    "postinstall": "if [ \"$CI\" = \"true\" ] || [ \"$RENDER\" = \"true\" ]; then echo '[postinstall] Skipping audio setup in CI/Render environment'; else bash scripts/setup-audio.sh 2>&1 || echo '[postinstall] Audio setup skipped (non-fatal)'; fi"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
