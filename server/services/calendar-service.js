@@ -1,6 +1,6 @@
 const { google } = require('googleapis');
 const { AuthorizationCode } = require('simple-oauth2');
-const pool = require('../lib/db');
+const pool = require('../../lib/db');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
