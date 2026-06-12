@@ -9,20 +9,38 @@ import {
 	ChevronDown,
 	ChevronUp,
 	Clock,
+	Cookie,
+	Database,
 	Download,
 	Eye,
 	FileCheck,
+	FileEdit,
+	FileSearch,
 	FileSpreadsheet,
 	FileText,
+	Fingerprint,
 	GitPullRequest,
+	Globe,
+	HardDrive,
 	ListChecks,
+	Lock,
+	MonitorSmartphone,
+	MousePointerClick,
 	ScrollText,
+	Server,
+	Settings,
+	Share2,
 	Shield,
 	ShieldAlert,
 	ShieldCheck,
+	ToggleLeft,
+	ToggleRight,
+	Trash2,
 	TrendingDown,
 	TrendingUp,
+	Unlock,
 	Users,
+	UserX,
 	XCircle,
 } from 'lucide-react'
 import { Fragment, useEffect, useState } from 'react'
@@ -140,6 +158,53 @@ export type RiskChecklistSummary = {
 	nextReview: string
 }
 
+export type DataProcessingActivity = {
+	id: string
+	category: string
+	purpose: string
+	legalBasis: string
+	dataTypes: string[]
+	retentionPeriod: string
+	thirdParties: string[]
+	crossBorder: boolean
+	status: 'active' | 'paused' | 'under_review'
+	lastUpdated: string
+	description: string
+}
+
+export type DataSubjectRequest = {
+	id: string
+	timestamp: string
+	candidateId: string
+	candidateName: string
+	requestType: 'access' | 'rectification' | 'erasure' | 'portability' | 'explanation' | 'appeal'
+	status: 'pending' | 'in_progress' | 'completed' | 'rejected'
+	description: string
+	handledBy?: string
+	completedAt?: string
+	responseDeadline: string
+}
+
+export type ConsentRecord = {
+	id: string
+	timestamp: string
+	candidateId: string
+	candidateName: string
+	consentType: 'necessary' | 'analytics' | 'marketing' | 'functional'
+	status: 'granted' | 'denied' | 'withdrawn'
+	ipAddress: string
+	userAgent: string
+	geographicRegion: string
+}
+
+export type ConsentSummary = {
+	totalConsents: number
+	grantedRate: number
+	withdrawnRate: number
+	byType: Record<string, number>
+	byRegion: Record<string, number>
+}
+
 export type OverrideSummary = {
 	totalOverrides: number
 	uniqueRecruiters: number
@@ -210,6 +275,10 @@ export function EUAIActDashboard() {
 	const [riskChecklistSummary, setRiskChecklistSummary] = useState<RiskChecklistSummary | null>(
 		null,
 	)
+	const [dataProcessing, setDataProcessing] = useState<DataProcessingActivity[]>([])
+	const [dataRequests, setDataRequests] = useState<DataSubjectRequest[]>([])
+	const [consentRecords, setConsentRecords] = useState<ConsentRecord[]>([])
+	const [consentSummary, setConsentSummary] = useState<ConsentSummary | null>(null)
 	const [loading, setLoading] = useState(true)
 	const [selectedTab, setSelectedTab] = useState('audit')
 	const [expandedDecision, setExpandedDecision] = useState<string | null>(null)
@@ -219,7 +288,7 @@ export function EUAIActDashboard() {
 		async function loadCompliance() {
 			setLoading(true)
 			try {
-				const [decisionsData, biasData, riskData, explanationsData, overridesData, checklistData] =
+				const [decisionsData, biasData, riskData, explanationsData, overridesData, checklistData, processingData, requestsData, consentData] =
 					await Promise.all([
 						apiCall<{ decisions: ComplianceDecision[] }>('/admin/compliance/decisions'),
 						apiCall<{ report: BiasReport }>('/admin/compliance/bias-report').catch(() => ({
@@ -237,6 +306,16 @@ export function EUAIActDashboard() {
 						apiCall<{ checklist: RiskChecklistItem[]; summary: RiskChecklistSummary }>(
 							'/admin/compliance/risk-checklist',
 						).catch(() => ({ checklist: [], summary: null })),
+						apiCall<{ activities: DataProcessingActivity[] }>('/admin/compliance/data-processing').catch(() => ({
+							activities: [],
+						})),
+						apiCall<{ requests: DataSubjectRequest[] }>('/admin/compliance/data-requests').catch(() => ({
+							requests: [],
+						})),
+						apiCall<{ records: ConsentRecord[]; summary: ConsentSummary }>('/admin/compliance/consent').catch(() => ({
+							records: [],
+							summary: null,
+						})),
 					])
 				setDecisions(decisionsData.decisions || [])
 				setBiasReport(biasData.report)
@@ -246,6 +325,10 @@ export function EUAIActDashboard() {
 				setOverrideSummary(overridesData.summary || null)
 				setRiskChecklist(checklistData.checklist || [])
 				setRiskChecklistSummary(checklistData.summary || null)
+				setDataProcessing(processingData.activities || [])
+				setDataRequests(requestsData.requests || [])
+				setConsentRecords(consentData.records || [])
+				setConsentSummary(consentData.summary || null)
 			} catch (err) {
 				console.error('Failed to load compliance data:', err)
 			} finally {
@@ -412,6 +495,18 @@ export function EUAIActDashboard() {
 					<TabsTrigger value='transparency' className='gap-1'>
 						<Eye className='h-3.5 w-3.5' />
 						Transparency Report
+					</TabsTrigger>
+					<TabsTrigger value='data-processing' className='gap-1'>
+						<Database className='h-3.5 w-3.5' />
+						Data Processing
+					</TabsTrigger>
+					<TabsTrigger value='user-rights' className='gap-1'>
+						<ShieldCheck className='h-3.5 w-3.5' />
+						User Rights
+					</TabsTrigger>
+					<TabsTrigger value='consent' className='gap-1'>
+						<Cookie className='h-3.5 w-3.5' />
+						Consent Management
 					</TabsTrigger>
 				</TabsList>
 
@@ -1069,6 +1164,411 @@ export function EUAIActDashboard() {
 							</CardContent>
 						</Card>
 					</div>
+				</TabsContent>
+
+				<TabsContent value='data-processing' className='mt-4'>
+					{loading ? (
+						<Skeleton count={3} variant='card' />
+					) : dataProcessing.length === 0 ? (
+						<EmptyState
+							icon={Database}
+							title='No data processing records'
+							description='Data processing transparency records will appear here once configured'
+						/>
+					) : (
+						<div className='space-y-4'>
+							<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+								<ChartCard
+									title='Processing Activities'
+									value={dataProcessing.length}
+									icon={<Database className='h-4 w-4' />}
+								/>
+								<ChartCard
+									title='Active'
+									value={dataProcessing.filter((d) => d.status === 'active').length}
+									icon={<CheckCircle className='h-4 w-4' />}
+								/>
+								<ChartCard
+									title='Under Review'
+									value={dataProcessing.filter((d) => d.status === 'under_review').length}
+									icon={<Clock className='h-4 w-4' />}
+								/>
+								<ChartCard
+									title='Cross-Border'
+									value={dataProcessing.filter((d) => d.crossBorder).length}
+									icon={<Globe className='h-4 w-4' />}
+								/>
+							</div>
+							{dataProcessing.map((activity) => (
+								<Card key={activity.id}>
+									<CardHeader>
+										<div className='flex items-center justify-between'>
+											<CardTitle className='flex items-center gap-2 text-base'>
+												<Database className='h-4 w-4' />
+												{activity.category}
+											</CardTitle>
+											<Badge
+												variant={
+													activity.status === 'active'
+														? 'default'
+														: activity.status === 'under_review'
+															? 'secondary'
+															: 'outline'
+												}
+											>
+												{activity.status === 'active'
+													? 'Active'
+													: activity.status === 'under_review'
+														? 'Under Review'
+														: 'Paused'}
+											</Badge>
+										</div>
+									</CardHeader>
+									<CardContent className='space-y-3'>
+										<div className='grid gap-4 md:grid-cols-2'>
+											<div>
+												<p className='text-sm font-medium'>Purpose</p>
+												<p className='text-sm text-muted-foreground'>{activity.purpose}</p>
+											</div>
+											<div>
+												<p className='text-sm font-medium'>Legal Basis</p>
+												<p className='text-sm text-muted-foreground'>{activity.legalBasis}</p>
+											</div>
+										</div>
+										<div>
+											<p className='text-sm font-medium'>Data Types</p>
+											<div className='mt-1 flex flex-wrap gap-1'>
+												{activity.dataTypes.map((type) => (
+													<Badge key={type} variant='outline' className='text-xs'>
+														{type}
+													</Badge>
+												))}
+											</div>
+										</div>
+										<div className='grid gap-4 md:grid-cols-2'>
+											<div>
+												<p className='text-sm font-medium'>Retention Period</p>
+												<p className='text-sm text-muted-foreground flex items-center gap-1'>
+													<HardDrive className='h-3.5 w-3.5' />
+													{activity.retentionPeriod}
+												</p>
+											</div>
+											<div>
+												<p className='text-sm font-medium'>Third Parties</p>
+												<p className='text-sm text-muted-foreground flex items-center gap-1'>
+													<Share2 className='h-3.5 w-3.5' />
+													{activity.thirdParties.length > 0
+														? activity.thirdParties.join(', ')
+														: 'None'}
+												</p>
+											</div>
+										</div>
+										{activity.crossBorder && (
+											<Badge
+												variant='outline'
+												className='text-amber-600 border-amber-200'
+											>
+												<Globe className='h-3 w-3 mr-1' />
+												Cross-Border Transfer
+											</Badge>
+										)}
+										<p className='text-sm text-muted-foreground'>{activity.description}</p>
+										<p className='text-xs text-muted-foreground'>
+											Last updated: {new Date(activity.lastUpdated).toLocaleDateString()}
+										</p>
+									</CardContent>
+								</Card>
+							))}
+						</div>
+					)}
+				</TabsContent>
+
+				<TabsContent value='user-rights' className='mt-4'>
+					{loading ? (
+						<Skeleton count={3} variant='table' />
+					) : dataRequests.length === 0 ? (
+						<EmptyState
+							icon={ShieldCheck}
+							title='No data subject requests'
+							description='Data subject requests and appeals will appear here once submitted by candidates'
+						/>
+					) : (
+						<div className='space-y-4'>
+							<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+								<ChartCard
+									title='Total Requests'
+									value={dataRequests.length}
+									icon={<FileSearch className='h-4 w-4' />}
+								/>
+								<ChartCard
+									title='Pending'
+									value={dataRequests.filter((r) => r.status === 'pending').length}
+									icon={<Clock className='h-4 w-4' />}
+								/>
+								<ChartCard
+									title='Completed'
+									value={dataRequests.filter((r) => r.status === 'completed').length}
+									icon={<CheckCircle className='h-4 w-4' />}
+								/>
+								<ChartCard
+									title='Overdue'
+									value={dataRequests.filter((r) => new Date(r.responseDeadline) < new Date() && r.status !== 'completed').length}
+									icon={<AlertTriangle className='h-4 w-4' />}
+										trend='down'
+										trendValue='Urgent'
+									/>
+								</div>
+							<Card>
+								<CardHeader>
+									<CardTitle className='flex items-center gap-2'>
+										<ShieldCheck className='h-5 w-5' />
+										Data Subject Requests
+									</CardTitle>
+								</CardHeader>
+								<CardContent className='p-0'>
+									<Table>
+										<TableHeader>
+											<TableRow>
+												<TableHead>Date</TableHead>
+												<TableHead>Candidate</TableHead>
+												<TableHead>Type</TableHead>
+												<TableHead>Status</TableHead>
+												<TableHead>Description</TableHead>
+												<TableHead>Handled By</TableHead>
+												<TableHead>Deadline</TableHead>
+											</TableRow>
+										</TableHeader>
+										<TableBody>
+											{dataRequests.map((req) => {
+												const typeConfig = {
+													access: { icon: <FileSearch className='h-4 w-4' />, label: 'Access' },
+													rectification: { icon: <FileEdit className='h-4 w-4' />, label: 'Rectification' },
+													erasure: { icon: <Trash2 className='h-4 w-4' />, label: 'Erasure' },
+													portability: { icon: <Share2 className='h-4 w-4' />, label: 'Portability' },
+													explanation: { icon: <BrainCircuit className='h-4 w-4' />, label: 'Explanation' },
+													appeal: { icon: <UserX className='h-4 w-4' />, label: 'Appeal' },
+												}
+												const tc = typeConfig[req.requestType]
+												const isOverdue = new Date(req.responseDeadline) < new Date() && req.status !== 'completed'
+												return (
+													<TableRow key={req.id}>
+														<TableCell className='text-xs text-muted-foreground whitespace-nowrap'>
+															{new Date(req.timestamp).toLocaleDateString()}
+														</TableCell>
+														<TableCell className='font-medium'>{req.candidateName}</TableCell>
+														<TableCell>
+															<div className='flex items-center gap-1'>
+																{tc.icon}
+																<span className='text-sm'>{tc.label}</span>
+															</div>
+														</TableCell>
+														<TableCell>
+															{req.status === 'completed' ? (
+																<Badge
+																	variant='outline'
+																	className='text-xs text-green-600 border-green-200'
+																>
+																	<CheckCircle className='h-3 w-3 mr-1' />
+																	Completed
+																</Badge>
+															) : req.status === 'in_progress' ? (
+																<Badge
+																	variant='outline'
+																	className='text-xs text-blue-600 border-blue-200'
+																>
+																	<Activity className='h-3 w-3 mr-1' />
+																	In Progress
+																</Badge>
+															) : req.status === 'rejected' ? (
+																<Badge
+																	variant='outline'
+																	className='text-xs text-red-600 border-red-200'
+																>
+																	<XCircle className='h-3 w-3 mr-1' />
+																	Rejected
+																</Badge>
+															) : (
+																<Badge
+																	variant='outline'
+																	className='text-xs text-amber-600 border-amber-200'
+																>
+																	<Clock className='h-3 w-3 mr-1' />
+																	Pending
+																</Badge>
+															)}
+														</TableCell>
+														<TableCell className='text-sm max-w-xs truncate' title={req.description}>
+															{req.description}
+														</TableCell>
+														<TableCell className='text-sm'>{req.handledBy || '—'}</TableCell>
+														<TableCell
+															className={`text-xs whitespace-nowrap ${isOverdue ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}
+														>
+															{isOverdue && <AlertTriangle className='h-3 w-3 inline mr-1' />}
+															{new Date(req.responseDeadline).toLocaleDateString()}
+														</TableCell>
+													</TableRow>
+												)
+											})}
+										</TableBody>
+									</Table>
+								</CardContent>
+							</Card>
+						</div>
+					)}
+				</TabsContent>
+
+				<TabsContent value='consent' className='mt-4'>
+					{loading ? (
+						<Skeleton count={3} variant='card' />
+					) : !consentSummary && consentRecords.length === 0 ? (
+						<EmptyState
+							icon={Cookie}
+							title='No consent records'
+							description='Cookie and tracking consent records will appear here once candidates interact with the consent banner'
+						/>
+					) : (
+						<div className='space-y-4'>
+							{consentSummary && (
+								<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+									<ChartCard
+										title='Total Consents'
+										value={consentSummary.totalConsents}
+										icon={<Cookie className='h-4 w-4' />}
+									/>
+									<ChartCard
+										title='Granted Rate'
+										value={`${(consentSummary.grantedRate * 100).toFixed(1)}%`}
+										trend={consentSummary.grantedRate >= 0.8 ? 'up' : 'neutral'}
+										trendValue={consentSummary.grantedRate >= 0.8 ? 'Healthy' : 'Review'}
+										icon={<CheckCircle className='h-4 w-4' />}
+									/>
+									<ChartCard
+										title='Withdrawn Rate'
+										value={`${(consentSummary.withdrawnRate * 100).toFixed(1)}%`}
+										icon={<Ban className='h-4 w-4' />}
+									/>
+									<ChartCard
+										title='Unique Regions'
+										value={Object.keys(consentSummary.byRegion).length}
+										icon={<Globe className='h-4 w-4' />}
+									/>
+								</div>
+							)}
+							<div className='grid gap-4 lg:grid-cols-2'>
+								<Card>
+									<CardHeader>
+										<CardTitle className='flex items-center gap-2'>
+											<MousePointerClick className='h-5 w-5' />
+											Consent by Type
+										</CardTitle>
+									</CardHeader>
+									<CardContent>
+										{consentSummary ? (
+											<div className='space-y-3'>
+												{Object.entries(consentSummary.byType).map(([type, count]) => (
+													<div key={type} className='flex items-center justify-between'>
+														<div className='flex items-center gap-2'>
+															{type === 'necessary' ? (
+																<Lock className='h-4 w-4 text-muted-foreground' />
+															) : type === 'analytics' ? (
+																<BarChart3 className='h-4 w-4 text-muted-foreground' />
+															) : type === 'marketing' ? (
+																<Users className='h-4 w-4 text-muted-foreground' />
+															) : (
+																<Settings className='h-4 w-4 text-muted-foreground' />
+															)}
+															<span className='text-sm capitalize'>{type}</span>
+														</div>
+														<div className='flex items-center gap-2'>
+															<div className='h-2 w-24 rounded-full bg-muted overflow-hidden'>
+																<div
+																	className='h-full bg-primary rounded-full'
+																	style={{
+																		width: `${(count / Math.max(consentSummary.totalConsents, 1)) * 100}%`,
+																	}}
+																/>
+															</div>
+															<span className='text-xs text-muted-foreground'>{count}</span>
+														</div>
+												</div>
+											))}
+											</div>
+										) : (
+											<p className='text-sm text-muted-foreground'>No summary data</p>
+										)}
+									</CardContent>
+								</Card>
+								<Card>
+									<CardHeader>
+										<CardTitle className='flex items-center gap-2'>
+											<Fingerprint className='h-5 w-5' />
+											Consent Audit Log
+										</CardTitle>
+									</CardHeader>
+									<CardContent className='p-0'>
+										{consentRecords.length === 0 ? (
+											<p className='p-4 text-sm text-muted-foreground'>No consent records yet</p>
+										) : (
+											<Table>
+												<TableHeader>
+													<TableRow>
+														<TableHead>Date</TableHead>
+														<TableHead>Candidate</TableHead>
+														<TableHead>Type</TableHead>
+														<TableHead>Status</TableHead>
+														<TableHead>Region</TableHead>
+														<TableHead>IP</TableHead>
+													</TableRow>
+												</TableHeader>
+												<TableBody>
+													{consentRecords.map((record) => (
+														<TableRow key={record.id}>
+															<TableCell className='text-xs text-muted-foreground whitespace-nowrap'>
+																{new Date(record.timestamp).toLocaleString()}
+															</TableCell>
+															<TableCell className='font-medium text-sm'>
+																{record.candidateName}
+															</TableCell>
+															<TableCell>
+																<Badge variant='outline' className='text-xs capitalize'>
+																	{record.consentType}
+																</Badge>
+															</TableCell>
+															<TableCell>
+																{record.status === 'granted' ? (
+																	<Badge className='text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'>
+																		<ToggleRight className='h-3 w-3 mr-1' />
+																		Granted
+																	</Badge>
+																) : record.status === 'denied' ? (
+																	<Badge className='text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'>
+																		<ToggleLeft className='h-3 w-3 mr-1' />
+																		Denied
+																	</Badge>
+																) : (
+																	<Badge className='text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'>
+																		<Unlock className='h-3 w-3 mr-1' />
+																		Withdrawn
+																	</Badge>
+																)}
+															</TableCell>
+															<TableCell className='text-xs'>
+																{record.geographicRegion}
+															</TableCell>
+															<TableCell className='text-xs text-muted-foreground'>
+																{record.ipAddress}
+															</TableCell>
+														</TableRow>
+													))}
+												</TableBody>
+											</Table>
+										)}
+									</CardContent>
+								</Card>
+							</div>
+						</div>
+					)}
 				</TabsContent>
 			</Tabs>
 		</div>

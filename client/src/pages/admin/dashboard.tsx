@@ -393,7 +393,7 @@ export function AdminDashboardPage() {
 								</Card>
 							</Link>
 
-							<Link to='/admin/compliance'>
+							<Link to='/admin/eu-ai-act'>
 								<Card className='group border-slate-700 bg-slate-800/60 backdrop-blur transition-all hover:border-slate-500 hover:bg-slate-800/80'>
 									<CardContent className='p-5'>
 										<div className='flex items-start gap-4'>
@@ -403,12 +403,12 @@ export function AdminDashboardPage() {
 											<div className='flex-1'>
 												<div className='flex items-center justify-between'>
 													<h3 className='font-semibold text-white group-hover:text-amber-300 transition-colors'>
-														Compliance
+														EU AI Act Compliance
 													</h3>
 													<ArrowRight className='h-4 w-4 text-slate-500 transition-colors group-hover:text-amber-400' />
 												</div>
 												<p className='mt-1 text-sm text-slate-400'>
-													Audit logs, data retention, and privacy compliance
+													Audit trail, risk classification, bias detection, and transparency for EU AI Act (Regulation 2024/1689)
 												</p>
 											</div>
 										</div>
