@@ -12,6 +12,37 @@ const crypto = require('node:crypto');
 require('dotenv').config();
 
 const pool = require('./lib/db');
+
+// ─── Startup Environment Validation ─────────────────────────────────────
+const REQUIRED_ENV_VARS = [
+	{ key: 'DATABASE_URL', required: true },
+	{ key: 'JWT_SECRET', required: true },
+	{ key: 'SESSION_SECRET', required: true },
+];
+
+const missingEnv = REQUIRED_ENV_VARS.filter((env) => env.required && !process.env[env.key]);
+if (missingEnv.length > 0) {
+	console.error('[startup] CRITICAL: Missing required environment variables:');
+	missingEnv.forEach((env) => console.error(`  - ${env.key}`));
+	console.error('[startup] Application will start but may fail on database-dependent endpoints.');
+}
+
+// Validate SMTP configuration (warn only, not fatal)
+const smtpVars = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'];
+const missingSmtp = smtpVars.filter((v) => !process.env[v]);
+if (missingSmtp.length > 0) {
+	console.warn('[startup] SMTP not fully configured. Email sending will be disabled.');
+	console.warn(`  Missing: ${missingSmtp.join(', ')}`);
+}
+
+// Validate Stripe configuration (warn only)
+const stripeVars = ['STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET'];
+const missingStripe = stripeVars.filter((v) => !process.env[v]);
+if (missingStripe.length > 0) {
+	console.warn('[startup] Stripe not fully configured. Billing features will be disabled.');
+	console.warn(`  Missing: ${missingStripe.join(', ')}`);
+}
+
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
@@ -77,13 +108,51 @@ app.use(
 );
 
 // Health check — available after helmet so security headers are present
-app.get('/health', (_req, res) => {
-	res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', async (_req, res) => {
+	try {
+		const { runHealthCheck } = require('./lib/db-health');
+		const health = await runHealthCheck();
+		const statusCode = health.healthy ? 200 : 503;
+		res.status(statusCode).json({
+			status: health.healthy ? 'ok' : 'degraded',
+			timestamp: new Date().toISOString(),
+			db: health.connection,
+			tables: health.tables,
+			pool: health.pool,
+			env: health.env,
+			issues: health.issues,
+		});
+	} catch (err) {
+		res.status(503).json({
+			status: 'error',
+			timestamp: new Date().toISOString(),
+			error: err.message,
+		});
+	}
 });
 
 // API health alias for monitoring consistency
-app.get('/api/health', (_req, res) => {
-	res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/api/health', async (_req, res) => {
+	try {
+		const { runHealthCheck } = require('./lib/db-health');
+		const health = await runHealthCheck();
+		const statusCode = health.healthy ? 200 : 503;
+		res.status(statusCode).json({
+			status: health.healthy ? 'ok' : 'degraded',
+			timestamp: new Date().toISOString(),
+			db: health.connection,
+			tables: health.tables,
+			pool: health.pool,
+			env: health.env,
+			issues: health.issues,
+		});
+	} catch (err) {
+		res.status(503).json({
+			status: 'error',
+			timestamp: new Date().toISOString(),
+			error: err.message,
+		});
+	}
 });
 
 // CORS — whitelist origins in production, allow dev origins in development

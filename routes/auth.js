@@ -169,13 +169,19 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 
 		// Track signup completion
 		try {
-			await pool.query('INSERT INTO events (event_type, user_id, metadata) VALUES ($1, $2, $3)', [
-				`signup_complete_${role}`,
-				user.id,
-				JSON.stringify({ email: user.email, role: role }),
-			]);
+			const { ensureEventsTable } = require('../lib/db-health');
+			const eventsCheck = await ensureEventsTable();
+			if (eventsCheck.exists) {
+				await pool.query('INSERT INTO events (event_type, user_id, metadata) VALUES ($1, $2, $3)', [
+					`signup_complete_${role}`,
+					user.id,
+					JSON.stringify({ email: user.email, role: role }),
+				]);
+			} else {
+				console.warn('[auth] events table missing, skipping signup event log');
+			}
 		} catch (e) {
-			console.error('Failed to log signup event:', e);
+			console.error('Failed to log signup event:', e.message, e.code ? `(code: ${e.code})` : '');
 		}
 
 		res.json({
@@ -208,18 +214,65 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 			console.error('[email] Failed to send welcome email (non-blocking):', emailErr.message);
 		}
 	} catch (err) {
-		console.error('Registration error:', err);
+		// Log full error details for debugging
+		const errorDetails = {
+			message: err.message,
+			code: err.code,
+			detail: err.detail,
+			table: err.table,
+			constraint: err.constraint,
+			column: err.column,
+			stack: err.stack,
+			timestamp: new Date().toISOString(),
+		};
+		console.error('Registration error:', JSON.stringify(errorDetails, null, 2));
+		logAuth(`[auth] Registration error: ${err.message} (code: ${err.code})`);
 
+		// PostgreSQL error codes
+		if (err.code === '42P01') {
+			return res.status(500).json({
+				error: 'Database table missing. Please contact support.',
+				code: 'DB_TABLE_MISSING',
+				table: err.table,
+			});
+		}
+		if (err.code === '42703') {
+			return res.status(500).json({
+				error: 'Database schema error. Please try again in a few minutes.',
+				code: 'DB_SCHEMA_ERROR',
+				column: err.column,
+			});
+		}
 		if (err.code === '23505') {
 			return res.status(400).json({ error: 'This email is already registered' });
 		}
-		if (err.code === '42703') {
-			return res
-				.status(500)
-				.json({ error: 'Database schema error. Please try again in a few minutes.' });
+		if (err.code === '28P01') {
+			return res.status(500).json({
+				error: 'Database connection error. Please try again later.',
+				code: 'DB_AUTH_FAILED',
+			});
+		}
+		if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+			return res.status(500).json({
+				error: 'Database connection failed. Please try again later.',
+				code: 'DB_CONNECTION_FAILED',
+			});
 		}
 
-		res.status(500).json({ error: 'Registration failed. Please try again.' });
+		// Include error details in non-production for faster debugging
+		if (process.env.NODE_ENV !== 'production') {
+			return res.status(500).json({
+				error: 'Registration failed. Please try again.',
+				debug: {
+					message: err.message,
+					code: err.code,
+					table: err.table,
+					constraint: err.constraint,
+				},
+			});
+		}
+
+		res.status(500).json({ error: 'Registration failed: ' + err.message + ' (code: ' + (err.code || 'N/A') + ')' });
 	}
 });
 
@@ -279,8 +332,17 @@ router.post('/login', rateLimits.strict, async (req, res) => {
 			refreshToken,
 		});
 	} catch (err) {
-		console.error('Login error:', err);
-		res.status(500).json({ error: 'Login failed' });
+		const errorDetails = {
+			message: err.message,
+			code: err.code,
+			detail: err.detail,
+			table: err.table,
+			constraint: err.constraint,
+			stack: err.stack,
+			timestamp: new Date().toISOString(),
+		};
+		console.error('Login error:', JSON.stringify(errorDetails, null, 2));
+		res.status(500).json({ error: 'Login failed. Please try again.' });
 	}
 });
 
@@ -306,7 +368,16 @@ router.post('/refresh', async (req, res) => {
 			user: result.user,
 		});
 	} catch (err) {
-		console.error('Token refresh error:', err);
+		const errorDetails = {
+			message: err.message,
+			code: err.code,
+			detail: err.detail,
+			table: err.table,
+			constraint: err.constraint,
+			stack: err.stack,
+			timestamp: new Date().toISOString(),
+		};
+		console.error('Token refresh error:', JSON.stringify(errorDetails, null, 2));
 		res.status(500).json({ error: 'Token refresh failed' });
 	}
 });
@@ -348,7 +419,16 @@ router.post('/logout-all', authMiddleware, async (req, res) => {
 		await revokeAllTokens(req.user.id);
 		res.json({ success: true, message: 'Logged out from all devices' });
 	} catch (err) {
-		console.error('Logout all error:', err);
+		const errorDetails = {
+			message: err.message,
+			code: err.code,
+			detail: err.detail,
+			table: err.table,
+			constraint: err.constraint,
+			stack: err.stack,
+			timestamp: new Date().toISOString(),
+		};
+		console.error('Logout all error:', JSON.stringify(errorDetails, null, 2));
 		res.status(500).json({ error: 'Failed to logout from all devices' });
 	}
 });
@@ -503,7 +583,14 @@ router.get('/google/callback', async (req, res) => {
 			user.role === 'recruiter' ? '/recruiter-dashboard.html' : '/candidate-dashboard.html';
 		res.redirect(redirectUrl);
 	} catch (err) {
-		console.error('Google OAuth error:', err);
+		const errorDetails = {
+			message: err.message,
+			code: err.code,
+			detail: err.detail,
+			stack: err.stack,
+			timestamp: new Date().toISOString(),
+		};
+		console.error('Google OAuth error:', JSON.stringify(errorDetails, null, 2));
 		res.redirect('/login.html?error=Authentication failed');
 	}
 });
@@ -643,7 +730,14 @@ router.get('/linkedin/callback', async (req, res) => {
 			user.role === 'recruiter' ? '/recruiter-dashboard.html' : '/candidate-dashboard.html';
 		res.redirect(redirectUrl);
 	} catch (err) {
-		console.error('LinkedIn OAuth error:', err);
+		const errorDetails = {
+			message: err.message,
+			code: err.code,
+			detail: err.detail,
+			stack: err.stack,
+			timestamp: new Date().toISOString(),
+		};
+		console.error('LinkedIn OAuth error:', JSON.stringify(errorDetails, null, 2));
 		res.redirect('/login.html?error=Authentication failed');
 	}
 });
@@ -778,7 +872,16 @@ router.post('/forgot-password', rateLimits.strict, async (req, res) => {
 			message: 'If an account with that email exists, a password reset link has been sent.',
 		});
 	} catch (err) {
-		console.error('Forgot password error:', err);
+		const errorDetails = {
+			message: err.message,
+			code: err.code,
+			detail: err.detail,
+			table: err.table,
+			constraint: err.constraint,
+			stack: err.stack,
+			timestamp: new Date().toISOString(),
+		};
+		console.error('Forgot password error:', JSON.stringify(errorDetails, null, 2));
 		res.status(500).json({ error: 'Failed to process password reset request' });
 	}
 });
@@ -828,7 +931,16 @@ router.post('/reset-password', rateLimits.strict, async (req, res) => {
 
 		res.json({ success: true, message: 'Password has been reset successfully' });
 	} catch (err) {
-		console.error('Reset password error:', err);
+		const errorDetails = {
+			message: err.message,
+			code: err.code,
+			detail: err.detail,
+			table: err.table,
+			constraint: err.constraint,
+			stack: err.stack,
+			timestamp: new Date().toISOString(),
+		};
+		console.error('Reset password error:', JSON.stringify(errorDetails, null, 2));
 		res.status(500).json({ error: 'Failed to reset password' });
 	}
 });

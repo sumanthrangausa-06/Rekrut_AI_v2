@@ -19,6 +19,11 @@ const validateJobSearch = [
 		.isInt({ min: 0 })
 		.withMessage('offset must be an integer >= 0')
 		.toInt(),
+	query('page')
+		.optional()
+		.isInt({ min: 1 })
+		.withMessage('page must be an integer >= 1')
+		.toInt(),
 	query('search')
 		.optional()
 		.isString()
@@ -50,7 +55,8 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 		const {
 			status = 'active',
 			limit = 20,
-			offset = 0,
+			page = 1,
+			offset,
 			search,
 			location,
 			job_type,
@@ -64,7 +70,10 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 			return res.status(400).json({ error: 'Invalid status parameter' });
 		}
 
-		let query = `
+		const parsedLimit = parseInt(limit, 10);
+		const parsedOffset = offset !== undefined ? parseInt(offset, 10) : (parseInt(page, 10) - 1) * parsedLimit;
+
+		let sqlQuery = `
       SELECT j.id, j.title, j.company, j.description, j.requirements, j.location,
              j.salary_range, j.job_type, j.screening_questions, j.country_code,
              j.currency_code, j.salary_min, j.salary_max, j.status, j.created_at,
@@ -78,7 +87,7 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 
 		// Text search across title, company, description, requirements
 		if (search?.trim()) {
-			query += ` AND (
+			sqlQuery += ` AND (
         j.title ILIKE $${idx} OR j.company ILIKE $${idx}
         OR j.description ILIKE $${idx} OR j.requirements ILIKE $${idx}
       )`;
@@ -88,34 +97,34 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 
 		// Location filter (partial match)
 		if (location?.trim()) {
-			query += ` AND j.location ILIKE $${idx}`;
+			sqlQuery += ` AND j.location ILIKE $${idx}`;
 			params.push(`%${location.trim()}%`);
 			idx++;
 		}
 
 		// Job type filter (exact match)
 		if (job_type?.trim()) {
-			query += ` AND j.job_type = $${idx}`;
+			sqlQuery += ` AND j.job_type = $${idx}`;
 			params.push(job_type.trim());
 			idx++;
 		}
 
 		// Salary range filters
 		if (salary_min) {
-			query += ` AND (j.salary_min >= $${idx} OR j.salary_min IS NULL)`;
+			sqlQuery += ` AND (j.salary_min >= $${idx} OR j.salary_min IS NULL)`;
 			params.push(parseInt(salary_min, 10));
 			idx++;
 		}
 		if (salary_max) {
-			query += ` AND (j.salary_max <= $${idx} OR j.salary_max IS NULL)`;
+			sqlQuery += ` AND (j.salary_max <= $${idx} OR j.salary_max IS NULL)`;
 			params.push(parseInt(salary_max, 10));
 			idx++;
 		}
 
-		query += ` ORDER BY j.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
-		params.push(parseInt(limit, 10), parseInt(offset, 10));
+		sqlQuery += ` ORDER BY j.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
+		params.push(parsedLimit, parsedOffset);
 
-		const result = await pool.query(query, params);
+		const result = await pool.query(sqlQuery, params);
 
 		// Get total count for pagination
 		let countQuery = `SELECT COUNT(*) as total FROM jobs j WHERE j.status = $1`;
@@ -142,12 +151,52 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 		res.json({
 			jobs: result.rows,
 			total: parseInt(countResult.rows[0].total, 10),
-			limit: parseInt(limit, 10),
-			offset: parseInt(offset, 10),
+			limit: parsedLimit,
+			offset: parsedOffset,
+			page: Math.floor(parsedOffset / parsedLimit) + 1,
 		});
 	} catch (err) {
-		console.error('List jobs error:', err);
-		res.status(500).json({ error: 'Failed to fetch jobs' });
+		const errorDetails = {
+			message: err.message,
+			code: err.code,
+			detail: err.detail,
+			table: err.table,
+			constraint: err.constraint,
+			stack: err.stack,
+			timestamp: new Date().toISOString(),
+		};
+		console.error('List jobs error:', JSON.stringify(errorDetails, null, 2));
+
+		if (err.code === '42P01') {
+			return res.status(500).json({
+				error: 'Database table missing. Please contact support.',
+				code: 'DB_TABLE_MISSING',
+				table: err.table,
+			});
+		}
+		if (err.code === '42703') {
+			return res.status(500).json({
+				error: 'Database schema error. Please try again in a few minutes.',
+				code: 'DB_SCHEMA_ERROR',
+			});
+		}
+		if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+			return res.status(500).json({
+				error: 'Database connection failed. Please try again later.',
+				code: 'DB_CONNECTION_FAILED',
+			});
+		}
+		if (process.env.NODE_ENV !== 'production') {
+			return res.status(500).json({
+				error: 'Failed to fetch jobs',
+				debug: {
+					message: err.message,
+					code: err.code,
+					table: err.table,
+				},
+			});
+		}
+		res.status(500).json({ error: 'Failed to fetch jobs: ' + err.message + ' (code: ' + (err.code || 'N/A') + ')' });
 	}
 });
 
@@ -182,7 +231,16 @@ router.get('/:id', optionalAuth, async (req, res) => {
 
 		res.json({ job: result.rows[0] });
 	} catch (err) {
-		console.error('Get job error:', err);
+		const errorDetails = {
+			message: err.message,
+			code: err.code,
+			detail: err.detail,
+			table: err.table,
+			constraint: err.constraint,
+			stack: err.stack,
+			timestamp: new Date().toISOString(),
+		};
+		console.error('Get job error:', JSON.stringify(errorDetails, null, 2));
 		res.status(500).json({ error: 'Failed to fetch job' });
 	}
 });
@@ -267,18 +325,33 @@ router.post(
 
 			// Track job post creation
 			try {
-				await pool.query('INSERT INTO events (event_type, user_id, metadata) VALUES ($1, $2, $3)', [
-					'job_post_created',
-					req.user.id,
-					JSON.stringify({ title, company, job_type }),
-				]);
+				const { ensureEventsTable } = require('../lib/db-health');
+				const eventsCheck = await ensureEventsTable();
+				if (eventsCheck.exists) {
+					await pool.query('INSERT INTO events (event_type, user_id, metadata) VALUES ($1, $2, $3)', [
+						'job_post_created',
+						req.user.id,
+						JSON.stringify({ title, company, job_type }),
+					]);
+				} else {
+					console.warn('[jobs] events table missing, skipping job post event log');
+				}
 			} catch (e) {
-				console.error('Failed to log job post event:', e);
+				console.error('Failed to log job post event:', e.message, e.code ? `(code: ${e.code})` : '');
 			}
 
 			res.json({ success: true, job: result.rows[0] });
 		} catch (err) {
-			console.error('Create job error:', err);
+			const errorDetails = {
+				message: err.message,
+				code: err.code,
+				detail: err.detail,
+				table: err.table,
+				constraint: err.constraint,
+				stack: err.stack,
+				timestamp: new Date().toISOString(),
+			};
+			console.error('Create job error:', JSON.stringify(errorDetails, null, 2));
 			res.status(500).json({ error: 'Failed to create job' });
 		}
 	},
@@ -346,7 +419,16 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
 		res.json({ success: true, job: result.rows[0] });
 	} catch (err) {
-		console.error('Update job error:', err);
+		const errorDetails = {
+			message: err.message,
+			code: err.code,
+			detail: err.detail,
+			table: err.table,
+			constraint: err.constraint,
+			stack: err.stack,
+			timestamp: new Date().toISOString(),
+		};
+		console.error('Update job error:', JSON.stringify(errorDetails, null, 2));
 		res.status(500).json({ error: 'Failed to update job' });
 	}
 });
@@ -365,7 +447,16 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 		await pool.query('DELETE FROM jobs WHERE id = $1', [req.params.id]);
 		res.json({ success: true });
 	} catch (err) {
-		console.error('Delete job error:', err);
+		const errorDetails = {
+			message: err.message,
+			code: err.code,
+			detail: err.detail,
+			table: err.table,
+			constraint: err.constraint,
+			stack: err.stack,
+			timestamp: new Date().toISOString(),
+		};
+		console.error('Delete job error:', JSON.stringify(errorDetails, null, 2));
 		res.status(500).json({ error: 'Failed to delete job' });
 	}
 });
@@ -436,7 +527,16 @@ router.post('/:id/audio', optionalAuth, async (req, res) => {
 
 		res.json({ audioUrl: `/api/jobs/${id}/audio-file` });
 	} catch (err) {
-		console.error('Generate audio error:', err);
+		const errorDetails = {
+			message: err.message,
+			code: err.code,
+			detail: err.detail,
+			table: err.table,
+			constraint: err.constraint,
+			stack: err.stack,
+			timestamp: new Date().toISOString(),
+		};
+		console.error('Generate audio error:', JSON.stringify(errorDetails, null, 2));
 		res.status(500).json({ error: 'Failed to generate audio narration' });
 	}
 });
@@ -462,7 +562,16 @@ router.get('/:id/audio-file', optionalAuth, async (req, res) => {
 		const stream = fs.createReadStream(cacheFile);
 		stream.pipe(res);
 	} catch (err) {
-		console.error('Serve audio error:', err);
+		const errorDetails = {
+			message: err.message,
+			code: err.code,
+			detail: err.detail,
+			table: err.table,
+			constraint: err.constraint,
+			stack: err.stack,
+			timestamp: new Date().toISOString(),
+		};
+		console.error('Serve audio error:', JSON.stringify(errorDetails, null, 2));
 		res.status(500).json({ error: 'Failed to serve audio file' });
 	}
 });
