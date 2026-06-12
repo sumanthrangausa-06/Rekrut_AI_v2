@@ -340,7 +340,31 @@ router.post('/login', rateLimits.strict, async (req, res) => {
 		}
 
 		const accessToken = generateToken(user);
-		const { token: refreshToken } = await generateRefreshToken(user.id);
+		let refreshToken;
+		try {
+			const { token } = await generateRefreshToken(user.id);
+			refreshToken = token;
+		} catch (refreshErr) {
+			if (refreshErr.code === '42P01') {
+				console.warn('[auth] refresh_tokens table missing, creating it on-demand...');
+				await pool.query(`
+					CREATE TABLE IF NOT EXISTS refresh_tokens (
+						id SERIAL PRIMARY KEY,
+						user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+						token_hash VARCHAR(255) NOT NULL UNIQUE,
+						family_id VARCHAR(100) NOT NULL,
+						is_revoked BOOLEAN DEFAULT false,
+						expires_at TIMESTAMP NOT NULL,
+						created_at TIMESTAMP DEFAULT NOW(),
+						last_used_at TIMESTAMP
+					)
+				`);
+				const { token } = await generateRefreshToken(user.id);
+				refreshToken = token;
+			} else {
+				throw refreshErr;
+			}
+		}
 		req.session.token = accessToken;
 
 		res.json({
@@ -367,6 +391,16 @@ router.post('/login', rateLimits.strict, async (req, res) => {
 			timestamp: new Date().toISOString(),
 		};
 		console.error('Login error:', JSON.stringify(errorDetails, null, 2));
+		if (process.env.NODE_ENV !== 'production') {
+			return res.status(500).json({
+				error: 'Login failed: ' + err.message + ' (code: ' + (err.code || 'N/A') + ')',
+				debug: {
+					message: err.message,
+					code: err.code,
+					table: err.table,
+				},
+			});
+		}
 		res.status(500).json({ error: 'Login failed. Please try again.' });
 	}
 });

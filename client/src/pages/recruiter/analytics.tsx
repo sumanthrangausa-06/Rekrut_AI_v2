@@ -288,6 +288,47 @@ export function RecruiterAnalyticsPage() {
 		)
 	}
 
+	const handleExport = () => {
+		if (!data) return
+
+		const headers = ['Metric', 'Value']
+		const rows = [
+			['Job Views', data.job_stats?.total_views?.toString() || '0'],
+			['Active Jobs', data.job_stats?.active_jobs?.toString() || '0'],
+			['Paused Jobs', data.job_stats?.paused_jobs?.toString() || '0'],
+			['Closed Jobs', data.job_stats?.closed_jobs?.toString() || '0'],
+			['Total Applications', data.application_stats?.total_applications?.toString() || '0'],
+			['New Applications', data.application_stats?.new_applications?.toString() || '0'],
+			['Reviewed', data.application_stats?.reviewed?.toString() || '0'],
+			['Interviewed', data.application_stats?.interviewed?.toString() || '0'],
+			['Offered', data.application_stats?.offered?.toString() || '0'],
+			['Hired', data.application_stats?.hired?.toString() || '0'],
+			['Rejected', data.application_stats?.rejected?.toString() || '0'],
+			['Avg Time to Hire (days)', data.avg_time_to_hire?.toString() || '—'],
+			['Conversion Rate', data.conversion_rate?.toString() || '—'],
+			['Cost Per Hire', data.cost_per_hire?.toString() || '—'],
+			['Quality of Hire', data.quality_of_hire?.toString() || '—'],
+			['Offer Acceptance Rate', data.offer_acceptance_rate?.toString() || '—'],
+		]
+
+		const csv = [
+			headers.join(','),
+			...rows.map((row) =>
+				row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(','),
+			),
+		].join('\n')
+
+		const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+		const url = URL.createObjectURL(blob)
+		const link = document.createElement('a')
+		link.href = url
+		link.download = `hiring-analytics-${new Date().toISOString().split('T')[0]}.csv`
+		link.click()
+		URL.revokeObjectURL(url)
+
+		trackEvent('analytics_export', { timeRange })
+	}
+
 	return (
 		<div className='space-y-6'>
 			{/* Header */}
@@ -307,7 +348,12 @@ export function RecruiterAnalyticsPage() {
 						<option value='90'>Last 90 days</option>
 						<option value='365'>Last year</option>
 					</select>
-					<Button variant='outline' size='sm' className='gap-1 min-h-[44px]'>
+					<Button
+						variant='outline'
+						size='sm'
+						className='gap-1 min-h-[44px]'
+						onClick={handleExport}
+					>
 						<Download className='h-4 w-4' />
 						Export
 					</Button>
