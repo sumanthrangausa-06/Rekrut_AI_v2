@@ -1506,14 +1506,16 @@ function ExperienceTab({
 
 	return (
 		<div className='space-y-6'>
-			<div className='flex items-center justify-between'>
-				<h3 className='font-semibold text-lg flex items-center gap-2'>
-					<Briefcase className='h-5 w-5' /> Work Experience
-				</h3>
-				<Button size='sm' onClick={openNew} className='gap-1'>
-					<Plus className='h-4 w-4' /> Add Experience
-				</Button>
-			</div>
+			<CollapsibleSection
+				title='Work Experience'
+				icon={Briefcase}
+				count={experience.length}
+				action={
+					<Button size='sm' onClick={openNew} className='gap-1'>
+						<Plus className='h-4 w-4' /> Add Job
+					</Button>
+				}
+			>
 
 			{experience.length === 0 ? (
 				<Card>
@@ -1741,6 +1743,16 @@ function EducationTab({
 }) {
 	const [editing, setEditing] = useState<Education | null>(null)
 	const [isNew, setIsNew] = useState(false)
+	const [expanded, setExpanded] = useState<Set<number>>(new Set())
+
+	function toggleExpanded(id: number) {
+		setExpanded((prev) => {
+			const next = new Set(prev)
+			if (next.has(id)) next.delete(id)
+			else next.add(id)
+			return next
+		})
+	}
 
 	function openNew() {
 		setEditing({ id: 0, institution: '', degree: '' })
@@ -1959,7 +1971,17 @@ function SkillsTab({
 	const [newLevel, setNewLevel] = useState(3)
 	const [adding, setAdding] = useState(false)
 	const [endorsing, setEndorsing] = useState<number | null>(null)
+	const [expanded, setExpanded] = useState<Set<number>>(new Set())
 	const [addingMode, setAddingMode] = useState(false)
+
+	function toggleExpanded(id: number) {
+		setExpanded((prev) => {
+			const next = new Set(prev)
+			if (next.has(id)) next.delete(id)
+			else next.add(id)
+			return next
+		})
+	}
 
 	async function addSkill() {
 		if (!newSkill.trim()) return
@@ -2086,7 +2108,7 @@ function SkillsTab({
 								</Button>
 							</div>
 						</div>
-					)
+					)}
 
 					{skills.length === 0 ? (
 						<div className='py-8 text-center'>
