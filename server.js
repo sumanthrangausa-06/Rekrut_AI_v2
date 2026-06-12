@@ -108,6 +108,15 @@ app.use(
 );
 
 
+// Deploy verification endpoint — changes on every redeploy
+app.get('/deploy-check', (_req, res) => {
+	res.json({ 
+		deployed: true, 
+		commit: '626efdc', 
+		timestamp: new Date().toISOString() 
+	});
+});
+
 // Version / deployment verification endpoint
 app.get('/version', (_req, res) => {
 	try {
