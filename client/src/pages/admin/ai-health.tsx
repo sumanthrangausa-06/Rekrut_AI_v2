@@ -3064,7 +3064,7 @@ export function AiHealthPage() {
 					</div>
 				</div>
 				{/* Tab navigation — scrollable on mobile */}
-				<div className='max-w-7xl mx-auto px-4 sm:px-6'>
+				<div className='max-w-7xl mx-auto px-6 sm:px-8'>
 					<div
 						className='flex gap-1 -mb-px overflow-x-auto scrollbar-hide'
 						style={{ WebkitOverflowScrolling: 'touch' }}

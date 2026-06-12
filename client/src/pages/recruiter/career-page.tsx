@@ -125,7 +125,7 @@ export function RecruiterCareerPage() {
 		return (
 			<div className='min-h-screen bg-background'>
 				<div className='h-64 bg-muted animate-pulse' />
-				<div className='max-w-5xl mx-auto px-4 py-8 space-y-6'>
+				<div className='max-w-5xl mx-auto px-6 py-8 space-y-6'>
 					<Skeleton count={3} variant='card' />
 				</div>
 			</div>
@@ -149,7 +149,7 @@ export function RecruiterCareerPage() {
 		<div className='min-h-screen bg-background'>
 			{/* Hero */}
 			<div className='relative h-64 bg-gradient-to-r from-primary/20 to-primary/10 flex items-end'>
-				<div className='max-w-5xl mx-auto px-4 pb-6 w-full'>
+				<div className='max-w-5xl mx-auto px-6 pb-6 w-full'>
 					<div className='flex items-end gap-4'>
 						<Avatar className='h-20 w-20 border-4 border-background shadow-lg'>
 							<AvatarImage src={company.logo} alt={company.name} />
@@ -199,7 +199,7 @@ export function RecruiterCareerPage() {
 				</div>
 			</div>
 
-			<div className='max-w-5xl mx-auto px-4 py-8 space-y-10'>
+			<div className='max-w-5xl mx-auto px-6 py-8 space-y-10'>
 				{/* Stats */}
 				<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
 					<Card>

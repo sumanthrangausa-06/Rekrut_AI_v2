@@ -129,7 +129,11 @@ async function getOrCreateUser(
       continue;
     }
 
-    if (loginRes.status() !== 404) {
+    if (loginRes.status() >= 500) {
+      const text = await loginRes.text().catch(() => '');
+      throw new Error(`Login server error for ${email}: ${loginRes.status()} ${text}`);
+    }
+    if (loginRes.status() !== 401 && !loginRes.ok()) {
       const text = await loginRes.text().catch(() => '');
       throw new Error(`Login failed for ${email}: ${loginRes.status()} ${text}`);
     }

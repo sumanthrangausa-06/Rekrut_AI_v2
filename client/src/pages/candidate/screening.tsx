@@ -301,7 +301,7 @@ export function CandidateScreeningPage() {
 		<div className='min-h-dvh-safe bg-gradient-to-br from-slate-50 to-blue-50'>
 			{/* Top bar */}
 			<div className='bg-white border-b sticky top-0 z-10'>
-				<div className='max-w-3xl mx-auto px-4 py-3 flex items-center justify-between'>
+				<div className='max-w-3xl mx-auto px-6 py-3 flex items-center justify-between'>
 					<div className='flex items-center gap-3'>
 						<Building2 className='w-5 h-5 text-blue-600' />
 						<div>
@@ -339,14 +339,14 @@ export function CandidateScreeningPage() {
 
 			{/* Error banner */}
 			{error && (
-				<div className='max-w-3xl mx-auto px-4 pt-4'>
+				<div className='max-w-3xl mx-auto px-6 pt-4'>
 					<div className='bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700'>
 						{error}
 					</div>
 				</div>
 			)}
 
-			<div className='max-w-3xl mx-auto px-4 py-8 space-y-6'>
+			<div className='max-w-3xl mx-auto px-6 py-8 space-y-6'>
 				{/* Question navigation pills */}
 				<div className='flex gap-2 flex-wrap'>
 					{questions.map((q: ScreeningQuestion, i: number) => (

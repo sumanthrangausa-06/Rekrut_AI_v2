@@ -1,5 +1,5 @@
 const request = require('supertest')
-const app = require('../../server')
+const app = require('../../../server')
 
 describe('Authentication API', () => {
   describe('POST /api/auth/register', () => {
@@ -126,8 +126,9 @@ describe('Authentication API', () => {
         .set('Authorization', `Bearer ${token}`)
 
       expect(res.status).toBe(200)
-      expect(res.body).toHaveProperty('id')
-      expect(res.body.email).toBe('me-test@example.com')
+      expect(res.body).toHaveProperty('user')
+      expect(res.body.user).toHaveProperty('id')
+      expect(res.body.user.email).toBe('me-test@example.com')
     })
 
     it('returns 401 without token', async () => {

@@ -108,6 +108,15 @@ app.use(
 );
 
 
+// Deploy verification endpoint — changes on every redeploy
+app.get('/deploy-check', (_req, res) => {
+	res.json({ 
+		deployed: true, 
+		commit: '626efdc', 
+		timestamp: new Date().toISOString() 
+	});
+});
+
 // Version / deployment verification endpoint
 app.get('/version', (_req, res) => {
 	try {
@@ -130,6 +139,9 @@ app.get('/health', async (_req, res) => {
 		res.status(statusCode).json({
 			status: health.healthy ? 'ok' : 'degraded',
 			timestamp: new Date().toISOString(),
+			deployed_at: '2026-06-13T02:20:00Z', // Force redeploy trigger
+			version: '2.0.1',
+			commit: 'staging-redeploy-2026-06-13',
 			db: health.connection,
 			tables: health.tables,
 			pool: health.pool,
@@ -1586,3 +1598,4 @@ if (server) {
 }
 
 module.exports = app;
+// Deploy trigger: 2026-06-12T18:36:42Z
