@@ -188,7 +188,7 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 		}
 		if (process.env.NODE_ENV !== 'production') {
 			return res.status(500).json({
-				error: 'Failed to fetch jobs',
+				error: 'Failed to fetch jobs: ' + err.message + ' (code: ' + (err.code || 'N/A') + ')',
 				debug: {
 					message: err.message,
 					code: err.code,

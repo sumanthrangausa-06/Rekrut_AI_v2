@@ -165,7 +165,31 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 		}
 
 		const accessToken = generateToken(user);
-		const { token: refreshToken } = await generateRefreshToken(user.id);
+		let refreshToken;
+		try {
+			const { token } = await generateRefreshToken(user.id);
+			refreshToken = token;
+		} catch (refreshErr) {
+			if (refreshErr.code === '42P01') {
+				console.warn('[auth] refresh_tokens table missing, creating it on-demand...');
+				await pool.query(`
+					CREATE TABLE IF NOT EXISTS refresh_tokens (
+						id SERIAL PRIMARY KEY,
+						user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+						token_hash VARCHAR(255) NOT NULL UNIQUE,
+						family_id VARCHAR(100) NOT NULL,
+						is_revoked BOOLEAN DEFAULT false,
+						expires_at TIMESTAMP NOT NULL,
+						created_at TIMESTAMP DEFAULT NOW(),
+						last_used_at TIMESTAMP
+					)
+				`);
+				const { token } = await generateRefreshToken(user.id);
+				refreshToken = token;
+			} else {
+				throw refreshErr;
+			}
+		}
 
 		// Track signup completion
 		try {
@@ -214,6 +238,7 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 			console.error('[email] Failed to send welcome email (non-blocking):', emailErr.message);
 		}
 	} catch (err) {
+		console.error('Registration error:', err.message, err.stack);
 		// Log full error details for debugging
 		const errorDetails = {
 			message: err.message,
@@ -262,7 +287,7 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 		// Include error details in non-production for faster debugging
 		if (process.env.NODE_ENV !== 'production') {
 			return res.status(500).json({
-				error: 'Registration failed. Please try again.',
+				error: 'Registration failed: ' + err.message + ' (code: ' + (err.code || 'N/A') + ')',
 				debug: {
 					message: err.message,
 					code: err.code,
