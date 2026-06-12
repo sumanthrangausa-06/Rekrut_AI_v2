@@ -208,7 +208,7 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 			console.error('Failed to log signup event:', e.message, e.code ? `(code: ${e.code})` : '');
 		}
 
-		res.json({
+		res.status(201).json({
 			success: true,
 			user: {
 				id: user.id,
