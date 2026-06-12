@@ -1,0 +1,116 @@
+# Staging Deployment Verification Report
+
+**Date:** 2026-06-12 (Fri) 10:37 GMT+8
+**Environment:** rekrutai-staging (Render)
+**URL:** https://rekrutai-staging.onrender.com
+**Branch:** staging
+**HEAD Commit:** cfc14c4 — docs: update HEARTBEAT with git pipeline status and audit notes
+**Calendar Feature Commit:** 3d62b95 — feat(calendar): add Google Calendar + Outlook integration with OAuth2 and auto-sync
+
+---
+
+## ✅ Health Check Results
+
+| Endpoint | Status | Response Time | Notes |
+|----------|--------|--------------|-------|
+| `GET /health` | ✅ 200 | ~0.35s | `{status: "ok", timestamp: "..."}` |
+| `GET /api/health` | ✅ 200 | ~0.37s | Same as /health |
+| `GET /` | ✅ 200 | ~0.77s | React frontend serving correctly |
+| `GET /api/admin/metrics` | ✅ 401 | ~0.71s | Route exists, requires admin auth |
+| `GET /api/ai-health` | ✅ 401 | ~0.50s | Route exists, requires admin auth |
+| `POST /api/auth/login` | ✅ 400 | ~0.47s | Route exists, returns 400 for empty body |
+| `POST /api/auth/register` | ✅ 400 | ~0.75s | Route exists, returns 400 for empty body |
+| `POST /api/jobs/public` | ✅ 400 | ~0.32s | Route exists, requires params |
+| `GET /api/recruiter/jobs` | ✅ 401 | ~0.42s | Route exists, requires auth |
+
+---
+
+## ❌ Calendar Integration Endpoints
+
+| Endpoint | Status | Response Time | Notes |
+|----------|--------|--------------|-------|
+| `GET /api/calendar/status` | ❌ 404 | ~0.79s | **NOT DEPLOYED** |
+| `POST /api/calendar/connect/google` | ❌ 404 | ~0.27s | **NOT DEPLOYED** |
+| `GET /api/calendar/oauth/callback` | ❌ 404 | ~0.40s | **NOT DEPLOYED** |
+| `POST /api/calendar/disconnect` | ❌ 404 | — | **NOT DEPLOYED** |
+| `GET /api/calendar/events` | ❌ 404 | — | **NOT DEPLOYED** |
+| `POST /api/calendar/events/:id` | ❌ 404 | — | **NOT DEPLOYED** |
+
+**⚠️ ROOT CAUSE IDENTIFIED:** The staging server is running an **older version** of the code (before commit `3d62b95`). The calendar integration feature was added in `3d62b95` but has not been successfully deployed to staging.
+
+---
+
+## ❌ TTS Endpoints (Also Missing)
+
+| Endpoint | Status | Notes |
+|----------|--------|-------|
+| `GET /api/tts/*` | ❌ 404 | **NOT DEPLOYED** — added in same commit as calendar |
+
+---
+
+## ⚠️ API Issues
+
+| Endpoint | Status | Notes |
+|----------|--------|-------|
+| `GET /api/jobs` | ⚠️ 500 | Server error — potential DB or service issue |
+| `GET /api/candidates/search` | ❌ 404 | May not exist in current deployed version |
+
+---
+
+## 🔧 Critical Bug Found & Fixed
+
+**File:** `server/services/calendar-service.js`  
+**Issue:** Incorrect `require()` path for `lib/db`  
+**Before:** `const pool = require('../lib/db');` → Resolves to `server/lib/db.js` (does not exist)  
+**After:** `const pool = require('../../lib/db');` → Resolves to `lib/db.js` (correct)  
+**Impact:** This bug would cause the server to **crash on startup** when the calendar routes are loaded. It explains why the calendar feature cannot be deployed without this fix.
+
+**Verification:** After the fix, `server.js` loads successfully without crashing:
+```bash
+JWT_SECRET=dummy SESSION_SECRET=dummy DATABASE_URL=postgresql://dummy node -e "require('./server.js')"
+# → Loads successfully, no crash
+```
+
+---
+
+## 📊 Deployment Pipeline Status
+
+| Service | Branch | Auto Deploy | Status |
+|---------|--------|------------|--------|
+| rekrutai-staging | staging | true | **PENDING** — new commits pushed but not yet deployed |
+| rekrutai-staging-db | staging | — | Linked (starter plan) |
+
+**Render Configuration:**
+- `buildCommand`: `cd client && npm install --include=dev && npm run build && cd .. && npm install`
+- `startCommand`: `npm run migrate && npm start`
+- `healthCheckPath`: `/health`
+- `plan`: starter
+- `numInstances`: 1
+
+---
+
+## 📝 Summary
+
+### Current State
+- ✅ Staging server is **up and running**
+- ✅ Health checks pass
+- ✅ Frontend is serving correctly
+- ✅ Existing API routes (auth, admin, jobs-public) are functional
+- ⚠️ `/api/jobs` returns 500 (requires investigation)
+- ❌ **Calendar integration routes are NOT deployed** (404 on all endpoints)
+- ❌ **TTS routes are NOT deployed** (404 on all endpoints)
+
+### Root Cause
+The staging server is running an older code version. The calendar integration commit (`3d62b95`) contains a **critical require path bug** in `server/services/calendar-service.js` that would crash the server on startup. This bug likely prevented the Render deployment from succeeding. The fix was applied in this verification run.
+
+### Next Steps
+1. **Commit the fix** (path correction in `server/services/calendar-service.js`)
+2. **Push to staging branch** — this will trigger a new Render deployment
+3. **Monitor the deployment** — verify calendar routes appear after deploy completes
+4. **Investigate `/api/jobs` 500 error** — check database connection or service issues
+5. **Verify migration 062 runs** — ensure `calendar_connections` table is created on staging DB
+
+---
+
+**Report generated by:** DevOps Automator  
+**Timestamp:** 2026-06-12 02:43 UTC

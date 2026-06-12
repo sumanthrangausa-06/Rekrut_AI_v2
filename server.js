@@ -12,6 +12,37 @@ const crypto = require('node:crypto');
 require('dotenv').config();
 
 const pool = require('./lib/db');
+
+// ─── Startup Environment Validation ─────────────────────────────────────
+const REQUIRED_ENV_VARS = [
+	{ key: 'DATABASE_URL', required: true },
+	{ key: 'JWT_SECRET', required: true },
+	{ key: 'SESSION_SECRET', required: true },
+];
+
+const missingEnv = REQUIRED_ENV_VARS.filter((env) => env.required && !process.env[env.key]);
+if (missingEnv.length > 0) {
+	console.error('[startup] CRITICAL: Missing required environment variables:');
+	missingEnv.forEach((env) => console.error(`  - ${env.key}`));
+	console.error('[startup] Application will start but may fail on database-dependent endpoints.');
+}
+
+// Validate SMTP configuration (warn only, not fatal)
+const smtpVars = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'];
+const missingSmtp = smtpVars.filter((v) => !process.env[v]);
+if (missingSmtp.length > 0) {
+	console.warn('[startup] SMTP not fully configured. Email sending will be disabled.');
+	console.warn(`  Missing: ${missingSmtp.join(', ')}`);
+}
+
+// Validate Stripe configuration (warn only)
+const stripeVars = ['STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET'];
+const missingStripe = stripeVars.filter((v) => !process.env[v]);
+if (missingStripe.length > 0) {
+	console.warn('[startup] Stripe not fully configured. Billing features will be disabled.');
+	console.warn(`  Missing: ${missingStripe.join(', ')}`);
+}
+
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
@@ -76,14 +107,66 @@ app.use(
 	}),
 );
 
+
+// Version / deployment verification endpoint
+app.get('/version', (_req, res) => {
+	try {
+		const { execSync } = require('node:child_process');
+		const commit = execSync('git rev-parse HEAD', { cwd: __dirname, encoding: 'utf8' }).trim();
+		const branch = execSync('git branch --show-current', { cwd: __dirname, encoding: 'utf8' }).trim();
+		const timestamp = execSync('git log -1 --format=%ci', { cwd: __dirname, encoding: 'utf8' }).trim();
+		res.json({ commit, branch, timestamp, env: process.env.NODE_ENV || 'unknown' });
+	} catch (err) {
+		res.json({ commit: 'unknown', branch: 'unknown', env: process.env.NODE_ENV || 'unknown', error: err.message });
+	}
+});
+
 // Health check — available after helmet so security headers are present
-app.get('/health', (_req, res) => {
-	res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', async (_req, res) => {
+	try {
+		const { runHealthCheck } = require('./lib/db-health'); // deployed 2026-06-13
+		const health = await runHealthCheck();
+		const statusCode = health.healthy ? 200 : 503;
+		res.status(statusCode).json({
+			status: health.healthy ? 'ok' : 'degraded',
+			timestamp: new Date().toISOString(),
+			db: health.connection,
+			tables: health.tables,
+			pool: health.pool,
+			env: health.env,
+			issues: health.issues,
+		});
+	} catch (err) {
+		res.status(503).json({
+			status: 'error',
+			timestamp: new Date().toISOString(),
+			error: err.message,
+		});
+	}
 });
 
 // API health alias for monitoring consistency
-app.get('/api/health', (_req, res) => {
-	res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/api/health', async (_req, res) => {
+	try {
+		const { runHealthCheck } = require('./lib/db-health');
+		const health = await runHealthCheck();
+		const statusCode = health.healthy ? 200 : 503;
+		res.status(statusCode).json({
+			status: health.healthy ? 'ok' : 'degraded',
+			timestamp: new Date().toISOString(),
+			db: health.connection,
+			tables: health.tables,
+			pool: health.pool,
+			env: health.env,
+			issues: health.issues,
+		});
+	} catch (err) {
+		res.status(503).json({
+			status: 'error',
+			timestamp: new Date().toISOString(),
+			error: err.message,
+		});
+	}
 });
 
 // CORS — whitelist origins in production, allow dev origins in development
@@ -291,8 +374,9 @@ app.use('/api/screening', screeningRoutes);
 // API Routes - Settings (profile, notifications, privacy, avatar)
 app.use('/api/settings', settingsRoutes);
 
-// API Routes - TTS (Cartesia.ai voice synthesis)
+const voiceRoutes = require('./routes/voice');
 const ttsRoutes = require('./routes/tts');
+app.use('/api/voice', voiceRoutes);
 app.use('/api/tts', ttsRoutes);
 
 // API Routes - Calendar Integration (Google + Outlook)
@@ -1476,22 +1560,29 @@ app.use((err, _req, res, _next) => {
 	res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
-const server = app.listen(PORT, () => {
-	console.log(`Rekrut AI running on port ${PORT}`);
+// Only start the server if not in test mode (prevents port binding during integration tests)
+const server = process.env.NODE_ENV !== 'test'
+	? app.listen(PORT, () => {
+		console.log(`Rekrut AI running on port ${PORT}`);
 
-	// Start distributed rate limiter cleanup
-	try {
-		const { distributedRateLimiter } = require('./lib/distributed-rate-limiter');
-		distributedRateLimiter.startCleanup(5 * 60 * 1000); // Clean every 5 minutes
-	} catch (err) {
-		console.warn('[server] Could not start rate limiter cleanup:', err.message);
-	}
-});
+		// Start distributed rate limiter cleanup
+		try {
+			const { distributedRateLimiter } = require('./lib/distributed-rate-limiter');
+			distributedRateLimiter.startCleanup(5 * 60 * 1000); // Clean every 5 minutes
+		} catch (err) {
+			console.warn('[server] Could not start rate limiter cleanup:', err.message);
+		}
+	})
+	: null;
 
 // Wire up active HTTP connection tracking for the metrics dashboard
-try {
-	const { setHttpServer } = require('./lib/metrics-collector');
-	setHttpServer(server);
-} catch (err) {
-	console.warn('[server] Could not wire HTTP connection tracking:', err.message);
+if (server) {
+	try {
+		const { setHttpServer } = require('./lib/metrics-collector');
+		setHttpServer(server);
+	} catch (err) {
+		console.warn('[server] Could not wire HTTP connection tracking:', err.message);
+	}
 }
+
+module.exports = app;

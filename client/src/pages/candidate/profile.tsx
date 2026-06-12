@@ -8,7 +8,9 @@ import {
 	Building2,
 	Calendar,
 	CheckCircle,
+	ChevronDown,
 	ChevronRight,
+	ChevronUp,
 	Clock,
 	Code2,
 	Crown,
@@ -764,6 +766,50 @@ function AnalyticsStat({
 	)
 }
 
+// ====== COLLAPSIBLE SECTION ======
+interface CollapsibleSectionProps {
+	title: string
+	icon: React.ComponentType<{ className?: string }>
+	count?: number
+	children: React.ReactNode
+	defaultOpen?: boolean
+	action?: React.ReactNode
+}
+function CollapsibleSection({ title, icon: Icon, count, children, defaultOpen = true, action }: CollapsibleSectionProps) {
+	const [open, setOpen] = useState(defaultOpen)
+	return (
+		<div className='border rounded-xl bg-card'>
+			<button
+				onClick={() => setOpen(!open)}
+				className='w-full flex items-center justify-between p-4 hover:bg-muted/50 rounded-xl transition-colors'
+			>
+				<div className='flex items-center gap-3'>
+					<div className='h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center'>
+						<Icon className='h-5 w-5 text-primary' />
+					</div>
+					<div className='text-left'>
+						<h3 className='font-semibold text-sm'>{title}</h3>
+						{count !== undefined && (
+							<p className='text-xs text-muted-foreground'>
+								{count} {count === 1 ? 'entry' : 'entries'}
+							</p>
+						)}
+					</div>
+				</div>
+				<div className='flex items-center gap-2'>
+					{action}
+					{open ? (
+						<ChevronUp className='h-4 w-4 text-muted-foreground' />
+					) : (
+						<ChevronDown className='h-4 w-4 text-muted-foreground' />
+					)}
+				</div>
+			</button>
+			{open && <div className='px-4 pb-4'>{children}</div>}
+		</div>
+	)
+}
+
 // ====== OVERVIEW TAB ======
 function OverviewTab({
 	profile,
@@ -1405,6 +1451,16 @@ function ExperienceTab({
 }) {
 	const [editing, setEditing] = useState<Experience | null>(null)
 	const [isNew, setIsNew] = useState(false)
+	const [expanded, setExpanded] = useState<Set<number>>(new Set())
+
+	function toggleExpanded(id: number) {
+		setExpanded((prev) => {
+			const next = new Set(prev)
+			if (next.has(id)) next.delete(id)
+			else next.add(id)
+			return next
+		})
+	}
 
 	function openNew() {
 		setEditing({ id: 0, company_name: '', title: '', is_current: false })
@@ -1450,14 +1506,16 @@ function ExperienceTab({
 
 	return (
 		<div className='space-y-6'>
-			<div className='flex items-center justify-between'>
-				<h3 className='font-semibold text-lg flex items-center gap-2'>
-					<Briefcase className='h-5 w-5' /> Work Experience
-				</h3>
-				<Button size='sm' onClick={openNew} className='gap-1'>
-					<Plus className='h-4 w-4' /> Add Experience
-				</Button>
-			</div>
+			<CollapsibleSection
+				title='Work Experience'
+				icon={Briefcase}
+				count={experience.length}
+				action={
+					<Button size='sm' onClick={openNew} className='gap-1'>
+						<Plus className='h-4 w-4' /> Add Job
+					</Button>
+				}
+			>
 
 			{experience.length === 0 ? (
 				<Card>
@@ -1569,6 +1627,7 @@ function ExperienceTab({
 					))}
 				</div>
 			)}
+			</CollapsibleSection>
 
 			{/* Edit dialog */}
 			{editing && (
@@ -1684,6 +1743,16 @@ function EducationTab({
 }) {
 	const [editing, setEditing] = useState<Education | null>(null)
 	const [isNew, setIsNew] = useState(false)
+	const [expanded, setExpanded] = useState<Set<number>>(new Set())
+
+	function toggleExpanded(id: number) {
+		setExpanded((prev) => {
+			const next = new Set(prev)
+			if (next.has(id)) next.delete(id)
+			else next.add(id)
+			return next
+		})
+	}
 
 	function openNew() {
 		setEditing({ id: 0, institution: '', degree: '' })
@@ -1729,14 +1798,16 @@ function EducationTab({
 
 	return (
 		<div className='space-y-6'>
-			<div className='flex items-center justify-between'>
-				<h3 className='font-semibold text-lg flex items-center gap-2'>
-					<GraduationCap className='h-5 w-5' /> Education
-				</h3>
-				<Button size='sm' onClick={openNew} className='gap-1'>
-					<Plus className='h-4 w-4' /> Add Education
-				</Button>
-			</div>
+			<CollapsibleSection
+				title='Education'
+				icon={GraduationCap}
+				count={education.length}
+				action={
+					<Button size='sm' onClick={openNew} className='gap-1'>
+						<Plus className='h-4 w-4' /> Add Education
+					</Button>
+				}
+			>
 
 			{education.length === 0 ? (
 				<Card>
@@ -1801,6 +1872,7 @@ function EducationTab({
 					))}
 				</div>
 			)}
+			</CollapsibleSection>
 
 			{/* Edit dialog */}
 			{editing && (
@@ -1899,6 +1971,17 @@ function SkillsTab({
 	const [newLevel, setNewLevel] = useState(3)
 	const [adding, setAdding] = useState(false)
 	const [endorsing, setEndorsing] = useState<number | null>(null)
+	const [expanded, setExpanded] = useState<Set<number>>(new Set())
+	const [addingMode, setAddingMode] = useState(false)
+
+	function toggleExpanded(id: number) {
+		setExpanded((prev) => {
+			const next = new Set(prev)
+			if (next.has(id)) next.delete(id)
+			else next.add(id)
+			return next
+		})
+	}
 
 	async function addSkill() {
 		if (!newSkill.trim()) return
@@ -1968,153 +2051,111 @@ function SkillsTab({
 	return (
 		<div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
 			<div className='lg:col-span-2 space-y-6'>
-				<div className='flex items-center justify-between'>
-					<h3 className='font-semibold text-lg flex items-center gap-2'>
-						<Wrench className='h-5 w-5' /> Skills ({skills.length})
-					</h3>
-				</div>
-
-				{/* Add skill form */}
-				<Card>
-					<CardContent className='p-4'>
-						<p className='text-sm font-medium mb-3'>Add a New Skill</p>
-						<div className='flex flex-col gap-3 sm:flex-row sm:items-end'>
-							<div className='flex-1'>
-								<Label>Skill Name</Label>
-								<Input
-									value={newSkill}
-									onChange={(e) => setNewSkill(e.target.value)}
-									placeholder='e.g. React, Python, Project Management'
-									onKeyDown={(e) => e.key === 'Enter' && addSkill()}
-								/>
+				<CollapsibleSection
+					title='Skills'
+					icon={Wrench}
+					count={skills.length}
+					action={
+						<Button size='sm' onClick={() => setAddingMode(!addingMode)} className='gap-1'>
+							<Plus className='h-4 w-4' /> Add Skill
+						</Button>
+					}
+				>
+					{addingMode && (
+						<div className='mb-4 p-3 rounded-lg border bg-muted/50 space-y-3'>
+							<p className='text-sm font-medium'>Add a New Skill</p>
+							<div className='flex flex-col gap-3 sm:flex-row sm:items-end'>
+								<div className='flex-1'>
+									<Label>Skill Name</Label>
+									<Input
+										value={newSkill}
+										onChange={(e) => setNewSkill(e.target.value)}
+										placeholder='e.g. React, Python, Project Management'
+										onKeyDown={(e) => e.key === 'Enter' && addSkill()}
+									/>
+								</div>
+								<div className='w-36'>
+									<Label>Category</Label>
+									<select
+										value={newCategory}
+										onChange={(e) => setNewCategory(e.target.value)}
+										className='flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm'
+									>
+										<option value='technical'>Technical</option>
+										<option value='soft'>Soft Skills</option>
+										<option value='language'>Language</option>
+										<option value='tool'>Tools</option>
+										<option value='other'>Other</option>
+									</select>
+								</div>
+								<div className='w-36'>
+									<Label>Level ({levelLabels[newLevel]})</Label>
+									<Input
+										type='range'
+										min={1}
+										max={5}
+										value={newLevel}
+										onChange={(e) => setNewLevel(parseInt(e.target.value, 10))}
+									/>
+								</div>
 							</div>
-							<div className='w-36'>
-								<Label>Category</Label>
-								<select
-									value={newCategory}
-									onChange={(e) => setNewCategory(e.target.value)}
-									className='flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm'
-								>
-									<option value='technical'>Technical</option>
-									<option value='soft'>Soft Skills</option>
-									<option value='language'>Language</option>
-									<option value='tool'>Tools</option>
-									<option value='other'>Other</option>
-								</select>
+							<div className='flex gap-2'>
+								<Button onClick={addSkill} disabled={!newSkill.trim() || adding} className='gap-1'>
+									<Plus className='h-4 w-4' /> Add
+								</Button>
+								<Button variant='outline' size='sm' onClick={() => setAddingMode(false)}>
+									Cancel
+								</Button>
 							</div>
-							<div className='w-36'>
-								<Label>Level ({levelLabels[newLevel]})</Label>
-								<Input
-									type='range'
-									min={1}
-									max={5}
-									value={newLevel}
-									onChange={(e) => setNewLevel(parseInt(e.target.value, 10))}
-								/>
-							</div>
-							<Button onClick={addSkill} disabled={!newSkill.trim() || adding} className='gap-1'>
-								<Plus className='h-4 w-4' /> Add
-							</Button>
 						</div>
-					</CardContent>
-				</Card>
+					)}
 
-				{skills.length === 0 ? (
-					<Card>
-						<CardContent className='py-16 text-center'>
-							<Wrench className='mx-auto mb-3 h-12 w-12 opacity-20' />
-							<p className='text-muted-foreground'>No skills added yet. Add your skills above.</p>
-						</CardContent>
-					</Card>
-				) : (
-					sortedCategories.map((category) => (
-						<div key={category}>
-							<h4 className='text-sm font-semibold text-muted-foreground mb-3 capitalize flex items-center gap-2'>
-								<Zap className='h-3.5 w-3.5' />
-								{category} Skills
-							</h4>
-							<div className='grid gap-3 sm:grid-cols-2'>
-								{grouped[category].map((skill) => (
-									<Card key={skill.id} className='overflow-hidden'>
-										<CardContent className='p-4'>
-											<div className='flex items-start gap-3'>
-												<div className='flex-1 min-w-0'>
-													<div className='flex items-center gap-2'>
-														<span className='font-medium text-sm truncate'>{skill.skill_name}</span>
-														{skill.is_verified && (
-															<Badge variant='default' className='gap-0.5 text-[10px] h-5'>
-																<Award className='h-2.5 w-2.5' /> Verified
-															</Badge>
-														)}
-													</div>
-													<div className='flex items-center gap-1 mt-2'>
-														{[1, 2, 3, 4, 5].map((level) => (
-															<button
-																key={level}
-																onClick={() => updateLevel(skill, level)}
-																className='focus:outline-none'
-															>
-																<Star
-																	className={`h-4 w-4 transition-colors ${level <= skill.level ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`}
-																/>
-															</button>
-														))}
-														<span className='text-[10px] text-muted-foreground ml-1'>
-															{levelLabels[skill.level]}
-														</span>
-													</div>
-													{skill.years_experience && (
-														<p className='text-[10px] text-muted-foreground mt-1'>
-															{skill.years_experience} years of experience
-														</p>
-													)}
-													{skill.endorsements && skill.endorsements > 0 && (
-														<div className='flex items-center gap-1 mt-2'>
-															<ThumbsUp className='h-3 w-3 text-green-500' />
-															<span className='text-[10px] text-green-600'>
-																{skill.endorsements} endorsement{skill.endorsements > 1 ? 's' : ''}
-															</span>
-															{skill.endorsed_by && skill.endorsed_by.length > 0 && (
-																<span className='text-[10px] text-muted-foreground'>
-																	by {skill.endorsed_by.slice(0, 2).join(', ')}
-																	{skill.endorsed_by.length > 2 && '...'}
-																</span>
-															)}
-														</div>
-													)}
-												</div>
-												<div className='flex flex-col items-center gap-1 shrink-0'>
-													<Button
-														variant='ghost'
-														size='sm'
-														onClick={() => removeSkill(skill.id)}
-														className='text-muted-foreground hover:text-destructive min-h-[44px] min-w-[44px] p-0'
-													>
-														<X className='h-3.5 w-3.5' />
-													</Button>
-													<Button
-														variant='outline'
-														size='sm'
-														className='min-h-[44px] text-[10px] gap-1'
-														onClick={() => endorseSkill(skill.id)}
-														disabled={endorsing === skill.id}
-													>
-														{endorsing === skill.id ? (
-															<Loader2 className='h-3 w-3 animate-spin' />
-														) : (
-															<ThumbsUp className='h-3 w-3' />
-														)}
-														Endorse
-													</Button>
-												</div>
+					{skills.length === 0 ? (
+						<div className='py-8 text-center'>
+							<Wrench className='mx-auto mb-3 h-10 w-10 opacity-20' />
+							<p className='text-sm text-muted-foreground'>No skills added yet. Add your skills to improve your profile.</p>
+						</div>
+					) : (
+						<div className='space-y-5'>
+							{sortedCategories.map((category) => (
+								<div key={category}>
+									<h4 className='text-sm font-semibold text-muted-foreground mb-2.5 capitalize flex items-center gap-2'>
+										<Zap className='h-3.5 w-3.5' />
+										{category} Skills
+									</h4>
+									<div className='flex flex-wrap gap-2'>
+										{grouped[category].map((skill) => (
+											<div
+												key={skill.id}
+												className='group inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1.5 text-sm hover:bg-muted/50 transition-colors'
+											>
+												{skill.is_verified && (
+													<Award className='h-3 w-3 text-amber-500' />
+												)}
+												<span className='font-medium'>{skill.skill_name}</span>
+												<span className='text-[10px] text-muted-foreground'>
+													{levelLabels[skill.level]}
+												</span>
+												{skill.endorsements && skill.endorsements > 0 && (
+													<Badge variant='outline' className='text-[10px] h-4 gap-0.5 px-1.5 border-green-200 bg-green-50 text-green-700'>
+														<ThumbsUp className='h-2.5 w-2.5' />
+														{skill.endorsements}
+													</Badge>
+												)}
+												<button
+													onClick={() => removeSkill(skill.id)}
+													className='ml-0.5 rounded-full p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all'
+												>
+													<X className='h-3 w-3' />
+												</button>
 											</div>
-										</CardContent>
-									</Card>
-								))}
-							</div>
+										))}
+									</div>
+								</div>
+							))}
 						</div>
-					))
-				)}
+					)}
+				</CollapsibleSection>
 			</div>
 
 			{/* Right sidebar: Skill tips */}
