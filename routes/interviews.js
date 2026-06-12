@@ -26,7 +26,7 @@ const FormData = require('form-data');
 
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const emailService = require('../lib/email-service');
-const { AuditLogger } = require('../services/auditLogger');
+const calendarService = require('../server/services/calendar-service');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -2543,6 +2543,13 @@ router.post('/schedule', authMiddleware, async (req, res) => {
 			reminders_created: reminderCount,
 		});
 
+		// ── Calendar auto-sync (non-blocking) ──
+		try {
+			await calendarService.syncInterview(interview, 'create');
+		} catch (calErr) {
+			console.error('[calendar] Auto-sync failed (non-blocking):', calErr.message);
+		}
+
 		// ── Send interview scheduled notification (non-blocking) ──
 		try {
 			const [candidate, job, recruiter] = await Promise.all([
@@ -2639,6 +2646,14 @@ router.put('/reschedule', authMiddleware, async (req, res) => {
 			const updated = await pool.query('SELECT * FROM scheduled_interviews WHERE id = $1', [
 				interview_id,
 			]);
+
+			// ── Calendar auto-sync (non-blocking) ──
+			try {
+				await calendarService.syncInterview(updated.rows[0], 'update');
+			} catch (calErr) {
+				console.error('[calendar] Auto-sync update failed (non-blocking):', calErr.message);
+			}
+
 			res.json({ success: true, interview: updated.rows[0], reminders_created: reminderCount });
 		} else {
 			// Cancel current and suggest new slots
@@ -2646,6 +2661,13 @@ router.put('/reschedule', authMiddleware, async (req, res) => {
 				`UPDATE scheduled_interviews SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
 				[interview_id],
 			);
+
+			// ── Calendar auto-sync (non-blocking) ──
+			try {
+				await calendarService.syncInterview(existing.rows[0], 'delete');
+			} catch (calErr) {
+				console.error('[calendar] Auto-sync delete failed (non-blocking):', calErr.message);
+			}
 
 			const suggestedSlots = await interviewAI.suggestRescheduleSlots(interview_id);
 			res.json({ success: true, cancelled: true, suggested_slots: suggestedSlots });

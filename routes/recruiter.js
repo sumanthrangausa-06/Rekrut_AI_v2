@@ -5,6 +5,7 @@ const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const trustscoreService = require('../services/trustscore');
 const jobOptimizer = require('../services/job-optimizer');
+const calendarService = require('../server/services/calendar-service');
 const { AuditLogger } = require('../services/auditLogger');
 const emailService = require('../lib/email-service');
 
@@ -921,6 +922,13 @@ router.post('/interviews', authMiddleware, requireRecruiter, async (req, res) =>
 		);
 
 		res.json({ success: true, interview: result.rows[0] });
+
+		// ── Calendar auto-sync (non-blocking) ──
+		try {
+			await calendarService.syncInterview(result.rows[0], 'create');
+		} catch (calErr) {
+			console.error('[calendar] Auto-sync failed (non-blocking):', calErr.message);
+		}
 	} catch (err) {
 		console.error('Create interview error:', err);
 		res.status(500).json({ error: 'Failed to create interview' });
@@ -931,12 +939,22 @@ router.post('/interviews', authMiddleware, requireRecruiter, async (req, res) =>
 router.delete('/interviews/:id', authMiddleware, requireRecruiter, async (req, res) => {
 	try {
 		const result = await pool.query(
-			'DELETE FROM scheduled_interviews WHERE id = $1 AND company_id = $2 RETURNING id',
+			'DELETE FROM scheduled_interviews WHERE id = $1 AND company_id = $2 RETURNING id, calendar_event_id, calendar_provider, recruiter_id',
 			[req.params.id, req.user.company_id],
 		);
 
 		if (result.rows.length === 0) {
 			return res.status(404).json({ error: 'Interview not found' });
+		}
+
+		// ── Calendar auto-sync (non-blocking) ──
+		try {
+			const deleted = result.rows[0];
+			if (deleted.calendar_event_id && deleted.calendar_provider) {
+				await calendarService.deleteCalendarEvent(deleted.recruiter_id, deleted.calendar_provider, deleted.calendar_event_id);
+			}
+		} catch (calErr) {
+			console.error('[calendar] Auto-sync delete failed (non-blocking):', calErr.message);
 		}
 
 		res.json({ success: true });
@@ -1579,6 +1597,17 @@ router.put('/interviews/:id', authMiddleware, requireRecruiter, async (req, res)
 		}
 
 		res.json({ success: true, interview: result.rows[0] });
+
+		// ── Calendar auto-sync (non-blocking) ──
+		try {
+			if (status === 'cancelled') {
+				await calendarService.syncInterview(result.rows[0], 'delete');
+			} else if (meeting_link) {
+				await calendarService.syncInterview(result.rows[0], 'update');
+			}
+		} catch (calErr) {
+			console.error('[calendar] Auto-sync update failed (non-blocking):', calErr.message);
+		}
 	} catch (err) {
 		console.error('Update interview error:', err);
 		res.status(500).json({ error: 'Failed to update interview' });

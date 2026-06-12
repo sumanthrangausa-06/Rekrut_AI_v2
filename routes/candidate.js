@@ -18,6 +18,7 @@ const {
 const omniscoreService = require('../services/omniscore');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const emailService = require('../lib/email-service');
+const calendarService = require('../server/services/calendar-service');
 
 let matchingEngine;
 try {
@@ -2139,6 +2140,13 @@ router.put('/interviews/:id/accept', authMiddleware, async (req, res) => {
 		}
 
 		res.json({ success: true, interview: result.rows[0] });
+
+		// ── Calendar auto-sync (non-blocking) ──
+		try {
+			await calendarService.syncInterview(result.rows[0], 'update');
+		} catch (calErr) {
+			console.error('[calendar] Auto-sync update failed (non-blocking):', calErr.message);
+		}
 	} catch (err) {
 		console.error('Accept interview error:', err);
 		res.status(500).json({ error: 'Failed to accept interview' });
@@ -2163,6 +2171,13 @@ router.put('/interviews/:id/decline', authMiddleware, async (req, res) => {
 		}
 
 		res.json({ success: true, interview: result.rows[0] });
+
+		// ── Calendar auto-sync (non-blocking) ──
+		try {
+			await calendarService.syncInterview(result.rows[0], 'delete');
+		} catch (calErr) {
+			console.error('[calendar] Auto-sync delete failed (non-blocking):', calErr.message);
+		}
 	} catch (err) {
 		console.error('Decline interview error:', err);
 		res.status(500).json({ error: 'Failed to decline interview' });
@@ -2189,6 +2204,13 @@ router.put('/interviews/:id/reschedule', authMiddleware, async (req, res) => {
 		}
 
 		res.json({ success: true, interview: result.rows[0] });
+
+		// ── Calendar auto-sync (non-blocking) ──
+		try {
+			await calendarService.syncInterview(result.rows[0], 'update');
+		} catch (calErr) {
+			console.error('[calendar] Auto-sync update failed (non-blocking):', calErr.message);
+		}
 	} catch (err) {
 		console.error('Reschedule interview error:', err);
 		res.status(500).json({ error: 'Failed to request reschedule' });

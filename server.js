@@ -295,6 +295,10 @@ app.use('/api/settings', settingsRoutes);
 const ttsRoutes = require('./routes/tts');
 app.use('/api/tts', ttsRoutes);
 
+// API Routes - Calendar Integration (Google + Outlook)
+const calendarRoutes = require('./routes/calendar');
+app.use('/api/calendar', calendarRoutes);
+
 // Comprehensive Monitoring Metrics — protected by admin auth
 app.get('/api/admin/metrics', requireAdmin, async (_req, res) => {
 	try {
