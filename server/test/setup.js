@@ -12,8 +12,8 @@ jest.mock('../../lib/db', () => {
   const mockQuery = jest.fn(async (sql, params) => {
     const normalized = sql.toLowerCase().replace(/\s+/g, ' ').trim();
 
-    // Auth routes: SELECT user by email
-    if (normalized.includes('select * from users where email =')) {
+    // Auth routes: SELECT user by email (both SELECT id and SELECT * patterns)
+    if (normalized.includes('select id from users where email =') || normalized.includes('select * from users where email =')) {
       const email = params[0];
       const user = mockUsers.get(email);
       if (user) {
@@ -32,8 +32,8 @@ jest.mock('../../lib/db', () => {
       return { rows: [], rowCount: 0 };
     }
 
-    // Auth routes: SELECT user by ID
-    if (normalized.includes('select id, email, name, role, company_id from users where id =')) {
+    // Auth routes: SELECT user by ID (both SELECT * and SELECT id,email,name,role,company_id patterns)
+    if (normalized.includes('select * from users where id =') || normalized.includes('select id, email, name, role, company_id from users where id =')) {
       const userId = params[0];
       for (const user of mockUsers.values()) {
         if (user.id === userId) {
@@ -57,10 +57,10 @@ jest.mock('../../lib/db', () => {
       const email = params.find((p) => typeof p === 'string' && p.includes('@')) || params[0];
       const newUser = {
         id: nextUserId++,
-        email,
-        name: params[1] || 'Test User',
-        role: params[2] || 'candidate',
-        password_hash: params[3] || '$2a$10$fakehash',
+        email: params[0],
+        password_hash: params[1] || '$2a$10$fakehash',
+        name: params[2] || 'Test User',
+        role: params[3] || 'candidate',
         company_id: null,
       };
       mockUsers.set(newUser.email, newUser);
@@ -87,28 +87,13 @@ jest.mock('../../lib/db', () => {
       return { rows: [], rowCount: 1 };
     }
 
-    // Jobs routes: SELECT jobs (list) — must check it's NOT a COUNT query
-    if (normalized.includes('from jobs') && normalized.includes('select') && !normalized.includes('count(*)')) {
-      const jobs = [
-        {
-          id: 1,
-          title: 'Software Engineer',
-          company: 'Test Company',
-          location: 'San Francisco',
-          description: 'Test job description',
-          salary_min: 50000,
-          salary_max: 100000,
-          job_type: 'full-time',
-          status: 'active',
-          created_at: new Date().toISOString(),
-        },
-      ];
-      return { rows: jobs, rowCount: jobs.length };
-    }
-
-    // Jobs routes: SELECT job by ID
+    // Jobs routes: SELECT job by ID (must be before the list query to avoid collision)
     if (normalized.includes('from jobs') && normalized.includes('where j.id =')) {
       const jobId = params[0];
+      // Return 404 for non-existent job ID
+      if (jobId === 99999) {
+        return { rows: [], rowCount: 0 };
+      }
       return {
         rows: [{
           id: jobId,
@@ -124,6 +109,25 @@ jest.mock('../../lib/db', () => {
         }],
         rowCount: 1,
       };
+    }
+
+    // Jobs routes: SELECT jobs (list) — must check it's NOT a COUNT query and NOT a single job query
+    if (normalized.includes('from jobs') && normalized.includes('select') && !normalized.includes('count(*)') && !normalized.includes('where j.id =')) {
+      const jobs = [
+        {
+          id: 1,
+          title: 'Software Engineer',
+          company: 'Test Company',
+          location: 'San Francisco',
+          description: 'Test job description',
+          salary_min: 50000,
+          salary_max: 100000,
+          job_type: 'full-time',
+          status: 'active',
+          created_at: new Date().toISOString(),
+        },
+      ];
+      return { rows: jobs, rowCount: jobs.length };
     }
 
     // Jobs routes: INSERT job
@@ -177,6 +181,7 @@ jest.mock('../../lib/distributed-rate-limiter', () => {
       strict: rateLimitMiddleware,
       standard: rateLimitMiddleware,
       lenient: rateLimitMiddleware,
+      ai: rateLimitMiddleware,
     },
     distributedRateLimiter: {
       check: jest.fn().mockResolvedValue({ allowed: true }),
