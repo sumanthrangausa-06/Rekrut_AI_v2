@@ -107,10 +107,24 @@ app.use(
 	}),
 );
 
+
+// Version / deployment verification endpoint
+app.get('/version', (_req, res) => {
+	try {
+		const { execSync } = require('node:child_process');
+		const commit = execSync('git rev-parse HEAD', { cwd: __dirname, encoding: 'utf8' }).trim();
+		const branch = execSync('git branch --show-current', { cwd: __dirname, encoding: 'utf8' }).trim();
+		const timestamp = execSync('git log -1 --format=%ci', { cwd: __dirname, encoding: 'utf8' }).trim();
+		res.json({ commit, branch, timestamp, env: process.env.NODE_ENV || 'unknown' });
+	} catch (err) {
+		res.json({ commit: 'unknown', branch: 'unknown', env: process.env.NODE_ENV || 'unknown', error: err.message });
+	}
+});
+
 // Health check — available after helmet so security headers are present
 app.get('/health', async (_req, res) => {
 	try {
-		const { runHealthCheck } = require('./lib/db-health');
+		const { runHealthCheck } = require('./lib/db-health'); // deployed 2026-06-13
 		const health = await runHealthCheck();
 		const statusCode = health.healthy ? 200 : 503;
 		res.status(statusCode).json({
