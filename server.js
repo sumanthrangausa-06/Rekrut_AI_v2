@@ -108,13 +108,29 @@ app.use(
 );
 
 
-// Deploy verification endpoint — changes on every redeploy
+// Deploy verification endpoint — dynamically reads actual git commit
 app.get('/deploy-check', (_req, res) => {
-	res.json({ 
-		deployed: true, 
-		commit: '626efdc', 
-		timestamp: new Date().toISOString() 
-	});
+	try {
+		const { execSync } = require('node:child_process');
+		const commit = execSync('git rev-parse HEAD', { cwd: __dirname, encoding: 'utf8' }).trim();
+		const branch = execSync('git branch --show-current', { cwd: __dirname, encoding: 'utf8' }).trim();
+		const timestamp = execSync('git log -1 --format=%ci', { cwd: __dirname, encoding: 'utf8' }).trim();
+		res.json({ 
+			deployed: true, 
+			commit, 
+			branch,
+			timestamp: new Date().toISOString(),
+			built_at: timestamp,
+			env: process.env.NODE_ENV || 'unknown'
+		});
+	} catch (err) {
+		res.json({ 
+			deployed: true, 
+			commit: 'unknown', 
+			timestamp: new Date().toISOString(),
+			error: err.message 
+		});
+	}
 });
 
 // Version / deployment verification endpoint
@@ -136,12 +152,23 @@ app.get('/health', async (_req, res) => {
 		const { runHealthCheck } = require('./lib/db-health'); // deployed 2026-06-13
 		const health = await runHealthCheck();
 		const statusCode = health.healthy ? 200 : 503;
+		// Try to get commit info from Render env vars or git
+		let commit = process.env.RENDER_GIT_COMMIT || 'unknown';
+		let branch = process.env.RENDER_GIT_BRANCH || 'unknown';
+		if (commit === 'unknown') {
+			try {
+				const { execSync } = require('node:child_process');
+				commit = execSync('git rev-parse HEAD', { cwd: __dirname, encoding: 'utf8' }).trim();
+				branch = execSync('git branch --show-current', { cwd: __dirname, encoding: 'utf8' }).trim();
+			} catch (_e) { /* ignore */ }
+		}
 		res.status(statusCode).json({
 			status: health.healthy ? 'ok' : 'degraded',
 			timestamp: new Date().toISOString(),
-			deployed_at: '2026-06-13T02:20:00Z', // Force redeploy trigger
 			version: '2.0.1',
-			commit: 'staging-redeploy-2026-06-13',
+			commit,
+			branch,
+			deployed_at: process.env.RENDER_DEPLOYED_AT || new Date().toISOString(),
 			db: health.connection,
 			tables: health.tables,
 			pool: health.pool,
