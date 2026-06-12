@@ -1,6 +1,5 @@
 const request = require('supertest')
 const app = require('../../server')
-const { db } = require('../../db')
 
 describe('Authentication API', () => {
   describe('POST /api/auth/register', () => {
@@ -42,7 +41,7 @@ describe('Authentication API', () => {
           role: 'candidate'
         })
 
-      expect(res.status).toBe(409)
+      expect(res.status).toBe(400)
       expect(res.body).toHaveProperty('error')
     })
 

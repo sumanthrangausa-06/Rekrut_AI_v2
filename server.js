@@ -1546,22 +1546,29 @@ app.use((err, _req, res, _next) => {
 	res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
-const server = app.listen(PORT, () => {
-	console.log(`Rekrut AI running on port ${PORT}`);
+// Only start the server if not in test mode (prevents port binding during integration tests)
+const server = process.env.NODE_ENV !== 'test'
+	? app.listen(PORT, () => {
+		console.log(`Rekrut AI running on port ${PORT}`);
 
-	// Start distributed rate limiter cleanup
-	try {
-		const { distributedRateLimiter } = require('./lib/distributed-rate-limiter');
-		distributedRateLimiter.startCleanup(5 * 60 * 1000); // Clean every 5 minutes
-	} catch (err) {
-		console.warn('[server] Could not start rate limiter cleanup:', err.message);
-	}
-});
+		// Start distributed rate limiter cleanup
+		try {
+			const { distributedRateLimiter } = require('./lib/distributed-rate-limiter');
+			distributedRateLimiter.startCleanup(5 * 60 * 1000); // Clean every 5 minutes
+		} catch (err) {
+			console.warn('[server] Could not start rate limiter cleanup:', err.message);
+		}
+	})
+	: null;
 
 // Wire up active HTTP connection tracking for the metrics dashboard
-try {
-	const { setHttpServer } = require('./lib/metrics-collector');
-	setHttpServer(server);
-} catch (err) {
-	console.warn('[server] Could not wire HTTP connection tracking:', err.message);
+if (server) {
+	try {
+		const { setHttpServer } = require('./lib/metrics-collector');
+		setHttpServer(server);
+	} catch (err) {
+		console.warn('[server] Could not wire HTTP connection tracking:', err.message);
+	}
 }
+
+module.exports = app;

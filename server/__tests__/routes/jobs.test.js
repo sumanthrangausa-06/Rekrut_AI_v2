@@ -53,27 +53,13 @@ describe('Job Search API', () => {
 
   describe('GET /api/jobs/:id', () => {
     it('returns job details for valid ID', async () => {
-      // First create a job
-      const createRes = await request(app)
-        .post('/api/jobs')
-        .send({
-          title: 'Test Job',
-          company: 'Test Company',
-          location: 'Remote',
-          description: 'Test description',
-          salary_min: 50000,
-          salary_max: 100000,
-          job_type: 'full-time'
-        })
-
-      const jobId = createRes.body.id
-
       const res = await request(app)
-        .get(`/api/jobs/${jobId}`)
+        .get('/api/jobs/1')
 
       expect(res.status).toBe(200)
-      expect(res.body).toHaveProperty('id', jobId)
-      expect(res.body).toHaveProperty('title', 'Test Job')
+      expect(res.body).toHaveProperty('job')
+      expect(res.body.job).toHaveProperty('id', 1)
+      expect(res.body.job).toHaveProperty('title', 'Test Job')
     })
 
     it('returns 404 for non-existent job', async () => {
