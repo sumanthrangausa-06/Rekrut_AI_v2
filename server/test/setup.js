@@ -111,8 +111,8 @@ jest.mock('../../lib/db', () => {
       };
     }
 
-    // Jobs routes: SELECT jobs (list) — must check it's NOT a COUNT query and NOT a single job query
-    if (normalized.includes('from jobs') && normalized.includes('select') && !normalized.includes('count(*)') && !normalized.includes('where j.id =')) {
+    // Jobs routes: SELECT jobs (list) — must check it's NOT a COUNT query
+    if (normalized.includes('from jobs') && normalized.includes('select') && !normalized.includes('count(*)')) {
       const jobs = [
         {
           id: 1,
@@ -200,8 +200,8 @@ jest.mock('../../lib/metrics-collector', () => {
 
 // ─── Environment ────────────────────────────────────────────────────────────
 process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = 'test-jwt-secret-for-integration-tests';
-process.env.SESSION_SECRET = 'test-session-secret-for-integration-tests';
+process.env.JWT_SECRET = 'test-jwt-secret-for-testing-only';
+process.env.SESSION_SECRET = 'test-session-secret-for-testing';
 process.env.DATABASE_URL = 'postgresql://localhost:5432/test';
 process.env.FRONTEND_URL = 'http://localhost:5173';
 
