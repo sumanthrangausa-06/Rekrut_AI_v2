@@ -1,5 +1,5 @@
 const request = require('supertest')
-const app = require('../../server')
+const app = require('../../../server')
 
 describe('Job Search API', () => {
   describe('GET /api/jobs', () => {
