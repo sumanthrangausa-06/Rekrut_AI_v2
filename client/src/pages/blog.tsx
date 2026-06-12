@@ -77,7 +77,7 @@ export function BlogPage() {
 		<div className='min-h-screen bg-background'>
 			{/* Header */}
 			<div className='border-b bg-muted/50'>
-				<div className='max-w-5xl mx-auto px-4 py-8'>
+				<div className='max-w-5xl mx-auto px-6 py-8'>
 					<div className='flex items-center gap-2 mb-4'>
 						<Link
 							to='/'
@@ -95,7 +95,7 @@ export function BlogPage() {
 				</div>
 			</div>
 
-			<div className='max-w-5xl mx-auto px-4 py-8 space-y-8'>
+			<div className='max-w-5xl mx-auto px-6 py-8 space-y-8'>
 				{/* Search & Filters */}
 				<div className='flex flex-col sm:flex-row gap-4'>
 					<div className='flex-1'>
@@ -269,7 +269,7 @@ export function BlogPostPage() {
 
 	if (loading) {
 		return (
-			<div className='max-w-3xl mx-auto px-4 py-8 space-y-4'>
+			<div className='max-w-3xl mx-auto px-6 py-8 space-y-4'>
 				<Skeleton className='h-8 w-3/4' />
 				<Skeleton className='h-4 w-1/2' />
 				<Skeleton className='h-64 w-full' />
@@ -279,7 +279,7 @@ export function BlogPostPage() {
 
 	if (!post) {
 		return (
-			<div className='max-w-3xl mx-auto px-4 py-16 text-center'>
+			<div className='max-w-3xl mx-auto px-6 py-16 text-center'>
 				<h1 className='text-2xl font-bold mb-4'>Article Not Found</h1>
 				<p className='text-muted-foreground mb-6'>
 					The article you're looking for doesn't exist or has been removed.
@@ -298,7 +298,7 @@ export function BlogPostPage() {
 		<div className='min-h-screen bg-background'>
 			{/* Header */}
 			<div className='border-b bg-muted/50'>
-				<div className='max-w-3xl mx-auto px-4 py-8'>
+				<div className='max-w-3xl mx-auto px-6 py-8'>
 					<div className='flex items-center gap-2 mb-4'>
 						<Link
 							to='/'
@@ -348,7 +348,7 @@ export function BlogPostPage() {
 			</div>
 
 			{/* Content */}
-			<div className='max-w-3xl mx-auto px-4 py-8'>
+			<div className='max-w-3xl mx-auto px-6 py-8'>
 				<div className='prose prose-slate dark:prose-invert max-w-none'>
 					<div dangerouslySetInnerHTML={{ __html: post.content }} />
 				</div>
@@ -357,7 +357,7 @@ export function BlogPostPage() {
 			{/* Related Posts */}
 			{related.length > 0 && (
 				<div className='border-t bg-muted/30'>
-					<div className='max-w-3xl mx-auto px-4 py-8'>
+					<div className='max-w-3xl mx-auto px-6 py-8'>
 						<h2 className='font-heading text-xl font-bold mb-4'>Related Articles</h2>
 						<div className='grid gap-4 md:grid-cols-3'>
 							{related.map((r) => (
@@ -380,7 +380,7 @@ export function BlogPostPage() {
 
 			{/* Footer CTA */}
 			<div className='border-t'>
-				<div className='max-w-3xl mx-auto px-4 py-8 text-center'>
+				<div className='max-w-3xl mx-auto px-6 py-8 text-center'>
 					<p className='text-muted-foreground mb-4'>Ready to transform your hiring process?</p>
 					<div className='flex gap-2 justify-center'>
 						<Link to='/register'>
