@@ -130,6 +130,9 @@ app.get('/health', async (_req, res) => {
 		res.status(statusCode).json({
 			status: health.healthy ? 'ok' : 'degraded',
 			timestamp: new Date().toISOString(),
+			deployed_at: '2026-06-13T02:20:00Z', // Force redeploy trigger
+			version: '2.0.1',
+			commit: 'staging-redeploy-2026-06-13',
 			db: health.connection,
 			tables: health.tables,
 			pool: health.pool,

@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "build": "cd client && npm install --include=dev && npm run build",
+    "test:unit": "npx jest --testPathPattern=server/__tests__",
     "test": "npx playwright test",
     "test:e2e": "./run-e2e-full-suite.sh",
     "test:e2e:headed": "./run-e2e-full-suite.sh --headed",
