@@ -12,6 +12,7 @@
     "test:e2e:headed": "./run-e2e-full-suite.sh --headed",
     "test:e2e:debug": "./run-e2e-full-suite.sh --debug",
     "test:e2e:perfile": "./run-e2e-perfile.sh",
+    "test:unit": "npx jest --testPathPatterns=server/__tests__ --forceExit",
     "migrate": "node migrate.js",
     "lint": "npx @biomejs/biome check",
     "postinstall": "bash scripts/setup-audio.sh 2>&1 || echo '[postinstall] Audio setup skipped (non-fatal)'"
