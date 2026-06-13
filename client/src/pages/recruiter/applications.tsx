@@ -10,6 +10,7 @@ import {
 	Gift,
 	GraduationCap,
 	MessageSquare,
+	Sparkles,
 	Star,
 	X,
 } from 'lucide-react'
@@ -577,6 +578,12 @@ export function RecruiterApplicationsPage() {
 							)}
 						</div>
 
+						{/* AI Screening Summary */}
+						<AiScreeningSummary appId={selected.id} />
+
+						{/* AI Screening Summary */}
+						<AiScreeningSummary appId={selected.id} />
+
 						{/* AI Coaching History */}
 						<CandidateCoachingSection candidateId={selected.candidate_id} />
 
@@ -689,6 +696,118 @@ function ScreeningAnswersBlock({ app }: { app: Application }) {
 		return null
 	}
 }
+
+
+function AiScreeningSummary({ appId }: { appId: number }) {
+	const [summary, setSummary] = useState<any>(null)
+	const [loading, setLoading] = useState(false)
+	const [expanded, setExpanded] = useState(false)
+
+	async function generateSummary() {
+		setLoading(true)
+		try {
+			const res = await apiCall<any>(`/recruiter/ai/candidate-summary`, {
+				method: 'POST',
+				body: { application_id: appId },
+			})
+			if (res.success) {
+				setSummary(res)
+				setExpanded(true)
+			}
+		} catch (err) {
+			console.error('AI screening failed:', err)
+		} finally {
+			setLoading(false)
+		}
+	}
+
+	if (!summary && !loading) {
+		return (
+			<Button variant="outline" size="sm" className="gap-2 w-full" onClick={generateSummary}>
+				<Sparkles className="h-4 w-4 text-primary" />
+				AI Screen Candidate
+			</Button>
+		)
+	}
+
+	if (loading) {
+		return (
+			<div className="text-sm text-muted-foreground py-2 flex items-center gap-2">
+				<Sparkles className="h-4 w-4 animate-pulse text-primary" />
+				AI is screening candidate...
+			</div>
+		)
+	}
+
+	if (!summary) return null
+
+	const sections = [
+		{ label: 'Strengths', items: summary.strengths, color: 'text-green-600' },
+		{ label: 'Concerns', items: summary.concerns, color: 'text-red-600' },
+		{ label: 'Fit Analysis', items: summary.fit_analysis, color: 'text-amber-600' },
+	]
+
+	return (
+		<div className="rounded-lg border bg-muted/30 p-3">
+			<button
+				onClick={() => setExpanded(!expanded)}
+				className="w-full flex items-center justify-between"
+			>
+				<h4 className="font-medium text-sm flex items-center gap-1.5">
+					<Sparkles className="h-4 w-4 text-primary" />
+					AI Screening Summary
+					{summary.overall_recommendation && (
+						<Badge
+							variant={
+								summary.overall_recommendation === 'strong_hire' || summary.overall_recommendation === 'hire'
+									? 'default'
+									: summary.overall_recommendation === 'consider'
+										? 'secondary'
+										: 'outline'
+							}
+							className="text-xs ml-1 capitalize"
+						>
+							{summary.overall_recommendation.replace(/_/g, ' ')}
+						</Badge>
+					)}
+				</h4>
+				{expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+			</button>
+			{expanded && (
+				<div className="mt-2 space-y-2 text-sm">
+					{sections.map(
+						(section) =>
+							section.items?.length > 0 && (
+								<div key={section.label}>
+									<h5 className={`font-medium ${section.color} mb-1`}>{section.label}</h5>
+									<ul className="space-y-1">
+										{section.items.map((item: string, i: number) => (
+											<li key={i} className="text-muted-foreground pl-2 border-l-2 border-border">
+												{item}
+											</li>
+										))}
+									</ul>
+								</div>
+							),
+					)}
+					{summary.recruiter_questions?.length > 0 && (
+						<div>
+							<h5 className="font-medium text-amber-600 mb-1">Questions to Ask</h5>
+							<ul className="space-y-1">
+								{summary.recruiter_questions.map((q: string, i: number) => (
+									<li key={i} className="text-muted-foreground pl-2 border-l-2 border-border">
+										{q}
+									</li>
+								))}
+							</ul>
+						</div>
+					)}
+				</div>
+			)}
+		</div>
+	)
+}
+
 
 function CandidateCoachingSection({ candidateId }: { candidateId: number }) {
 	const [coaching, setCoaching] = useState<any>(null)
