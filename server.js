@@ -258,33 +258,20 @@ app.get('/api/health', async (_req, res) => {
 	}
 });
 
-// CORS — whitelist origins in production, allow dev origins in development
-const corsOrigins = process.env.CORS_ORIGINS
-	? process.env.CORS_ORIGINS.split(',').map((s) => s.trim())
-	: process.env.NODE_ENV === 'production'
-		? [
-				'https://rekrutai.co',
-				'https://www.rekrutai.co',
-				'https://app.rekrutai.co',
-			]
-		: [
-				'http://localhost:3000',
-				'http://localhost:5173',
-				'http://localhost:4173',
-				'http://127.0.0.1:5173',
-				'http://127.0.0.1:4173',
-				'http://127.0.0.1:3000',
-				'https://hireloop-vzvw.polsia.app',
-				'https://rekrutai-dev.onrender.com',
-				'https://rekrutai-staging.onrender.com',
-			];
+// CORS — restricted to known origins only
+const ALLOWED_ORIGINS = [
+	'https://hireloop-vzvw.polsia.app',
+	'https://rekrutai-dev.onrender.com',
+	'https://rekrutai.co',
+	'http://localhost:5173',
+];
 
 app.use(
 	cors({
 		origin: (origin, callback) => {
 			// Allow requests with no origin (e.g., mobile apps, curl, server-to-server)
 			if (!origin) return callback(null, true);
-			if (corsOrigins.includes(origin)) return callback(null, true);
+			if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
 			return callback(new Error('Not allowed by CORS'));
 		},
 		credentials: true,
@@ -369,6 +356,8 @@ if (!sessionSecret) {
 	throw new Error('SESSION_SECRET environment variable is required. Set a strong random string.');
 }
 
+app.set('trust proxy', 1);
+
 app.use(
 	session({
 		store: new pgSession({
@@ -380,10 +369,10 @@ app.use(
 		resave: false,
 		saveUninitialized: false,
 		cookie: {
-			secure: process.env.NODE_ENV === 'production', // Secure in production; allow HTTP in dev
+			secure: true,
 			httpOnly: true,
 			maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-			sameSite: 'lax',
+			sameSite: 'strict',
 		},
 	}),
 );

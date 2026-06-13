@@ -22,7 +22,7 @@ try {
 }
 
 // ─── Rate Limiting (distributed via PostgreSQL) ─────────────────────────────
-const { distributedRateLimiter } = require('../lib/distributed-rate-limiter');
+const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-limiter');
 
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
 const MAX_ATTEMPTS = 5;
@@ -350,7 +350,7 @@ router.get('/revenue', requireAdmin, async (req, res) => {
 });
 
 // POST /api/admin/bridge — auto-elevate JWT admin users without separate login
-router.post('/bridge', (req, res) => {
+router.post('/bridge', rateLimits.admin, (req, res) => {
 	const token = req.headers.authorization?.split(' ')[1] || req.session?.token;
 	if (!token) {
 		return res.status(401).json({ error: 'No authentication token found' });

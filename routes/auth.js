@@ -121,7 +121,10 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 		// Check if user exists
 		const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
 		if (existing.rows.length > 0) {
-			return res.status(400).json({ error: 'Email already registered' });
+			return res.status(200).json({
+				success: true,
+				message: 'If this email is not registered, you will receive a confirmation.'
+			});
 		}
 
 		// Hash password
@@ -269,7 +272,7 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 			});
 		}
 		if (err.code === '23505') {
-			return res.status(400).json({ error: 'This email is already registered' });
+			return res.status(200).json({ success: true, message: 'If this email is not registered, you will receive a confirmation.' });
 		}
 		if (err.code === '28P01') {
 			return res.status(500).json({
@@ -406,7 +409,7 @@ router.post('/login', rateLimits.strict, async (req, res) => {
 });
 
 // Refresh token endpoint
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', rateLimits.strict, async (req, res) => {
 	try {
 		const { refreshToken } = req.body;
 

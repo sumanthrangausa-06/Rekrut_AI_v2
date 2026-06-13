@@ -29,7 +29,10 @@ const emailService = require('../lib/email-service');
 const calendarService = require('../server/services/calendar-service');
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+	storage: multer.memoryStorage(),
+	limits: { fileSize: 50 * 1024 * 1024 }
+});
 
 // Helper: Race a promise against a timeout to prevent hanging when AI providers are slow.
 // The AI provider chain can take 9×15s = 135s worst case; Render kills requests at ~30s.

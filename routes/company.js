@@ -10,6 +10,7 @@ const {
 	optionalAuth,
 } = require('../lib/auth');
 const trustscoreService = require('../services/trustscore');
+const { rateLimits } = require('../lib/distributed-rate-limiter');
 
 const router = express.Router();
 
@@ -39,7 +40,7 @@ function isCompanyEmail(email) {
 }
 
 // Register company and recruiter account
-router.post('/register', async (req, res) => {
+router.post('/register', rateLimits.strict, async (req, res) => {
 	try {
 		const {
 			email,
