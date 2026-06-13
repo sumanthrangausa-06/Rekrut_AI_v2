@@ -63,6 +63,20 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     needs: build
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: rekrut_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -82,22 +96,34 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install chromium
 
+      - name: Run database migrations
+        run: npm run migrate
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/rekrut_test
+          JWT_SECRET: test-jwt-secret
+          SESSION_SECRET: test-session-secret
+
       - name: Start application
         run: |
           npm start &
+          SERVER_PID=$!
           # Wait for server to be ready
           for i in {1..30}; do
             if curl -s http://localhost:3000/health > /dev/null; then
               echo "Server is ready"
-              break
+              exit 0
             fi
             echo "Waiting for server... ($i/30)"
             sleep 2
           done
+          echo "❌ Server failed to start"
+          kill $SERVER_PID 2>/dev/null || true
+          exit 1
         env:
           NODE_ENV: test
           PORT: 3000
-          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL || 'postgresql://localhost:5432/test' }}
+          DATABASE_URL: postgresql://test:test@localhost:5432/rekrut_test
           JWT_SECRET: test-jwt-secret
           SESSION_SECRET: test-session-secret
 
@@ -110,7 +136,7 @@ jobs:
           NODE_ENV: test
           PORT: 3000
           BASE_URL: http://localhost:3000
-          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL || 'postgresql://localhost:5432/test' }}
+          DATABASE_URL: postgresql://test:test@localhost:5432/rekrut_test
           JWT_SECRET: test-jwt-secret
           SESSION_SECRET: test-session-secret
 
