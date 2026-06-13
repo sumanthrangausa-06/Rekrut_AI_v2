@@ -11,6 +11,7 @@ import {
 	CreditCard,
 	DollarSign,
 	FileCheck,
+	Mail,
 	RefreshCw,
 	Search,
 	Server,
@@ -409,6 +410,28 @@ export function AdminDashboardPage() {
 												</div>
 												<p className='mt-1 text-sm text-slate-400'>
 													Audit trail, risk classification, bias detection, and transparency for EU AI Act (Regulation 2024/1689)
+												</p>
+											</div>
+										</div>
+									</CardContent>
+								</Card>
+							</Link>
+							<Link to='/admin/email-queue'>
+								<Card className='group border-slate-700 bg-slate-800/60 backdrop-blur transition-all hover:border-slate-500 hover:bg-slate-800/80'>
+									<CardContent className='p-5'>
+										<div className='flex items-start gap-4'>
+											<div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/20'>
+												<Mail className='h-5 w-5 text-blue-400' />
+											</div>
+											<div className='flex-1'>
+												<div className='flex items-center justify-between'>
+													<h3 className='font-semibold text-white group-hover:text-blue-300 transition-colors'>
+														Email Queue
+													</h3>
+													<ArrowRight className='h-4 w-4 text-slate-500 transition-colors group-hover:text-blue-400' />
+												</div>
+												<p className='mt-1 text-sm text-slate-400'>
+													Monitor email queue status, retry failed emails, and view delivery statistics
 												</p>
 											</div>
 										</div>

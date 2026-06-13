@@ -272,6 +272,11 @@ const EUAIActDashboard = lazy(() =>
 		default: m.EUAIActDashboard,
 	})),
 )
+const AdminEmailQueuePage = lazy(() =>
+	import('@/pages/admin/email-queue').then((m) => ({
+		default: m.AdminEmailQueuePage,
+	})),
+)
 
 // Debug pages
 const MockInterviewDebugPage = lazy(() =>
@@ -928,6 +933,14 @@ function AppRoutes() {
 				element={
 					<AdminAuthGuard>
 						<AdminAnalyticsPage />
+					</AdminAuthGuard>
+				}
+			/>
+			<Route
+				path='/admin/email-queue'
+				element={
+					<AdminAuthGuard>
+						<AdminEmailQueuePage />
 					</AdminAuthGuard>
 				}
 			/>
