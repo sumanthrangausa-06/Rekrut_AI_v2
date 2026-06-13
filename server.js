@@ -393,6 +393,49 @@ try {
 	console.warn('[server] Activity logger not available:', err.message);
 }
 
+
+// API Routes - Email Queue (admin only)
+const emailQueue = require('./lib/email-queue');
+const { sendTemplatedEmail } = require('./lib/email-service');
+
+app.get('/api/admin/email-queue', authMiddleware, async (req, res) => {
+	if (req.user.role !== 'admin') {
+		return res.status(403).json({ error: 'Admin access required' });
+	}
+	try {
+		const stats = await emailQueue.getStats();
+		res.json({ stats });
+	} catch (err) {
+		res.status(500).json({ error: 'Failed to get queue stats' });
+	}
+});
+
+app.post('/api/admin/email-queue/retry', authMiddleware, async (req, res) => {
+	if (req.user.role !== 'admin') {
+		return res.status(403).json({ error: 'Admin access required' });
+	}
+	try {
+		const retried = await emailQueue.retryFailed();
+		res.json({ retried: retried.length });
+	} catch (err) {
+		res.status(500).json({ error: 'Failed to retry failed emails' });
+	}
+});
+
+// Start email queue processor
+emailQueue.startProcessor(async (email) => {
+	try {
+		await sendTemplatedEmail({
+			to: email.to,
+			template: email.metadata.template || 'custom',
+			data: email.metadata,
+		});
+	} catch (err) {
+		console.error('[email-queue-processor] Failed:', err.message);
+		throw err;
+	}
+});
+
 // API Routes - Admin
 app.use('/api/admin', adminRoutes);
 
