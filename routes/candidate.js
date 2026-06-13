@@ -1879,27 +1879,62 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
 
 		res.json({ success: true, application: result.rows[0] });
 
-		// ── Send application received notification (non-blocking) ──
+		// ── Send application submitted notification to candidate (non-blocking) ──
 		try {
 			const jobInfo = job.rows[0];
 			const userInfo = profile.rows[0];
 			await emailService.sendTemplatedEmail({
 				to: userInfo?.email,
-				templateName: 'application_received',
+				templateName: 'job_application_submitted',
 				templateData: {
-					candidate_name: userInfo?.name || 'Candidate',
+					name: userInfo?.name || 'Candidate',
 					job_title: jobInfo?.title || 'the position',
 					company_name: jobInfo?.company || 'Our Company',
-					assessment_required: false,
-					assessment_deadline: '',
-					assessment_link: '',
+					location: jobInfo?.location || 'Remote',
+					applied_date: new Date().toISOString(),
+					application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/candidate/applications`,
 				},
 				userId: req.user.id,
 				metadata: { job_id: jobInfo?.id, company_id: jobInfo?.company_id },
 			});
 		} catch (emailErr) {
 			console.error(
-				'[email] Failed to send application received email (non-blocking):',
+				'[email] Failed to send application submitted email (non-blocking):',
+				emailErr.message,
+			);
+		}
+
+		// ── Send application received notification to recruiter (non-blocking) ──
+		try {
+			const jobInfo = job.rows[0];
+			const userInfo = profile.rows[0];
+			// Get recruiter email for this job
+			const recruiterResult = await pool.query(
+				'SELECT u.id, u.email, u.name FROM users u JOIN jobs j ON j.user_id = u.id WHERE j.id = $1',
+				[req.params.jobId],
+			);
+			const recruiter = recruiterResult.rows[0];
+			if (recruiter?.email) {
+				await emailService.sendTemplatedEmail({
+					to: recruiter.email,
+					templateName: 'job_application_received',
+					templateData: {
+						name: recruiter.name || 'Recruiter',
+						candidate_name: userInfo?.name || 'Candidate',
+						candidate_email: userInfo?.email || '',
+						job_title: jobInfo?.title || 'the position',
+						omniscore: omniscore || 'N/A',
+						verification_status: 'verified',
+						applied_date: new Date().toISOString(),
+						application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/recruiter/applications`,
+					},
+					userId: recruiter.id,
+					metadata: { job_id: jobInfo?.id, candidate_id: req.user.id },
+				});
+			}
+		} catch (emailErr) {
+			console.error(
+				'[email] Failed to send recruiter notification (non-blocking):',
 				emailErr.message,
 			);
 		}

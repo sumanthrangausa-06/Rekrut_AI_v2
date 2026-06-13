@@ -115,6 +115,34 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 				if (verificationResult.fraud_risk !== 'high') {
 					await applyDocumentScoresToOmniScore(userId);
 				}
+
+				// ── Send document verification email (non-blocking) ──
+				try {
+					const userResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [userId]);
+					const user = userResult.rows[0];
+					if (user?.email) {
+						const templateName = verificationResult.fraud_risk === 'high' ? 'document_flagged' : 'document_verified';
+						await emailService.sendTemplatedEmail({
+							to: user.email,
+							templateName,
+							templateData: {
+								name: user.name || 'Candidate',
+								document_type: document.document_type,
+								authenticity_score: verificationResult.authenticity_score || 'N/A',
+								status: verificationResult.fraud_risk === 'high' ? 'flagged' : 'verified',
+								verified_date: new Date().toISOString(),
+								documents_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/candidate/documents`,
+								flag_reason: verificationResult.fraud_risk === 'high' 
+									? 'High fraud risk detected during automated verification'
+									: '',
+							},
+							userId,
+							metadata: { document_id: document.id, document_type: document.document_type },
+						});
+					}
+				} catch (emailErr) {
+					console.error('[email] Failed to send document verification email (non-blocking):', emailErr.message);
+				}
 			})
 			.catch((error) => {
 				console.error(`Verification failed for document ${document.id}:`, error);
