@@ -149,18 +149,18 @@
 ```json
 {
   "lastChecks": {
-    "engineering": "2026-06-08T21:00:00Z",
+    "engineering": "2026-06-13T00:12:00Z",
     "security": "2026-06-06T15:30:00Z",
     "product": "2026-06-06T15:30:00Z",
     "growth": "2026-06-06T15:30:00Z",
     "ai": "2026-06-06T15:30:00Z",
     "support": "2026-06-06T15:30:00Z"
   },
-  "alertsPending": [],
-  "incidentsOpen": [],
+  "alertsPending": ["staging-auto-deploy-failure"],
+  "incidentsOpen": ["staging-500-errors"],
   "sprintProgress": 0.25,
   "nextStandup": "2026-06-07T08:00:00Z",
-  "nextDeploy": "2026-06-07T20:00:00Z",
+  "nextDeploy": "2026-06-13T00:12:00Z",
   "agentsActive": 0,
   "agentsMaxDaily": 5,
   "agentsSpawnedToday": 0
