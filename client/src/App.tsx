@@ -45,9 +45,6 @@ const SettingsPage = lazy(() =>
 const TestCameraPage = lazy(() =>
 	import('@/pages/test-camera').then((m) => ({ default: m.TestCameraPage })),
 )
-const ComplianceDashboardPage = lazy(() =>
-	import('@/pages/compliance-dashboard').then((m) => ({ default: m.ComplianceDashboardPage })),
-)
 const _PostHireFeedbackPage = lazy(() =>
 	import('@/pages/post-hire-feedback').then((m) => ({ default: m.RecruiterPostHireFeedbackPage })),
 )
@@ -240,6 +237,9 @@ const RecruiterOmniScorePage = lazy(() =>
 )
 const RecruiterPostHireFeedbackPage = lazy(() =>
 	import('@/pages/post-hire-feedback').then((m) => ({ default: m.RecruiterPostHireFeedbackPage })),
+)
+const RecruiterCompliancePage = lazy(() =>
+	import('@/pages/recruiter/compliance').then((m) => ({ default: m.RecruiterCompliancePage })),
 )
 
 // Admin pages
@@ -829,7 +829,7 @@ function AppRoutes() {
 					path='compliance'
 					element={
 						<Protected>
-							<ComplianceDashboardPage />
+							<RecruiterCompliancePage />
 						</Protected>
 					}
 				/>

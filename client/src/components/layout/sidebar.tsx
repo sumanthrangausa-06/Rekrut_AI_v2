@@ -9,6 +9,7 @@ import {
 	LayoutDashboard,
 	MessageSquare,
 	Settings,
+	Shield,
 	Sparkles,
 	Star,
 	UserCheck,
@@ -57,6 +58,7 @@ const recruiterNav: NavItem[] = [
 	{ label: 'Onboarding', href: '/recruiter/onboarding', icon: UserCheck },
 	{ label: 'OmniScore', href: '/recruiter/omniscore', icon: Star },
 	{ label: 'Analytics', href: '/recruiter/analytics', icon: BarChart3 },
+	{ label: 'Compliance (EU AI Act)', href: '/recruiter/compliance', icon: Shield },
 	{ label: 'Company', href: '/recruiter/company', icon: Building2 },
 	{ label: 'Payroll', href: '/recruiter/payroll', icon: Wallet },
 ]
