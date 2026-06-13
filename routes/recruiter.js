@@ -3196,6 +3196,108 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
 
 		// ─── CANDIDATES ───
 
+		// Rejection reasons analysis (from recruiter notes when status = 'rejected')
+		let rejectionReasons = [];
+		try {
+			const reasonsResult = await pool.query(
+				`SELECT 
+					CASE 
+						WHEN recruiter_notes ILIKE '%skill%' OR recruiter_notes ILIKE '%experience%' THEN 'skills_mismatch'
+						WHEN recruiter_notes ILIKE '%salary%' OR recruiter_notes ILIKE '%compensation%' OR recruiter_notes ILIKE '%pay%' THEN 'salary_expectations'
+						WHEN recruiter_notes ILIKE '%culture%' OR recruiter_notes ILIKE '%fit%' OR recruiter_notes ILIKE '%personality%' THEN 'culture_fit'
+						WHEN recruiter_notes ILIKE '%location%' OR recruiter_notes ILIKE '%remote%' OR recruiter_notes ILIKE '%relocation%' THEN 'location'
+						WHEN recruiter_notes ILIKE '%interview%' OR recruiter_notes ILIKE '%performance%' THEN 'interview_performance'
+						WHEN recruiter_notes ILIKE '%visa%' OR recruiter_notes ILIKE '%sponsorship%' OR recruiter_notes ILIKE '%work%' THEN 'work_authorization'
+						WHEN recruiter_notes IS NOT NULL AND recruiter_notes != '' THEN 'other'
+						ELSE 'not_specified'
+					END as reason,
+					COUNT(*) as count
+				 FROM job_applications a
+				 WHERE a.company_id = $1 AND a.status = 'rejected' AND a.updated_at >= NOW() - INTERVAL '${days} days'
+				 GROUP BY reason
+				 ORDER BY count DESC`,
+				[companyId],
+			);
+			rejectionReasons = reasonsResult.rows;
+		} catch (_err) {
+			console.log('[analytics] rejection reasons tracking not available');
+		}
+
+		// Diversity metrics (from candidate profiles)
+		let diversityMetrics = {
+			male_count: 0, female_count: 0, non_binary_count: 0, gender_unspecified: 0,
+			asian_count: 0, black_count: 0, hispanic_count: 0, white_count: 0, ethnicity_other: 0, ethnicity_unspecified: 0,
+			age_under_25: 0, age_25_34: 0, age_35_44: 0, age_45_54: 0, age_55_plus: 0,
+		};
+		try {
+			const diversityResult = await pool.query(
+				`SELECT 
+					COUNT(*) FILTER (WHERE u.gender = 'male') as male_count,
+					COUNT(*) FILTER (WHERE u.gender = 'female') as female_count,
+					COUNT(*) FILTER (WHERE u.gender = 'non_binary') as non_binary_count,
+					COUNT(*) FILTER (WHERE u.gender IS NULL OR u.gender = 'prefer_not_to_say') as gender_unspecified,
+					COUNT(*) FILTER (WHERE u.ethnicity = 'asian') as asian_count,
+					COUNT(*) FILTER (WHERE u.ethnicity = 'black') as black_count,
+					COUNT(*) FILTER (WHERE u.ethnicity = 'hispanic') as hispanic_count,
+					COUNT(*) FILTER (WHERE u.ethnicity = 'white') as white_count,
+					COUNT(*) FILTER (WHERE u.ethnicity = 'other') as ethnicity_other,
+					COUNT(*) FILTER (WHERE u.ethnicity IS NULL) as ethnicity_unspecified,
+					COUNT(*) FILTER (WHERE DATE_PART('year', AGE(COALESCE(u.date_of_birth, NOW() - INTERVAL '30 years'))) < 25) as age_under_25,
+					COUNT(*) FILTER (WHERE DATE_PART('year', AGE(COALESCE(u.date_of_birth, NOW() - INTERVAL '30 years'))) BETWEEN 25 AND 34) as age_25_34,
+					COUNT(*) FILTER (WHERE DATE_PART('year', AGE(COALESCE(u.date_of_birth, NOW() - INTERVAL '30 years'))) BETWEEN 35 AND 44) as age_35_44,
+					COUNT(*) FILTER (WHERE DATE_PART('year', AGE(COALESCE(u.date_of_birth, NOW() - INTERVAL '30 years'))) BETWEEN 45 AND 54) as age_45_54,
+					COUNT(*) FILTER (WHERE DATE_PART('year', AGE(COALESCE(u.date_of_birth, NOW() - INTERVAL '30 years'))) >= 55) as age_55_plus
+				 FROM job_applications a
+				 JOIN users u ON a.candidate_id = u.id
+				 WHERE a.company_id = $1 AND a.applied_at >= NOW() - INTERVAL '${days} days'`,
+				[companyId],
+			);
+			diversityMetrics = diversityResult.rows[0] || diversityMetrics;
+		} catch (_err) {
+			console.log('[analytics] diversity metrics not available');
+		}
+
+		// Cost per hire (simplified)
+		let costPerHire = [];
+		try {
+			const costResult = await pool.query(
+				`SELECT 
+					j.id,
+					j.title,
+					COUNT(DISTINCT a.id) as applicants,
+					COALESCE(j.cost_per_hire, 0) as cost
+				 FROM jobs j
+				 LEFT JOIN job_applications a ON a.job_id = j.id AND a.applied_at >= NOW() - INTERVAL '${days} days'
+				 WHERE j.company_id = $1 AND j.status = 'active'
+				 GROUP BY j.id, j.title, j.cost_per_hire
+				 ORDER BY applicants DESC
+				 LIMIT 10`,
+				[companyId],
+			);
+			costPerHire = costResult.rows;
+		} catch (_err) {
+			console.log('[analytics] cost per hire not available');
+		}
+
+		// Offer acceptance rate
+		let offerStats = { offers_extended: 0, offers_accepted: 0, offers_declined: 0 };
+		try {
+			const offerResult = await pool.query(
+				`SELECT 
+					COUNT(*) FILTER (WHERE status = 'offered') as offers_extended,
+					COUNT(*) FILTER (WHERE status = 'hired') as offers_accepted,
+					COUNT(*) FILTER (WHERE status = 'rejected' AND recruiter_notes ILIKE '%offer%') as offers_declined
+				 FROM job_applications
+				 WHERE company_id = $1 AND updated_at >= NOW() - INTERVAL '${days} days'`,
+				[companyId],
+			);
+			offerStats = offerResult.rows[0] || offerStats;
+		} catch (_err) {
+			console.log('[analytics] offer stats not available');
+		}
+
+		// ─── CANDIDATES ───
+
 		// Top skills in demand (from job requirements)
 		let topSkills = [];
 		try {
@@ -3320,6 +3422,42 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
 				source_breakdown: sourceBreakdown,
 			},
 			candidates: {
+				rejection_reasons: rejectionReasons.map((r) => ({
+					reason: r.reason,
+					count: parseInt(r.count, 10),
+				})),
+				diversity: {
+					gender: {
+						male: parseInt(diversityMetrics.male_count, 10) || 0,
+						female: parseInt(diversityMetrics.female_count, 10) || 0,
+						nonBinary: parseInt(diversityMetrics.non_binary_count, 10) || 0,
+						unspecified: parseInt(diversityMetrics.gender_unspecified, 10) || 0,
+					},
+					ethnicity: {
+						asian: parseInt(diversityMetrics.asian_count, 10) || 0,
+						black: parseInt(diversityMetrics.black_count, 10) || 0,
+						hispanic: parseInt(diversityMetrics.hispanic_count, 10) || 0,
+						white: parseInt(diversityMetrics.white_count, 10) || 0,
+						other: parseInt(diversityMetrics.ethnicity_other, 10) || 0,
+						unspecified: parseInt(diversityMetrics.ethnicity_unspecified, 10) || 0,
+					},
+					age: {
+						under25: parseInt(diversityMetrics.age_under_25, 10) || 0,
+						_25to34: parseInt(diversityMetrics.age_25_34, 10) || 0,
+						_35to44: parseInt(diversityMetrics.age_35_44, 10) || 0,
+						_45to54: parseInt(diversityMetrics.age_45_54, 10) || 0,
+						_55plus: parseInt(diversityMetrics.age_55_plus, 10) || 0,
+					},
+				},
+				cost_per_hire: costPerHire.map((r) => ({
+					id: r.id,
+					title: r.title,
+					applicants: parseInt(r.applicants, 10),
+					cost: parseInt(r.cost, 10),
+				})),
+				offer_acceptance_rate: parseInt(offerStats.offers_extended, 10) > 0
+					? Math.round((parseInt(offerStats.offers_accepted, 10) || 0) / parseInt(offerStats.offers_extended, 10) * 100)
+					: 0,
 				top_skills_in_demand: topSkills,
 				recent_applications: recentAppsResult.rows,
 			},
