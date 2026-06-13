@@ -653,6 +653,22 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 	}, AUTO_VERIFY_INTERVAL);
 })();
 
+// ─── Interview Reminder Cron: process reminders every 5 minutes ─────────────
+(function startReminderProcessor() {
+	const REMINDER_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+	setInterval(async () => {
+		try {
+			const { processInterviewReminders } = require('./lib/email-service');
+			await processInterviewReminders();
+		} catch (err) {
+			console.error('[reminder-cron] Failed to process reminders:', err.message);
+		}
+	}, REMINDER_INTERVAL);
+
+	console.log('[reminder-cron] Interview reminder processor started (5min interval)');
+})();
+
 // ─── AI Health Monitoring Endpoints ──────────────────────────────────────────
 // Comprehensive AI call logs, model metrics, budget predictions, prompt management
 

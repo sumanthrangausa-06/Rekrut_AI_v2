@@ -1397,6 +1397,40 @@ router.put('/applications/:id', authMiddleware, requireRecruiter, async (req, re
 			}
 		}
 
+		// Send email notification for status change (non-blocking)
+		if (status && ['offered', 'hired', 'rejected'].includes(status)) {
+			try {
+				const candidateResult = await pool.query(
+					'SELECT u.email, u.name, j.title as job_title, c.name as company_name FROM users u JOIN job_applications ja ON ja.candidate_id = u.id JOIN jobs j ON j.id = ja.job_id JOIN companies c ON c.id = j.company_id WHERE ja.id = $1',
+					[req.params.id]
+				);
+				if (candidateResult.rows.length > 0) {
+					const candidate = candidateResult.rows[0];
+					const templateMap = {
+						'offered': 'offer_received',
+						'hired': 'hired',
+						'rejected': 'rejection'
+					};
+					await emailService.sendTemplatedEmail({
+						to: candidate.email,
+						templateName: templateMap[status],
+						templateData: {
+							candidateName: candidate.name,
+							jobTitle: candidate.job_title,
+							companyName: candidate.company_name,
+							status: status,
+							recruiterNotes: recruiter_notes || ''
+						},
+						userId: existing.rows[0].candidate_id,
+						metadata: { applicationId: req.params.id, jobId: existing.rows[0].job_id }
+					});
+				}
+			} catch (emailErr) {
+				console.error('Failed to send status change email:', emailErr);
+				/* non-critical */
+			}
+		}
+
 		// If status is being changed, check if this overrides an AI recommendation
 		if (status) {
 			const aiDecision = await pool.query(
@@ -1912,6 +1946,50 @@ router.put('/applications/batch-status', authMiddleware, requireRecruiter, async
 			},
 			req,
 		});
+
+		// Send email notifications for batch status changes (non-blocking)
+		if (['offered', 'hired', 'rejected'].includes(status)) {
+			try {
+				const templateMap = {
+					'offered': 'offer_received',
+					'hired': 'hired',
+					'rejected': 'rejection'
+				};
+				// Get candidate details for all applications
+				const candidateDetails = await pool.query(
+					`SELECT ja.id, u.email, u.name, j.title as job_title, c.name as company_name
+					FROM job_applications ja
+					JOIN users u ON ja.candidate_id = u.id
+					JOIN jobs j ON ja.job_id = j.id
+					JOIN companies c ON c.id = j.company_id
+					WHERE ja.id = ANY($1)`,
+					[validIds]
+				);
+				for (const candidate of candidateDetails.rows) {
+					try {
+						await emailService.sendTemplatedEmail({
+							to: candidate.email,
+							templateName: templateMap[status],
+							templateData: {
+								candidateName: candidate.name,
+								jobTitle: candidate.job_title,
+								companyName: candidate.company_name,
+								status: status,
+								recruiterNotes: ''
+							},
+							userId: null,
+							metadata: { applicationId: candidate.id, batchOperation: true }
+						});
+					} catch (individualEmailErr) {
+						console.error('Failed to send batch status email for application', candidate.id, ':', individualEmailErr);
+						/* non-critical - continue with other emails */
+					}
+				}
+			} catch (emailErr) {
+				console.error('Failed to send batch status change emails:', emailErr);
+				/* non-critical */
+			}
+		}
 
 		res.json({
 			success: true,
