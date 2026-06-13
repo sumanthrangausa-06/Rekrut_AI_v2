@@ -154,7 +154,6 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 				id: document.id,
 				document_type: document.document_type,
 				filename: document.original_filename,
-				file_url: document.file_url,
 				status: document.status,
 				uploaded_at: document.uploaded_at,
 			},
@@ -164,7 +163,6 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 		console.error('Document upload error:', error);
 		res.status(500).json({
 			error: 'Failed to upload document',
-			message: error.message,
 		});
 	}
 });
@@ -197,9 +195,15 @@ router.get('/', authMiddleware, async (req, res) => {
 			[userId],
 		);
 
+		// Strip raw R2 URLs — clients must use authenticated download endpoint
+		const documents = result.rows.map((row) => {
+			const { file_url, ...rest } = row;
+			return rest;
+		});
+
 		res.json({
 			success: true,
-			documents: result.rows,
+			documents,
 		});
 	} catch (error) {
 		console.error('Get documents error:', error);
@@ -276,6 +280,9 @@ router.get('/:id', authMiddleware, async (req, res) => {
 			await logDocumentAccess(document.id, userId, 'view', userCompanyId, req.ip);
 		}
 
+		// Never expose raw R2 URL — use authenticated download endpoint instead
+		delete document.file_url;
+
 		res.json({
 			success: true,
 			document,
@@ -337,7 +344,6 @@ router.get('/credentials/list', authMiddleware, async (req, res) => {
 			`
       SELECT
         vc.*,
-        vd.file_url,
         vd.document_type
       FROM verified_credentials vc
       LEFT JOIN verification_documents vd ON vc.document_id = vd.id
@@ -473,6 +479,82 @@ router.get('/stats/summary', authMiddleware, async (req, res) => {
 	} catch (error) {
 		console.error('Get document stats error:', error);
 		res.status(500).json({ error: 'Failed to retrieve stats' });
+	}
+});
+
+/**
+ * Download document file (auth-protected proxy — never exposes raw R2 URL)
+ * GET /api/documents/:id/download
+ */
+router.get('/:id/download', authMiddleware, async (req, res) => {
+	try {
+		const { id } = req.params;
+		const userId = req.user.id;
+		const userRole = req.user.role;
+		const userCompanyId = req.user.company_id;
+
+		// Get document record
+		const result = await pool.query(
+			`
+      SELECT id, user_id, original_filename, file_url, mime_type
+      FROM verification_documents
+      WHERE id = $1
+    `,
+			[id],
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Document not found' });
+		}
+
+		const document = result.rows[0];
+
+		// Check access permission - owner, or recruiter/hiring_manager/admin with company relationship
+		let hasAccess = document.user_id === userId;
+		if (
+			!hasAccess &&
+			(userRole === 'recruiter' || userRole === 'hiring_manager' || userRole === 'admin')
+		) {
+			const relationResult = await pool.query(
+				`
+        SELECT 1 FROM job_applications a
+        JOIN jobs j ON a.job_id = j.id
+        WHERE a.candidate_id = $1 AND j.company_id = $2
+        LIMIT 1
+      `,
+				[document.user_id, userCompanyId],
+			);
+			hasAccess = relationResult.rows.length > 0;
+		}
+
+		if (!hasAccess) {
+			return res.status(403).json({ error: 'Access denied' });
+		}
+
+		// Log access
+		if (userId !== document.user_id) {
+			await logDocumentAccess(document.id, userId, 'download', userCompanyId, req.ip);
+		}
+
+		// Stream file from R2 through proxy
+		const fileRes = await fetch(document.file_url);
+		if (!fileRes.ok) {
+			console.error('R2 fetch failed for document', id, fileRes.status);
+			return res.status(502).json({ error: 'Failed to retrieve file' });
+		}
+
+		const filename = document.original_filename || 'document';
+		const encodedFilename = encodeURIComponent(filename);
+		res.setHeader('Content-Type', document.mime_type || 'application/octet-stream');
+		res.setHeader(
+			'Content-Disposition',
+			`attachment; filename="${encodedFilename}"; filename*=UTF-8''${encodedFilename}`,
+		);
+
+		fileRes.body.pipe(res);
+	} catch (error) {
+		console.error('Document download error:', error);
+		res.status(500).json({ error: 'Failed to download document' });
 	}
 });
 
