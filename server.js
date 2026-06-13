@@ -396,6 +396,9 @@ try {
 // API Routes - Admin
 app.use('/api/admin', adminRoutes);
 
+// API Routes - Email Tracking (must be before auth to allow pixel tracking without auth)
+app.use('/api/email', require('./routes/email-tracking'));
+
 // API Routes - Candidate side
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
