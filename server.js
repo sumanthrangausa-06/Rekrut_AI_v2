@@ -468,7 +468,7 @@ app.get('/api/admin/metrics', requireAdmin, async (_req, res) => {
 		const metrics = await getAllMetrics();
 		res.json(metrics);
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to get metrics', message: err.message });
+		res.status(500).json({ error: 'Failed to get metrics' });
 	}
 });
 
@@ -503,7 +503,7 @@ app.get('/api/admin/activity', requireAdmin, async (req, res) => {
 
 		res.json({ ...result, source: 'database' });
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to get activity log', message: err.message });
+		res.status(500).json({ error: 'Failed to get activity log' });
 	}
 });
 
@@ -513,7 +513,7 @@ app.get('/api/admin/token-usage', requireAdmin, (_req, res) => {
 		const tokenBudget = require('./lib/token-budget');
 		res.json(tokenBudget.getStatus());
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to get token usage', message: err.message });
+		res.status(500).json({ error: 'Failed to get token usage' });
 	}
 });
 
@@ -523,7 +523,7 @@ app.get('/api/ai-health', requireAdmin, (_req, res) => {
 		const { aiProvider } = require('./lib/polsia-ai');
 		res.json(aiProvider.getHealth());
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to get AI health status', message: err.message });
+		res.status(500).json({ error: 'Failed to get AI health status' });
 	}
 });
 
@@ -538,7 +538,7 @@ app.post('/api/ai-health/reset', requireAdmin, (_req, res) => {
 			health: aiProvider.getHealth(),
 		});
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to reset circuit breakers', message: err.message });
+		res.status(500).json({ error: 'Failed to reset circuit breakers' });
 	}
 });
 
@@ -549,7 +549,7 @@ app.post('/api/ai-health/verify', requireAdmin, async (_req, res) => {
 		const result = await aiProvider.verifyModels();
 		res.json(result);
 	} catch (err) {
-		res.status(500).json({ error: 'Model verification failed', message: err.message });
+		res.status(500).json({ error: 'Model verification failed' });
 	}
 });
 
@@ -574,7 +574,7 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 			...last,
 		});
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to get verify status', message: err.message });
+		res.status(500).json({ error: 'Failed to get verify status' });
 	}
 });
 
@@ -623,7 +623,7 @@ app.get('/api/ai-health/usage', requireAdmin, (_req, res) => {
 			budget: tokenBudgetSvc.getStatus(),
 		});
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to get usage', message: err.message });
+		res.status(500).json({ error: 'Failed to get usage' });
 	}
 });
 
@@ -644,7 +644,7 @@ app.get('/api/ai-health/budget', requireAdmin, (_req, res) => {
 			})),
 		});
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to get budget', message: err.message });
+		res.status(500).json({ error: 'Failed to get budget' });
 	}
 });
 
@@ -678,7 +678,7 @@ app.get('/api/ai-health/logs', requireAdmin, async (req, res) => {
 		});
 		res.json({ ...result, source: 'database' });
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to get logs', message: err.message });
+		res.status(500).json({ error: 'Failed to get logs' });
 	}
 });
 
@@ -746,7 +746,7 @@ app.get('/api/ai-health/daily-breakdown', requireAdmin, async (req, res) => {
 				})),
 			});
 		} else {
-			res.status(500).json({ error: 'Failed to get daily breakdown', message: err.message });
+			res.status(500).json({ error: 'Failed to get daily breakdown' });
 		}
 	}
 });
@@ -757,7 +757,7 @@ app.get('/api/ai-health/models', requireAdmin, (_req, res) => {
 		const aiCallLogger = require('./lib/ai-call-logger');
 		res.json(aiCallLogger.getModelMetrics());
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to get model metrics', message: err.message });
+		res.status(500).json({ error: 'Failed to get model metrics' });
 	}
 });
 
@@ -767,7 +767,7 @@ app.get('/api/ai-health/failover-stats', requireAdmin, (_req, res) => {
 		const aiCallLogger = require('./lib/ai-call-logger');
 		res.json(aiCallLogger.getFailoverStats());
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to get failover stats', message: err.message });
+		res.status(500).json({ error: 'Failed to get failover stats' });
 	}
 });
 
@@ -787,7 +787,7 @@ app.get('/api/ai-health/predictions', requireAdmin, (_req, res) => {
 			})),
 		});
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to get predictions', message: err.message });
+		res.status(500).json({ error: 'Failed to get predictions' });
 	}
 });
 
@@ -802,7 +802,7 @@ app.get('/api/ai-health/prompts', requireAdmin, async (_req, res) => {
 		if (err.message.includes('does not exist')) {
 			return res.json({ prompts: [], message: 'Migration pending' });
 		}
-		res.status(500).json({ error: 'Failed to get prompts', message: err.message });
+		res.status(500).json({ error: 'Failed to get prompts' });
 	}
 });
 
