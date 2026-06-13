@@ -3280,13 +3280,14 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
 		}
 
 		// Offer acceptance rate
-		let offerStats = { offers_extended: 0, offers_accepted: 0, offers_declined: 0 };
+		let offerStats = { offers_extended: 0, offers_accepted: 0, offers_declined: 0, rejected_count: 0 };
 		try {
 			const offerResult = await pool.query(
 				`SELECT 
 					COUNT(*) FILTER (WHERE status = 'offered') as offers_extended,
 					COUNT(*) FILTER (WHERE status = 'hired') as offers_accepted,
-					COUNT(*) FILTER (WHERE status = 'rejected' AND recruiter_notes ILIKE '%offer%') as offers_declined
+					COUNT(*) FILTER (WHERE status = 'rejected' AND recruiter_notes ILIKE '%offer%') as offers_declined,
+					COUNT(*) FILTER (WHERE status = 'rejected') as rejected_count
 				 FROM job_applications
 				 WHERE company_id = $1 AND updated_at >= NOW() - INTERVAL '${days} days'`,
 				[companyId],
@@ -3422,39 +3423,34 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
 				source_breakdown: sourceBreakdown,
 			},
 			candidates: {
-				rejection_reasons: rejectionReasons.map((r) => ({
-					reason: r.reason,
-					count: parseInt(r.count, 10),
-				})),
-				diversity: {
-					gender: {
-						male: parseInt(diversityMetrics.male_count, 10) || 0,
-						female: parseInt(diversityMetrics.female_count, 10) || 0,
-						nonBinary: parseInt(diversityMetrics.non_binary_count, 10) || 0,
-						unspecified: parseInt(diversityMetrics.gender_unspecified, 10) || 0,
-					},
-					ethnicity: {
-						asian: parseInt(diversityMetrics.asian_count, 10) || 0,
-						black: parseInt(diversityMetrics.black_count, 10) || 0,
-						hispanic: parseInt(diversityMetrics.hispanic_count, 10) || 0,
-						white: parseInt(diversityMetrics.white_count, 10) || 0,
-						other: parseInt(diversityMetrics.ethnicity_other, 10) || 0,
-						unspecified: parseInt(diversityMetrics.ethnicity_unspecified, 10) || 0,
-					},
-					age: {
-						under25: parseInt(diversityMetrics.age_under_25, 10) || 0,
-						_25to34: parseInt(diversityMetrics.age_25_34, 10) || 0,
-						_35to44: parseInt(diversityMetrics.age_35_44, 10) || 0,
-						_45to54: parseInt(diversityMetrics.age_45_54, 10) || 0,
-						_55plus: parseInt(diversityMetrics.age_55_plus, 10) || 0,
-					},
+				rejection_reasons: rejectionReasons.map((r) => {
+					const totalRejected = parseInt(offerStats.rejected_count, 10) || 1;
+					return {
+						reason: r.reason,
+						count: parseInt(r.count, 10),
+						percentage: Math.round((parseInt(r.count, 10) / totalRejected) * 100),
+						trend: 0, // Would need historical data for trend
+					};
+				}),
+				diversity_metrics: {
+					gender_distribution: [
+						{ label: 'Male', percentage: parseInt(diversityMetrics.male_count, 10) || 0 },
+						{ label: 'Female', percentage: parseInt(diversityMetrics.female_count, 10) || 0 },
+						{ label: 'Non-Binary', percentage: parseInt(diversityMetrics.non_binary_count, 10) || 0 },
+						{ label: 'Unspecified', percentage: parseInt(diversityMetrics.gender_unspecified, 10) || 0 },
+					],
+					ethnicity_distribution: [
+						{ label: 'Asian', percentage: parseInt(diversityMetrics.asian_count, 10) || 0 },
+						{ label: 'Black', percentage: parseInt(diversityMetrics.black_count, 10) || 0 },
+						{ label: 'Hispanic', percentage: parseInt(diversityMetrics.hispanic_count, 10) || 0 },
+						{ label: 'White', percentage: parseInt(diversityMetrics.white_count, 10) || 0 },
+						{ label: 'Other', percentage: parseInt(diversityMetrics.ethnicity_other, 10) || 0 },
+						{ label: 'Unspecified', percentage: parseInt(diversityMetrics.ethnicity_unspecified, 10) || 0 },
+					],
 				},
-				cost_per_hire: costPerHire.map((r) => ({
-					id: r.id,
-					title: r.title,
-					applicants: parseInt(r.applicants, 10),
-					cost: parseInt(r.cost, 10),
-				})),
+				cost_per_hire: costPerHire.length > 0
+					? Math.round(costPerHire.reduce((sum, r) => sum + parseInt(r.cost, 10), 0) / costPerHire.length)
+					: 0,
 				offer_acceptance_rate: parseInt(offerStats.offers_extended, 10) > 0
 					? Math.round((parseInt(offerStats.offers_accepted, 10) || 0) / parseInt(offerStats.offers_extended, 10) * 100)
 					: 0,
