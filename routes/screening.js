@@ -138,11 +138,7 @@ router.post('/analyze', authMiddleware, async (req, res) => {
 	} catch (err) {
 		const ref = require('node:crypto').randomUUID();
 		console.error(`[ERROR ref=${ref}] [screening] Error:`, err);
-		if (process.env.NODE_ENV === 'production') {
-			res.status(500).json({ error: 'Internal server error', ref });
-		} else {
-			res.status(500).json({ error: 'Screening failed', message: err.message, ref });
-		}
+		res.status(500).json({ error: 'Screening failed', ref });
 	}
 });
 
@@ -222,11 +218,7 @@ router.post('/batch', authMiddleware, async (req, res) => {
 	} catch (err) {
 		const ref = require('node:crypto').randomUUID();
 		console.error(`[ERROR ref=${ref}] [screening/batch] Error:`, err);
-		if (process.env.NODE_ENV === 'production') {
-			res.status(500).json({ error: 'Internal server error', ref });
-		} else {
-			res.status(500).json({ error: 'Batch screening failed', message: err.message, ref });
-		}
+		res.status(500).json({ error: 'Batch screening failed', ref });
 	}
 });
 

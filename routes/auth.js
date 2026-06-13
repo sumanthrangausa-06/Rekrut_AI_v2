@@ -261,14 +261,12 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 			return res.status(500).json({
 				error: 'Database table missing. Please contact support.',
 				code: 'DB_TABLE_MISSING',
-				table: err.table,
 			});
 		}
 		if (err.code === '42703') {
 			return res.status(500).json({
 				error: 'Database schema error. Please try again in a few minutes.',
 				code: 'DB_SCHEMA_ERROR',
-				column: err.column,
 			});
 		}
 		if (err.code === '23505') {
@@ -287,20 +285,7 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 			});
 		}
 
-		// Include error details in non-production for faster debugging
-		if (process.env.NODE_ENV !== 'production') {
-			return res.status(500).json({
-				error: 'Registration failed: ' + err.message + ' (code: ' + (err.code || 'N/A') + ')',
-				debug: {
-					message: err.message,
-					code: err.code,
-					table: err.table,
-					constraint: err.constraint,
-				},
-			});
-		}
-
-		res.status(500).json({ error: 'Registration failed: ' + err.message + ' (code: ' + (err.code || 'N/A') + ')' });
+		res.status(500).json({ error: 'Registration failed. Please try again.' });
 	}
 });
 
@@ -394,16 +379,6 @@ router.post('/login', rateLimits.strict, async (req, res) => {
 			timestamp: new Date().toISOString(),
 		};
 		console.error('Login error:', JSON.stringify(errorDetails, null, 2));
-		if (process.env.NODE_ENV !== 'production') {
-			return res.status(500).json({
-				error: 'Login failed: ' + err.message + ' (code: ' + (err.code || 'N/A') + ')',
-				debug: {
-					message: err.message,
-					code: err.code,
-					table: err.table,
-				},
-			});
-		}
 		res.status(500).json({ error: 'Login failed. Please try again.' });
 	}
 });
