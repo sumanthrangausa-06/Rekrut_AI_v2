@@ -257,7 +257,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 			// (e.g., applied to a job at this company, or is in the recruiter's pipeline)
 			const relationResult = await pool.query(
 				`
-        SELECT 1 FROM applications a
+        SELECT 1 FROM job_applications a
         JOIN jobs j ON a.job_id = j.id
         WHERE a.candidate_id = $1 AND j.company_id = $2
         LIMIT 1
