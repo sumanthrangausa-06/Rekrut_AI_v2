@@ -239,7 +239,7 @@ export function InterviewAnalysisPage() {
 			</div>
 
 			<div>
-				<h1 className='text-3xl font-bold tracking-tight'>Interview Analysis Report</h1>
+				<h1 className='text-2xl sm:text-3xl font-bold tracking-tight'>Interview Analysis Report</h1>
 				<p className='text-muted-foreground'>AI-powered video analysis and feedback</p>
 			</div>
 

@@ -150,7 +150,7 @@ export function ComplianceDashboardPage() {
 					</Link>
 					<div className='flex items-center justify-between'>
 						<div>
-							<h1 className='text-3xl font-bold text-gray-900 flex items-center gap-3'>
+							<h1 className='text-2xl sm:text-2xl sm:text-2xl sm:text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-3'>
 								<Shield className='w-8 h-8 text-indigo-600' />
 								Compliance Dashboard
 							</h1>
@@ -182,7 +182,7 @@ export function ComplianceDashboardPage() {
 											<BarChart3 className='w-6 h-6 text-green-600' />
 										</div>
 										<div>
-											<p className='text-3xl font-bold text-gray-900'>88.5</p>
+											<p className='text-2xl sm:text-2xl sm:text-2xl sm:text-3xl font-bold text-gray-900'>88.5</p>
 											<p className='text-sm text-gray-600'>Average Bias Score</p>
 										</div>
 									</div>
@@ -195,7 +195,7 @@ export function ComplianceDashboardPage() {
 											<FileText className='w-6 h-6 text-blue-600' />
 										</div>
 										<div>
-											<p className='text-3xl font-bold text-gray-900'>1,247</p>
+											<p className='text-2xl sm:text-2xl sm:text-2xl sm:text-3xl font-bold text-gray-900'>1,247</p>
 											<p className='text-sm text-gray-600'>Audit Logs (30 days)</p>
 										</div>
 									</div>
@@ -208,7 +208,7 @@ export function ComplianceDashboardPage() {
 											<User className='w-6 h-6 text-purple-600' />
 										</div>
 										<div>
-											<p className='text-3xl font-bold text-gray-900'>23</p>
+											<p className='text-2xl sm:text-2xl sm:text-2xl sm:text-3xl font-bold text-gray-900'>23</p>
 											<p className='text-sm text-gray-600'>GDPR Requests (30 days)</p>
 										</div>
 									</div>

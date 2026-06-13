@@ -140,7 +140,7 @@ export function RecruiterTrustscorePage() {
 									</div>
 								</div>
 								<div>
-									<h1 className='text-3xl font-bold text-white mb-1'>TrustScore</h1>
+									<h1 className='text-2xl sm:text-3xl font-bold text-white mb-1'>TrustScore</h1>
 									<p className='text-gray-400'>
 										{scoreChange > 0 ? '+' : ''}
 										{scoreChange} from last month

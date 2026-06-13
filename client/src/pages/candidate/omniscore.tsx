@@ -531,21 +531,21 @@ export function CandidateOmniScorePage() {
 									<CardContent className='p-4'>
 										<div className='grid grid-cols-2 sm:grid-cols-4 gap-4'>
 											<div className='text-center'>
-												<p className='text-3xl font-bold text-primary'>
+												<p className='text-2xl sm:text-2xl sm:text-3xl font-bold text-primary'>
 													{explainer.peerComparison.percentile}%
 												</p>
 												<p className='text-xs text-muted-foreground'>Percentile</p>
 											</div>
 											<div className='text-center'>
-												<p className='text-3xl font-bold'>{explainer.peerComparison.avgScore}</p>
+												<p className='text-2xl sm:text-3xl font-bold'>{explainer.peerComparison.avgScore}</p>
 												<p className='text-xs text-muted-foreground'>Avg Score</p>
 											</div>
 											<div className='text-center'>
-												<p className='text-3xl font-bold'>{explainer.peerComparison.medianScore}</p>
+												<p className='text-2xl sm:text-3xl font-bold'>{explainer.peerComparison.medianScore}</p>
 												<p className='text-xs text-muted-foreground'>Median Score</p>
 											</div>
 											<div className='text-center'>
-												<p className='text-3xl font-bold text-emerald-500'>
+												<p className='text-2xl sm:text-2xl sm:text-3xl font-bold text-emerald-500'>
 													{explainer.peerComparison.topScore}
 												</p>
 												<p className='text-xs text-muted-foreground'>Top Score</p>

@@ -253,7 +253,7 @@ export function CandidateOffersPage() {
 						</DialogTitle>
 					</DialogHeader>
 					<div className='space-y-4'>
-						<div className='grid grid-cols-2 gap-3'>
+						<div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
 							<div className='rounded-lg bg-muted/50 p-3'>
 								<p className='text-xs text-muted-foreground'>Company</p>
 								<p className='font-medium'>{selectedOffer.company_name || selectedOffer.company}</p>

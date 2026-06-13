@@ -86,7 +86,7 @@ export function PaymentSuccessPage() {
 						<>
 							<div className='text-6xl'>🎉</div>
 							<div className='space-y-2'>
-								<h1 className='text-3xl font-bold'>Welcome to Pro!</h1>
+								<h1 className='text-2xl sm:text-3xl font-bold'>Welcome to Pro!</h1>
 								<p className='text-muted-foreground'>
 									Your payment was successful. You now have unlimited access to all Rekrut AI
 									features.

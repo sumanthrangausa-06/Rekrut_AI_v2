@@ -662,7 +662,7 @@ export function RecruiterAssessmentsPage() {
 							</div>
 							<div className='text-right'>
 								<div
-									className={`text-3xl font-bold ${selectedDetail.passed ? 'text-emerald-600' : 'text-destructive'}`}
+									className={`text-2xl sm:text-2xl sm:text-3xl font-bold ${selectedDetail.passed ? 'text-emerald-600' : 'text-destructive'}`}
 								>
 									{selectedDetail.score}%
 								</div>

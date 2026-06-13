@@ -150,7 +150,7 @@ function ScoreRing({
 				</defs>
 			</svg>
 			<div className='flex flex-col items-center z-10'>
-				<span className='font-heading text-3xl font-bold'>{score}</span>
+				<span className='font-heading text-2xl sm:text-3xl font-bold'>{score}</span>
 				<span className='text-[10px] text-muted-foreground uppercase tracking-wider'>{label}</span>
 			</div>
 		</div>

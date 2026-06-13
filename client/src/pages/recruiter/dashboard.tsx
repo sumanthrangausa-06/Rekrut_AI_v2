@@ -939,19 +939,19 @@ export function RecruiterDashboard() {
 						</Link>
 					</div>
 
-					{/* Horizontal pipeline bar */}
-					<div className='flex items-center gap-1 rounded-lg border bg-card p-4 overflow-x-auto'>
+					{/* Horizontal pipeline bar — responsive: vertical grid on mobile, horizontal on sm+ */}
+					<div className='grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-1 rounded-lg border bg-card p-4'>
 						{pipelineStages.map((stage, index) => (
-							<div key={stage.id} className='flex items-center gap-1 shrink-0'>
+							<div key={stage.id} className='flex items-center gap-1 sm:shrink-0'>
 								<div
-									className={`flex flex-col items-center gap-1 rounded-lg px-2 py-2 sm:px-4 sm:py-3 cursor-pointer transition-all hover:shadow-sm ${stage.bgColor} border ${stage.borderColor} min-w-[72px] sm:min-w-[100px]`}
+									className={`flex flex-col items-center gap-1 rounded-lg px-3 py-3 sm:px-4 sm:py-3 cursor-pointer transition-all hover:shadow-sm ${stage.bgColor} border ${stage.borderColor} min-h-[44px] min-w-[72px] sm:min-w-[100px] justify-center`}
 									onClick={() => navigate(`/recruiter/candidates?status=${stage.id}`)}
 								>
 									<span className={`text-xl font-bold ${stage.color}`}>{stage.count}</span>
 									<span className='text-xs text-muted-foreground'>{stage.label}</span>
 								</div>
 								{index < pipelineStages.length - 1 && (
-									<ChevronRight className='h-4 w-4 text-muted-foreground/30 shrink-0' />
+									<ChevronRight className='h-4 w-4 text-muted-foreground/30 shrink-0 hidden sm:block' />
 								)}
 							</div>
 						))}

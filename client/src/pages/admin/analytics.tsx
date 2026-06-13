@@ -102,7 +102,7 @@ export function AdminAnalyticsPage() {
 			<div className='max-w-7xl mx-auto space-y-8'>
 				{/* Header */}
 				<div className='space-y-2'>
-					<h1 className='text-3xl md:text-4xl font-bold bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent'>
+					<h1 className='text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent'>
 						Analytics Dashboard
 					</h1>
 					<p className='text-slate-400'>Track landing page performance and user engagement</p>

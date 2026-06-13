@@ -171,8 +171,8 @@ app.get('/health', async (_req, res) => {
 	}, HEALTH_TIMEOUT_MS);
 
 	try {
-		const { runHealthCheck } = require('./lib/db-health');
-		const health = await runHealthCheck();
+		const { runHealthCheckFast } = require('./lib/db-health');
+		const health = await runHealthCheckFast();
 		if (responded) return; // timeout already fired
 		clearTimeout(timeout);
 

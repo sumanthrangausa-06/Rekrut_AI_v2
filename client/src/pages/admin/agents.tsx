@@ -607,8 +607,8 @@ function RunsTable({ runs }: { runs: AgentRun[] }) {
 	}
 
 	return (
-		<div className='rounded-md border'>
-			<table className='w-full text-sm'>
+		<div className='rounded-md border overflow-x-auto'>
+			<table className='w-full text-sm min-w-[640px]'>
 				<thead className='bg-muted/50'>
 					<tr className='border-b'>
 						<th className='h-12 px-4 text-left font-medium text-muted-foreground'>Agent</th>

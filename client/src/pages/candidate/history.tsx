@@ -55,7 +55,7 @@ export function HistoryPage() {
 			</div>
 
 			<div>
-				<h1 className='text-3xl font-bold tracking-tight'>Interview History</h1>
+				<h1 className='text-2xl sm:text-3xl font-bold tracking-tight'>Interview History</h1>
 				<p className='text-muted-foreground'>Review your past mock interviews and track progress</p>
 			</div>
 
@@ -189,7 +189,7 @@ function HistoryItem({ interview }: { interview: HistoryInterview }) {
 
 					<div className='text-center min-w-[80px] hidden sm:block'>
 						{interview.overall_score ? (
-							<div className='text-3xl font-bold text-emerald-600'>
+							<div className='text-2xl sm:text-2xl sm:text-3xl font-bold text-emerald-600'>
 								{interview.overall_score}
 								<span className='text-lg text-muted-foreground'>/10</span>
 							</div>

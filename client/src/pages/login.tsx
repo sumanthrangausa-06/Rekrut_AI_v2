@@ -305,7 +305,7 @@ export function LoginPage() {
 							/>
 						</svg>
 					</div>
-					<h3 className='font-heading text-3xl font-bold mb-4'>Welcome back!</h3>
+					<h3 className='font-heading text-2xl sm:text-3xl font-bold mb-4'>Welcome back!</h3>
 					<p className='text-white/80 text-lg max-w-sm mx-auto'>
 						Sign in to access your dashboard, track applications, and continue your interview
 						practice.

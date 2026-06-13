@@ -1805,7 +1805,7 @@ export function CandidateOnboardingPage() {
 								<PartyPopper className='h-10 w-10 text-green-600' />
 							</div>
 						</div>
-						<h1 className='text-3xl font-bold mb-2'>Onboarding Complete!</h1>
+						<h1 className='text-2xl sm:text-3xl font-bold mb-2'>Onboarding Complete!</h1>
 						<p className='text-muted-foreground text-lg'>
 							All documents are signed and submitted. Your HR team has been notified.
 						</p>

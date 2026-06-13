@@ -143,7 +143,7 @@ export function CompanyProfilePage() {
 			</div>
 
 			<div>
-				<h1 className='text-3xl font-bold tracking-tight'>Company Profile</h1>
+				<h1 className='text-2xl sm:text-3xl font-bold tracking-tight'>Company Profile</h1>
 				<p className='text-muted-foreground'>
 					Manage your company information - visible to candidates
 				</p>

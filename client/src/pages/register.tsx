@@ -74,7 +74,7 @@ export function RegisterPage() {
 							<Mail className='h-6 w-6 text-primary' />
 						</div>
 						<h1 className='font-heading text-4xl font-bold tracking-tight'>Welcome!</h1>
-						<h2 className='font-heading text-3xl font-medium text-muted-foreground mt-1'>
+						<h2 className='font-heading text-2xl sm:text-3xl font-medium text-muted-foreground mt-1'>
 							First things first...
 						</h2>
 					</div>

@@ -1145,7 +1145,7 @@ export function RecruiterInterviewsPage() {
 								<div className='flex items-center justify-between mb-2'>
 									<span className='font-semibold text-lg'>Composite Score</span>
 									<span
-										className={`text-3xl font-bold ${
+										className={`text-2xl sm:text-3xl font-bold ${
 											showAiScores.composite.composite_score >= 75
 												? 'text-green-600'
 												: showAiScores.composite.composite_score >= 60
@@ -1236,7 +1236,7 @@ export function RecruiterInterviewsPage() {
 					<div className='space-y-4 mt-4 max-h-[60vh] overflow-y-auto'>
 						<div className='flex items-center gap-4 p-3 bg-muted rounded-lg'>
 							<div
-								className={`text-3xl font-bold ${
+								className={`text-2xl sm:text-3xl font-bold ${
 									(showScreeningReport.report.overall_score || 0) >= 70
 										? 'text-green-600'
 										: (showScreeningReport.report.overall_score || 0) >= 50

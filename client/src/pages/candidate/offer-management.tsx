@@ -211,7 +211,7 @@ export function OfferManagementPage() {
 			</div>
 
 			<div>
-				<h1 className='text-3xl font-bold tracking-tight'>Offer Management</h1>
+				<h1 className='text-2xl sm:text-3xl font-bold tracking-tight'>Offer Management</h1>
 				<p className='text-muted-foreground'>Create, send, and track job offers</p>
 			</div>
 
@@ -382,7 +382,7 @@ export function OfferManagementPage() {
 						/>
 					</div>
 
-					<div className='grid grid-cols-2 gap-4'>
+					<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
 						<div>
 							<Label htmlFor='salary'>Annual Salary</Label>
 							<div className='relative'>

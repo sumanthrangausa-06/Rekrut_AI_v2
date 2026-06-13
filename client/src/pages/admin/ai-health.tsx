@@ -2146,7 +2146,7 @@ function BudgetPredictionPanel({ budget }: { budget: BudgetData }) {
 			</CardHeader>
 			<CardContent className='space-y-4'>
 				<div className='flex justify-between items-baseline'>
-					<span className='text-3xl font-bold tabular-nums'>
+					<span className='text-2xl sm:text-3xl font-bold tabular-nums'>
 						{budget.tokensUsed.toLocaleString()}
 					</span>
 					<span className='text-sm text-muted-foreground'>

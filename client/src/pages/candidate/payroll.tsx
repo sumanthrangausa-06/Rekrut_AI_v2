@@ -518,7 +518,7 @@ export function CandidatePayrollPage() {
 									<p className='text-xs text-emerald-600 uppercase tracking-wide font-medium'>
 										Net Pay
 									</p>
-									<p className='text-3xl font-extrabold text-emerald-600 mt-1'>
+									<p className='text-2xl sm:text-3xl font-extrabold text-emerald-600 mt-1'>
 										{fmtCurrency(selectedPaycheck.net_pay, pcc)}
 									</p>
 								</div>

@@ -242,7 +242,7 @@ export function AssessmentResultsPage() {
 				<Card>
 					<CardContent className='pt-6 text-center'>
 						<BarChart3 className='h-8 w-8 text-primary mx-auto mb-2' />
-						<div className='text-3xl font-bold'>
+						<div className='text-2xl sm:text-3xl font-bold'>
 							{correctCount}/{totalQuestions}
 						</div>
 						<div className='text-sm text-muted-foreground'>Correct Answers</div>
@@ -251,14 +251,14 @@ export function AssessmentResultsPage() {
 				<Card>
 					<CardContent className='pt-6 text-center'>
 						<TrendingUp className='h-8 w-8 text-primary mx-auto mb-2' />
-						<div className='text-3xl font-bold'>{result.max_difficulty_reached || 2}/5</div>
+						<div className='text-2xl sm:text-3xl font-bold'>{result.max_difficulty_reached || 2}/5</div>
 						<div className='text-sm text-muted-foreground'>Max Difficulty</div>
 					</CardContent>
 				</Card>
 				<Card>
 					<CardContent className='pt-6 text-center'>
 						<Clock className='h-8 w-8 text-primary mx-auto mb-2' />
-						<div className='text-3xl font-bold'>
+						<div className='text-2xl sm:text-3xl font-bold'>
 							{durationMinutes}m {durationSeconds}s
 						</div>
 						<div className='text-sm text-muted-foreground'>Time Taken</div>

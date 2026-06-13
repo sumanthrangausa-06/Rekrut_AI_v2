@@ -260,7 +260,7 @@ export function AssessmentTakePage() {
 						</Badge>
 
 						{/* Detailed stats */}
-						<div className='grid grid-cols-3 gap-3 mb-6 text-sm'>
+						<div className='grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 text-sm'>
 							{durationSeconds > 0 && (
 								<div className='rounded-lg bg-muted/50 p-3'>
 									<p className='font-medium'>

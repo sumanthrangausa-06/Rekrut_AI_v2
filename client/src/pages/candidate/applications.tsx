@@ -319,7 +319,7 @@ export function CandidateApplicationsPage() {
 						})()}
 
 						{/* Details grid */}
-						<div className='grid grid-cols-2 gap-3'>
+						<div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
 							<div className='rounded-lg bg-muted/50 p-3'>
 								<p className='text-xs text-muted-foreground flex items-center gap-1'>
 									<Calendar className='h-3 w-3' /> Applied

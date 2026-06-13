@@ -120,7 +120,7 @@ export function PostHireFeedbackPage() {
 			</div>
 
 			<div>
-				<h1 className='text-3xl font-bold tracking-tight'>Post-Hire Check-ins</h1>
+				<h1 className='text-2xl sm:text-3xl font-bold tracking-tight'>Post-Hire Check-ins</h1>
 				<p className='text-muted-foreground'>Share your experience and help us improve</p>
 			</div>
 

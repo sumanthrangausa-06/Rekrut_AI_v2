@@ -88,7 +88,7 @@ export function BlogPage() {
 						<span className='text-muted-foreground'>/</span>
 						<span className='text-sm font-medium'>Blog</span>
 					</div>
-					<h1 className='font-heading text-3xl font-bold mb-2'>HireLoop Blog</h1>
+					<h1 className='font-heading text-2xl sm:text-3xl font-bold mb-2'>HireLoop Blog</h1>
 					<p className='text-muted-foreground max-w-2xl'>
 						Insights, tips, and strategies for modern recruitment and career growth.
 					</p>
@@ -317,7 +317,7 @@ export function BlogPostPage() {
 						<span className='text-sm font-medium'>{post.category}</span>
 					</div>
 					<Badge className='mb-3'>{post.category}</Badge>
-					<h1 className='font-heading text-3xl font-bold mb-4'>{post.title}</h1>
+					<h1 className='font-heading text-2xl sm:text-3xl font-bold mb-4'>{post.title}</h1>
 					<div className='flex items-center gap-4 text-sm text-muted-foreground'>
 						<span className='flex items-center gap-1'>
 							<User className='h-4 w-4' />
