@@ -260,7 +260,7 @@ services:
       - key: LINKEDIN_REDIRECT_URI
         sync: false
       - key: FORCE_SSL_VERIFY
-        value: true
+        value: false
     autoDeploy: true
     numInstances: 1
     plan: starter
