@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/auth-context'
 import { Header } from './header'
@@ -8,6 +8,8 @@ export function DashboardLayout() {
 	const { isAuthenticated, loading } = useAuth()
 	const [sidebarOpen, setSidebarOpen] = useState(false)
 	const _location = useLocation()
+
+	const handleCloseSidebar = useCallback(() => setSidebarOpen(false), [])
 
 	useEffect(() => {
 		setSidebarOpen(false)
@@ -56,7 +58,7 @@ export function DashboardLayout() {
 			>
 				Skip to content
 			</a>
-			<Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+			<Sidebar open={sidebarOpen} onClose={handleCloseSidebar} />
 			<div className='flex flex-1 flex-col overflow-hidden'>
 				<Header sidebarOpen={sidebarOpen} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
 				<main

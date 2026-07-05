@@ -47,9 +47,11 @@ export function setTokens(accessToken: string, refreshToken: string) {
 	// Also set legacy keys for backward compatibility with other code
 	localStorage.setItem('token', accessToken)
 	localStorage.setItem('refresh_token', refreshToken)
+	startAuthRefresh()
 }
 
 export function clearTokens() {
+	stopAuthRefresh()
 	localStorage.removeItem(TOKEN_KEY)
 	localStorage.removeItem(REFRESH_KEY)
 	// Clear legacy keys too
@@ -94,6 +96,92 @@ async function getCsrfToken(): Promise<string | null> {
 	}
 	return null
 }
+// Proactive token refresh — refresh at 80% of token lifetime before expiry
+let proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null
+
+// Parse JWT payload without external library (base64url decode)
+function parseJwtPayload(token: string): Record<string, unknown> | null {
+	try {
+		const base64Url = token.split('.')[1]
+		if (!base64Url) return null
+		const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+		const jsonPayload = decodeURIComponent(
+			atob(base64)
+				.split('')
+				.map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+				.join('')
+		)
+		return JSON.parse(jsonPayload)
+	} catch {
+		return null
+	}
+}
+
+function getTokenExpiry(token: string): number | null {
+	const payload = parseJwtPayload(token)
+	if (!payload || typeof payload.exp !== 'number') return null
+	return payload.exp * 1000 // convert seconds to ms
+}
+
+const REFRESH_THRESHOLD = 0.8 // refresh at 80% of lifetime
+
+export function startAuthRefresh() {
+	clearProactiveRefresh()
+
+	const token = getToken()
+	if (!token) return
+
+	const expiry = getTokenExpiry(token)
+	if (!expiry) return
+
+	const now = Date.now()
+	const lifetime = expiry - now
+	if (lifetime <= 0) {
+		// Token already expired — let reactive interceptor handle it
+		console.warn('[auth] Access token already expired, skipping proactive refresh')
+		return
+	}
+
+	// Refresh at 80% of lifetime, but at least 30s before expiry
+	const refreshIn = Math.min(
+		Math.floor(lifetime * REFRESH_THRESHOLD),
+		lifetime - 30_000
+	)
+
+	if (refreshIn <= 0) {
+		// Very close to expiry — refresh immediately
+		refreshAccessToken().then((newToken) => {
+			if (newToken) startAuthRefresh()
+		})
+		return
+	}
+
+	console.log(`[auth] Proactive refresh scheduled in ${Math.round(refreshIn / 1000)}s`)
+
+	proactiveRefreshTimer = setTimeout(() => {
+		refreshAccessToken().then((newToken) => {
+			if (newToken) {
+				startAuthRefresh()
+			} else {
+				// Proactive refresh failed — token may still be valid for a short time.
+				// The reactive 401 interceptor in apiCall will catch real requests.
+				console.warn('[auth] Proactive refresh failed; waiting for reactive interceptor')
+			}
+		})
+	}, refreshIn)
+}
+
+export function stopAuthRefresh() {
+	clearProactiveRefresh()
+}
+
+function clearProactiveRefresh() {
+	if (proactiveRefreshTimer) {
+		clearTimeout(proactiveRefreshTimer)
+		proactiveRefreshTimer = null
+	}
+}
+
 let isRefreshing = false
 let refreshPromise: Promise<string | null> | null = null
 
@@ -220,4 +308,25 @@ export function isRecruiterRole(role: UserRole): boolean {
 
 export function getDashboardPath(role: UserRole): string {
 	return isRecruiterRole(role) ? '/recruiter' : '/candidate'
+}
+
+// ── Cross-tab token sync + proactive refresh on page load ──
+
+if (typeof window !== 'undefined') {
+	// Auto-start proactive refresh if a token already exists (e.g., page refresh)
+	const existingToken = getToken()
+	if (existingToken) {
+		startAuthRefresh()
+	}
+
+	// Sync proactive refresh timer across tabs via localStorage events
+	window.addEventListener('storage', (e) => {
+		if (e.key === TOKEN_KEY) {
+			if (e.newValue) {
+				startAuthRefresh()
+			} else {
+				stopAuthRefresh()
+			}
+		}
+	})
 }

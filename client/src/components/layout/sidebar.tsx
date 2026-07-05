@@ -15,6 +15,7 @@ import {
 	UserCheck,
 	Users,
 	Wallet,
+	X,
 } from 'lucide-react'
 import { useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
@@ -65,13 +66,13 @@ const recruiterNav: NavItem[] = [
 
 export function Sidebar({ open, onClose }: SidebarProps) {
 	const { isRecruiter } = useAuth()
-	const _location = useLocation()
+	const location = useLocation()
 	const navItems = isRecruiter ? recruiterNav : candidateNav
 
 	useEffect(() => {
 		onClose()
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [onClose])
+	}, [location.pathname])
 
 	return (
 		<>
@@ -92,7 +93,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 					open ? 'translate-x-0' : '-translate-x-full',
 				)}
 			>
-				<div className='flex h-16 items-center border-b px-6'>
+				<div className='flex h-16 items-center justify-between border-b px-6'>
 					<NavLink
 						to={isRecruiter ? '/recruiter' : '/candidate'}
 						className='flex items-center gap-2'
@@ -100,6 +101,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 						<Logo size='sm' />
 						<span className='font-heading text-lg font-bold'>Rekrut AI</span>
 					</NavLink>
+					<button
+						onClick={onClose}
+						className='flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-2 hover:bg-muted lg:hidden'
+						aria-label='Close navigation menu'
+					>
+						<X className='h-5 w-5' />
+					</button>
 				</div>
 
 				<nav className='flex-1 space-y-1 overflow-y-auto p-3'>

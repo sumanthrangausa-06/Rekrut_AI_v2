@@ -1638,19 +1638,38 @@ app.get('/api/admin/routes', requireAdmin, (_req, res) => {
 });
 
 // Serve React SPA — this is the only frontend
-const reactBuildPath = path.join(__dirname, 'client', 'dist');
+const possibleBuildPaths = [
+	path.join(__dirname, 'client', 'dist'),
+	path.join(__dirname, 'client', 'build'),
+];
+
+function findReactBuildPath() {
+	for (const p of possibleBuildPaths) {
+		if (fs.existsSync(path.join(p, 'index.html'))) {
+			return p;
+		}
+	}
+	return possibleBuildPaths[0]; // default to dist even if not found yet
+}
+
+const reactBuildPath = findReactBuildPath();
 const publicAssetsPath = path.join(__dirname, 'public');
 
 // Cache the React SPA index.html in memory to avoid filesystem race conditions
-const indexPath = path.join(reactBuildPath, 'index.html');
 let indexHtml = null;
-try {
-	if (fs.existsSync(indexPath)) {
-		indexHtml = fs.readFileSync(indexPath, 'utf8');
+function loadIndexHtml() {
+	const indexPath = path.join(reactBuildPath, 'index.html');
+	try {
+		if (fs.existsSync(indexPath)) {
+			indexHtml = fs.readFileSync(indexPath, 'utf8');
+			return true;
+		}
+	} catch (err) {
+		console.error('[server] Error reading React build:', err.message);
 	}
-} catch (err) {
-	console.error('[server] Error reading React build:', err.message);
+	return false;
 }
+loadIndexHtml(); // initial load at startup
 
 // Serve static assets from public/ (favicon, robots.txt, etc. — NOT HTML files)
 app.use(
@@ -1672,12 +1691,19 @@ app.use(
 // SPA fallback — serve React index.html for all non-API routes that don't match a file
 app.get('*', (req, res) => {
 	if (!req.path.startsWith('/api/') && req.path !== '/api') {
-		// Check if the requested file exists as a static asset
+		// Check if the requested file exists as a static asset in the build
 		const assetPath = path.join(reactBuildPath, req.path);
 		if (req.path !== '/' && fs.existsSync(assetPath) && fs.statSync(assetPath).isFile()) {
 			res.sendFile(assetPath);
 			return;
 		}
+
+		// If cached index is missing, try to reload it dynamically
+		// (handles case where server started before build completed)
+		if (!indexHtml) {
+			loadIndexHtml();
+		}
+
 		if (indexHtml) {
 			res.send(indexHtml);
 		} else {
