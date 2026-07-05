@@ -253,5 +253,13 @@ setup('authenticate admin', async ({ request }) => {
     return;
   }
   if (fs.existsSync(path)) fs.unlinkSync(path);
-  await getAdminSession(request, path);
+  try {
+    await getAdminSession(request, path);
+  } catch (err: any) {
+    if (err.message?.includes('429')) {
+      setup.skip(true, 'Admin auth skipped due to rate limiting');
+      return;
+    }
+    throw err;
+  }
 });
