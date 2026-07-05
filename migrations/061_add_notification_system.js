@@ -86,6 +86,10 @@ async function up() {
     `);
 
 		// ─── Seed default templates ────────────────────────────────────────────
+		// Ensure description column exists (may be missing if table created by earlier migration)
+		await client.query(`
+      ALTER TABLE notification_templates ADD COLUMN IF NOT EXISTS description TEXT
+    `);
 		await client.query(`
       INSERT INTO notification_templates (name, type, subject_template, body_template, description)
       VALUES
