@@ -96,6 +96,14 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install chromium
 
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          until pg_isready -h localhost -p 5432 -U test; do
+            echo "Waiting for PostgreSQL..."
+            sleep 1
+          done
+          echo "PostgreSQL is ready"
+
       - name: Run database migrations
         run: npm run migrate
         env:
