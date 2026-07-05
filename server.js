@@ -397,6 +397,7 @@ try {
 // API Routes - Email Queue (admin only)
 const emailQueue = require('./lib/email-queue');
 const { sendTemplatedEmail } = require('./lib/email-service');
+const { authMiddleware } = require('./lib/auth');
 
 app.get('/api/admin/email-queue', authMiddleware, async (req, res) => {
 	if (req.user.role !== 'admin') {
