@@ -1,13 +1,8 @@
 // Migration 038: Pipeline automation rules + AI agent support tables
-const pool = require('../lib/db');
 
-async function up() {
-	const client = await pool.connect();
-	try {
-		await client.query('BEGIN');
-
-		// Pipeline automation rules — configurable per-job auto-advance/reject thresholds
-		await client.query(`
+async function up(client) {
+	// Pipeline automation rules — configurable per-job auto-advance/reject thresholds
+	await client.query(`
       CREATE TABLE IF NOT EXISTS pipeline_automation_rules (
         id SERIAL PRIMARY KEY,
         job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
@@ -25,8 +20,8 @@ async function up() {
       )
     `);
 
-		// AI agent action log — tracks all AI agent actions for audit + memory
-		await client.query(`
+	// AI agent action log — tracks all AI agent actions for audit + memory
+	await client.query(`
       CREATE TABLE IF NOT EXISTS ai_agent_actions (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id),
@@ -43,19 +38,19 @@ async function up() {
       )
     `);
 
-		// Add index for fast queries
-		await client.query(
-			`CREATE INDEX IF NOT EXISTS idx_pipeline_rules_job ON pipeline_automation_rules(job_id)`,
-		);
-		await client.query(
-			`CREATE INDEX IF NOT EXISTS idx_ai_actions_user ON ai_agent_actions(user_id, created_at DESC)`,
-		);
-		await client.query(
-			`CREATE INDEX IF NOT EXISTS idx_ai_actions_type ON ai_agent_actions(agent_type, action_type)`,
-		);
+	// Add index for fast queries
+	await client.query(
+		`CREATE INDEX IF NOT EXISTS idx_pipeline_rules_job ON pipeline_automation_rules(job_id)`,
+	);
+	await client.query(
+		`CREATE INDEX IF NOT EXISTS idx_ai_actions_user ON ai_agent_actions(user_id, created_at DESC)`,
+	);
+	await client.query(
+		`CREATE INDEX IF NOT EXISTS idx_ai_actions_type ON ai_agent_actions(agent_type, action_type)`,
+	);
 
-		// Add resume_score column to score_components if not exists (for OmniScore feed from resume AI)
-		await client.query(`
+	// Add resume_score column to score_components if not exists (for OmniScore feed from resume AI)
+	await client.query(`
       DO $$ BEGIN
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns
@@ -66,16 +61,7 @@ async function up() {
       END $$;
     `);
 
-		await client.query('COMMIT');
-		console.log('[Migration 038] Pipeline automation rules + AI agent tables created');
-	} catch (err) {
-		await client.query('ROLLBACK');
-		console.error('[Migration 038] Error:', err.message);
-		// Non-fatal: tables may already exist
-		if (!err.message.includes('already exists')) throw err;
-	} finally {
-		client.release();
-	}
+	console.log('[Migration 038] Pipeline automation rules + AI agent tables created');
 }
 
 module.exports = { up };

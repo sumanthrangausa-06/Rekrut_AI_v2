@@ -1,5 +1,3 @@
-const pool = require('../lib/db');
-
 async function up(client) {
 	await client.query(`
 		CREATE TABLE IF NOT EXISTS email_queue (

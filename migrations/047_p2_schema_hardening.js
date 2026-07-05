@@ -260,9 +260,22 @@ module.exports = {
 		// All values verified against live data 2026-02-14
 		// ═══════════════════════════════════════════════════════════════════
 
+		// Helper to check if column exists
+		async function columnExists(tableName, columnName) {
+			const result = await client.query(
+				`SELECT 1 FROM information_schema.columns WHERE table_name = $1 AND column_name = $2`,
+				[tableName, columnName]
+			);
+			return result.rows.length > 0;
+		}
+
 		// Helper to add constraint if not exists
-		async function addConstraint(table, constraintName, sql) {
+		async function addConstraint(table, constraintName, sql, columnName) {
 			if (await tableExists(table) && !(await constraintExists(table, constraintName))) {
+				if (columnName && !(await columnExists(table, columnName))) {
+					console.log(`[migration] Skipping constraint ${constraintName} - column ${columnName} doesn't exist in ${table}`);
+					return;
+				}
 				try {
 					await client.query(sql);
 					console.log(`[migration] Added constraint ${constraintName}`);
