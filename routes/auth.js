@@ -242,18 +242,7 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 		}
 	} catch (err) {
 		console.error('Registration error:', err.message, err.stack);
-		// Log full error details for debugging
-		const errorDetails = {
-			message: err.message,
-			code: err.code,
-			detail: err.detail,
-			table: err.table,
-			constraint: err.constraint,
-			column: err.column,
-			stack: err.stack,
-			timestamp: new Date().toISOString(),
-		};
-		console.error('Registration error:', JSON.stringify(errorDetails, null, 2));
+		console.error('Registration error:', err.message, err.code, err.stack);
 		logAuth(`[auth] Registration error: ${err.message} (code: ${err.code})`);
 
 		// PostgreSQL error codes
@@ -369,16 +358,7 @@ router.post('/login', rateLimits.strict, async (req, res) => {
 			refreshToken,
 		});
 	} catch (err) {
-		const errorDetails = {
-			message: err.message,
-			code: err.code,
-			detail: err.detail,
-			table: err.table,
-			constraint: err.constraint,
-			stack: err.stack,
-			timestamp: new Date().toISOString(),
-		};
-		console.error('Login error:', JSON.stringify(errorDetails, null, 2));
+		console.error('Login error:', err.message, err.code, err.stack);
 		res.status(500).json({ error: 'Login failed. Please try again.' });
 	}
 });
@@ -405,16 +385,7 @@ router.post('/refresh', rateLimits.strict, async (req, res) => {
 			user: result.user,
 		});
 	} catch (err) {
-		const errorDetails = {
-			message: err.message,
-			code: err.code,
-			detail: err.detail,
-			table: err.table,
-			constraint: err.constraint,
-			stack: err.stack,
-			timestamp: new Date().toISOString(),
-		};
-		console.error('Token refresh error:', JSON.stringify(errorDetails, null, 2));
+		console.error('Token refresh error:', err.message, err.code, err.stack);
 		res.status(500).json({ error: 'Token refresh failed' });
 	}
 });
@@ -456,16 +427,7 @@ router.post('/logout-all', authMiddleware, async (req, res) => {
 		await revokeAllTokens(req.user.id);
 		res.json({ success: true, message: 'Logged out from all devices' });
 	} catch (err) {
-		const errorDetails = {
-			message: err.message,
-			code: err.code,
-			detail: err.detail,
-			table: err.table,
-			constraint: err.constraint,
-			stack: err.stack,
-			timestamp: new Date().toISOString(),
-		};
-		console.error('Logout all error:', JSON.stringify(errorDetails, null, 2));
+		console.error('Logout all error:', err.message, err.code, err.stack);
 		res.status(500).json({ error: 'Failed to logout from all devices' });
 	}
 });
@@ -620,14 +582,7 @@ router.get('/google/callback', async (req, res) => {
 			user.role === 'recruiter' ? '/recruiter-dashboard.html' : '/candidate-dashboard.html';
 		res.redirect(redirectUrl);
 	} catch (err) {
-		const errorDetails = {
-			message: err.message,
-			code: err.code,
-			detail: err.detail,
-			stack: err.stack,
-			timestamp: new Date().toISOString(),
-		};
-		console.error('Google OAuth error:', JSON.stringify(errorDetails, null, 2));
+		console.error('Google OAuth error:', err.message, err.code, err.stack);
 		res.redirect('/login.html?error=Authentication failed');
 	}
 });
@@ -767,14 +722,7 @@ router.get('/linkedin/callback', async (req, res) => {
 			user.role === 'recruiter' ? '/recruiter-dashboard.html' : '/candidate-dashboard.html';
 		res.redirect(redirectUrl);
 	} catch (err) {
-		const errorDetails = {
-			message: err.message,
-			code: err.code,
-			detail: err.detail,
-			stack: err.stack,
-			timestamp: new Date().toISOString(),
-		};
-		console.error('LinkedIn OAuth error:', JSON.stringify(errorDetails, null, 2));
+		console.error('LinkedIn OAuth error:', err.message, err.code, err.stack);
 		res.redirect('/login.html?error=Authentication failed');
 	}
 });
@@ -909,16 +857,7 @@ router.post('/forgot-password', rateLimits.strict, async (req, res) => {
 			message: 'If an account with that email exists, a password reset link has been sent.',
 		});
 	} catch (err) {
-		const errorDetails = {
-			message: err.message,
-			code: err.code,
-			detail: err.detail,
-			table: err.table,
-			constraint: err.constraint,
-			stack: err.stack,
-			timestamp: new Date().toISOString(),
-		};
-		console.error('Forgot password error:', JSON.stringify(errorDetails, null, 2));
+		console.error('Forgot password error:', err.message, err.code, err.stack);
 		res.status(500).json({ error: 'Failed to process password reset request' });
 	}
 });
@@ -968,16 +907,7 @@ router.post('/reset-password', rateLimits.strict, async (req, res) => {
 
 		res.json({ success: true, message: 'Password has been reset successfully' });
 	} catch (err) {
-		const errorDetails = {
-			message: err.message,
-			code: err.code,
-			detail: err.detail,
-			table: err.table,
-			constraint: err.constraint,
-			stack: err.stack,
-			timestamp: new Date().toISOString(),
-		};
-		console.error('Reset password error:', JSON.stringify(errorDetails, null, 2));
+		console.error('Reset password error:', err.message, err.code, err.stack);
 		res.status(500).json({ error: 'Failed to reset password' });
 	}
 });
