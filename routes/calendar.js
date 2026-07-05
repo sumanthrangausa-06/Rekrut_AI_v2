@@ -20,7 +20,7 @@ router.post('/connect/google', authMiddleware, async (req, res) => {
 		res.json({ success: true, authUrl: url });
 	} catch (err) {
 		console.error('[calendar] Google connect error:', err.message);
-		res.status(500).json({ error: 'Failed to initiate Google Calendar connection', details: err.message });
+		res.status(500).json({ error: 'Failed to initiate Google Calendar connection' });
 	}
 });
 
@@ -35,7 +35,7 @@ router.post('/connect/outlook', authMiddleware, async (req, res) => {
 		res.json({ success: true, authUrl: url });
 	} catch (err) {
 		console.error('[calendar] Outlook connect error:', err.message);
-		res.status(500).json({ error: 'Failed to initiate Outlook Calendar connection', details: err.message });
+		res.status(500).json({ error: 'Failed to initiate Outlook Calendar connection' });
 	}
 });
 
@@ -112,7 +112,7 @@ router.post('/disconnect', authMiddleware, async (req, res) => {
 		res.json({ success: true, message: `${provider} calendar disconnected` });
 	} catch (err) {
 		console.error('[calendar] Disconnect error:', err.message);
-		res.status(500).json({ error: 'Failed to disconnect calendar', details: err.message });
+		res.status(500).json({ error: 'Failed to disconnect calendar' });
 	}
 });
 
@@ -145,7 +145,7 @@ router.get('/status', authMiddleware, async (req, res) => {
 		});
 	} catch (err) {
 		console.error('[calendar] Status error:', err.message);
-		res.status(500).json({ error: 'Failed to fetch calendar status', details: err.message });
+		res.status(500).json({ error: 'Failed to fetch calendar status' });
 	}
 });
 
@@ -196,7 +196,7 @@ router.post('/events/:interviewId', authMiddleware, async (req, res) => {
 		res.json({ success: true, eventId, provider, interviewId });
 	} catch (err) {
 		console.error('[calendar] Event sync error:', err.message);
-		res.status(500).json({ error: 'Failed to sync calendar event', details: err.message });
+		res.status(500).json({ error: 'Failed to sync calendar event' });
 	}
 });
 
@@ -231,7 +231,7 @@ router.delete('/events/:interviewId', authMiddleware, async (req, res) => {
 		res.json({ success: true, message: 'Calendar event removed' });
 	} catch (err) {
 		console.error('[calendar] Event delete error:', err.message);
-		res.status(500).json({ error: 'Failed to delete calendar event', details: err.message });
+		res.status(500).json({ error: 'Failed to delete calendar event' });
 	}
 });
 
@@ -271,7 +271,7 @@ router.get('/events', authMiddleware, async (req, res) => {
 		res.json({ events: result.rows, count: result.rows.length });
 	} catch (err) {
 		console.error('[calendar] List events error:', err.message);
-		res.status(500).json({ error: 'Failed to list synced events', details: err.message });
+		res.status(500).json({ error: 'Failed to list synced events' });
 	}
 });
 

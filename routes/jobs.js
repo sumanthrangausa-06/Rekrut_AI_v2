@@ -196,7 +196,7 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 				},
 			});
 		}
-		res.status(500).json({ error: 'Failed to fetch jobs: ' + err.message + ' (code: ' + (err.code || 'N/A') + ')' });
+		res.status(500).json({ error: 'Failed to fetch jobs' });
 	}
 });
 

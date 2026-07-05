@@ -129,11 +129,15 @@ async function refreshOutlookToken(connection) {
 	if (!connection.refresh_token) return connection;
 
 	const client = getOutlookClient();
-	const tokenParams = { refresh_token: connection.refresh_token, scope: OUTLOOK_SCOPES };
 
 	try {
-		const result = await client.accessToken.create(tokenParams);
-		const token = result.token;
+		const accessToken = client.createToken({
+			access_token: connection.access_token,
+			refresh_token: connection.refresh_token,
+			expires_at: connection.expires_at,
+		});
+		const newAccessToken = await accessToken.refresh({ scope: OUTLOOK_SCOPES });
+		const token = newAccessToken.token;
 		await upsertConnection(connection.user_id, 'outlook', token, connection.calendar_id);
 		return { ...connection, access_token: token.access_token, expires_at: new Date(token.expires_at) };
 	} catch (err) {

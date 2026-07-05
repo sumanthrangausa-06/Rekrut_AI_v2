@@ -34,7 +34,7 @@
     "pdf-parse": "^1.1.1",
     "pg": "^8.11.3",
     "pgvector": "^0.1.5",
-    "simple-oauth2": "^4.1.0"
+    "simple-oauth2": "^5.1.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.16",
