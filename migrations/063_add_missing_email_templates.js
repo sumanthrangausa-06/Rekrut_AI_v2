@@ -1,6 +1,4 @@
-const pool = require('../lib/db');
-
-async function up() {
+async function up(client) {
   const templates = [
     {
       name: 'hired',
@@ -24,7 +22,7 @@ async function up() {
 
   for (const template of templates) {
     try {
-      await pool.query(
+      await client.query(
         `INSERT INTO notification_templates (name, subject, body, html_body, created_at, updated_at)
          VALUES ($1, $2, $3, $4, NOW(), NOW())
          ON CONFLICT (name) DO UPDATE SET
@@ -43,12 +41,12 @@ async function up() {
   console.log('[migration] Missing email templates added successfully');
 }
 
-async function down() {
+async function down(client) {
   // Remove templates
   const templateNames = ['hired', 'rejection', 'interview_reminder'];
   for (const name of templateNames) {
     try {
-      await pool.query('DELETE FROM notification_templates WHERE name = $1', [name]);
+      await client.query('DELETE FROM notification_templates WHERE name = $1', [name]);
       console.log(`[migration] Template '${name}' removed`);
     } catch (err) {
       console.error(`[migration] Failed to remove template '${name}':`, err.message);
