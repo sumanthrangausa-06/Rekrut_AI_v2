@@ -8,14 +8,17 @@ require('dotenv').config();
 
 // SSL configuration: enforce certificate verification in production or when explicitly requested.
 // FORCE_SSL_VERIFY=false overrides everything (for Render PostgreSQL self-signed certs).
+// In test environments (CI), disable SSL entirely since local PostgreSQL containers don't support it.
 const sslConfig =
-	process.env.FORCE_SSL_VERIFY === 'false'
-		? { rejectUnauthorized: false }
-		: process.env.NODE_ENV === 'production' ||
-		    process.env.DATABASE_URL?.includes('sslmode=require') ||
-		    process.env.FORCE_SSL_VERIFY === 'true'
-		  ? { rejectUnauthorized: true }
-		  : { rejectUnauthorized: false };
+	process.env.NODE_ENV === 'test'
+		? false
+		: process.env.FORCE_SSL_VERIFY === 'false'
+		  ? { rejectUnauthorized: false }
+		  : process.env.NODE_ENV === 'production' ||
+		      process.env.DATABASE_URL?.includes('sslmode=require') ||
+		      process.env.FORCE_SSL_VERIFY === 'true'
+		    ? { rejectUnauthorized: true }
+		    : { rejectUnauthorized: false };
 
 // Parse connection string to avoid sslmode conflicts with manual SSL config
 let poolConfig = {
