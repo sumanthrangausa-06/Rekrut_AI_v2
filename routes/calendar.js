@@ -88,7 +88,7 @@ router.get('/oauth/callback', async (req, res) => {
 		res.redirect(`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/settings/calendar?success=${provider}`);
 	} catch (err) {
 		console.error('[calendar] OAuth callback error:', err.message);
-		res.redirect(`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/settings/calendar?error=${encodeURIComponent(err.message)}`);
+		res.redirect(`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/settings/calendar?error=calendar_connection_failed`);
 	}
 });
 

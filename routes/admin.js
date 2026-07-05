@@ -344,7 +344,7 @@ router.get('/revenue', requireAdmin, async (req, res) => {
 		} else {
 			res
 				.status(500)
-				.json({ error: 'Failed to load revenue metrics', message: error.message, ref });
+				.json({ error: 'Failed to load revenue metrics', ref });
 		}
 	}
 });

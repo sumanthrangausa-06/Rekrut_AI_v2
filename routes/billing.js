@@ -185,7 +185,7 @@ router.post('/checkout-session', optionalAuth, async (req, res) => {
 		console.error('[billing] checkout-session error:', error.message);
 		res
 			.status(error.status || 500)
-			.json({ error: error.message || 'Failed to create checkout session.' });
+			.json({ error: 'Payment processing failed. Please try again.' });
 	}
 });
 
@@ -472,7 +472,7 @@ router.post('/cancel-subscription', optionalAuth, async (req, res) => {
 		console.error('[billing] cancel-subscription error:', error.message);
 		res
 			.status(error.status || 500)
-			.json({ error: error.message || 'Failed to cancel subscription.' });
+			.json({ error: 'Failed to cancel subscription. Please try again.' });
 	}
 });
 

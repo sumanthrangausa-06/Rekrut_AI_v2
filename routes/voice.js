@@ -264,7 +264,7 @@ router.get('/health', async (_req, res) => {
 			success: false,
 			service: 'voice',
 			provider: 'cartesia',
-			error: err.message,
+			error: 'Voice health check failed',
 			timestamp: new Date().toISOString(),
 		});
 	}
