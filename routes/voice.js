@@ -58,7 +58,7 @@ function handleVoiceError(res, err) {
 	if (err instanceof CartesiaRateLimitError) {
 		return res.status(429).json({
 			error: 'Voice API rate limit exceeded',
-			message: err.message,
+
 			retry_after: err.retryAfter,
 		});
 	}
@@ -66,41 +66,41 @@ function handleVoiceError(res, err) {
 	if (err instanceof CartesiaAuthError) {
 		return res.status(401).json({
 			error: 'Voice API authentication failed',
-			message: err.message,
+
 		});
 	}
 
 	if (err instanceof CartesiaNetworkError) {
 		return res.status(502).json({
 			error: 'Voice API network error',
-			message: err.message,
+
 		});
 	}
 
 	if (err instanceof CartesiaServerError) {
 		return res.status(502).json({
 			error: 'Voice upstream server error',
-			message: err.message,
+
 		});
 	}
 
 	if (err instanceof CartesiaValidationError) {
 		return res.status(400).json({
 			error: 'Voice API validation error',
-			message: err.message,
+
 		});
 	}
 
 	if (err instanceof CartesiaError) {
 		return res.status(err.statusCode || 500).json({
 			error: 'Voice API error',
-			message: err.message,
+
 		});
 	}
 
 	return res.status(500).json({
 		error: 'Voice processing failed',
-		message: err.message,
+
 	});
 }
 
@@ -116,12 +116,12 @@ function handleMulterError(err, res) {
 	if (err.message?.includes('Invalid file type')) {
 		return res.status(415).json({
 			error: 'Unsupported media type',
-			message: err.message,
+
 		});
 	}
 	return res.status(400).json({
 		error: 'File upload error',
-		message: err.message,
+
 	});
 }
 
@@ -286,7 +286,7 @@ router.delete('/audio/:fileName', authMiddleware, async (req, res) => {
 			res.status(404).json({ error: 'Audio file not found', message: result.error });
 		}
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to delete audio', message: err.message });
+		res.status(500).json({ error: 'Failed to delete audio' });
 	}
 });
 
