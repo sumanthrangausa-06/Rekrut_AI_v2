@@ -1,11 +1,45 @@
 const { Pool } = require('pg');
+const { parse } = require('pg-connection-string');
 const fs = require('fs');
 const path = require('path');
 
 // Load environment variables from .env file
 require('dotenv').config();
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// SSL configuration: enforce certificate verification in production or when explicitly requested.
+// FORCE_SSL_VERIFY=false overrides everything (for Render PostgreSQL self-signed certs).
+const sslConfig =
+	process.env.FORCE_SSL_VERIFY === 'false'
+		? { rejectUnauthorized: false }
+		: process.env.NODE_ENV === 'production' ||
+		    process.env.DATABASE_URL?.includes('sslmode=require') ||
+		    process.env.FORCE_SSL_VERIFY === 'true'
+		  ? { rejectUnauthorized: true }
+		  : { rejectUnauthorized: false };
+
+// Parse connection string to avoid sslmode conflicts with manual SSL config
+let poolConfig = {
+	connectionString: process.env.DATABASE_URL,
+	ssl: sslConfig,
+};
+
+if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('sslmode=')) {
+	try {
+		const parsed = parse(process.env.DATABASE_URL);
+		// Remove ssl-related properties from parsed object to prevent driver conflicts
+		const query = { ...parsed };
+		delete query.sslmode;
+		delete query.ssl;
+		poolConfig = {
+			...query,
+			ssl: sslConfig,
+		};
+	} catch {
+		// Fallback to raw connection string if parsing fails
+	}
+}
+
+const pool = new Pool(poolConfig);
 
 async function migrate() {
   const client = await pool.connect();
