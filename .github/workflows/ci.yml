@@ -105,12 +105,27 @@ jobs:
           echo "PostgreSQL is ready"
 
       - name: Run database migrations
-        run: npm run migrate
+        run: |
+          npm run migrate 2>&1 | tee migration-debug.log
+          MIGRATE_EXIT=${PIPESTATUS[0]}
+          if [ $MIGRATE_EXIT -ne 0 ]; then
+            echo "=== MIGRATION FAILED ==="
+            cat migration-debug.log
+            exit 1
+          fi
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://test:test@localhost:5432/rekrut_test
           JWT_SECRET: test-jwt-secret
           SESSION_SECRET: test-session-secret
+
+      - name: Upload migration debug log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-debug-log
+          path: migration-debug.log
+          retention-days: 1
 
       - name: Start application
         run: |
