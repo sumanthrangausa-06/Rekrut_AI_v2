@@ -6,6 +6,7 @@ import {
 	getToken,
 	isRecruiterRole,
 	setTokens,
+	startAuthRefresh,
 	type User,
 	type UserRole,
 } from '@/lib/api'
@@ -46,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		apiCall<{ user: User }>('/auth/me', { skipAuthCheck: false })
 			.then((data) => {
 				setUser(data.user)
+				startAuthRefresh() // belt-and-suspenders: ensure timer is running
 			})
 			.catch(() => {
 				// Token invalid or expired — clear it
