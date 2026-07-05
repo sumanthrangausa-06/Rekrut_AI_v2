@@ -8,12 +8,12 @@
 
 ---
 
-## Current Status (July 6, 2026 — 01:22 UTC)
+## Current Status (July 6, 2026 — 03:17 UTC)
 
 ### ✅ Environments Status
-- **Production:** `https://rekrutai.co` — deploy in progress, health endpoint still on old format (pending verification)
-- **Staging:** `https://rekrutai-staging.onrender.com` — commit `0005066`, DB connected, all tables present, new health format confirmed
-- **Dev:** `https://rekrutai-dev.onrender.com` — healthy, all fixes verified
+- **Production:** `https://rekrutai.co` — ✅ **DEPLOYED** — commit `f780e29`, health endpoint updated with new format (commit hash, version, branch, DB connectivity)
+- **Staging:** `https://rekrutai-staging.onrender.com` — commit `9bc7cda`, DB connected, all tables present, new health format confirmed
+- **Dev:** `https://rekrutai-dev.onrender.com` — commit `9f0c8f5`, healthy, all fixes verified
 
 ### 🔥 P0 Security Fixes Deployed to Main
 1. **Document IDOR vulnerability** — ✅ FIXED (commit 364992d) — auth-protected download proxy + correct table name
@@ -29,13 +29,14 @@
 
 | Environment | Commit | DB Status | Health |
 |-------------|--------|-----------|--------|
-| Production | `pending` (old: `d501e8c`) | Connected | 🔄 deploy in progress |
-| Staging | `0005066` | Connected | ✅ ok |
-| Dev | `0005066` | Connected | ✅ ok |
+| Production | `f780e29` | Connected | ✅ ok |
+| Staging | `9bc7cda` | Connected | ✅ ok |
+| Dev | `9f0c8f5` | Connected | ✅ ok |
 
-**Main branch:** `70dbb6a` (staging merged + CI fix) — pushed to origin/main
-**Production deploy:** Triggered via Render auto-deploy at 2026-07-05 17:22 UTC
-**Deploy verification:** Pending — health endpoint still showing old format after 40min
+**Main branch:** `f780e29` (staging merged + security fixes) — pushed to origin/main
+**Production deploy:** Triggered via Render API at 2026-07-05 19:25 UTC — **DEPLOY LIVE**
+**Auto-deploy pipeline:** ✅ FIXED — GitHub Actions workflow now triggers deploy on push to main via Render API
+**GitHub secret:** `RENDER_API_KEY` configured
 
 ---
 
@@ -79,9 +80,10 @@
 | application-security-engineer (DO-002) | Error sanitization | ✅ DONE | 01ce6da |
 | devops-automator (DO-001) | Deploy security fixes to staging | ✅ DONE | 0005066 |
 | backend-architect | Merge staging to main + push | ✅ DONE | 70dbb6a |
-| backend-architect | Verify production deploy | 🔄 IN PROGRESS | — |
+| devops-automator (DO-001) | Fix production auto-deploy pipeline | ✅ DONE | f7ea669 |
+| devops-automator (DO-001) | Deploy main to production | ✅ DONE | f780e29 |
 
 ---
 
-*Next heartbeat: 2026-07-06 01:52 UTC*
-*Next action: Continue monitoring production health endpoint for updated commit hash*
+*Next heartbeat: 2026-07-06 03:47 UTC*
+*Next action: Monitor production stability, ensure auto-deploy workflow functions on next push*
