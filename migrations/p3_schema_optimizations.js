@@ -18,25 +18,41 @@ module.exports = {
 
 		// Helper to run ALTER statements safely (skip if table doesn't exist)
 		async function safeAlter(sql) {
+			// Extract table name from ALTER TABLE statement
+			const match = sql.match(/ALTER\s+TABLE\s+(\w+)/i);
+			const tableName = match ? match[1] : null;
+			if (tableName && !(await tableExists(tableName))) {
+				console.log(`[migration] Skipping ALTER (table '${tableName}' doesn't exist): ${sql.trim().substring(0, 60)}...`);
+				return;
+			}
 			try {
 				await db.query(sql);
 			} catch (err) {
 				if (err.message.includes('does not exist')) {
-					console.log(`[migration] Skipping (table doesn't exist): ${sql.trim().substring(0, 60)}...`);
+					console.log(`[migration] Skipping ALTER (column doesn't exist): ${sql.trim().substring(0, 60)}...`);
 				} else {
 					throw err;
 				}
 			}
 		}
 
+		// Helper to extract table name from CREATE INDEX statement
+		function extractTableName(sql) {
+			const match = sql.match(/ON\s+(\w+)/i);
+			return match ? match[1] : null;
+		}
+
 		// Helper to run CREATE INDEX IF NOT EXISTS safely
 		async function safeCreateIndex(sql) {
+			const tableName = extractTableName(sql);
+			if (tableName && !(await tableExists(tableName))) {
+				console.log(`[migration] Skipping index (table '${tableName}' doesn't exist): ${sql.trim().substring(0, 60)}...`);
+				return;
+			}
 			try {
 				await db.query(sql);
 			} catch (err) {
-				if (err.message.includes('does not exist')) {
-					console.log(`[migration] Skipping index (table doesn't exist): ${sql.trim().substring(0, 60)}...`);
-				} else if (err.message.includes('already exists')) {
+				if (err.message.includes('already exists')) {
 					console.log(`[migration] Index already exists, skipping`);
 				} else {
 					throw err;
@@ -318,7 +334,7 @@ module.exports = {
 			'CREATE UNIQUE INDEX IF NOT EXISTS idx_omni_scores_user_unique ON omni_scores(user_id)',
 			'CREATE UNIQUE INDEX IF NOT EXISTS idx_scheduling_preferences_user_unique ON scheduling_preferences(user_id)',
 			'CREATE UNIQUE INDEX IF NOT EXISTS idx_omniscore_results_user_unique ON omniscore_results(user_id)',
-			'CREATE UNIQUE INDEX IF NOT EXISTS idx_company_ratings_user_job_unique ON company_ratings(user_id, job_id)',
+			'CREATE UNIQUE INDEX IF NOT EXISTS idx_company_ratings_user_job_unique ON company_ratings(candidate_id, job_id)',
 		];
 		for (const sql of uniqueIndexes) {
 			await safeCreateIndex(sql);

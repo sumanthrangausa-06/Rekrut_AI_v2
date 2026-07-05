@@ -34,7 +34,7 @@ async function up(client) {
            body_template = EXCLUDED.body_template,
            html_template = EXCLUDED.html_template,
            updated_at = NOW()`,
-        [template.name, template.subject, template.body, template.html_body]
+        [template.name, template.type, template.subject, template.body, template.html_body]
       );
       console.log(`[migration] Template '${template.name}' created/updated`);
     } catch (err) {
