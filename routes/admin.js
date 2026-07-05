@@ -421,7 +421,7 @@ router.get('/agents', requireAdmin, async (_req, res) => {
 		if (process.env.NODE_ENV === 'production') {
 			res.status(500).json({ error: 'Internal server error', ref });
 		} else {
-			res.status(500).json({ error: 'Failed to load agent status', message: error.message, ref });
+			res.status(500).json({ error: 'Failed to load agent status', ref });
 		}
 	}
 });
@@ -450,7 +450,7 @@ router.get('/team-status', requireAdmin, async (_req, res) => {
 		});
 	} catch (error) {
 		console.error('[admin/team-status] Error:', error.message);
-		res.status(500).json({ error: 'Failed to load team status', message: error.message });
+		res.status(500).json({ error: 'Failed to load team status' });
 	}
 });
 

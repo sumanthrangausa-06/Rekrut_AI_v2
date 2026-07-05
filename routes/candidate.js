@@ -311,7 +311,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
 		res.json({ success: true, profile: result.rows[0] });
 	} catch (err) {
 		if (err.statusCode === 400) {
-			return res.status(400).json({ error: err.message });
+			return res.status(400).json({ error: 'Invalid job data. Please check your input and try again.' });
 		}
 		console.error('Update profile error:', err);
 		res.status(500).json({ error: 'Failed to update profile' });
@@ -1562,7 +1562,7 @@ router.get('/jobs', authMiddleware, async (req, res) => {
 		});
 	} catch (error) {
 		console.error('Error fetching jobs:', error);
-		res.status(500).json({ error: 'Failed to fetch jobs', details: error.message });
+		res.status(500).json({ error: 'Failed to fetch jobs' });
 	}
 });
 
