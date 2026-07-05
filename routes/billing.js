@@ -248,7 +248,7 @@ router.post('/confirm-session', optionalAuth, async (req, res) => {
 		});
 	} catch (error) {
 		console.error('[billing] confirm-session error:', error.message);
-		res.status(error.status || 500).json({ error: error.message || 'Failed to confirm session.' });
+		res.status(error.status || 500).json({ error: 'Payment processing failed. Please try again.' });
 	}
 });
 

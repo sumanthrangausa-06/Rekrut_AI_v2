@@ -106,7 +106,7 @@ router.post('/send', authMiddleware, requireRecruiter, async (req, res) => {
 		res.json(result);
 	} catch (err) {
 		console.error('[notifications] Send error:', err.message);
-		res.status(500).json({ error: 'Failed to send notification', message: err.message });
+		res.status(500).json({ error: 'Failed to send notification' });
 	}
 });
 
@@ -137,7 +137,7 @@ router.post('/queue', authMiddleware, requireRecruiter, async (req, res) => {
 		res.json(result);
 	} catch (err) {
 		console.error('[notifications] Queue error:', err.message);
-		res.status(500).json({ error: 'Failed to queue notification', message: err.message });
+		res.status(500).json({ error: 'Failed to queue notification' });
 	}
 });
 
@@ -154,7 +154,7 @@ router.post('/process-queue', authMiddleware, requireAdmin, async (req, res) => 
 		res.json({ success: true, ...result });
 	} catch (err) {
 		console.error('[notifications] Process queue error:', err.message);
-		res.status(500).json({ error: 'Failed to process queue', message: err.message });
+		res.status(500).json({ error: 'Failed to process queue' });
 	}
 });
 
@@ -240,7 +240,7 @@ router.get('/history', authMiddleware, async (req, res) => {
 		});
 	} catch (err) {
 		console.error('[notifications] History error:', err.message);
-		res.status(500).json({ error: 'Failed to get notification history', message: err.message });
+		res.status(500).json({ error: 'Failed to get notification history' });
 	}
 });
 
@@ -280,7 +280,7 @@ router.get('/preferences', authMiddleware, async (req, res) => {
 		res.json({ success: true, preferences: result.rows, is_default: false });
 	} catch (err) {
 		console.error('[notifications] Preferences get error:', err.message);
-		res.status(500).json({ error: 'Failed to get preferences', message: err.message });
+		res.status(500).json({ error: 'Failed to get preferences' });
 	}
 });
 
@@ -339,7 +339,7 @@ router.put('/preferences', authMiddleware, async (req, res) => {
 		res.json({ success: true, preferences: results, updated: results.length });
 	} catch (err) {
 		console.error('[notifications] Preferences update error:', err.message);
-		res.status(500).json({ error: 'Failed to update preferences', message: err.message });
+		res.status(500).json({ error: 'Failed to update preferences' });
 	}
 });
 
@@ -373,7 +373,7 @@ router.get('/templates', authMiddleware, async (req, res) => {
 		res.json({ success: true, templates: result.rows, total: result.rows.length });
 	} catch (err) {
 		console.error('[notifications] Templates list error:', err.message);
-		res.status(500).json({ error: 'Failed to list templates', message: err.message });
+		res.status(500).json({ error: 'Failed to list templates' });
 	}
 });
 
@@ -394,7 +394,7 @@ router.get('/templates/:id', authMiddleware, async (req, res) => {
 		res.json({ success: true, template: result.rows[0] });
 	} catch (err) {
 		console.error('[notifications] Template get error:', err.message);
-		res.status(500).json({ error: 'Failed to get template', message: err.message });
+		res.status(500).json({ error: 'Failed to get template' });
 	}
 });
 
@@ -435,7 +435,7 @@ router.post('/templates', authMiddleware, requireRecruiter, async (req, res) => 
 			return res.status(409).json({ error: 'Template with this name already exists' });
 		}
 		console.error('[notifications] Template create error:', err.message);
-		res.status(500).json({ error: 'Failed to create template', message: err.message });
+		res.status(500).json({ error: 'Failed to create template' });
 	}
 });
 
@@ -482,7 +482,7 @@ router.put('/templates/:id', authMiddleware, requireAdmin, async (req, res) => {
 		res.json({ success: true, template: result.rows[0] });
 	} catch (err) {
 		console.error('[notifications] Template update error:', err.message);
-		res.status(500).json({ error: 'Failed to update template', message: err.message });
+		res.status(500).json({ error: 'Failed to update template' });
 	}
 });
 
@@ -515,7 +515,7 @@ router.get('/stats', authMiddleware, requireAdmin, async (req, res) => {
 		});
 	} catch (err) {
 		console.error('[notifications] Stats error:', err.message);
-		res.status(500).json({ error: 'Failed to get statistics', message: err.message });
+		res.status(500).json({ error: 'Failed to get statistics' });
 	}
 });
 
@@ -558,7 +558,7 @@ Rekrut AI System`,
 		});
 	} catch (err) {
 		console.error('[notifications] Test email error:', err.message);
-		res.status(500).json({ error: 'Failed to send test email', message: err.message });
+		res.status(500).json({ error: 'Failed to send test email' });
 	}
 });
 
@@ -577,7 +577,7 @@ router.get('/verify', authMiddleware, requireAdmin, async (_req, res) => {
 		});
 	} catch (err) {
 		console.error('[notifications] Verify error:', err.message);
-		res.status(500).json({ error: 'Verification failed', message: err.message });
+		res.status(500).json({ error: 'Verification failed' });
 	}
 });
 
@@ -625,7 +625,7 @@ router.post('/quick/application-received', authMiddleware, requireRecruiter, asy
 		res.json(result);
 	} catch (err) {
 		console.error('[notifications] Quick send error:', err.message);
-		res.status(500).json({ error: 'Failed to send notification', message: err.message });
+		res.status(500).json({ error: 'Failed to send notification' });
 	}
 });
 
@@ -683,7 +683,7 @@ router.post('/quick/interview-scheduled', authMiddleware, requireRecruiter, asyn
 		res.json(result);
 	} catch (err) {
 		console.error('[notifications] Interview scheduled error:', err.message);
-		res.status(500).json({ error: 'Failed to send notification', message: err.message });
+		res.status(500).json({ error: 'Failed to send notification' });
 	}
 });
 
@@ -742,7 +742,7 @@ router.post('/quick/offer-extended', authMiddleware, requireRecruiter, async (re
 		res.json(result);
 	} catch (err) {
 		console.error('[notifications] Offer extended error:', err.message);
-		res.status(500).json({ error: 'Failed to send notification', message: err.message });
+		res.status(500).json({ error: 'Failed to send notification' });
 	}
 });
 
@@ -881,7 +881,7 @@ router.post('/voice', authMiddleware, async (req, res) => {
 		});
 	} catch (err) {
 		console.error('[notifications/voice] Generation error:', err.message);
-		res.status(500).json({ error: 'Failed to generate voice audio', message: err.message });
+		res.status(500).json({ error: 'Failed to generate voice audio' });
 	}
 });
 

@@ -563,7 +563,7 @@ router.post('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
 		}
 	} catch (err) {
 		if (err.statusCode === 400) {
-			return res.status(400).json({ error: err.message });
+			return res.status(400).json({ error: 'Invalid job data. Please check your input and try again.' });
 		}
 		console.error('Create job error:', err);
 		res.status(500).json({ error: 'Failed to create job' });
@@ -759,7 +759,7 @@ router.put('/jobs/:id', authMiddleware, requireRecruiter, async (req, res) => {
 		res.json({ success: true, job: result.rows[0] });
 	} catch (err) {
 		if (err.statusCode === 400) {
-			return res.status(400).json({ error: err.message });
+			return res.status(400).json({ error: 'Invalid job data. Please check your input and try again.' });
 		}
 		console.error('Update job error:', err);
 		res.status(500).json({ error: 'Failed to update job' });
@@ -1175,7 +1175,7 @@ router.get('/candidates/full', authMiddleware, requireRecruiter, async (req, res
 		if (process.env.NODE_ENV === 'production') {
 			res.status(500).json({ error: 'Internal server error', ref });
 		} else {
-			res.status(500).json({ error: 'Failed to fetch candidates', message: err.message, ref });
+			res.status(500).json({ error: 'Failed to fetch candidates', ref });
 		}
 	}
 });
@@ -1274,7 +1274,7 @@ router.get('/pipeline-stats', authMiddleware, requireRecruiter, async (req, res)
 		if (process.env.NODE_ENV === 'production') {
 			res.status(500).json({ error: 'Internal server error', ref });
 		} else {
-			res.status(500).json({ error: 'Failed to fetch pipeline stats', message: err.message, ref });
+			res.status(500).json({ error: 'Failed to fetch pipeline stats', ref });
 		}
 	}
 });
