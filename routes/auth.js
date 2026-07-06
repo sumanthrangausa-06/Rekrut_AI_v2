@@ -2,7 +2,6 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
-const nodemailer = require('nodemailer');
 const pool = require('../lib/db');
 const {
 	generateToken,
@@ -43,61 +42,6 @@ function isStrongPassword(password) {
 		/\d/.test(password) &&
 		/[^A-Za-z0-9]/.test(password)
 	);
-}
-
-// Email transporter (SMTP)
-let emailTransporter = null;
-
-function initializeEmailTransporter() {
-	const smtpHost = process.env.SMTP_HOST;
-	const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
-	const smtpUser = process.env.SMTP_USER;
-	const smtpPass = process.env.SMTP_PASS;
-
-	if (smtpHost && smtpUser && smtpPass) {
-		try {
-			emailTransporter = nodemailer.createTransport({
-				host: smtpHost,
-				port: smtpPort,
-				secure: smtpPort === 465,
-				auth: {
-					user: smtpUser,
-					pass: smtpPass,
-				},
-				tls: {
-					rejectUnauthorized: true,
-				},
-			});
-
-			console.log('[email] SMTP transporter initialized');
-		} catch (err) {
-			console.error('[email] Failed to initialize SMTP transporter:', err.message);
-			emailTransporter = null;
-		}
-	} else {
-		console.warn('[email] SMTP credentials not configured. Email sending will be disabled.');
-	}
-}
-
-// Initialize email transporter on module load
-initializeEmailTransporter();
-
-async function sendEmail(to, subject, text, html) {
-	if (!emailTransporter) {
-		throw new Error(
-			'Email service not configured. Please set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS in .env',
-		);
-	}
-
-	const mailOptions = {
-		from: process.env.SMTP_FROM || 'no-reply@rekrutai.co',
-		to,
-		subject,
-		text,
-		html,
-	};
-
-	return await emailTransporter.sendMail(mailOptions);
 }
 
 // ============= EMAIL/PASSWORD AUTH =============
@@ -827,25 +771,19 @@ router.post('/forgot-password', rateLimits.strict, async (req, res) => {
 			[user.id, resetToken, expiresAt],
 		);
 
-		// Send reset email
-		const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
-
-		const emailSubject = 'Reset your Rekrut.AI password';
-		const emailText = `Hi ${user.name},\n\nYou requested a password reset for your Rekrut.AI account.\n\nClick this link to reset your password:\n${resetUrl}\n\nThis link will expire in 15 minutes.\n\nIf you didn't request this reset, please ignore this email.\n\nBest,\nThe Rekrut.AI Team`;
-		const emailHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>Reset your Rekrut.AI password</h2>
-        <p>Hi ${user.name},</p>
-        <p>You requested a password reset for your Rekrut.AI account.</p>
-        <p><a href="${resetUrl}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a></p>
-        <p>This link will expire in 15 minutes.</p>
-        <p>If you didn't request this reset, please ignore this email.</p>
-        <p>Best,<br>The Rekrut.AI Team</p>
-      </div>
-    `;
-
+		// Send reset email using template
 		try {
-			await sendEmail(email, emailSubject, emailText, emailHtml);
+			await emailService.sendTemplatedEmail({
+				to: email,
+				templateName: 'password_reset',
+				templateData: {
+					name: user.name || 'there',
+					reset_link: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`,
+					expires_in: '15 minutes',
+				},
+				userId: user.id,
+				metadata: { token: resetToken },
+			});
 			console.log(`[email] Password reset email sent to ${email}`);
 		} catch (emailErr) {
 			console.error('Failed to send reset email:', emailErr);

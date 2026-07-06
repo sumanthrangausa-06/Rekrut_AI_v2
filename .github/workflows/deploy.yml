@@ -48,7 +48,44 @@ jobs:
   ci-gate:
     name: Re-run CI Checks
     needs: verify
-    uses: ./.github/workflows/ci.yml
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install client dependencies
+        run: cd client && npm ci
+
+      - name: Build client
+        run: npm run build --prefix client
+
+      - name: Run npm audit
+        run: npm audit --audit-level high
+        # This will fail the job if critical/high vulnerabilities are found
+
+      - name: Health check (dev)
+        run: |
+          echo "Checking dev environment health..."
+          for i in {1..5}; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" https://rekrutai-dev.onrender.com/health || echo "000")
+            if [ "$response" = "200" ]; then
+              echo "✅ Dev API is healthy (HTTP 200)"
+              exit 0
+            fi
+            echo "Attempt $i/5: Got HTTP $response, retrying in 5s..."
+            sleep 5
+          done
+          echo "❌ Dev API health check failed after 5 attempts"
+          exit 1
 
   deploy:
     name: Deploy to Production via Render API
