@@ -27,6 +27,13 @@ if (missingEnv.length > 0) {
 	console.error('[startup] Application will start but may fail on database-dependent endpoints.');
 }
 
+// Validate DATABASE_URL is not a placeholder
+const dbUrl = process.env.DATABASE_URL || '';
+if (dbUrl.includes('@host/') || dbUrl.includes('@localhost:5432/db') || dbUrl.includes('user:password@')) {
+	console.error('[startup] CRITICAL: DATABASE_URL appears to be a placeholder. Please update .env with a real database URL.');
+	console.error('[startup] Example local PostgreSQL: postgresql://test:test@localhost:5432/rekrutai');
+}
+
 // Validate SMTP configuration (warn only, not fatal)
 const smtpVars = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'];
 const missingSmtp = smtpVars.filter((v) => !process.env[v]);

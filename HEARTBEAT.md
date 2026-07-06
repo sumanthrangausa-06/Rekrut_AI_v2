@@ -1,6 +1,6 @@
 # Rekrut AI — Heartbeat Tasks
 
-> **Updated:** 2026-07-06 01:22 UTC
+> **Updated:** 2026-07-06 05:13 UTC
 > **Agent Company:** Active
 > **CEO:** Suga (orchestrates all agents)
 > **Heartbeat:** Every 30 minutes via cron job `rekrut-ceo-heartbeat`
@@ -8,12 +8,12 @@
 
 ---
 
-## Current Status (July 6, 2026 — 03:17 UTC)
+## Current Status (July 6, 2026 — 05:13 UTC)
 
-### ✅ Environments Status
-- **Production:** `https://rekrutai.co` — ✅ **DEPLOYED** — commit `366d086`, health endpoint updated with new format (commit hash, version, branch, DB connectivity)
-- **Staging:** `https://rekrutai-staging.onrender.com` — commit `9bc7cda`, DB connected, all tables present, new health format confirmed
-- **Dev:** `https://rekrutai-dev.onrender.com` — commit `9f0c8f5`, healthy, all fixes verified
+### ✅ Environments Status — All Healthy (200 OK)
+- **Production:** `https://rekrutai.co` — ✅ **DEPLOYED** — commit `35e1e71` (main branch — synced with staging)
+- **Staging:** `https://rekrutai-staging.onrender.com` — commit `35e1e71` (same as main, awaiting dev merge)
+- **Dev:** `https://rekrutai-dev.onrender.com` — commit `cedbac0` (ahead of main/staging by 3 commits: E2E auth fix + docs)
 
 ### 🔥 P0 Security Fixes Verified in Production
 All P0 security fixes are **confirmed live** in production at commit `366d086` (verified by application-security-engineer subagent):
@@ -29,16 +29,22 @@ All P0 security fixes are **confirmed live** in production at commit `366d086` (
 
 ## Deployment Status
 
-| Environment | Commit | DB Status | Health |
-|-------------|--------|-----------|--------|
-| Production | `366d086` | Connected | ✅ ok |
-| Staging | `9bc7cda` | Connected | ✅ ok |
-| Dev | `9f0c8f5` | Connected | ✅ ok |
+| Environment | Commit | Branch | Health |
+|-------------|--------|--------|--------|
+| Production | `35e1e71` | main | ✅ 200 OK |
+| Staging | `35e1e71` | staging | ✅ 200 OK |
+| Dev | `cedbac0` | dev | ✅ 200 OK |
 
-**Main branch:** `366d086` (heartbeat update + verified security fixes live) — pushed to origin/main
-**Production deploy:** Confirmed live at commit `366d086` via `/version` endpoint at 2026-07-06 03:31 UTC
-**Auto-deploy pipeline:** ✅ FIXED — GitHub Actions workflow now triggers deploy on push to main via Render API
+**Main branch:** `35e1e71` (feat(candidate): add omni_score to profile query) — in sync with staging, awaiting dev merge
+**Staging branch:** `35e1e71` — in sync with main, awaiting dev merge
+**Dev branch:** `cedbac0` (docs: add auto-deploy status report) — 3 commits ahead of main/staging
+  - `cedbac0` docs: add auto-deploy status report for commit sync and Render verification
+  - `5664d2f` fix: add DATABASE_URL placeholder validation and local dev example to prevent E2E auth 500 errors
+  - `da36a11` merge(main): sync dev with latest main (omni_score + deploy workflow)
+**Production deploy:** Confirmed live at commit `35e1e71` via health endpoint at 2026-07-06 05:13 UTC
+**Auto-deploy pipeline:** ✅ ACTIVE — GitHub Actions workflow triggers deploy on push to main via Render API
 **GitHub secret:** `RENDER_API_KEY` configured
+**Current action:** devops-automator merging dev → staging → main (IN PROGRESS)
 
 ---
 
@@ -92,8 +98,9 @@ All P0 security fixes are **confirmed live** in production at commit `366d086` (
 | devops-automator (DO-001) | Fix production auto-deploy pipeline | ✅ DONE | f7ea669 |
 | devops-automator (DO-001) | Deploy main to production | ✅ DONE | f780e29 |
 | application-security-engineer (DO-002) | Verify P0 fixes in production + correct heartbeat | ✅ DONE | 366d086 |
+| **devops-automator** | **Merge dev → staging → main** | **🔄 IN PROGRESS** | **—** |
 
 ---
 
-*Next heartbeat: 2026-07-06 03:47 UTC*
-*Next action: Monitor production stability, ensure auto-deploy workflow functions on next push*
+*Next heartbeat: 2026-07-06 05:43 UTC*
+*Next action: Complete dev → staging → main merge, verify production deploy, update commit hashes*
