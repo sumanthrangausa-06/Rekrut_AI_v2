@@ -247,7 +247,7 @@ async function getAdminSession(request: any, filePath: string): Promise<void> {
 
   // Save session cookies from request context
   const storageState = await request.storageState();
-  fs.writeFileSync(path, JSON.stringify(storageState, null, 2));
+  fs.writeFileSync(filePath, JSON.stringify(storageState, null, 2));
 }
 
 setup('authenticate admin', async ({ request }) => {
