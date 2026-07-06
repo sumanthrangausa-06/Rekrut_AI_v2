@@ -1189,6 +1189,184 @@ router.post('/compliance/export', requireAdmin, async (req, res) => {
 	}
 });
 
+// GET /api/admin/compliance/transparency-report — EU AI Act Article 13 transparency report
+router.get('/compliance/transparency-report', requireAdmin, async (_req, res) => {
+	try {
+		const generatedAt = new Date().toISOString();
+
+		// AI system settings
+		const aiConfigResult = await pool.query(`
+			SELECT config_key, config_value FROM system_settings
+			WHERE config_key LIKE 'ai_%'
+		`).catch(() => ({ rows: [] }));
+
+		const aiComponents = [
+			{ name: 'AI Screening', key: 'ai_screening_enabled', description: 'Automated candidate screening and filtering', riskLevel: 'high' },
+			{ name: 'AI Matching', key: 'ai_matching_enabled', description: 'Candidate-job matching algorithm', riskLevel: 'high' },
+			{ name: 'AI Interview Analysis', key: 'ai_interview_enabled', description: 'Video/audio interview assessment', riskLevel: 'high' },
+			{ name: 'AI Assessment', key: 'ai_assessment_enabled', description: 'Skills and competency assessment', riskLevel: 'high' },
+			{ name: 'AI Scoring', key: 'ai_scoring_enabled', description: 'OmniScore generation and ranking', riskLevel: 'high' },
+		].map((comp) => ({
+			...comp,
+			enabled: aiConfigResult.rows.some((r) => r.config_key === comp.key && r.config_value === 'true'),
+		}));
+
+		const activeComponents = aiComponents.filter((c) => c.enabled).map((c) => c.name);
+
+		// Total AI decisions
+		const decisionsResult = await pool.query(`
+			SELECT COUNT(*) as total FROM audit_logs
+			WHERE action_type LIKE 'ai_%'
+				OR action_type IN ('score_appeal_submitted', 'bias_analysis_generated',
+					'score_explanation_viewed', 'decision_explanation_viewed',
+					'screening_decision', 'matching_decision',
+					'interview_analysis', 'assessment_graded',
+					'human_override', 'ai_explanation_generated')
+		`);
+
+		const totalDecisions = parseInt(decisionsResult.rows[0]?.total, 10) || 0;
+
+		// Human overrides
+		const overrideResult = await pool.query(`
+			SELECT COUNT(*) as total FROM audit_logs
+			WHERE metadata->>'human_override' = 'true'
+		`);
+
+		const totalOverrides = parseInt(overrideResult.rows[0]?.total, 10) || 0;
+		const overrideRate = totalDecisions > 0 ? (totalOverrides / totalDecisions) : 0;
+
+		// Score appeals
+		const appealsResult = await pool.query(`
+			SELECT
+				COUNT(*) as total,
+				SUM(CASE WHEN status IN ('approved', 'rejected') THEN 1 ELSE 0 END) as resolved
+			FROM score_appeals
+		`);
+
+		const totalAppeals = parseInt(appealsResult.rows[0]?.total, 10) || 0;
+		const resolvedAppeals = parseInt(appealsResult.rows[0]?.resolved, 10) || 0;
+		const appealResolutionRate = totalAppeals > 0 ? (resolvedAppeals / totalAppeals) : 0;
+
+		// Latest bias audit for demographic parity score
+		const biasAuditResult = await pool.query(`
+			SELECT audit_date, overall_fairness_score
+			FROM fairness_audits
+			ORDER BY audit_date DESC
+			LIMIT 1
+		`);
+
+		const latestBiasAudit = biasAuditResult.rows[0];
+		const demographicParityScore = latestBiasAudit
+			? parseFloat(latestBiasAudit.overall_fairness_score) || 0
+			: 0;
+
+		// Latest bias report date
+		const biasReportResult = await pool.query(`
+			SELECT report_date
+			FROM bias_reports
+			ORDER BY report_date DESC
+			LIMIT 1
+		`);
+
+		const latestBiasReport = biasReportResult.rows[0];
+		const latestReportDate = latestBiasReport
+			? latestBiasReport.report_date
+			: (latestBiasAudit ? latestBiasAudit.audit_date : null);
+
+		// Consent records
+		const consentResult = await pool.query(`
+			SELECT COUNT(*) as total FROM consent_records
+		`);
+
+		const totalConsentRecords = parseInt(consentResult.rows[0]?.total, 10) || 0;
+
+		// Data retention policies
+		const retentionResult = await pool.query(`
+			SELECT data_type, retention_days, auto_delete, description
+			FROM data_retention_policies
+			ORDER BY data_type
+		`);
+
+		const retentionPolicies = retentionResult.rows.map((row) => ({
+			dataType: row.data_type,
+			retentionDays: row.retention_days,
+			autoDelete: row.auto_delete,
+			description: row.description,
+		}));
+
+		// OmniScore performance metrics
+		const omniResult = await pool.query(`
+			SELECT AVG(overall_score) as avg_score,
+				   COUNT(*) as total_scores
+			FROM omniscore_results
+			WHERE overall_score IS NOT NULL
+		`);
+
+		const avgOmniScore = parseFloat(omniResult.rows[0]?.avg_score) || 0;
+		const totalScores = parseInt(omniResult.rows[0]?.total_scores, 10) || 0;
+
+		res.json({
+			success: true,
+			generatedAt,
+			systemDescription: {
+				name: 'Rekrut AI',
+				description: 'AI-native recruitment platform for candidate screening, job matching, interview analysis, and assessment scoring.',
+				classification: 'High-risk AI system under EU AI Act Article 6(2)(a)',
+				version: '2.0',
+				lastUpdated: generatedAt,
+				activeComponents,
+			},
+			aiComponents,
+			performanceMetrics: {
+				totalDecisions,
+				avgOmniScore: Math.round(avgOmniScore * 100) / 100,
+				totalScores,
+				overrideRate: Math.round(overrideRate * 10000) / 10000,
+				periodDays: 'all_time',
+			},
+			biasAnalysis: {
+				latestReportDate,
+				demographicParityScore: Math.round(demographicParityScore * 100) / 100,
+				totalAudits: latestBiasAudit ? 1 : 0,
+			},
+			humanOversight: {
+				totalOverrides,
+				overrideRate: Math.round(overrideRate * 10000) / 10000,
+				totalAppeals,
+				resolvedAppeals,
+				appealResolutionRate: Math.round(appealResolutionRate * 10000) / 10000,
+			},
+			dataGovernance: {
+				totalConsentRecords,
+				retentionPolicies,
+			},
+			knownLimitations: [
+				'No documented risk classification procedure reviewed by legal counsel or DPO (ART6-001)',
+				'No formal risk management system with risk register and treatment plan (ART9-001)',
+				'No data inventory or documentation for training, validation, and testing datasets (ART10-001)',
+				'Bias detection analyzes model outputs only, not training data for representativeness or bias (ART10-005)',
+				'No systematic post-market monitoring plan implemented (Art. 61)',
+				'Technical documentation does not yet meet full EU AI Act Article 13 requirements (ART13-001)',
+				'No conformity assessment initiated with a notified body (Art. 43)',
+				'Performance metrics lack validated benchmarks against ground truth',
+			],
+			mitigationMeasures: [
+				'Comprehensive audit logging for all AI decisions with immutable hashes',
+				'Automated bias detection and quarterly fairness audits',
+				'Human override capability with full audit trail',
+				'Candidate score appeals process with review workflow',
+				'GDPR-compliant data request handling (export and deletion)',
+				'Configurable data retention policies with auto-deletion support',
+				'Explicit consent management for AI processing',
+				'Explainability service for AI decisions and scores',
+			],
+		});
+	} catch (error) {
+		console.error('[admin/compliance/transparency-report] Error:', error.message);
+		res.status(500).json({ error: 'Failed to load transparency report' });
+	}
+});
+
 // GET /api/admin/compliance/bias-reports — historical fairness audit reports
 router.get('/compliance/bias-reports', requireAdmin, async (req, res) => {
 	try {
