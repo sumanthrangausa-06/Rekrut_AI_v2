@@ -1886,7 +1886,7 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
 			const userInfo = profile.rows[0];
 			await emailService.sendTemplatedEmail({
 				to: userInfo?.email,
-				templateName: 'job_application_submitted',
+				templateName: 'candidate_application_submitted',
 				templateData: {
 					name: userInfo?.name || 'Candidate',
 					job_title: jobInfo?.title || 'the position',
@@ -1918,7 +1918,7 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
 			if (recruiter?.email) {
 				await emailService.sendTemplatedEmail({
 					to: recruiter.email,
-					templateName: 'job_application_received',
+					templateName: 'recruiter_new_application',
 					templateData: {
 						name: recruiter.name || 'Recruiter',
 						candidate_name: userInfo?.name || 'Candidate',

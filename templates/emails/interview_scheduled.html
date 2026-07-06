@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interview Scheduled</title>
+  <style>
+    body { margin:0;padding:0;background:#f3f4f6;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+    .container { max-width:600px;margin:24px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.05); }
+    .header { background:#6366f1;padding:40px 24px;text-align:center; }
+    .header h1 { color:#ffffff;margin:0;font-size:24px;letter-spacing:-0.02em; }
+    .body { padding:32px 24px;color:#1f2937;line-height:1.7;font-size:16px; }
+    .body p { margin:0 0 16px; }
+    .card { background:#f8f9ff;border:1px solid #e0e7ff;border-radius:8px;padding:20px;margin:20px 0; }
+    .card h3 { margin:0 0 8px;color:#4338ca;font-size:18px; }
+    .card p { margin:0 0 4px;color:#4b5563; }
+    .highlight { color:#6366f1;font-weight:700; }
+    .button { display:inline-block;background:#6366f1;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;margin:8px 0; }
+    .footer { background:#f9fafb;padding:20px 24px;text-align:center;color:#6b7280;font-size:13px; }
+    .footer a { color:#6366f1;text-decoration:none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Interview Scheduled</h1>
+    </div>
+    <div class="body">
+      <p>Hi {{name}},</p>
+      <p>Your interview for <strong>{{job_title}}</strong> at <strong>{{company_name}}</strong> has been scheduled.</p>
+      <div class="card">
+        <h3>Interview Details</h3>
+        <p><strong>Date:</strong> <span class="highlight">{{interview_date}}</span></p>
+        <p><strong>Time:</strong> <span class="highlight">{{interview_time}}</span></p>
+        <p><strong>Location:</strong> {{interview_location}}</p>
+        <p><strong>Format:</strong> {{interview_type}}</p>
+        {{#if meeting_link}}<p><strong>Meeting Link:</strong> <a href="{{meeting_link}}">{{meeting_link}}</a></p>{{/if}}
+        {{#if recruiter_name}}<p><strong>Recruiter:</strong> {{recruiter_name}}</p>{{/if}}
+      </div>
+      {{#if calendar_link}}<a class="button" href="{{calendar_link}}">Add to Calendar</a>{{/if}}
+      <p style="margin-top:20px;color:#6b7280;font-size:14px;">Please join the meeting a few minutes early. If you need to reschedule, contact your recruiter as soon as possible.</p>
+    </div>
+    <div class="footer">
+      <p>Rekrut AI — The candidate credit score platform</p>
+      <p><a href="https://rekrutai.co">rekrutai.co</a> | Need help? <a href="mailto:support@rekrutai.co">support@rekrutai.co</a></p>
+    </div>
+  </div>
+</body>
+</html>

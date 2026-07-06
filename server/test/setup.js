@@ -167,10 +167,15 @@ jest.mock('../../lib/db', () => {
 // ─── Mock other server-side modules ─────────────────────────────────────────
 
 jest.mock('../../lib/email-service', () => {
+  const actual = jest.requireActual('../../lib/email-service');
   return {
-    sendEmail: jest.fn().mockResolvedValue({ messageId: 'test-message-id' }),
-    sendVerificationEmail: jest.fn().mockResolvedValue({ messageId: 'test-verification-id' }),
-    sendTemplatedEmail: jest.fn().mockResolvedValue({ messageId: 'test-welcome-id' }),
+    ...actual,
+    sendTemplatedEmail: jest.fn().mockResolvedValue({ success: true, messageId: 'test-welcome-id' }),
+    sendCustomEmail: jest.fn().mockResolvedValue({ success: true, messageId: 'test-custom-id' }),
+    queueEmail: jest.fn().mockResolvedValue({ success: true, queueId: 1 }),
+    sendEmailAsync: jest.fn().mockResolvedValue({ success: true }),
+    verifyConnection: jest.fn().mockResolvedValue({ success: true }),
+    initializeTransporter: jest.fn().mockReturnValue(true),
   };
 });
 
@@ -184,7 +189,7 @@ jest.mock('../../lib/distributed-rate-limiter', () => {
       ai: rateLimitMiddleware,
     },
     distributedRateLimiter: {
-      check: jest.fn().mockResolvedValue({ allowed: true }),
+      checkLimit: jest.fn().mockResolvedValue({ allowed: true, count: 1, retryAfter: 0 }),
       startCleanup: jest.fn(),
     },
   };

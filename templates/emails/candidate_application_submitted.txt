@@ -1,0 +1,21 @@
+Hi {{name}},
+
+Your application for {{job_title}} at {{company_name}} has been successfully submitted.
+
+---
+Job Details
+---
+Title: {{job_title}}
+Company: {{company_name}}
+Location: {{location}}
+Applied on: {{applied_date}}
+
+You can track the status of your application and manage your job search from your dashboard:
+{{application_link}}
+
+Good luck with your application! We will notify you as soon as the recruiter updates the status.
+
+---
+Rekrut AI — The candidate credit score platform
+rekrutai.co
+Need help? support@rekrutai.co
