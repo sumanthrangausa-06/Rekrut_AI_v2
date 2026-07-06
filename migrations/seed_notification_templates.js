@@ -238,6 +238,100 @@ Best regards,
 		is_system: true,
 	},
 	{
+		name: 'job_application_submitted',
+		type: 'application',
+		subject_template: 'Application Submitted — {{job_title}} at {{company_name}}',
+		body_template: `Hi {{name}},
+
+Your application for the {{job_title}} position at {{company_name}} has been successfully submitted.
+
+What happens next:
+- The hiring team will review your application
+- You may be invited to complete a skill assessment
+- We'll notify you of any status updates
+
+You can track your application status here:
+{{application_link}}
+
+Best regards,
+{{company_name}} Hiring Team`,
+		html_template: `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="text-align: center; padding: 20px 0;">
+    <div style="display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: #2563eb; color: white; border-radius: 8px; font-weight: bold; font-size: 18px;">R</div>
+    <h2 style="margin: 10px 0 0; color: #111;">Rekrut AI</h2>
+  </div>
+  <div style="background: #f8fafc; border-radius: 12px; padding: 24px; margin: 20px 0;">
+    <h2 style="color: #1e293b; margin-top: 0;">Application Submitted</h2>
+    <p>Hi {{name}},</p>
+    <p>Your application for the <strong>{{job_title}}</strong> position at <strong>{{company_name}}</strong> has been successfully submitted.</p>
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0;">
+      <p style="margin: 8px 0;"><strong>What happens next:</strong></p>
+      <ul style="padding-left: 20px; margin: 8px 0;">
+        <li>The hiring team will review your application</li>
+        <li>You may be invited to complete a skill assessment</li>
+        <li>We'll notify you of any status updates</li>
+      </ul>
+    </div>
+    <a href="{{application_link}}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 500; margin: 8px 0;">Track Application</a>
+  </div>
+  <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 30px;">
+    Best regards,<br>{{company_name}} Hiring Team
+  </p>
+</body>
+</html>`,
+		variables: JSON.stringify(['name', 'job_title', 'company_name', 'location', 'applied_date', 'application_link']),
+		is_system: true,
+	},
+	{
+		name: 'job_application_received',
+		type: 'application',
+		subject_template: 'New Application: {{candidate_name}} for {{job_title}}',
+		body_template: `Hi {{name}},
+
+You have received a new application for the {{job_title}} position.
+
+Candidate: {{candidate_name}}
+Email: {{candidate_email}}
+OmniScore: {{omniscore}}
+Applied: {{applied_date}}
+
+View the application:
+{{application_link}}
+
+Best regards,
+Rekrut AI`,
+		html_template: `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="text-align: center; padding: 20px 0;">
+    <div style="display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: #2563eb; color: white; border-radius: 8px; font-weight: bold; font-size: 18px;">R</div>
+    <h2 style="margin: 10px 0 0; color: #111;">Rekrut AI</h2>
+  </div>
+  <div style="background: #f8fafc; border-radius: 12px; padding: 24px; margin: 20px 0;">
+    <h2 style="color: #1e293b; margin-top: 0;">New Application Received</h2>
+    <p>Hi {{name}},</p>
+    <p>You have received a new application for the <strong>{{job_title}}</strong> position.</p>
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0;">
+      <p style="margin: 8px 0;"><strong>Candidate:</strong> {{candidate_name}}</p>
+      <p style="margin: 8px 0;"><strong>Email:</strong> {{candidate_email}}</p>
+      <p style="margin: 8px 0;"><strong>OmniScore:</strong> {{omniscore}}</p>
+      <p style="margin: 8px 0;"><strong>Applied:</strong> {{applied_date}}</p>
+    </div>
+    <a href="{{application_link}}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 500; margin: 8px 0;">View Application</a>
+  </div>
+  <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 30px;">
+    Best regards,<br>Rekrut AI
+  </p>
+</body>
+</html>`,
+		variables: JSON.stringify(['name', 'candidate_name', 'candidate_email', 'job_title', 'omniscore', 'applied_date', 'application_link']),
+		is_system: true,
+	},
+	{
 		name: 'welcome',
 		type: 'welcome',
 		subject_template: 'Welcome to Rekrut AI!',

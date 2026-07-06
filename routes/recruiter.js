@@ -846,6 +846,38 @@ router.put('/applications/:id/status', authMiddleware, requireRecruiter, async (
 			[status, req.params.id],
 		);
 
+		// ── Send status update notification to candidate (non-blocking) ──
+		try {
+			const candidateInfo = await pool.query(
+				`SELECT u.id, u.email, u.name, j.title as job_title, c.name as company_name
+				 FROM users u
+				 JOIN job_applications ja ON ja.candidate_id = u.id
+				 JOIN jobs j ON j.id = ja.job_id
+				 JOIN companies c ON c.id = j.company_id
+				 WHERE ja.id = $1`,
+				[req.params.id],
+			);
+			const cand = candidateInfo.rows[0];
+			if (cand?.email) {
+				await emailService.sendTemplatedEmail({
+					to: cand.email,
+					templateName: 'status_update',
+					templateData: {
+						candidate_name: cand.name || 'Candidate',
+						job_title: cand.job_title || 'the position',
+						company_name: cand.company_name || 'Our Company',
+						status: status,
+						feedback: '',
+						next_steps: '',
+					},
+					userId: cand.id,
+					metadata: { application_id: req.params.id, job_id: existing.rows[0].job_id, new_status: status },
+				});
+			}
+		} catch (emailErr) {
+			console.error('[email] Failed to send application status update email (non-blocking):', emailErr.message);
+		}
+
 		// Audit log
 		await AuditLogger.log({
 			actionType: 'application_status_changed',
