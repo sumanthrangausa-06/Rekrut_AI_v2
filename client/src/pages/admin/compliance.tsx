@@ -1862,6 +1862,14 @@ export function AdminCompliancePage() {
 				</TabsContent>
 
 				<TabsContent value='transparency' className='mt-4'>
+					<div className='mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2'>
+						<AlertTriangle className='h-4 w-4 text-amber-600 mt-0.5 shrink-0' />
+						<p className='text-xs text-amber-800'>
+							<strong>Internal tracking only.</strong> This section contains static placeholder content.
+							It does not represent verified compliance status. See the gap analysis for actual
+							compliance posture.
+						</p>
+					</div>
 					<Card>
 						<CardHeader>
 							<CardTitle>EU AI Act Transparency Report</CardTitle>
@@ -2403,6 +2411,13 @@ export function AdminCompliancePage() {
 
 				{/* EU AI Act Article 6 — Risk Classification */}
 				<TabsContent value='risk-classification' className='mt-4'>
+					<div className='mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2'>
+						<AlertTriangle className='h-4 w-4 text-amber-600 mt-0.5 shrink-0' />
+						<p className='text-xs text-amber-800'>
+							<strong>Internal tracking only.</strong> Risk classifications below are static placeholders.
+							A formal risk classification document with legal review is required for compliance.
+						</p>
+					</div>
 					<div className='space-y-4'>
 						<Card>
 							<CardHeader>
@@ -2989,6 +3004,13 @@ export function AdminCompliancePage() {
 
 				{/* EU AI Act Article 10 — Data Governance */}
 				<TabsContent value='data-governance' className='mt-4'>
+					<div className='mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2'>
+						<AlertTriangle className='h-4 w-4 text-amber-600 mt-0.5 shrink-0' />
+						<p className='text-xs text-amber-800'>
+							<strong>Internal tracking only.</strong> This section contains static placeholder content.
+							Data governance policies and training data reviews are not yet implemented.
+						</p>
+					</div>
 					<div className='space-y-4'>
 						<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
 							<ChartCard
@@ -3146,6 +3168,14 @@ export function AdminCompliancePage() {
 
 				{/* Conformity Assessment */}
 				<TabsContent value='conformity' className='mt-4'>
+					<div className='mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2'>
+						<AlertTriangle className='h-4 w-4 text-red-600 mt-0.5 shrink-0' />
+						<p className='text-xs text-red-800'>
+							<strong>Not a compliance certification.</strong> Status badges below are static placeholders
+							and do not reflect actual compliance. No notified body has been engaged. See the
+							EU AI Act gap analysis for the true compliance posture.
+						</p>
+					</div>
 					<div className='space-y-4'>
 						<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
 							<ChartCard
