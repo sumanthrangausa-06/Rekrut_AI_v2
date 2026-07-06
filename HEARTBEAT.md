@@ -31,20 +31,20 @@ All P0 security fixes are **confirmed live** in production at commit `366d086` (
 
 | Environment | Commit | Branch | Health |
 |-------------|--------|--------|--------|
-| Production | `35e1e71` | main | ✅ 200 OK |
-| Staging | `35e1e71` | staging | ✅ 200 OK |
+| Production | `c058596` (expected: 2d15291) | main | ✅ 200 OK |
+| Staging | `23f798a` | staging | ✅ 200 OK |
 | Dev | `cedbac0` | dev | ✅ 200 OK |
 
-**Main branch:** `35e1e71` (feat(candidate): add omni_score to profile query) — in sync with staging, awaiting dev merge
-**Staging branch:** `35e1e71` — in sync with main, awaiting dev merge
-**Dev branch:** `cedbac0` (docs: add auto-deploy status report) — 3 commits ahead of main/staging
+**Main branch:** `2d15291` (deploy: merge staging into main for production release) — pushed to origin/main, auto-deploy triggered
+**Staging branch:** `44ae2c9` (HEARTBEAT update + merge commit) — pushed to origin/staging, deployed correctly
+**Dev branch:** `cedbac0` (docs: add auto-deploy status report) — merged into staging and main
   - `cedbac0` docs: add auto-deploy status report for commit sync and Render verification
   - `5664d2f` fix: add DATABASE_URL placeholder validation and local dev example to prevent E2E auth 500 errors
   - `da36a11` merge(main): sync dev with latest main (omni_score + deploy workflow)
-**Production deploy:** Confirmed live at commit `35e1e71` via health endpoint at 2026-07-06 05:13 UTC
+**Production deploy:** Health endpoint shows `c058596`, expected `2d15291`. Auto-deploy may be in progress or needs verification.
 **Auto-deploy pipeline:** ✅ ACTIVE — GitHub Actions workflow triggers deploy on push to main via Render API
 **GitHub secret:** `RENDER_API_KEY` configured
-**Current action:** devops-automator merging dev → staging → main (IN PROGRESS)
+**Current action:** Merge ✅ COMPLETED. Investigating production deploy discrepancy (c058596 vs expected 2d15291).
 
 ---
 
@@ -98,9 +98,10 @@ All P0 security fixes are **confirmed live** in production at commit `366d086` (
 | devops-automator (DO-001) | Fix production auto-deploy pipeline | ✅ DONE | f7ea669 |
 | devops-automator (DO-001) | Deploy main to production | ✅ DONE | f780e29 |
 | application-security-engineer (DO-002) | Verify P0 fixes in production + correct heartbeat | ✅ DONE | 366d086 |
-| **devops-automator** | **Merge dev → staging → main** | **🔄 IN PROGRESS** | **—** |
+| **devops-automator** | **Merge dev → staging → main** | ✅ **DONE** | 2d15291 |
+| **Suga (CEO)** | **HEARTBEAT update + status report** | ✅ **DONE** | 44ae2c9 |
 
 ---
 
 *Next heartbeat: 2026-07-06 05:43 UTC*
-*Next action: Complete dev → staging → main merge, verify production deploy, update commit hashes*
+*Next action: Investigate production deploy discrepancy (c058596 vs expected 2d15291). Verify auto-deploy pipeline triggered correctly.
