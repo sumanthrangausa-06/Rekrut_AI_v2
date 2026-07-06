@@ -1,0 +1,23 @@
+Hi {{name}},
+
+A new candidate has applied for {{job_title}}. Here is a quick overview:
+
+---
+Candidate Details
+---
+Name: {{candidate_name}}
+Email: {{candidate_email}}
+Job: {{job_title}}
+OmniScore: {{omniscore}}
+Verification: {{verification_status}}
+Applied on: {{applied_date}}
+
+Review the full application and move the candidate forward in your pipeline:
+{{application_link}}
+
+Rekrut AI helps you find the best talent faster with data-driven insights.
+
+---
+Rekrut AI — The candidate credit score platform
+rekrutai.co
+Need help? support@rekrutai.co

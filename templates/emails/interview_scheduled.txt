@@ -1,0 +1,22 @@
+Hi {{name}},
+
+Your interview for {{job_title}} at {{company_name}} has been scheduled.
+
+---
+Interview Details
+---
+Date: {{interview_date}}
+Time: {{interview_time}}
+Location: {{interview_location}}
+Format: {{interview_type}}
+{{#if meeting_link}}Meeting Link: {{meeting_link}}
+{{/if}}{{#if recruiter_name}}Recruiter: {{recruiter_name}}
+{{/if}}
+---
+{{#if calendar_link}}Add to Calendar: {{calendar_link}}
+{{/if}}Please join the meeting a few minutes early. If you need to reschedule, contact your recruiter as soon as possible.
+
+---
+Rekrut AI — The candidate credit score platform
+rekrutai.co
+Need help? support@rekrutai.co

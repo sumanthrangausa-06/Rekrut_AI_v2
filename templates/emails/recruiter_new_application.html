@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Application Received</title>
+  <style>
+    body { margin:0;padding:0;background:#f3f4f6;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+    .container { max-width:600px;margin:24px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.05); }
+    .header { background:#6366f1;padding:40px 24px;text-align:center; }
+    .header h1 { color:#ffffff;margin:0;font-size:24px;letter-spacing:-0.02em; }
+    .body { padding:32px 24px;color:#1f2937;line-height:1.7;font-size:16px; }
+    .body p { margin:0 0 16px; }
+    .card { background:#f8f9ff;border:1px solid #e0e7ff;border-radius:8px;padding:20px;margin:20px 0; }
+    .card h3 { margin:0 0 8px;color:#4338ca;font-size:18px; }
+    .card p { margin:0 0 4px;color:#4b5563; }
+    .badge { display:inline-block;background:#10b981;color:#fff;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600; }
+    .button { display:inline-block;background:#6366f1;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;margin:8px 0; }
+    .footer { background:#f9fafb;padding:20px 24px;text-align:center;color:#6b7280;font-size:13px; }
+    .footer a { color:#6366f1;text-decoration:none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>New Application Received</h1>
+    </div>
+    <div class="body">
+      <p>Hi {{name}},</p>
+      <p>A new candidate has applied for <strong>{{job_title}}</strong>. Here is a quick overview:</p>
+      <div class="card">
+        <h3>{{candidate_name}}</h3>
+        <p><strong>Email:</strong> {{candidate_email}}</p>
+        <p><strong>Job:</strong> {{job_title}}</p>
+        <p><strong>OmniScore:</strong> {{omniscore}}</p>
+        <p><strong>Verification:</strong> <span class="badge">{{verification_status}}</span></p>
+        <p><strong>Applied on:</strong> {{applied_date}}</p>
+      </div>
+      <p>Review the full application and move the candidate forward in your pipeline.</p>
+      <a class="button" href="{{application_link}}">Review Application</a>
+      <p style="margin-top:20px;color:#6b7280;font-size:14px;">Rekrut AI helps you find the best talent faster with data-driven insights.</p>
+    </div>
+    <div class="footer">
+      <p>Rekrut AI — The candidate credit score platform</p>
+      <p><a href="https://rekrutai.co">rekrutai.co</a> | Need help? <a href="mailto:support@rekrutai.co">support@rekrutai.co</a></p>
+    </div>
+  </div>
+</body>
+</html>
