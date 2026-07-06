@@ -19,7 +19,7 @@ function sendError(res, err, consolePrefix) {
 	if (process.env.NODE_ENV === 'production') {
 		res.status(500).json({ error: 'Internal server error', ref });
 	} else {
-		res.status(500).json({ error: 'Internal server error', details: err.message, ref });
+		res.status(500).json({ error: 'Internal server error', ref });
 	}
 }
 

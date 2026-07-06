@@ -45,7 +45,7 @@ export function Header({ onMenuToggle, sidebarOpen }: HeaderProps) {
 				<button
 					onClick={onMenuToggle}
 					className='flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-2 hover:bg-muted lg:hidden'
-					aria-label={sidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+					aria-label='Open navigation menu'
 					aria-controls='primary-navigation'
 					aria-expanded={sidebarOpen}
 				>

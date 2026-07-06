@@ -1,7 +1,5 @@
-const pool = require('../lib/db');
-
-async function up() {
-	await pool.query(`
+async function up(client) {
+	await client.query(`
 		CREATE TABLE IF NOT EXISTS email_queue (
 			id SERIAL PRIMARY KEY,
 			recipient VARCHAR(255) NOT NULL,
@@ -24,8 +22,8 @@ async function up() {
 	console.log('Email queue table created');
 }
 
-async function down() {
-	await pool.query('DROP TABLE IF EXISTS email_queue');
+async function down(client) {
+	await client.query('DROP TABLE IF EXISTS email_queue');
 	console.log('Email queue table dropped');
 }
 

@@ -133,9 +133,10 @@ router.get('/profile', authMiddleware, async (req, res) => {
 	try {
 		const profile = await pool.query(
 			`
-      SELECT cp.*, u.name, u.email, u.avatar_url
+      SELECT cp.*, u.name, u.email, u.avatar_url, os.total_score as omni_score
       FROM users u
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+      LEFT JOIN omni_scores os ON os.user_id = u.id
       WHERE u.id = $1
     `,
 			[req.user.id],
@@ -311,7 +312,7 @@ router.put('/profile', authMiddleware, async (req, res) => {
 		res.json({ success: true, profile: result.rows[0] });
 	} catch (err) {
 		if (err.statusCode === 400) {
-			return res.status(400).json({ error: err.message });
+			return res.status(400).json({ error: 'Invalid job data. Please check your input and try again.' });
 		}
 		console.error('Update profile error:', err);
 		res.status(500).json({ error: 'Failed to update profile' });
@@ -1562,7 +1563,7 @@ router.get('/jobs', authMiddleware, async (req, res) => {
 		});
 	} catch (error) {
 		console.error('Error fetching jobs:', error);
-		res.status(500).json({ error: 'Failed to fetch jobs', details: error.message });
+		res.status(500).json({ error: 'Failed to fetch jobs' });
 	}
 });
 

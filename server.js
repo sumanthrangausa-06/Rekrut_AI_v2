@@ -128,7 +128,7 @@ app.get('/deploy-check', (_req, res) => {
 			deployed: true, 
 			commit: 'unknown', 
 			timestamp: new Date().toISOString(),
-			error: err.message 
+			error: 'Failed to read deployment info' 
 		});
 	}
 });
@@ -142,7 +142,7 @@ app.get('/version', (_req, res) => {
 		const timestamp = execSync('git log -1 --format=%ci', { cwd: __dirname, encoding: 'utf8' }).trim();
 		res.json({ commit, branch, timestamp, env: process.env.NODE_ENV || 'unknown' });
 	} catch (err) {
-		res.json({ commit: 'unknown', branch: 'unknown', env: process.env.NODE_ENV || 'unknown', error: err.message });
+		res.json({ commit: 'unknown', branch: 'unknown', env: process.env.NODE_ENV || 'unknown', error: 'Failed to read version info' });
 	}
 });
 
@@ -209,8 +209,8 @@ app.get('/health', async (_req, res) => {
 			commit: process.env.RENDER_GIT_COMMIT || 'unknown',
 			branch: process.env.RENDER_GIT_BRANCH || 'unknown',
 			deployed_at: process.env.RENDER_DEPLOYED_AT || new Date().toISOString(),
-			db: { connected: false, error: err.message },
-			issues: { healthCheckError: err.message },
+			db: { connected: false, error: 'Health check failed' },
+			issues: { healthCheckError: true },
 		});
 	}
 });
@@ -252,8 +252,8 @@ app.get('/api/health', async (_req, res) => {
 		res.status(200).json({
 			status: 'degraded',
 			timestamp: new Date().toISOString(),
-			db: { connected: false, error: err.message },
-			issues: { healthCheckError: err.message },
+			db: { connected: false, error: 'Health check failed' },
+			issues: { healthCheckError: true },
 		});
 	}
 });
@@ -890,7 +890,7 @@ app.get('/api/ai-health/prompts/:id', requireAdmin, async (req, res) => {
 			abTests: testsResult.rows,
 		});
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to get prompt', message: err.message });
+		res.status(500).json({ error: 'Failed to get prompt' });
 	}
 });
 
@@ -946,7 +946,7 @@ app.post('/api/ai-health/prompts', requireAdmin, async (req, res) => {
 
 		res.json({ prompt, message: `Version ${prompt.current_version} created` });
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to save prompt', message: err.message });
+		res.status(500).json({ error: 'Failed to save prompt' });
 	}
 });
 
@@ -980,7 +980,7 @@ app.put('/api/ai-health/prompts/:id', requireAdmin, async (req, res) => {
 
 		res.json({ prompt, message: `Version ${prompt.current_version} created` });
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to update prompt', message: err.message });
+		res.status(500).json({ error: 'Failed to update prompt' });
 	}
 });
 
@@ -1026,7 +1026,7 @@ app.post('/api/ai-health/prompts/:id/rollback', requireAdmin, async (req, res) =
 			message: `Rolled back to version ${targetVersion} (as new version ${prompt.current_version})`,
 		});
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to rollback', message: err.message });
+		res.status(500).json({ error: 'Failed to rollback' });
 	}
 });
 
@@ -1051,7 +1051,7 @@ app.post('/api/ai-health/prompts/:id/ab-test', requireAdmin, async (req, res) =>
 
 		res.json({ test: result.rows[0], message: 'A/B test started' });
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to start A/B test', message: err.message });
+		res.status(500).json({ error: 'Failed to start A/B test' });
 	}
 });
 
@@ -1069,7 +1069,7 @@ app.put('/api/ai-health/ab-tests/:id/end', requireAdmin, async (req, res) => {
 			message: `A/B test ended${winner ? ` — winner: version ${winner}` : ''}`,
 		});
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to end test', message: err.message });
+		res.status(500).json({ error: 'Failed to end test' });
 	}
 });
 
@@ -1102,7 +1102,7 @@ app.post('/api/ai-health/query', requireAdmin, async (req, res) => {
 
 		res.json({ question, answer, data: { summary, models, modules, budget } });
 	} catch (err) {
-		res.status(500).json({ error: 'Query failed', message: err.message });
+		res.status(500).json({ error: 'Query failed' });
 	}
 });
 
@@ -1586,7 +1586,7 @@ app.get('/api/admin/modules', requireAdmin, async (_req, res) => {
 		});
 	} catch (err) {
 		console.error('[admin/modules] Error:', err.message);
-		res.status(500).json({ error: 'Failed to get module metrics', message: err.message });
+		res.status(500).json({ error: 'Failed to get module metrics' });
 	}
 });
 
@@ -1633,24 +1633,43 @@ app.get('/api/admin/routes', requireAdmin, (_req, res) => {
 			trackedEndpoints: endpoints,
 		});
 	} catch (err) {
-		res.status(500).json({ error: 'Failed to get route metrics', message: err.message });
+		res.status(500).json({ error: 'Failed to get route metrics' });
 	}
 });
 
 // Serve React SPA — this is the only frontend
-const reactBuildPath = path.join(__dirname, 'client', 'dist');
+const possibleBuildPaths = [
+	path.join(__dirname, 'client', 'dist'),
+	path.join(__dirname, 'client', 'build'),
+];
+
+function findReactBuildPath() {
+	for (const p of possibleBuildPaths) {
+		if (fs.existsSync(path.join(p, 'index.html'))) {
+			return p;
+		}
+	}
+	return possibleBuildPaths[0]; // default to dist even if not found yet
+}
+
+const reactBuildPath = findReactBuildPath();
 const publicAssetsPath = path.join(__dirname, 'public');
 
 // Cache the React SPA index.html in memory to avoid filesystem race conditions
-const indexPath = path.join(reactBuildPath, 'index.html');
 let indexHtml = null;
-try {
-	if (fs.existsSync(indexPath)) {
-		indexHtml = fs.readFileSync(indexPath, 'utf8');
+function loadIndexHtml() {
+	const indexPath = path.join(reactBuildPath, 'index.html');
+	try {
+		if (fs.existsSync(indexPath)) {
+			indexHtml = fs.readFileSync(indexPath, 'utf8');
+			return true;
+		}
+	} catch (err) {
+		console.error('[server] Error reading React build:', err.message);
 	}
-} catch (err) {
-	console.error('[server] Error reading React build:', err.message);
+	return false;
 }
+loadIndexHtml(); // initial load at startup
 
 // Serve static assets from public/ (favicon, robots.txt, etc. — NOT HTML files)
 app.use(
@@ -1672,12 +1691,19 @@ app.use(
 // SPA fallback — serve React index.html for all non-API routes that don't match a file
 app.get('*', (req, res) => {
 	if (!req.path.startsWith('/api/') && req.path !== '/api') {
-		// Check if the requested file exists as a static asset
+		// Check if the requested file exists as a static asset in the build
 		const assetPath = path.join(reactBuildPath, req.path);
 		if (req.path !== '/' && fs.existsSync(assetPath) && fs.statSync(assetPath).isFile()) {
 			res.sendFile(assetPath);
 			return;
 		}
+
+		// If cached index is missing, try to reload it dynamically
+		// (handles case where server started before build completed)
+		if (!indexHtml) {
+			loadIndexHtml();
+		}
+
 		if (indexHtml) {
 			res.send(indexHtml);
 		} else {
@@ -1698,9 +1724,9 @@ app.use((err, _req, res, _next) => {
 	if (res.headersSent) return;
 	// If the request is for an API endpoint or static asset, return JSON
 	if (_req.path.startsWith('/api/') || _req.path.startsWith('/assets/')) {
-		return res.status(500).json({ error: 'Internal server error', message: err.message });
+		return res.status(500).json({ error: 'Internal server error' });
 	}
-	res.status(500).json({ error: 'Internal server error', message: err.message });
+	res.status(500).json({ error: 'Internal server error' });
 });
 
 // Only start the server if not in test mode (prevents port binding during integration tests)

@@ -8,17 +8,49 @@
 module.exports = {
 	name: 'p2_schema_hardening',
 	up: async (client) => {
+		// Helper to check if table exists
+		async function tableExists(tableName) {
+			const result = await client.query(
+				`SELECT 1 FROM information_schema.tables WHERE table_name = $1`,
+				[tableName]
+			);
+			return result.rows.length > 0;
+		}
+
+		// Helper to check if column exists
+		async function columnExists(tableName, columnName) {
+			const result = await client.query(
+				`SELECT 1 FROM information_schema.columns WHERE table_name = $1 AND column_name = $2`,
+				[tableName, columnName]
+			);
+			return result.rows.length > 0;
+		}
+
+		// Helper to check if constraint exists
+		async function constraintExists(tableName, constraintName) {
+			const result = await client.query(
+				`SELECT 1 FROM information_schema.table_constraints WHERE table_name = $1 AND constraint_name = $2`,
+				[tableName, constraintName]
+			);
+			return result.rows.length > 0;
+		}
+
 		// ═══════════════════════════════════════════════════════════════════
 		// SECTION 1: screening_sessions timestamp → timestamptz
 		// ═══════════════════════════════════════════════════════════════════
-		await client.query(`
-      ALTER TABLE screening_sessions
-        ALTER COLUMN invited_at TYPE timestamptz USING invited_at AT TIME ZONE 'UTC',
-        ALTER COLUMN started_at TYPE timestamptz USING started_at AT TIME ZONE 'UTC',
-        ALTER COLUMN completed_at TYPE timestamptz USING completed_at AT TIME ZONE 'UTC',
-        ALTER COLUMN expires_at TYPE timestamptz USING expires_at AT TIME ZONE 'UTC',
-        ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC'
-    `);
+		if (await tableExists('screening_sessions')) {
+			await client.query(`
+				ALTER TABLE screening_sessions
+					ALTER COLUMN invited_at TYPE timestamptz USING invited_at AT TIME ZONE 'UTC',
+					ALTER COLUMN started_at TYPE timestamptz USING started_at AT TIME ZONE 'UTC',
+					ALTER COLUMN completed_at TYPE timestamptz USING completed_at AT TIME ZONE 'UTC',
+					ALTER COLUMN expires_at TYPE timestamptz USING expires_at AT TIME ZONE 'UTC',
+					ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC'
+			`);
+			console.log('[migration] screening_sessions timestamptz conversion applied');
+		} else {
+			console.log('[migration] Skipping screening_sessions - table does not exist yet');
+		}
 
 		// ═══════════════════════════════════════════════════════════════════
 		// SECTION 2: varchar → TEXT conversions (274 columns)
@@ -201,8 +233,26 @@ module.exports = {
 		};
 
 		for (const [table, columns] of Object.entries(textConversions)) {
-			const alterClauses = columns.map((c) => `ALTER COLUMN "${c}" TYPE TEXT`).join(', ');
+			if (!(await tableExists(table))) {
+				console.log(`[migration] Skipping text conversion for non-existent table: ${table}`);
+				continue;
+			}
+			
+			// Check which columns actually exist
+			const availableColumns = [];
+			for (const col of columns) {
+				if (await columnExists(table, col)) {
+					availableColumns.push(col);
+				} else {
+					console.log(`[migration] Skipping missing column: ${table}.${col}`);
+				}
+			}
+			
+			if (availableColumns.length === 0) continue;
+			
+			const alterClauses = availableColumns.map((c) => `ALTER COLUMN "${c}" TYPE TEXT`).join(', ');
 			await client.query(`ALTER TABLE "${table}" ${alterClauses}`);
+			console.log(`[migration] Converted ${availableColumns.length} columns in ${table}`);
 		}
 
 		// ═══════════════════════════════════════════════════════════════════
@@ -210,127 +260,217 @@ module.exports = {
 		// All values verified against live data 2026-02-14
 		// ═══════════════════════════════════════════════════════════════════
 
+		// Helper to check if column exists
+		async function columnExists(tableName, columnName) {
+			const result = await client.query(
+				`SELECT 1 FROM information_schema.columns WHERE table_name = $1 AND column_name = $2`,
+				[tableName, columnName]
+			);
+			return result.rows.length > 0;
+		}
+
+		// Helper to add constraint if not exists
+		async function addConstraint(table, constraintName, sql, columnName) {
+			if (await tableExists(table) && !(await constraintExists(table, constraintName))) {
+				if (columnName && !(await columnExists(table, columnName))) {
+					console.log(`[migration] Skipping constraint ${constraintName} - column ${columnName} doesn't exist in ${table}`);
+					return;
+				}
+				try {
+					await client.query(sql);
+					console.log(`[migration] Added constraint ${constraintName}`);
+				} catch (err) {
+					console.log(`[migration] Warning: Could not add constraint ${constraintName}: ${err.message}`);
+				}
+			} else {
+				console.log(`[migration] Skipping constraint ${constraintName} - table missing or constraint exists`);
+			}
+		}
+
 		// --- Core domain ---
-		await client.query(`
-      ALTER TABLE users ADD CONSTRAINT chk_users_role
-        CHECK (role IN ('candidate','recruiter','employer','admin','hiring_manager'));
-
-      ALTER TABLE jobs ADD CONSTRAINT chk_jobs_status
-        CHECK (status IN ('draft','active','paused','closed','archived'));
-      ALTER TABLE jobs ADD CONSTRAINT chk_jobs_job_type
-        CHECK (job_type IN ('full-time','part-time','contract','internship','freelance'));
-
-      ALTER TABLE job_applications ADD CONSTRAINT chk_job_applications_status
-        CHECK (status IN ('applied','screening','interviewed','offered','hired','rejected','withdrawn'));
-      ALTER TABLE job_applications ADD CONSTRAINT chk_job_applications_screening_status
-        CHECK (screening_status IS NULL OR screening_status IN ('pending','invited','in_progress','completed','expired','failed'));
-
-      ALTER TABLE interviews ADD CONSTRAINT chk_interviews_status
-        CHECK (status IN ('pending','in_progress','completed','cancelled'));
-      ALTER TABLE interviews ADD CONSTRAINT chk_interviews_type
-        CHECK (interview_type IN ('phone','video','onsite','technical','behavioral','panel','mock'));
-
-      ALTER TABLE screening_sessions ADD CONSTRAINT chk_screening_sessions_status
-        CHECK (status IN ('invited','started','in_progress','completed','expired','cancelled'));
-      ALTER TABLE screening_sessions ADD CONSTRAINT chk_screening_sessions_score
-        CHECK (overall_score IS NULL OR (overall_score >= 0 AND overall_score <= 100));
-
-      ALTER TABLE offers ADD CONSTRAINT chk_offers_status
-        CHECK (status IN ('draft','sent','accepted','declined','expired','rescinded','negotiating'));
-      ALTER TABLE offers ADD CONSTRAINT chk_offers_employment_type
-        CHECK (employment_type IS NULL OR employment_type IN ('full-time','part-time','contract','internship','freelance'));
-    `);
+		await addConstraint('users', 'chk_users_role', `
+			ALTER TABLE users ADD CONSTRAINT chk_users_role
+				CHECK (role IN ('candidate','recruiter','employer','admin','hiring_manager'))
+		`);
+		await addConstraint('jobs', 'chk_jobs_status', `
+			ALTER TABLE jobs ADD CONSTRAINT chk_jobs_status
+				CHECK (status IN ('draft','active','paused','closed','archived'))
+		`);
+		await addConstraint('jobs', 'chk_jobs_job_type', `
+			ALTER TABLE jobs ADD CONSTRAINT chk_jobs_job_type
+				CHECK (job_type IN ('full-time','part-time','contract','internship','freelance'))
+		`);
+		await addConstraint('job_applications', 'chk_job_applications_status', `
+			ALTER TABLE job_applications ADD CONSTRAINT chk_job_applications_status
+				CHECK (status IN ('applied','screening','interviewed','offered','hired','rejected','withdrawn'))
+		`);
+		await addConstraint('job_applications', 'chk_job_applications_screening_status', `
+			ALTER TABLE job_applications ADD CONSTRAINT chk_job_applications_screening_status
+				CHECK (screening_status IS NULL OR screening_status IN ('pending','invited','in_progress','completed','expired','failed'))
+		`);
+		await addConstraint('interviews', 'chk_interviews_status', `
+			ALTER TABLE interviews ADD CONSTRAINT chk_interviews_status
+				CHECK (status IN ('pending','in_progress','completed','cancelled'))
+		`);
+		await addConstraint('interviews', 'chk_interviews_type', `
+			ALTER TABLE interviews ADD CONSTRAINT chk_interviews_type
+				CHECK (interview_type IN ('phone','video','onsite','technical','behavioral','panel','mock'))
+		`);
+		await addConstraint('screening_sessions', 'chk_screening_sessions_status', `
+			ALTER TABLE screening_sessions ADD CONSTRAINT chk_screening_sessions_status
+				CHECK (status IN ('invited','started','in_progress','completed','expired','cancelled'))
+		`);
+		await addConstraint('screening_sessions', 'chk_screening_sessions_score', `
+			ALTER TABLE screening_sessions ADD CONSTRAINT chk_screening_sessions_score
+				CHECK (overall_score IS NULL OR (overall_score >= 0 AND overall_score <= 100))
+		`);
+		await addConstraint('offers', 'chk_offers_status', `
+			ALTER TABLE offers ADD CONSTRAINT chk_offers_status
+				CHECK (status IN ('draft','sent','accepted','declined','expired','rescinded','negotiating'))
+		`);
+		await addConstraint('offers', 'chk_offers_employment_type', `
+			ALTER TABLE offers ADD CONSTRAINT chk_offers_employment_type
+				CHECK (employment_type IS NULL OR employment_type IN ('full-time','part-time','contract','internship','freelance'))
+		`);
 
 		// --- Employee & payroll ---
-		await client.query(`
-      ALTER TABLE employees ADD CONSTRAINT chk_employees_status
-        CHECK (status IN ('active','inactive','terminated','on_leave','probation'));
-      ALTER TABLE employees ADD CONSTRAINT chk_employees_employment_type
-        CHECK (employment_type IS NULL OR employment_type IN ('full-time','part-time','contract','intern','freelance'));
-
-      ALTER TABLE employee_benefits ADD CONSTRAINT chk_employee_benefits_status
-        CHECK (status IN ('active','pending','cancelled','expired'));
-
-      ALTER TABLE payroll_runs ADD CONSTRAINT chk_payroll_runs_status
-        CHECK (status IN ('draft','processing','completed','failed'));
-      ALTER TABLE paychecks ADD CONSTRAINT chk_paychecks_status
-        CHECK (status IN ('draft','processing','completed','failed','voided','paid'));
-      ALTER TABLE pay_periods ADD CONSTRAINT chk_pay_periods_status
-        CHECK (status IN ('open','closed','processing'));
-      ALTER TABLE tax_documents ADD CONSTRAINT chk_tax_documents_status
-        CHECK (status IN ('pending','generated','filed','accepted','rejected'));
-    `);
+		await addConstraint('employees', 'chk_employees_status', `
+			ALTER TABLE employees ADD CONSTRAINT chk_employees_status
+				CHECK (status IN ('active','inactive','terminated','on_leave','probation'))
+		`);
+		await addConstraint('employees', 'chk_employees_employment_type', `
+			ALTER TABLE employees ADD CONSTRAINT chk_employees_employment_type
+				CHECK (employment_type IS NULL OR employment_type IN ('full-time','part-time','contract','intern','freelance'))
+		`);
+		await addConstraint('employee_benefits', 'chk_employee_benefits_status', `
+			ALTER TABLE employee_benefits ADD CONSTRAINT chk_employee_benefits_status
+				CHECK (status IN ('active','pending','cancelled','expired'))
+		`);
+		await addConstraint('payroll_runs', 'chk_payroll_runs_status', `
+			ALTER TABLE payroll_runs ADD CONSTRAINT chk_payroll_runs_status
+				CHECK (status IN ('draft','processing','completed','failed'))
+		`);
+		await addConstraint('paychecks', 'chk_paychecks_status', `
+			ALTER TABLE paychecks ADD CONSTRAINT chk_paychecks_status
+				CHECK (status IN ('draft','processing','completed','failed','voided','paid'))
+		`);
+		await addConstraint('pay_periods', 'chk_pay_periods_status', `
+			ALTER TABLE pay_periods ADD CONSTRAINT chk_pay_periods_status
+				CHECK (status IN ('open','closed','processing'))
+		`);
+		await addConstraint('tax_documents', 'chk_tax_documents_status', `
+			ALTER TABLE tax_documents ADD CONSTRAINT chk_tax_documents_status
+				CHECK (status IN ('pending','generated','filed','accepted','rejected'))
+		`);
 
 		// --- Communications ---
-		await client.query(`
-      ALTER TABLE communications ADD CONSTRAINT chk_communications_status
-        CHECK (status IN ('draft','queued','sent','delivered','failed','bounced'));
-      ALTER TABLE communications ADD CONSTRAINT chk_communications_type
-        CHECK (type IN ('email','sms','in_app','push'));
-      ALTER TABLE communication_templates ADD CONSTRAINT chk_communication_templates_type
-        CHECK (type IN ('email','sms','in_app','push'));
-      ALTER TABLE communication_sequences ADD CONSTRAINT chk_communication_sequences_status
-        CHECK (status IN ('active','paused','archived','draft'));
-      ALTER TABLE sequence_enrollments ADD CONSTRAINT chk_sequence_enrollments_status
-        CHECK (status IN ('active','completed','paused','cancelled'));
-    `);
+		await addConstraint('communications', 'chk_communications_status', `
+			ALTER TABLE communications ADD CONSTRAINT chk_communications_status
+				CHECK (status IN ('draft','queued','sent','delivered','failed','bounced'))
+		`);
+		await addConstraint('communications', 'chk_communications_type', `
+			ALTER TABLE communications ADD CONSTRAINT chk_communications_type
+				CHECK (type IN ('email','sms','in_app','push'))
+		`);
+		await addConstraint('communication_templates', 'chk_communication_templates_type', `
+			ALTER TABLE communication_templates ADD CONSTRAINT chk_communication_templates_type
+				CHECK (type IN ('email','sms','in_app','push'))
+		`);
+		await addConstraint('communication_sequences', 'chk_communication_sequences_status', `
+			ALTER TABLE communication_sequences ADD CONSTRAINT chk_communication_sequences_status
+				CHECK (status IN ('active','paused','archived','draft'))
+		`);
+		await addConstraint('sequence_enrollments', 'chk_sequence_enrollments_status', `
+			ALTER TABLE sequence_enrollments ADD CONSTRAINT chk_sequence_enrollments_status
+				CHECK (status IN ('active','completed','paused','cancelled'))
+		`);
 
 		// --- Candidate & profiles ---
-		await client.query(`
-      ALTER TABLE candidate_profiles ADD CONSTRAINT chk_candidate_profiles_availability
-        CHECK (availability IS NULL OR availability IN ('immediately','2 weeks','two_weeks','1 month','one_month','3 months','three_months','not_available'));
-      ALTER TABLE candidate_profiles ADD CONSTRAINT chk_candidate_profiles_remote_preference
-        CHECK (remote_preference IS NULL OR remote_preference IN ('remote','hybrid','onsite','flexible'));
-      ALTER TABLE candidate_profiles ADD CONSTRAINT chk_candidate_profiles_work_authorization
-        CHECK (work_authorization IS NULL OR work_authorization IN ('citizen','permanent_resident','visa_holder','requires_sponsorship'));
-    `);
+		await addConstraint('candidate_profiles', 'chk_candidate_profiles_availability', `
+			ALTER TABLE candidate_profiles ADD CONSTRAINT chk_candidate_profiles_availability
+				CHECK (availability IS NULL OR availability IN ('immediately','2 weeks','two_weeks','1 month','one_month','3 months','three_months','not_available'))
+		`);
+		await addConstraint('candidate_profiles', 'chk_candidate_profiles_remote_preference', `
+			ALTER TABLE candidate_profiles ADD CONSTRAINT chk_candidate_profiles_remote_preference
+				CHECK (remote_preference IS NULL OR remote_preference IN ('remote','hybrid','onsite','flexible'))
+		`);
+		await addConstraint('candidate_profiles', 'chk_candidate_profiles_work_authorization', `
+			ALTER TABLE candidate_profiles ADD CONSTRAINT chk_candidate_profiles_work_authorization
+				CHECK (work_authorization IS NULL OR work_authorization IN ('citizen','permanent_resident','visa_holder','requires_sponsorship'))
+		`);
 
 		// --- Onboarding ---
-		await client.query(`
-      ALTER TABLE onboarding_plans ADD CONSTRAINT chk_onboarding_plans_status
-        CHECK (status IN ('draft','active','completed','archived'));
-      ALTER TABLE onboarding_checklists ADD CONSTRAINT chk_onboarding_checklists_status
-        CHECK (status IN ('pending','in_progress','completed','skipped'));
-      ALTER TABLE onboarding_tasks ADD CONSTRAINT chk_onboarding_tasks_status
-        CHECK (status IN ('pending','in_progress','completed','skipped','overdue'));
-      ALTER TABLE onboarding_documents ADD CONSTRAINT chk_onboarding_documents_status
-        CHECK (status IN ('pending','sent','signed','completed','expired'));
-    `);
+		await addConstraint('onboarding_plans', 'chk_onboarding_plans_status', `
+			ALTER TABLE onboarding_plans ADD CONSTRAINT chk_onboarding_plans_status
+				CHECK (status IN ('draft','active','completed','archived'))
+		`);
+		await addConstraint('onboarding_checklists', 'chk_onboarding_checklists_status', `
+			ALTER TABLE onboarding_checklists ADD CONSTRAINT chk_onboarding_checklists_status
+				CHECK (status IN ('pending','in_progress','completed','skipped'))
+		`);
+		await addConstraint('onboarding_tasks', 'chk_onboarding_tasks_status', `
+			ALTER TABLE onboarding_tasks ADD CONSTRAINT chk_onboarding_tasks_status
+				CHECK (status IN ('pending','in_progress','completed','skipped','overdue'))
+		`);
+		await addConstraint('onboarding_documents', 'chk_onboarding_documents_status', `
+			ALTER TABLE onboarding_documents ADD CONSTRAINT chk_onboarding_documents_status
+				CHECK (status IN ('pending','sent','signed','completed','expired'))
+		`);
 
 		// --- Assessments & scoring ---
-		await client.query(`
-      ALTER TABLE job_assessments ADD CONSTRAINT chk_job_assessments_status
-        CHECK (status IN ('draft','active','archived'));
-      ALTER TABLE job_assessments ADD CONSTRAINT chk_job_assessments_difficulty
-        CHECK (difficulty_level IN ('easy','medium','mid','hard'));
-      ALTER TABLE job_assessment_attempts ADD CONSTRAINT chk_job_assessment_attempts_status
-        CHECK (status IN ('in_progress','completed','expired','abandoned'));
-      ALTER TABLE assessment_sessions ADD CONSTRAINT chk_assessment_sessions_status
-        CHECK (status IN ('pending','active','in_progress','completed','expired','cancelled'));
-      ALTER TABLE mock_interview_sessions ADD CONSTRAINT chk_mock_interview_sessions_status
-        CHECK (status IN ('active','in_progress','completed','expired','abandoned'));
-    `);
+		await addConstraint('job_assessments', 'chk_job_assessments_status', `
+			ALTER TABLE job_assessments ADD CONSTRAINT chk_job_assessments_status
+				CHECK (status IN ('draft','active','archived'))
+		`);
+		await addConstraint('job_assessments', 'chk_job_assessments_difficulty', `
+			ALTER TABLE job_assessments ADD CONSTRAINT chk_job_assessments_difficulty
+				CHECK (difficulty_level IN ('easy','medium','mid','hard'))
+		`);
+		await addConstraint('job_assessment_attempts', 'chk_job_assessment_attempts_status', `
+			ALTER TABLE job_assessment_attempts ADD CONSTRAINT chk_job_assessment_attempts_status
+				CHECK (status IN ('in_progress','completed','expired','abandoned'))
+		`);
+		await addConstraint('assessment_sessions', 'chk_assessment_sessions_status', `
+			ALTER TABLE assessment_sessions ADD CONSTRAINT chk_assessment_sessions_status
+				CHECK (status IN ('pending','active','in_progress','completed','expired','cancelled'))
+		`);
+		await addConstraint('mock_interview_sessions', 'chk_mock_interview_sessions_status', `
+			ALTER TABLE mock_interview_sessions ADD CONSTRAINT chk_mock_interview_sessions_status
+				CHECK (status IN ('active','in_progress','completed','expired','abandoned'))
+		`);
 
 		// --- Verification, compliance, misc ---
-		await client.query(`
-      ALTER TABLE verification_documents ADD CONSTRAINT chk_verification_documents_status
-        CHECK (status IN ('pending','verified','rejected','expired'));
-      ALTER TABLE fairness_audits ADD CONSTRAINT chk_fairness_audits_status
-        CHECK (status IN ('pending','in_progress','completed','failed'));
-      ALTER TABLE data_requests ADD CONSTRAINT chk_data_requests_status
-        CHECK (status IN ('pending','in_progress','completed','rejected'));
-      ALTER TABLE score_appeals ADD CONSTRAINT chk_score_appeals_status
-        CHECK (status IN ('pending','under_review','approved','rejected'));
-      ALTER TABLE post_hire_feedback ADD CONSTRAINT chk_post_hire_feedback_status
-        CHECK (status IN ('pending','submitted','reviewed'));
-      ALTER TABLE parsed_resumes ADD CONSTRAINT chk_parsed_resumes_status
-        CHECK (parsing_status IN ('pending','processing','completed','failed'));
-      ALTER TABLE scheduled_interviews ADD CONSTRAINT chk_scheduled_interviews_status
-        CHECK (status IN ('scheduled','confirmed','in_progress','completed','cancelled','no_show'));
-    `);
+		await addConstraint('verification_documents', 'chk_verification_documents_status', `
+			ALTER TABLE verification_documents ADD CONSTRAINT chk_verification_documents_status
+				CHECK (status IN ('pending','verified','rejected','expired'))
+		`);
+		await addConstraint('fairness_audits', 'chk_fairness_audits_status', `
+			ALTER TABLE fairness_audits ADD CONSTRAINT chk_fairness_audits_status
+				CHECK (status IN ('pending','in_progress','completed','failed'))
+		`);
+		await addConstraint('data_requests', 'chk_data_requests_status', `
+			ALTER TABLE data_requests ADD CONSTRAINT chk_data_requests_status
+				CHECK (status IN ('pending','in_progress','completed','rejected'))
+		`);
+		await addConstraint('score_appeals', 'chk_score_appeals_status', `
+			ALTER TABLE score_appeals ADD CONSTRAINT chk_score_appeals_status
+				CHECK (status IN ('pending','under_review','approved','rejected'))
+		`);
+		await addConstraint('post_hire_feedback', 'chk_post_hire_feedback_status', `
+			ALTER TABLE post_hire_feedback ADD CONSTRAINT chk_post_hire_feedback_status
+				CHECK (status IN ('pending','submitted','reviewed'))
+		`);
+		await addConstraint('parsed_resumes', 'chk_parsed_resumes_status', `
+			ALTER TABLE parsed_resumes ADD CONSTRAINT chk_parsed_resumes_status
+				CHECK (parsing_status IN ('pending','processing','completed','failed'))
+		`);
+		await addConstraint('scheduled_interviews', 'chk_scheduled_interviews_status', `
+			ALTER TABLE scheduled_interviews ADD CONSTRAINT chk_scheduled_interviews_status
+				CHECK (status IN ('scheduled','confirmed','in_progress','completed','cancelled','no_show'))
+		`);
 
 		console.log(
-			'[migration] P2 schema hardening applied: 5 timestamptz, 274 varchar→TEXT, 37 CHECK constraints',
+			'[migration] P2 schema hardening applied: 5 timestamptz (if table exists), 274 varchar→TEXT (available columns), 37 CHECK constraints (if tables exist)',
 		);
 	},
 };

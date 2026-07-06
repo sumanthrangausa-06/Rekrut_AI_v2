@@ -1792,7 +1792,7 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 			level: 'L1',
 			name: 'Database Schema',
 			status: 'fail',
-			error: err.message,
+			error: 'Diagnostic check failed',
 		});
 	}
 
@@ -1809,7 +1809,7 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 			details: { total_questions: total, distinct_roles: parseInt(qb.rows[0].roles, 10) },
 		});
 	} catch (err) {
-		results.tests.push({ level: 'L1', name: 'Question Bank', status: 'fail', error: err.message });
+		results.tests.push({ level: 'L1', name: 'Question Bank', status: 'fail', error: 'Diagnostic check failed' });
 	}
 
 	// L2: AI provider health
@@ -1834,7 +1834,7 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 			level: 'L2',
 			name: 'AI Provider Chain',
 			status: 'fail',
-			error: err.message,
+			error: 'Diagnostic check failed',
 		});
 	}
 
@@ -1855,7 +1855,7 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 			level: 'L2',
 			name: 'TTS Availability',
 			status: 'fail',
-			error: err.message,
+			error: 'Diagnostic check failed',
 		});
 	}
 
@@ -1879,7 +1879,7 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 			level: 'L3',
 			name: 'Session History',
 			status: 'fail',
-			error: err.message,
+			error: 'Diagnostic check failed',
 		});
 	}
 
@@ -1904,7 +1904,7 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 			details: { response_preview: (testResult || '').substring(0, 100), latency_ms: llmTime },
 		});
 	} catch (err) {
-		results.tests.push({ level: 'L4', name: 'LLM Chain', status: 'fail', error: err.message });
+		results.tests.push({ level: 'L4', name: 'LLM Chain', status: 'fail', error: 'Diagnostic check failed' });
 	}
 
 	// L5: End-to-end mock session simulation check
@@ -1943,7 +1943,7 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 			});
 		}
 	} catch (err) {
-		results.tests.push({ level: 'L5', name: 'E2E Check', status: 'fail', error: err.message });
+		results.tests.push({ level: 'L5', name: 'E2E Check', status: 'fail', error: 'Diagnostic check failed' });
 	}
 
 	// Summary

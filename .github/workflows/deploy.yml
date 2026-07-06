@@ -1,28 +1,40 @@
 name: Deploy to Production
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type "deploy-to-prod" to confirm deployment'
+        description: 'Type "deploy-to-prod" to confirm manual deployment'
         required: true
         type: string
 
 env:
-  RENDER_SERVICE_NAME: rekrutai-prod
+  RENDER_SERVICE_ID: srv-d69opaer433s73d6p570
 
 jobs:
   verify:
     name: Verify Deployment Readiness
     runs-on: ubuntu-latest
     steps:
-      - name: Confirm deployment intent
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check branch (for push events)
+        if: github.event_name == 'push'
+        run: |
+          echo "✅ Auto-deploy triggered by push to main"
+          echo "Commit: ${{ github.sha }}"
+
+      - name: Confirm deployment intent (for manual triggers)
+        if: github.event_name == 'workflow_dispatch'
         run: |
           if [ "${{ github.event.inputs.confirm }}" != "deploy-to-prod" ]; then
             echo "❌ Deployment not confirmed. You must type 'deploy-to-prod' to proceed."
             exit 1
           fi
-          echo "✅ Deployment confirmed by user."
+          echo "✅ Manual deployment confirmed by user."
 
       - name: Check branch
         run: |
@@ -39,60 +51,77 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   deploy:
-    name: Deploy to Production
+    name: Deploy to Production via Render API
     needs: ci-gate
     runs-on: ubuntu-latest
     environment:
       name: production
       url: https://rekrutai.co
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build for production
-        run: npm run build
-
-      - name: Deploy to Render (manual trigger)
+      - name: Trigger Render Deploy
         run: |
-          echo "🚀 Triggering production deployment on Render..."
-          echo ""
-          echo "Since autoDeploy is disabled for production, you have two options:"
-          echo ""
-          echo "Option 1 - Render Dashboard (Recommended):"
-          echo "  1. Go to https://dashboard.render.com/"
-          echo "  2. Find service: $RENDER_SERVICE_NAME"
-          echo "  3. Click 'Manual Deploy' > 'Deploy latest commit'"
-          echo ""
-          echo "Option 2 - Render CLI (if configured):"
-          echo "  render deploy --service $RENDER_SERVICE_NAME"
-          echo ""
-          echo "Option 3 - Render Deploy Hook (if configured):"
-          echo "  curl -X POST \$RENDER_DEPLOY_HOOK_URL"
-          echo ""
-          echo "Service: $RENDER_SERVICE_NAME"
-          echo "Branch:  main"
-          echo "Commit:  ${{ github.sha }}"
-          echo ""
-          echo "⚠️  IMPORTANT: Verify staging is stable before deploying to production."
-          echo "🔗 Staging URL: https://rekrutai-staging.onrender.com"
+          echo "🚀 Triggering production deployment on Render via API..."
+          echo "Service ID: $RENDER_SERVICE_ID"
+          echo "Commit: ${{ github.sha }}"
+
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"commitId\": \"${{ github.sha }}\", \"clearCache\": \"do_not_clear\"}" \
+            "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "Response code: $http_code"
+          echo "Response body: $body"
+
+          if [ "$http_code" != "200" ] && [ "$http_code" != "201" ]; then
+            echo "❌ Failed to trigger Render deploy. HTTP $http_code"
+            exit 1
+          fi
+
+          deploy_id=$(echo "$body" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
+          echo "✅ Render deploy triggered successfully"
+          echo "Deploy ID: $deploy_id"
+          echo "deploy_id=$deploy_id" >> "$GITHUB_ENV"
+
+      - name: Wait for deployment to complete
+        run: |
+          echo "⏳ Waiting for Render deployment to complete..."
+          deploy_id="${{ env.deploy_id }}"
+          service_id="$RENDER_SERVICE_ID"
+
+          for i in {1..30}; do
+            status=$(curl -s -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+              "https://api.render.com/v1/services/$service_id/deploys/$deploy_id" | \
+              python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))")
+
+            echo "Attempt $i/30: Deploy status = $status"
+
+            if [ "$status" = "live" ]; then
+              echo "✅ Deployment is live!"
+              exit 0
+            elif [ "$status" = "update_failed" ] || [ "$status" = "build_failed" ]; then
+              echo "❌ Deployment failed with status: $status"
+              exit 1
+            fi
+
+            sleep 20
+          done
+
+          echo "❌ Deployment did not complete within the expected time"
+          exit 1
 
       - name: Post-deploy health check
         run: |
-          echo "⏳ Waiting 60 seconds for deployment to start..."
-          sleep 60
+          echo "🏥 Running post-deploy health check..."
           for i in {1..10}; do
             response=$(curl -s -o /dev/null -w "%{http_code}" https://rekrutai.co/health || echo "000")
             if [ "$response" = "200" ]; then
               echo "✅ Production is healthy (HTTP 200)"
+              health=$(curl -s https://rekrutai.co/health)
+              echo "Health response: $health"
               exit 0
             fi
             echo "Attempt $i/10: Got HTTP $response, retrying in 15s..."

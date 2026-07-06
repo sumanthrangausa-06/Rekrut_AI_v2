@@ -2,15 +2,9 @@
 // Required by: lib/email-service.js, routes/notifications.js
 // Status: Backend code exists, tables needed for production deployment
 
-const pool = require('../lib/db');
-
-async function up() {
-	const client = await pool.connect();
-	try {
-		await client.query('BEGIN');
-
-		// ─── notification_templates ──────────────────────────────────────────────
-		await client.query(`
+async function up(client) {
+	// ─── notification_templates ──────────────────────────────────────────────
+	await client.query(`
       CREATE TABLE IF NOT EXISTS notification_templates (
         id SERIAL PRIMARY KEY,
         name VARCHAR(100) UNIQUE NOT NULL,
@@ -25,8 +19,8 @@ async function up() {
       )
     `);
 
-		// ─── notification_preferences ──────────────────────────────────────────
-		await client.query(`
+	// ─── notification_preferences ──────────────────────────────────────────
+	await client.query(`
       CREATE TABLE IF NOT EXISTS notification_preferences (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -42,8 +36,8 @@ async function up() {
       )
     `);
 
-		// ─── notification_queue ──────────────────────────────────────────────────
-		await client.query(`
+	// ─── notification_queue ──────────────────────────────────────────────────
+	await client.query(`
       CREATE TABLE IF NOT EXISTS notification_queue (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -62,8 +56,8 @@ async function up() {
       )
     `);
 
-		// ─── notification_logs ───────────────────────────────────────────────────
-		await client.query(`
+	// ─── notification_logs ───────────────────────────────────────────────────
+	await client.query(`
       CREATE TABLE IF NOT EXISTS notification_logs (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -85,8 +79,12 @@ async function up() {
       )
     `);
 
-		// ─── Seed default templates ────────────────────────────────────────────
-		await client.query(`
+	// ─── Seed default templates ────────────────────────────────────────────
+	// Ensure description column exists (may be missing if table created by earlier migration)
+	await client.query(`
+      ALTER TABLE notification_templates ADD COLUMN IF NOT EXISTS description TEXT
+    `);
+	await client.query(`
       INSERT INTO notification_templates (name, type, subject_template, body_template, description)
       VALUES
         ('welcome_email', 'email',
@@ -126,48 +124,29 @@ async function up() {
       ON CONFLICT (name) DO NOTHING
     `);
 
-		// ─── Indexes ───────────────────────────────────────────────────────────
-		await client.query(`
+	// ─── Indexes ───────────────────────────────────────────────────────────
+	await client.query(`
       CREATE INDEX IF NOT EXISTS idx_notification_queue_status 
         ON notification_queue(status, scheduled_for) WHERE status = 'pending'
     `);
-		await client.query(`
+	await client.query(`
       CREATE INDEX IF NOT EXISTS idx_notification_logs_user 
         ON notification_logs(user_id, created_at DESC)
     `);
-		await client.query(`
+	await client.query(`
       CREATE INDEX IF NOT EXISTS idx_notification_logs_email 
         ON notification_logs(email, created_at DESC)
     `);
 
-		await client.query('COMMIT');
-		console.log('[migration 061] Notification tables created + templates seeded');
-	} catch (err) {
-		await client.query('ROLLBACK');
-		console.error('[migration 061] Error:', err.message);
-		throw err;
-	} finally {
-		client.release();
-	}
+	console.log('[migration 061] Notification tables created + templates seeded');
 }
 
-async function down() {
-	const client = await pool.connect();
-	try {
-		await client.query('BEGIN');
-		await client.query('DROP TABLE IF EXISTS notification_logs CASCADE');
-		await client.query('DROP TABLE IF EXISTS notification_queue CASCADE');
-		await client.query('DROP TABLE IF EXISTS notification_preferences CASCADE');
-		await client.query('DROP TABLE IF EXISTS notification_templates CASCADE');
-		await client.query('COMMIT');
-		console.log('[migration 061] Notification tables dropped');
-	} catch (err) {
-		await client.query('ROLLBACK');
-		console.error('[migration 061] Rollback error:', err.message);
-		throw err;
-	} finally {
-		client.release();
-	}
+async function down(client) {
+	await client.query('DROP TABLE IF EXISTS notification_logs CASCADE');
+	await client.query('DROP TABLE IF EXISTS notification_queue CASCADE');
+	await client.query('DROP TABLE IF EXISTS notification_preferences CASCADE');
+	await client.query('DROP TABLE IF EXISTS notification_templates CASCADE');
+	console.log('[migration 061] Notification tables dropped');
 }
 
 module.exports = { up, down };

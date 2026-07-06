@@ -40,7 +40,7 @@ function handleTtsError(res, err) {
 	if (err instanceof CartesiaRateLimitError) {
 		return res.status(429).json({
 			error: 'TTS rate limit exceeded',
-			message: err.message,
+
 			retry_after: err.retryAfter,
 		});
 	}
@@ -48,34 +48,34 @@ function handleTtsError(res, err) {
 	if (err instanceof CartesiaAuthError) {
 		return res.status(401).json({
 			error: 'TTS authentication failed',
-			message: err.message,
+
 		});
 	}
 
 	if (err instanceof CartesiaNetworkError) {
 		return res.status(502).json({
 			error: 'TTS network error',
-			message: err.message,
+
 		});
 	}
 
 	if (err instanceof CartesiaServerError) {
 		return res.status(502).json({
 			error: 'TTS upstream server error',
-			message: err.message,
+
 		});
 	}
 
 	if (err instanceof CartesiaError) {
 		return res.status(err.statusCode || 500).json({
 			error: 'TTS API error',
-			message: err.message,
+
 		});
 	}
 
 	return res.status(500).json({
 		error: 'TTS synthesis failed',
-		message: err.message,
+
 	});
 }
 
@@ -149,7 +149,7 @@ router.get('/health', async (_req, res) => {
 			success: false,
 			service: 'tts',
 			provider: 'cartesia',
-			error: err.message,
+			error: 'TTS health check failed',
 			timestamp: new Date().toISOString(),
 		});
 	}

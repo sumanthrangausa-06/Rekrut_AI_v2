@@ -81,7 +81,7 @@ router.get('/', authMiddleware, async (req, res) => {
 		});
 	} catch (err) {
 		console.error('[settings] GET error:', err.message);
-		res.status(500).json({ error: 'Failed to load settings', message: err.message });
+		res.status(500).json({ error: 'Failed to load settings' });
 	}
 });
 
@@ -115,7 +115,7 @@ router.patch('/profile', authMiddleware, async (req, res) => {
 		res.json({ success: true, message: 'Profile updated' });
 	} catch (err) {
 		console.error('[settings] Profile update error:', err.message);
-		res.status(500).json({ error: 'Failed to update profile', message: err.message });
+		res.status(500).json({ error: 'Failed to update profile' });
 	}
 });
 
@@ -143,7 +143,7 @@ router.patch('/notifications', authMiddleware, async (req, res) => {
 		res.json({ success: true, message: 'Notification preferences updated' });
 	} catch (err) {
 		console.error('[settings] Notifications update error:', err.message);
-		res.status(500).json({ error: 'Failed to update notifications', message: err.message });
+		res.status(500).json({ error: 'Failed to update notifications' });
 	}
 });
 
@@ -171,7 +171,7 @@ router.patch('/privacy', authMiddleware, async (req, res) => {
 		res.json({ success: true, message: 'Privacy settings updated' });
 	} catch (err) {
 		console.error('[settings] Privacy update error:', err.message);
-		res.status(500).json({ error: 'Failed to update privacy settings', message: err.message });
+		res.status(500).json({ error: 'Failed to update privacy settings' });
 	}
 });
 
@@ -207,7 +207,7 @@ router.post('/avatar', authMiddleware, upload.single('avatar'), async (req, res)
 		res.json({ success: true, avatar_url });
 	} catch (err) {
 		console.error('[settings] Avatar upload error:', err.message);
-		res.status(500).json({ error: 'Failed to upload avatar', message: err.message });
+		res.status(500).json({ error: 'Failed to upload avatar' });
 	}
 });
 

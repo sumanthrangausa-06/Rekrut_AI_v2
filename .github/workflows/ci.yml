@@ -96,13 +96,36 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install chromium
 
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          until pg_isready -h localhost -p 5432 -U test; do
+            echo "Waiting for PostgreSQL..."
+            sleep 1
+          done
+          echo "PostgreSQL is ready"
+
       - name: Run database migrations
-        run: npm run migrate
+        run: |
+          npm run migrate 2>&1 | tee migration-debug.log
+          MIGRATE_EXIT=${PIPESTATUS[0]}
+          if [ $MIGRATE_EXIT -ne 0 ]; then
+            echo "=== MIGRATION FAILED ==="
+            cat migration-debug.log
+            exit 1
+          fi
         env:
-          NODE_ENV: test
+          NODE_ENV: e2e
           DATABASE_URL: postgresql://test:test@localhost:5432/rekrut_test
           JWT_SECRET: test-jwt-secret
           SESSION_SECRET: test-session-secret
+
+      - name: Upload migration debug log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-debug-log
+          path: migration-debug.log
+          retention-days: 1
 
       - name: Start application
         run: |
@@ -121,11 +144,13 @@ jobs:
           kill $SERVER_PID 2>/dev/null || true
           exit 1
         env:
-          NODE_ENV: test
+          NODE_ENV: e2e
           PORT: 3000
           DATABASE_URL: postgresql://test:test@localhost:5432/rekrut_test
           JWT_SECRET: test-jwt-secret
           SESSION_SECRET: test-session-secret
+          ADMIN_PASSWORD: test-admin-password
+          ADMIN_USERNAME: admin
 
       - name: Run E2E tests (sequential per-file to avoid SIGKILL)
         run: |
@@ -133,12 +158,14 @@ jobs:
           ./e2e/run-e2e-suite.sh
         env:
           CI: true
-          NODE_ENV: test
+          NODE_ENV: e2e
           PORT: 3000
           BASE_URL: http://localhost:3000
           DATABASE_URL: postgresql://test:test@localhost:5432/rekrut_test
           JWT_SECRET: test-jwt-secret
           SESSION_SECRET: test-session-secret
+          ADMIN_PASSWORD: test-admin-password
+          ADMIN_USERNAME: admin
 
       - name: Upload test results
         if: failure()

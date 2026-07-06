@@ -14,7 +14,7 @@ function sendError(res, err, consolePrefix) {
 	if (process.env.NODE_ENV === 'production') {
 		res.status(500).json({ error: 'Internal server error', ref });
 	} else {
-		res.status(500).json({ error: 'Internal server error', message: err.message, ref });
+		res.status(500).json({ error: 'Internal server error', ref });
 	}
 }
 
@@ -516,7 +516,7 @@ router.post('/bulk', authMiddleware, requireRecruiter, async (req, res) => {
 					});
 				}
 			} catch (err) {
-				results.push({ candidate_id: candId, success: false, error: err.message });
+				results.push({ candidate_id: candId, success: false, error: 'Communication generation failed' });
 			}
 		}
 
