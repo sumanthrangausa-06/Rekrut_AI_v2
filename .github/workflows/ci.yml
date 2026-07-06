@@ -149,6 +149,8 @@ jobs:
           DATABASE_URL: postgresql://test:test@localhost:5432/rekrut_test
           JWT_SECRET: test-jwt-secret
           SESSION_SECRET: test-session-secret
+          ADMIN_PASSWORD: test-admin-password
+          ADMIN_USERNAME: admin
 
       - name: Run E2E tests (sequential per-file to avoid SIGKILL)
         run: |
@@ -156,12 +158,14 @@ jobs:
           ./e2e/run-e2e-suite.sh
         env:
           CI: true
-          NODE_ENV: test
+          NODE_ENV: e2e
           PORT: 3000
           BASE_URL: http://localhost:3000
           DATABASE_URL: postgresql://test:test@localhost:5432/rekrut_test
           JWT_SECRET: test-jwt-secret
           SESSION_SECRET: test-session-secret
+          ADMIN_PASSWORD: test-admin-password
+          ADMIN_USERNAME: admin
 
       - name: Upload test results
         if: failure()

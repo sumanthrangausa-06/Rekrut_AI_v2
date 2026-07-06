@@ -166,7 +166,11 @@ async function getOrCreateUser(
   throw lastError || new Error(`Failed to getOrCreateUser for ${email} after ${maxRetries} retries`);
 }
 
-function writeStorageState(token: string, refreshToken: string, path: string) {
+function writeStorageState(token: string, refreshToken: string, filePath: string) {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
   const baseURL = process.env.BASE_URL || 'http://localhost:3000';
   const storageState = {
     cookies: [] as any[],
@@ -182,7 +186,7 @@ function writeStorageState(token: string, refreshToken: string, path: string) {
       },
     ],
   };
-  fs.writeFileSync(path, JSON.stringify(storageState, null, 2));
+  fs.writeFileSync(filePath, JSON.stringify(storageState, null, 2));
 }
 
 setup('cleanup stale auth files', async () => {
@@ -222,7 +226,7 @@ setup('authenticate recruiter', async ({ request }) => {
   writeStorageState(token, refreshToken, path);
 });
 
-async function getAdminSession(request: any, path: string): Promise<void> {
+async function getAdminSession(request: any, filePath: string): Promise<void> {
   const csrfToken = await getCsrfToken(request);
   const username = process.env.ADMIN_USERNAME || 'admin';
   const password = process.env.ADMIN_PASSWORD || '';
@@ -253,6 +257,13 @@ setup('authenticate admin', async ({ request }) => {
     return;
   }
   if (fs.existsSync(path)) fs.unlinkSync(path);
+  
+  // Skip admin auth if no password configured (CI environments)
+  if (!process.env.ADMIN_PASSWORD) {
+    setup.skip(true, 'ADMIN_PASSWORD not set — skipping admin auth setup');
+    return;
+  }
+  
   try {
     await getAdminSession(request, path);
   } catch (err: any) {
