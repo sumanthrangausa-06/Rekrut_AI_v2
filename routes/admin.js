@@ -49,11 +49,10 @@ async function initAdminCredentials() {
 		ADMIN_PASSWORD_HASH = await bcrypt.hash(password, 13);
 		console.log('[admin] Admin credentials loaded from env vars');
 	} else {
-		throw new Error(
-			'ADMIN_PASSWORD environment variable is required. ' +
-				'Set it in your .env file (see .env.example). ' +
-				'Never commit credentials to the repository.',
-		);
+		// In CI/test environments, admin password may not be configured.
+		// Don't crash the server — just disable admin auth.
+		console.warn('[admin] ADMIN_PASSWORD not set — admin panel will be disabled');
+		ADMIN_PASSWORD_HASH = null;
 	}
 }
 
@@ -108,6 +107,11 @@ function requireAdmin(req, res, next) {
 
 // POST /api/admin/login
 router.post('/login', async (req, res) => {
+	// If admin credentials are not configured, reject all login attempts
+	if (!ADMIN_PASSWORD_HASH) {
+		return res.status(503).json({ error: 'Admin panel is not configured' });
+	}
+
 	const ip = req.ip || req.connection.remoteAddress || 'unknown';
 	const rateCheck = await checkRateLimit(ip);
 
