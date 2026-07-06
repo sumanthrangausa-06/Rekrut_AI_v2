@@ -133,9 +133,10 @@ router.get('/profile', authMiddleware, async (req, res) => {
 	try {
 		const profile = await pool.query(
 			`
-      SELECT cp.*, u.name, u.email, u.avatar_url
+      SELECT cp.*, u.name, u.email, u.avatar_url, os.total_score as omni_score
       FROM users u
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+      LEFT JOIN omni_scores os ON os.user_id = u.id
       WHERE u.id = $1
     `,
 			[req.user.id],
