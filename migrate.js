@@ -10,7 +10,7 @@ require('dotenv').config();
 // FORCE_SSL_VERIFY=false overrides everything (for Render PostgreSQL self-signed certs).
 // In test environments (CI), disable SSL entirely since local PostgreSQL containers don't support it.
 const sslConfig =
-	process.env.NODE_ENV === 'test'
+	process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'e2e'
 		? false
 		: process.env.FORCE_SSL_VERIFY === 'false'
 		  ? { rejectUnauthorized: false }

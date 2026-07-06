@@ -114,7 +114,7 @@ jobs:
             exit 1
           fi
         env:
-          NODE_ENV: test
+          NODE_ENV: e2e
           DATABASE_URL: postgresql://test:test@localhost:5432/rekrut_test
           JWT_SECRET: test-jwt-secret
           SESSION_SECRET: test-session-secret
@@ -144,7 +144,7 @@ jobs:
           kill $SERVER_PID 2>/dev/null || true
           exit 1
         env:
-          NODE_ENV: test
+          NODE_ENV: e2e
           PORT: 3000
           DATABASE_URL: postgresql://test:test@localhost:5432/rekrut_test
           JWT_SECRET: test-jwt-secret
