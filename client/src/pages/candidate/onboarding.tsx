@@ -1350,7 +1350,7 @@ export function CandidateOnboardingPage() {
 
 	useEffect(() => {
 		loadProgress()
-	}, [loadProgress])
+	}, [])
 
 	async function loadProgress() {
 		try {

@@ -150,7 +150,7 @@ export function CandidateInterviewsPage() {
 
 	useEffect(() => {
 		loadInterviews()
-	}, [loadInterviews])
+	}, [])
 
 	useEffect(() => {
 		if (message) {

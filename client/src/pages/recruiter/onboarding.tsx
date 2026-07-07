@@ -103,10 +103,6 @@ export function RecruiterOnboardingPage() {
 	const [candidateDocs, setCandidateDocs] = useState<CandidateDocument[]>([])
 	const [loadingDocs, setLoadingDocs] = useState(false)
 
-	useEffect(() => {
-		loadCandidates()
-	}, [loadCandidates])
-
 	const loadCandidates = useCallback(async () => {
 		setError('')
 		setLoading(true)
@@ -124,6 +120,10 @@ export function RecruiterOnboardingPage() {
 			setLoading(false)
 		}
 	}, [])
+
+	useEffect(() => {
+		loadCandidates()
+	}, [loadCandidates])
 
 	async function viewCandidate(c: OnboardingCandidate) {
 		setSelectedCandidate(c)

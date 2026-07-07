@@ -183,10 +183,6 @@ export function RecruiterPayrollPage() {
 	const [cfgStateAllow, setCfgStateAllow] = useState('0')
 	const [cfgCountry, setCfgCountry] = useState('US')
 
-	useEffect(() => {
-		loadAll()
-	}, [loadAll])
-
 	const loadAll = useCallback(async () => {
 		setError('')
 		setLoading(true)
@@ -206,6 +202,10 @@ export function RecruiterPayrollPage() {
 			setLoading(false)
 		}
 	}, [])
+
+	useEffect(() => {
+		loadAll()
+	}, [loadAll])
 
 	// ── Payroll run CRUD ──
 	async function createPayrollRun() {

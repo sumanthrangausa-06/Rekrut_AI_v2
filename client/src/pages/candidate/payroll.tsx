@@ -112,7 +112,7 @@ export function CandidatePayrollPage() {
 
 	useEffect(() => {
 		loadAll()
-	}, [loadAll])
+	}, [])
 
 	async function loadAll() {
 		setLoading(true)
