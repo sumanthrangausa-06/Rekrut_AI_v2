@@ -135,6 +135,18 @@ const _INDIA_LABELS: Record<string, string> = {
 	professionalTax: 'Professional Tax',
 }
 
+// ── Helpers ──────────────────────────────────────────────
+const FETCH_TIMEOUT = 10000 // 10 seconds
+
+function withTimeout<T>(promise: Promise<T>, ms = FETCH_TIMEOUT, label = 'Request'): Promise<T> {
+	return Promise.race([
+		promise,
+		new Promise<T>((_, reject) =>
+			setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+		),
+	])
+}
+
 // ── Component ──────────────────────────────────────────────
 export function RecruiterPayrollPage() {
 	const [tab, setTab] = useState('dashboard')
@@ -143,6 +155,7 @@ export function RecruiterPayrollPage() {
 	const [employees, setEmployees] = useState<Employee[]>([])
 	const [search, setSearch] = useState('')
 	const [countryFilter, setCountryFilter] = useState('ALL')
+	const [error, setError] = useState('')
 
 	// Run creation
 	const [showRunCreate, setShowRunCreate] = useState(false)
@@ -175,16 +188,20 @@ export function RecruiterPayrollPage() {
 	}, [loadAll])
 
 	const loadAll = useCallback(async () => {
+		setError('')
 		setLoading(true)
 		try {
 			const [dashRes, empRes] = await Promise.allSettled([
-				apiCall<DashboardData>('/payroll/dashboard'),
-				apiCall<{ employees: Employee[] }>('/payroll/employees'),
+				withTimeout(apiCall<DashboardData>('/payroll/dashboard'), FETCH_TIMEOUT, 'Payroll dashboard'),
+				withTimeout(apiCall<{ employees: Employee[] }>('/payroll/employees'), FETCH_TIMEOUT, 'Payroll employees'),
 			])
 			if (dashRes.status === 'fulfilled') setDashboard(dashRes.value)
 			if (empRes.status === 'fulfilled') setEmployees(empRes.value.employees || [])
-		} catch {
-			/* silent */
+			if (dashRes.status === 'rejected') {
+				setError((dashRes.reason as Error)?.message || 'Failed to load payroll dashboard')
+			}
+		} catch (err: any) {
+			setError(err?.message || 'Failed to load payroll data')
 		} finally {
 			setLoading(false)
 		}
@@ -220,13 +237,19 @@ export function RecruiterPayrollPage() {
 	async function viewRun(run: PayrollRun) {
 		setSelectedRun(run)
 		setLoadingRun(true)
+		setError('')
 		try {
-			const res = await apiCall<{ payrollRun: PayrollRun; paychecks: Paycheck[] }>(
-				`/payroll/runs/${run.id}`,
+			const res = await withTimeout(
+				apiCall<{ payrollRun: PayrollRun; paychecks: Paycheck[] }>(
+					`/payroll/runs/${run.id}`,
+				),
+				FETCH_TIMEOUT,
+				'Payroll run details',
 			)
 			setRunPaychecks(res.paychecks || [])
 			setSelectedRun(res.payrollRun)
-		} catch {
+		} catch (err: any) {
+			setError(err?.message || 'Failed to load payroll run details')
 			setRunPaychecks([])
 		} finally {
 			setLoadingRun(false)
@@ -329,6 +352,14 @@ export function RecruiterPayrollPage() {
 					<Play className='h-4 w-4' /> Run Payroll
 				</Button>
 			</div>
+
+			{/* Error banner */}
+			{error && (
+				<div className='p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center gap-2'>
+					<AlertCircle className='h-4 w-4 shrink-0' />
+					{error}
+				</div>
+			)}
 
 			{/* Country stats */}
 			<div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>

@@ -953,6 +953,9 @@ function AppRoutes() {
 				}
 			/>
 
+			{/* Redirect /candidate/settings to /settings for backwards compatibility */}
+			<Route path='/candidate/settings' element={<Navigate to='/settings' />} />
+
 			{/* 404 Not Found */}
 			<Route path='*' element={<NotFoundPage />} />
 		</Routes>

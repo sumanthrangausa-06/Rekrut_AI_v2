@@ -77,6 +77,18 @@ const DOCUMENT_TYPES = [
 	'Employee Handbook Acknowledgment',
 ]
 
+// ─── Helpers ───────────────────────────────────────────────────────
+const FETCH_TIMEOUT = 10000 // 10 seconds
+
+function withTimeout<T>(promise: Promise<T>, ms = FETCH_TIMEOUT, label = 'Request'): Promise<T> {
+	return Promise.race([
+		promise,
+		new Promise<T>((_, reject) =>
+			setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+		),
+	])
+}
+
 // ─── Component ───────────────────────────────────────────────────────
 export function RecruiterOnboardingPage() {
 	const [loading, setLoading] = useState(true)
@@ -96,12 +108,18 @@ export function RecruiterOnboardingPage() {
 	}, [loadCandidates])
 
 	const loadCandidates = useCallback(async () => {
+		setError('')
+		setLoading(true)
 		try {
-			setLoading(true)
-			const data = await apiCall<OnboardingCandidate[]>('/onboarding/recruiter/summary')
+			const data = await withTimeout(
+				apiCall<OnboardingCandidate[]>('/onboarding/recruiter/summary'),
+				FETCH_TIMEOUT,
+				'Onboarding summary',
+			)
 			setCandidates(data)
 		} catch (err: any) {
-			setError(err.message)
+			setError(err?.message || 'Failed to load onboarding data')
+			setCandidates([])
 		} finally {
 			setLoading(false)
 		}
@@ -110,13 +128,19 @@ export function RecruiterOnboardingPage() {
 	async function viewCandidate(c: OnboardingCandidate) {
 		setSelectedCandidate(c)
 		setLoadingDocs(true)
+		setError('')
 		try {
-			const docs = await apiCall<CandidateDocument[]>(
-				`/onboarding/recruiter/candidate/${c.candidate_id}/documents`,
+			const docs = await withTimeout(
+				apiCall<CandidateDocument[]>(
+					`/onboarding/recruiter/candidate/${c.candidate_id}/documents`,
+				),
+				FETCH_TIMEOUT,
+				'Candidate documents',
 			)
 			setCandidateDocs(docs)
 		} catch (err: any) {
-			setError(err.message)
+			setError(err?.message || 'Failed to load candidate documents')
+			setCandidateDocs([])
 		} finally {
 			setLoadingDocs(false)
 		}
