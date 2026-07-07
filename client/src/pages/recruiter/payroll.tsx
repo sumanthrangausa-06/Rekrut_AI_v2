@@ -14,7 +14,7 @@ import {
 	TrendingUp,
 	Users,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -174,7 +174,7 @@ export function RecruiterPayrollPage() {
 		loadAll()
 	}, [loadAll])
 
-	async function loadAll() {
+	const loadAll = useCallback(async () => {
 		setLoading(true)
 		try {
 			const [dashRes, empRes] = await Promise.allSettled([
@@ -188,7 +188,7 @@ export function RecruiterPayrollPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
 
 	// ── Payroll run CRUD ──
 	async function createPayrollRun() {

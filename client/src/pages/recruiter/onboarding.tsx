@@ -15,7 +15,7 @@ import {
 	User,
 	Users,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AiOnboardingRecruiter } from '@/components/ai-onboarding-recruiter'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -95,7 +95,7 @@ export function RecruiterOnboardingPage() {
 		loadCandidates()
 	}, [loadCandidates])
 
-	async function loadCandidates() {
+	const loadCandidates = useCallback(async () => {
 		try {
 			setLoading(true)
 			const data = await apiCall<OnboardingCandidate[]>('/onboarding/recruiter/summary')
@@ -105,7 +105,7 @@ export function RecruiterOnboardingPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
 
 	async function viewCandidate(c: OnboardingCandidate) {
 		setSelectedCandidate(c)

@@ -594,6 +594,14 @@ function AppRoutes() {
 						</Protected>
 					}
 				/>
+				<Route
+					path='settings'
+					element={
+						<Protected>
+							<SettingsPage />
+						</Protected>
+					}
+				/>
 			</Route>
 
 			{/* Recruiter routes */}

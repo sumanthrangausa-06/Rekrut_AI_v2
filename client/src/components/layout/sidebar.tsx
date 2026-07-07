@@ -134,7 +134,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
 				<div className='border-t p-3'>
 					<NavLink
-						to='/settings'
+						to={isRecruiter ? '/settings' : '/candidate/settings'}
 						end
 						onClick={onClose}
 						className={({ isActive }) =>
