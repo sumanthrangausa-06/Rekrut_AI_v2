@@ -19,6 +19,17 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { apiCall } from '@/lib/api'
 
+const FETCH_TIMEOUT = 10000 // 10 seconds
+
+function withTimeout<T>(promise: Promise<T>, ms = FETCH_TIMEOUT, label = 'Request'): Promise<T> {
+	return Promise.race([
+		promise,
+		new Promise<T>((_, reject) =>
+			setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+		),
+	])
+}
+
 // ── Types ──────────────────────────────────────────────────
 interface PayrollProfile {
 	employee_number: string
@@ -118,8 +129,8 @@ export function CandidatePayrollPage() {
 		setLoading(true)
 		try {
 			const [profileRes, checksRes] = await Promise.allSettled([
-				apiCall<{ profile: PayrollProfile }>('/payroll/employee/profile'),
-				apiCall<{ paychecks: Paycheck[] }>('/payroll/employee/paychecks'),
+				withTimeout(apiCall<{ profile: PayrollProfile }>('/payroll/employee/profile'), FETCH_TIMEOUT, 'Payroll profile'),
+				withTimeout(apiCall<{ paychecks: Paycheck[] }>('/payroll/employee/paychecks'), FETCH_TIMEOUT, 'Paychecks'),
 			])
 
 			if (profileRes.status === 'fulfilled') {

@@ -31,6 +31,17 @@ import { Select } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { apiCall } from '@/lib/api'
 
+const FETCH_TIMEOUT = 10000 // 10 seconds
+
+function withTimeout<T>(promise: Promise<T>, ms = FETCH_TIMEOUT, label = 'Request'): Promise<T> {
+	return Promise.race([
+		promise,
+		new Promise<T>((_, reject) =>
+			setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+			),
+	])
+}
+
 // ─── Types ───────────────────────────────────────────────────────────
 interface WizardData {
 	id: number
@@ -1355,7 +1366,11 @@ export function CandidateOnboardingPage() {
 	async function loadProgress() {
 		try {
 			setLoading(true)
-			const data = await apiCall<ProgressResponse>('/onboarding/wizard/progress')
+			const data = await withTimeout(
+				apiCall<ProgressResponse>('/onboarding/wizard/progress'),
+				FETCH_TIMEOUT,
+				'Onboarding progress',
+			)
 			setProgress(data)
 
 			if (data.has_onboarding && data.wizard) {
@@ -1730,7 +1745,7 @@ export function CandidateOnboardingPage() {
 				<Loader2 className='h-8 w-8 animate-spin text-primary' />
 				<p className='text-muted-foreground'>Loading your onboarding...</p>
 			</div>
-		)
+			)
 	}
 
 	// ─── View Toggle (Paperwork vs AI Plan) ──────────────────────────
@@ -1756,7 +1771,7 @@ export function CandidateOnboardingPage() {
 				{viewTabs}
 				<AiOnboardingDashboard />
 			</div>
-		)
+			)
 	}
 
 	// ─── Paperwork View ──────────────────────────────────────────────
@@ -1787,7 +1802,7 @@ export function CandidateOnboardingPage() {
 					</p>
 				</div>
 			</div>
-		)
+			)
 	}
 
 	const checklist = progress.checklist!
@@ -1862,7 +1877,7 @@ export function CandidateOnboardingPage() {
 					</Card>
 				</div>
 			</div>
-		)
+			)
 	}
 
 	// ─── Active wizard ────────────────────────────────────────────────

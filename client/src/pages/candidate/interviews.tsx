@@ -31,6 +31,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { apiCall } from '@/lib/api'
 
+const FETCH_TIMEOUT = 10000 // 10 seconds
+
+function withTimeout<T>(promise: Promise<T>, ms = FETCH_TIMEOUT, label = 'Request'): Promise<T> {
+	return Promise.race([
+		promise,
+		new Promise<T>((_, reject) =>
+			setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+		),
+	])
+}
+
 interface Interview {
 	id: number
 	scheduled_at: string
@@ -162,8 +173,12 @@ export function CandidateInterviewsPage() {
 	async function loadInterviews() {
 		setLoading(true)
 		try {
-			const res = await apiCall<{ success: boolean; interviews: Interview[] }>(
-				'/candidate/interviews/scheduled',
+			const res = await withTimeout(
+				apiCall<{ success: boolean; interviews: Interview[] }>(
+					'/candidate/interviews/scheduled',
+				),
+				FETCH_TIMEOUT,
+				'Interviews',
 			)
 			setInterviews(res.interviews || [])
 		} catch (err) {
