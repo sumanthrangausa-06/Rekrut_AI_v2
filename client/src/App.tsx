@@ -872,6 +872,8 @@ function AppRoutes() {
 
 			{/* Admin routes — login is public, everything else requires auth */}
 			<Route path='/admin/login' element={<AdminLoginPage />} />
+			{/* Backwards compatibility: redirect old /admin-login to /admin/login */}
+			<Route path='/admin-login' element={<Navigate to='/admin/login' replace />} />
 			<Route
 				path='/admin'
 				element={
