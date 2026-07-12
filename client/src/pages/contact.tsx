@@ -89,6 +89,37 @@ export function ContactPage() {
 		subject: '',
 		message: '',
 	})
+	const [errors, setErrors] = useState<Record<string, string>>({})
+	const [touched, setTouched] = useState<Record<string, boolean>>({})
+
+	function validateField(field: string, value: string): string {
+		switch (field) {
+			case 'name':
+				return value.trim().length < 2 ? 'Name must be at least 2 characters' : ''
+			case 'email':
+				return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? '' : 'Please enter a valid email'
+			case 'subject':
+				return value.trim().length < 3 ? 'Subject must be at least 3 characters' : ''
+			case 'message':
+				return value.trim().length < 10 ? 'Message must be at least 10 characters' : ''
+			default:
+				return ''
+		}
+	}
+
+	function validateAll(): boolean {
+		const newErrors: Record<string, string> = {}
+		let hasError = false
+		;['name', 'email', 'subject', 'message'].forEach((field) => {
+			const error = validateField(field, formData[field as keyof typeof formData])
+			if (error) {
+				newErrors[field] = error
+				hasError = true
+			}
+		})
+		setErrors(newErrors)
+		return !hasError
+	}
 
 	useEffect(() => {
 		trackEvent('page_view_contact')
@@ -96,13 +127,22 @@ export function ContactPage() {
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault()
+		setTouched({ name: true, email: true, subject: true, message: true })
+		if (!validateAll()) return
 		trackEvent('contact_form_submit', { subject: formData.subject })
-		// In a real app, this would send to an API
 		setSubmitted(true)
 	}
 
 	const handleChange = (field: string, value: string) => {
 		setFormData((prev) => ({ ...prev, [field]: value }))
+		if (touched[field]) {
+			setErrors((prev) => ({ ...prev, [field]: validateField(field, value) }))
+		}
+	}
+
+	const handleBlur = (field: string) => {
+		setTouched((prev) => ({ ...prev, [field]: true }))
+		setErrors((prev) => ({ ...prev, [field]: validateField(field, formData[field as keyof typeof formData]) }))
 	}
 
 	return (

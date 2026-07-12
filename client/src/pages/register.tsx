@@ -23,6 +23,48 @@ export function RegisterPage() {
 	const [error, setError] = useState('')
 	const [loading, setLoading] = useState(false)
 	const [showPassword, setShowPassword] = useState(false)
+	const [errors, setErrors] = useState<Record<string, string>>({})
+	const [touched, setTouched] = useState<Record<string, boolean>>({})
+
+	function validateField(field: string, value: string): string {
+		switch (field) {
+			case 'name':
+				return value.trim().length < 2 ? 'Full name must be at least 2 characters' : ''
+			case 'email':
+				return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? '' : 'Please enter a valid email address'
+			case 'password':
+				if (value.length < 8) return 'Password must be at least 8 characters'
+				if (!/[A-Z]/.test(value)) return 'Password must include at least one uppercase letter'
+				if (!/[a-z]/.test(value)) return 'Password must include at least one lowercase letter'
+				if (!/[0-9]/.test(value)) return 'Password must include at least one number'
+				return ''
+			case 'company':
+				return role === 'employer' && value.trim().length < 2 ? 'Company name is required for employers' : ''
+			default:
+				return ''
+		}
+	}
+
+	function validateAll(): boolean {
+		const newErrors: Record<string, string> = {}
+		let hasError = false
+		;['name', 'email', 'password'].forEach((field) => {
+			const error = validateField(field, field === 'name' ? name : field === 'email' ? email : password)
+			if (error) {
+				newErrors[field] = error
+				hasError = true
+			}
+		})
+		if (role === 'employer') {
+			const companyError = validateField('company', companyName)
+			if (companyError) {
+				newErrors.company = companyError
+				hasError = true
+			}
+		}
+		setErrors(newErrors)
+		return !hasError
+	}
 
 	useEffect(() => {
 		trackEvent('page_view_signup')
@@ -34,6 +76,8 @@ export function RegisterPage() {
 
 	async function handleSubmit(e: FormEvent) {
 		e.preventDefault()
+		setTouched({ name: true, email: true, password: true, company: true })
+		if (!validateAll()) return
 		setError('')
 		setLoading(true)
 
@@ -53,6 +97,12 @@ export function RegisterPage() {
 		} finally {
 			setLoading(false)
 		}
+	}
+
+	const handleBlur = (field: string) => {
+		setTouched((prev) => ({ ...prev, [field]: true }))
+		const value = field === 'name' ? name : field === 'email' ? email : field === 'password' ? password : companyName
+		setErrors((prev) => ({ ...prev, [field]: validateField(field, value) }))
 	}
 
 	const isRecruiterRole = role === 'employer'
@@ -166,10 +216,11 @@ export function RegisterPage() {
 									placeholder='John Doe'
 									value={name}
 									onChange={(e) => setName(e.target.value)}
-									required
+									onBlur={() => handleBlur('name')}
 									autoComplete='name'
-									className='h-11'
+									className={\`h-11 \${errors.name ? 'border-red-500' : ''}\`}
 								/>
+								{errors.name && <p className='text-xs text-red-500'>{errors.name}</p>}
 							</div>
 
 							<div className='space-y-2'>
@@ -180,10 +231,11 @@ export function RegisterPage() {
 									placeholder='example.email@gmail.com'
 									value={email}
 									onChange={(e) => setEmail(e.target.value)}
-									required
+									onBlur={() => handleBlur('email')}
 									autoComplete='email'
-									className='h-11'
+									className={\`h-11 \${errors.email ? 'border-red-500' : ''}\`}
 								/>
+								{errors.email && <p className='text-xs text-red-500'>{errors.email}</p>}
 							</div>
 
 							<div className='space-y-2'>
@@ -195,10 +247,9 @@ export function RegisterPage() {
 										placeholder='Enter at least 8+ characters'
 										value={password}
 										onChange={(e) => setPassword(e.target.value)}
-										required
-										minLength={8}
+										onBlur={() => handleBlur('password')}
 										autoComplete='new-password'
-										className='h-11 pr-10'
+										className={\`h-11 pr-10 \${errors.password ? 'border-red-500' : ''}\`}
 									/>
 									<button
 										type='button'
@@ -209,6 +260,7 @@ export function RegisterPage() {
 										{showPassword ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
 									</button>
 								</div>
+								{errors.password && <p className='text-xs text-red-500'>{errors.password}</p>}
 							</div>
 
 							{isRecruiterRole && (
@@ -219,9 +271,10 @@ export function RegisterPage() {
 										placeholder='Your company'
 										value={companyName}
 										onChange={(e) => setCompanyName(e.target.value)}
-										required={isRecruiterRole}
-										className='h-11'
+										onBlur={() => handleBlur('company')}
+										className={\`h-11 \${errors.company ? 'border-red-500' : ''}\`}
 									/>
+									{errors.company && <p className='text-xs text-red-500'>{errors.company}</p>}
 								</div>
 							)}
 
