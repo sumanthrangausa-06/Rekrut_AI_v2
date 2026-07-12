@@ -1,6 +1,6 @@
 import { AlertCircle, Eye, EyeOff, Mail, Moon, Sun, UserPlus } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,6 +15,7 @@ import { clearTokens } from '@/lib/api'
 export function RegisterPage() {
 	const { register, isAuthenticated, user } = useAuth()
 	const { theme, toggleTheme } = useTheme()
+	const [searchParams] = useSearchParams()
 	const [name, setName] = useState('')
 	const [email, setEmail] = useState('')
 	const [password, setPassword] = useState('')
@@ -25,6 +26,14 @@ export function RegisterPage() {
 	const [showPassword, setShowPassword] = useState(false)
 	const [errors, setErrors] = useState<Record<string, string>>({})
 	const [touched, setTouched] = useState<Record<string, boolean>>({})
+
+	// Read ?role=recruiter from URL and pre-select employer role
+	useEffect(() => {
+		const urlRole = searchParams.get('role')
+		if (urlRole === 'recruiter') {
+			setRole('employer')
+		}
+	}, [searchParams])
 
 	function validateField(field: string, value: string): string {
 		switch (field) {
