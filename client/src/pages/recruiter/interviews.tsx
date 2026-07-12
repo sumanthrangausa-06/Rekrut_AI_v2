@@ -24,7 +24,7 @@ import {
 	Video,
 	XCircle,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { EmptyState } from '@/components/domain/empty-state'
 import { Skeleton } from '@/components/domain/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -192,11 +192,8 @@ export function RecruiterInterviewsPage() {
 	// Jobs for template creation
 	const [jobs, setJobs] = useState<any[]>([])
 
-	useEffect(() => {
-		loadData()
-	}, [loadData])
-
-	async function loadData() {
+	// Load data on mount only — wrapped in useCallback to prevent infinite loop
+	const loadData = useCallback(async () => {
 		setLoading(true)
 		try {
 			const [intRes, appRes, templRes, jobsRes] = await Promise.all([
@@ -216,7 +213,11 @@ export function RecruiterInterviewsPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, []) // Empty deps — only run once on mount
+
+	useEffect(() => {
+		loadData()
+	}, [loadData])
 
 	// AI Smart Scheduling — suggest optimal slots
 	async function findBestTime() {
