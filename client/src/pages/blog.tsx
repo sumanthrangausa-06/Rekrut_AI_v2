@@ -88,7 +88,7 @@ export function BlogPage() {
 						<span className='text-muted-foreground'>/</span>
 						<span className='text-sm font-medium'>Blog</span>
 					</div>
-					<h1 className='font-heading text-2xl sm:text-3xl font-bold mb-2'>HireLoop Blog</h1>
+					<h1 className='font-heading text-2xl sm:text-3xl font-bold mb-2'>Rekrut AI Blog</h1>
 					<p className='text-muted-foreground max-w-2xl'>
 						Insights, tips, and strategies for modern recruitment and career growth.
 					</p>
@@ -169,7 +169,7 @@ export function BlogPage() {
 											<div className='w-32 h-32 mx-auto mb-4 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center'>
 												<span className='text-4xl'>📰</span>
 											</div>
-											<p className='text-sm'>HireLoop Insights</p>
+											<p className='text-sm'>Rekrut AI Insights</p>
 										</div>
 									</div>
 								</div>
