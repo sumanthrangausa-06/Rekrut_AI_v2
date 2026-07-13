@@ -779,7 +779,7 @@ export function CandidateJobDetailPage() {
 									<span className='text-xs text-muted-foreground mr-1'>Matching skills:</span>
 									{matchingSkills.map((s: string) => (
 										<span
-											key={i}
+											key={s}
 											className='text-[10px] bg-green-50 text-green-700 rounded px-1.5 py-0.5 border border-green-100'
 										>
 											{s}
@@ -792,7 +792,7 @@ export function CandidateJobDetailPage() {
 										<span className='text-xs text-muted-foreground mr-1'>To improve:</span>
 										{missingSkills.slice(0, 5).map((s: string) => (
 											<span
-												key={i}
+												key={s}
 												className='text-[10px] bg-amber-50 text-amber-700 rounded px-1.5 py-0.5 border border-amber-100'
 											>
 												{s}
@@ -809,7 +809,7 @@ export function CandidateJobDetailPage() {
 								</p>
 								<div className='space-y-1'>
 									{matchBreakdown.improvement_tips.slice(0, 3).map((tip: any, i: number) => (
-										<p key={i} className='text-xs text-muted-foreground'>
+										<p key={s} className='text-xs text-muted-foreground'>
 											• {tip.tip}
 										</p>
 									))}
@@ -877,7 +877,7 @@ export function CandidateJobDetailPage() {
 										<div className='flex flex-wrap gap-1.5 mt-2'>
 											{tailoredDocs.key_strengths.map((s, i) => (
 												<Badge
-													key={i}
+													key={s}
 													variant='outline'
 													className='text-[10px] bg-white border-green-200 text-green-700'
 												>
@@ -1091,7 +1091,7 @@ export function CandidateJobDetailPage() {
 								{reviewResult.strengths?.length > 0 && (
 									<div className='space-y-0.5'>
 										{reviewResult.strengths.slice(0, 2).map((s: string, i: number) => (
-											<p key={i} className='text-xs text-green-700 flex items-center gap-1'>
+											<p key={s} className='text-xs text-green-700 flex items-center gap-1'>
 												<CheckCircle className='h-3 w-3 shrink-0' />
 												{s}
 											</p>
@@ -1106,7 +1106,7 @@ export function CandidateJobDetailPage() {
 											.filter((i: any) => i.severity !== 'tip')
 											.slice(0, 3)
 											.map((issue: any, i: number) => (
-												<p key={i} className='text-xs text-amber-700 flex items-center gap-1'>
+												<p key={s} className='text-xs text-amber-700 flex items-center gap-1'>
 													<AlertCircle className='h-3 w-3 shrink-0' />
 													{issue.message}
 													{issue.fix && <span className='text-amber-600'> — {issue.fix}</span>}
