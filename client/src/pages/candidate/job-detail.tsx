@@ -809,7 +809,7 @@ export function CandidateJobDetailPage() {
 								</p>
 								<div className='space-y-1'>
 									{matchBreakdown.improvement_tips.slice(0, 3).map((tip: any, i: number) => (
-										<p key={s} className='text-xs text-muted-foreground'>
+										<p key={i} className='text-xs text-muted-foreground'>
 											• {tip.tip}
 										</p>
 									))}
@@ -1106,7 +1106,7 @@ export function CandidateJobDetailPage() {
 											.filter((i: any) => i.severity !== 'tip')
 											.slice(0, 3)
 											.map((issue: any, i: number) => (
-												<p key={s} className='text-xs text-amber-700 flex items-center gap-1'>
+												<p key={i} className='text-xs text-amber-700 flex items-center gap-1'>
 													<AlertCircle className='h-3 w-3 shrink-0' />
 													{issue.message}
 													{issue.fix && <span className='text-amber-600'> — {issue.fix}</span>}

@@ -371,7 +371,7 @@ export function JobAssessmentTakePage() {
 							<div className='space-y-2 max-h-48 overflow-y-auto'>
 								{conversation.map((msg, i) => (
 									<div
-										key={opt}
+										key={i}
 										className={`flex ${msg.role === 'candidate' ? 'justify-end' : 'justify-start'}`}
 									>
 										<div

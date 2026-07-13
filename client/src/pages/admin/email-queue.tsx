@@ -14,7 +14,7 @@ export function AdminEmailQueuePage() {
     setLoading(true);
     try {
       const res = await apiCall<{ stats: Record<string, number> }>('/admin/email-queue');
-      if (res.success) setStats(res.stats);
+      if (res.stats) setStats(res.stats);
     } catch (err) {
       console.error('Failed to load email queue stats:', err);
     } finally {
@@ -26,7 +26,7 @@ export function AdminEmailQueuePage() {
     setRetrying(true);
     try {
       const res = await apiCall<{ retried: number }>('/admin/email-queue/retry', { method: 'POST' });
-      if (res.success) {
+      if (res.retried !== undefined) {
         alert(`Retried ${res.retried} failed emails`);
         await loadStats();
       }
