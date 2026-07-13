@@ -154,8 +154,8 @@ export function RecruiterJobsPage() {
 	})
 
 	const activeJobs = jobs.filter((j) => j.status === 'active')
-	const totalApps = jobs.reduce((sum, j) => sum + (parseInt(j.application_count, 10) || 0), 0)
-	const totalHired = jobs.reduce((sum, j) => sum + (parseInt(j.hired_count, 10) || 0), 0)
+	const totalApps = jobs.reduce((sum, j) => sum + Number(j.application_count || 0), 0)
+	const totalHired = jobs.reduce((sum, j) => sum + Number(j.hired_count || 0), 0)
 	const avgTimeToFill =
 		jobs.length > 0
 			? Math.round(

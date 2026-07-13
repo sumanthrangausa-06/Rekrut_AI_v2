@@ -227,7 +227,7 @@ export function RegisterPage() {
 									onChange={(e) => setName(e.target.value)}
 									onBlur={() => handleBlur('name')}
 									autoComplete='name'
-									className={\`h-11 \${errors.name ? 'border-red-500' : ''}\`}
+									className={`h-11 ${errors.name ? 'border-red-500' : ''}`}
 								/>
 								{errors.name && <p className='text-xs text-red-500'>{errors.name}</p>}
 							</div>
@@ -242,7 +242,7 @@ export function RegisterPage() {
 									onChange={(e) => setEmail(e.target.value)}
 									onBlur={() => handleBlur('email')}
 									autoComplete='email'
-									className={\`h-11 \${errors.email ? 'border-red-500' : ''}\`}
+									className={`h-11 ${errors.email ? 'border-red-500' : ''}`}
 								/>
 								{errors.email && <p className='text-xs text-red-500'>{errors.email}</p>}
 							</div>
@@ -258,7 +258,7 @@ export function RegisterPage() {
 										onChange={(e) => setPassword(e.target.value)}
 										onBlur={() => handleBlur('password')}
 										autoComplete='new-password'
-										className={\`h-11 pr-10 \${errors.password ? 'border-red-500' : ''}\`}
+										className={`h-11 pr-10 ${errors.password ? 'border-red-500' : ''}`}
 									/>
 									<button
 										type='button'
@@ -281,7 +281,7 @@ export function RegisterPage() {
 										value={companyName}
 										onChange={(e) => setCompanyName(e.target.value)}
 										onBlur={() => handleBlur('company')}
-										className={\`h-11 \${errors.company ? 'border-red-500' : ''}\`}
+										className={`h-11 ${errors.company ? 'border-red-500' : ''}`}
 									/>
 									{errors.company && <p className='text-xs text-red-500'>{errors.company}</p>}
 								</div>
