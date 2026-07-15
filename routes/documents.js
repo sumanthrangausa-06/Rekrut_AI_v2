@@ -118,10 +118,13 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 
 				// ── Send document verification email (non-blocking) ──
 				try {
-					const userResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [userId]);
+					const userResult = await pool.query('SELECT email, name FROM users WHERE id = $1', [
+						userId,
+					]);
 					const user = userResult.rows[0];
 					if (user?.email) {
-						const templateName = verificationResult.fraud_risk === 'high' ? 'document_flagged' : 'document_verified';
+						const templateName =
+							verificationResult.fraud_risk === 'high' ? 'document_flagged' : 'document_verified';
 						await emailService.sendTemplatedEmail({
 							to: user.email,
 							templateName,
@@ -132,16 +135,20 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 								status: verificationResult.fraud_risk === 'high' ? 'flagged' : 'verified',
 								verified_date: new Date().toISOString(),
 								documents_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/candidate/documents`,
-								flag_reason: verificationResult.fraud_risk === 'high' 
-									? 'High fraud risk detected during automated verification'
-									: '',
+								flag_reason:
+									verificationResult.fraud_risk === 'high'
+										? 'High fraud risk detected during automated verification'
+										: '',
 							},
 							userId,
 							metadata: { document_id: document.id, document_type: document.document_type },
 						});
 					}
 				} catch (emailErr) {
-					console.error('[email] Failed to send document verification email (non-blocking):', emailErr.message);
+					console.error(
+						'[email] Failed to send document verification email (non-blocking):',
+						emailErr.message,
+					);
 				}
 			})
 			.catch((error) => {
@@ -306,10 +313,9 @@ router.get('/:id/verification', authMiddleware, async (req, res) => {
 
 		// First, check if user has access to this document (owner or company recruiter)
 		let hasAccess = false;
-		const docResult = await pool.query(
-			`SELECT user_id FROM verification_documents WHERE id = $1`,
-			[id],
-		);
+		const docResult = await pool.query(`SELECT user_id FROM verification_documents WHERE id = $1`, [
+			id,
+		]);
 
 		if (docResult.rows.length === 0) {
 			return res.status(404).json({ error: 'Verification not found' });

@@ -66,9 +66,7 @@ class CartesiaValidationError extends CartesiaError {
 
 function classifyCartesiaError(responseStatus, errorText) {
 	if (responseStatus === 429) {
-		return new CartesiaRateLimitError(
-			`Cartesia rate limit exceeded: ${errorText}`,
-		);
+		return new CartesiaRateLimitError(`Cartesia rate limit exceeded: ${errorText}`);
 	}
 	if (responseStatus === 401 || responseStatus === 403) {
 		return new CartesiaAuthError(
@@ -182,7 +180,7 @@ async function synthesize({ text, voiceId, speed, emotion, language, modelId }) 
 		await writeFile(filePath, buffer);
 
 		// Estimate duration: ~150 chars per 10 seconds at normal speed
-		const estimatedDuration = Math.ceil((text.length / 150) * 10 / (body.speed || 1));
+		const estimatedDuration = Math.ceil(((text.length / 150) * 10) / (body.speed || 1));
 
 		return {
 			fileName,
@@ -198,15 +196,9 @@ async function synthesize({ text, voiceId, speed, emotion, language, modelId }) 
 	} catch (err) {
 		if (err instanceof CartesiaError) throw err;
 		if (isNetworkError(err)) {
-			throw new CartesiaNetworkError(
-				`Network error connecting to Cartesia: ${err.message}`,
-			);
+			throw new CartesiaNetworkError(`Network error connecting to Cartesia: ${err.message}`);
 		}
-		throw new CartesiaError(
-			`Unexpected TTS error: ${err.message}`,
-			500,
-			'unexpected',
-		);
+		throw new CartesiaError(`Unexpected TTS error: ${err.message}`, 500, 'unexpected');
 	}
 }
 
@@ -237,11 +229,16 @@ async function transcribe({ audioBuffer, fileName, language, model }) {
 	}
 
 	const ext = path.extname(fileName || 'audio.wav').slice(1) || 'wav';
-	const mimeType = ext === 'mp3' || ext === 'mpeg' ? 'audio/mpeg' :
-		ext === 'm4a' ? 'audio/mp4' :
-		ext === 'ogg' ? 'audio/ogg' :
-		ext === 'webm' ? 'audio/webm' :
-		'audio/wav';
+	const mimeType =
+		ext === 'mp3' || ext === 'mpeg'
+			? 'audio/mpeg'
+			: ext === 'm4a'
+				? 'audio/mp4'
+				: ext === 'ogg'
+					? 'audio/ogg'
+					: ext === 'webm'
+						? 'audio/webm'
+						: 'audio/wav';
 
 	// Build multipart form data manually (no form-data dependency needed for simple cases)
 	const boundary = `----CartesiaFormBoundary${crypto.randomBytes(16).toString('hex')}`;
@@ -251,8 +248,8 @@ async function transcribe({ audioBuffer, fileName, language, model }) {
 	formParts.push(
 		Buffer.from(
 			`--${boundary}\r\n` +
-			`Content-Disposition: form-data; name="file"; filename="audio.${ext}"\r\n` +
-			`Content-Type: ${mimeType}\r\n\r\n`,
+				`Content-Disposition: form-data; name="file"; filename="audio.${ext}"\r\n` +
+				`Content-Type: ${mimeType}\r\n\r\n`,
 		),
 	);
 	formParts.push(audioBuffer);
@@ -262,8 +259,8 @@ async function transcribe({ audioBuffer, fileName, language, model }) {
 	formParts.push(
 		Buffer.from(
 			`--${boundary}\r\n` +
-			`Content-Disposition: form-data; name="model"\r\n\r\n` +
-			`${model || 'ink-whisper'}\r\n`,
+				`Content-Disposition: form-data; name="model"\r\n\r\n` +
+				`${model || 'ink-whisper'}\r\n`,
 		),
 	);
 
@@ -271,8 +268,8 @@ async function transcribe({ audioBuffer, fileName, language, model }) {
 	formParts.push(
 		Buffer.from(
 			`--${boundary}\r\n` +
-			`Content-Disposition: form-data; name="language"\r\n\r\n` +
-			`${language || 'en'}\r\n`,
+				`Content-Disposition: form-data; name="language"\r\n\r\n` +
+				`${language || 'en'}\r\n`,
 		),
 	);
 
@@ -280,8 +277,8 @@ async function transcribe({ audioBuffer, fileName, language, model }) {
 	formParts.push(
 		Buffer.from(
 			`--${boundary}\r\n` +
-			`Content-Disposition: form-data; name="timestamp_granularities[]"\r\n\r\n` +
-			`word\r\n`,
+				`Content-Disposition: form-data; name="timestamp_granularities[]"\r\n\r\n` +
+				`word\r\n`,
 		),
 	);
 
@@ -319,15 +316,9 @@ async function transcribe({ audioBuffer, fileName, language, model }) {
 	} catch (err) {
 		if (err instanceof CartesiaError) throw err;
 		if (isNetworkError(err)) {
-			throw new CartesiaNetworkError(
-				`Network error connecting to Cartesia: ${err.message}`,
-			);
+			throw new CartesiaNetworkError(`Network error connecting to Cartesia: ${err.message}`);
 		}
-		throw new CartesiaError(
-			`Unexpected STT error: ${err.message}`,
-			500,
-			'unexpected',
-		);
+		throw new CartesiaError(`Unexpected STT error: ${err.message}`, 500, 'unexpected');
 	}
 }
 
@@ -360,15 +351,9 @@ async function listVoices() {
 	} catch (err) {
 		if (err instanceof CartesiaError) throw err;
 		if (isNetworkError(err)) {
-			throw new CartesiaNetworkError(
-				`Network error connecting to Cartesia: ${err.message}`,
-			);
+			throw new CartesiaNetworkError(`Network error connecting to Cartesia: ${err.message}`);
 		}
-		throw new CartesiaError(
-			`Unexpected voices list error: ${err.message}`,
-			500,
-			'unexpected',
-		);
+		throw new CartesiaError(`Unexpected voices list error: ${err.message}`, 500, 'unexpected');
 	}
 }
 

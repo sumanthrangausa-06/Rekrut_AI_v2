@@ -21,10 +21,7 @@ router.get('/track/open/:logId', async (req, res) => {
 	}
 
 	// Return 1x1 transparent GIF
-	const pixel = Buffer.from(
-		'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-		'base64',
-	);
+	const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
 	res.setHeader('Content-Type', 'image/gif');
 	res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
 	res.setHeader('Pragma', 'no-cache');
@@ -87,9 +84,12 @@ router.get('/analytics', async (req, res) => {
 
 		const overview = overviewResult.rows[0];
 		const sent = parseInt(overview.sent_count, 10) || 0;
-		const openRate = sent > 0 ? Math.round((parseInt(overview.open_count, 10) || 0) / sent * 100) : 0;
-		const clickRate = sent > 0 ? Math.round((parseInt(overview.click_count, 10) || 0) / sent * 100) : 0;
-		const bounceRate = sent > 0 ? Math.round((parseInt(overview.bounced_count, 10) || 0) / sent * 100) : 0;
+		const openRate =
+			sent > 0 ? Math.round(((parseInt(overview.open_count, 10) || 0) / sent) * 100) : 0;
+		const clickRate =
+			sent > 0 ? Math.round(((parseInt(overview.click_count, 10) || 0) / sent) * 100) : 0;
+		const bounceRate =
+			sent > 0 ? Math.round(((parseInt(overview.bounced_count, 10) || 0) / sent) * 100) : 0;
 
 		// Daily breakdown
 		const dailyResult = await pool.query(
@@ -168,9 +168,10 @@ router.get('/analytics', async (req, res) => {
 				sent: parseInt(row.total_sent, 10),
 				opens: parseInt(row.opens, 10),
 				clicks: parseInt(row.clicks, 10),
-				openRate: parseInt(row.total_sent, 10) > 0
-					? Math.round((parseInt(row.opens, 10) / parseInt(row.total_sent, 10)) * 100)
-					: 0,
+				openRate:
+					parseInt(row.total_sent, 10) > 0
+						? Math.round((parseInt(row.opens, 10) / parseInt(row.total_sent, 10)) * 100)
+						: 0,
 			})),
 			recent: recentResult.rows.map((row) => ({
 				id: row.id,

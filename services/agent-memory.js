@@ -56,7 +56,7 @@ class AgentMemoryService {
 				`INSERT INTO agent_memory (agent_id, agent_type, category, content, metadata, importance)
 				 VALUES ($1, $2, $3, $4, $5, $6)
 				 RETURNING id, created_at`,
-				[agentId, agentType, category, sanitized, JSON.stringify(metadata), importance]
+				[agentId, agentType, category, sanitized, JSON.stringify(metadata), importance],
 			);
 			return { id: result.rows[0].id, createdAt: result.rows[0].created_at };
 		} finally {
@@ -71,7 +71,7 @@ class AgentMemoryService {
 		const client = await this.pool.connect();
 		try {
 			let query = `SELECT * FROM agent_memory WHERE agent_id = $1 AND (expires_at IS NULL OR expires_at > NOW())`;
-			let params = [agentId];
+			const params = [agentId];
 			if (category) {
 				query += ` AND category = $2`;
 				params.push(category);
@@ -79,7 +79,7 @@ class AgentMemoryService {
 			query += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
 			params.push(limit);
 			const result = await client.query(query, params);
-			return result.rows.map(row => ({
+			return result.rows.map((row) => ({
 				id: row.id,
 				agentId: row.agent_id,
 				agentType: row.agent_type,
@@ -101,7 +101,7 @@ class AgentMemoryService {
 		const client = await this.pool.connect();
 		try {
 			let sql = `SELECT * FROM agent_memory WHERE content ILIKE $1 AND (expires_at IS NULL OR expires_at > NOW())`;
-			let params = [`%${query}%`];
+			const params = [`%${query}%`];
 			if (category) {
 				sql += ` AND category = $2`;
 				params.push(category);
@@ -109,7 +109,7 @@ class AgentMemoryService {
 			sql += ` ORDER BY importance DESC, created_at DESC LIMIT $${params.length + 1}`;
 			params.push(limit);
 			const result = await client.query(sql, params);
-			return result.rows.map(row => ({
+			return result.rows.map((row) => ({
 				id: row.id,
 				agentId: row.agent_id,
 				agentType: row.agent_type,
@@ -131,7 +131,7 @@ class AgentMemoryService {
 		const client = await this.pool.connect();
 		try {
 			const result = await client.query(
-				`DELETE FROM agent_memory WHERE expires_at < NOW() RETURNING id`
+				`DELETE FROM agent_memory WHERE expires_at < NOW() RETURNING id`,
 			);
 			return { deleted: result.rowCount };
 		} finally {

@@ -31,7 +31,7 @@ const calendarService = require('../server/services/calendar-service');
 const router = express.Router();
 const upload = multer({
 	storage: multer.memoryStorage(),
-	limits: { fileSize: 50 * 1024 * 1024 }
+	limits: { fileSize: 50 * 1024 * 1024 },
 });
 
 // Helper: Race a promise against a timeout to prevent hanging when AI providers are slow.
@@ -1809,7 +1809,12 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 			details: { total_questions: total, distinct_roles: parseInt(qb.rows[0].roles, 10) },
 		});
 	} catch (err) {
-		results.tests.push({ level: 'L1', name: 'Question Bank', status: 'fail', error: 'Diagnostic check failed' });
+		results.tests.push({
+			level: 'L1',
+			name: 'Question Bank',
+			status: 'fail',
+			error: 'Diagnostic check failed',
+		});
 	}
 
 	// L2: AI provider health
@@ -1904,7 +1909,12 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 			details: { response_preview: (testResult || '').substring(0, 100), latency_ms: llmTime },
 		});
 	} catch (err) {
-		results.tests.push({ level: 'L4', name: 'LLM Chain', status: 'fail', error: 'Diagnostic check failed' });
+		results.tests.push({
+			level: 'L4',
+			name: 'LLM Chain',
+			status: 'fail',
+			error: 'Diagnostic check failed',
+		});
 	}
 
 	// L5: End-to-end mock session simulation check
@@ -1943,7 +1953,12 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 			});
 		}
 	} catch (err) {
-		results.tests.push({ level: 'L5', name: 'E2E Check', status: 'fail', error: 'Diagnostic check failed' });
+		results.tests.push({
+			level: 'L5',
+			name: 'E2E Check',
+			status: 'fail',
+			error: 'Diagnostic check failed',
+		});
 	}
 
 	// Summary

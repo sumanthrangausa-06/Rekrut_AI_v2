@@ -7,7 +7,8 @@ const fetch = require('node-fetch');
 const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
 const CARTESIA_API_URL = 'https://api.cartesia.ai/tts/bytes';
 const CARTESIA_VOICES_URL = 'https://api.cartesia.ai/voices';
-const CARTESIA_DEFAULT_VOICE_ID = process.env.CARTESIA_DEFAULT_VOICE_ID || 'f9fc912e-52f0-448a-8bfa-47e9ca75f25a';
+const CARTESIA_DEFAULT_VOICE_ID =
+	process.env.CARTESIA_DEFAULT_VOICE_ID || 'f9fc912e-52f0-448a-8bfa-47e9ca75f25a';
 
 // ─── Error Classes ─────────────────────────────────────────────────────────
 
@@ -48,9 +49,7 @@ class CartesiaServerError extends CartesiaError {
 
 function classifyCartesiaError(responseStatus, errorText) {
 	if (responseStatus === 429) {
-		return new CartesiaRateLimitError(
-			`Cartesia rate limit exceeded: ${errorText}`,
-		);
+		return new CartesiaRateLimitError(`Cartesia rate limit exceeded: ${errorText}`);
 	}
 	if (responseStatus === 401 || responseStatus === 403) {
 		return new CartesiaAuthError(
@@ -140,15 +139,9 @@ async function synthesize({ text, voiceId, speed, emotion, language }) {
 	} catch (err) {
 		if (err instanceof CartesiaError) throw err;
 		if (isNetworkError(err)) {
-			throw new CartesiaNetworkError(
-				`Network error connecting to Cartesia: ${err.message}`,
-			);
+			throw new CartesiaNetworkError(`Network error connecting to Cartesia: ${err.message}`);
 		}
-		throw new CartesiaError(
-			`Unexpected TTS error: ${err.message}`,
-			500,
-			'unexpected',
-		);
+		throw new CartesiaError(`Unexpected TTS error: ${err.message}`, 500, 'unexpected');
 	}
 }
 
@@ -179,15 +172,9 @@ async function listVoices() {
 	} catch (err) {
 		if (err instanceof CartesiaError) throw err;
 		if (isNetworkError(err)) {
-			throw new CartesiaNetworkError(
-				`Network error connecting to Cartesia: ${err.message}`,
-			);
+			throw new CartesiaNetworkError(`Network error connecting to Cartesia: ${err.message}`);
 		}
-		throw new CartesiaError(
-			`Unexpected voices list error: ${err.message}`,
-			500,
-			'unexpected',
-		);
+		throw new CartesiaError(`Unexpected voices list error: ${err.message}`, 500, 'unexpected');
 	}
 }
 

@@ -282,7 +282,14 @@ Best regards,
   </p>
 </body>
 </html>`,
-		variables: JSON.stringify(['name', 'job_title', 'company_name', 'location', 'applied_date', 'application_link']),
+		variables: JSON.stringify([
+			'name',
+			'job_title',
+			'company_name',
+			'location',
+			'applied_date',
+			'application_link',
+		]),
 		is_system: true,
 	},
 	{
@@ -328,7 +335,15 @@ Rekrut AI`,
   </p>
 </body>
 </html>`,
-		variables: JSON.stringify(['name', 'candidate_name', 'candidate_email', 'job_title', 'omniscore', 'applied_date', 'application_link']),
+		variables: JSON.stringify([
+			'name',
+			'candidate_name',
+			'candidate_email',
+			'job_title',
+			'omniscore',
+			'applied_date',
+			'application_link',
+		]),
 		is_system: true,
 	},
 	{

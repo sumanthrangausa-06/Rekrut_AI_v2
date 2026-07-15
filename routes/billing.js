@@ -183,9 +183,7 @@ router.post('/checkout-session', optionalAuth, async (req, res) => {
 		});
 	} catch (error) {
 		console.error('[billing] checkout-session error:', error.message);
-		res
-			.status(error.status || 500)
-			.json({ error: 'Payment processing failed. Please try again.' });
+		res.status(error.status || 500).json({ error: 'Payment processing failed. Please try again.' });
 	}
 });
 

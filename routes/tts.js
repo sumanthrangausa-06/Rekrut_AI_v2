@@ -18,7 +18,8 @@ const {
 } = ttsService;
 
 const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
-const CARTESIA_DEFAULT_VOICE_ID = process.env.CARTESIA_DEFAULT_VOICE_ID || 'f9fc912e-52f0-448a-8bfa-47e9ca75f25a';
+const CARTESIA_DEFAULT_VOICE_ID =
+	process.env.CARTESIA_DEFAULT_VOICE_ID || 'f9fc912e-52f0-448a-8bfa-47e9ca75f25a';
 
 // ─── Middleware ──────────────────────────────────────────────────────────────
 
@@ -48,34 +49,29 @@ function handleTtsError(res, err) {
 	if (err instanceof CartesiaAuthError) {
 		return res.status(401).json({
 			error: 'TTS authentication failed',
-
 		});
 	}
 
 	if (err instanceof CartesiaNetworkError) {
 		return res.status(502).json({
 			error: 'TTS network error',
-
 		});
 	}
 
 	if (err instanceof CartesiaServerError) {
 		return res.status(502).json({
 			error: 'TTS upstream server error',
-
 		});
 	}
 
 	if (err instanceof CartesiaError) {
 		return res.status(err.statusCode || 500).json({
 			error: 'TTS API error',
-
 		});
 	}
 
 	return res.status(500).json({
 		error: 'TTS synthesis failed',
-
 	});
 }
 
@@ -103,9 +99,7 @@ router.post('/synthesize', authMiddleware, requireCartesiaKey, async (req, res) 
 		});
 
 		// Track usage (Phase 1: log only, Phase 2: monthly credit tracking)
-		console.log(
-			`[tts] user=${req.user?.id || 'unknown'} chars=${text.length} voice=${voiceId}`,
-		);
+		console.log(`[tts] user=${req.user?.id || 'unknown'} chars=${text.length} voice=${voiceId}`);
 
 		res.set('Content-Type', 'audio/mpeg');
 		res.set('Content-Length', audioBuffer.length);

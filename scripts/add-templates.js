@@ -6,10 +6,10 @@ const newTemplates = `\t{\n\t\tname: 'job_application_submitted',\n\t\ttype: 'ap
 
 const insertPoint = "\t{\n\t\tname: 'welcome',";
 if (content.includes(insertPoint)) {
-  content = content.replace(insertPoint, newTemplates + insertPoint);
-  fs.writeFileSync(path, content);
-  console.log('Inserted new templates successfully');
+	content = content.replace(insertPoint, newTemplates + insertPoint);
+	fs.writeFileSync(path, content);
+	console.log('Inserted new templates successfully');
 } else {
-  console.error('Could not find insertion point');
-  process.exit(1);
+	console.error('Could not find insertion point');
+	process.exit(1);
 }

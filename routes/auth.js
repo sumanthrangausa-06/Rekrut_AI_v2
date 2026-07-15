@@ -67,7 +67,7 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 		if (existing.rows.length > 0) {
 			return res.status(200).json({
 				success: true,
-				message: 'If this email is not registered, you will receive a confirmation.'
+				message: 'If this email is not registered, you will receive a confirmation.',
 			});
 		}
 
@@ -203,7 +203,10 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 			});
 		}
 		if (err.code === '23505') {
-			return res.status(200).json({ success: true, message: 'If this email is not registered, you will receive a confirmation.' });
+			return res.status(200).json({
+				success: true,
+				message: 'If this email is not registered, you will receive a confirmation.',
+			});
 		}
 		if (err.code === '28P01') {
 			return res.status(500).json({

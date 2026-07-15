@@ -1,6 +1,6 @@
 /**
  * Migration: Add default email notification templates
- * 
+ *
  * 15 transactional email templates for Rekrut AI:
  * 1. welcome - New user registration
  * 2. password_reset - Password reset request
@@ -20,8 +20,8 @@
  */
 
 async function up(client) {
-  // Ensure notification_templates table exists with all required columns
-  await client.query(`
+	// Ensure notification_templates table exists with all required columns
+	await client.query(`
     CREATE TABLE IF NOT EXISTS notification_templates (
       id SERIAL PRIMARY KEY,
       name VARCHAR(100) UNIQUE NOT NULL,
@@ -35,8 +35,8 @@ async function up(client) {
     )
   `);
 
-  // Add updated_at trigger if not exists
-  await client.query(`
+	// Add updated_at trigger if not exists
+	await client.query(`
     DO $$
     BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_notification_templates_timestamp') THEN
@@ -56,12 +56,12 @@ async function up(client) {
     END $$;
   `);
 
-  // Insert default email templates
-  const templates = [
-    {
-      name: 'welcome',
-      subject: 'Welcome to Rekrut AI, {{name}}!',
-      body: `Hi {{name}},
+	// Insert default email templates
+	const templates = [
+		{
+			name: 'welcome',
+			subject: 'Welcome to Rekrut AI, {{name}}!',
+			body: `Hi {{name}},
 
 Welcome to Rekrut AI! We're excited to have you on board.
 
@@ -89,12 +89,12 @@ If you have any questions, reply to this email or contact us at support@rekrut.a
 
 Best regards,
 The Rekrut AI Team`,
-      html: null,
-    },
-    {
-      name: 'password_reset',
-      subject: 'Password Reset Request - Rekrut AI',
-      body: `Hi {{name}},
+			html: null,
+		},
+		{
+			name: 'password_reset',
+			subject: 'Password Reset Request - Rekrut AI',
+			body: `Hi {{name}},
 
 We received a request to reset your password for your Rekrut AI account.
 
@@ -107,12 +107,12 @@ If you didn't request this, you can safely ignore this email. Your password won'
 
 Best regards,
 The Rekrut AI Team`,
-      html: null,
-    },
-    {
-      name: 'email_verification',
-      subject: 'Verify Your Email - Rekrut AI',
-      body: `Hi {{name}},
+			html: null,
+		},
+		{
+			name: 'email_verification',
+			subject: 'Verify Your Email - Rekrut AI',
+			body: `Hi {{name}},
 
 Thanks for signing up! Please verify your email address by clicking the link below:
 
@@ -124,12 +124,12 @@ If you didn't create an account, you can safely ignore this email.
 
 Best regards,
 The Rekrut AI Team`,
-      html: null,
-    },
-    {
-      name: 'job_application_submitted',
-      subject: 'Application Submitted: {{job_title}} at {{company_name}}',
-      body: `Hi {{name}},
+			html: null,
+		},
+		{
+			name: 'job_application_submitted',
+			subject: 'Application Submitted: {{job_title}} at {{company_name}}',
+			body: `Hi {{name}},
 
 Your application for {{job_title}} at {{company_name}} has been submitted successfully!
 
@@ -148,12 +148,12 @@ Track your application: {{application_link}}
 
 Best regards,
 The Rekrut AI Team`,
-      html: null,
-    },
-    {
-      name: 'job_application_received',
-      subject: 'New Application: {{job_title}} from {{candidate_name}}',
-      body: `Hi {{name}},
+			html: null,
+		},
+		{
+			name: 'job_application_received',
+			subject: 'New Application: {{job_title}} from {{candidate_name}}',
+			body: `Hi {{name}},
 
 You have a new application for {{job_title}}.
 
@@ -172,12 +172,12 @@ Review application: {{application_link}}
 
 Best regards,
 The Rekrut AI Team`,
-      html: null,
-    },
-    {
-      name: 'interview_scheduled',
-      subject: 'Interview Scheduled: {{job_title}} at {{company_name}}',
-      body: `Hi {{name}},
+			html: null,
+		},
+		{
+			name: 'interview_scheduled',
+			subject: 'Interview Scheduled: {{job_title}} at {{company_name}}',
+			body: `Hi {{name}},
 
 Your interview for {{job_title}} at {{company_name}} has been scheduled.
 
@@ -202,12 +202,12 @@ Please confirm your attendance by clicking this link:
 
 Best regards,
 The Rekrut AI Team`,
-      html: null,
-    },
-    {
-      name: 'interview_reminder',
-      subject: 'Reminder: Interview in 24 Hours - {{job_title}}',
-      body: `Hi {{name}},
+			html: null,
+		},
+		{
+			name: 'interview_reminder',
+			subject: 'Reminder: Interview in 24 Hours - {{job_title}}',
+			body: `Hi {{name}},
 
 This is a friendly reminder that your interview for {{job_title}} at {{company_name}} is scheduled for tomorrow.
 
@@ -224,12 +224,12 @@ If you need to reschedule, please contact us as soon as possible.
 
 Best regards,
 The Rekrut AI Team`,
-      html: null,
-    },
-    {
-      name: 'offer_extended',
-      subject: 'Job Offer: {{job_title}} at {{company_name}}',
-      body: `Hi {{name}},
+			html: null,
+		},
+		{
+			name: 'offer_extended',
+			subject: 'Job Offer: {{job_title}} at {{company_name}}',
+			body: `Hi {{name}},
 
 Congratulations! We are pleased to offer you the position of {{job_title}} at {{company_name}}.
 
@@ -248,12 +248,12 @@ We look forward to having you join the team!
 Best regards,
 {{sender_name}}
 {{company_name}}`,
-      html: null,
-    },
-    {
-      name: 'offer_accepted',
-      subject: 'Offer Accepted: {{candidate_name}} for {{job_title}}',
-      body: `Hi {{name}},
+			html: null,
+		},
+		{
+			name: 'offer_accepted',
+			subject: 'Offer Accepted: {{candidate_name}} for {{job_title}}',
+			body: `Hi {{name}},
 
 Great news! {{candidate_name}} has accepted the offer for {{job_title}}.
 
@@ -272,12 +272,12 @@ Candidate Profile: {{candidate_link}}
 
 Best regards,
 The Rekrut AI Team`,
-      html: null,
-    },
-    {
-      name: 'offer_rejected',
-      subject: 'Offer Declined: {{candidate_name}} for {{job_title}}',
-      body: `Hi {{name}},
+			html: null,
+		},
+		{
+			name: 'offer_rejected',
+			subject: 'Offer Declined: {{candidate_name}} for {{job_title}}',
+			body: `Hi {{name}},
 
 {{candidate_name}} has declined the offer for {{job_title}}.
 
@@ -288,12 +288,12 @@ This position is now back open. You can view other candidates:
 
 Best regards,
 The Rekrut AI Team`,
-      html: null,
-    },
-    {
-      name: 'document_verified',
-      subject: 'Document Verified Successfully',
-      body: `Hi {{name}},
+			html: null,
+		},
+		{
+			name: 'document_verified',
+			subject: 'Document Verified Successfully',
+			body: `Hi {{name}},
 
 Your {{document_type}} has been successfully verified.
 
@@ -308,12 +308,12 @@ View your documents: {{documents_link}}
 
 Best regards,
 The Rekrut AI Team`,
-      html: null,
-    },
-    {
-      name: 'document_flagged',
-      subject: 'Document Requires Review',
-      body: `Hi {{name}},
+			html: null,
+		},
+		{
+			name: 'document_flagged',
+			subject: 'Document Requires Review',
+			body: `Hi {{name}},
 
 Your {{document_type}} has been flagged for manual review.
 
@@ -327,12 +327,12 @@ Questions? Contact support@rekrut.ai
 
 Best regards,
 The Rekrut AI Team`,
-      html: null,
-    },
-    {
-      name: 'account_suspended',
-      subject: 'Account Suspended - Rekrut AI',
-      body: `Hi {{name}},
+			html: null,
+		},
+		{
+			name: 'account_suspended',
+			subject: 'Account Suspended - Rekrut AI',
+			body: `Hi {{name}},
 
 Your Rekrut AI account has been suspended.
 
@@ -343,12 +343,12 @@ support@rekrut.ai
 
 Best regards,
 The Rekrut AI Team`,
-      html: null,
-    },
-    {
-      name: 'payment_failed',
-      subject: 'Payment Failed - Rekrut AI Subscription',
-      body: `Hi {{name}},
+			html: null,
+		},
+		{
+			name: 'payment_failed',
+			subject: 'Payment Failed - Rekrut AI Subscription',
+			body: `Hi {{name}},
 
 We were unable to process your payment for your Rekrut AI subscription.
 
@@ -364,12 +364,12 @@ If you need assistance, contact billing@rekrut.ai
 
 Best regards,
 The Rekrut AI Team`,
-      html: null,
-    },
-    {
-      name: 'subscription_renewal',
-      subject: 'Subscription Renewal - {{plan_name}}',
-      body: `Hi {{name}},
+			html: null,
+		},
+		{
+			name: 'subscription_renewal',
+			subject: 'Subscription Renewal - {{plan_name}}',
+			body: `Hi {{name}},
 
 Your {{plan_name}} subscription will renew on {{renewal_date}}.
 
@@ -385,13 +385,13 @@ To manage your subscription:
 
 Best regards,
 The Rekrut AI Team`,
-      html: null,
-    },
-  ];
+			html: null,
+		},
+	];
 
-  for (const template of templates) {
-    await client.query(
-      `
+	for (const template of templates) {
+		await client.query(
+			`
         INSERT INTO notification_templates (name, type, subject_template, body_template, html_template)
         VALUES ($1, 'email', $2, $3, $4)
         ON CONFLICT (name) DO UPDATE SET
@@ -400,11 +400,11 @@ The Rekrut AI Team`,
           html_template = EXCLUDED.html_template,
           updated_at = NOW()
       `,
-      [template.name, template.subject, template.body, template.html]
-    );
-  }
+			[template.name, template.subject, template.body, template.html],
+		);
+	}
 
-  console.log(`[migration] Inserted ${templates.length} email templates`);
+	console.log(`[migration] Inserted ${templates.length} email templates`);
 }
 
 module.exports = { name: 'add-email-templates', up };

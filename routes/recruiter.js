@@ -563,7 +563,9 @@ router.post('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
 		}
 	} catch (err) {
 		if (err.statusCode === 400) {
-			return res.status(400).json({ error: 'Invalid job data. Please check your input and try again.' });
+			return res
+				.status(400)
+				.json({ error: 'Invalid job data. Please check your input and try again.' });
 		}
 		console.error('Create job error:', err);
 		res.status(500).json({ error: 'Failed to create job' });
@@ -759,7 +761,9 @@ router.put('/jobs/:id', authMiddleware, requireRecruiter, async (req, res) => {
 		res.json({ success: true, job: result.rows[0] });
 	} catch (err) {
 		if (err.statusCode === 400) {
-			return res.status(400).json({ error: 'Invalid job data. Please check your input and try again.' });
+			return res
+				.status(400)
+				.json({ error: 'Invalid job data. Please check your input and try again.' });
 		}
 		console.error('Update job error:', err);
 		res.status(500).json({ error: 'Failed to update job' });
@@ -871,11 +875,18 @@ router.put('/applications/:id/status', authMiddleware, requireRecruiter, async (
 						next_steps: '',
 					},
 					userId: cand.id,
-					metadata: { application_id: req.params.id, job_id: existing.rows[0].job_id, new_status: status },
+					metadata: {
+						application_id: req.params.id,
+						job_id: existing.rows[0].job_id,
+						new_status: status,
+					},
 				});
 			}
 		} catch (emailErr) {
-			console.error('[email] Failed to send application status update email (non-blocking):', emailErr.message);
+			console.error(
+				'[email] Failed to send application status update email (non-blocking):',
+				emailErr.message,
+			);
 		}
 
 		// Audit log
@@ -983,7 +994,11 @@ router.delete('/interviews/:id', authMiddleware, requireRecruiter, async (req, r
 		try {
 			const deleted = result.rows[0];
 			if (deleted.calendar_event_id && deleted.calendar_provider) {
-				await calendarService.deleteCalendarEvent(deleted.recruiter_id, deleted.calendar_provider, deleted.calendar_event_id);
+				await calendarService.deleteCalendarEvent(
+					deleted.recruiter_id,
+					deleted.calendar_provider,
+					deleted.calendar_event_id,
+				);
 			}
 		} catch (calErr) {
 			console.error('[calendar] Auto-sync delete failed (non-blocking):', calErr.message);
@@ -1434,14 +1449,14 @@ router.put('/applications/:id', authMiddleware, requireRecruiter, async (req, re
 			try {
 				const candidateResult = await pool.query(
 					'SELECT u.email, u.name, j.title as job_title, c.name as company_name FROM users u JOIN job_applications ja ON ja.candidate_id = u.id JOIN jobs j ON j.id = ja.job_id JOIN companies c ON c.id = j.company_id WHERE ja.id = $1',
-					[req.params.id]
+					[req.params.id],
 				);
 				if (candidateResult.rows.length > 0) {
 					const candidate = candidateResult.rows[0];
 					const templateMap = {
-						'offered': 'offer_received',
-						'hired': 'hired',
-						'rejected': 'rejection'
+						offered: 'offer_received',
+						hired: 'hired',
+						rejected: 'rejection',
 					};
 					await emailService.sendTemplatedEmail({
 						to: candidate.email,
@@ -1451,10 +1466,10 @@ router.put('/applications/:id', authMiddleware, requireRecruiter, async (req, re
 							jobTitle: candidate.job_title,
 							companyName: candidate.company_name,
 							status: status,
-							recruiterNotes: recruiter_notes || ''
+							recruiterNotes: recruiter_notes || '',
 						},
 						userId: existing.rows[0].candidate_id,
-						metadata: { applicationId: req.params.id, jobId: existing.rows[0].job_id }
+						metadata: { applicationId: req.params.id, jobId: existing.rows[0].job_id },
 					});
 				}
 			} catch (emailErr) {
@@ -1983,9 +1998,9 @@ router.put('/applications/batch-status', authMiddleware, requireRecruiter, async
 		if (['offered', 'hired', 'rejected'].includes(status)) {
 			try {
 				const templateMap = {
-					'offered': 'offer_received',
-					'hired': 'hired',
-					'rejected': 'rejection'
+					offered: 'offer_received',
+					hired: 'hired',
+					rejected: 'rejection',
 				};
 				// Get candidate details for all applications
 				const candidateDetails = await pool.query(
@@ -1995,7 +2010,7 @@ router.put('/applications/batch-status', authMiddleware, requireRecruiter, async
 					JOIN jobs j ON ja.job_id = j.id
 					JOIN companies c ON c.id = j.company_id
 					WHERE ja.id = ANY($1)`,
-					[validIds]
+					[validIds],
 				);
 				for (const candidate of candidateDetails.rows) {
 					try {
@@ -2007,13 +2022,18 @@ router.put('/applications/batch-status', authMiddleware, requireRecruiter, async
 								jobTitle: candidate.job_title,
 								companyName: candidate.company_name,
 								status: status,
-								recruiterNotes: ''
+								recruiterNotes: '',
 							},
 							userId: null,
-							metadata: { applicationId: candidate.id, batchOperation: true }
+							metadata: { applicationId: candidate.id, batchOperation: true },
 						});
 					} catch (individualEmailErr) {
-						console.error('Failed to send batch status email for application', candidate.id, ':', individualEmailErr);
+						console.error(
+							'Failed to send batch status email for application',
+							candidate.id,
+							':',
+							individualEmailErr,
+						);
 						/* non-critical - continue with other emails */
 					}
 				}
@@ -3335,9 +3355,21 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
 
 		// Diversity metrics (from candidate profiles)
 		let diversityMetrics = {
-			male_count: 0, female_count: 0, non_binary_count: 0, gender_unspecified: 0,
-			asian_count: 0, black_count: 0, hispanic_count: 0, white_count: 0, ethnicity_other: 0, ethnicity_unspecified: 0,
-			age_under_25: 0, age_25_34: 0, age_35_44: 0, age_45_54: 0, age_55_plus: 0,
+			male_count: 0,
+			female_count: 0,
+			non_binary_count: 0,
+			gender_unspecified: 0,
+			asian_count: 0,
+			black_count: 0,
+			hispanic_count: 0,
+			white_count: 0,
+			ethnicity_other: 0,
+			ethnicity_unspecified: 0,
+			age_under_25: 0,
+			age_25_34: 0,
+			age_35_44: 0,
+			age_45_54: 0,
+			age_55_plus: 0,
 		};
 		try {
 			const diversityResult = await pool.query(
@@ -3390,7 +3422,12 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
 		}
 
 		// Offer acceptance rate
-		let offerStats = { offers_extended: 0, offers_accepted: 0, offers_declined: 0, rejected_count: 0 };
+		let offerStats = {
+			offers_extended: 0,
+			offers_accepted: 0,
+			offers_declined: 0,
+			rejected_count: 0,
+		};
 		try {
 			const offerResult = await pool.query(
 				`SELECT 
@@ -3546,8 +3583,14 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
 					gender_distribution: [
 						{ label: 'Male', percentage: parseInt(diversityMetrics.male_count, 10) || 0 },
 						{ label: 'Female', percentage: parseInt(diversityMetrics.female_count, 10) || 0 },
-						{ label: 'Non-Binary', percentage: parseInt(diversityMetrics.non_binary_count, 10) || 0 },
-						{ label: 'Unspecified', percentage: parseInt(diversityMetrics.gender_unspecified, 10) || 0 },
+						{
+							label: 'Non-Binary',
+							percentage: parseInt(diversityMetrics.non_binary_count, 10) || 0,
+						},
+						{
+							label: 'Unspecified',
+							percentage: parseInt(diversityMetrics.gender_unspecified, 10) || 0,
+						},
 					],
 					ethnicity_distribution: [
 						{ label: 'Asian', percentage: parseInt(diversityMetrics.asian_count, 10) || 0 },
@@ -3555,15 +3598,26 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
 						{ label: 'Hispanic', percentage: parseInt(diversityMetrics.hispanic_count, 10) || 0 },
 						{ label: 'White', percentage: parseInt(diversityMetrics.white_count, 10) || 0 },
 						{ label: 'Other', percentage: parseInt(diversityMetrics.ethnicity_other, 10) || 0 },
-						{ label: 'Unspecified', percentage: parseInt(diversityMetrics.ethnicity_unspecified, 10) || 0 },
+						{
+							label: 'Unspecified',
+							percentage: parseInt(diversityMetrics.ethnicity_unspecified, 10) || 0,
+						},
 					],
 				},
-				cost_per_hire: costPerHire.length > 0
-					? Math.round(costPerHire.reduce((sum, r) => sum + parseInt(r.cost, 10), 0) / costPerHire.length)
-					: 0,
-				offer_acceptance_rate: parseInt(offerStats.offers_extended, 10) > 0
-					? Math.round((parseInt(offerStats.offers_accepted, 10) || 0) / parseInt(offerStats.offers_extended, 10) * 100)
-					: 0,
+				cost_per_hire:
+					costPerHire.length > 0
+						? Math.round(
+								costPerHire.reduce((sum, r) => sum + parseInt(r.cost, 10), 0) / costPerHire.length,
+							)
+						: 0,
+				offer_acceptance_rate:
+					parseInt(offerStats.offers_extended, 10) > 0
+						? Math.round(
+								((parseInt(offerStats.offers_accepted, 10) || 0) /
+									parseInt(offerStats.offers_extended, 10)) *
+									100,
+							)
+						: 0,
 				top_skills_in_demand: topSkills,
 				recent_applications: recentAppsResult.rows,
 			},

@@ -15,7 +15,9 @@ const router = express.Router();
  */
 router.post('/connect/google', authMiddleware, async (req, res) => {
 	try {
-		const state = Buffer.from(JSON.stringify({ userId: req.user.id, provider: 'google' })).toString('base64');
+		const state = Buffer.from(JSON.stringify({ userId: req.user.id, provider: 'google' })).toString(
+			'base64',
+		);
 		const url = calendarService.getGoogleAuthUrl(state);
 		res.json({ success: true, authUrl: url });
 	} catch (err) {
@@ -30,7 +32,9 @@ router.post('/connect/google', authMiddleware, async (req, res) => {
  */
 router.post('/connect/outlook', authMiddleware, async (req, res) => {
 	try {
-		const state = Buffer.from(JSON.stringify({ userId: req.user.id, provider: 'outlook' })).toString('base64');
+		const state = Buffer.from(
+			JSON.stringify({ userId: req.user.id, provider: 'outlook' }),
+		).toString('base64');
 		const url = calendarService.getOutlookAuthUrl(state);
 		res.json({ success: true, authUrl: url });
 	} catch (err) {
@@ -54,7 +58,9 @@ router.get('/oauth/callback', async (req, res) => {
 
 		if (error) {
 			console.error('[calendar] OAuth error from provider:', error);
-			return res.redirect(`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/settings/calendar?error=${encodeURIComponent(error)}`);
+			return res.redirect(
+				`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/settings/calendar?error=${encodeURIComponent(error)}`,
+			);
 		}
 
 		if (!code || !state) {
@@ -85,10 +91,14 @@ router.get('/oauth/callback', async (req, res) => {
 		await calendarService.upsertConnection(userId, provider, tokens);
 
 		// Redirect back to frontend settings page with success indicator
-		res.redirect(`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/settings/calendar?success=${provider}`);
+		res.redirect(
+			`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/settings/calendar?success=${provider}`,
+		);
 	} catch (err) {
 		console.error('[calendar] OAuth callback error:', err.message);
-		res.redirect(`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/settings/calendar?error=calendar_connection_failed`);
+		res.redirect(
+			`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/settings/calendar?error=calendar_connection_failed`,
+		);
 	}
 });
 
@@ -164,7 +174,9 @@ router.post('/events/:interviewId', authMiddleware, async (req, res) => {
 		let { provider } = req.body;
 
 		// Fetch interview
-		const interviewRes = await pool.query('SELECT * FROM scheduled_interviews WHERE id = $1', [interviewId]);
+		const interviewRes = await pool.query('SELECT * FROM scheduled_interviews WHERE id = $1', [
+			interviewId,
+		]);
 		if (interviewRes.rows.length === 0) {
 			return res.status(404).json({ error: 'Interview not found' });
 		}
@@ -177,9 +189,13 @@ router.post('/events/:interviewId', authMiddleware, async (req, res) => {
 
 		// Auto-detect provider if not specified
 		if (!provider) {
-			const conn = await calendarService.getConnection(req.user.id, 'google') || await calendarService.getConnection(req.user.id, 'outlook');
+			const conn =
+				(await calendarService.getConnection(req.user.id, 'google')) ||
+				(await calendarService.getConnection(req.user.id, 'outlook'));
 			if (!conn) {
-				return res.status(400).json({ error: 'No active calendar connection. Please connect Google or Outlook calendar first.' });
+				return res.status(400).json({
+					error: 'No active calendar connection. Please connect Google or Outlook calendar first.',
+				});
 			}
 			provider = conn.provider;
 		}
@@ -187,7 +203,12 @@ router.post('/events/:interviewId', authMiddleware, async (req, res) => {
 		let eventId;
 		if (interview.calendar_event_id && interview.calendar_provider === provider) {
 			// Update existing
-			eventId = await calendarService.updateCalendarEvent(req.user.id, provider, interview.calendar_event_id, interview);
+			eventId = await calendarService.updateCalendarEvent(
+				req.user.id,
+				provider,
+				interview.calendar_event_id,
+				interview,
+			);
 		} else {
 			// Create new
 			eventId = await calendarService.createCalendarEvent(req.user.id, provider, interview);
@@ -208,7 +229,9 @@ router.delete('/events/:interviewId', authMiddleware, async (req, res) => {
 	try {
 		const { interviewId } = req.params;
 
-		const interviewRes = await pool.query('SELECT * FROM scheduled_interviews WHERE id = $1', [interviewId]);
+		const interviewRes = await pool.query('SELECT * FROM scheduled_interviews WHERE id = $1', [
+			interviewId,
+		]);
 		if (interviewRes.rows.length === 0) {
 			return res.status(404).json({ error: 'Interview not found' });
 		}
@@ -222,7 +245,11 @@ router.delete('/events/:interviewId', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'No calendar event linked to this interview' });
 		}
 
-		await calendarService.deleteCalendarEvent(req.user.id, interview.calendar_provider, interview.calendar_event_id);
+		await calendarService.deleteCalendarEvent(
+			req.user.id,
+			interview.calendar_provider,
+			interview.calendar_event_id,
+		);
 		await pool.query(
 			`UPDATE scheduled_interviews SET calendar_event_id = NULL, calendar_provider = NULL, updated_at = NOW() WHERE id = $1`,
 			[interviewId],

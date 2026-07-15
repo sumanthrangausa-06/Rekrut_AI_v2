@@ -11,7 +11,7 @@ module.exports = {
 		async function tableExists(tableName) {
 			const result = await db.query(
 				`SELECT 1 FROM information_schema.tables WHERE table_name = $1`,
-				[tableName]
+				[tableName],
 			);
 			return result.rows.length > 0;
 		}
@@ -22,14 +22,18 @@ module.exports = {
 			const match = sql.match(/ALTER\s+TABLE\s+(\w+)/i);
 			const tableName = match ? match[1] : null;
 			if (tableName && !(await tableExists(tableName))) {
-				console.log(`[migration] Skipping ALTER (table '${tableName}' doesn't exist): ${sql.trim().substring(0, 60)}...`);
+				console.log(
+					`[migration] Skipping ALTER (table '${tableName}' doesn't exist): ${sql.trim().substring(0, 60)}...`,
+				);
 				return;
 			}
 			try {
 				await db.query(sql);
 			} catch (err) {
 				if (err.message.includes('does not exist')) {
-					console.log(`[migration] Skipping ALTER (column doesn't exist): ${sql.trim().substring(0, 60)}...`);
+					console.log(
+						`[migration] Skipping ALTER (column doesn't exist): ${sql.trim().substring(0, 60)}...`,
+					);
 				} else {
 					throw err;
 				}
@@ -46,7 +50,9 @@ module.exports = {
 		async function safeCreateIndex(sql) {
 			const tableName = extractTableName(sql);
 			if (tableName && !(await tableExists(tableName))) {
-				console.log(`[migration] Skipping index (table '${tableName}' doesn't exist): ${sql.trim().substring(0, 60)}...`);
+				console.log(
+					`[migration] Skipping index (table '${tableName}' doesn't exist): ${sql.trim().substring(0, 60)}...`,
+				);
 				return;
 			}
 			try {
@@ -166,7 +172,10 @@ module.exports = {
 			// communication_templates
 			{ table: 'communication_templates', columns: ['created_at', 'updated_at'] },
 			// communications
-			{ table: 'communications', columns: ['created_at', 'read_at', 'replied_at', 'sent_at', 'updated_at'] },
+			{
+				table: 'communications',
+				columns: ['created_at', 'read_at', 'replied_at', 'sent_at', 'updated_at'],
+			},
 			// companies
 			{ table: 'companies', columns: ['created_at', 'updated_at', 'verified_at'] },
 			// company_policies
@@ -204,7 +213,10 @@ module.exports = {
 			// job_applications
 			{ table: 'job_applications', columns: ['applied_at', 'updated_at'] },
 			// job_assessment_attempts
-			{ table: 'job_assessment_attempts', columns: ['completed_at', 'created_at', 'scored_at', 'started_at'] },
+			{
+				table: 'job_assessment_attempts',
+				columns: ['completed_at', 'created_at', 'scored_at', 'started_at'],
+			},
 			// job_assessment_questions
 			{ table: 'job_assessment_questions', columns: ['created_at'] },
 			// job_assessments
@@ -212,7 +224,10 @@ module.exports = {
 			// job_embeddings
 			{ table: 'job_embeddings', columns: ['created_at', 'last_updated'] },
 			// job_recommendations
-			{ table: 'job_recommendations', columns: ['applied_at', 'clicked_at', 'created_at', 'dismissed_at', 'shown_at'] },
+			{
+				table: 'job_recommendations',
+				columns: ['applied_at', 'clicked_at', 'created_at', 'dismissed_at', 'shown_at'],
+			},
 			// jobs
 			{ table: 'jobs', columns: ['created_at', 'updated_at'] },
 			// match_results
@@ -224,7 +239,19 @@ module.exports = {
 			// offer_templates
 			{ table: 'offer_templates', columns: ['created_at', 'updated_at'] },
 			// offers
-			{ table: 'offers', columns: ['accepted_at', 'candidate_signed_at', 'created_at', 'declined_at', 'offer_letter_generated_at', 'sent_at', 'updated_at', 'viewed_at'] },
+			{
+				table: 'offers',
+				columns: [
+					'accepted_at',
+					'candidate_signed_at',
+					'created_at',
+					'declined_at',
+					'offer_letter_generated_at',
+					'sent_at',
+					'updated_at',
+					'viewed_at',
+				],
+			},
 			// omni_scores
 			{ table: 'omni_scores', columns: ['created_at', 'last_updated'] },
 			// omniscore_results
@@ -234,9 +261,22 @@ module.exports = {
 			// onboarding_checklists
 			{ table: 'onboarding_checklists', columns: ['completed_at', 'created_at', 'updated_at'] },
 			// onboarding_documents
-			{ table: 'onboarding_documents', columns: ['ai_generated_at', 'ai_processed_at', 'created_at', 'signed_at', 'uploaded_at', 'verified_at'] },
+			{
+				table: 'onboarding_documents',
+				columns: [
+					'ai_generated_at',
+					'ai_processed_at',
+					'created_at',
+					'signed_at',
+					'uploaded_at',
+					'verified_at',
+				],
+			},
 			// onboarding_plans
-			{ table: 'onboarding_plans', columns: ['completed_at', 'created_at', 'started_at', 'updated_at'] },
+			{
+				table: 'onboarding_plans',
+				columns: ['completed_at', 'created_at', 'started_at', 'updated_at'],
+			},
 			// onboarding_tasks
 			{ table: 'onboarding_tasks', columns: ['completed_at', 'created_at', 'updated_at'] },
 			// parsed_resumes
@@ -280,7 +320,10 @@ module.exports = {
 			// screening_templates
 			{ table: 'screening_templates', columns: ['created_at', 'updated_at'] },
 			// sequence_enrollments
-			{ table: 'sequence_enrollments', columns: ['completed_at', 'enrolled_at', 'next_send_at', 'updated_at'] },
+			{
+				table: 'sequence_enrollments',
+				columns: ['completed_at', 'enrolled_at', 'next_send_at', 'updated_at'],
+			},
 			// skill_assessments
 			{ table: 'skill_assessments', columns: ['completed_at', 'created_at', 'started_at'] },
 			// tax_documents
@@ -292,9 +335,15 @@ module.exports = {
 			// trust_scores
 			{ table: 'trust_scores', columns: ['created_at', 'last_updated'] },
 			// user_memory
-			{ table: 'user_memory', columns: ['created_at', 'expires_at', 'last_accessed', 'updated_at'] },
+			{
+				table: 'user_memory',
+				columns: ['created_at', 'expires_at', 'last_accessed', 'updated_at'],
+			},
 			// verification_documents
-			{ table: 'verification_documents', columns: ['created_at', 'processed_at', 'updated_at', 'uploaded_at', 'verified_at'] },
+			{
+				table: 'verification_documents',
+				columns: ['created_at', 'processed_at', 'updated_at', 'uploaded_at', 'verified_at'],
+			},
 			// verified_credentials
 			{ table: 'verified_credentials', columns: ['created_at', 'verified_at'] },
 			// work_experience
@@ -307,7 +356,9 @@ module.exports = {
 				continue;
 			}
 			for (const col of columns) {
-				await safeAlter(`ALTER TABLE ${table} ALTER COLUMN ${col} TYPE timestamptz USING ${col} AT TIME ZONE 'UTC'`);
+				await safeAlter(
+					`ALTER TABLE ${table} ALTER COLUMN ${col} TYPE timestamptz USING ${col} AT TIME ZONE 'UTC'`,
+				);
 			}
 		}
 		console.log('P3 Part 2 complete: timestamptz conversions');

@@ -29,9 +29,17 @@ if (missingEnv.length > 0) {
 
 // Validate DATABASE_URL is not a placeholder
 const dbUrl = process.env.DATABASE_URL || '';
-if (dbUrl.includes('@host/') || dbUrl.includes('@localhost:5432/db') || dbUrl.includes('user:password@')) {
-	console.error('[startup] CRITICAL: DATABASE_URL appears to be a placeholder. Please update .env with a real database URL.');
-	console.error('[startup] Example local PostgreSQL: postgresql://test:test@localhost:5432/rekrutai');
+if (
+	dbUrl.includes('@host/') ||
+	dbUrl.includes('@localhost:5432/db') ||
+	dbUrl.includes('user:password@')
+) {
+	console.error(
+		'[startup] CRITICAL: DATABASE_URL appears to be a placeholder. Please update .env with a real database URL.',
+	);
+	console.error(
+		'[startup] Example local PostgreSQL: postgresql://test:test@localhost:5432/rekrutai',
+	);
 }
 
 // Validate SMTP configuration (warn only, not fatal)
@@ -114,28 +122,33 @@ app.use(
 	}),
 );
 
-
 // Deploy verification endpoint — dynamically reads actual git commit
 app.get('/deploy-check', (_req, res) => {
 	try {
 		const { execSync } = require('node:child_process');
 		const commit = execSync('git rev-parse HEAD', { cwd: __dirname, encoding: 'utf8' }).trim();
-		const branch = execSync('git branch --show-current', { cwd: __dirname, encoding: 'utf8' }).trim();
-		const timestamp = execSync('git log -1 --format=%ci', { cwd: __dirname, encoding: 'utf8' }).trim();
-		res.json({ 
-			deployed: true, 
-			commit, 
+		const branch = execSync('git branch --show-current', {
+			cwd: __dirname,
+			encoding: 'utf8',
+		}).trim();
+		const timestamp = execSync('git log -1 --format=%ci', {
+			cwd: __dirname,
+			encoding: 'utf8',
+		}).trim();
+		res.json({
+			deployed: true,
+			commit,
 			branch,
 			timestamp: new Date().toISOString(),
 			built_at: timestamp,
-			env: process.env.NODE_ENV || 'unknown'
+			env: process.env.NODE_ENV || 'unknown',
 		});
 	} catch (err) {
-		res.json({ 
-			deployed: true, 
-			commit: 'unknown', 
+		res.json({
+			deployed: true,
+			commit: 'unknown',
 			timestamp: new Date().toISOString(),
-			error: 'Failed to read deployment info' 
+			error: 'Failed to read deployment info',
 		});
 	}
 });
@@ -145,11 +158,22 @@ app.get('/version', (_req, res) => {
 	try {
 		const { execSync } = require('node:child_process');
 		const commit = execSync('git rev-parse HEAD', { cwd: __dirname, encoding: 'utf8' }).trim();
-		const branch = execSync('git branch --show-current', { cwd: __dirname, encoding: 'utf8' }).trim();
-		const timestamp = execSync('git log -1 --format=%ci', { cwd: __dirname, encoding: 'utf8' }).trim();
+		const branch = execSync('git branch --show-current', {
+			cwd: __dirname,
+			encoding: 'utf8',
+		}).trim();
+		const timestamp = execSync('git log -1 --format=%ci', {
+			cwd: __dirname,
+			encoding: 'utf8',
+		}).trim();
 		res.json({ commit, branch, timestamp, env: process.env.NODE_ENV || 'unknown' });
 	} catch (err) {
-		res.json({ commit: 'unknown', branch: 'unknown', env: process.env.NODE_ENV || 'unknown', error: 'Failed to read version info' });
+		res.json({
+			commit: 'unknown',
+			branch: 'unknown',
+			env: process.env.NODE_ENV || 'unknown',
+			error: 'Failed to read version info',
+		});
 	}
 });
 
@@ -191,7 +215,9 @@ app.get('/health', async (_req, res) => {
 				const { execSync } = require('node:child_process');
 				commit = execSync('git rev-parse HEAD', { cwd: __dirname, encoding: 'utf8' }).trim();
 				branch = execSync('git branch --show-current', { cwd: __dirname, encoding: 'utf8' }).trim();
-			} catch (_e) { /* ignore */ }
+			} catch (_e) {
+				/* ignore */
+			}
 		}
 		res.status(statusCode).json({
 			status: health.healthy ? 'ok' : 'degraded',
@@ -402,7 +428,6 @@ try {
 } catch (err) {
 	console.warn('[server] Activity logger not available:', err.message);
 }
-
 
 // API Routes - Email Queue (admin only)
 const emailQueue = require('./lib/email-queue');
@@ -1738,19 +1763,20 @@ app.use((err, _req, res, _next) => {
 });
 
 // Only start the server if not in test mode (prevents port binding during integration tests)
-const server = process.env.NODE_ENV !== 'test'
-	? app.listen(PORT, () => {
-		console.log(`Rekrut AI running on port ${PORT}`);
+const server =
+	process.env.NODE_ENV !== 'test'
+		? app.listen(PORT, () => {
+				console.log(`Rekrut AI running on port ${PORT}`);
 
-		// Start distributed rate limiter cleanup
-		try {
-			const { distributedRateLimiter } = require('./lib/distributed-rate-limiter');
-			distributedRateLimiter.startCleanup(5 * 60 * 1000); // Clean every 5 minutes
-		} catch (err) {
-			console.warn('[server] Could not start rate limiter cleanup:', err.message);
-		}
-	})
-	: null;
+				// Start distributed rate limiter cleanup
+				try {
+					const { distributedRateLimiter } = require('./lib/distributed-rate-limiter');
+					distributedRateLimiter.startCleanup(5 * 60 * 1000); // Clean every 5 minutes
+				} catch (err) {
+					console.warn('[server] Could not start rate limiter cleanup:', err.message);
+				}
+			})
+		: null;
 
 // Wire up active HTTP connection tracking for the metrics dashboard
 if (server) {

@@ -66,41 +66,35 @@ function handleVoiceError(res, err) {
 	if (err instanceof CartesiaAuthError) {
 		return res.status(401).json({
 			error: 'Voice API authentication failed',
-
 		});
 	}
 
 	if (err instanceof CartesiaNetworkError) {
 		return res.status(502).json({
 			error: 'Voice API network error',
-
 		});
 	}
 
 	if (err instanceof CartesiaServerError) {
 		return res.status(502).json({
 			error: 'Voice upstream server error',
-
 		});
 	}
 
 	if (err instanceof CartesiaValidationError) {
 		return res.status(400).json({
 			error: 'Voice API validation error',
-
 		});
 	}
 
 	if (err instanceof CartesiaError) {
 		return res.status(err.statusCode || 500).json({
 			error: 'Voice API error',
-
 		});
 	}
 
 	return res.status(500).json({
 		error: 'Voice processing failed',
-
 	});
 }
 
@@ -116,63 +110,55 @@ function handleMulterError(err, res) {
 	if (err.message?.includes('Invalid file type')) {
 		return res.status(415).json({
 			error: 'Unsupported media type',
-
 		});
 	}
 	return res.status(400).json({
 		error: 'File upload error',
-
 	});
 }
 
 // ─── POST /api/voice/tts — Text-to-Speech ──────────────────────────────────
 
-router.post(
-	'/tts',
-	authMiddleware,
-	requireCartesiaKey,
-	rateLimits.ai,
-	async (req, res) => {
-		try {
-			const { text, voice_id, speed, emotion, language, model_id } = req.body;
+router.post('/tts', authMiddleware, requireCartesiaKey, rateLimits.ai, async (req, res) => {
+	try {
+		const { text, voice_id, speed, emotion, language, model_id } = req.body;
 
-			if (!text || typeof text !== 'string' || text.length === 0) {
-				return res.status(400).json({ error: 'text is required and must be a non-empty string' });
-			}
-			if (text.length > 5000) {
-				return res.status(400).json({ error: 'text exceeds 5000 character limit' });
-			}
-
-			const result = await voiceService.synthesize({
-				text,
-				voiceId: voice_id,
-				speed: speed !== undefined ? parseFloat(speed) : undefined,
-				emotion,
-				language,
-				modelId: model_id,
-			});
-
-			// Track usage
-			console.log(
-				`[voice/tts] user=${req.user?.id || 'unknown'} chars=${text.length} voice=${voice_id || 'default'} file=${result.fileName}`,
-			);
-
-			res.json({
-				success: true,
-				audio_url: result.publicUrl,
-				file_name: result.fileName,
-				duration: result.duration,
-				text_length: result.textLength,
-				credits_used: result.creditsUsed,
-				format: result.format,
-				voice_id: voice_id || process.env.CARTESIA_DEFAULT_VOICE_ID,
-				timestamp: new Date().toISOString(),
-			});
-		} catch (err) {
-			handleVoiceError(res, err);
+		if (!text || typeof text !== 'string' || text.length === 0) {
+			return res.status(400).json({ error: 'text is required and must be a non-empty string' });
 		}
-	},
-);
+		if (text.length > 5000) {
+			return res.status(400).json({ error: 'text exceeds 5000 character limit' });
+		}
+
+		const result = await voiceService.synthesize({
+			text,
+			voiceId: voice_id,
+			speed: speed !== undefined ? parseFloat(speed) : undefined,
+			emotion,
+			language,
+			modelId: model_id,
+		});
+
+		// Track usage
+		console.log(
+			`[voice/tts] user=${req.user?.id || 'unknown'} chars=${text.length} voice=${voice_id || 'default'} file=${result.fileName}`,
+		);
+
+		res.json({
+			success: true,
+			audio_url: result.publicUrl,
+			file_name: result.fileName,
+			duration: result.duration,
+			text_length: result.textLength,
+			credits_used: result.creditsUsed,
+			format: result.format,
+			voice_id: voice_id || process.env.CARTESIA_DEFAULT_VOICE_ID,
+			timestamp: new Date().toISOString(),
+		});
+	} catch (err) {
+		handleVoiceError(res, err);
+	}
+});
 
 // ─── POST /api/voice/stt — Speech-to-Text ──────────────────────────────────
 

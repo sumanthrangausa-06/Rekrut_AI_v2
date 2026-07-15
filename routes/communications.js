@@ -516,7 +516,11 @@ router.post('/bulk', authMiddleware, requireRecruiter, async (req, res) => {
 					});
 				}
 			} catch (err) {
-				results.push({ candidate_id: candId, success: false, error: 'Communication generation failed' });
+				results.push({
+					candidate_id: candId,
+					success: false,
+					error: 'Communication generation failed',
+				});
 			}
 		}
 

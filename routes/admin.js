@@ -67,7 +67,9 @@ function requireAdmin(req, res, next) {
 		const ADMIN_IDLE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 		const ADMIN_ABSOLUTE_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours
 		const now = Date.now();
-		const lastActivity = req.session.lastAdminActivity ? new Date(req.session.lastAdminActivity).getTime() : now;
+		const lastActivity = req.session.lastAdminActivity
+			? new Date(req.session.lastAdminActivity).getTime()
+			: now;
 		const loginAt = req.session.adminLoginAt ? new Date(req.session.adminLoginAt).getTime() : now;
 
 		if (now - lastActivity > ADMIN_IDLE_TIMEOUT) {
@@ -346,9 +348,7 @@ router.get('/revenue', requireAdmin, async (req, res) => {
 		if (process.env.NODE_ENV === 'production') {
 			res.status(500).json({ error: 'Internal server error', ref });
 		} else {
-			res
-				.status(500)
-				.json({ error: 'Failed to load revenue metrics', ref });
+			res.status(500).json({ error: 'Failed to load revenue metrics', ref });
 		}
 	}
 });
@@ -1195,20 +1195,49 @@ router.get('/compliance/transparency-report', requireAdmin, async (_req, res) =>
 		const generatedAt = new Date().toISOString();
 
 		// AI system settings
-		const aiConfigResult = await pool.query(`
+		const aiConfigResult = await pool
+			.query(`
 			SELECT config_key, config_value FROM system_settings
 			WHERE config_key LIKE 'ai_%'
-		`).catch(() => ({ rows: [] }));
+		`)
+			.catch(() => ({ rows: [] }));
 
 		const aiComponents = [
-			{ name: 'AI Screening', key: 'ai_screening_enabled', description: 'Automated candidate screening and filtering', riskLevel: 'high' },
-			{ name: 'AI Matching', key: 'ai_matching_enabled', description: 'Candidate-job matching algorithm', riskLevel: 'high' },
-			{ name: 'AI Interview Analysis', key: 'ai_interview_enabled', description: 'Video/audio interview assessment', riskLevel: 'high' },
-			{ name: 'AI Assessment', key: 'ai_assessment_enabled', description: 'Skills and competency assessment', riskLevel: 'high' },
-			{ name: 'AI Scoring', key: 'ai_scoring_enabled', description: 'OmniScore generation and ranking', riskLevel: 'high' },
+			{
+				name: 'AI Screening',
+				key: 'ai_screening_enabled',
+				description: 'Automated candidate screening and filtering',
+				riskLevel: 'high',
+			},
+			{
+				name: 'AI Matching',
+				key: 'ai_matching_enabled',
+				description: 'Candidate-job matching algorithm',
+				riskLevel: 'high',
+			},
+			{
+				name: 'AI Interview Analysis',
+				key: 'ai_interview_enabled',
+				description: 'Video/audio interview assessment',
+				riskLevel: 'high',
+			},
+			{
+				name: 'AI Assessment',
+				key: 'ai_assessment_enabled',
+				description: 'Skills and competency assessment',
+				riskLevel: 'high',
+			},
+			{
+				name: 'AI Scoring',
+				key: 'ai_scoring_enabled',
+				description: 'OmniScore generation and ranking',
+				riskLevel: 'high',
+			},
 		].map((comp) => ({
 			...comp,
-			enabled: aiConfigResult.rows.some((r) => r.config_key === comp.key && r.config_value === 'true'),
+			enabled: aiConfigResult.rows.some(
+				(r) => r.config_key === comp.key && r.config_value === 'true',
+			),
 		}));
 
 		const activeComponents = aiComponents.filter((c) => c.enabled).map((c) => c.name);
@@ -1233,7 +1262,7 @@ router.get('/compliance/transparency-report', requireAdmin, async (_req, res) =>
 		`);
 
 		const totalOverrides = parseInt(overrideResult.rows[0]?.total, 10) || 0;
-		const overrideRate = totalDecisions > 0 ? (totalOverrides / totalDecisions) : 0;
+		const overrideRate = totalDecisions > 0 ? totalOverrides / totalDecisions : 0;
 
 		// Score appeals
 		const appealsResult = await pool.query(`
@@ -1245,7 +1274,7 @@ router.get('/compliance/transparency-report', requireAdmin, async (_req, res) =>
 
 		const totalAppeals = parseInt(appealsResult.rows[0]?.total, 10) || 0;
 		const resolvedAppeals = parseInt(appealsResult.rows[0]?.resolved, 10) || 0;
-		const appealResolutionRate = totalAppeals > 0 ? (resolvedAppeals / totalAppeals) : 0;
+		const appealResolutionRate = totalAppeals > 0 ? resolvedAppeals / totalAppeals : 0;
 
 		// Latest bias audit for demographic parity score
 		const biasAuditResult = await pool.query(`
@@ -1271,7 +1300,9 @@ router.get('/compliance/transparency-report', requireAdmin, async (_req, res) =>
 		const latestBiasReport = biasReportResult.rows[0];
 		const latestReportDate = latestBiasReport
 			? latestBiasReport.report_date
-			: (latestBiasAudit ? latestBiasAudit.audit_date : null);
+			: latestBiasAudit
+				? latestBiasAudit.audit_date
+				: null;
 
 		// Consent records
 		const consentResult = await pool.query(`
@@ -1310,7 +1341,8 @@ router.get('/compliance/transparency-report', requireAdmin, async (_req, res) =>
 			generatedAt,
 			systemDescription: {
 				name: 'Rekrut AI',
-				description: 'AI-native recruitment platform for candidate screening, job matching, interview analysis, and assessment scoring.',
+				description:
+					'AI-native recruitment platform for candidate screening, job matching, interview analysis, and assessment scoring.',
 				classification: 'High-risk AI system under EU AI Act Article 6(2)(a)',
 				version: '2.0',
 				lastUpdated: generatedAt,

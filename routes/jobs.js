@@ -19,11 +19,7 @@ const validateJobSearch = [
 		.isInt({ min: 0 })
 		.withMessage('offset must be an integer >= 0')
 		.toInt(),
-	query('page')
-		.optional()
-		.isInt({ min: 1 })
-		.withMessage('page must be an integer >= 1')
-		.toInt(),
+	query('page').optional().isInt({ min: 1 }).withMessage('page must be an integer >= 1').toInt(),
 	query('search')
 		.optional()
 		.isString()
@@ -71,7 +67,8 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 		}
 
 		const parsedLimit = parseInt(limit, 10);
-		const parsedOffset = offset !== undefined ? parseInt(offset, 10) : (parseInt(page, 10) - 1) * parsedLimit;
+		const parsedOffset =
+			offset !== undefined ? parseInt(offset, 10) : (parseInt(page, 10) - 1) * parsedLimit;
 
 		let sqlQuery = `
       SELECT j.id, j.title, j.company, j.description, j.requirements, j.location,
@@ -299,16 +296,19 @@ router.post(
 				const { ensureEventsTable } = require('../lib/db-health');
 				const eventsCheck = await ensureEventsTable();
 				if (eventsCheck.exists) {
-					await pool.query('INSERT INTO events (event_type, user_id, metadata) VALUES ($1, $2, $3)', [
-						'job_post_created',
-						req.user.id,
-						JSON.stringify({ title, company, job_type }),
-					]);
+					await pool.query(
+						'INSERT INTO events (event_type, user_id, metadata) VALUES ($1, $2, $3)',
+						['job_post_created', req.user.id, JSON.stringify({ title, company, job_type })],
+					);
 				} else {
 					console.warn('[jobs] events table missing, skipping job post event log');
 				}
 			} catch (e) {
-				console.error('Failed to log job post event:', e.message, e.code ? `(code: ${e.code})` : '');
+				console.error(
+					'Failed to log job post event:',
+					e.message,
+					e.code ? `(code: ${e.code})` : '',
+				);
 			}
 
 			res.json({ success: true, job: result.rows[0] });
