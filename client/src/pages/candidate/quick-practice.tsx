@@ -1419,7 +1419,7 @@ export function QuickPractice({
 									</button>
 									{expandedSection === 'communication' && (
 										<div className='p-3 pt-0 space-y-3'>
-											<div className='grid grid-cols-2 sm:grid-cols-4 gap-2'>
+											<div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2'>
 												<div className='p-2 rounded bg-muted/50 text-center'>
 													<div className='text-lg font-bold'>
 														{coaching.communication.words_per_minute}
@@ -1504,7 +1504,7 @@ export function QuickPractice({
 														<Mic className='h-3.5 w-3.5 text-indigo-600' />
 														Voice & Tone Analysis
 													</h5>
-													<div className='grid grid-cols-2 gap-2'>
+													<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
 														{[
 															{ key: 'voice_confidence', label: 'Confidence', icon: Star },
 															{ key: 'vocal_variety', label: 'Vocal Variety', icon: Volume2 },
@@ -1591,7 +1591,7 @@ export function QuickPractice({
 									</button>
 									{expandedSection === 'presentation' && (
 										<div className='p-3 pt-0 space-y-3'>
-											<div className='grid grid-cols-2 gap-2'>
+											<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
 												{[
 													{ key: 'eye_contact', label: 'Eye Contact', icon: Eye },
 													{ key: 'facial_expressions', label: 'Expressions', icon: User },

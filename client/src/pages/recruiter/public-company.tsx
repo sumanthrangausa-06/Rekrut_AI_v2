@@ -267,7 +267,7 @@ export function PublicCompanyPage() {
 			</div>
 
 			{/* Stats Bar */}
-			<div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
+			<div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4'>
 				<Card>
 					<CardContent className='p-4 text-center'>
 						<StarRating rating={c.avg_rating} />
@@ -304,7 +304,7 @@ export function PublicCompanyPage() {
 					<h2 className='font-heading text-lg font-bold mb-4 flex items-center gap-2'>
 						<ThumbsUp className='h-5 w-5 text-primary' /> Candidate Ratings
 					</h2>
-					<div className='grid grid-cols-2 md:grid-cols-5 gap-4'>
+					<div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4'>
 						{[
 							{ label: 'Overall', value: c.avg_overall },
 							{ label: 'Interview', value: c.avg_interview },
@@ -324,7 +324,7 @@ export function PublicCompanyPage() {
 			</Card>
 
 			{/* Culture & Values */}
-			<div className='grid gap-6 md:grid-cols-2'>
+			<div className='grid grid-cols-1 gap-6 md:grid-cols-2'>
 				<Card>
 					<CardContent className='p-6'>
 						<h2 className='font-heading text-lg font-bold mb-4 flex items-center gap-2'>
@@ -348,7 +348,7 @@ export function PublicCompanyPage() {
 						<h2 className='font-heading text-lg font-bold mb-4 flex items-center gap-2'>
 							<Award className='h-5 w-5 text-emerald-500' /> Benefits & Perks
 						</h2>
-						<div className='grid grid-cols-2 gap-2'>
+						<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
 							{c.benefits.map((b, i) => (
 								<div key={b} className='flex items-center gap-2 text-sm'>
 									<CheckCircle className='h-4 w-4 text-emerald-500 shrink-0' />

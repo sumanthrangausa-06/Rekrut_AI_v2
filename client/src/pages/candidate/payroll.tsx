@@ -410,7 +410,7 @@ export function CandidatePayrollPage() {
 								</DialogTitle>
 							</DialogHeader>
 							<div className='space-y-4'>
-								<div className='grid grid-cols-2 gap-3'>
+								<div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
 									<div className='rounded-lg bg-muted/50 p-3'>
 										<p className='text-xs text-muted-foreground'>Pay Period</p>
 										<p className='font-medium text-sm'>
