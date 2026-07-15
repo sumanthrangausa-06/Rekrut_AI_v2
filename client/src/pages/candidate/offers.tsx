@@ -185,7 +185,7 @@ export function CandidateOffersPage() {
 	const resolvedOffers = offers.filter((o) => ['accepted', 'declined'].includes(o.status))
 
 	return (
-		<div className='space-y-6'>
+		<div className='space-y-6 px-4 sm:px-6'>
 			{/* Toast */}
 			{message && (
 				<div
@@ -290,7 +290,7 @@ export function CandidateOffersPage() {
 						{selectedOffer.has_letter && (
 							<Button
 								variant='outline'
-								className='w-full gap-2'
+								className='w-full gap-2 min-h-[44px]'
 								onClick={() => viewOfferLetter(selectedOffer.id)}
 								disabled={loadingLetter}
 							>
@@ -323,7 +323,7 @@ export function CandidateOffersPage() {
 								<Button
 									onClick={() => setSignDialog(true)}
 									disabled={acting}
-									className='flex-1 gap-2'
+									className='flex-1 gap-2 min-h-[44px]'
 								>
 									<PenTool className='h-4 w-4' /> Sign & Accept Offer
 								</Button>
@@ -331,7 +331,7 @@ export function CandidateOffersPage() {
 									variant='outline'
 									onClick={() => setDeclineDialog(true)}
 									disabled={acting}
-									className='flex-1 gap-2'
+									className='flex-1 gap-2 min-h-[44px]'
 								>
 									<XCircle className='h-4 w-4' /> Decline
 								</Button>
@@ -386,12 +386,12 @@ export function CandidateOffersPage() {
 									setShowLetter(false)
 									setLetterHtml('')
 								}}
-							>
+							 className='min-h-[44px]'>
 								Close
 							</Button>
 							{selectedOffer && ['sent', 'viewed'].includes(selectedOffer.status) && (
 								<Button
-									className='gap-2'
+									className='gap-2 min-h-[44px]'
 									onClick={() => {
 										setShowLetter(false)
 										setLetterHtml('')
@@ -456,7 +456,7 @@ export function CandidateOffersPage() {
 									value={signatureName}
 									onChange={(e) => setSignatureName(e.target.value)}
 									placeholder='e.g. John A. Smith'
-									className='text-lg font-serif'
+									className='text-lg font-serif h-10'
 									autoFocus
 								/>
 								{signatureName.trim() && (
@@ -471,7 +471,7 @@ export function CandidateOffersPage() {
 							<Button
 								onClick={acceptWithSignature}
 								disabled={signing || !signatureName.trim()}
-								className='flex-1 gap-2'
+								className='flex-1 gap-2 min-h-[44px]'
 							>
 								{signing ? (
 									<div className='h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent' />
@@ -486,7 +486,7 @@ export function CandidateOffersPage() {
 									setSignDialog(false)
 									setSignatureName('')
 								}}
-							>
+							 className='min-h-[44px]'>
 								Cancel
 							</Button>
 						</div>
@@ -514,7 +514,7 @@ export function CandidateOffersPage() {
 							variant='destructive'
 							onClick={declineOffer}
 							disabled={acting}
-							className='gap-2'
+							className='gap-2 min-h-[44px]'
 						>
 							{acting ? (
 								<div className='h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent' />
@@ -523,7 +523,7 @@ export function CandidateOffersPage() {
 							)}
 							Confirm Decline
 						</Button>
-						<Button variant='outline' onClick={() => setDeclineDialog(false)}>
+						<Button variant='outline' onClick={() => setDeclineDialog(false)} className='min-h-[44px]'>
 							Cancel
 						</Button>
 					</div>

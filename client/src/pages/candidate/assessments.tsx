@@ -114,7 +114,7 @@ export function CandidateAssessmentsPage() {
 	}
 
 	return (
-		<div className='space-y-6'>
+		<div className='space-y-6 px-4 sm:px-6'>
 			<div>
 				<h1 className='font-heading text-2xl font-bold'>Skill Assessments</h1>
 				<p className='text-muted-foreground'>Verify your skills with AI-powered assessments</p>
@@ -197,7 +197,7 @@ export function CandidateAssessmentsPage() {
 													<Button
 														size='sm'
 														variant={skill.is_verified ? 'outline' : 'default'}
-														className='w-full gap-1'
+														className='w-full gap-1 min-h-[44px]'
 														onClick={() => startAssessment(skill)}
 														disabled={starting === skill.catalog_name}
 													>

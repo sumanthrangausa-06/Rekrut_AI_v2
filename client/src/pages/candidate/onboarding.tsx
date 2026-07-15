@@ -210,7 +210,7 @@ function NonUSWizardStep({
 								value={firstName}
 								onChange={(e) => setFirstName(e.target.value)}
 								placeholder='Legal first name'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 						<div>
@@ -219,7 +219,7 @@ function NonUSWizardStep({
 								value={lastName}
 								onChange={(e) => setLastName(e.target.value)}
 								placeholder='Legal last name'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 					</div>
@@ -230,7 +230,7 @@ function NonUSWizardStep({
 								type='date'
 								value={dob}
 								onChange={(e) => setDob(e.target.value)}
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 						<div>
@@ -239,7 +239,7 @@ function NonUSWizardStep({
 								value={phone}
 								onChange={(e) => setPhone(e.target.value)}
 								placeholder='+91 98765 43210'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 					</div>
@@ -250,7 +250,7 @@ function NonUSWizardStep({
 								value={countryFields.pan_number || ''}
 								onChange={(e) => updateField('pan_number', e.target.value.toUpperCase())}
 								placeholder='ABCDE1234F'
-								className='mt-1 font-mono'
+								className='mt-1 font-mono h-10'
 								maxLength={10}
 							/>
 							<p className='text-xs text-muted-foreground mt-1'>
@@ -265,7 +265,7 @@ function NonUSWizardStep({
 									updateField('aadhaar_number', e.target.value.replace(/[^0-9\s]/g, ''))
 								}
 								placeholder='1234 5678 9012'
-								className='mt-1 font-mono'
+								className='mt-1 font-mono h-10'
 								maxLength={14}
 							/>
 							<p className='text-xs text-muted-foreground mt-1'>12-digit unique identity number</p>
@@ -277,7 +277,7 @@ function NonUSWizardStep({
 							value={countryFields.fathers_name || ''}
 							onChange={(e) => updateField('fathers_name', e.target.value)}
 							placeholder='As per PAN card'
-							className='mt-1'
+							className='mt-1 h-10'
 						/>
 					</div>
 					<div>
@@ -286,7 +286,7 @@ function NonUSWizardStep({
 							value={address1}
 							onChange={(e) => setAddress1(e.target.value)}
 							placeholder='Street address'
-							className='mt-1'
+							className='mt-1 h-10'
 						/>
 					</div>
 					<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
@@ -296,7 +296,7 @@ function NonUSWizardStep({
 								value={city}
 								onChange={(e) => setCity(e.target.value)}
 								placeholder='City'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 						<div>
@@ -305,7 +305,7 @@ function NonUSWizardStep({
 								value={countryFields.state || ''}
 								onChange={(e) => updateField('state', e.target.value)}
 								placeholder='State'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 					</div>
@@ -315,7 +315,7 @@ function NonUSWizardStep({
 							value={countryFields.pin_code || ''}
 							onChange={(e) => updateField('pin_code', e.target.value)}
 							placeholder='6-digit PIN'
-							className='mt-1 font-mono'
+							className='mt-1 font-mono h-10'
 							maxLength={6}
 						/>
 					</div>
@@ -345,7 +345,7 @@ function NonUSWizardStep({
 								value={countryFields.uan_number || ''}
 								onChange={(e) => updateField('uan_number', e.target.value)}
 								placeholder='UAN from previous employer (if any)'
-								className='mt-1 font-mono'
+								className='mt-1 font-mono h-10'
 							/>
 						</div>
 						<div>
@@ -354,7 +354,7 @@ function NonUSWizardStep({
 								value={countryFields.prev_pf_number || ''}
 								onChange={(e) => updateField('prev_pf_number', e.target.value)}
 								placeholder='e.g., MH/BOM/12345/000/0012345'
-								className='mt-1 font-mono'
+								className='mt-1 font-mono h-10'
 							/>
 						</div>
 					</div>
@@ -376,7 +376,7 @@ function NonUSWizardStep({
 								value={countryFields.pf_nominee_name || ''}
 								onChange={(e) => updateField('pf_nominee_name', e.target.value)}
 								placeholder='Nominee full name'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 						<div>
@@ -385,7 +385,7 @@ function NonUSWizardStep({
 								value={countryFields.pf_nominee_relationship || ''}
 								onChange={(e) => updateField('pf_nominee_relationship', e.target.value)}
 								placeholder='e.g., Spouse, Parent'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 					</div>
@@ -427,7 +427,7 @@ function NonUSWizardStep({
 								value={countryFields.gratuity_nominee_name || ''}
 								onChange={(e) => updateField('gratuity_nominee_name', e.target.value)}
 								placeholder='Nominee full name'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 						<div>
@@ -436,7 +436,7 @@ function NonUSWizardStep({
 								value={countryFields.gratuity_nominee_relationship || ''}
 								onChange={(e) => updateField('gratuity_nominee_relationship', e.target.value)}
 								placeholder='e.g., Spouse, Parent'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 					</div>
@@ -449,7 +449,7 @@ function NonUSWizardStep({
 									value={bankName}
 									onChange={(e) => setBankName(e.target.value)}
 									placeholder='e.g., State Bank of India'
-									className='mt-1'
+									className='mt-1 h-10'
 								/>
 							</div>
 							<div>
@@ -458,7 +458,7 @@ function NonUSWizardStep({
 									value={countryFields.ifsc_code || ''}
 									onChange={(e) => updateField('ifsc_code', e.target.value.toUpperCase())}
 									placeholder='e.g., SBIN0001234'
-									className='mt-1 font-mono'
+									className='mt-1 font-mono h-10'
 									maxLength={11}
 								/>
 							</div>
@@ -469,7 +469,7 @@ function NonUSWizardStep({
 								value={countryFields.account_number || ''}
 								onChange={(e) => updateField('account_number', e.target.value)}
 								placeholder='Bank account number'
-								className='mt-1 font-mono'
+								className='mt-1 font-mono h-10'
 							/>
 						</div>
 					</div>
@@ -482,7 +482,7 @@ function NonUSWizardStep({
 									value={ecName}
 									onChange={(e) => setEcName(e.target.value)}
 									placeholder='Emergency contact name'
-									className='mt-1'
+									className='mt-1 h-10'
 								/>
 							</div>
 							<div>
@@ -491,7 +491,7 @@ function NonUSWizardStep({
 									value={ecRelationship}
 									onChange={(e) => setEcRelationship(e.target.value)}
 									placeholder='Relationship'
-									className='mt-1'
+									className='mt-1 h-10'
 								/>
 							</div>
 						</div>
@@ -501,7 +501,7 @@ function NonUSWizardStep({
 								value={ecPhone}
 								onChange={(e) => setEcPhone(e.target.value)}
 								placeholder='+91 98765 43210'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 					</div>
@@ -558,7 +558,7 @@ function NonUSWizardStep({
 								value={firstName}
 								onChange={(e) => setFirstName(e.target.value)}
 								placeholder='Legal first name'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 						<div>
@@ -567,7 +567,7 @@ function NonUSWizardStep({
 								value={lastName}
 								onChange={(e) => setLastName(e.target.value)}
 								placeholder='Legal surname'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 					</div>
@@ -578,7 +578,7 @@ function NonUSWizardStep({
 								type='date'
 								value={dob}
 								onChange={(e) => setDob(e.target.value)}
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 						<div>
@@ -587,7 +587,7 @@ function NonUSWizardStep({
 								value={phone}
 								onChange={(e) => setPhone(e.target.value)}
 								placeholder='+44 7700 900000'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 					</div>
@@ -612,7 +612,7 @@ function NonUSWizardStep({
 							value={countryFields.rtw_document_number || ''}
 							onChange={(e) => updateField('rtw_document_number', e.target.value)}
 							placeholder='Document/passport number'
-							className='mt-1 font-mono'
+							className='mt-1 font-mono h-10'
 						/>
 					</div>
 					{(countryFields.rtw_document_type === 'visa' ||
@@ -623,7 +623,7 @@ function NonUSWizardStep({
 								type='date'
 								value={countryFields.rtw_expiry || ''}
 								onChange={(e) => updateField('rtw_expiry', e.target.value)}
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 					)}
@@ -633,7 +633,7 @@ function NonUSWizardStep({
 							value={address1}
 							onChange={(e) => setAddress1(e.target.value)}
 							placeholder='Street address'
-							className='mt-1'
+							className='mt-1 h-10'
 						/>
 					</div>
 					<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
@@ -643,7 +643,7 @@ function NonUSWizardStep({
 								value={city}
 								onChange={(e) => setCity(e.target.value)}
 								placeholder='City or town'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 						<div>
@@ -652,7 +652,7 @@ function NonUSWizardStep({
 								value={countryFields.postcode || ''}
 								onChange={(e) => updateField('postcode', e.target.value)}
 								placeholder='e.g., SW1A 1AA'
-								className='mt-1 font-mono'
+								className='mt-1 font-mono h-10'
 							/>
 						</div>
 					</div>
@@ -688,7 +688,7 @@ function NonUSWizardStep({
 								<Input
 									value={countryFields.p45_employer_ref || ''}
 									onChange={(e) => updateField('p45_employer_ref', e.target.value)}
-									className='mt-1 font-mono'
+									className='mt-1 font-mono h-10'
 								/>
 							</div>
 							<div>
@@ -697,7 +697,7 @@ function NonUSWizardStep({
 									type='number'
 									value={countryFields.p45_total_pay || ''}
 									onChange={(e) => updateField('p45_total_pay', e.target.value)}
-									className='mt-1'
+									className='mt-1 h-10'
 								/>
 							</div>
 							<div>
@@ -706,7 +706,7 @@ function NonUSWizardStep({
 									type='number'
 									value={countryFields.p45_total_tax || ''}
 									onChange={(e) => updateField('p45_total_tax', e.target.value)}
-									className='mt-1'
+									className='mt-1 h-10'
 								/>
 							</div>
 						</div>
@@ -745,7 +745,7 @@ function NonUSWizardStep({
 							value={countryFields.ni_number || ''}
 							onChange={(e) => updateField('ni_number', e.target.value.toUpperCase())}
 							placeholder='e.g., QQ 12 34 56 A'
-							className='mt-1 font-mono'
+							className='mt-1 font-mono h-10'
 							maxLength={13}
 						/>
 						<p className='text-xs text-muted-foreground mt-1'>
@@ -769,7 +769,7 @@ function NonUSWizardStep({
 								value={bankName}
 								onChange={(e) => setBankName(e.target.value)}
 								placeholder='e.g., HSBC, Barclays'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 						<div>
@@ -778,7 +778,7 @@ function NonUSWizardStep({
 								value={countryFields.sort_code || ''}
 								onChange={(e) => updateField('sort_code', e.target.value)}
 								placeholder='XX-XX-XX'
-								className='mt-1 font-mono'
+								className='mt-1 font-mono h-10'
 								maxLength={8}
 							/>
 						</div>
@@ -789,7 +789,7 @@ function NonUSWizardStep({
 							value={countryFields.account_number || ''}
 							onChange={(e) => updateField('account_number', e.target.value)}
 							placeholder='8-digit account number'
-							className='mt-1 font-mono'
+							className='mt-1 font-mono h-10'
 							maxLength={8}
 						/>
 					</div>
@@ -801,7 +801,7 @@ function NonUSWizardStep({
 								<Input
 									value={ecName}
 									onChange={(e) => setEcName(e.target.value)}
-									className='mt-1'
+									className='mt-1 h-10'
 								/>
 							</div>
 							<div>
@@ -809,7 +809,7 @@ function NonUSWizardStep({
 								<Input
 									value={ecRelationship}
 									onChange={(e) => setEcRelationship(e.target.value)}
-									className='mt-1'
+									className='mt-1 h-10'
 								/>
 							</div>
 						</div>
@@ -819,7 +819,7 @@ function NonUSWizardStep({
 								value={ecPhone}
 								onChange={(e) => setEcPhone(e.target.value)}
 								placeholder='+44 ...'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 					</div>
@@ -872,7 +872,7 @@ function NonUSWizardStep({
 							<Input
 								value={firstName}
 								onChange={(e) => setFirstName(e.target.value)}
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 						<div>
@@ -880,7 +880,7 @@ function NonUSWizardStep({
 							<Input
 								value={lastName}
 								onChange={(e) => setLastName(e.target.value)}
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 					</div>
@@ -891,7 +891,7 @@ function NonUSWizardStep({
 								type='date'
 								value={dob}
 								onChange={(e) => setDob(e.target.value)}
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 						<div>
@@ -900,7 +900,7 @@ function NonUSWizardStep({
 								value={phone}
 								onChange={(e) => setPhone(e.target.value)}
 								placeholder='+1 (416) 555-0100'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 					</div>
@@ -910,13 +910,13 @@ function NonUSWizardStep({
 							value={address1}
 							onChange={(e) => setAddress1(e.target.value)}
 							placeholder='Street address'
-							className='mt-1'
+							className='mt-1 h-10'
 						/>
 					</div>
 					<div className='grid grid-cols-1 sm:grid-cols-3 gap-4'>
 						<div>
 							<Label>City *</Label>
-							<Input value={city} onChange={(e) => setCity(e.target.value)} className='mt-1' />
+							<Input value={city} onChange={(e) => setCity(e.target.value)} className='mt-1 h-10' />
 						</div>
 						<div>
 							<Label>Province *</Label>
@@ -941,7 +941,7 @@ function NonUSWizardStep({
 								value={countryFields.postal_code || ''}
 								onChange={(e) => updateField('postal_code', e.target.value.toUpperCase())}
 								placeholder='A1A 1A1'
-								className='mt-1 font-mono'
+								className='mt-1 font-mono h-10'
 							/>
 						</div>
 					</div>
@@ -956,7 +956,7 @@ function NonUSWizardStep({
 							value={countryFields.td1_total_claim || ''}
 							onChange={(e) => updateField('td1_total_claim', e.target.value)}
 							placeholder='15705'
-							className='mt-1'
+							className='mt-1 h-10'
 						/>
 					</div>
 					<div className='border-t pt-4 mt-4'>
@@ -969,7 +969,7 @@ function NonUSWizardStep({
 							value={countryFields.td1_provincial_claim || ''}
 							onChange={(e) => updateField('td1_provincial_claim', e.target.value)}
 							placeholder='Enter provincial claim'
-							className='mt-1'
+							className='mt-1 h-10'
 						/>
 					</div>
 				</div>
@@ -991,7 +991,7 @@ function NonUSWizardStep({
 							value={countryFields.sin_number || ''}
 							onChange={(e) => updateField('sin_number', e.target.value.replace(/[^0-9\s-]/g, ''))}
 							placeholder='XXX-XXX-XXX'
-							className='mt-1 font-mono'
+							className='mt-1 font-mono h-10'
 							maxLength={11}
 						/>
 						<p className='text-xs text-muted-foreground mt-1'>
@@ -1015,7 +1015,7 @@ function NonUSWizardStep({
 								value={bankName}
 								onChange={(e) => setBankName(e.target.value)}
 								placeholder='e.g., RBC, TD Bank'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 						<div>
@@ -1024,7 +1024,7 @@ function NonUSWizardStep({
 								value={countryFields.transit_number || ''}
 								onChange={(e) => updateField('transit_number', e.target.value)}
 								placeholder='5-digit transit'
-								className='mt-1 font-mono'
+								className='mt-1 font-mono h-10'
 								maxLength={5}
 							/>
 						</div>
@@ -1036,7 +1036,7 @@ function NonUSWizardStep({
 								value={countryFields.institution_number || ''}
 								onChange={(e) => updateField('institution_number', e.target.value)}
 								placeholder='3-digit code'
-								className='mt-1 font-mono'
+								className='mt-1 font-mono h-10'
 								maxLength={3}
 							/>
 						</div>
@@ -1046,7 +1046,7 @@ function NonUSWizardStep({
 								value={countryFields.account_number || ''}
 								onChange={(e) => updateField('account_number', e.target.value)}
 								placeholder='Account number'
-								className='mt-1 font-mono'
+								className='mt-1 font-mono h-10'
 							/>
 						</div>
 					</div>
@@ -1058,7 +1058,7 @@ function NonUSWizardStep({
 								<Input
 									value={ecName}
 									onChange={(e) => setEcName(e.target.value)}
-									className='mt-1'
+									className='mt-1 h-10'
 								/>
 							</div>
 							<div>
@@ -1066,7 +1066,7 @@ function NonUSWizardStep({
 								<Input
 									value={ecRelationship}
 									onChange={(e) => setEcRelationship(e.target.value)}
-									className='mt-1'
+									className='mt-1 h-10'
 								/>
 							</div>
 						</div>
@@ -1076,7 +1076,7 @@ function NonUSWizardStep({
 								value={ecPhone}
 								onChange={(e) => setEcPhone(e.target.value)}
 								placeholder='+1 ...'
-								className='mt-1'
+								className='mt-1 h-10'
 							/>
 						</div>
 					</div>
@@ -1133,12 +1133,12 @@ function NonUSWizardStep({
 					<Input
 						value={firstName}
 						onChange={(e) => setFirstName(e.target.value)}
-						className='mt-1'
+						className='mt-1 h-10'
 					/>
 				</div>
 				<div>
 					<Label>Last Name *</Label>
-					<Input value={lastName} onChange={(e) => setLastName(e.target.value)} className='mt-1' />
+					<Input value={lastName} onChange={(e) => setLastName(e.target.value)} className='mt-1 h-10' />
 				</div>
 			</div>
 			{step === 1 && (
@@ -1149,24 +1149,24 @@ function NonUSWizardStep({
 							type='date'
 							value={dob}
 							onChange={(e) => setDob(e.target.value)}
-							className='mt-1'
+							className='mt-1 h-10'
 						/>
 					</div>
 					<div>
 						<Label>Phone</Label>
-						<Input value={phone} onChange={(e) => setPhone(e.target.value)} className='mt-1' />
+						<Input value={phone} onChange={(e) => setPhone(e.target.value)} className='mt-1 h-10' />
 					</div>
 					<div>
 						<Label>Address</Label>
 						<Input
 							value={address1}
 							onChange={(e) => setAddress1(e.target.value)}
-							className='mt-1'
+							className='mt-1 h-10'
 						/>
 					</div>
 					<div>
 						<Label>City</Label>
-						<Input value={city} onChange={(e) => setCity(e.target.value)} className='mt-1' />
+						<Input value={city} onChange={(e) => setCity(e.target.value)} className='mt-1 h-10' />
 					</div>
 				</>
 			)}
@@ -1893,7 +1893,7 @@ export function CandidateOnboardingPage() {
 	return (
 		<div>
 			{viewTabs}
-			<div className='max-w-3xl mx-auto pb-12'>
+			<div className='max-w-3xl mx-auto pb-12 px-4 sm:px-6'>
 				{/* Header */}
 				<div className='mb-8'>
 					<div className='flex items-center gap-2 text-sm text-muted-foreground mb-1'>
@@ -2062,14 +2062,14 @@ export function CandidateOnboardingPage() {
 											value={lastName}
 											onChange={(e) => setLastName(e.target.value)}
 											placeholder='Doe'
-										/>
+										 className='h-10' />
 									</FieldGroup>
 									<FieldGroup label='First Name (Given Name) *' error={stepErrors.firstName}>
 										<Input
 											value={firstName}
 											onChange={(e) => setFirstName(e.target.value)}
 											placeholder='John'
-										/>
+										 className='h-10' />
 									</FieldGroup>
 									<FieldGroup label='Middle Initial'>
 										<Input
@@ -2077,14 +2077,14 @@ export function CandidateOnboardingPage() {
 											onChange={(e) => setMiddleName(e.target.value)}
 											placeholder='M'
 											maxLength={50}
-										/>
+										 className='h-10' />
 									</FieldGroup>
 									<FieldGroup label='Other Last Names Used'>
 										<Input
 											value={otherLastNames}
 											onChange={(e) => setOtherLastNames(e.target.value)}
 											placeholder='Maiden name, etc.'
-										/>
+										 className='h-10' />
 									</FieldGroup>
 								</div>
 
@@ -2100,7 +2100,7 @@ export function CandidateOnboardingPage() {
 													value={address1}
 													onChange={(e) => setAddress1(e.target.value)}
 													placeholder='123 Main St'
-												/>
+												 className='h-10' />
 											</FieldGroup>
 										</div>
 										<FieldGroup label='Apt. Number'>
@@ -2108,14 +2108,14 @@ export function CandidateOnboardingPage() {
 												value={address2}
 												onChange={(e) => setAddress2(e.target.value)}
 												placeholder='Apt 4B'
-											/>
+											 className='h-10' />
 										</FieldGroup>
 										<FieldGroup label='City or Town *' error={stepErrors.city}>
 											<Input
 												value={city}
 												onChange={(e) => setCity(e.target.value)}
 												placeholder='New York'
-											/>
+											 className='h-10' />
 										</FieldGroup>
 									</div>
 									<div className='grid grid-cols-2 sm:grid-cols-4 gap-4'>
@@ -2134,7 +2134,7 @@ export function CandidateOnboardingPage() {
 												value={zip}
 												onChange={(e) => setZip(e.target.value)}
 												placeholder='10001'
-											/>
+											 className='h-10' />
 										</FieldGroup>
 									</div>
 								</div>
@@ -2142,7 +2142,7 @@ export function CandidateOnboardingPage() {
 								{/* Row 3: DOB, SSN, Email, Phone per official I-9 layout */}
 								<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
 									<FieldGroup label='Date of Birth (mm/dd/yyyy) *' error={stepErrors.dob}>
-										<Input type='date' value={dob} onChange={(e) => setDob(e.target.value)} />
+										<Input type='date' value={dob} onChange={(e) => setDob(e.target.value)}  className='h-10' />
 									</FieldGroup>
 									<FieldGroup label='U.S. Social Security Number *' error={stepErrors.ssn}>
 										<div className='relative'>
@@ -2153,7 +2153,7 @@ export function CandidateOnboardingPage() {
 												placeholder={
 													progress?.wizard?.ssn_encrypted ? '••••••••• (saved)' : 'XXX-XX-XXXX'
 												}
-											/>
+											 className='h-10' />
 											<Lock className='absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
 										</div>
 									</FieldGroup>
@@ -2165,14 +2165,14 @@ export function CandidateOnboardingPage() {
 											value={i9Email}
 											onChange={(e) => setI9Email(e.target.value)}
 											placeholder='john.doe@email.com'
-										/>
+										 className='h-10' />
 									</FieldGroup>
 									<FieldGroup label="Employee's Telephone Number *" error={stepErrors.phone}>
 										<Input
 											value={phone}
 											onChange={(e) => setPhone(e.target.value)}
 											placeholder='(555) 123-4567'
-										/>
+										 className='h-10' />
 									</FieldGroup>
 								</div>
 
@@ -2240,7 +2240,7 @@ export function CandidateOnboardingPage() {
 												value={alienNumber}
 												onChange={(e) => setAlienNumber(e.target.value)}
 												placeholder='A-number (e.g., A012345678)'
-												className='max-w-xs'
+												className='max-w-xs h-10'
 											/>
 										</FieldGroup>
 									)}
@@ -2262,7 +2262,7 @@ export function CandidateOnboardingPage() {
 													type='date'
 													value={workAuthExpiry}
 													onChange={(e) => setWorkAuthExpiry(e.target.value)}
-													className='max-w-xs'
+													className='max-w-xs h-10'
 												/>
 											</FieldGroup>
 											<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
@@ -2271,14 +2271,14 @@ export function CandidateOnboardingPage() {
 														value={alienNumber}
 														onChange={(e) => setAlienNumber(e.target.value)}
 														placeholder='A-number (if applicable)'
-													/>
+													 className='h-10' />
 												</FieldGroup>
 												<FieldGroup label='Form I-94 Admission Number'>
 													<Input
 														value={admissionNumber}
 														onChange={(e) => setAdmissionNumber(e.target.value)}
 														placeholder='I-94 number (if applicable)'
-													/>
+													 className='h-10' />
 												</FieldGroup>
 											</div>
 											<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
@@ -2287,7 +2287,7 @@ export function CandidateOnboardingPage() {
 														value={passportNumber}
 														onChange={(e) => setPassportNumber(e.target.value)}
 														placeholder='Passport number (if applicable)'
-													/>
+													 className='h-10' />
 												</FieldGroup>
 												{passportNumber && (
 													<FieldGroup label='Country of Issuance *'>
@@ -2295,7 +2295,7 @@ export function CandidateOnboardingPage() {
 															value={countryOfIssuance}
 															onChange={(e) => setCountryOfIssuance(e.target.value)}
 															placeholder='Country'
-														/>
+														 className='h-10' />
 													</FieldGroup>
 												)}
 											</div>
@@ -2374,7 +2374,7 @@ export function CandidateOnboardingPage() {
 											value={ecName}
 											onChange={(e) => setEcName(e.target.value)}
 											placeholder='Jane Doe'
-										/>
+										 className='h-10' />
 									</FieldGroup>
 									<FieldGroup label='Relationship *' error={stepErrors.ecRelationship}>
 										<Select
@@ -2399,7 +2399,7 @@ export function CandidateOnboardingPage() {
 											value={ecPhone}
 											onChange={(e) => setEcPhone(e.target.value)}
 											placeholder='(555) 123-4567'
-										/>
+										 className='h-10' />
 									</FieldGroup>
 									<FieldGroup label='Email (optional)'>
 										<Input
@@ -2407,7 +2407,7 @@ export function CandidateOnboardingPage() {
 											value={ecEmail}
 											onChange={(e) => setEcEmail(e.target.value)}
 											placeholder='jane@example.com'
-										/>
+										 className='h-10' />
 									</FieldGroup>
 								</div>
 							</div>
@@ -2440,7 +2440,7 @@ export function CandidateOnboardingPage() {
 											value={bankName}
 											onChange={(e) => setBankName(e.target.value)}
 											placeholder='Chase, Bank of America, etc.'
-										/>
+										 className='h-10' />
 									</FieldGroup>
 									<FieldGroup label='Account Type'>
 										<Select value={accountType} onChange={(e) => setAccountType(e.target.value)}>
@@ -2463,7 +2463,7 @@ export function CandidateOnboardingPage() {
 														? '••••••••• (saved)'
 														: '9 digits'
 												}
-											/>
+											 className='h-10' />
 											<Lock className='absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
 										</div>
 									</FieldGroup>
@@ -2478,7 +2478,7 @@ export function CandidateOnboardingPage() {
 														? '••••••••• (saved)'
 														: 'Account number'
 												}
-											/>
+											 className='h-10' />
 											<Lock className='absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
 										</div>
 									</FieldGroup>
@@ -2506,7 +2506,7 @@ export function CandidateOnboardingPage() {
 											size='sm'
 											onClick={loadW4Guidance}
 											disabled={loadingGuidance}
-										>
+										 className='min-h-[44px]'>
 											{loadingGuidance ? (
 												<Loader2 className='h-4 w-4 animate-spin mr-1' />
 											) : (
@@ -2537,7 +2537,7 @@ export function CandidateOnboardingPage() {
 												variant='ghost'
 												size='sm'
 												onClick={() => setShowGuidance(false)}
-												className='text-blue-600 h-6 px-2'
+												className='text-blue-600 h-6 px-2 min-h-[44px]'
 											>
 												Dismiss
 											</Button>
@@ -2699,7 +2699,7 @@ export function CandidateOnboardingPage() {
 													onChange={(e) =>
 														setDependentsUnder17(Math.max(0, parseInt(e.target.value, 10) || 0))
 													}
-													className='w-20'
+													className='w-20 h-10'
 												/>
 												<span className='text-sm text-muted-foreground'>
 													× $2,000 = <strong>${childCredits.toLocaleString()}</strong>
@@ -2716,7 +2716,7 @@ export function CandidateOnboardingPage() {
 													onChange={(e) =>
 														setOtherDependents(Math.max(0, parseInt(e.target.value, 10) || 0))
 													}
-													className='w-20'
+													className='w-20 h-10'
 												/>
 												<span className='text-sm text-muted-foreground'>
 													× $500 = <strong>${otherDepCredits.toLocaleString()}</strong>
@@ -2755,7 +2755,7 @@ export function CandidateOnboardingPage() {
 													value={otherIncome}
 													onChange={(e) => setOtherIncome(e.target.value.replace(/[^0-9.]/g, ''))}
 													placeholder='0'
-													className='pl-7'
+													className='pl-7 h-10'
 												/>
 											</div>
 										</FieldGroup>
@@ -2769,7 +2769,7 @@ export function CandidateOnboardingPage() {
 													value={deductions}
 													onChange={(e) => setDeductions(e.target.value.replace(/[^0-9.]/g, ''))}
 													placeholder='0'
-													className='pl-7'
+													className='pl-7 h-10'
 												/>
 											</div>
 										</FieldGroup>
@@ -2785,7 +2785,7 @@ export function CandidateOnboardingPage() {
 														setExtraWithholding(e.target.value.replace(/[^0-9.]/g, ''))
 													}
 													placeholder='0'
-													className='pl-7'
+													className='pl-7 h-10'
 												/>
 											</div>
 										</FieldGroup>
@@ -2864,7 +2864,7 @@ export function CandidateOnboardingPage() {
 										<p className='text-muted-foreground mb-4'>
 											Documents haven't been generated yet.
 										</p>
-										<Button onClick={generateDocuments} disabled={generatingDocs}>
+										<Button onClick={generateDocuments} disabled={generatingDocs} className='min-h-[44px]'>
 											<Sparkles className='h-4 w-4 mr-2' />
 											Generate Documents
 										</Button>
@@ -2917,7 +2917,7 @@ export function CandidateOnboardingPage() {
 														value={signatureText}
 														onChange={(e) => setSignatureText(e.target.value)}
 														placeholder={`${firstName} ${lastName}`}
-														className='font-serif text-lg italic'
+														className='font-serif text-lg italic h-10'
 													/>
 												</FieldGroup>
 
@@ -2937,7 +2937,7 @@ export function CandidateOnboardingPage() {
 														onMouseLeave={stopDrawing}
 													/>
 													<div className='flex justify-end mt-1'>
-														<Button variant='ghost' size='sm' onClick={clearCanvas}>
+														<Button variant='ghost' size='sm' onClick={clearCanvas} className='min-h-[44px]'>
 															Clear
 														</Button>
 													</div>
@@ -2946,7 +2946,7 @@ export function CandidateOnboardingPage() {
 												<Button
 													onClick={signAllDocuments}
 													disabled={signing}
-													className='w-full'
+													className='w-full min-h-[44px]'
 													size='lg'
 												>
 													{signing ? (
@@ -2975,11 +2975,11 @@ export function CandidateOnboardingPage() {
 									variant='outline'
 									onClick={handleBack}
 									disabled={currentStep === 1 || saving}
-								>
+								 className='min-h-[44px]'>
 									<ArrowLeft className='h-4 w-4 mr-2' />
 									Back
 								</Button>
-								<Button onClick={handleNext} disabled={saving}>
+								<Button onClick={handleNext} disabled={saving} className='min-h-[44px]'>
 									{saving ? (
 										<>
 											<Loader2 className='h-4 w-4 mr-2 animate-spin' />
