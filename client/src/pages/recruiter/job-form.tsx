@@ -618,7 +618,7 @@ export function RecruiterJobFormPage() {
 	}
 
 	return (
-		<div className='max-w-3xl mx-auto space-y-6 px-4 sm:px-0'>
+		<div className='max-w-3xl mx-auto space-y-6 px-4 sm:px-6'>
 			{/* AI Success Toast */}
 			{aiSuccess && (
 				<div className='fixed top-4 right-4 z-50 animate-in fade-in slide-in-from-top-2 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 text-sm'>
@@ -629,7 +629,7 @@ export function RecruiterJobFormPage() {
 
 			{/* Header */}
 			<div className='flex items-center gap-3'>
-				<Button variant='ghost' size='sm' onClick={() => navigate('/recruiter/jobs')}>
+				<Button variant='ghost' size='sm' onClick={() => navigate('/recruiter/jobs')} className='min-h-[44px]'>
 					<ArrowLeft className='h-4 w-4' />
 				</Button>
 				<div>
@@ -652,7 +652,7 @@ export function RecruiterJobFormPage() {
 							<button
 								key={stepNum}
 								onClick={() => goToStep(stepNum)}
-								className='flex flex-col items-center gap-1.5 group relative'
+								className='flex flex-col items-center gap-1.5 group relative min-h-[44px]'
 							>
 								<div
 									className={`
@@ -698,7 +698,7 @@ export function RecruiterJobFormPage() {
 						size='sm'
 						onClick={loadPreviousPostings}
 						disabled={loadingPostings}
-						className='gap-1.5 text-xs sm:text-sm'
+						className='gap-1.5 text-xs sm:text-sm min-h-[44px]'
 					>
 						{loadingPostings ? (
 							<Loader2 className='h-3.5 w-3.5 animate-spin' />
@@ -719,7 +719,7 @@ export function RecruiterJobFormPage() {
 							variant='ghost'
 							size='sm'
 							onClick={() => setShowPreviousPostings(false)}
-							className='h-6 w-6 p-0'
+							className='h-6 w-6 p-0 min-h-[44px]'
 						>
 							<X className='h-3 w-3' />
 						</Button>
@@ -728,7 +728,7 @@ export function RecruiterJobFormPage() {
 						<button
 							key={p.id || p.title || `posting-${i}`}
 							onClick={() => applyTemplate(p)}
-							className='w-full text-left rounded-md border bg-white p-3 text-sm hover:border-indigo-300 hover:bg-blue-50/60 transition-colors cursor-pointer'
+							className='w-full text-left rounded-md border bg-white p-3 text-sm hover:border-indigo-300 hover:bg-blue-50/60 transition-colors cursor-pointer min-h-[44px]'
 						>
 							<div className='flex items-center justify-between'>
 								<span className='font-medium'>{p.title}</span>
@@ -768,7 +768,7 @@ export function RecruiterJobFormPage() {
 									size='sm'
 									onClick={handleSuggestTitles}
 									disabled={aiSuggestingTitles || !title.trim()}
-									className='h-7 text-xs gap-1 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50'
+									className='h-7 text-xs gap-1 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 min-h-[44px]'
 								>
 									{aiSuggestingTitles ? (
 										<Loader2 className='h-3 w-3 animate-spin' />
@@ -785,7 +785,7 @@ export function RecruiterJobFormPage() {
 									setTitleError('')
 								}}
 								placeholder='e.g. Senior Software Engineer'
-								className={`mt-1.5 ${titleError ? 'border-red-400 focus-visible:ring-red-400' : ''}`}
+								className={`mt-1.5 ${titleError ? 'border-red-400 focus-visible:ring-red-400' : ''} min-h-[44px]`}
 							/>
 							{titleError && (
 								<p className='text-xs text-red-500 mt-1 flex items-center gap-1'>
@@ -804,7 +804,7 @@ export function RecruiterJobFormPage() {
 											variant='ghost'
 											size='sm'
 											onClick={() => setShowTitleSuggestions(false)}
-											className='h-6 w-6 p-0'
+											className='h-6 w-6 p-0 min-h-[44px]'
 										>
 											<X className='h-3 w-3' />
 										</Button>
@@ -817,7 +817,7 @@ export function RecruiterJobFormPage() {
 												setShowTitleSuggestions(false)
 												flashSuccess('Title updated!')
 											}}
-											className='w-full text-left rounded-md border bg-white p-2.5 text-sm hover:border-indigo-300 hover:bg-blue-50/60 transition-colors cursor-pointer'
+											className='w-full text-left rounded-md border bg-white p-2.5 text-sm hover:border-indigo-300 hover:bg-blue-50/60 transition-colors cursor-pointer min-h-[44px]'
 										>
 											<div className='flex items-center justify-between'>
 												<span className='font-medium'>{s.title}</span>
@@ -842,7 +842,7 @@ export function RecruiterJobFormPage() {
 									value={company}
 									onChange={(e) => setCompany(e.target.value)}
 									placeholder='Leave blank to use your company name'
-									className='mt-1.5'
+									className='mt-1.5 min-h-[44px]'
 								/>
 								<p className='text-[11px] text-muted-foreground mt-0.5'>
 									Auto-filled from your account if blank
@@ -854,7 +854,7 @@ export function RecruiterJobFormPage() {
 									value={department}
 									onChange={(e) => setDepartment(e.target.value)}
 									placeholder='e.g. Engineering, Sales, Marketing'
-									className='mt-1.5'
+									className='mt-1.5 min-h-[44px]'
 								/>
 							</div>
 						</div>
@@ -866,7 +866,7 @@ export function RecruiterJobFormPage() {
 								<Select
 									value={jobType}
 									onChange={(e) => setJobType(e.target.value)}
-									className='mt-1.5'
+									className='mt-1.5 min-h-[44px]'
 								>
 									<option value='full-time'>Full-time</option>
 									<option value='part-time'>Part-time</option>
@@ -881,7 +881,7 @@ export function RecruiterJobFormPage() {
 								<Select
 									value={countryCode}
 									onChange={(e) => handleCountryChange(e.target.value)}
-									className='mt-1.5'
+									className='mt-1.5 min-h-[44px]'
 								>
 									{countries.length > 0 ? (
 										countries.map((c) => (
@@ -909,7 +909,7 @@ export function RecruiterJobFormPage() {
 									value={location}
 									onChange={(e) => setLocation(e.target.value)}
 									placeholder='e.g. New York, NY or Remote'
-									className='mt-1.5'
+									className='mt-1.5 min-h-[44px]'
 								/>
 							</div>
 						</div>
@@ -923,7 +923,7 @@ export function RecruiterJobFormPage() {
 									value={salaryMin}
 									onChange={(e) => setSalaryMin(e.target.value)}
 									placeholder={`e.g. ${currencyCode === 'INR' ? '800000' : currencyCode === 'GBP' ? '40000' : '80000'}`}
-									className='mt-1.5'
+									className='mt-1.5 min-h-[44px]'
 								/>
 							</div>
 							<div>
@@ -933,7 +933,7 @@ export function RecruiterJobFormPage() {
 									value={salaryMax}
 									onChange={(e) => setSalaryMax(e.target.value)}
 									placeholder={`e.g. ${currencyCode === 'INR' ? '1500000' : currencyCode === 'GBP' ? '70000' : '120000'}`}
-									className='mt-1.5'
+									className='mt-1.5 min-h-[44px]'
 								/>
 							</div>
 							<div>
@@ -945,7 +945,7 @@ export function RecruiterJobFormPage() {
 									value={salaryRange}
 									onChange={(e) => setSalaryRange(e.target.value)}
 									placeholder={`e.g. ${currencySymbol}80,000 - ${currencySymbol}120,000`}
-									className='mt-1.5'
+									className='mt-1.5 min-h-[44px]'
 								/>
 							</div>
 						</div>
@@ -969,7 +969,7 @@ export function RecruiterJobFormPage() {
 									size='sm'
 									onClick={handleAiGenerate}
 									disabled={aiGenerating || !title.trim()}
-									className='h-7 text-xs gap-1.5 border-indigo-300 text-indigo-600 hover:bg-indigo-500 hover:text-white transition-colors'
+									className='h-7 text-xs gap-1.5 border-indigo-300 text-indigo-600 hover:bg-indigo-500 hover:text-white transition-colors min-h-[44px]'
 								>
 									{aiGenerating ? (
 										<Loader2 className='h-3 w-3 animate-spin' />
@@ -984,7 +984,7 @@ export function RecruiterJobFormPage() {
 								onChange={(e) => setDescription(e.target.value)}
 								placeholder="Describe the role, responsibilities, and what a typical day looks like... or click 'Generate with AI' to auto-fill"
 								rows={6}
-								className='mt-1.5 resize-y'
+								className='mt-1.5 resize-y min-h-[44px]'
 							/>
 							{aiGenerating && (
 								<div className='mt-2 flex items-center gap-2 text-xs text-indigo-600'>
@@ -1015,7 +1015,7 @@ export function RecruiterJobFormPage() {
 									size='sm'
 									onClick={handleSuggestSkills}
 									disabled={aiSuggestingSkills || !title.trim()}
-									className='h-7 text-xs gap-1 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50'
+									className='h-7 text-xs gap-1 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 min-h-[44px]'
 								>
 									{aiSuggestingSkills ? (
 										<Loader2 className='h-3 w-3 animate-spin' />
@@ -1030,7 +1030,7 @@ export function RecruiterJobFormPage() {
 								onChange={(e) => setRequirements(e.target.value)}
 								placeholder='List the required skills, experience, and qualifications...'
 								rows={5}
-								className='mt-1.5 resize-y'
+								className='mt-1.5 resize-y min-h-[44px]'
 							/>
 							{/* AI Skills Panel */}
 							{showSkillPanel &&
@@ -1044,7 +1044,7 @@ export function RecruiterJobFormPage() {
 												variant='ghost'
 												size='sm'
 												onClick={() => setShowSkillPanel(false)}
-												className='h-6 w-6 p-0'
+												className='h-6 w-6 p-0 min-h-[44px]'
 											>
 												<X className='h-3 w-3' />
 											</Button>
@@ -1081,7 +1081,7 @@ export function RecruiterJobFormPage() {
 										<Button
 											size='sm'
 											onClick={applySkillsToRequirements}
-											className='w-full text-xs gap-1 bg-violet-600 hover:bg-violet-700'
+											className='w-full text-xs gap-1 bg-violet-600 hover:bg-violet-700 min-h-[44px]'
 										>
 											<Plus className='h-3 w-3' /> Apply to Requirements
 										</Button>
@@ -1096,7 +1096,7 @@ export function RecruiterJobFormPage() {
 								<Select
 									value={experienceLevel}
 									onChange={(e) => setExperienceLevel(e.target.value)}
-									className='mt-1.5'
+									className='mt-1.5 min-h-[44px]'
 								>
 									<option value=''>Select experience level</option>
 									<option value='entry'>Entry-level (0-2 years)</option>
@@ -1110,7 +1110,7 @@ export function RecruiterJobFormPage() {
 								<Select
 									value={educationLevel}
 									onChange={(e) => setEducationLevel(e.target.value)}
-									className='mt-1.5'
+									className='mt-1.5 min-h-[44px]'
 								>
 									<option value=''>Select education level</option>
 									<option value='high-school'>High School</option>
@@ -1134,7 +1134,7 @@ export function RecruiterJobFormPage() {
 										size='sm'
 										onClick={handleAiSuggestQuestions}
 										disabled={aiSuggestingQuestions || !title.trim()}
-										className='gap-1 text-xs border-indigo-300 text-indigo-600 hover:bg-indigo-500 hover:text-white'
+										className='gap-1 text-xs border-indigo-300 text-indigo-600 hover:bg-indigo-500 hover:text-white min-h-[44px]'
 									>
 										{aiSuggestingQuestions ? (
 											<Loader2 className='h-3 w-3 animate-spin' />
@@ -1148,7 +1148,7 @@ export function RecruiterJobFormPage() {
 										size='sm'
 										onClick={loadQuestionBank}
 										disabled={bankLoading}
-										className='gap-1 text-xs'
+										className='gap-1 text-xs min-h-[44px]'
 									>
 										{bankLoading ? (
 											<Loader2 className='h-3 w-3 animate-spin' />
@@ -1161,7 +1161,7 @@ export function RecruiterJobFormPage() {
 										variant='outline'
 										size='sm'
 										onClick={() => setShowTemplates(!showTemplates)}
-										className='gap-1 text-xs'
+										className='gap-1 text-xs min-h-[44px]'
 									>
 										<Sparkles className='h-3 w-3' /> Templates
 									</Button>
@@ -1169,7 +1169,7 @@ export function RecruiterJobFormPage() {
 										variant='outline'
 										size='sm'
 										onClick={() => addQuestion()}
-										className='gap-1 text-xs'
+										className='gap-1 text-xs min-h-[44px]'
 									>
 										<Plus className='h-3 w-3' /> Custom
 									</Button>
@@ -1181,7 +1181,7 @@ export function RecruiterJobFormPage() {
 								<div className='mb-4 rounded-lg border bg-muted/30 p-3 space-y-2'>
 									<div className='flex items-center justify-between mb-2'>
 										<p className='text-sm font-medium'>Common Questions</p>
-										<Button variant='ghost' size='sm' onClick={addAllDefaults} className='text-xs'>
+										<Button variant='ghost' size='sm' onClick={addAllDefaults} className='text-xs min-h-[44px]'>
 											Add All
 										</Button>
 									</div>
@@ -1198,7 +1198,7 @@ export function RecruiterJobFormPage() {
 													alreadyAdded
 														? 'opacity-50 cursor-not-allowed bg-muted'
 														: 'hover:bg-background hover:border-indigo-300 cursor-pointer'
-												}`}
+												} min-h-[44px]`}
 											>
 												<div className='flex items-center justify-between'>
 													<span>{t.question}</span>
@@ -1233,7 +1233,7 @@ export function RecruiterJobFormPage() {
 											variant='ghost'
 											size='sm'
 											onClick={() => setShowQuestionBank(false)}
-											className='h-6 w-6 p-0'
+											className='h-6 w-6 p-0 min-h-[44px]'
 										>
 											<X className='h-3 w-3' />
 										</Button>
@@ -1263,7 +1263,7 @@ export function RecruiterJobFormPage() {
 														alreadyAdded
 															? 'opacity-50 cursor-not-allowed bg-muted'
 															: 'hover:bg-white hover:border-indigo-300 cursor-pointer'
-													}`}
+													} min-h-[44px]`}
 												>
 													<div className='flex items-center justify-between'>
 														<span>{q.question}</span>
@@ -1305,7 +1305,7 @@ export function RecruiterJobFormPage() {
 														value={q.question}
 														onChange={(e) => updateQuestion(i, { question: e.target.value })}
 														placeholder={`Question ${i + 1}...`}
-													/>
+													 className='min-h-[44px]' />
 													<div className='flex flex-wrap items-center gap-2'>
 														<Select
 															value={q.type}
@@ -1323,7 +1323,7 @@ export function RecruiterJobFormPage() {
 																}
 																updateQuestion(i, updates)
 															}}
-															className='w-32 text-xs'
+															className='w-32 text-xs min-h-[44px]'
 														>
 															<option value='text'>Text</option>
 															<option value='yes_no'>Yes / No</option>
@@ -1345,7 +1345,7 @@ export function RecruiterJobFormPage() {
 																value={q.placeholder || ''}
 																onChange={(e) => updateQuestion(i, { placeholder: e.target.value })}
 																placeholder='Placeholder text...'
-																className='flex-1 text-xs h-8'
+																className='flex-1 text-xs h-8 min-h-[44px]'
 															/>
 														)}
 													</div>
@@ -1363,12 +1363,12 @@ export function RecruiterJobFormPage() {
 																		value={opt}
 																		onChange={(e) => updateOption(i, oi, e.target.value)}
 																		placeholder={`Option ${oi + 1}`}
-																		className='flex-1 text-sm h-8'
+																		className='flex-1 text-sm h-8 min-h-[44px]'
 																	/>
 																	<Button
 																		variant='ghost'
 																		size='icon'
-																		className='h-8 w-8 shrink-0'
+																		className='h-8 w-8 shrink-0 min-h-[44px]'
 																		onClick={() => removeOption(i, oi)}
 																	>
 																		<X className='h-3 w-3' />
@@ -1379,7 +1379,7 @@ export function RecruiterJobFormPage() {
 																variant='ghost'
 																size='sm'
 																onClick={() => addOption(i)}
-																className='text-xs gap-1'
+																className='text-xs gap-1 min-h-[44px]'
 															>
 																<Plus className='h-3 w-3' /> Add Option
 															</Button>
@@ -1390,7 +1390,7 @@ export function RecruiterJobFormPage() {
 													variant='ghost'
 													size='icon'
 													onClick={() => removeQuestion(i)}
-													className='shrink-0 text-muted-foreground hover:text-destructive'
+													className='shrink-0 text-muted-foreground hover:text-destructive min-h-[44px]'
 												>
 													<X className='h-4 w-4' />
 												</Button>
@@ -1405,7 +1405,7 @@ export function RecruiterJobFormPage() {
 										variant='ghost'
 										size='sm'
 										onClick={saveQuestionsToBank}
-										className='gap-1 text-xs text-muted-foreground'
+										className='gap-1 text-xs text-muted-foreground min-h-[44px]'
 									>
 										<Save className='h-3 w-3' /> Save Questions to My Bank
 									</Button>
@@ -1537,7 +1537,7 @@ export function RecruiterJobFormPage() {
 
 								{/* Apply button mock */}
 								<div className='pt-2'>
-									<Button className='w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white gap-2'>
+									<Button className='w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white gap-2 min-h-[44px]'>
 										<CheckCircle2 className='h-4 w-4' /> Apply Now
 									</Button>
 								</div>
@@ -1653,20 +1653,20 @@ export function RecruiterJobFormPage() {
       `}
 			>
 				{step > 1 && (
-					<Button variant='outline' onClick={prevStep} className='gap-1'>
+					<Button variant='outline' onClick={prevStep} className='gap-1 min-h-[44px]'>
 						<ChevronLeft className='h-4 w-4' /> Back
 					</Button>
 				)}
 				<div className='flex-1' />
 				{step < 3 ? (
-					<Button onClick={nextStep} className='gap-1 bg-indigo-600 hover:bg-indigo-700'>
+					<Button onClick={nextStep} className='gap-1 bg-indigo-600 hover:bg-indigo-700 min-h-[44px]'>
 						Next <ChevronRight className='h-4 w-4' />
 					</Button>
 				) : (
 					<Button
 						onClick={handleSave}
 						disabled={saving}
-						className='gap-2 bg-indigo-600 hover:bg-indigo-700'
+						className='gap-2 bg-indigo-600 hover:bg-indigo-700 min-h-[44px]'
 					>
 						{saving ? (
 							<div className='h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent' />

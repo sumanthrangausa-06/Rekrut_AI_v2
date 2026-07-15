@@ -609,23 +609,23 @@ function InterviewCard({
 					<div className='flex flex-wrap gap-2 sm:flex-col'>
 						{interview.meeting_link && isUpcoming && (
 							<a href={interview.meeting_link} target='_blank' rel='noopener noreferrer'>
-								<Button size='sm' className='w-full'>
+								<Button size='sm' className='w-full min-h-[44px]'>
 									<Video className='h-3.5 w-3.5 mr-1' /> Join Call
 								</Button>
 							</a>
 						)}
 						{canRespond && onAccept && (
-							<Button size='sm' variant='outline' onClick={onAccept}>
+							<Button size='sm' variant='outline' onClick={onAccept} className='min-h-[44px]'>
 								<CheckCircle className='h-3.5 w-3.5 mr-1' /> Accept
 							</Button>
 						)}
 						{canRespond && onReschedule && (
-							<Button size='sm' variant='outline' onClick={onReschedule}>
+							<Button size='sm' variant='outline' onClick={onReschedule} className='min-h-[44px]'>
 								<RefreshCw className='h-3.5 w-3.5 mr-1' /> Reschedule
 							</Button>
 						)}
 						{canRespond && onDecline && (
-							<Button size='sm' variant='ghost' className='text-destructive' onClick={onDecline}>
+							<Button size='sm' variant='ghost' className='text-destructive min-h-[44px]' onClick={onDecline}>
 								<XCircle className='h-3.5 w-3.5 mr-1' /> Decline
 							</Button>
 						)}
@@ -633,7 +633,7 @@ function InterviewCard({
 							<Button
 								size='sm'
 								variant='outline'
-								className='text-blue-600 border-blue-200 hover:bg-blue-50'
+								className='text-blue-600 border-blue-200 hover:bg-blue-50 min-h-[44px]'
 								onClick={onPractice}
 							>
 								<Target className='h-3.5 w-3.5 mr-1' /> Practice
