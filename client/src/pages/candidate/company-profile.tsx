@@ -136,7 +136,7 @@ export function CompanyProfilePage() {
 	return (
 		<div className='space-y-6'>
 			<div className='flex items-center gap-2'>
-				<Button variant='ghost' onClick={() => navigate('/candidate')}>
+				<Button variant='ghost' onClick={() => navigate('/candidate')} className='min-h-[44px] min-w-[44px]'>
 					<ArrowLeft className='h-4 w-4 mr-2' />
 					Back to Dashboard
 				</Button>
@@ -195,7 +195,7 @@ export function CompanyProfilePage() {
 							</p>
 						</div>
 						{!company?.is_verified && !company?.linkedin_url && (
-							<Button variant='outline' size='sm'>
+							<Button variant='outline' size='sm' className='min-h-[44px] min-w-[44px]'>
 								Request Verification
 							</Button>
 						)}
@@ -398,7 +398,7 @@ export function CompanyProfilePage() {
 					</div>
 
 					<div className='flex items-center gap-4'>
-						<Button onClick={saveProfile} disabled={saving}>
+						<Button onClick={saveProfile} disabled={saving} className='min-h-[44px] min-w-[44px]'>
 							{saving ? (
 								<Loader2 className='h-4 w-4 animate-spin mr-2' />
 							) : (
@@ -417,7 +417,7 @@ export function CompanyProfilePage() {
 				</CardHeader>
 				<CardContent>
 					<p className='text-sm text-muted-foreground mb-4'>Manage your account and session</p>
-					<Button variant='outline' onClick={() => {}}>
+					<Button variant='outline' onClick={() => {}} className='min-h-[44px] min-w-[44px]'>
 						Sign Out
 					</Button>
 				</CardContent>

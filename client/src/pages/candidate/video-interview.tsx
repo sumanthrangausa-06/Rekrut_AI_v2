@@ -224,7 +224,7 @@ export function VideoInterviewPage() {
 	if (error || !interview) {
 		return (
 			<div className='space-y-6'>
-				<Button variant='ghost' onClick={() => navigate('/candidate')}>
+				<Button variant='ghost' onClick={() => navigate('/candidate')} className='min-h-[44px] min-w-[44px]'>
 					<ArrowLeft className='h-4 w-4 mr-2' />
 					Back to Dashboard
 				</Button>
@@ -247,7 +247,7 @@ export function VideoInterviewPage() {
 		return (
 			<div className='space-y-6 max-w-2xl mx-auto'>
 				<div className='flex items-center gap-2'>
-					<Button variant='ghost' onClick={() => navigate('/candidate')}>
+					<Button variant='ghost' onClick={() => navigate('/candidate')} className='min-h-[44px] min-w-[44px]'>
 						<ArrowLeft className='h-4 w-4 mr-2' />
 						Back to Dashboard
 					</Button>
@@ -292,10 +292,10 @@ export function VideoInterviewPage() {
 						</div>
 
 						<div className='flex gap-3'>
-							<Button variant='outline' onClick={() => navigate('/candidate/interviews')}>
+							<Button variant='outline' onClick={() => navigate('/candidate/interviews')} className='min-h-[44px] min-w-[44px]'>
 								Cancel
 							</Button>
-							<Button onClick={submitInterview} disabled={submitting}>
+							<Button onClick={submitInterview} disabled={submitting} className='min-h-[44px] min-w-[44px]'>
 								{submitting ? (
 									<Loader2 className='h-4 w-4 animate-spin mr-2' />
 								) : (
@@ -313,7 +313,7 @@ export function VideoInterviewPage() {
 	return (
 		<div className='space-y-6 max-w-4xl mx-auto'>
 			<div className='flex items-center justify-between'>
-				<Button variant='ghost' onClick={() => navigate('/candidate/interviews')}>
+				<Button variant='ghost' onClick={() => navigate('/candidate/interviews')} className='min-h-[44px] min-w-[44px]'>
 					<ArrowLeft className='h-4 w-4 mr-2' />
 					Exit Interview
 				</Button>
@@ -391,21 +391,21 @@ export function VideoInterviewPage() {
 					{/* Controls */}
 					<div className='flex flex-wrap gap-3 justify-center'>
 						{!streamRef.current && (
-							<Button onClick={startCamera}>
+							<Button onClick={startCamera} className='min-h-[44px] min-w-[44px]'>
 								<Video className='h-4 w-4 mr-2' />
 								Start Camera
 							</Button>
 						)}
 
 						{streamRef.current && !isRecording && !isReviewing && (
-							<Button onClick={startRecording}>
+							<Button onClick={startRecording} className='min-h-[44px] min-w-[44px]'>
 								<Play className='h-4 w-4 mr-2' />
 								Start Recording
 							</Button>
 						)}
 
 						{isRecording && (
-							<Button variant='destructive' onClick={stopRecording}>
+							<Button variant='destructive' onClick={stopRecording} className='min-h-[44px] min-w-[44px]'>
 								<Square className='h-4 w-4 mr-2' />
 								Stop Recording
 							</Button>
@@ -413,15 +413,15 @@ export function VideoInterviewPage() {
 
 						{isReviewing && (
 							<>
-								<Button variant='outline' onClick={startRecording}>
+								<Button variant='outline' onClick={startRecording} className='min-h-[44px] min-w-[44px]'>
 									<Play className='h-4 w-4 mr-2' />
 									Retake
 								</Button>
-								<Button variant='secondary' onClick={skipQuestion}>
+								<Button variant='secondary' onClick={skipQuestion} className='min-h-[44px] min-w-[44px]'>
 									<SkipForward className='h-4 w-4 mr-2' />
 									Skip
 								</Button>
-								<Button onClick={nextQuestion}>
+								<Button onClick={nextQuestion} className='min-h-[44px] min-w-[44px]'>
 									Next Question
 									<ChevronRight className='h-4 w-4 ml-2' />
 								</Button>

@@ -1449,7 +1449,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 						<Button
 							onClick={() => (mockCameraReady ? stopMockCamera() : startMockCamera())}
 							variant='outline'
-							className={`rounded-full h-11 w-11 p-0 ${!mockCameraReady ? 'bg-gray-200 text-gray-500' : ''}`}
+							className={`min-h-[44px] min-w-[44px] rounded-full h-11 w-11 p-0 ${!mockCameraReady ? 'bg-gray-200 text-gray-500' : ''}`}
 							title={mockCameraReady ? 'Turn off camera' : 'Turn on camera'}
 						>
 							{mockCameraReady ? <Video className='h-4 w-4' /> : <VideoOff className='h-4 w-4' />}
@@ -1459,7 +1459,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 						<Button
 							onClick={() => endMockInterview()}
 							disabled={mockEnding}
-							className='bg-red-600 hover:bg-red-700 text-white rounded-full h-11 px-5'
+							className='min-h-[44px] min-w-[44px] bg-red-600 hover:bg-red-700 text-white rounded-full h-11 px-5'
 						>
 							{mockEnding ? (
 								<Loader2 className='h-4 w-4 animate-spin mr-1.5' />
@@ -1478,7 +1478,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 								{voiceError}
 								<button
 									onClick={() => setVoiceError(null)}
-									className='text-red-400 hover:text-red-200 ml-1'
+									className='min-h-[44px] min-w-[44px] text-red-400 hover:text-red-200 ml-1'
 								>
 									✕
 								</button>
@@ -1515,7 +1515,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 							<Button
 								onClick={sendMockResponse}
 								disabled={mockSending || mockResponseText.trim().length < 10}
-								className='shrink-0 self-end'
+								className='min-h-[44px] min-w-[44px] shrink-0 self-end'
 								size='sm'
 								variant='outline'
 							>
@@ -1535,11 +1535,11 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 						</h3>
 						<div className='flex items-center gap-2'>
 							{viewingHistorySession && (
-								<Button size='sm' variant='ghost' onClick={backToSetup}>
+								<Button size='sm' variant='ghost' onClick={backToSetup} className='min-h-[44px] min-w-[44px]'>
 									← Back
 								</Button>
 							)}
-							<Button size='sm' variant='outline' onClick={resetMockInterview}>
+							<Button size='sm' variant='outline' onClick={resetMockInterview} className='min-h-[44px] min-w-[44px]'>
 								<Plus className='h-3.5 w-3.5 mr-1.5' /> New Interview
 							</Button>
 						</div>
@@ -1615,7 +1615,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 									onClick={() =>
 										setExpandedSection(expandedSection === 'mock-content' ? null : 'mock-content')
 									}
-									className='w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors'
+									className='min-h-[44px] w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors'
 								>
 									<span className='flex items-center gap-2 font-medium text-sm'>
 										<Brain className='h-4 w-4 text-violet-600' />
@@ -1696,7 +1696,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 											</div>
 										)}
 										{/* Sub-scores */}
-										<div className='grid grid-cols-2 gap-2'>
+										<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
 											{(mockFeedback as any).content.star_method_usage && (
 												<div
 													className={`p-2.5 rounded-lg border ${scoreBg((mockFeedback as any).content.star_method_usage.score)}`}
@@ -1750,7 +1750,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 											expandedSection === 'mock-communication' ? null : 'mock-communication',
 										)
 									}
-									className='w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors'
+									className='min-h-[44px] w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors'
 								>
 									<span className='flex items-center gap-2 font-medium text-sm'>
 										<Volume2 className='h-4 w-4 text-sky-600' />
@@ -1769,7 +1769,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 								</button>
 								{expandedSection === 'mock-communication' && (
 									<div className='p-3 pt-0 space-y-3'>
-										<div className='grid grid-cols-2 sm:grid-cols-4 gap-2'>
+										<div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2'>
 											<div className='p-2 rounded bg-muted/50 text-center'>
 												<div className='text-lg font-bold'>
 													{(mockFeedback as any).communication.words_per_minute || '\u2014'}
@@ -1874,7 +1874,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 												<h5 className='text-xs font-semibold flex items-center gap-1.5'>
 													<Mic className='h-3.5 w-3.5 text-indigo-600' /> Voice & Tone Analysis
 												</h5>
-												<div className='grid grid-cols-2 gap-2'>
+												<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
 													{[
 														{ key: 'voice_confidence', label: 'Confidence', icon: Star },
 														{ key: 'vocal_variety', label: 'Vocal Variety', icon: Volume2 },
@@ -1926,7 +1926,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 										expandedSection === 'mock-presentation' ? null : 'mock-presentation',
 									)
 								}
-								className='w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors'
+								className='min-h-[44px] w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors'
 							>
 								<span className='flex items-center gap-2 font-medium text-sm'>
 									<Eye className='h-4 w-4 text-emerald-600' />
@@ -1951,7 +1951,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 								<div className='p-3 pt-0 space-y-3'>
 									{mockFeedback.presentation ? (
 										<>
-											<div className='grid grid-cols-2 gap-2'>
+											<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
 												{[
 													{ key: 'eye_contact', label: 'Eye Contact', icon: Eye },
 													{ key: 'facial_expressions', label: 'Expressions', icon: User },
@@ -2129,7 +2129,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 										<Brain className='h-3.5 w-3.5' /> Voice & delivery coaching
 									</div>
 								</div>
-								<Button onClick={() => setMockShowSetup(true)} size='lg'>
+								<Button onClick={() => setMockShowSetup(true)} size='lg' className='min-h-[44px] min-w-[44px]'>
 									<Video className='h-4 w-4 mr-2' /> Start Mock Interview
 								</Button>
 							</CardContent>
@@ -2194,14 +2194,14 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 									<Button
 										variant='outline'
 										onClick={() => setMockShowSetup(false)}
-										className='flex-1'
+										className='min-h-[44px] min-w-[44px] flex-1'
 									>
 										Cancel
 									</Button>
 									<Button
 										onClick={startMockInterview}
 										disabled={mockStarting || mockTargetRole.trim().length < 2}
-										className='flex-1'
+										className='min-h-[44px] min-w-[44px] flex-1'
 									>
 										{mockStarting ? (
 											<>
