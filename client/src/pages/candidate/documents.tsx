@@ -189,8 +189,8 @@ export function CandidateDocumentsPage() {
 					</p>
 				</div>
 				<div className='flex gap-2'>
-					<label htmlFor='doc-upload'>
-						<Button size='sm' className='gap-1' asChild disabled={uploading}>
+					<label htmlFor='doc-upload' className='min-h-[44px]'>
+						<Button size='sm' className='gap-1 min-h-[44px]' asChild disabled={uploading}>
 							<span>
 								{uploading ? (
 									<Clock className='h-4 w-4 animate-spin' />
@@ -383,7 +383,7 @@ export function CandidateDocumentsPage() {
 													<Button
 														variant='ghost'
 														size='sm'
-														className='h-8 w-8 p-0'
+														className='h-8 w-8 p-0 min-h-[44px]'
 														onClick={() => setPreviewDoc(doc)}
 														aria-label='Preview'
 													>
@@ -392,7 +392,7 @@ export function CandidateDocumentsPage() {
 													<Button
 														variant='ghost'
 														size='sm'
-														className='h-8 w-8 p-0'
+														className='h-8 w-8 p-0 min-h-[44px]'
 														onClick={() => window.open(doc.url, '_blank')}
 														aria-label='Download'
 													>
@@ -401,7 +401,7 @@ export function CandidateDocumentsPage() {
 													<Button
 														variant='ghost'
 														size='sm'
-														className='h-8 w-8 p-0 text-destructive hover:text-destructive'
+														className='h-8 w-8 p-0 text-destructive hover:text-destructive min-h-[44px]'
 														onClick={() => handleDelete(doc.id)}
 														aria-label='Delete'
 													>

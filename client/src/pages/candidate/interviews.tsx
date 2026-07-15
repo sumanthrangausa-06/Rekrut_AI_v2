@@ -291,7 +291,7 @@ export function CandidateInterviewsPage() {
 					<h1 className='text-2xl font-heading font-bold'>My Interviews</h1>
 					<p className='text-muted-foreground text-sm'>View and manage your scheduled interviews</p>
 				</div>
-				<Button variant='outline' onClick={() => navigate('/candidate/ai-coaching')}>
+				<Button variant='outline' onClick={() => navigate('/candidate/ai-coaching')} className='min-h-[44px]'>
 					<Briefcase className='h-4 w-4 mr-2' />
 					Practice Interview
 				</Button>
@@ -414,10 +414,10 @@ export function CandidateInterviewsPage() {
 						/>
 					</div>
 					<div className='flex gap-2 justify-end'>
-						<Button variant='outline' onClick={() => setShowDecline(null)}>
+						<Button variant='outline' onClick={() => setShowDecline(null)} className='min-h-[44px]'>
 							Cancel
 						</Button>
-						<Button variant='destructive' onClick={declineInterview} disabled={saving}>
+						<Button variant='destructive' onClick={declineInterview} disabled={saving} className='min-h-[44px]'>
 							{saving ? 'Declining...' : 'Decline Interview'}
 						</Button>
 					</div>
@@ -451,10 +451,10 @@ export function CandidateInterviewsPage() {
 						/>
 					</div>
 					<div className='flex gap-2 justify-end'>
-						<Button variant='outline' onClick={() => setShowReschedule(null)}>
+						<Button variant='outline' onClick={() => setShowReschedule(null)} className='min-h-[44px]'>
 							Cancel
 						</Button>
-						<Button onClick={requestReschedule} disabled={saving || !rescheduleReason}>
+						<Button onClick={requestReschedule} disabled={saving || !rescheduleReason} className='min-h-[44px]'>
 							{saving ? 'Requesting...' : 'Request Reschedule'}
 						</Button>
 					</div>
@@ -511,7 +511,7 @@ function NextInterviewCard({ interview }: { interview: Interview }) {
 					</div>
 					{interview.meeting_link && (
 						<a href={interview.meeting_link} target='_blank' rel='noopener noreferrer'>
-							<Button size='lg'>
+							<Button size='lg' className='min-h-[44px]'>
 								<Video className='h-4 w-4 mr-2' /> Join Call
 							</Button>
 						</a>

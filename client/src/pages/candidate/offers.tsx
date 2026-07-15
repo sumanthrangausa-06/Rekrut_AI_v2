@@ -456,7 +456,7 @@ export function CandidateOffersPage() {
 									value={signatureName}
 									onChange={(e) => setSignatureName(e.target.value)}
 									placeholder='e.g. John A. Smith'
-									className='text-lg font-serif h-10'
+									className='text-lg font-serif h-10 min-h-[44px]'
 									autoFocus
 								/>
 								{signatureName.trim() && (

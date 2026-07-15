@@ -275,7 +275,7 @@ export function CandidateScreeningPage() {
 							</ul>
 						</div>
 
-						<Button onClick={startScreening} className='w-full' size='lg'>
+						<Button onClick={startScreening} className='w-full min-h-[44px]' size='lg'>
 							Start Screening Interview
 							<ChevronRight className='w-4 h-4 ml-2' />
 						</Button>
@@ -301,7 +301,7 @@ export function CandidateScreeningPage() {
 		<div className='min-h-dvh-safe bg-gradient-to-br from-slate-50 to-blue-50'>
 			{/* Top bar */}
 			<div className='bg-white border-b sticky top-0 z-10'>
-				<div className='max-w-3xl mx-auto px-6 py-3 flex items-center justify-between'>
+				<div className='max-w-3xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between'>
 					<div className='flex items-center gap-3'>
 						<Building2 className='w-5 h-5 text-blue-600' />
 						<div>
@@ -339,21 +339,21 @@ export function CandidateScreeningPage() {
 
 			{/* Error banner */}
 			{error && (
-				<div className='max-w-3xl mx-auto px-6 pt-4'>
+				<div className='max-w-3xl mx-auto px-4 sm:px-6 pt-4'>
 					<div className='bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700'>
 						{error}
 					</div>
 				</div>
 			)}
 
-			<div className='max-w-3xl mx-auto px-6 py-8 space-y-6'>
+			<div className='max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6'>
 				{/* Question navigation pills */}
 				<div className='flex gap-2 flex-wrap'>
 					{questions.map((q: ScreeningQuestion, i: number) => (
 						<button
 							key={q.id}
 							onClick={() => setCurrentQuestion(i)}
-							className={`w-8 h-8 rounded-full text-xs font-medium transition-all ${
+							className={`w-8 h-8 rounded-full text-xs font-medium transition-all min-h-[44px] ${
 								i === currentQuestion
 									? 'bg-blue-600 text-white shadow-md'
 									: answers[q.id]?.trim()
@@ -406,12 +406,14 @@ export function CandidateScreeningPage() {
 										<Button
 											variant='outline'
 											onClick={() => setCurrentQuestion((prev) => prev - 1)}
+									className='min-h-[44px]'
 										>
 											Previous
 										</Button>
 									)}
 									<Button
 										onClick={() => submitAnswer(question.id)}
+									className='min-h-[44px]'
 										disabled={submitting || !answers[question.id]?.trim()}
 									>
 										{submitting ? (
