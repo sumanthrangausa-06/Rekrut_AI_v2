@@ -310,6 +310,7 @@ export function OfferManagementPage() {
 													<Button
 														variant='ghost'
 														size='sm'
+														className='min-h-[44px]'
 														onClick={() => sendOffer(offer.id)}
 														disabled={sending === offer.id}
 													>

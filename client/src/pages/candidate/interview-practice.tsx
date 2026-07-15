@@ -199,6 +199,7 @@ export function InterviewPracticePage() {
 								key={cat}
 								variant={categoryFilter === cat ? 'default' : 'outline'}
 								size='sm'
+								className='min-h-[44px]'
 								onClick={() => setCategoryFilter(cat)}
 							>
 								{cat !== 'all' && categoryIcons[cat]}

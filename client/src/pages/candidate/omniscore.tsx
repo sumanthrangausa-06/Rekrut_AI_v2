@@ -881,6 +881,7 @@ export function CandidateOmniScorePage() {
 													) : (
 														<Button
 															size='sm'
+															className='min-h-[44px]'
 															variant='outline'
 															onClick={() =>
 																(window.location.href = `/candidate/jobs/${match.job_id}`)
@@ -1044,6 +1045,7 @@ export function CandidateOmniScorePage() {
 												) : (
 													<Button
 														size='sm'
+														className='min-h-[44px]'
 														variant='outline'
 														onClick={() =>
 															setRatingForm({
