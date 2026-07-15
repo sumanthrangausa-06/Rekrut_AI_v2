@@ -62,9 +62,9 @@ for (let i = 0; i < codeLines.length; i++) {
 }
 
 console.log('Top-level entities:');
-topLevelEntities.forEach((e) =>
-	console.log(`  ${e.name}: func=L${e.lineNum + 1}, block=L${e.blockStart + 1}`),
-);
+topLevelEntities.forEach((e) => {
+	console.log(`  ${e.name}: func=L${e.lineNum + 1}, block=L${e.blockStart + 1}`);
+});
 
 // Step 3: Functions to REMOVE
 const removeFunctions = new Set([

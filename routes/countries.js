@@ -4,7 +4,6 @@
  */
 const express = require('express');
 const router = express.Router();
-const { authMiddleware, optionalAuth } = require('../lib/auth');
 const countryConfig = require('../services/country-config');
 
 // GET /api/countries — list all supported countries (public)

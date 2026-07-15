@@ -557,7 +557,7 @@ router.post('/verify', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'No company associated with this account' });
 		}
 
-		const { linkedin_url, website_proof } = req.body;
+		const { linkedin_url } = req.body;
 
 		// In production, this would trigger a verification process
 		// For now, we'll add partial verification points

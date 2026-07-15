@@ -1973,8 +1973,6 @@ router.get('/applications', authMiddleware, async (req, res) => {
 // Withdraw an application
 router.put('/applications/:id/withdraw', authMiddleware, async (req, res) => {
 	try {
-		const { reason } = req.body;
-
 		// Verify application belongs to candidate and is withdrawable
 		const existing = await pool.query(
 			`SELECT id, status FROM job_applications WHERE id = $1 AND candidate_id = $2`,
@@ -2413,7 +2411,7 @@ Only return JSON.`;
 // AI Screening Answer Suggestions — based on stored profile and past answers (RATE LIMITED)
 router.post('/ai/screening-suggestions', authMiddleware, rateLimits.ai, async (req, res) => {
 	try {
-		const { job_id, questions } = req.body;
+		const { questions } = req.body;
 		if (!questions || !Array.isArray(questions))
 			return res.status(400).json({ error: 'questions array required' });
 		const { chat } = require('../lib/polsia-ai');

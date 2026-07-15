@@ -515,7 +515,7 @@ router.post('/bulk', authMiddleware, requireRecruiter, async (req, res) => {
 						error: 'Generation failed',
 					});
 				}
-			} catch (err) {
+			} catch (_err) {
 				results.push({
 					candidate_id: candId,
 					success: false,

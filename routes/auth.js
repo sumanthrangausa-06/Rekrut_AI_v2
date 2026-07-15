@@ -5,7 +5,6 @@ const fs = require('node:fs');
 const pool = require('../lib/db');
 const {
 	generateToken,
-	generateLongToken,
 	generateRefreshToken,
 	rotateRefreshToken,
 	revokeAllTokens,
@@ -15,7 +14,7 @@ const {
 const router = express.Router();
 
 // Rate limiting (distributed via PostgreSQL)
-const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-limiter');
+const { rateLimits } = require('../lib/distributed-rate-limiter');
 const emailService = require('../lib/email-service');
 
 function logAuth(message) {

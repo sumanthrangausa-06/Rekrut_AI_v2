@@ -271,7 +271,7 @@ router.delete('/audio/:fileName', authMiddleware, async (req, res) => {
 		} else {
 			res.status(404).json({ error: 'Audio file not found', message: result.error });
 		}
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to delete audio' });
 	}
 });

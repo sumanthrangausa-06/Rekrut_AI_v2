@@ -248,7 +248,7 @@ Only return JSON.`;
 
 // ─── MULTI-AGENT PIPELINE ───────────────────────────────────────────────
 
-async function runCommunicationPipeline({ draft, candidate, job, companyName, type }) {
+async function runCommunicationPipeline({ draft, candidate, type }) {
 	// Stage 1: Personalization — enrich with candidate-specific details
 	const personalized = await personalizeMessage(draft, candidate);
 

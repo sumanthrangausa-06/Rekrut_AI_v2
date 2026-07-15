@@ -6,7 +6,6 @@ const {
 	generateInterviewQuestions,
 	analyzeInterviewResponse,
 	generateOverallFeedback,
-	generateInterviewCoaching,
 	analyzeVideoInterviewResponse,
 	analyzeVideoPresentation,
 	analyzeVoiceQuality,
@@ -1787,7 +1786,7 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 				has_cached_feedback: hasCachedFeedback,
 			},
 		});
-	} catch (err) {
+	} catch (_err) {
 		results.tests.push({
 			level: 'L1',
 			name: 'Database Schema',
@@ -1808,7 +1807,7 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 			status: total > 0 ? 'pass' : 'fail',
 			details: { total_questions: total, distinct_roles: parseInt(qb.rows[0].roles, 10) },
 		});
-	} catch (err) {
+	} catch (_err) {
 		results.tests.push({
 			level: 'L1',
 			name: 'Question Bank',
@@ -1834,7 +1833,7 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 				providers: providerStatus.providers || Object.keys(aiProvider.clients || {}),
 			},
 		});
-	} catch (err) {
+	} catch (_err) {
 		results.tests.push({
 			level: 'L2',
 			name: 'AI Provider Chain',
@@ -1855,7 +1854,7 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 				self_hosted: !!aiProvider.selfHostedAudio,
 			},
 		});
-	} catch (err) {
+	} catch (_err) {
 		results.tests.push({
 			level: 'L2',
 			name: 'TTS Availability',
@@ -1879,7 +1878,7 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 			status: sessions.rows.length > 0 ? 'pass' : 'info',
 			details: { recent_sessions: sessions.rows },
 		});
-	} catch (err) {
+	} catch (_err) {
 		results.tests.push({
 			level: 'L3',
 			name: 'Session History',
@@ -1908,7 +1907,7 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 			status: testResult ? 'pass' : 'fail',
 			details: { response_preview: (testResult || '').substring(0, 100), latency_ms: llmTime },
 		});
-	} catch (err) {
+	} catch (_err) {
 		results.tests.push({
 			level: 'L4',
 			name: 'LLM Chain',
@@ -1952,7 +1951,7 @@ router.get('/mock/debug', authMiddleware, async (req, res) => {
 				details: { message: 'No completed sessions found for this user' },
 			});
 		}
-	} catch (err) {
+	} catch (_err) {
 		results.tests.push({
 			level: 'L5',
 			name: 'E2E Check',

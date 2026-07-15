@@ -1044,8 +1044,6 @@ router.get('/candidates/full', authMiddleware, requireRecruiter, async (req, res
 			skills,
 			minScore,
 			maxScore,
-			sortBy = 'applied_at',
-			sortOrder = 'DESC',
 			page = 1,
 			limit = 20,
 		} = req.query;

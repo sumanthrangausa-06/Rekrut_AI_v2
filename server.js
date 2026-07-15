@@ -23,7 +23,9 @@ const REQUIRED_ENV_VARS = [
 const missingEnv = REQUIRED_ENV_VARS.filter((env) => env.required && !process.env[env.key]);
 if (missingEnv.length > 0) {
 	console.error('[startup] CRITICAL: Missing required environment variables:');
-	missingEnv.forEach((env) => console.error(`  - ${env.key}`));
+	missingEnv.forEach((env) => {
+		console.error(`  - ${env.key}`);
+	});
 	console.error('[startup] Application will start but may fail on database-dependent endpoints.');
 }
 
@@ -143,7 +145,7 @@ app.get('/deploy-check', (_req, res) => {
 			built_at: timestamp,
 			env: process.env.NODE_ENV || 'unknown',
 		});
-	} catch (err) {
+	} catch (_err) {
 		res.json({
 			deployed: true,
 			commit: 'unknown',
@@ -167,7 +169,7 @@ app.get('/version', (_req, res) => {
 			encoding: 'utf8',
 		}).trim();
 		res.json({ commit, branch, timestamp, env: process.env.NODE_ENV || 'unknown' });
-	} catch (err) {
+	} catch (_err) {
 		res.json({
 			commit: 'unknown',
 			branch: 'unknown',
@@ -232,7 +234,7 @@ app.get('/health', async (_req, res) => {
 			env: health.env,
 			issues: health.issues,
 		});
-	} catch (err) {
+	} catch (_err) {
 		if (responded) return;
 		clearTimeout(timeout);
 		res.status(200).json({
@@ -279,7 +281,7 @@ app.get('/api/health', async (_req, res) => {
 			env: health.env,
 			issues: health.issues,
 		});
-	} catch (err) {
+	} catch (_err) {
 		if (responded) return;
 		clearTimeout(timeout);
 		res.status(200).json({
@@ -441,7 +443,7 @@ app.get('/api/admin/email-queue', authMiddleware, async (req, res) => {
 	try {
 		const stats = await emailQueue.getStats();
 		res.json({ stats });
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to get queue stats' });
 	}
 });
@@ -453,7 +455,7 @@ app.post('/api/admin/email-queue/retry', authMiddleware, async (req, res) => {
 	try {
 		const retried = await emailQueue.retryFailed();
 		res.json({ retried: retried.length });
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to retry failed emails' });
 	}
 });
@@ -549,7 +551,7 @@ app.get('/api/admin/metrics', requireAdmin, async (_req, res) => {
 		const { getAllMetrics } = require('./lib/metrics-collector');
 		const metrics = await getAllMetrics();
 		res.json(metrics);
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to get metrics' });
 	}
 });
@@ -584,7 +586,7 @@ app.get('/api/admin/activity', requireAdmin, async (req, res) => {
 		});
 
 		res.json({ ...result, source: 'database' });
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to get activity log' });
 	}
 });
@@ -594,7 +596,7 @@ app.get('/api/admin/token-usage', requireAdmin, (_req, res) => {
 	try {
 		const tokenBudget = require('./lib/token-budget');
 		res.json(tokenBudget.getStatus());
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to get token usage' });
 	}
 });
@@ -604,7 +606,7 @@ app.get('/api/ai-health', requireAdmin, (_req, res) => {
 	try {
 		const { aiProvider } = require('./lib/polsia-ai');
 		res.json(aiProvider.getHealth());
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to get AI health status' });
 	}
 });
@@ -619,7 +621,7 @@ app.post('/api/ai-health/reset', requireAdmin, (_req, res) => {
 			message: 'All circuit breakers reset',
 			health: aiProvider.getHealth(),
 		});
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to reset circuit breakers' });
 	}
 });
@@ -630,7 +632,7 @@ app.post('/api/ai-health/verify', requireAdmin, async (_req, res) => {
 		const { aiProvider } = require('./lib/polsia-ai');
 		const result = await aiProvider.verifyModels();
 		res.json(result);
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Model verification failed' });
 	}
 });
@@ -655,7 +657,7 @@ app.get('/api/ai-health/verify-status', requireAdmin, (_req, res) => {
 			stale: ageMinutes > 35, // auto-verify runs every 30min, flag if >35min
 			...last,
 		});
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to get verify status' });
 	}
 });
@@ -720,7 +722,7 @@ app.get('/api/ai-health/usage', requireAdmin, (_req, res) => {
 			hourly: aiCallLogger.getHourlyUsage(),
 			budget: tokenBudgetSvc.getStatus(),
 		});
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to get usage' });
 	}
 });
@@ -741,7 +743,7 @@ app.get('/api/ai-health/budget', requireAdmin, (_req, res) => {
 				throttled: aiCallLogger.shouldThrottle(mod, status),
 			})),
 		});
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to get budget' });
 	}
 });
@@ -775,7 +777,7 @@ app.get('/api/ai-health/logs', requireAdmin, async (req, res) => {
 			offset: parseInt(offset, 10) || 0,
 		});
 		res.json({ ...result, source: 'database' });
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to get logs' });
 	}
 });
@@ -854,7 +856,7 @@ app.get('/api/ai-health/models', requireAdmin, (_req, res) => {
 	try {
 		const aiCallLogger = require('./lib/ai-call-logger');
 		res.json(aiCallLogger.getModelMetrics());
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to get model metrics' });
 	}
 });
@@ -864,7 +866,7 @@ app.get('/api/ai-health/failover-stats', requireAdmin, (_req, res) => {
 	try {
 		const aiCallLogger = require('./lib/ai-call-logger');
 		res.json(aiCallLogger.getFailoverStats());
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to get failover stats' });
 	}
 });
@@ -884,7 +886,7 @@ app.get('/api/ai-health/predictions', requireAdmin, (_req, res) => {
 				throttled: aiCallLogger.shouldThrottle(mod, status),
 			})),
 		});
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to get predictions' });
 	}
 });
@@ -922,7 +924,7 @@ app.get('/api/ai-health/prompts/:id', requireAdmin, async (req, res) => {
 			versions: versionsResult.rows,
 			abTests: testsResult.rows,
 		});
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to get prompt' });
 	}
 });
@@ -978,7 +980,7 @@ app.post('/api/ai-health/prompts', requireAdmin, async (req, res) => {
 		);
 
 		res.json({ prompt, message: `Version ${prompt.current_version} created` });
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to save prompt' });
 	}
 });
@@ -1012,7 +1014,7 @@ app.put('/api/ai-health/prompts/:id', requireAdmin, async (req, res) => {
 		);
 
 		res.json({ prompt, message: `Version ${prompt.current_version} created` });
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to update prompt' });
 	}
 });
@@ -1058,7 +1060,7 @@ app.post('/api/ai-health/prompts/:id/rollback', requireAdmin, async (req, res) =
 			prompt,
 			message: `Rolled back to version ${targetVersion} (as new version ${prompt.current_version})`,
 		});
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to rollback' });
 	}
 });
@@ -1083,7 +1085,7 @@ app.post('/api/ai-health/prompts/:id/ab-test', requireAdmin, async (req, res) =>
 		);
 
 		res.json({ test: result.rows[0], message: 'A/B test started' });
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to start A/B test' });
 	}
 });
@@ -1101,7 +1103,7 @@ app.put('/api/ai-health/ab-tests/:id/end', requireAdmin, async (req, res) => {
 			test: result.rows[0],
 			message: `A/B test ended${winner ? ` — winner: version ${winner}` : ''}`,
 		});
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to end test' });
 	}
 });
@@ -1134,7 +1136,7 @@ app.post('/api/ai-health/query', requireAdmin, async (req, res) => {
 		});
 
 		res.json({ question, answer, data: { summary, models, modules, budget } });
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Query failed' });
 	}
 });
@@ -1665,7 +1667,7 @@ app.get('/api/admin/routes', requireAdmin, (_req, res) => {
 			routeFiles,
 			trackedEndpoints: endpoints,
 		});
-	} catch (err) {
+	} catch (_err) {
 		res.status(500).json({ error: 'Failed to get route metrics' });
 	}
 });

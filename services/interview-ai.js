@@ -179,7 +179,7 @@ async function suggestRescheduleSlots(interviewId) {
 	]);
 	if (interview.rows.length === 0) return [];
 
-	const { recruiter_id, candidate_id } = interview.rows[0];
+	const { recruiter_id } = interview.rows[0];
 	return suggestSlots(recruiter_id, 'America/New_York', { daysAhead: 10, slotsCount: 5 });
 }
 

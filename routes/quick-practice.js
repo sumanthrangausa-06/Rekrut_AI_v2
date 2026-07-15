@@ -17,7 +17,6 @@ const {
 	analyzeInterviewResponse,
 	generateInterviewCoaching,
 	analyzeVideoInterviewResponse,
-	handleAIError,
 } = require('../lib/qp-ai');
 
 const router = express.Router();
