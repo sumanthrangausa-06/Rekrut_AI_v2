@@ -185,7 +185,7 @@ export function RecruiterOnboardingDocsPage() {
 										<Progress value={pct} className='h-1.5' />
 									</div>
 
-									<div className='grid grid-cols-2 gap-2 mt-3 pt-3 border-t text-xs'>
+									<div className='grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-3 border-t text-xs'>
 										<div className='flex items-center gap-1.5'>
 											<strong>{signed}</strong>
 											<span className='text-muted-foreground'>Signed</span>
@@ -220,7 +220,7 @@ export function RecruiterOnboardingDocsPage() {
 				</DialogHeader>
 				<div className='p-6 space-y-4'>
 					{selectedCandidate && (
-						<div className='grid grid-cols-2 gap-4 text-sm'>
+						<div className='grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm'>
 							<div>
 								<span className='text-muted-foreground'>Job Title</span>
 								<p className='font-medium mt-0.5'>{selectedCandidate.job_title || '—'}</p>

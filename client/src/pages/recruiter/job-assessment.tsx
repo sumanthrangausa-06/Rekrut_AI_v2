@@ -260,7 +260,7 @@ export function RecruiterJobAssessmentPage() {
 			</div>
 
 			{/* Stats */}
-			<div className='grid grid-cols-4 gap-3'>
+			<div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3'>
 				<Card>
 					<CardContent className='pt-4 text-center'>
 						<p className='text-2xl font-bold'>{assessment.questions?.length || 0}</p>
@@ -359,7 +359,7 @@ export function RecruiterJobAssessmentPage() {
 							{expandedQ === i && (
 								<div className='ml-8 space-y-2 pt-2 border-t'>
 									{q.options && (
-										<div className='grid grid-cols-2 gap-1'>
+										<div className='grid grid-cols-1 sm:grid-cols-2 gap-1'>
 											{(typeof q.options === 'string' ? JSON.parse(q.options) : q.options).map(
 												(opt: string, oi: number) => (
 													<span
@@ -443,7 +443,7 @@ export function RecruiterJobAssessmentPage() {
 										</div>
 
 										{/* Category breakdown */}
-										<div className='grid grid-cols-4 gap-2'>
+										<div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2'>
 											{Object.entries(categoryScores).map(([cat, data]: [string, any]) => (
 												<div key={cat} className='rounded-lg bg-muted/50 p-2 text-center'>
 													<p className='text-sm font-bold'>{Math.round(data.score)}%</p>

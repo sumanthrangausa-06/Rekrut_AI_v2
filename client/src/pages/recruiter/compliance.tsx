@@ -672,7 +672,7 @@ export function RecruiterCompliancePage() {
                         {formatDate(model.deployedAt)}
                       </span>
                     </div>
-                    <div className='grid grid-cols-2 gap-2 text-sm'>
+                    <div className='grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm'>
                       <div className='text-muted-foreground'>
                         Provider: <span className='text-foreground font-medium'>{model.provider}</span>
                       </div>

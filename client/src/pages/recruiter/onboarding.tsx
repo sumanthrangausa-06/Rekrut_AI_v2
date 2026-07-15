@@ -398,7 +398,7 @@ export function RecruiterOnboardingPage() {
 			{activeTab !== 'employees' ? null : (
 				<>
 					{/* Analytics cards */}
-					<div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
+					<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
 						<StatCard
 							label='Total Onboarding'
 							value={stats.total}
@@ -601,7 +601,7 @@ export function RecruiterOnboardingPage() {
 						<Card>
 							<CardContent className='p-4'>
 								<h3 className='text-sm font-medium mb-3'>Required Documents</h3>
-								<div className='grid grid-cols-2 sm:grid-cols-4 gap-3'>
+								<div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3'>
 									{DOCUMENT_TYPES.map((dt) => (
 										<div key={dt} className='flex items-center gap-2 text-sm text-muted-foreground'>
 											<FileText className='h-4 w-4 shrink-0' />

@@ -1258,7 +1258,7 @@ export function RecruiterJobApplicantsPage() {
 											Automatically advance candidates from Applied to Screening when their scores
 											meet thresholds.
 										</p>
-										<div className='grid grid-cols-2 gap-3'>
+										<div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
 											<div>
 												<label className='text-xs font-medium'>Min OmniScore</label>
 												<Input
@@ -1300,7 +1300,7 @@ export function RecruiterJobApplicantsPage() {
 										<p className='text-xs text-muted-foreground'>
 											Automatically reject candidates who fall below minimum thresholds.
 										</p>
-										<div className='grid grid-cols-2 gap-3'>
+										<div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
 											<div>
 												<label className='text-xs font-medium'>Max OmniScore (reject below)</label>
 												<Input
@@ -1391,7 +1391,7 @@ function SkillsBreakdown({
 					style={{ width: `${pct}%` }}
 				/>
 			</div>
-			<div className='grid grid-cols-2 gap-3'>
+			<div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
 				{matchingSkills.length > 0 && (
 					<div className='rounded-lg bg-green-50 border border-green-100 p-2.5'>
 						<p className='text-[10px] font-semibold text-green-700 mb-1.5 uppercase'>

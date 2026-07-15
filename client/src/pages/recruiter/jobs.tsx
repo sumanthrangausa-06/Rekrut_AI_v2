@@ -497,7 +497,7 @@ export function RecruiterJobsPage() {
 										)}
 										{job.job_type && <span>{job.job_type}</span>}
 									</div>
-									<div className='grid grid-cols-3 gap-2 pt-2 border-t'>
+									<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-2 border-t'>
 										<div className='text-center'>
 											<p className='font-bold'>{job.application_count || 0}</p>
 											<p className='text-[10px] text-muted-foreground'>Apps</p>
@@ -717,7 +717,7 @@ function JobDetailPanel({
 					View Applicants
 				</Button>
 
-				<div className='grid grid-cols-2 gap-2'>
+				<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
 					<Button variant='outline' className='gap-2 min-h-[48px]' onClick={onEdit}>
 						<Edit className='h-4 w-4' />
 						Edit Job

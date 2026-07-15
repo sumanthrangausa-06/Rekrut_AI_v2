@@ -937,7 +937,7 @@ export function RecruiterPayrollPage() {
 						</DialogTitle>
 					</DialogHeader>
 					<div className='space-y-4'>
-						<div className='grid grid-cols-2 sm:grid-cols-4 gap-3'>
+						<div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3'>
 							<div className='rounded-lg bg-muted/50 p-3'>
 								<p className='text-xs text-muted-foreground'>Period</p>
 								<p className='font-medium text-sm'>
@@ -1145,7 +1145,7 @@ export function RecruiterPayrollPage() {
 							</Select>
 						</div>
 
-						<div className='grid grid-cols-2 gap-4'>
+						<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
 							<div>
 								<Label>Salary Type</Label>
 								<Select
@@ -1181,7 +1181,7 @@ export function RecruiterPayrollPage() {
 							</div>
 						</div>
 
-						<div className='grid grid-cols-2 gap-4'>
+						<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
 							<div>
 								<Label>Pay Frequency</Label>
 								<Select
@@ -1212,7 +1212,7 @@ export function RecruiterPayrollPage() {
 
 						{/* US-specific tax fields */}
 						{cfgCountry === 'US' && (
-							<div className='grid grid-cols-3 gap-4'>
+							<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
 								<div>
 									<Label>Tax Filing Status</Label>
 									<Select

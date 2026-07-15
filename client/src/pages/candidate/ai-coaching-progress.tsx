@@ -469,7 +469,7 @@ export function HistoryTab({
 																		</p>
 																	</div>
 																)}
-																<div className='grid grid-cols-2 gap-2'>
+																<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
 																	{cd.content.star_method_usage && (
 																		<div
 																			className={`p-2.5 rounded-lg border ${scoreBg(cd.content.star_method_usage.score)}`}
@@ -644,7 +644,7 @@ export function HistoryTab({
 																			<Mic className='h-3.5 w-3.5 text-indigo-600' /> Voice & Tone
 																			Analysis
 																		</h5>
-																		<div className='grid grid-cols-2 gap-2'>
+																		<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
 																			{[
 																				{
 																					key: 'voice_confidence',
@@ -735,7 +735,7 @@ export function HistoryTab({
 														<div className='p-3 pt-0 space-y-2.5'>
 															{cd.presentation ? (
 																<>
-																	<div className='grid grid-cols-2 gap-2'>
+																	<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
 																		{[
 																			{ key: 'eye_contact', label: 'Eye Contact' },
 																			{ key: 'facial_expressions', label: 'Expressions' },
@@ -865,7 +865,7 @@ export function HistoryTab({
 													{(cd.star_method_usage ||
 														cd.communication_quality ||
 														cd.technical_depth) && (
-														<div className='grid grid-cols-2 gap-2'>
+														<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
 															{cd.star_method_usage && cd.star_method_usage.score > 0 && (
 																<div
 																	className={`p-2.5 rounded-lg border ${scoreBg(cd.star_method_usage.score)}`}
@@ -1136,7 +1136,7 @@ export function HistoryTab({
 																		<Mic className='h-3.5 w-3.5 text-indigo-600' /> Voice & Tone
 																		Analysis
 																	</h5>
-																	<div className='grid grid-cols-2 gap-2'>
+																	<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
 																		{[
 																			{ key: 'voice_confidence', label: 'Confidence', icon: Star },
 																			{
@@ -1216,7 +1216,7 @@ export function HistoryTab({
 													</button>
 													{reviewExpanded === 'presentation' && (
 														<div className='p-3 pt-0 space-y-2.5'>
-															<div className='grid grid-cols-2 gap-2'>
+															<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
 																{[
 																	{ key: 'eye_contact', label: 'Eye Contact' },
 																	{ key: 'facial_expressions', label: 'Expressions' },

@@ -529,7 +529,7 @@ export function CandidateOmniScorePage() {
 								</h3>
 								<Card>
 									<CardContent className='p-4'>
-										<div className='grid grid-cols-2 sm:grid-cols-4 gap-4'>
+										<div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4'>
 											<div className='text-center'>
 												<p className='text-2xl sm:text-2xl sm:text-3xl font-bold text-primary'>
 													{explainer.peerComparison.percentile}%
