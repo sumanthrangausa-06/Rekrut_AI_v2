@@ -213,6 +213,7 @@ export function CandidateApplicationsPage() {
 				<Button
 					variant={!statusFilter ? 'default' : 'outline'}
 					size='sm'
+					className='min-h-[44px]'
 					onClick={() => setStatusFilter('')}
 				>
 					All ({applications.length})
@@ -223,6 +224,7 @@ export function CandidateApplicationsPage() {
 							key={s}
 							variant={statusFilter === s ? 'default' : 'outline'}
 							size='sm'
+							className='min-h-[44px]'
 							onClick={() => setStatusFilter(s)}
 						>
 							{statusConfig[s]?.label || s} ({statusCounts[s]})
@@ -773,13 +775,13 @@ function ApplicationCard({
 									e.stopPropagation()
 									onWithdraw()
 								}}
-								className='gap-1 text-muted-foreground hover:text-destructive'
+								className='gap-1 text-muted-foreground hover:text-destructive min-h-[44px]'
 							>
 								<XCircle className='h-3.5 w-3.5' /> Withdraw
 							</Button>
 						)}
 						<Link to={`/candidate/jobs/${app.job_id}`} onClick={(e) => e.stopPropagation()}>
-							<Button variant='ghost' size='sm' className='gap-1 shrink-0'>
+							<Button variant='ghost' size='sm' className='gap-1 shrink-0 min-h-[44px]'>
 								View Job <ExternalLink className='h-3 w-3' />
 							</Button>
 						</Link>

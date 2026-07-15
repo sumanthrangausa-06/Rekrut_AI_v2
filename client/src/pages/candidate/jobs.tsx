@@ -446,7 +446,7 @@ export function CandidateJobsPage() {
 								<Button
 									variant='outline'
 									size='sm'
-									className='bg-white/10 border-white/20 text-white hover:bg-white/20 gap-1.5'
+									className='bg-white/10 border-white/20 text-white hover:bg-white/20 gap-1.5 min-h-[44px]'
 									onClick={() => setShowDetailPanel(true)}
 								>
 									<Bookmark className='h-3.5 w-3.5' />
@@ -459,7 +459,7 @@ export function CandidateJobsPage() {
 							<Button
 								variant='outline'
 								size='sm'
-								className='bg-white/10 border-white/20 text-white hover:bg-white/20 gap-1.5'
+								className='bg-white/10 border-white/20 text-white hover:bg-white/20 gap-1.5 min-h-[44px]'
 								onClick={() => setAiSearchMode(!aiSearchMode)}
 							>
 								{aiSearchMode ? <X className='h-3.5 w-3.5' /> : <Brain className='h-3.5 w-3.5' />}

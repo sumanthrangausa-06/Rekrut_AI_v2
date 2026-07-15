@@ -310,7 +310,7 @@ export function InterviewAnalysisPage() {
 									Question {item.question_index + 1}: {question?.question || 'Interview Question'}
 								</h3>
 
-								<div className='grid grid-cols-2 md:grid-cols-4 gap-3'>
+								<div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3'>
 									<MetricBadge score={item.eye_contact_score} label='Eye Contact' />
 									<MetricBadge score={item.expression_score} label='Expression' />
 									<MetricBadge score={item.body_language_score} label='Body Language' />

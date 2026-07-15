@@ -301,6 +301,42 @@ router.get('/:id/verification', authMiddleware, async (req, res) => {
 	try {
 		const { id } = req.params;
 		const userId = req.user.id;
+		const userRole = req.user.role;
+		const userCompanyId = req.user.company_id;
+
+		// First, check if user has access to this document (owner or company recruiter)
+		let hasAccess = false;
+		const docResult = await pool.query(
+			`SELECT user_id FROM verification_documents WHERE id = $1`,
+			[id],
+		);
+
+		if (docResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Verification not found' });
+		}
+
+		const docOwnerId = docResult.rows[0].user_id;
+		hasAccess = docOwnerId === userId;
+
+		if (
+			!hasAccess &&
+			(userRole === 'recruiter' || userRole === 'hiring_manager' || userRole === 'admin')
+		) {
+			const relationResult = await pool.query(
+				`
+				SELECT 1 FROM job_applications a
+				JOIN jobs j ON a.job_id = j.id
+				WHERE a.candidate_id = $1 AND j.company_id = $2
+				LIMIT 1
+				`,
+				[docOwnerId, userCompanyId],
+			);
+			hasAccess = relationResult.rows.length > 0;
+		}
+
+		if (!hasAccess) {
+			return res.status(403).json({ error: 'Access denied' });
+		}
 
 		const result = await pool.query(
 			`
@@ -313,9 +349,9 @@ router.get('/:id/verification', authMiddleware, async (req, res) => {
       FROM document_verifications dv
       JOIN verification_documents vd ON dv.document_id = vd.id
       LEFT JOIN document_score_impacts dsi ON dsi.document_id = vd.id
-      WHERE dv.document_id = $1 AND vd.user_id = $2
+      WHERE dv.document_id = $1
     `,
-			[id, userId],
+			[id],
 		);
 
 		if (result.rows.length === 0) {

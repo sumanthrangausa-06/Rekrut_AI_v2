@@ -143,7 +143,7 @@ export function InterviewPracticePage() {
 
 			{/* Stats */}
 			{stats && (
-				<div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
+				<div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4'>
 					<Card>
 						<CardContent className='pt-6 text-center'>
 							<MessageSquare className='h-8 w-8 text-primary mx-auto mb-2' />

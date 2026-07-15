@@ -156,22 +156,12 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 			page: Math.floor(parsedOffset / parsedLimit) + 1,
 		});
 	} catch (err) {
-		const errorDetails = {
-			message: err.message,
-			code: err.code,
-			detail: err.detail,
-			table: err.table,
-			constraint: err.constraint,
-			stack: err.stack,
-			timestamp: new Date().toISOString(),
-		};
-		console.error('List jobs error:', JSON.stringify(errorDetails, null, 2));
+		console.error('List jobs error:', err);
 
 		if (err.code === '42P01') {
 			return res.status(500).json({
 				error: 'Database table missing. Please contact support.',
 				code: 'DB_TABLE_MISSING',
-				table: err.table,
 			});
 		}
 		if (err.code === '42703') {
@@ -184,15 +174,6 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 			return res.status(500).json({
 				error: 'Database connection failed. Please try again later.',
 				code: 'DB_CONNECTION_FAILED',
-			});
-		}
-		if (process.env.NODE_ENV !== 'production') {
-			return res.status(500).json({
-				error: 'Failed to fetch jobs (debug mode)',
-				debug: {
-					code: err.code,
-					table: err.table,
-				},
 			});
 		}
 		res.status(500).json({ error: 'Failed to fetch jobs' });
@@ -230,16 +211,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
 
 		res.json({ job: result.rows[0] });
 	} catch (err) {
-		const errorDetails = {
-			message: err.message,
-			code: err.code,
-			detail: err.detail,
-			table: err.table,
-			constraint: err.constraint,
-			stack: err.stack,
-			timestamp: new Date().toISOString(),
-		};
-		console.error('Get job error:', JSON.stringify(errorDetails, null, 2));
+		console.error('Get job error:', err);
 		res.status(500).json({ error: 'Failed to fetch job' });
 	}
 });
@@ -341,16 +313,7 @@ router.post(
 
 			res.json({ success: true, job: result.rows[0] });
 		} catch (err) {
-			const errorDetails = {
-				message: err.message,
-				code: err.code,
-				detail: err.detail,
-				table: err.table,
-				constraint: err.constraint,
-				stack: err.stack,
-				timestamp: new Date().toISOString(),
-			};
-			console.error('Create job error:', JSON.stringify(errorDetails, null, 2));
+			console.error('Create job error:', err);
 			res.status(500).json({ error: 'Failed to create job' });
 		}
 	},
@@ -418,16 +381,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
 		res.json({ success: true, job: result.rows[0] });
 	} catch (err) {
-		const errorDetails = {
-			message: err.message,
-			code: err.code,
-			detail: err.detail,
-			table: err.table,
-			constraint: err.constraint,
-			stack: err.stack,
-			timestamp: new Date().toISOString(),
-		};
-		console.error('Update job error:', JSON.stringify(errorDetails, null, 2));
+		console.error('Update job error:', err);
 		res.status(500).json({ error: 'Failed to update job' });
 	}
 });
@@ -446,16 +400,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 		await pool.query('DELETE FROM jobs WHERE id = $1', [req.params.id]);
 		res.json({ success: true });
 	} catch (err) {
-		const errorDetails = {
-			message: err.message,
-			code: err.code,
-			detail: err.detail,
-			table: err.table,
-			constraint: err.constraint,
-			stack: err.stack,
-			timestamp: new Date().toISOString(),
-		};
-		console.error('Delete job error:', JSON.stringify(errorDetails, null, 2));
+		console.error('Delete job error:', err);
 		res.status(500).json({ error: 'Failed to delete job' });
 	}
 });
@@ -526,16 +471,7 @@ router.post('/:id/audio', optionalAuth, async (req, res) => {
 
 		res.json({ audioUrl: `/api/jobs/${id}/audio-file` });
 	} catch (err) {
-		const errorDetails = {
-			message: err.message,
-			code: err.code,
-			detail: err.detail,
-			table: err.table,
-			constraint: err.constraint,
-			stack: err.stack,
-			timestamp: new Date().toISOString(),
-		};
-		console.error('Generate audio error:', JSON.stringify(errorDetails, null, 2));
+		console.error('Generate audio error:', err);
 		res.status(500).json({ error: 'Failed to generate audio narration' });
 	}
 });
@@ -561,16 +497,7 @@ router.get('/:id/audio-file', optionalAuth, async (req, res) => {
 		const stream = fs.createReadStream(cacheFile);
 		stream.pipe(res);
 	} catch (err) {
-		const errorDetails = {
-			message: err.message,
-			code: err.code,
-			detail: err.detail,
-			table: err.table,
-			constraint: err.constraint,
-			stack: err.stack,
-			timestamp: new Date().toISOString(),
-		};
-		console.error('Serve audio error:', JSON.stringify(errorDetails, null, 2));
+		console.error('Serve audio error:', err);
 		res.status(500).json({ error: 'Failed to serve audio file' });
 	}
 });
