@@ -250,7 +250,7 @@ export function CandidateInterviewsPage() {
 
 	if (loading) {
 		return (
-			<div className='space-y-6'>
+			<div className='space-y-6 px-4 sm:px-6'>
 				<div className='flex items-center justify-between'>
 					<div className='space-y-2'>
 						<div className='h-8 w-40 rounded bg-muted animate-pulse' />
@@ -309,10 +309,10 @@ export function CandidateInterviewsPage() {
 			)}
 
 			<Tabs value={tab} onValueChange={setTab}>
-				<TabsList>
-					<TabsTrigger value='upcoming'>Upcoming ({upcoming.length})</TabsTrigger>
-					<TabsTrigger value='past'>Past ({past.length})</TabsTrigger>
-					<TabsTrigger value='tips'>Interview Tips</TabsTrigger>
+				<TabsList className='min-h-[44px]'>
+					<TabsTrigger value='upcoming' className='min-h-[44px]'>Upcoming ({upcoming.length})</TabsTrigger>
+					<TabsTrigger value='past' className='min-h-[44px]'>Past ({past.length})</TabsTrigger>
+					<TabsTrigger value='tips' className='min-h-[44px]'>Interview Tips</TabsTrigger>
 				</TabsList>
 
 				{/* Upcoming */}
@@ -411,6 +411,7 @@ export function CandidateInterviewsPage() {
 							onChange={(e) => setDeclineReason(e.target.value)}
 							placeholder='Let the recruiter know why...'
 							rows={3}
+							className='min-h-[44px]'
 						/>
 					</div>
 					<div className='flex gap-2 justify-end'>
@@ -440,6 +441,7 @@ export function CandidateInterviewsPage() {
 							onChange={(e) => setRescheduleReason(e.target.value)}
 							placeholder='Why do you need to reschedule?'
 							rows={2}
+							className='min-h-[44px]'
 						/>
 					</div>
 					<div>
@@ -448,6 +450,7 @@ export function CandidateInterviewsPage() {
 							type='datetime-local'
 							value={rescheduleTime}
 							onChange={(e) => setRescheduleTime(e.target.value)}
+							className='min-h-[44px]'
 						/>
 					</div>
 					<div className='flex gap-2 justify-end'>
