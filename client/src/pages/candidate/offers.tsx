@@ -13,6 +13,7 @@ import {
 	XCircle,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import DOMPurify from 'dompurify'
 import { EmptyState } from '@/components/domain/empty-state'
 import { Skeleton } from '@/components/domain/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -376,7 +377,7 @@ export function CandidateOffersPage() {
 					</DialogHeader>
 					<div className='space-y-4'>
 						<div className='bg-white rounded-lg border shadow-inner overflow-auto max-h-[70vh]'>
-							<div className='p-8' dangerouslySetInnerHTML={{ __html: letterHtml }} />
+							<div className='p-8' dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(letterHtml) }} />
 						</div>
 						<div className='flex gap-2 justify-end'>
 							<Button

@@ -538,13 +538,13 @@ export function RecruiterCandidatesPage() {
 					<p className='text-muted-foreground'>Manage and review your candidate pipeline</p>
 				</div>
 				<div className='flex gap-2'>
-					<Button variant='outline' size='sm' onClick={handleExport} className='gap-1'>
+					<Button variant='outline' size='sm' onClick={handleExport} className='gap-1 min-h-[44px]'>
 						<Download className='h-4 w-4' />
 						Export CSV
 					</Button>
 					<Button
 						size='sm'
-						className='gap-1 bg-indigo-600 hover:bg-indigo-700'
+						className='gap-1 bg-indigo-600 hover:bg-indigo-700 min-h-[44px]'
 						onClick={() => navigate('/recruiter/jobs')}
 					>
 						<Users className='h-4 w-4' />
@@ -639,7 +639,7 @@ export function RecruiterCandidatesPage() {
 							variant='outline'
 							size='sm'
 							onClick={() => setShowSaveSearchDialog(true)}
-							className='gap-1'
+							className='gap-1 min-h-[44px]'
 							disabled={Object.keys(activeFilters).length === 0 && !searchQuery}
 						>
 							<Save className='h-3.5 w-3.5' />
@@ -649,7 +649,7 @@ export function RecruiterCandidatesPage() {
 							variant='outline'
 							size='sm'
 							onClick={() => setViewMode(viewMode === 'list' ? 'kanban' : 'list')}
-							className='gap-1'
+							className='gap-1 min-h-[44px]'
 						>
 							{viewMode === 'list' ? (
 								<Kanban className='h-3.5 w-3.5' />
@@ -662,7 +662,7 @@ export function RecruiterCandidatesPage() {
 							<select
 								value={sortBy}
 								onChange={(e) => setSortBy(e.target.value as any)}
-								className='h-9 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+								className='h-11 min-h-[44px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
 							>
 								<option value='relevance'>Sort: Relevance</option>
 								<option value='newest'>Sort: Newest</option>
@@ -734,7 +734,7 @@ export function RecruiterCandidatesPage() {
 						<Button
 							size='sm'
 							variant='outline'
-							className='gap-1 text-xs h-8'
+							className='gap-1 text-xs h-8 min-h-[44px]'
 							onClick={handleBulkMessage}
 						>
 							<Mail className='h-3 w-3' /> Message
@@ -742,16 +742,16 @@ export function RecruiterCandidatesPage() {
 						<Button
 							size='sm'
 							variant='outline'
-							className='gap-1 text-xs h-8'
+							className='gap-1 text-xs h-8 min-h-[44px]'
 							onClick={handleBulkExport}
 						>
 							<Download className='h-3 w-3' /> Export
 						</Button>
-						<Button size='sm' variant='outline' className='gap-1 text-xs h-8' onClick={selectAll}>
+						<Button size='sm' variant='outline' className='gap-1 text-xs h-8 min-h-[44px]' onClick={selectAll}>
 							<Square className='h-3 w-3' /> Select All
 						</Button>
 						<select
-							className='h-8 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500'
+							className='h-8 min-h-[44px] rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500'
 							onChange={(e) => {
 								handleBulkStatusChange(e.target.value)
 								e.target.selectedIndex = 0
@@ -772,7 +772,7 @@ export function RecruiterCandidatesPage() {
 					<Button
 						size='sm'
 						variant='ghost'
-						className='ml-auto h-8 w-8 p-0'
+						className='ml-auto h-8 w-8 p-0 min-h-[44px] min-w-[44px]'
 						onClick={() => setSelectedCandidates(new Set())}
 					>
 						<X className='h-4 w-4' />
@@ -842,7 +842,7 @@ export function RecruiterCandidatesPage() {
 										<div className='absolute top-3 left-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity'>
 											<button
 												onClick={() => toggleSelectCandidate(candidate.id)}
-												className='flex h-5 w-5 items-center justify-center rounded border bg-background shadow-sm hover:border-indigo-400'
+												className='flex h-5 w-5 items-center justify-center rounded border bg-background shadow-sm hover:border-indigo-400 min-h-[44px] min-w-[44px]'
 											>
 												{selectedCandidates.has(candidate.id) && (
 													<CheckSquare className='h-4 w-4 text-indigo-600' />
@@ -882,7 +882,7 @@ export function RecruiterCandidatesPage() {
 											<Button
 												size='sm'
 												variant='outline'
-												className='gap-1 text-xs h-7 bg-background border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950'
+												className='gap-1 text-xs h-7 min-h-[44px] bg-background border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950'
 												onClick={(e) => {
 													e.stopPropagation()
 													handleAiScreen(candidate)

@@ -120,7 +120,7 @@ export function CandidateDashboard() {
 					<p className='text-muted-foreground'>Here's your job search overview</p>
 				</div>
 				<Link to='/candidate/jobs'>
-					<Button className='gap-2'>
+					<Button className='gap-2 min-h-[44px]'>
 						<Sparkles className='h-4 w-4' />
 						Find AI-Matched Jobs
 					</Button>

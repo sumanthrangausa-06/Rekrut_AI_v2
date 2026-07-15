@@ -18,6 +18,7 @@ import {
 	XCircle,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import DOMPurify from 'dompurify'
 import { useSearchParams } from 'react-router-dom'
 import { EmptyState } from '@/components/domain/empty-state'
 import { Skeleton } from '@/components/domain/skeleton'
@@ -729,7 +730,7 @@ export function RecruiterOffersPage() {
 					<div className='space-y-4'>
 						{/* Letter preview in a document-style container */}
 						<div className='bg-white rounded-lg border shadow-inner overflow-auto max-h-[70vh]'>
-							<div className='p-8' dangerouslySetInnerHTML={{ __html: previewHtml }} />
+							<div className='p-8' dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewHtml) }} />
 						</div>
 						<div className='flex gap-2 justify-end'>
 							<Button
