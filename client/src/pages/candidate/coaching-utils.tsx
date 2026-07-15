@@ -63,16 +63,16 @@ export function ScoreBar({
 				: 'bg-red-500'
 
 	return (
-		<div className='space-y-1'>
-			<div className='flex items-center justify-between text-sm'>
-				<span className='flex items-center gap-1.5 font-medium'>
-					<Icon className='h-3.5 w-3.5 text-muted-foreground' />
+		<div className='space-y-1 min-h-[44px] flex flex-col justify-center'>
+			<div className='flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-sm'>
+				<span className='flex items-center gap-1.5 font-medium text-sm sm:text-base'>
+					<Icon className='h-3.5 w-3.5 text-muted-foreground shrink-0' />
 					{label}
 				</span>
 				{failed ? (
-					<span className='font-bold text-muted-foreground text-xs'>Failed</span>
+					<span className='font-bold text-muted-foreground text-xs sm:text-sm'>Failed</span>
 				) : (
-					<span className={`font-bold ${scoreColor(displayScore)}`}>{displayScore}/10</span>
+					<span className={`font-bold ${scoreColor(displayScore)} text-sm sm:text-base`}>{displayScore}/10</span>
 				)}
 			</div>
 			<div className='h-2 bg-muted rounded-full overflow-hidden'>

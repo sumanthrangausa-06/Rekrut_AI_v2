@@ -221,7 +221,7 @@ export function JobAssessmentTakePage() {
 	if (loading) {
 		return (
 			<div className='flex items-center justify-center py-20'>
-				<div className='text-center space-y-3'>
+				<div className='text-center space-y-3 px-4'>
 					<Loader2 className='h-8 w-8 animate-spin mx-auto text-primary' />
 					<p className='text-muted-foreground'>Loading assessment...</p>
 				</div>
@@ -231,7 +231,7 @@ export function JobAssessmentTakePage() {
 
 	if (completed) {
 		return (
-			<div className='max-w-2xl mx-auto space-y-6 py-8'>
+			<div className='max-w-2xl mx-auto space-y-6 py-8 px-4 sm:px-6'>
 				<Card className='border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50'>
 					<CardContent className='pt-8 text-center space-y-4'>
 						<div className='w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto'>
@@ -262,7 +262,7 @@ export function JobAssessmentTakePage() {
 
 	if (!question) {
 		return (
-			<div className='max-w-xl mx-auto py-12 text-center space-y-4'>
+			<div className='max-w-xl mx-auto py-12 text-center space-y-4 px-4 sm:px-6'>
 				<AlertTriangle className='h-10 w-10 text-amber-500 mx-auto' />
 				<h2 className='text-xl font-bold'>No Questions Available</h2>
 				<p className='text-muted-foreground'>This assessment doesn't have any questions yet.</p>
@@ -279,14 +279,14 @@ export function JobAssessmentTakePage() {
 	const isTextType = question.type !== 'multiple_choice'
 
 	return (
-		<div className='max-w-3xl mx-auto space-y-5 py-4'>
+		<div className='max-w-3xl mx-auto space-y-5 py-4 px-4 sm:px-6 lg:px-8'>
 			{/* Progress Bar */}
 			<div className='space-y-2'>
-				<div className='flex items-center justify-between text-sm'>
+				<div className='flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm'>
 					<span className='font-medium'>
 						Question {progress.current} of {progress.total}
 					</span>
-					<div className='flex items-center gap-3'>
+					<div className='flex flex-wrap items-center gap-2 sm:gap-3'>
 						<Badge variant='secondary' className='capitalize'>
 							{question.category.replace('_', ' ')}
 						</Badge>
@@ -321,7 +321,7 @@ export function JobAssessmentTakePage() {
 						</div>
 					)}
 
-					<p className='text-lg font-medium leading-relaxed'>{question.text}</p>
+					<p className='text-base sm:text-lg font-medium leading-relaxed'>{question.text}</p>
 
 					{/* Multiple choice */}
 					{question.type === 'multiple_choice' && question.options && (
@@ -329,7 +329,7 @@ export function JobAssessmentTakePage() {
 							{question.options.map((opt, i) => (
 								<button
 									key={opt}
-									className={`w-full text-left rounded-lg border-2 p-3.5 transition-all ${
+									className={`w-full text-left rounded-lg border-2 p-3.5 min-h-[44px] transition-all ${
 										selectedAnswer === opt
 											? 'border-violet-500 bg-violet-50 ring-1 ring-violet-200'
 											: 'border-border hover:border-violet-300 hover:bg-violet-50/50'
@@ -395,7 +395,7 @@ export function JobAssessmentTakePage() {
 							</div>
 							<div className='flex gap-2'>
 								<input
-									className='flex-1 rounded-lg border px-3 py-2 text-sm'
+									className='flex-1 rounded-lg border px-3 py-2 text-sm min-h-[44px]'
 									placeholder='Type your response...'
 									value={convoInput}
 									onChange={(e) => setConvoInput(e.target.value)}
@@ -406,7 +406,8 @@ export function JobAssessmentTakePage() {
 									size='sm'
 									onClick={sendConvoMessage}
 									disabled={convoLoading || !convoInput.trim()}
-								>
+									className='min-h-[44px] min-w-[44px]'
+									>
 									<Send className='h-4 w-4' />
 								</Button>
 							</div>
@@ -414,14 +415,14 @@ export function JobAssessmentTakePage() {
 					)}
 
 					{/* Actions */}
-					<div className='flex items-center justify-between pt-2'>
+					<div className='flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2'>
 						<div className='flex gap-2'>
 							{isTextType && !conversationMode && textAnswer.length > 20 && (
 								<Button
 									variant='outline'
 									size='sm'
 									onClick={startConversation}
-									className='gap-1.5 text-violet-600'
+									className='gap-1.5 text-violet-600 min-h-[44px]'
 								>
 									<MessageSquare className='h-3.5 w-3.5' /> Discuss with AI
 								</Button>
@@ -434,7 +435,7 @@ export function JobAssessmentTakePage() {
 								(question.type === 'multiple_choice' && !selectedAnswer) ||
 								(isTextType && !textAnswer.trim() && !conversationMode)
 							}
-							className='gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700'
+							className='gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 min-h-[44px]'
 						>
 							{submitting ? (
 								<>
@@ -455,7 +456,7 @@ export function JobAssessmentTakePage() {
 			</Card>
 
 			{/* Info footer */}
-			<div className='flex items-center justify-center gap-4 text-xs text-muted-foreground'>
+			<div className='flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground'>
 				<span className='flex items-center gap-1'>
 					<Shield className='h-3 w-3' /> Anti-cheat monitored
 				</span>
