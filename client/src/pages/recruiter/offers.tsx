@@ -320,7 +320,7 @@ export function RecruiterOffersPage() {
 	)
 
 	return (
-		<div className='space-y-6'>
+		<div className='space-y-6 px-4 sm:px-6'>
 			{/* Toast */}
 			{message && (
 				<div
@@ -342,7 +342,7 @@ export function RecruiterOffersPage() {
 					<h1 className='font-heading text-2xl font-bold'>Offers</h1>
 					<p className='text-muted-foreground'>Create AI-generated professional offer letters</p>
 				</div>
-				<Button onClick={() => setShowCreate(true)} className='gap-2'>
+				<Button onClick={() => setShowCreate(true)} className='gap-2 min-h-[44px]'>
 					<Plus className='h-4 w-4' /> Create Offer
 				</Button>
 			</div>
@@ -387,7 +387,7 @@ export function RecruiterOffersPage() {
 					variant={!statusFilter ? 'default' : 'outline'}
 					size='sm'
 					onClick={() => setStatusFilter('')}
-				>
+				 className="min-h-[44px]">
 					All ({offers.length})
 				</Button>
 				{allStatuses.map((s) =>
@@ -397,7 +397,7 @@ export function RecruiterOffersPage() {
 							variant={statusFilter === s ? 'default' : 'outline'}
 							size='sm'
 							onClick={() => setStatusFilter(s)}
-						>
+						 className="min-h-[44px]">
 							{statusConfig[s]?.label || s} ({statusCounts[s]})
 						</Button>
 					) : null,
@@ -424,7 +424,7 @@ export function RecruiterOffersPage() {
 					}
 				/>
 			) : (
-				<div className='space-y-6'>
+				<div className='space-y-6 px-4 sm:px-6'>
 					{/* Draft offers */}
 					{draftOffers.length > 0 && (
 						<div>
@@ -501,7 +501,7 @@ export function RecruiterOffersPage() {
 						})()}
 
 						{/* Details grid */}
-						<div className='grid grid-cols-2 gap-3'>
+						<div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
 							<div className='rounded-lg bg-muted/50 p-3'>
 								<p className='text-xs text-muted-foreground flex items-center gap-1'>
 									<User className='h-3 w-3' /> Candidate
@@ -553,7 +553,7 @@ export function RecruiterOffersPage() {
 									<Button
 										size='sm'
 										variant='outline'
-										className='gap-1'
+										className='gap-1 min-h-[44px]'
 										onClick={() => viewLetter(selectedOffer.id)}
 									>
 										<Eye className='h-3 w-3' /> Preview
@@ -561,7 +561,7 @@ export function RecruiterOffersPage() {
 									<Button
 										size='sm'
 										variant='outline'
-										className='gap-1'
+										className='gap-1 min-h-[44px]'
 										onClick={() => generateLetter(selectedOffer.id)}
 										disabled={generating}
 									>
@@ -576,7 +576,7 @@ export function RecruiterOffersPage() {
 							) : (
 								<Button
 									size='sm'
-									className='gap-2'
+									className='gap-2 min-h-[44px]'
 									onClick={() => generateLetter(selectedOffer.id)}
 									disabled={generating}
 								>
@@ -670,7 +670,7 @@ export function RecruiterOffersPage() {
 									<Button
 										onClick={() => sendOffer(selectedOffer.id)}
 										disabled={sending === selectedOffer.id || !selectedOffer.has_letter}
-										className='gap-2 flex-1'
+										className='gap-2 flex-1 min-h-[44px]'
 										title={!selectedOffer.has_letter ? 'Generate offer letter first' : ''}
 									>
 										{sending === selectedOffer.id ? (
@@ -684,7 +684,7 @@ export function RecruiterOffersPage() {
 										variant='outline'
 										onClick={() => withdrawOffer(selectedOffer.id)}
 										disabled={withdrawing}
-										className='gap-2'
+										className='gap-2 min-h-[44px]'
 									>
 										<Ban className='h-4 w-4' /> Delete
 									</Button>
@@ -695,7 +695,7 @@ export function RecruiterOffersPage() {
 									variant='outline'
 									onClick={() => withdrawOffer(selectedOffer.id)}
 									disabled={withdrawing}
-									className='gap-2 text-destructive'
+									className='gap-2 text-destructive min-h-[44px]'
 								>
 									{withdrawing ? (
 										<div className='h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent' />
@@ -735,7 +735,7 @@ export function RecruiterOffersPage() {
 						<div className='flex gap-2 justify-end'>
 							<Button
 								variant='outline'
-								className='gap-2'
+								className='gap-2 min-h-[44px]'
 								onClick={() => {
 									if (previewOfferId) generateLetter(previewOfferId)
 								}}
@@ -749,7 +749,7 @@ export function RecruiterOffersPage() {
 								Regenerate
 							</Button>
 							<Button
-								className='gap-2'
+								className='gap-2 min-h-[44px]'
 								onClick={() => {
 									setShowPreview(false)
 									setPreviewHtml('')
@@ -783,13 +783,13 @@ export function RecruiterOffersPage() {
 					Fill in the key terms below. AI will generate a professional offer letter document.
 				</p>
 				<div className='space-y-4'>
-					<div className='grid grid-cols-2 gap-4'>
+					<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
 						<div>
 							<Label>Candidate *</Label>
 							<Select
 								value={candidateId}
 								onChange={(e) => setCandidateId(e.target.value)}
-								className='mt-1'
+								className='mt-1 min-h-[44px]'
 							>
 								<option value=''>Select candidate...</option>
 								{candidates.map((c) => (
@@ -801,7 +801,7 @@ export function RecruiterOffersPage() {
 						</div>
 						<div>
 							<Label>Job Position *</Label>
-							<Select value={jobId} onChange={(e) => setJobId(e.target.value)} className='mt-1'>
+							<Select value={jobId} onChange={(e) => setJobId(e.target.value)} className='mt-1 min-h-[44px]'>
 								<option value=''>Select job...</option>
 								{jobs.map((j) => (
 									<option key={j.id} value={j.id}>
@@ -817,10 +817,10 @@ export function RecruiterOffersPage() {
 							value={offerTitle}
 							onChange={(e) => setOfferTitle(e.target.value)}
 							placeholder='e.g. Senior Engineer Offer'
-							className='mt-1'
+							className='mt-1 min-h-[44px]'
 						/>
 					</div>
-					<div className='grid grid-cols-2 gap-4'>
+					<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
 						<div>
 							<Label>Annual Salary ($) *</Label>
 							<Input
@@ -828,7 +828,7 @@ export function RecruiterOffersPage() {
 								value={salary}
 								onChange={(e) => setSalary(e.target.value)}
 								placeholder='e.g. 120000'
-								className='mt-1'
+								className='mt-1 min-h-[44px]'
 							/>
 						</div>
 						<div>
@@ -837,18 +837,18 @@ export function RecruiterOffersPage() {
 								type='date'
 								value={startDate}
 								onChange={(e) => setStartDate(e.target.value)}
-								className='mt-1'
+								className='mt-1 min-h-[44px]'
 							/>
 						</div>
 					</div>
-					<div className='grid grid-cols-2 gap-4'>
+					<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
 						<div>
 							<Label>Reporting To</Label>
 							<Input
 								value={reportingTo}
 								onChange={(e) => setReportingTo(e.target.value)}
 								placeholder='e.g. VP of Engineering'
-								className='mt-1'
+								className='mt-1 min-h-[44px]'
 							/>
 						</div>
 						<div>
@@ -857,7 +857,7 @@ export function RecruiterOffersPage() {
 								value={location}
 								onChange={(e) => setLocation(e.target.value)}
 								placeholder='e.g. San Francisco, CA'
-								className='mt-1'
+								className='mt-1 min-h-[44px]'
 							/>
 						</div>
 					</div>
@@ -866,7 +866,7 @@ export function RecruiterOffersPage() {
 						<Select
 							value={employmentType}
 							onChange={(e) => setEmploymentType(e.target.value)}
-							className='mt-1'
+							className='mt-1 min-h-[44px]'
 						>
 							<option value='full-time'>Full-time</option>
 							<option value='part-time'>Part-time</option>
@@ -885,7 +885,7 @@ export function RecruiterOffersPage() {
 						/>
 					</div>
 					<div className='flex gap-2 pt-2'>
-						<Button onClick={createOffer} disabled={saving} className='gap-2'>
+						<Button onClick={createOffer} disabled={saving} className='gap-2 min-h-[44px]'>
 							{saving ? (
 								<div className='h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent' />
 							) : (
@@ -899,7 +899,7 @@ export function RecruiterOffersPage() {
 								setShowCreate(false)
 								resetForm()
 							}}
-						>
+						 className="min-h-[44px]">
 							Cancel
 						</Button>
 					</div>
@@ -971,7 +971,7 @@ function OfferRow({
 								size='sm'
 								onClick={onSend}
 								disabled={sending || !offer.has_letter}
-								className='gap-1'
+								className='gap-1 min-h-[44px]'
 							>
 								{sending ? (
 									<div className='h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent' />

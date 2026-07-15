@@ -437,7 +437,7 @@ export function RecruiterInterviewsPage() {
 
 	if (loading) {
 		return (
-			<div className='space-y-6'>
+			<div className='space-y-6 px-4 sm:px-6'>
 				<div className='flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4'>
 					<div className='space-y-2'>
 						<div className='h-8 w-40 rounded bg-muted animate-pulse' />
@@ -464,7 +464,7 @@ export function RecruiterInterviewsPage() {
 	}
 
 	return (
-		<div className='space-y-6'>
+		<div className='space-y-6 px-4 sm:px-6'>
 			{/* Toast */}
 			{message && (
 				<div
@@ -490,10 +490,10 @@ export function RecruiterInterviewsPage() {
 					</p>
 				</div>
 				<div className='flex gap-2 flex-wrap'>
-					<Button variant='outline' onClick={() => setShowCreateTemplate(true)}>
+					<Button variant='outline' onClick={() => setShowCreateTemplate(true)} className="min-h-[44px]">
 						<ClipboardList className='h-4 w-4 mr-2' /> Screening Templates
 					</Button>
-					<Button onClick={() => setShowSchedule(true)}>
+					<Button onClick={() => setShowSchedule(true)} className="min-h-[44px]">
 						<Plus className='h-4 w-4 mr-2' /> Schedule Interview
 					</Button>
 				</div>
@@ -699,7 +699,7 @@ export function RecruiterInterviewsPage() {
 																			app.job_id,
 																		)
 																	}
-																>
+																 className="min-h-[44px]">
 																	<Sparkles className='h-3.5 w-3.5 mr-1' /> Send Screening
 																</Button>
 															)}
@@ -750,7 +750,7 @@ export function RecruiterInterviewsPage() {
 														size='sm'
 														variant='outline'
 														onClick={() => viewScreeningReport(app.id)}
-													>
+													 className="min-h-[44px]">
 														<FileText className='h-3.5 w-3.5 mr-1' /> View Report
 													</Button>
 												</div>
@@ -773,7 +773,7 @@ export function RecruiterInterviewsPage() {
 									onClick={() =>
 										setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() - 1))
 									}
-								>
+								 className="min-h-[44px]">
 									<ChevronLeft className='h-4 w-4' />
 								</Button>
 								<h3 className='font-semibold'>
@@ -785,7 +785,7 @@ export function RecruiterInterviewsPage() {
 									onClick={() =>
 										setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() + 1))
 									}
-								>
+								 className="min-h-[44px]">
 									<ChevronRight className='h-4 w-4' />
 								</Button>
 							</div>
@@ -898,7 +898,7 @@ export function RecruiterInterviewsPage() {
 				<div className='space-y-4 mt-4'>
 					<div>
 						<Label>Applicant</Label>
-						<Select value={appId} onChange={(e) => setAppId(e.target.value)}>
+						<Select value={appId} onChange={(e) => setAppId(e.target.value)} className="min-h-[44px]">
 							<option value=''>Select an applicant...</option>
 							{applications.map((a) => (
 								<option key={a.id} value={a.id}>
@@ -924,7 +924,7 @@ export function RecruiterInterviewsPage() {
 								variant='outline'
 								onClick={findBestTime}
 								disabled={loadingSlots}
-								className='text-xs'
+								className='text-xs min-h-[44px]'
 							>
 								{loadingSlots ? 'Finding...' : '✨ Find Best Time'}
 							</Button>
@@ -935,7 +935,7 @@ export function RecruiterInterviewsPage() {
 									<button
 										key={slot.start}
 										onClick={() => selectSlot(slot)}
-										className='text-left p-2 bg-white rounded border border-blue-100 hover:border-blue-400 hover:bg-blue-50 transition-colors text-xs'
+										className='text-left p-2 bg-white rounded border border-blue-100 hover:border-blue-400 hover:bg-blue-50 transition-colors text-xs min-h-[44px]'
 									>
 										<div className='font-medium'>{formatDate(slot.start)}</div>
 										<div className='text-muted-foreground'>
@@ -956,17 +956,17 @@ export function RecruiterInterviewsPage() {
 					<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
 						<div>
 							<Label>Date</Label>
-							<Input type='date' value={schedDate} onChange={(e) => setSchedDate(e.target.value)} />
+							<Input type='date' value={schedDate} onChange={(e) => setSchedDate(e.target.value)}  className="min-h-[44px]" />
 						</div>
 						<div>
 							<Label>Time</Label>
-							<Input type='time' value={schedTime} onChange={(e) => setSchedTime(e.target.value)} />
+							<Input type='time' value={schedTime} onChange={(e) => setSchedTime(e.target.value)}  className="min-h-[44px]" />
 						</div>
 					</div>
 					<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
 						<div>
 							<Label>Duration</Label>
-							<Select value={duration} onChange={(e) => setDuration(e.target.value)}>
+							<Select value={duration} onChange={(e) => setDuration(e.target.value)} className="min-h-[44px]">
 								<option value='15'>15 minutes</option>
 								<option value='30'>30 minutes</option>
 								<option value='45'>45 minutes</option>
@@ -976,7 +976,7 @@ export function RecruiterInterviewsPage() {
 						</div>
 						<div>
 							<Label>Type</Label>
-							<Select value={interviewType} onChange={(e) => setInterviewType(e.target.value)}>
+							<Select value={interviewType} onChange={(e) => setInterviewType(e.target.value)} className="min-h-[44px]">
 								<option value='video'>Video Call</option>
 								<option value='phone'>Phone</option>
 								<option value='in-person'>In Person</option>
@@ -999,13 +999,13 @@ export function RecruiterInterviewsPage() {
 								setShowSchedule(false)
 								resetScheduleForm()
 							}}
-						>
+						 className="min-h-[44px]">
 							Cancel
 						</Button>
 						<Button
 							onClick={scheduleInterview}
 							disabled={saving || !appId || !schedDate || !schedTime}
-						>
+						 className="min-h-[44px]">
 							{saving ? 'Scheduling...' : 'Schedule Interview'}
 						</Button>
 					</div>
@@ -1023,7 +1023,7 @@ export function RecruiterInterviewsPage() {
 				<div className='space-y-4 mt-4'>
 					<div>
 						<Label>Job</Label>
-						<Select value={templateJobId} onChange={(e) => setTemplateJobId(e.target.value)}>
+						<Select value={templateJobId} onChange={(e) => setTemplateJobId(e.target.value)} className="min-h-[44px]">
 							<option value=''>Select a job...</option>
 							{jobs.map((j: any) => (
 								<option key={j.id} value={j.id}>
@@ -1038,7 +1038,7 @@ export function RecruiterInterviewsPage() {
 							value={templateTitle}
 							onChange={(e) => setTemplateTitle(e.target.value)}
 							placeholder='Auto-generated from job title'
-						/>
+						 className="min-h-[44px]" />
 					</div>
 					<div className='p-3 bg-purple-50 rounded-lg border border-purple-200'>
 						<p className='text-xs text-purple-700 flex items-center gap-1.5'>
@@ -1048,10 +1048,10 @@ export function RecruiterInterviewsPage() {
 						</p>
 					</div>
 					<div className='flex gap-2 justify-end'>
-						<Button variant='outline' onClick={() => setShowCreateTemplate(false)}>
+						<Button variant='outline' onClick={() => setShowCreateTemplate(false)} className="min-h-[44px]">
 							Cancel
 						</Button>
-						<Button onClick={createTemplate} disabled={creatingTemplate || !templateJobId}>
+						<Button onClick={createTemplate} disabled={creatingTemplate || !templateJobId} className="min-h-[44px]">
 							{creatingTemplate ? 'Creating...' : '✨ Create Template'}
 						</Button>
 					</div>
@@ -1069,7 +1069,7 @@ export function RecruiterInterviewsPage() {
 				<div className='space-y-4 mt-4'>
 					<div>
 						<Label>Outcome</Label>
-						<Select value={fbOutcome} onChange={(e) => setFbOutcome(e.target.value)}>
+						<Select value={fbOutcome} onChange={(e) => setFbOutcome(e.target.value)} className="min-h-[44px]">
 							<option value=''>Select outcome...</option>
 							<option value='strong_hire'>Strong Hire</option>
 							<option value='hire'>Hire</option>
@@ -1082,7 +1082,7 @@ export function RecruiterInterviewsPage() {
 						<Label>Rating (1-5)</Label>
 						<div className='flex gap-1 mt-1'>
 							{[1, 2, 3, 4, 5].map((n) => (
-								<button key={n} onClick={() => setFbRating(n.toString())} className='p-1'>
+								<button key={n} onClick={() => setFbRating(n.toString())} className='p-1 min-h-[44px]'>
 									<Star
 										className={`h-6 w-6 ${parseInt(fbRating, 10) >= n ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`}
 									/>
@@ -1118,10 +1118,10 @@ export function RecruiterInterviewsPage() {
 						/>
 					</div>
 					<div className='flex gap-2 justify-end'>
-						<Button variant='outline' onClick={() => setShowFeedback(null)}>
+						<Button variant='outline' onClick={() => setShowFeedback(null)} className="min-h-[44px]">
 							Cancel
 						</Button>
-						<Button onClick={submitFeedback} disabled={saving}>
+						<Button onClick={submitFeedback} disabled={saving} className="min-h-[44px]">
 							{saving ? 'Saving...' : 'Save Feedback'}
 						</Button>
 					</div>
@@ -1214,7 +1214,7 @@ export function RecruiterInterviewsPage() {
 						</div>
 
 						<div className='flex justify-end'>
-							<Button variant='outline' onClick={() => setShowAiScores(null)}>
+							<Button variant='outline' onClick={() => setShowAiScores(null)} className="min-h-[44px]">
 								Close
 							</Button>
 						</div>
@@ -1322,7 +1322,7 @@ export function RecruiterInterviewsPage() {
 						)}
 
 						<div className='flex justify-end'>
-							<Button variant='outline' onClick={() => setShowScreeningReport(null)}>
+							<Button variant='outline' onClick={() => setShowScreeningReport(null)} className="min-h-[44px]">
 								Close
 							</Button>
 						</div>
@@ -1441,13 +1441,13 @@ function InterviewCard({
 					<div className='flex flex-wrap gap-2 sm:flex-col'>
 						{interview.meeting_link && isUpcoming && (
 							<a href={interview.meeting_link} target='_blank' rel='noopener noreferrer'>
-								<Button size='sm' className='w-full'>
+								<Button size='sm' className='w-full min-h-[44px]'>
 									<Video className='h-3.5 w-3.5 mr-1' /> Join
 								</Button>
 							</a>
 						)}
 						{interview.status === 'reschedule_requested' && (
-							<Button size='sm' variant='outline' onClick={onConfirm}>
+							<Button size='sm' variant='outline' onClick={onConfirm} className="min-h-[44px]">
 								<CheckCircle className='h-3.5 w-3.5 mr-1' /> Confirm
 							</Button>
 						)}
@@ -1457,7 +1457,7 @@ function InterviewCard({
 								variant='outline'
 								onClick={onAiEvaluate}
 								disabled={evaluating}
-								className='text-purple-700 border-purple-200 hover:bg-purple-50'
+								className='text-purple-700 border-purple-200 hover:bg-purple-50 min-h-[44px]'
 							>
 								{evaluating ? (
 									<>
@@ -1472,17 +1472,17 @@ function InterviewCard({
 							</Button>
 						)}
 						{needsFeedback && (
-							<Button size='sm' variant='outline' onClick={onFeedback}>
+							<Button size='sm' variant='outline' onClick={onFeedback} className="min-h-[44px]">
 								<MessageSquare className='h-3.5 w-3.5 mr-1' /> Feedback
 							</Button>
 						)}
 						{!isPast && feedback && (
-							<Button size='sm' variant='ghost' onClick={onFeedback}>
+							<Button size='sm' variant='ghost' onClick={onFeedback} className="min-h-[44px]">
 								<Edit2 className='h-3.5 w-3.5 mr-1' /> Edit
 							</Button>
 						)}
 						{isUpcoming && (
-							<Button size='sm' variant='ghost' className='text-destructive' onClick={onCancel}>
+							<Button size='sm' variant='ghost' className='text-destructive min-h-[44px]' onClick={onCancel}>
 								<Trash2 className='h-3.5 w-3.5 mr-1' /> Cancel
 							</Button>
 						)}

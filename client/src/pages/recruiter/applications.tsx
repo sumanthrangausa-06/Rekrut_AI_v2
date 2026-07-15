@@ -242,7 +242,7 @@ export function RecruiterApplicationsPage() {
 	}
 
 	return (
-		<div className='space-y-6'>
+		<div className='space-y-6 px-4 sm:px-6'>
 			<div className='flex flex-col sm:flex-row items-start justify-between gap-4'>
 				<div>
 					<h1 className='font-heading text-2xl font-bold'>Applications</h1>
@@ -253,7 +253,7 @@ export function RecruiterApplicationsPage() {
 					<Select
 						value={jobFilter}
 						onChange={(e) => setJobFilter(e.target.value)}
-						className='text-sm'
+						className='text-sm min-h-[44px]'
 					>
 						<option value=''>All Jobs</option>
 						{jobs.map((j) => (
@@ -276,7 +276,7 @@ export function RecruiterApplicationsPage() {
 						variant='ghost'
 						size='sm'
 						onClick={() => setJobFilter('')}
-						className='ml-auto gap-1 h-7'
+						className='ml-auto gap-1 h-7 min-h-[44px]'
 					>
 						<X className='h-3 w-3' /> Clear
 					</Button>
@@ -331,7 +331,7 @@ export function RecruiterApplicationsPage() {
 							placeholder='Search by name, email, or job...'
 							value={searchQuery}
 							onChange={(e) => setSearchQuery(e.target.value)}
-							className='text-sm'
+							className='text-sm min-h-[44px]'
 						/>
 					</div>
 					<div className='w-40'>
@@ -342,7 +342,7 @@ export function RecruiterApplicationsPage() {
 							type='date'
 							value={dateFrom}
 							onChange={(e) => setDateFrom(e.target.value)}
-							className='text-sm'
+							className='text-sm min-h-[44px]'
 						/>
 					</div>
 					<div className='w-40'>
@@ -351,7 +351,7 @@ export function RecruiterApplicationsPage() {
 							type='date'
 							value={dateTo}
 							onChange={(e) => setDateTo(e.target.value)}
-							className='text-sm'
+							className='text-sm min-h-[44px]'
 						/>
 					</div>
 					{hasActiveFilters && (
@@ -359,7 +359,7 @@ export function RecruiterApplicationsPage() {
 							variant='ghost'
 							size='sm'
 							onClick={clearAllFilters}
-							className='gap-1 text-muted-foreground'
+							className='gap-1 text-muted-foreground min-h-[44px]'
 						>
 							<X className='h-3 w-3' /> Clear Filters
 						</Button>
@@ -372,7 +372,7 @@ export function RecruiterApplicationsPage() {
 						variant={!statusFilter ? 'default' : 'outline'}
 						size='sm'
 						onClick={() => setStatusFilter('')}
-					>
+					 className="min-h-[44px]">
 						All ({applications.length})
 					</Button>
 					{statuses.map(
@@ -383,7 +383,7 @@ export function RecruiterApplicationsPage() {
 									variant={statusFilter === s ? 'default' : 'outline'}
 									size='sm'
 									onClick={() => setStatusFilter(s)}
-								>
+								 className="min-h-[44px]">
 									{statusConfig[s]?.label || s} ({statusCounts[s]})
 								</Button>
 							),
@@ -434,7 +434,7 @@ export function RecruiterApplicationsPage() {
 								: 'No applications match your filters'}
 						</p>
 						{hasActiveFilters && (
-							<Button variant='outline' size='sm' onClick={clearAllFilters} className='mt-3 gap-1'>
+							<Button variant='outline' size='sm' onClick={clearAllFilters} className='mt-3 gap-1 min-h-[44px]'>
 								<X className='h-3 w-3' /> Clear Filters
 							</Button>
 						)}
@@ -498,7 +498,7 @@ export function RecruiterApplicationsPage() {
 													updateStatus(app.id, e.target.value)
 												}}
 												onClick={(e) => e.stopPropagation()}
-												className='w-32 text-xs'
+												className='w-32 text-xs min-h-[44px]'
 											>
 												{statuses.map((s) => (
 													<option key={s} value={s}>
@@ -604,7 +604,7 @@ export function RecruiterApplicationsPage() {
 							<Select
 								value={selected.status}
 								onChange={(e) => updateStatus(selected.id, e.target.value)}
-								className='w-40'
+								className='w-40 min-h-[44px]'
 								disabled={updating}
 							>
 								{statuses.map((s) => (
@@ -621,7 +621,7 @@ export function RecruiterApplicationsPage() {
 									setSelected(null)
 								}}
 								disabled={updating}
-							>
+							 className="min-h-[44px]">
 								Save & Close
 							</Button>
 						</div>
@@ -629,7 +629,7 @@ export function RecruiterApplicationsPage() {
 						{/* Make Offer button */}
 						{!['rejected', 'offered', 'hired'].includes(selected.status) && (
 							<Button
-								className='w-full gap-2'
+								className='w-full gap-2 min-h-[44px]'
 								onClick={() => {
 									navigate(
 										`/recruiter/offers?create=1&candidateId=${selected.candidate_id}&jobId=${selected.job_id}`,
@@ -723,7 +723,7 @@ function AiScreeningSummary({ appId }: { appId: number }) {
 
 	if (!summary && !loading) {
 		return (
-			<Button variant="outline" size="sm" className="gap-2 w-full" onClick={generateSummary}>
+			<Button variant="outline" size="sm" className="gap-2 w-full min-h-[44px]" onClick={generateSummary}>
 				<Sparkles className="h-4 w-4 text-primary" />
 				AI Screen Candidate
 			</Button>
@@ -751,7 +751,7 @@ function AiScreeningSummary({ appId }: { appId: number }) {
 		<div className="rounded-lg border bg-muted/30 p-3">
 			<button
 				onClick={() => setExpanded(!expanded)}
-				className="w-full flex items-center justify-between"
+				className="w-full flex items-center justify-between min-h-[44px]"
 			>
 				<h4 className="font-medium text-sm flex items-center gap-1.5">
 					<Sparkles className="h-4 w-4 text-primary" />
@@ -838,7 +838,7 @@ function CandidateCoachingSection({ candidateId }: { candidateId: number }) {
 		<div>
 			<button
 				onClick={() => setExpanded(!expanded)}
-				className='w-full flex items-center justify-between py-1'
+				className='w-full flex items-center justify-between py-1 min-h-[44px]'
 			>
 				<h4 className='font-medium text-sm flex items-center gap-1.5'>
 					<Brain className='h-4 w-4 text-primary' />
@@ -929,7 +929,7 @@ function CandidateCoachingSection({ candidateId }: { candidateId: number }) {
 								<div key={s.id} className='rounded-lg border'>
 									<button
 										onClick={() => setExpandedSession(isExpanded ? null : s.id)}
-										className='w-full flex items-center gap-2 p-2.5 hover:bg-muted/30 transition-colors text-left'
+										className='w-full flex items-center gap-2 p-2.5 hover:bg-muted/30 transition-colors text-left min-h-[44px]'
 									>
 										<div className={`text-sm font-bold ${scoreColor(s.score)}`}>{s.score}/10</div>
 										<div className='flex-1 min-w-0'>
@@ -1033,8 +1033,7 @@ function SortButton({
 			onClick={() => onToggle(field)}
 			className={`flex items-center gap-1 px-2 py-1 rounded hover:bg-muted transition-colors ${
 				isActive ? 'text-foreground font-medium' : ''
-			}`}
-		>
+			} min-h-[44px]`}>
 			{label}
 			{isActive ? (
 				dir === 'asc' ? (

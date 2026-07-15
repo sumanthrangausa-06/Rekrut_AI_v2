@@ -204,9 +204,9 @@ export function RecruiterOnboardingPage() {
 		const docPct = totalDocs > 0 ? Math.round((signedDocs / totalDocs) * 100) : 0
 
 		return (
-			<div className='space-y-6'>
+			<div className='space-y-6 px-4 sm:px-6'>
 				{/* Back button */}
-				<Button variant='ghost' onClick={() => setSelectedCandidate(null)} className='gap-2'>
+				<Button variant='ghost' onClick={() => setSelectedCandidate(null)} className='gap-2 min-h-[44px]'>
 					<ArrowLeft className='h-4 w-4' />
 					Back to all candidates
 				</Button>
@@ -339,7 +339,7 @@ export function RecruiterOnboardingPage() {
 												size='sm'
 												onClick={() => downloadDocument(doc.id)}
 												title='View / Download'
-											>
+											 className="min-h-[44px]">
 												<Download className='h-4 w-4' />
 											</Button>
 										</div>
@@ -366,7 +366,7 @@ export function RecruiterOnboardingPage() {
 
 	// ─── Main dashboard ────────────────────────────────────────────────
 	return (
-		<div className='space-y-6'>
+		<div className='space-y-6 px-4 sm:px-6'>
 			{/* Header */}
 			<div>
 				<h1 className='text-2xl font-bold'>Onboarding Dashboard</h1>
@@ -435,7 +435,7 @@ export function RecruiterOnboardingPage() {
 										value={search}
 										onChange={(e) => setSearch(e.target.value)}
 										placeholder='Search by name, email, or job title...'
-										className='pl-9'
+										className='pl-9 min-h-[44px]'
 									/>
 								</div>
 								<div className='flex gap-2'>
@@ -445,7 +445,7 @@ export function RecruiterOnboardingPage() {
 											variant={statusFilter === s ? 'default' : 'outline'}
 											size='sm'
 											onClick={() => setStatusFilter(s)}
-										>
+										 className="min-h-[44px]">
 											{s === 'all'
 												? 'All'
 												: s === 'in_progress'
