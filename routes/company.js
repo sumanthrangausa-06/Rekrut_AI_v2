@@ -40,7 +40,7 @@ function isCompanyEmail(email) {
 }
 
 // Register company and recruiter account
-router.post('/register', rateLimits.strict, async (req, res) => {
+router.post('/register', rateLimits.medium, async (req, res) => {
 	try {
 		const {
 			email,

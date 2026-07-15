@@ -354,7 +354,7 @@ router.get('/revenue', requireAdmin, async (req, res) => {
 });
 
 // POST /api/admin/bridge — auto-elevate JWT admin users without separate login
-router.post('/bridge', rateLimits.admin, (req, res) => {
+router.post('/bridge', rateLimits.strict, (req, res) => {
 	const token = req.headers.authorization?.split(' ')[1] || req.session?.token;
 	if (!token) {
 		return res.status(401).json({ error: 'No authentication token found' });
