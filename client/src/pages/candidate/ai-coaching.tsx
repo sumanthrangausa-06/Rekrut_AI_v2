@@ -178,7 +178,7 @@ export function AiCoachingPage() {
 
 	// ==================== RENDER ====================
 	return (
-		<div className='space-y-6'>
+		<div className='space-y-6 px-4 sm:px-6'>
 			{/* Header */}
 			<div>
 				<div className='flex items-center gap-2'>

@@ -106,9 +106,9 @@ export function AssessmentResultsPage() {
 
 	if (error || !result) {
 		return (
-			<div className='space-y-6'>
+			<div className='space-y-6 px-4 sm:px-6'>
 				<div className='flex items-center gap-2'>
-					<Button variant='ghost' onClick={() => navigate('/candidate/assessments')}>
+					<Button variant='ghost' onClick={() => navigate('/candidate/assessments')} className='min-h-[44px]'>
 						<ArrowLeft className='h-4 w-4 mr-2' />
 						Back to Assessments
 					</Button>
@@ -151,16 +151,16 @@ export function AssessmentResultsPage() {
 					: 'text-red-500'
 
 	return (
-		<div className='space-y-6'>
+		<div className='space-y-6 px-4 sm:px-6'>
 			<div className='flex items-center justify-between'>
 				<div className='flex items-center gap-2'>
-					<Button variant='ghost' onClick={() => navigate('/candidate/assessments')}>
+					<Button variant='ghost' onClick={() => navigate('/candidate/assessments')} className='min-h-[44px]'>
 						<ArrowLeft className='h-4 w-4 mr-2' />
 						Back to Assessments
 					</Button>
 				</div>
 				<div className='flex gap-2'>
-					<Button variant='outline' onClick={() => navigate('/candidate/omniscore')}>
+					<Button variant='outline' onClick={() => navigate('/candidate/omniscore')} className='min-h-[44px]'>
 						<Trophy className='h-4 w-4 mr-2' />
 						View OmniScore
 					</Button>

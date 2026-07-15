@@ -232,7 +232,7 @@ export function AssessmentTakePage() {
 		const isPassed = passed || finalScore >= 60
 		const mins = Math.floor((durationSeconds || 0) / 60)
 		return (
-			<div className='max-w-lg mx-auto py-8'>
+			<div className='max-w-lg mx-auto py-8 px-4 sm:px-6'>
 				<Card>
 					<CardContent className='p-8 text-center'>
 						{isPassed ? (
@@ -286,7 +286,7 @@ export function AssessmentTakePage() {
 						</div>
 
 						<div className='flex gap-2 justify-center'>
-							<Button onClick={() => navigate('/candidate/assessments')}>
+							<Button onClick={() => navigate('/candidate/assessments')} className='min-h-[44px]'>
 								Back to Assessments
 							</Button>
 						</div>
@@ -298,9 +298,9 @@ export function AssessmentTakePage() {
 
 	if (!question) {
 		return (
-			<div className='py-16 text-center'>
+			<div className='py-16 text-center px-4 sm:px-6'>
 				<p className='text-muted-foreground'>Assessment session not found</p>
-				<Button className='mt-4' onClick={() => navigate('/candidate/assessments')}>
+				<Button className='mt-4 min-h-[44px]' onClick={() => navigate('/candidate/assessments')}>
 					Back to Assessments
 				</Button>
 			</div>
@@ -312,7 +312,7 @@ export function AssessmentTakePage() {
 	const isLowTime = timeLeft < 30
 
 	return (
-		<div className='max-w-2xl mx-auto space-y-4'>
+		<div className='max-w-2xl mx-auto space-y-4 px-4 sm:px-6'>
 			{/* Progress header */}
 			<div className='flex items-center justify-between'>
 				<div>
@@ -347,7 +347,7 @@ export function AssessmentTakePage() {
 								<button
 									key={option}
 									onClick={() => setSelectedAnswer(option)}
-									className={`w-full text-left rounded-lg border p-3 text-sm transition-colors ${
+									className={`w-full text-left rounded-lg border p-3 text-sm transition-colors min-h-[44px] ${
 										selectedAnswer === option
 											? 'border-primary bg-primary/5 ring-1 ring-primary'
 											: 'hover:bg-muted'
@@ -366,7 +366,7 @@ export function AssessmentTakePage() {
 							onChange={(e) => setShortAnswer(e.target.value)}
 							placeholder='Type your answer here...'
 							rows={6}
-							className='font-mono text-sm'
+							className='font-mono text-sm min-h-[44px]'
 						/>
 					)}
 				</CardContent>
@@ -377,7 +377,7 @@ export function AssessmentTakePage() {
 				<Button
 					onClick={() => handleSubmit(false)}
 					disabled={submitting || (!selectedAnswer && !shortAnswer)}
-					className='gap-2'
+					className='gap-2 min-h-[44px]'
 				>
 					{submitting ? (
 						<div className='h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent' />
