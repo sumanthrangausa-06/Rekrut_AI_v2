@@ -37,18 +37,18 @@ function cleanupStaleAuthFiles(): void {
   if (!fs.existsSync(dir)) return;
   for (const file of fs.readdirSync(dir)) {
     if (file.endsWith('.json')) {
-      const path = `${dir}/${file}`;
-      if (!isAuthValid(path)) {
-        fs.unlinkSync(path);
+      const filePath = `${dir}/${file}`;
+      if (!isAuthValid(filePath)) {
+        fs.unlinkSync(filePath);
       }
     }
   }
 }
 
-function isAuthValid(path: string): boolean {
-  if (!fs.existsSync(path)) return false;
+function isAuthValid(filePath: string): boolean {
+  if (!fs.existsSync(filePath)) return false;
   try {
-    const data = JSON.parse(fs.readFileSync(path, 'utf-8'));
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
     // Check for JWT token in localStorage
     const origin = data.origins?.find((o: any) => {
       const token = o.localStorage?.find((item: any) => item.name === 'rekrutai_token')?.value;
@@ -102,17 +102,21 @@ async function getOrCreateUser(
       await new Promise((r) => setTimeout(r, delay));
     }
 
+    // Try login first
     const loginRes = await request.post('/api/auth/login', {
       data: { email, password: PASSWORD },
-      headers: { 'X-CSRF-Token': csrfToken },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
     });
 
     if (loginRes.ok()) {
       const data = await loginRes.json();
-      return {
-        token: data.token || data.accessToken,
-        refreshToken: data.refreshToken,
-      };
+      const token = data.token || data.accessToken;
+      if (token) {
+        return {
+          token,
+          refreshToken: data.refreshToken,
+        };
+      }
     }
 
     if (loginRes.status() === 429) {
@@ -138,19 +142,25 @@ async function getOrCreateUser(
       throw new Error(`Login failed for ${email}: ${loginRes.status()} ${text}`);
     }
 
+    // Login failed (401) — try registration
     const body: any = { name, email, password: PASSWORD, role };
     if (companyName) body.company_name = companyName;
 
     const regRes = await request.post('/api/auth/register', {
       data: body,
-      headers: { 'X-CSRF-Token': csrfToken },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
     });
     if (regRes.ok()) {
       const data = await regRes.json();
-      return {
-        token: data.token || data.accessToken,
-        refreshToken: data.refreshToken,
-      };
+      // Registration may return 200 with just a message if user already exists
+      const token = data.token || data.accessToken;
+      if (token) {
+        return {
+          token,
+          refreshToken: data.refreshToken,
+        };
+      }
+      // User already exists — fall through to next login attempt
     }
 
     if (regRes.status() === 429) {
@@ -237,7 +247,7 @@ async function getAdminSession(request: any, filePath: string): Promise<void> {
 
   const loginRes = await request.post('/api/admin/login', {
     data: { username, password },
-    headers: { 'X-CSRF-Token': csrfToken },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
   });
 
   if (!loginRes.ok()) {
@@ -257,13 +267,13 @@ setup('authenticate admin', async ({ request }) => {
     return;
   }
   if (fs.existsSync(path)) fs.unlinkSync(path);
-  
+
   // Skip admin auth if no password configured (CI environments)
   if (!process.env.ADMIN_PASSWORD) {
     setup.skip(true, 'ADMIN_PASSWORD not set — skipping admin auth setup');
     return;
   }
-  
+
   try {
     await getAdminSession(request, path);
   } catch (err: any) {
