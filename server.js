@@ -363,6 +363,12 @@ function csrfProtection(req, res, next) {
 	if (req.path.startsWith('/api/auth/login') || req.path.startsWith('/api/auth/register')) {
 		return next();
 	}
+	// Skip CSRF for API clients using Bearer token authentication
+	// (Bearer tokens are not vulnerable to CSRF since they aren't auto-sent by browsers)
+	const authHeader = req.headers.authorization || req.headers.Authorization;
+	if (authHeader?.startsWith('Bearer ')) {
+		return next();
+	}
 	const cookieToken = req.cookies[CSRF_COOKIE_NAME];
 	const headerToken = req.headers['x-csrf-token'] || req.headers['X-CSRF-Token'];
 	if (!cookieToken || !headerToken || cookieToken !== headerToken) {
