@@ -1,4 +1,4 @@
-const fs = require('fs');
+const fs = require('node:fs');
 const path = 'migrations/seed_notification_templates.js';
 let content = fs.readFileSync(path, 'utf8');
 
