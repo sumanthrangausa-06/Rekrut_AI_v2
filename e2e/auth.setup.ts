@@ -161,6 +161,7 @@ async function getOrCreateUser(
         };
       }
       // User already exists — fall through to next login attempt
+      continue;
     }
 
     if (regRes.status() === 429) {
