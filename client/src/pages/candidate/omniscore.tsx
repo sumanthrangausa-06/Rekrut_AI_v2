@@ -654,7 +654,7 @@ export function CandidateOmniScorePage() {
 												const isUp = point.change_amount >= 0
 												return (
 													<div
-														key={point.id || `point-${point.date}`}
+														key={`point-${i}`}
 														className='flex-1 flex flex-col items-center justify-end gap-1 group relative'
 													>
 														<div
@@ -697,7 +697,7 @@ export function CandidateOmniScorePage() {
 								<h3 className='font-heading text-lg font-semibold mb-3'>How to Improve</h3>
 								<div className='space-y-3'>
 									{scoreData.recommendations.map((rec, i) => (
-										<Card key={rec.id || `rec-${i}`} className={rec.priority === 'high' ? 'border-red-500/30' : ''}>
+										<Card key={`rec-${i}`} className={rec.priority === 'high' ? 'border-red-500/30' : ''}>
 											<CardContent className='p-4'>
 												<div className='flex items-start justify-between'>
 													<div className='flex-1'>
@@ -736,7 +736,7 @@ export function CandidateOmniScorePage() {
 									<CardContent className='p-0'>
 										<div className='divide-y'>
 											{scoreData.history.map((item, i) => (
-												<div key={item.id || `hist-${item.date}`} className='flex items-center gap-4 px-4 py-3'>
+												<div key={`hist-${i}`} className='flex items-center gap-4 px-4 py-3'>
 													<span className='text-xs text-muted-foreground w-16 shrink-0'>
 														{new Date(item.created_at).toLocaleDateString('en-US', {
 															month: 'short',

@@ -81,6 +81,7 @@ interface AnalyticsData {
 	cost_per_hire?: number
 	quality_of_hire?: number
 	offer_acceptance_rate?: number
+	conversion_rate?: number
 	rejection_reasons?: Array<{
 		reason: string
 		count: number
