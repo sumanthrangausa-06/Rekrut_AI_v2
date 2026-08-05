@@ -1,19 +1,29 @@
 import {
 	BarChart3,
+	Bookmark,
+	Brain,
 	Briefcase,
 	Building2,
-	ClipboardCheck,
+	ClipboardList,
+	Crown,
 	CreditCard,
+	DollarSign,
+	File,
 	FileText,
 	GraduationCap,
 	LayoutDashboard,
+	Linkedin,
+	LogOut,
 	MessageSquare,
 	Settings,
 	Shield,
 	Sparkles,
 	Star,
+	Target,
+	User,
 	UserCheck,
 	Users,
+	Video,
 	Wallet,
 	X,
 } from 'lucide-react'
@@ -32,21 +42,56 @@ interface NavItem {
 	label: string
 	href: string
 	icon: React.ElementType
+	count?: number
+	isNew?: boolean
 }
 
-const candidateNav: NavItem[] = [
-	{ label: 'Dashboard', href: '/candidate', icon: LayoutDashboard },
-	{ label: 'Job Board', href: '/candidate/jobs', icon: Briefcase },
-	{ label: 'Applications', href: '/candidate/applications', icon: FileText },
-	{ label: 'Profile', href: '/candidate/profile', icon: UserCheck },
-	{ label: 'Assessments', href: '/candidate/assessments', icon: GraduationCap },
-	{ label: 'Interviews', href: '/candidate/interviews', icon: MessageSquare },
-	{ label: 'AI Coaching', href: '/candidate/ai-coaching', icon: Sparkles },
-	{ label: 'Offers', href: '/candidate/offers', icon: CreditCard },
-	{ label: 'Onboarding', href: '/candidate/onboarding', icon: ClipboardCheck },
-	{ label: 'Pay & Compensation', href: '/candidate/payroll', icon: CreditCard },
-	{ label: 'OmniScore', href: '/candidate/omniscore', icon: Star },
+interface NavSection {
+	title: string
+	items: NavItem[]
+}
+
+/* ── Candidate: grouped sections (Jobgether-style) ─────────────────────── */
+
+const candidateSections: NavSection[] = [
+	{
+		title: 'OPPORTUNITIES',
+		items: [
+			{ label: 'Dashboard', href: '/candidate', icon: LayoutDashboard },
+			{ label: 'Job Board', href: '/candidate/jobs', icon: Briefcase, count: 0 },
+			{ label: 'Applications', href: '/candidate/applications', icon: FileText, count: 0 },
+			{ label: 'Top Matches', href: '/candidate/top-matches', icon: Sparkles, count: 0, isNew: true },
+			{ label: 'Company Matches', href: '/candidate/company-matches', icon: Building2, isNew: true },
+			{ label: 'Saved Jobs', href: '/candidate/saved-jobs', icon: Bookmark, count: 0 },
+			{ label: 'AI Search', href: '/candidate/ai-search', icon: Brain },
+		],
+	},
+	{
+		title: 'IMPROVE YOUR PROFILE',
+		items: [
+			{ label: 'Profile', href: '/candidate/profile', icon: User },
+			{ label: 'CV Review', href: '/candidate/cv-review', icon: FileText, isNew: true },
+			{ label: 'LinkedIn Optimizer', href: '/candidate/linkedin-optimizer', icon: Linkedin, isNew: true },
+			{ label: 'Career Diagnosis', href: '/candidate/career-diagnosis', icon: Target, isNew: true },
+			{ label: 'Coaching', href: '/candidate/ai-coaching', icon: MessageSquare },
+			{ label: 'Assessments', href: '/candidate/assessments', icon: GraduationCap },
+			{ label: 'OmniScore', href: '/candidate/omniscore', icon: Star },
+		],
+	},
+	{
+		title: 'OTHER',
+		items: [
+			{ label: 'Interviews', href: '/candidate/interviews', icon: Video },
+			{ label: 'Offers', href: '/candidate/offers', icon: DollarSign },
+			{ label: 'Documents', href: '/candidate/documents', icon: File },
+			{ label: 'Pay & Compensation', href: '/candidate/payroll', icon: Wallet },
+			{ label: 'Onboarding', href: '/candidate/onboarding', icon: ClipboardList },
+			{ label: 'Settings', href: '/candidate/settings', icon: Settings },
+		],
+	},
 ]
+
+/* ── Recruiter: flat list (unchanged) ──────────────────────────────────── */
 
 const recruiterNav: NavItem[] = [
 	{ label: 'Dashboard', href: '/recruiter', icon: LayoutDashboard },
@@ -64,15 +109,20 @@ const recruiterNav: NavItem[] = [
 	{ label: 'Payroll', href: '/recruiter/payroll', icon: Wallet },
 ]
 
-export function Sidebar({ open, onClose }: SidebarProps) {
-	const { isRecruiter } = useAuth()
-	const location = useLocation()
-	const navItems = isRecruiter ? recruiterNav : candidateNav
+/* ── Component ─────────────────────────────────────────────────────────── */
 
+export function Sidebar({ open, onClose }: SidebarProps) {
+	const { isRecruiter, user, logout } = useAuth()
+	const location = useLocation()
+
+	// Close mobile sidebar on route change
 	useEffect(() => {
 		onClose()
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [location.pathname])
+
+	const isProUser = (user as any)?.subscription_tier === 'pro' || (user as any)?.plan === 'pro'
+	const showUpgradeCta = !isRecruiter && !isProUser
 
 	return (
 		<>
@@ -93,10 +143,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 					open ? 'translate-x-0' : '-translate-x-full',
 				)}
 			>
+				{/* Header */}
 				<div className='flex h-16 items-center justify-between border-b px-6'>
 					<NavLink
 						to={isRecruiter ? '/recruiter' : '/candidate'}
 						className='flex items-center gap-2'
+						onClick={onClose}
 					>
 						<Logo size='sm' />
 						<span className='font-heading text-lg font-bold'>Rekrut AI</span>
@@ -110,12 +162,83 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 					</button>
 				</div>
 
-				<nav className='flex-1 space-y-1 overflow-y-auto p-3'>
-					{navItems.map((item) => (
+				{/* Nav */}
+				<nav className='flex-1 overflow-y-auto p-3'>
+					{isRecruiter ? (
+						/* Recruiter: flat list */
+						<div className='space-y-1'>
+							{recruiterNav.map((item) => (
+								<NavLink
+									key={item.href}
+									to={item.href}
+									end={item.href === '/recruiter'}
+									onClick={onClose}
+									className={({ isActive }) =>
+										cn(
+											'flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+											isActive
+												? 'bg-primary/10 text-primary'
+												: 'text-muted-foreground hover:bg-muted hover:text-foreground',
+										)
+									}
+								>
+									<item.icon className='h-4 w-4 shrink-0' />
+									{item.label}
+								</NavLink>
+							))}
+						</div>
+					) : (
+						/* Candidate: grouped sections */
+						<div className='space-y-1'>
+							{candidateSections.map((section) => (
+								<div key={section.title}>
+									<h3 className='mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+										{section.title}
+									</h3>
+									<div className='mt-1 space-y-0.5'>
+										{section.items.map((item) => (
+											<NavLink
+												key={item.href}
+												to={item.href}
+												end={item.href === '/candidate'}
+												onClick={onClose}
+												className={({ isActive }) =>
+													cn(
+														'group flex min-h-[44px] items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors',
+														isActive
+															? 'border-l-2 border-primary bg-primary/10 text-primary'
+															: 'rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground',
+													)
+												}
+											>
+												<item.icon className='h-4 w-4 shrink-0' />
+												<span className='flex-1'>{item.label}</span>
+												{item.count ? (
+													<span className='rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground'>
+														{item.count}
+													</span>
+												) : null}
+												{item.isNew && !item.count ? (
+													<span className='rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary'>
+														NEW
+													</span>
+												) : null}
+											</NavLink>
+										))}
+									</div>
+								</div>
+							))}
+						</div>
+					)}
+				</nav>
+
+				{/* Bottom section */}
+				<div className='space-y-2 border-t p-3'>
+					{/* Recruiter Settings */}
+					{isRecruiter && (
 						<NavLink
-							key={item.href}
-							to={item.href}
-							end={item.href === '/candidate' || item.href === '/recruiter'}
+							to='/settings'
+							end
 							onClick={onClose}
 							className={({ isActive }) =>
 								cn(
@@ -126,29 +249,34 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 								)
 							}
 						>
-							<item.icon className='h-4 w-4 shrink-0' />
-							{item.label}
+							<Settings className='h-4 w-4 shrink-0' />
+							Settings
 						</NavLink>
-					))}
-				</nav>
+					)}
 
-				<div className='border-t p-3'>
-					<NavLink
-						to={isRecruiter ? '/settings' : '/candidate/settings'}
-						end
-						onClick={onClose}
-						className={({ isActive }) =>
-							cn(
-								'flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-								isActive
-									? 'bg-primary/10 text-primary'
-									: 'text-muted-foreground hover:bg-muted hover:text-foreground',
-							)
-						}
+					{/* Upgrade to Pro CTA */}
+					{showUpgradeCta && (
+						<NavLink
+							to='/pricing'
+							onClick={onClose}
+							className='flex min-h-[44px] items-center justify-center gap-2 rounded-lg bg-foreground px-3 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90'
+						>
+							<Crown className='h-4 w-4 shrink-0' />
+							Upgrade to Pro
+						</NavLink>
+					)}
+
+					{/* Logout */}
+					<button
+						onClick={() => {
+							logout()
+							onClose()
+						}}
+						className='flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
 					>
-						<Settings className='h-4 w-4 shrink-0' />
-						Settings
-					</NavLink>
+						<LogOut className='h-4 w-4 shrink-0' />
+						Sign out
+					</button>
 				</div>
 			</aside>
 		</>
