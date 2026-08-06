@@ -1448,9 +1448,13 @@ router.get('/jobs', authMiddleware, async (req, res) => {
 		const pageLimit = Math.min(parseInt(pageSize, 10) || parseInt(limit, 10) || 20, 50);
 		const pageOffset = page ? (parseInt(page, 10) - 1) * pageLimit : parseInt(offset, 10) || 0;
 
-		let whereClause = "WHERE j.status = 'active'";
 		const params = [];
 		let paramIndex = 1;
+
+		// Exclude dismissed jobs from main feed
+		let whereClause = "WHERE j.status = 'active' AND NOT EXISTS (SELECT 1 FROM candidate_job_actions cja WHERE cja.job_id = j.id AND cja.user_id = $1 AND cja.action_type = 'dismiss')";
+		params.push(userId);
+		paramIndex++;
 
 		// Core text filters
 		if (search) {
@@ -1522,15 +1526,15 @@ router.get('/jobs', authMiddleware, async (req, res) => {
         j.skills_required, j.status, j.created_at, j.updated_at, j.screening_questions,
         j.requirements, j.user_id, j.remote_type, j.experience_level,
         c.company_size,
-        EXISTS(SELECT 1 FROM job_applications a WHERE a.job_id = j.id AND a.candidate_id = $${paramIndex} LIMIT 1) as has_applied,
-        EXISTS(SELECT 1 FROM saved_jobs sj WHERE sj.job_id = j.id AND sj.user_id = $${paramIndex} LIMIT 1) as has_saved
+        EXISTS(SELECT 1 FROM job_applications a WHERE a.job_id = j.id AND a.candidate_id = $1 LIMIT 1) as has_applied,
+        EXISTS(SELECT 1 FROM saved_jobs sj WHERE sj.job_id = j.id AND sj.user_id = $1 LIMIT 1) as has_saved
       FROM jobs j
       ${joinClause}
       ${whereClause}
       ORDER BY ${orderBy}
-      LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
-		params.push(userId, pageLimit, pageOffset);
+		params.push(pageLimit, pageOffset);
 
 		const jobsResult = await pool.query(jobsQuery, params);
 
@@ -1756,6 +1760,122 @@ router.delete('/saved-jobs/:jobId', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Unsave job error:', err);
 		res.status(500).json({ error: 'Failed to unsave job' });
+	}
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// /jobs/:jobId/like — Like a job (swipe right)
+// ════════════════════════════════════════════════════════════════════════
+
+// POST /jobs/:jobId/like
+router.post('/jobs/:jobId/like', authMiddleware, async (req, res) => {
+	try {
+		await pool.query(
+			`
+      INSERT INTO candidate_job_actions (user_id, job_id, action_type)
+      VALUES ($1, $2, 'like')
+      ON CONFLICT (user_id, job_id, action_type) DO NOTHING
+    `,
+			[req.user.id, req.params.jobId],
+		);
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Like job error:', err);
+		res.status(500).json({ error: 'Failed to like job' });
+	}
+});
+
+// DELETE /jobs/:jobId/like — Unlike a job
+router.delete('/jobs/:jobId/like', authMiddleware, async (req, res) => {
+	try {
+		await pool.query(
+			"DELETE FROM candidate_job_actions WHERE user_id = $1 AND job_id = $2 AND action_type = 'like'",
+			[req.user.id, req.params.jobId],
+		);
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Unlike job error:', err);
+		res.status(500).json({ error: 'Failed to unlike job' });
+	}
+});
+
+// GET /jobs/liked — Get all liked jobs
+router.get('/jobs/liked', authMiddleware, async (req, res) => {
+	try {
+		const jobs = await pool.query(
+			`
+      SELECT j.*, cja.created_at as liked_at,
+             EXISTS(SELECT 1 FROM job_applications a WHERE a.job_id = j.id AND a.candidate_id = $1 LIMIT 1) as has_applied,
+             EXISTS(SELECT 1 FROM saved_jobs sj WHERE sj.job_id = j.id AND sj.user_id = $1 LIMIT 1) as has_saved
+      FROM candidate_job_actions cja
+      JOIN jobs j ON cja.job_id = j.id
+      WHERE cja.user_id = $1 AND cja.action_type = 'like'
+      ORDER BY cja.created_at DESC
+    `,
+			[req.user.id],
+		);
+		res.json({ success: true, jobs: jobs.rows, liked_jobs: jobs.rows });
+	} catch (err) {
+		console.error('Get liked jobs error:', err);
+		res.status(500).json({ error: 'Failed to get liked jobs' });
+	}
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// /jobs/:jobId/dismiss — Dismiss a job (swipe left / trash)
+// ════════════════════════════════════════════════════════════════════════
+
+// POST /jobs/:jobId/dismiss
+router.post('/jobs/:jobId/dismiss', authMiddleware, async (req, res) => {
+	try {
+		await pool.query(
+			`
+      INSERT INTO candidate_job_actions (user_id, job_id, action_type)
+      VALUES ($1, $2, 'dismiss')
+      ON CONFLICT (user_id, job_id, action_type) DO NOTHING
+    `,
+			[req.user.id, req.params.jobId],
+		);
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Dismiss job error:', err);
+		res.status(500).json({ error: 'Failed to dismiss job' });
+	}
+});
+
+// DELETE /jobs/:jobId/dismiss — Restore a dismissed job
+router.delete('/jobs/:jobId/dismiss', authMiddleware, async (req, res) => {
+	try {
+		await pool.query(
+			"DELETE FROM candidate_job_actions WHERE user_id = $1 AND job_id = $2 AND action_type = 'dismiss'",
+			[req.user.id, req.params.jobId],
+		);
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Restore job error:', err);
+		res.status(500).json({ error: 'Failed to restore job' });
+	}
+});
+
+// GET /jobs/dismissed — Get all dismissed jobs
+router.get('/jobs/dismissed', authMiddleware, async (req, res) => {
+	try {
+		const jobs = await pool.query(
+			`
+      SELECT j.*, cja.created_at as dismissed_at,
+             EXISTS(SELECT 1 FROM job_applications a WHERE a.job_id = j.id AND a.candidate_id = $1 LIMIT 1) as has_applied,
+             EXISTS(SELECT 1 FROM saved_jobs sj WHERE sj.job_id = j.id AND sj.user_id = $1 LIMIT 1) as has_saved
+      FROM candidate_job_actions cja
+      JOIN jobs j ON cja.job_id = j.id
+      WHERE cja.user_id = $1 AND cja.action_type = 'dismiss'
+      ORDER BY cja.created_at DESC
+    `,
+			[req.user.id],
+		);
+		res.json({ success: true, jobs: jobs.rows, dismissed_jobs: jobs.rows });
+	} catch (err) {
+		console.error('Get dismissed jobs error:', err);
+		res.status(500).json({ error: 'Failed to get dismissed jobs' });
 	}
 });
 

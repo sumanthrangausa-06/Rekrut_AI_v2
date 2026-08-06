@@ -6,8 +6,12 @@ import {
 	Clock,
 	DollarSign,
 	MapPin,
+	RotateCcw,
 	Star,
+	ThumbsDown,
+	ThumbsUp,
 	TrendingUp,
+	X,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -35,6 +39,11 @@ export type JobCardProps = {
 	isSaved?: boolean
 	onSave?: (id: string) => void
 	onApply?: (id: string) => void
+	isLiked?: boolean
+	isDisliked?: boolean
+	onLike?: (id: string) => void
+	onDislike?: (id: string) => void
+	mode?: 'default' | 'trash' // trash mode shows restore instead of dismiss
 	className?: string
 }
 
@@ -97,6 +106,11 @@ export function JobCard({
 	isSaved = false,
 	onSave,
 	onApply,
+	isLiked = false,
+	isDisliked = false,
+	onLike,
+	onDislike,
+	mode = 'default',
 	className,
 }: JobCardProps) {
 	const handleSave = (e: React.MouseEvent) => {
@@ -111,6 +125,20 @@ export function JobCard({
 		e.stopPropagation()
 		trackEvent('job_card_apply_click', { job_id: id })
 		onApply?.(id)
+	}
+
+	const handleLike = (e: React.MouseEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		trackEvent('job_card_like_click', { job_id: id, liked: !isLiked })
+		onLike?.(id)
+	}
+
+	const handleDislike = (e: React.MouseEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		trackEvent('job_card_dismiss_click', { job_id: id, dismissed: mode !== 'trash' })
+		onDislike?.(id)
 	}
 
 	const daysAgo = Math.max(0, Math.floor((Date.now() - new Date(postedAt).getTime()) / 86400000))
@@ -137,18 +165,52 @@ export function JobCard({
 							</p>
 						</div>
 					</div>
-					<button
-						type='button'
-						onClick={handleSave}
-						className='shrink-0 rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-primary transition-colors'
-						aria-label={isSaved ? 'Remove bookmark' : 'Save job'}
-					>
-						{isSaved ? (
-							<BookmarkCheck className='h-4 w-4 text-primary' />
-						) : (
-							<Bookmark className='h-4 w-4' />
-						)}
-					</button>
+					<div className='flex items-center gap-1 shrink-0'>
+						<button
+							type='button'
+							onClick={handleLike}
+							className={cn(
+								'rounded-full p-1.5 transition-colors',
+								isLiked
+									? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400'
+									: 'text-muted-foreground hover:bg-muted hover:text-emerald-600',
+							)}
+							aria-label={isLiked ? 'Unlike job' : 'Like job'}
+						>
+							<ThumbsUp className='h-4 w-4' />
+						</button>
+						<button
+							type='button'
+							onClick={handleDislike}
+							className={cn(
+								'rounded-full p-1.5 transition-colors',
+								isDisliked
+									? 'text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400'
+									: mode === 'trash'
+										? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
+										: 'text-muted-foreground hover:bg-muted hover:text-red-600',
+							)}
+							aria-label={mode === 'trash' ? 'Restore job' : 'Dismiss job'}
+						>
+							{mode === 'trash' ? (
+								<RotateCcw className='h-4 w-4' />
+							) : (
+								<X className='h-4 w-4' />
+							)}
+						</button>
+						<button
+							type='button'
+							onClick={handleSave}
+							className='rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-primary transition-colors'
+							aria-label={isSaved ? 'Remove bookmark' : 'Save job'}
+						>
+							{isSaved ? (
+								<BookmarkCheck className='h-4 w-4 text-primary' />
+							) : (
+								<Bookmark className='h-4 w-4' />
+							)}
+						</button>
+					</div>
 				</div>
 			</CardHeader>
 

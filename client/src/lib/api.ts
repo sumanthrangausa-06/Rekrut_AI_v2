@@ -330,3 +330,39 @@ if (typeof window !== 'undefined') {
 		}
 	})
 }
+
+// ── Job Like / Dismiss (Swipe) API helpers ──
+
+export async function likeJob(jobId: number): Promise<void> {
+	await apiCall(`/candidate/jobs/${jobId}/like`, { method: 'POST' })
+}
+
+export async function unlikeJob(jobId: number): Promise<void> {
+	await apiCall(`/candidate/jobs/${jobId}/like`, { method: 'DELETE' })
+}
+
+export async function getLikedJobs(): Promise<Array<Record<string, unknown>>> {
+	const data = await apiCall<{ jobs: Array<Record<string, unknown>> }>('/candidate/jobs/liked')
+	return data.jobs || []
+}
+
+export async function dismissJob(jobId: number): Promise<void> {
+	await apiCall(`/candidate/jobs/${jobId}/dismiss`, { method: 'POST' })
+}
+
+export async function restoreJob(jobId: number): Promise<void> {
+	await apiCall(`/candidate/jobs/${jobId}/dismiss`, { method: 'DELETE' })
+}
+
+export async function getDismissedJobs(): Promise<Array<Record<string, unknown>>> {
+	const data = await apiCall<{ jobs: Array<Record<string, unknown>> }>('/candidate/jobs/dismissed')
+	return data.jobs || []
+}
+
+// Type needed for liked/dismissed job responses
+export interface JobActionResponse {
+	success: boolean
+	jobs: Array<Record<string, unknown>>
+	liked_jobs?: Array<Record<string, unknown>>
+	dismissed_jobs?: Array<Record<string, unknown>>
+}

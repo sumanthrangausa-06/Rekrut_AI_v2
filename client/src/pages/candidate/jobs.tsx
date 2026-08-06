@@ -24,6 +24,7 @@ import {
 	SlidersHorizontal,
 	Sparkles,
 	Target,
+	ThumbsUp,
 	TrendingUp,
 	X,
 	Zap,
@@ -41,7 +42,7 @@ import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/comp
 import { Slider } from '@/components/ui/slider'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/contexts/auth-context'
-import { apiCall } from '@/lib/api'
+import { apiCall, likeJob, unlikeJob, dismissJob, restoreJob, getLikedJobs, getDismissedJobs } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 interface Job {
@@ -158,7 +159,12 @@ export function CandidateJobsPage() {
 	const [recommendedJobs, setRecommendedJobs] = useState<Job[]>([])
 	const [loading, setLoading] = useState(true)
 	const [savedJobIds, setSavedJobIds] = useState<Set<number>>(new Set())
+	const [likedJobIds, setLikedJobIds] = useState<Set<number>>(new Set())
+	const [dismissedJobIds, setDismissedJobIds] = useState<Set<number>>(new Set())
 	const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([])
+
+	// === Tab state ===
+	const [activeTab, setActiveTab] = useState<'all' | 'liked' | 'dismissed'>('all')
 
 	// === Filter state ===
 	const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS)
@@ -266,10 +272,28 @@ export function CandidateJobsPage() {
 		} catch {}
 	}, [])
 
+	const loadLikedJobs = useCallback(async () => {
+		try {
+			const liked = await getLikedJobs()
+			setLikedJobIds(new Set(liked.map((j: any) => j.id || j.job_id)))
+		} catch {}
+	}, [])
+
+	const loadDismissedJobs = useCallback(async () => {
+		try {
+			const dismissed = await getDismissedJobs()
+			setDismissedJobIds(new Set(dismissed.map((j: any) => j.id || j.job_id)))
+		} catch {}
+	}, [])
+
 	useEffect(() => {
 		loadJobs()
-		if (user) loadSavedJobs()
-	}, [user, loadJobs, loadSavedJobs])
+		if (user) {
+			loadSavedJobs()
+			loadLikedJobs()
+			loadDismissedJobs()
+		}
+	}, [user, loadJobs, loadSavedJobs, loadLikedJobs, loadDismissedJobs])
 
 	async function toggleSaveJob(jobId: number, e: React.MouseEvent) {
 		e.preventDefault()
@@ -285,6 +309,63 @@ export function CandidateJobsPage() {
 			} else {
 				await apiCall(`/candidate/saved-jobs`, { method: 'POST', body: { job_id: jobId } })
 				setSavedJobIds((prev) => new Set(prev).add(jobId))
+			}
+		} catch {}
+	}
+
+	async function toggleLikeJob(jobId: number, e: React.MouseEvent) {
+		e.preventDefault()
+		e.stopPropagation()
+		try {
+			if (likedJobIds.has(jobId)) {
+				await unlikeJob(jobId)
+				setLikedJobIds((prev) => {
+					const next = new Set(prev)
+					next.delete(jobId)
+					return next
+				})
+			} else {
+				await likeJob(jobId)
+				setLikedJobIds((prev) => new Set(prev).add(jobId))
+				if (dismissedJobIds.has(jobId)) {
+					setDismissedJobIds((prev) => {
+						const next = new Set(prev)
+						next.delete(jobId)
+						return next
+					})
+				}
+			}
+		} catch {}
+	}
+
+	async function toggleDismissJob(jobId: number, e: React.MouseEvent) {
+		e.preventDefault()
+		e.stopPropagation()
+		try {
+			if (dismissedJobIds.has(jobId)) {
+				await restoreJob(jobId)
+				setDismissedJobIds((prev) => {
+					const next = new Set(prev)
+					next.delete(jobId)
+					return next
+				})
+			} else {
+				await dismissJob(jobId)
+				setDismissedJobIds((prev) => new Set(prev).add(jobId))
+				if (likedJobIds.has(jobId)) {
+					setLikedJobIds((prev) => {
+						const next = new Set(prev)
+						next.delete(jobId)
+						return next
+					})
+				}
+				if (savedJobIds.has(jobId)) {
+					setSavedJobIds((prev) => {
+						const next = new Set(prev)
+						next.delete(jobId)
+						return next
+					})
+				}
 			}
 		} catch {}
 	}
@@ -419,10 +500,19 @@ export function CandidateJobsPage() {
 			return 0
 		})
 
-	const displayed = (aiResults || filtered).slice(0, page * PAGE_SIZE)
-	const hasMoreResults = (aiResults || filtered).length > page * PAGE_SIZE
-
 	const savedJobs = jobs.filter((j) => savedJobIds.has(j.id))
+	const likedJobs = jobs.filter((j) => likedJobIds.has(j.id))
+	const dismissedJobsList = jobs.filter((j) => dismissedJobIds.has(j.id))
+
+	const tabJobs =
+		activeTab === 'liked'
+			? likedJobs
+			: activeTab === 'dismissed'
+				? dismissedJobsList
+				: aiResults || filtered
+
+	const displayed = tabJobs.slice(0, page * PAGE_SIZE)
+	const hasMoreResults = tabJobs.length > page * PAGE_SIZE
 
 	return (
 		<div className='min-h-[calc(100dvh-4rem)] flex flex-col overflow-hidden'>
@@ -566,17 +656,62 @@ export function CandidateJobsPage() {
 			<div className='flex-1 flex overflow-hidden'>
 				{/* Left: Job List */}
 				<div className='flex-1 flex flex-col overflow-hidden min-w-0'>
-					{/* Toolbar */}
+					{/* Toolbar with tabs */}
 					<div className='shrink-0 flex items-center justify-between px-4 py-2 border-b bg-background'>
-						<div className='flex items-center gap-2'>
-							<span className='text-sm font-medium text-muted-foreground'>
-								{(aiResults || filtered).length} result
-								{(aiResults || filtered).length !== 1 ? 's' : ''}
-							</span>
+						<div className='flex items-center gap-1'>
+							<button
+								onClick={() => setActiveTab('all')}
+								className={cn(
+									'px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5',
+									activeTab === 'all'
+										? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+										: 'text-muted-foreground hover:bg-muted',
+								)}
+							>
+								<Briefcase className='h-3.5 w-3.5' />
+								All
+								<Badge variant='secondary' className='text-[10px] px-1.5 py-0 ml-0.5'>
+									{filtered.length}
+								</Badge>
+							</button>
+							<button
+								onClick={() => setActiveTab('liked')}
+								className={cn(
+									'px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5',
+									activeTab === 'liked'
+										? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+										: 'text-muted-foreground hover:bg-muted',
+								)}
+							>
+								<ThumbsUp className='h-3.5 w-3.5' />
+								Liked
+								{likedJobIds.size > 0 && (
+									<Badge variant='secondary' className='text-[10px] px-1.5 py-0 ml-0.5'>
+										{likedJobIds.size}
+									</Badge>
+								)}
+							</button>
+							<button
+								onClick={() => setActiveTab('dismissed')}
+								className={cn(
+									'px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5',
+									activeTab === 'dismissed'
+										? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+										: 'text-muted-foreground hover:bg-muted',
+								)}
+							>
+								<X className='h-3.5 w-3.5' />
+								Trash
+								{dismissedJobIds.size > 0 && (
+									<Badge variant='secondary' className='text-[10px] px-1.5 py-0 ml-0.5'>
+										{dismissedJobIds.size}
+									</Badge>
+								)}
+							</button>
 							{activeFilterCount > 0 && (
 								<button
 									onClick={clearAllFilters}
-									className='text-xs text-primary hover:underline flex items-center gap-1'
+									className='text-xs text-primary hover:underline flex items-center gap-1 ml-2'
 								>
 									<X className='h-3 w-3' /> Clear all
 								</button>
@@ -656,16 +791,38 @@ export function CandidateJobsPage() {
 							</div>
 						) : displayed.length === 0 ? (
 							<div className='py-16 text-center'>
-								<Briefcase className='mx-auto mb-3 h-12 w-12 opacity-20' />
-								<p className='text-muted-foreground font-medium'>
-									No jobs found matching your criteria
-								</p>
-								<p className='text-sm text-muted-foreground mt-1'>
-									Try adjusting your filters or search terms
-								</p>
-								<Button variant='outline' className='mt-4 gap-1' onClick={clearAllFilters}>
-									<RotateCcw className='h-4 w-4' /> Reset Filters
-								</Button>
+								{activeTab === 'liked' ? (
+									<>
+										<ThumbsUp className='mx-auto mb-3 h-12 w-12 opacity-20' />
+										<p className='text-muted-foreground font-medium'>No liked jobs yet</p>
+										<p className='text-sm text-muted-foreground mt-1'>
+											Like jobs to save them here for quick access
+										</p>
+									</>
+								) : activeTab === 'dismissed' ? (
+									<>
+										<X className='mx-auto mb-3 h-12 w-12 opacity-20' />
+										<p className='text-muted-foreground font-medium'>Trash is empty</p>
+										<p className='text-sm text-muted-foreground mt-1'>
+											Dismissed jobs will appear here. You can restore them anytime.
+										</p>
+									</>
+								) : (
+									<>
+										<Briefcase className='mx-auto mb-3 h-12 w-12 opacity-20' />
+										<p className='text-muted-foreground font-medium'>
+											No jobs found matching your criteria
+										</p>
+										<p className='text-sm text-muted-foreground mt-1'>
+											Try adjusting your filters or search terms
+										</p>
+									</>
+								)}
+								{activeTab !== 'liked' && activeTab !== 'dismissed' && (
+									<Button variant='outline' className='mt-4 gap-1' onClick={clearAllFilters}>
+										<RotateCcw className='h-4 w-4' /> Reset Filters
+									</Button>
+								)}
 							</div>
 						) : (
 							<>
@@ -748,6 +905,36 @@ export function CandidateJobsPage() {
 																	</Tooltip>
 																)}
 																<button
+																		onClick={(e) => toggleLikeJob(job.id, e)}
+																		className={cn(
+																			'p-1 rounded transition-colors',
+																			likedJobIds.has(job.id)
+																				? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
+																				: 'text-muted-foreground hover:bg-muted hover:text-emerald-600',
+																		)}
+																		aria-label={likedJobIds.has(job.id) ? 'Unlike job' : 'Like job'}
+																	>
+																		<ThumbsUp className='h-4 w-4' />
+																	</button>
+																	<button
+																		onClick={(e) => toggleDismissJob(job.id, e)}
+																		className={cn(
+																			'p-1 rounded transition-colors',
+																			dismissedJobIds.has(job.id)
+																				? 'text-red-600 bg-red-50 hover:bg-red-100'
+																				: activeTab === 'dismissed'
+																					? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
+																					: 'text-muted-foreground hover:bg-muted hover:text-red-600',
+																		)}
+																		aria-label={dismissedJobIds.has(job.id) ? 'Restore job' : 'Dismiss job'}
+																	>
+																		{activeTab === 'dismissed' ? (
+																			<RotateCcw className='h-4 w-4' />
+																		) : (
+																			<X className='h-4 w-4' />
+																		)}
+																	</button>
+																	<button
 																	onClick={(e) => toggleSaveJob(job.id, e)}
 																	className='p-1 rounded hover:bg-muted transition-colors'
 																	aria-label={isSaved ? 'Unsave job' : 'Save job'}
