@@ -37,6 +37,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { ScoreRing } from '@/components/domain/score-ring'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Slider } from '@/components/ui/slider'
@@ -206,17 +207,7 @@ export function CandidateJobsPage() {
 		} catch {}
 	}, [])
 
-	// Save search to history when filters change significantly
-	useEffect(() => {
-		const timer = setTimeout(() => {
-			if (filters.search || filters.location || filters.type) {
-				saveRecentSearch(filters)
-			}
-		}, 3000)
-		return () => clearTimeout(timer)
-	}, [filters.search, filters.type, filters.location, saveRecentSearch, filters])
-
-	function saveRecentSearch(f: FilterState) {
+	const saveRecentSearch = useCallback((f: FilterState) => {
 		if (!f.search && !f.location) return
 		const searchKey = `${f.search}|${f.location}|${f.type}`
 		setRecentSearches((prev) => {
@@ -230,7 +221,17 @@ export function CandidateJobsPage() {
 			localStorage.setItem('rekrut_recent_searches', JSON.stringify(updated))
 			return updated
 		})
-	}
+	}, [])
+
+	// Save search to history when filters change significantly
+	useEffect(() => {
+		const timer = setTimeout(() => {
+			if (filters.search || filters.location || filters.type) {
+				saveRecentSearch(filters)
+			}
+		}, 3000)
+		return () => clearTimeout(timer)
+	}, [filters.search, filters.type, filters.location, saveRecentSearch, filters])
 
 	const loadJobs = useCallback(async () => {
 		try {
@@ -917,16 +918,10 @@ export function CandidateJobsPage() {
 																)}
 																{score != null && (
 																	<Tooltip
-																		content={`${matchLevelLabel(job.match_level || '')} - ${score}% match`}
-																	>
-																		<div
-																			className={`text-center rounded-lg border px-2 py-0.5 shrink-0 ${matchBg(score)}`}
-																		>
-																			<div className='text-sm font-bold leading-tight'>
-																				{score}%
-																			</div>
-																		</div>
-																	</Tooltip>
+	content={`${matchLevelLabel(job.match_level || '')} - ${score}% match`}
+>
+	<ScoreRing score={score} size='sm' />
+</Tooltip>
 																)}
 																<button
 																	onClick={(e) => toggleLikeJob(job.id, e)}
@@ -1437,12 +1432,8 @@ function JobDetailPanel({
 			{score != null && (
 				<div className={cn('rounded-lg border p-3', matchBg(score))}>
 					<div className='flex items-center justify-between'>
-						<div className='flex items-center gap-2'>
-							<div
-								className={`h-10 w-10 rounded-full flex items-center justify-center text-white font-bold text-sm ${matchBadgeColor(score)}`}
-							>
-								{score}%
-							</div>
+						<div className='flex items-center gap-3'>
+							<ScoreRing score={score} size='md' />
 							<div>
 								<p className='font-semibold text-sm'>{matchLevelLabel(job.match_level || '')}</p>
 								<p className='text-xs opacity-80'>
@@ -1547,8 +1538,8 @@ function JobDetailPanel({
 						<Award className='h-4 w-4' /> Screening Questions ({screeningQuestions.length})
 					</p>
 					<div className='space-y-2'>
-						{screeningQuestions.map((q, i) => (
-							<div key={`job-${i}`} className='text-sm p-2 rounded-lg bg-muted/50'>
+						{screeningQuestions.map((q, _i) => (
+							<div key={q.question?.slice(0, 30)} className='text-sm p-2 rounded-lg bg-muted/50'>
 								<p className='font-medium text-xs'>
 									{q.question}
 									{q.required && <span className='text-destructive'> *</span>}

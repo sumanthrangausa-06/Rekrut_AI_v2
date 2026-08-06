@@ -9,10 +9,10 @@ import {
 	RotateCcw,
 	Star,
 	ThumbsUp,
-	TrendingUp,
 	X,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { ScoreRing } from './score-ring'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -213,19 +213,19 @@ export function JobCard({
 				{/* Match score */}
 				{matchScore != null && (
 					<div className='flex items-center gap-2'>
-						<div
+						<ScoreRing score={matchScore} size='sm' />
+						<span
 							className={cn(
-								'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold',
+								'text-xs font-semibold',
 								matchScore >= 80
-									? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+									? 'text-green-700 dark:text-green-400'
 									: matchScore >= 60
-										? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-										: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+										? 'text-amber-700 dark:text-amber-400'
+										: 'text-red-700 dark:text-red-400',
 							)}
 						>
-							<TrendingUp className='h-3 w-3' />
 							{matchScore}% match
-						</div>
+						</span>
 						{matchScore >= 80 && (
 							<Badge
 								variant='outline'
