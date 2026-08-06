@@ -161,6 +161,8 @@ export function CandidateJobsPage() {
 	const [savedJobIds, setSavedJobIds] = useState<Set<number>>(new Set())
 	const [likedJobIds, setLikedJobIds] = useState<Set<number>>(new Set())
 	const [dismissedJobIds, setDismissedJobIds] = useState<Set<number>>(new Set())
+	const [likedJobsData, setLikedJobsData] = useState<Job[]>([])
+	const [dismissedJobsData, setDismissedJobsData] = useState<Job[]>([])
 	const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([])
 
 	// === Tab state ===
@@ -274,15 +276,23 @@ export function CandidateJobsPage() {
 
 	const loadLikedJobs = useCallback(async () => {
 		try {
-			const liked = await getLikedJobs()
-			setLikedJobIds(new Set(liked.map((j: any) => j.id || j.job_id)))
+			const liked = (await getLikedJobs()) as unknown as Job[]
+			setLikedJobIds(
+				new Set(liked.map((j) => j.id ?? j.job_id).filter((id): id is number => id !== undefined)),
+			)
+			setLikedJobsData(liked)
 		} catch {}
 	}, [])
 
 	const loadDismissedJobs = useCallback(async () => {
 		try {
-			const dismissed = await getDismissedJobs()
-			setDismissedJobIds(new Set(dismissed.map((j: any) => j.id || j.job_id)))
+			const dismissed = (await getDismissedJobs()) as unknown as Job[]
+			setDismissedJobIds(
+				new Set(
+					dismissed.map((j) => j.id ?? j.job_id).filter((id): id is number => id !== undefined),
+				),
+			)
+			setDismissedJobsData(dismissed)
 		} catch {}
 	}, [])
 
@@ -324,15 +334,19 @@ export function CandidateJobsPage() {
 					next.delete(jobId)
 					return next
 				})
+				setLikedJobsData((prev) => prev.filter((j) => j.id !== jobId))
 			} else {
 				await likeJob(jobId)
 				setLikedJobIds((prev) => new Set(prev).add(jobId))
+				const job = jobs.find((j) => j.id === jobId)
+				if (job) setLikedJobsData((prev) => [job, ...prev])
 				if (dismissedJobIds.has(jobId)) {
 					setDismissedJobIds((prev) => {
 						const next = new Set(prev)
 						next.delete(jobId)
 						return next
 					})
+					setDismissedJobsData((prev) => prev.filter((j) => j.id !== jobId))
 				}
 			}
 		} catch {}
@@ -349,15 +363,19 @@ export function CandidateJobsPage() {
 					next.delete(jobId)
 					return next
 				})
+				setDismissedJobsData((prev) => prev.filter((j) => j.id !== jobId))
 			} else {
 				await dismissJob(jobId)
 				setDismissedJobIds((prev) => new Set(prev).add(jobId))
+				const job = jobs.find((j) => j.id === jobId)
+				if (job) setDismissedJobsData((prev) => [job, ...prev])
 				if (likedJobIds.has(jobId)) {
 					setLikedJobIds((prev) => {
 						const next = new Set(prev)
 						next.delete(jobId)
 						return next
 					})
+					setLikedJobsData((prev) => prev.filter((j) => j.id !== jobId))
 				}
 				if (savedJobIds.has(jobId)) {
 					setSavedJobIds((prev) => {
@@ -501,14 +519,12 @@ export function CandidateJobsPage() {
 		})
 
 	const savedJobs = jobs.filter((j) => savedJobIds.has(j.id))
-	const likedJobs = jobs.filter((j) => likedJobIds.has(j.id))
-	const dismissedJobsList = jobs.filter((j) => dismissedJobIds.has(j.id))
 
 	const tabJobs =
 		activeTab === 'liked'
-			? likedJobs
+			? likedJobsData
 			: activeTab === 'dismissed'
-				? dismissedJobsList
+				? dismissedJobsData
 				: aiResults || filtered
 
 	const displayed = tabJobs.slice(0, page * PAGE_SIZE)

@@ -1770,14 +1770,26 @@ router.delete('/saved-jobs/:jobId', authMiddleware, async (req, res) => {
 // POST /jobs/:jobId/like
 router.post('/jobs/:jobId/like', authMiddleware, async (req, res) => {
 	try {
+		const jobId = parseInt(req.params.jobId, 10);
+		if (!jobId || jobId <= 0) {
+			return res.status(400).json({ error: 'Invalid job ID' });
+		}
+
 		await pool.query(
 			`
       INSERT INTO candidate_job_actions (user_id, job_id, action_type)
       VALUES ($1, $2, 'like')
       ON CONFLICT (user_id, job_id, action_type) DO NOTHING
     `,
-			[req.user.id, req.params.jobId],
+			[req.user.id, jobId],
 		);
+
+		// Remove any dismiss record so the job reappears in the main feed
+		await pool.query(
+			"DELETE FROM candidate_job_actions WHERE user_id = $1 AND job_id = $2 AND action_type = 'dismiss'",
+			[req.user.id, jobId],
+		);
+
 		res.json({ success: true });
 	} catch (err) {
 		console.error('Like job error:', err);
@@ -1788,9 +1800,14 @@ router.post('/jobs/:jobId/like', authMiddleware, async (req, res) => {
 // DELETE /jobs/:jobId/like — Unlike a job
 router.delete('/jobs/:jobId/like', authMiddleware, async (req, res) => {
 	try {
+		const jobId = parseInt(req.params.jobId, 10);
+		if (!jobId || jobId <= 0) {
+			return res.status(400).json({ error: 'Invalid job ID' });
+		}
+
 		await pool.query(
 			"DELETE FROM candidate_job_actions WHERE user_id = $1 AND job_id = $2 AND action_type = 'like'",
-			[req.user.id, req.params.jobId],
+			[req.user.id, jobId],
 		);
 		res.json({ success: true });
 	} catch (err) {
@@ -1828,14 +1845,30 @@ router.get('/jobs/liked', authMiddleware, async (req, res) => {
 // POST /jobs/:jobId/dismiss
 router.post('/jobs/:jobId/dismiss', authMiddleware, async (req, res) => {
 	try {
+		const jobId = parseInt(req.params.jobId, 10);
+		if (!jobId || jobId <= 0) {
+			return res.status(400).json({ error: 'Invalid job ID' });
+		}
+
 		await pool.query(
 			`
       INSERT INTO candidate_job_actions (user_id, job_id, action_type)
       VALUES ($1, $2, 'dismiss')
       ON CONFLICT (user_id, job_id, action_type) DO NOTHING
     `,
-			[req.user.id, req.params.jobId],
+			[req.user.id, jobId],
 		);
+
+		// Remove like and saved records so the job is fully dismissed
+		await pool.query(
+			"DELETE FROM candidate_job_actions WHERE user_id = $1 AND job_id = $2 AND action_type = 'like'",
+			[req.user.id, jobId],
+		);
+		await pool.query(
+			'DELETE FROM saved_jobs WHERE user_id = $1 AND job_id = $2',
+			[req.user.id, jobId],
+		);
+
 		res.json({ success: true });
 	} catch (err) {
 		console.error('Dismiss job error:', err);
@@ -1846,9 +1879,14 @@ router.post('/jobs/:jobId/dismiss', authMiddleware, async (req, res) => {
 // DELETE /jobs/:jobId/dismiss — Restore a dismissed job
 router.delete('/jobs/:jobId/dismiss', authMiddleware, async (req, res) => {
 	try {
+		const jobId = parseInt(req.params.jobId, 10);
+		if (!jobId || jobId <= 0) {
+			return res.status(400).json({ error: 'Invalid job ID' });
+		}
+
 		await pool.query(
 			"DELETE FROM candidate_job_actions WHERE user_id = $1 AND job_id = $2 AND action_type = 'dismiss'",
-			[req.user.id, req.params.jobId],
+			[req.user.id, jobId],
 		);
 		res.json({ success: true });
 	} catch (err) {

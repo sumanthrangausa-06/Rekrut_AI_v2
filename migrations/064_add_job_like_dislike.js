@@ -2,7 +2,7 @@
 // Tracks candidate actions (like, dismiss) on jobs
 
 module.exports = {
-	name: '046_add_job_like_dislike',
+	name: '064_add_job_like_dislike',
 	up: async (client) => {
 		// Job actions table for like/dismiss tracking
 		await client.query(`
