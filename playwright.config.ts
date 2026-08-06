@@ -29,6 +29,10 @@ export default defineConfig({
   // browser instance max, which is safe.
   workers: 1,
 
+  // Force immediate worker cleanup between tests to prevent
+  // browser memory accumulation causing SIGKILL on CI runners.
+  workerIdleTimeout: 0,
+
   // Prevent memory accumulation from trace files and screenshots on disk
   // while still capturing them when needed for debugging.
   // (trace is set to 'on-first-retry' in use:{} below)

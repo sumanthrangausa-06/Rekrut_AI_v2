@@ -60,9 +60,14 @@ jobs:
         # This will fail the job if critical/high vulnerabilities are found
 
   e2e-tests:
-    name: E2E Tests
+    name: E2E Tests (${{ matrix.group }})
     runs-on: ubuntu-latest
     needs: build
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [candidate, recruiter, admin, payment, other]
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -123,7 +128,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: migration-debug-log
+          name: migration-debug-log-${{ matrix.group }}
           path: migration-debug.log
           retention-days: 1
 
@@ -152,10 +157,37 @@ jobs:
           ADMIN_PASSWORD: test-admin-password
           ADMIN_USERNAME: admin
 
-      - name: Run E2E tests (sequential per-file to avoid SIGKILL)
+      - name: Run E2E tests (${{ matrix.group }})
         run: |
-          chmod +x ./e2e/run-e2e-suite.sh
-          ./e2e/run-e2e-suite.sh
+          case "${{ matrix.group }}" in
+            candidate)
+              npx playwright test \
+                e2e/candidate-*.spec.ts \
+                e2e/application-submission-flow.spec.ts \
+                e2e/ai-coaching-flow.spec.ts \
+                e2e/job-search-filtering.spec.ts
+              ;;
+            recruiter)
+              npx playwright test e2e/recruiter-*.spec.ts
+              ;;
+            admin)
+              npx playwright test e2e/admin-*.spec.ts
+              ;;
+            payment)
+              npx playwright test e2e/payment-*.spec.ts
+              ;;
+            other)
+              npx playwright test \
+                e2e/auth-persistence.spec.ts \
+                e2e/dark-mode.spec.ts \
+                e2e/debug-*.spec.ts \
+                e2e/mobile-navigation.spec.ts \
+                e2e/navigation-*.spec.ts \
+                e2e/password-reset-flow.spec.ts \
+                e2e/public-pages.spec.ts \
+                e2e/settings-flow.spec.ts
+              ;;
+          esac
         env:
           CI: true
           NODE_ENV: e2e
@@ -171,7 +203,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.group }}
           path: test-results/
           retention-days: 7
 
