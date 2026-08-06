@@ -1,7 +1,10 @@
 # AGENTS.md - Shared Agent Guidelines
 
+> **Repository Schema:** See [SCHEMA.md](../../SCHEMA.md) for complete file structure.
+> **Agent Protocol:** See [AGENT_PROTOCOL.md](../AGENT_PROTOCOL.md) for mandatory rules.
+
 > This is a shared document for all agents working on Rekrut AI. 
-> Suga (CEO) and KimiClaw (CTO) should both follow these guidelines.
+> All agents should follow these guidelines.
 
 ## First Run
 

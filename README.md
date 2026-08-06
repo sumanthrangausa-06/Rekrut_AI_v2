@@ -104,12 +104,29 @@ LOG_LEVEL=debug
 
 ## Project Structure
 
--   `/client`: React Frontend Application
--   `/routes`: API Route Definitions
--   `/services`: Core Business Logic (OmniScore, Matching, etc.)
--   `/lib`: Shared Utilities and Database Connections
--   `/migrations`: Database Schema Migrations
--   `/docs`: Architecture and Audit Documentation
+> **Complete Schema:** See [SCHEMA.md](SCHEMA.md) for the canonical repository structure.
+
+| Folder | Purpose |
+|--------|---------|
+| `/client` | React Frontend Application |
+| `/routes` | API Route Definitions |
+| `/services` | Core Business Logic (OmniScore, Matching, etc.) |
+| `/lib` | Shared Utilities and Database Connections |
+| `/migrations` | Database Schema Migrations |
+| `/docs` | [Documentation](docs/README.md) - Architecture, Deployment, Security, QA, etc. |
+| `/agents` | [Agent Workspace](agents/README.md) - AI agent coordination |
+| `/e2e` | End-to-End Tests |
+
+## Documentation
+
+All documentation is organized in `docs/`:
+- **Architecture:** System design and target architecture
+- **Deployment:** Runbooks, checklists, environment config
+- **Security:** Audits and security checklists
+- **QA:** Test plans and reports
+- **Guides:** Workflows, migration guides, setup instructions
+
+See [docs/README.md](docs/README.md) for quick links.
 
 ## AI Health & Monitoring
 The platform includes an Admin Dashboard to monitor AI token usage, costs, and model performance. Access it at `/admin` (requires admin role).

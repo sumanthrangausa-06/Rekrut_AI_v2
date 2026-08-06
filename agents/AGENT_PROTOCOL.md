@@ -1,5 +1,7 @@
 # Rekrut AI - Agent Protocol
 
+> **Required Reading:** Before any work, also read [SCHEMA.md](../SCHEMA.md) for repository structure.
+
 ## 🚨 MANDATORY RULES FOR ALL AGENTS
 
 ### 0. STARTUP - CHECK FOR NEW COMMITS

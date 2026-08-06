@@ -1,5 +1,7 @@
 # Documentation Structure
 
+> **Canonical Structure:** See [SCHEMA.md](../SCHEMA.md) for the complete repository schema.
+
 This folder contains all project documentation organized by category.
 
 ## Folder Structure
