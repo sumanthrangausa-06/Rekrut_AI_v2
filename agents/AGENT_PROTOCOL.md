@@ -1,6 +1,8 @@
 # Rekrut AI - Agent Protocol
 
-> **Required Reading:** Before any work, also read [SCHEMA.md](../SCHEMA.md) for repository structure.
+> **Required Reading:** 
+> - [SCHEMA.md](../SCHEMA.md) - Repository file structure
+> - [docs/CODE_REVIEW_GRAPH.md](../docs/CODE_REVIEW_GRAPH.md) - Codebase architecture and navigation
 
 ## 🚨 MANDATORY RULES FOR ALL AGENTS
 

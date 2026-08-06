@@ -2,6 +2,7 @@
 
 > **For All Agents**: This document defines the canonical structure of the Rekrut AI repository.
 > Read this before creating or organizing any files.
+> **Code Navigation:** See [docs/CODE_REVIEW_GRAPH.md](docs/CODE_REVIEW_GRAPH.md) for visual codebase overview.
 
 **Last Updated:** 2026-08-06
 

@@ -1,6 +1,7 @@
 # Documentation Structure
 
 > **Canonical Structure:** See [SCHEMA.md](../SCHEMA.md) for the complete repository schema.
+> **Code Overview:** See [CODE_REVIEW_GRAPH.md](CODE_REVIEW_GRAPH.md) for visual codebase navigation.
 
 This folder contains all project documentation organized by category.
 
