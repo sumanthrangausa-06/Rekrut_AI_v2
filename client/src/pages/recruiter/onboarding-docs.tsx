@@ -1,6 +1,6 @@
+import DOMPurify from 'dompurify'
 import { Download, Eye, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import DOMPurify from 'dompurify'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -365,6 +365,7 @@ export function RecruiterOnboardingDocsPage() {
 								return (
 									<div
 										className='text-sm space-y-2 leading-relaxed'
+										// biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized with DOMPurify
 										dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(bodyHtml) }}
 									/>
 								)

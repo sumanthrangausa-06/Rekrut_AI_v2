@@ -372,7 +372,8 @@ export function RecruiterApplicationsPage() {
 						variant={!statusFilter ? 'default' : 'outline'}
 						size='sm'
 						onClick={() => setStatusFilter('')}
-					 className="min-h-[44px]">
+						className='min-h-[44px]'
+					>
 						All ({applications.length})
 					</Button>
 					{statuses.map(
@@ -383,7 +384,8 @@ export function RecruiterApplicationsPage() {
 									variant={statusFilter === s ? 'default' : 'outline'}
 									size='sm'
 									onClick={() => setStatusFilter(s)}
-								 className="min-h-[44px]">
+									className='min-h-[44px]'
+								>
 									{statusConfig[s]?.label || s} ({statusCounts[s]})
 								</Button>
 							),
@@ -434,7 +436,12 @@ export function RecruiterApplicationsPage() {
 								: 'No applications match your filters'}
 						</p>
 						{hasActiveFilters && (
-							<Button variant='outline' size='sm' onClick={clearAllFilters} className='mt-3 gap-1 min-h-[44px]'>
+							<Button
+								variant='outline'
+								size='sm'
+								onClick={clearAllFilters}
+								className='mt-3 gap-1 min-h-[44px]'
+							>
 								<X className='h-3 w-3' /> Clear Filters
 							</Button>
 						)}
@@ -621,7 +628,8 @@ export function RecruiterApplicationsPage() {
 									setSelected(null)
 								}}
 								disabled={updating}
-							 className="min-h-[44px]">
+								className='min-h-[44px]'
+							>
 								Save & Close
 							</Button>
 						</div>
@@ -697,7 +705,6 @@ function ScreeningAnswersBlock({ app }: { app: Application }) {
 	}
 }
 
-
 function AiScreeningSummary({ appId }: { appId: number }) {
 	const [summary, setSummary] = useState<any>(null)
 	const [loading, setLoading] = useState(false)
@@ -723,8 +730,13 @@ function AiScreeningSummary({ appId }: { appId: number }) {
 
 	if (!summary && !loading) {
 		return (
-			<Button variant="outline" size="sm" className="gap-2 w-full min-h-[44px]" onClick={generateSummary}>
-				<Sparkles className="h-4 w-4 text-primary" />
+			<Button
+				variant='outline'
+				size='sm'
+				className='gap-2 w-full min-h-[44px]'
+				onClick={generateSummary}
+			>
+				<Sparkles className='h-4 w-4 text-primary' />
 				AI Screen Candidate
 			</Button>
 		)
@@ -732,8 +744,8 @@ function AiScreeningSummary({ appId }: { appId: number }) {
 
 	if (loading) {
 		return (
-			<div className="text-sm text-muted-foreground py-2 flex items-center gap-2">
-				<Sparkles className="h-4 w-4 animate-pulse text-primary" />
+			<div className='text-sm text-muted-foreground py-2 flex items-center gap-2'>
+				<Sparkles className='h-4 w-4 animate-pulse text-primary' />
 				AI is screening candidate...
 			</div>
 		)
@@ -748,41 +760,42 @@ function AiScreeningSummary({ appId }: { appId: number }) {
 	]
 
 	return (
-		<div className="rounded-lg border bg-muted/30 p-3">
+		<div className='rounded-lg border bg-muted/30 p-3'>
 			<button
 				onClick={() => setExpanded(!expanded)}
-				className="w-full flex items-center justify-between min-h-[44px]"
+				className='w-full flex items-center justify-between min-h-[44px]'
 			>
-				<h4 className="font-medium text-sm flex items-center gap-1.5">
-					<Sparkles className="h-4 w-4 text-primary" />
+				<h4 className='font-medium text-sm flex items-center gap-1.5'>
+					<Sparkles className='h-4 w-4 text-primary' />
 					AI Screening Summary
 					{summary.overall_recommendation && (
 						<Badge
 							variant={
-								summary.overall_recommendation === 'strong_hire' || summary.overall_recommendation === 'hire'
+								summary.overall_recommendation === 'strong_hire' ||
+								summary.overall_recommendation === 'hire'
 									? 'default'
 									: summary.overall_recommendation === 'consider'
 										? 'secondary'
 										: 'outline'
 							}
-							className="text-xs ml-1 capitalize"
+							className='text-xs ml-1 capitalize'
 						>
 							{summary.overall_recommendation.replace(/_/g, ' ')}
 						</Badge>
 					)}
 				</h4>
-				{expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+				{expanded ? <ChevronUp className='h-4 w-4' /> : <ChevronDown className='h-4 w-4' />}
 			</button>
 			{expanded && (
-				<div className="mt-2 space-y-2 text-sm">
+				<div className='mt-2 space-y-2 text-sm'>
 					{sections.map(
 						(section) =>
 							section.items?.length > 0 && (
 								<div key={section.label}>
 									<h5 className={`font-medium ${section.color} mb-1`}>{section.label}</h5>
-									<ul className="space-y-1">
+									<ul className='space-y-1'>
 										{section.items.map((item: string, i: number) => (
-											<li key={i} className="text-muted-foreground pl-2 border-l-2 border-border">
+											<li key={i} className='text-muted-foreground pl-2 border-l-2 border-border'>
 												{item}
 											</li>
 										))}
@@ -792,10 +805,10 @@ function AiScreeningSummary({ appId }: { appId: number }) {
 					)}
 					{summary.recruiter_questions?.length > 0 && (
 						<div>
-							<h5 className="font-medium text-amber-600 mb-1">Questions to Ask</h5>
-							<ul className="space-y-1">
+							<h5 className='font-medium text-amber-600 mb-1'>Questions to Ask</h5>
+							<ul className='space-y-1'>
 								{summary.recruiter_questions.map((q: string, i: number) => (
-									<li key={i} className="text-muted-foreground pl-2 border-l-2 border-border">
+									<li key={i} className='text-muted-foreground pl-2 border-l-2 border-border'>
 										{q}
 									</li>
 								))}
@@ -807,7 +820,6 @@ function AiScreeningSummary({ appId }: { appId: number }) {
 		</div>
 	)
 }
-
 
 function CandidateCoachingSection({ candidateId }: { candidateId: number }) {
 	const [coaching, setCoaching] = useState<any>(null)
@@ -959,7 +971,7 @@ function CandidateCoachingSection({ candidateId }: { candidateId: number }) {
 													</h6>
 													<ul className='space-y-0.5'>
 														{(cd.content?.strengths || cd.strengths || []).map(
-															(s: string, i: number) => (
+															(s: string, _i: number) => (
 																<li key={s} className='text-[10px] text-green-700'>
 																	{s}
 																</li>
@@ -975,7 +987,7 @@ function CandidateCoachingSection({ candidateId }: { candidateId: number }) {
 													</h6>
 													<ul className='space-y-0.5'>
 														{(cd.content?.improvements || cd.improvements || []).map(
-															(s: string, i: number) => (
+															(s: string, _i: number) => (
 																<li key={s} className='text-[10px] text-amber-700'>
 																	{s}
 																</li>
@@ -1033,7 +1045,8 @@ function SortButton({
 			onClick={() => onToggle(field)}
 			className={`flex items-center gap-1 px-2 py-1 rounded hover:bg-muted transition-colors ${
 				isActive ? 'text-foreground font-medium' : ''
-			} min-h-[44px]`}>
+			} min-h-[44px]`}
+		>
 			{label}
 			{isActive ? (
 				dir === 'asc' ? (

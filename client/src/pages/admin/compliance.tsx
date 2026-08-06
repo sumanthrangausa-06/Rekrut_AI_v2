@@ -1235,7 +1235,7 @@ export function AdminCompliancePage() {
 									</CardHeader>
 									<CardContent>
 										<ul className='space-y-2'>
-											{biasReport.topConcerns.map((concern, i) => (
+											{biasReport.topConcerns.map((concern, _i) => (
 												<li key={concern} className='flex items-start gap-2 text-sm'>
 													<AlertTriangle className='h-4 w-4 text-amber-500 mt-0.5 shrink-0' />
 													{concern}
@@ -1253,7 +1253,7 @@ export function AdminCompliancePage() {
 									</CardHeader>
 									<CardContent>
 										<ul className='space-y-2'>
-											{biasReport.improvements.map((item, i) => (
+											{biasReport.improvements.map((item, _i) => (
 												<li key={item} className='flex items-start gap-2 text-sm'>
 													<CheckCircle className='h-4 w-4 text-green-500 mt-0.5 shrink-0' />
 													{item}
@@ -1865,9 +1865,9 @@ export function AdminCompliancePage() {
 					<div className='mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2'>
 						<AlertTriangle className='h-4 w-4 text-amber-600 mt-0.5 shrink-0' />
 						<p className='text-xs text-amber-800'>
-							<strong>Internal tracking only.</strong> This section contains static placeholder content.
-							It does not represent verified compliance status. See the gap analysis for actual
-							compliance posture.
+							<strong>Internal tracking only.</strong> This section contains static placeholder
+							content. It does not represent verified compliance status. See the gap analysis for
+							actual compliance posture.
 						</p>
 					</div>
 					<Card>
@@ -2414,8 +2414,9 @@ export function AdminCompliancePage() {
 					<div className='mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2'>
 						<AlertTriangle className='h-4 w-4 text-amber-600 mt-0.5 shrink-0' />
 						<p className='text-xs text-amber-800'>
-							<strong>Internal tracking only.</strong> Risk classifications below are static placeholders.
-							A formal risk classification document with legal review is required for compliance.
+							<strong>Internal tracking only.</strong> Risk classifications below are static
+							placeholders. A formal risk classification document with legal review is required for
+							compliance.
 						</p>
 					</div>
 					<div className='space-y-4'>
@@ -3007,8 +3008,8 @@ export function AdminCompliancePage() {
 					<div className='mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2'>
 						<AlertTriangle className='h-4 w-4 text-amber-600 mt-0.5 shrink-0' />
 						<p className='text-xs text-amber-800'>
-							<strong>Internal tracking only.</strong> This section contains static placeholder content.
-							Data governance policies and training data reviews are not yet implemented.
+							<strong>Internal tracking only.</strong> This section contains static placeholder
+							content. Data governance policies and training data reviews are not yet implemented.
 						</p>
 					</div>
 					<div className='space-y-4'>
@@ -3134,7 +3135,7 @@ export function AdminCompliancePage() {
 									</CardHeader>
 									<CardContent>
 										<ul className='space-y-2'>
-											{biasReport.topConcerns.map((concern, i) => (
+											{biasReport.topConcerns.map((concern, _i) => (
 												<li key={concern} className='flex items-start gap-2 text-sm'>
 													<AlertTriangle className='h-4 w-4 text-amber-500 mt-0.5 shrink-0' />
 													{concern}
@@ -3152,7 +3153,7 @@ export function AdminCompliancePage() {
 									</CardHeader>
 									<CardContent>
 										<ul className='space-y-2'>
-											{biasReport.improvements.map((item, i) => (
+											{biasReport.improvements.map((item, _i) => (
 												<li key={item} className='flex items-start gap-2 text-sm'>
 													<CheckCircle className='h-4 w-4 text-green-500 mt-0.5 shrink-0' />
 													{item}
@@ -3171,9 +3172,9 @@ export function AdminCompliancePage() {
 					<div className='mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2'>
 						<AlertTriangle className='h-4 w-4 text-red-600 mt-0.5 shrink-0' />
 						<p className='text-xs text-red-800'>
-							<strong>Not a compliance certification.</strong> Status badges below are static placeholders
-							and do not reflect actual compliance. No notified body has been engaged. See the
-							EU AI Act gap analysis for the true compliance posture.
+							<strong>Not a compliance certification.</strong> Status badges below are static
+							placeholders and do not reflect actual compliance. No notified body has been engaged.
+							See the EU AI Act gap analysis for the true compliance posture.
 						</p>
 					</div>
 					<div className='space-y-4'>

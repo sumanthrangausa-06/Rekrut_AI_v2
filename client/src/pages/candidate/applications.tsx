@@ -15,7 +15,7 @@ import {
 	MapPin,
 	XCircle,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -76,11 +76,7 @@ export function CandidateApplicationsPage() {
 	const [withdrawing, setWithdrawing] = useState(false)
 	const [selectedApp, setSelectedApp] = useState<Application | null>(null)
 
-	useEffect(() => {
-		loadApplications()
-	}, [loadApplications])
-
-	async function loadApplications() {
+	const loadApplications = useCallback(async () => {
 		try {
 			const data = await apiCall<{ success: boolean; applications: Application[] }>(
 				'/candidate/applications',
@@ -91,7 +87,11 @@ export function CandidateApplicationsPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
+
+	useEffect(() => {
+		loadApplications()
+	}, [loadApplications])
 
 	async function withdrawApplication() {
 		if (!withdrawTarget) return

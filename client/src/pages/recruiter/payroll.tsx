@@ -188,8 +188,16 @@ export function RecruiterPayrollPage() {
 		setLoading(true)
 		try {
 			const [dashRes, empRes] = await Promise.allSettled([
-				withTimeout(apiCall<DashboardData>('/payroll/dashboard'), FETCH_TIMEOUT, 'Payroll dashboard'),
-				withTimeout(apiCall<{ employees: Employee[] }>('/payroll/employees'), FETCH_TIMEOUT, 'Payroll employees'),
+				withTimeout(
+					apiCall<DashboardData>('/payroll/dashboard'),
+					FETCH_TIMEOUT,
+					'Payroll dashboard',
+				),
+				withTimeout(
+					apiCall<{ employees: Employee[] }>('/payroll/employees'),
+					FETCH_TIMEOUT,
+					'Payroll employees',
+				),
 			])
 			if (dashRes.status === 'fulfilled') setDashboard(dashRes.value)
 			if (empRes.status === 'fulfilled') setEmployees(empRes.value.employees || [])
@@ -240,9 +248,7 @@ export function RecruiterPayrollPage() {
 		setError('')
 		try {
 			const res = await withTimeout(
-				apiCall<{ payrollRun: PayrollRun; paychecks: Paycheck[] }>(
-					`/payroll/runs/${run.id}`,
-				),
+				apiCall<{ payrollRun: PayrollRun; paychecks: Paycheck[] }>(`/payroll/runs/${run.id}`),
 				FETCH_TIMEOUT,
 				'Payroll run details',
 			)

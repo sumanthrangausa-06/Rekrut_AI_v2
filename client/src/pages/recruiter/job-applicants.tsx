@@ -1020,7 +1020,7 @@ export function RecruiterJobApplicantsPage() {
 							)}
 							{aiSummary && !aiSummaryLoading && (
 								<div className='rounded-lg bg-blue-50/50 border border-blue-100 p-3 space-y-2 text-sm'>
-									{aiSummary.split('\n\n').map((paragraph, i) => {
+									{aiSummary.split('\n\n').map((paragraph, _i) => {
 										const boldMatch = paragraph.match(/^\*\*(.+?):\*\*\s*(.+)$/)
 										if (boldMatch) {
 											return (

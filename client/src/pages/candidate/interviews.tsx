@@ -17,7 +17,7 @@ import {
 	Video,
 	XCircle,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '@/components/domain/empty-state'
 import { Skeleton } from '@/components/domain/skeleton'
@@ -159,24 +159,11 @@ export function CandidateInterviewsPage() {
 	const [saving, setSaving] = useState(false)
 	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-	useEffect(() => {
-		loadInterviews()
-	}, [])
-
-	useEffect(() => {
-		if (message) {
-			const t = setTimeout(() => setMessage(null), 4000)
-			return () => clearTimeout(t)
-		}
-	}, [message])
-
-	async function loadInterviews() {
+	const loadInterviews = useCallback(async () => {
 		setLoading(true)
 		try {
 			const res = await withTimeout(
-				apiCall<{ success: boolean; interviews: Interview[] }>(
-					'/candidate/interviews/scheduled',
-				),
+				apiCall<{ success: boolean; interviews: Interview[] }>('/candidate/interviews/scheduled'),
 				FETCH_TIMEOUT,
 				'Interviews',
 			)
@@ -186,7 +173,18 @@ export function CandidateInterviewsPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
+
+	useEffect(() => {
+		loadInterviews()
+	}, [loadInterviews])
+
+	useEffect(() => {
+		if (message) {
+			const t = setTimeout(() => setMessage(null), 4000)
+			return () => clearTimeout(t)
+		}
+	}, [message])
 
 	async function acceptInterview(id: number) {
 		try {
@@ -291,7 +289,11 @@ export function CandidateInterviewsPage() {
 					<h1 className='text-2xl font-heading font-bold'>My Interviews</h1>
 					<p className='text-muted-foreground text-sm'>View and manage your scheduled interviews</p>
 				</div>
-				<Button variant='outline' onClick={() => navigate('/candidate/ai-coaching')} className='min-h-[44px]'>
+				<Button
+					variant='outline'
+					onClick={() => navigate('/candidate/ai-coaching')}
+					className='min-h-[44px]'
+				>
 					<Briefcase className='h-4 w-4 mr-2' />
 					Practice Interview
 				</Button>
@@ -310,9 +312,15 @@ export function CandidateInterviewsPage() {
 
 			<Tabs value={tab} onValueChange={setTab}>
 				<TabsList className='min-h-[44px]'>
-					<TabsTrigger value='upcoming' className='min-h-[44px]'>Upcoming ({upcoming.length})</TabsTrigger>
-					<TabsTrigger value='past' className='min-h-[44px]'>Past ({past.length})</TabsTrigger>
-					<TabsTrigger value='tips' className='min-h-[44px]'>Interview Tips</TabsTrigger>
+					<TabsTrigger value='upcoming' className='min-h-[44px]'>
+						Upcoming ({upcoming.length})
+					</TabsTrigger>
+					<TabsTrigger value='past' className='min-h-[44px]'>
+						Past ({past.length})
+					</TabsTrigger>
+					<TabsTrigger value='tips' className='min-h-[44px]'>
+						Interview Tips
+					</TabsTrigger>
 				</TabsList>
 
 				{/* Upcoming */}
@@ -418,7 +426,12 @@ export function CandidateInterviewsPage() {
 						<Button variant='outline' onClick={() => setShowDecline(null)} className='min-h-[44px]'>
 							Cancel
 						</Button>
-						<Button variant='destructive' onClick={declineInterview} disabled={saving} className='min-h-[44px]'>
+						<Button
+							variant='destructive'
+							onClick={declineInterview}
+							disabled={saving}
+							className='min-h-[44px]'
+						>
 							{saving ? 'Declining...' : 'Decline Interview'}
 						</Button>
 					</div>
@@ -454,10 +467,18 @@ export function CandidateInterviewsPage() {
 						/>
 					</div>
 					<div className='flex gap-2 justify-end'>
-						<Button variant='outline' onClick={() => setShowReschedule(null)} className='min-h-[44px]'>
+						<Button
+							variant='outline'
+							onClick={() => setShowReschedule(null)}
+							className='min-h-[44px]'
+						>
 							Cancel
 						</Button>
-						<Button onClick={requestReschedule} disabled={saving || !rescheduleReason} className='min-h-[44px]'>
+						<Button
+							onClick={requestReschedule}
+							disabled={saving || !rescheduleReason}
+							className='min-h-[44px]'
+						>
 							{saving ? 'Requesting...' : 'Request Reschedule'}
 						</Button>
 					</div>
@@ -531,7 +552,7 @@ function InterviewCard({
 	onDecline,
 	onReschedule,
 	onPractice,
-	isPast,
+	_isPast,
 }: {
 	interview: Interview
 	onAccept?: () => void
@@ -628,7 +649,12 @@ function InterviewCard({
 							</Button>
 						)}
 						{canRespond && onDecline && (
-							<Button size='sm' variant='ghost' className='text-destructive min-h-[44px]' onClick={onDecline}>
+							<Button
+								size='sm'
+								variant='ghost'
+								className='text-destructive min-h-[44px]'
+								onClick={onDecline}
+							>
 								<XCircle className='h-3.5 w-3.5 mr-1' /> Decline
 							</Button>
 						)}

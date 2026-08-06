@@ -12,7 +12,7 @@ import {
 	Users,
 	Zap,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -60,21 +60,7 @@ export function AdminAnalyticsPage() {
 	const [startDate, setStartDate] = useState('')
 	const [endDate, setEndDate] = useState('')
 
-	useEffect(() => {
-		const end = new Date()
-		const start = new Date()
-		start.setDate(start.getDate() - 30)
-		setEndDate(end.toISOString().split('T')[0])
-		setStartDate(start.toISOString().split('T')[0])
-	}, [])
-
-	useEffect(() => {
-		if (startDate && endDate) {
-			loadAnalytics()
-		}
-	}, [startDate, endDate, loadAnalytics])
-
-	async function loadAnalytics() {
+	const loadAnalytics = useCallback(async () => {
 		try {
 			setLoading(true)
 			const res = await apiCall<{ success: boolean; data: AnalyticsData }>(
@@ -88,7 +74,21 @@ export function AdminAnalyticsPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [startDate, endDate])
+
+	useEffect(() => {
+		const end = new Date()
+		const start = new Date()
+		start.setDate(start.getDate() - 30)
+		setEndDate(end.toISOString().split('T')[0])
+		setStartDate(start.toISOString().split('T')[0])
+	}, [])
+
+	useEffect(() => {
+		if (startDate && endDate) {
+			loadAnalytics()
+		}
+	}, [startDate, endDate, loadAnalytics])
 
 	const totalVisitors =
 		data?.daily_visitors.reduce((sum, d) => sum + (parseInt(String(d.visitors), 10) || 0), 0) || 0

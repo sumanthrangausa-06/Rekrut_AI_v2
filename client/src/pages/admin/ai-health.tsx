@@ -1021,7 +1021,7 @@ function MetricsOverview({ metrics }: { metrics: MetricsData }) {
 									Top Endpoints
 								</p>
 								<div className='space-y-1 max-h-40 overflow-y-auto'>
-									{metrics.api.topEndpoints.slice(0, 10).map((ep, i) => (
+									{metrics.api.topEndpoints.slice(0, 10).map((ep, _i) => (
 										<div key={ep.path} className='flex items-center gap-2 text-xs'>
 											<span className='font-mono truncate flex-1 text-muted-foreground'>
 												{ep.path}
@@ -1113,7 +1113,7 @@ function MetricsOverview({ metrics }: { metrics: MetricsData }) {
 									Table Row Counts
 								</p>
 								<div className='space-y-1 max-h-48 overflow-y-auto'>
-									{metrics.database.tables.map((t, i) => (
+									{metrics.database.tables.map((t, _i) => (
 										<div key={t.name} className='flex items-center justify-between text-xs'>
 											<span className='font-mono text-muted-foreground'>{t.name}</span>
 											<span className='font-semibold tabular-nums'>{t.rows.toLocaleString()}</span>
@@ -1820,7 +1820,7 @@ function ModuleMetricCard({
 			</CardHeader>
 			<CardContent className='pt-0'>
 				<div className='grid grid-cols-2 gap-x-4 gap-y-1.5'>
-					{metrics.map((m, i) => (
+					{metrics.map((m, _i) => (
 						<div key={m.label} className='flex justify-between items-baseline'>
 							<span className='text-[11px] text-muted-foreground'>{m.label}</span>
 							<span

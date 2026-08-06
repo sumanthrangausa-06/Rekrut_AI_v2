@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle, Clock, Play, Shield, Trophy } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '@/components/domain/empty-state'
 import { Skeleton } from '@/components/domain/skeleton'
@@ -47,11 +47,7 @@ export function CandidateAssessmentsPage() {
 	const [loading, setLoading] = useState(true)
 	const [starting, setStarting] = useState<string | null>(null)
 
-	useEffect(() => {
-		loadData()
-	}, [loadData])
-
-	async function loadData() {
+	const loadData = useCallback(async () => {
 		try {
 			const [skillsRes, resultsRes] = await Promise.allSettled([
 				apiCall<{ skills: SkillCatalog[] }>('/assessments/available'),
@@ -64,7 +60,11 @@ export function CandidateAssessmentsPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
+
+	useEffect(() => {
+		loadData()
+	}, [loadData])
 
 	async function startAssessment(skill: SkillCatalog) {
 		setStarting(skill.catalog_name)

@@ -473,7 +473,7 @@ export function CandidateOmniScorePage() {
 											your score, while negative factors drag it down.
 										</p>
 										<div className='space-y-3'>
-											{explainer.factors.map((factor, i) => (
+											{explainer.factors.map((factor, _i) => (
 												<div key={`rec-`} className='space-y-1'>
 													<div className='flex items-center justify-between text-sm'>
 														<span className='font-medium'>{factor.name}</span>
@@ -537,11 +537,15 @@ export function CandidateOmniScorePage() {
 												<p className='text-xs text-muted-foreground'>Percentile</p>
 											</div>
 											<div className='text-center'>
-												<p className='text-2xl sm:text-3xl font-bold'>{explainer.peerComparison.avgScore}</p>
+												<p className='text-2xl sm:text-3xl font-bold'>
+													{explainer.peerComparison.avgScore}
+												</p>
 												<p className='text-xs text-muted-foreground'>Avg Score</p>
 											</div>
 											<div className='text-center'>
-												<p className='text-2xl sm:text-3xl font-bold'>{explainer.peerComparison.medianScore}</p>
+												<p className='text-2xl sm:text-3xl font-bold'>
+													{explainer.peerComparison.medianScore}
+												</p>
 												<p className='text-xs text-muted-foreground'>Median Score</p>
 											</div>
 											<div className='text-center'>
@@ -697,7 +701,10 @@ export function CandidateOmniScorePage() {
 								<h3 className='font-heading text-lg font-semibold mb-3'>How to Improve</h3>
 								<div className='space-y-3'>
 									{scoreData.recommendations.map((rec, i) => (
-										<Card key={`rec-${i}`} className={rec.priority === 'high' ? 'border-red-500/30' : ''}>
+										<Card
+											key={`rec-${i}`}
+											className={rec.priority === 'high' ? 'border-red-500/30' : ''}
+										>
 											<CardContent className='p-4'>
 												<div className='flex items-start justify-between'>
 													<div className='flex-1'>

@@ -775,7 +775,14 @@ interface CollapsibleSectionProps {
 	defaultOpen?: boolean
 	action?: React.ReactNode
 }
-function CollapsibleSection({ title, icon: Icon, count, children, defaultOpen = true, action }: CollapsibleSectionProps) {
+function CollapsibleSection({
+	title,
+	icon: Icon,
+	count,
+	children,
+	defaultOpen = true,
+	action,
+}: CollapsibleSectionProps) {
 	const [open, setOpen] = useState(defaultOpen)
 	return (
 		<div className='border rounded-xl bg-card'>
@@ -819,8 +826,8 @@ function OverviewTab({
 	certifications,
 	projects,
 	suggestedConnections,
-	completeness,
-	missingSections,
+	completeness: _completeness,
+	missingSections: _missingSections,
 	setTab,
 }: {
 	profile: Profile
@@ -1451,9 +1458,9 @@ function ExperienceTab({
 }) {
 	const [editing, setEditing] = useState<Experience | null>(null)
 	const [isNew, setIsNew] = useState(false)
-	const [expanded, setExpanded] = useState<Set<number>>(new Set())
+	const [_expanded, setExpanded] = useState<Set<number>>(new Set())
 
-	function toggleExpanded(id: number) {
+	function _toggleExpanded(id: number) {
 		setExpanded((prev) => {
 			const next = new Set(prev)
 			if (next.has(id)) next.delete(id)
@@ -1516,117 +1523,116 @@ function ExperienceTab({
 					</Button>
 				}
 			>
-
-			{experience.length === 0 ? (
-				<Card>
-					<CardContent className='py-16 text-center'>
-						<Briefcase className='mx-auto mb-3 h-12 w-12 opacity-20' />
-						<p className='text-muted-foreground mb-4'>No work experience added yet</p>
-						<Button onClick={openNew} className='gap-1'>
-							<Plus className='h-4 w-4' /> Add Experience
-						</Button>
-					</CardContent>
-				</Card>
-			) : (
-				<div className='space-y-4'>
-					{experience.map((exp, index) => (
-						<Card key={exp.id} className='overflow-hidden'>
-							<CardContent className='p-5'>
-								<div className='flex items-start gap-4'>
-									{/* Timeline visual */}
-									<div className='flex flex-col items-center'>
-										<div className='h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0'>
-											<Building2 className='h-5 w-5 text-primary' />
+				{experience.length === 0 ? (
+					<Card>
+						<CardContent className='py-16 text-center'>
+							<Briefcase className='mx-auto mb-3 h-12 w-12 opacity-20' />
+							<p className='text-muted-foreground mb-4'>No work experience added yet</p>
+							<Button onClick={openNew} className='gap-1'>
+								<Plus className='h-4 w-4' /> Add Experience
+							</Button>
+						</CardContent>
+					</Card>
+				) : (
+					<div className='space-y-4'>
+						{experience.map((exp, index) => (
+							<Card key={exp.id} className='overflow-hidden'>
+								<CardContent className='p-5'>
+									<div className='flex items-start gap-4'>
+										{/* Timeline visual */}
+										<div className='flex flex-col items-center'>
+											<div className='h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0'>
+												<Building2 className='h-5 w-5 text-primary' />
+											</div>
+											{index < experience.length - 1 && (
+												<div className='w-px flex-1 bg-border mt-2' />
+											)}
 										</div>
-										{index < experience.length - 1 && (
-											<div className='w-px flex-1 bg-border mt-2' />
-										)}
-									</div>
-									<div className='flex-1 min-w-0'>
-										<div className='flex items-start justify-between gap-2'>
-											<div>
-												<h4 className='font-semibold'>{exp.title}</h4>
-												<p className='text-sm text-muted-foreground flex items-center gap-1.5'>
-													<Building2 className='h-3.5 w-3.5' /> {exp.company_name}
-													{exp.location && (
-														<>
-															<span>·</span>
-															<MapPin className='h-3.5 w-3.5' /> {exp.location}
-														</>
-													)}
-												</p>
-												<p className='text-xs text-muted-foreground mt-1 flex items-center gap-1'>
-													<Calendar className='h-3 w-3' />
-													{exp.start_date
-														? new Date(exp.start_date).toLocaleDateString('en-US', {
-																month: 'short',
-																year: 'numeric',
-															})
-														: 'Start'}{' '}
-													—{' '}
-													{exp.is_current
-														? 'Present'
-														: exp.end_date
-															? new Date(exp.end_date).toLocaleDateString('en-US', {
+										<div className='flex-1 min-w-0'>
+											<div className='flex items-start justify-between gap-2'>
+												<div>
+													<h4 className='font-semibold'>{exp.title}</h4>
+													<p className='text-sm text-muted-foreground flex items-center gap-1.5'>
+														<Building2 className='h-3.5 w-3.5' /> {exp.company_name}
+														{exp.location && (
+															<>
+																<span>·</span>
+																<MapPin className='h-3.5 w-3.5' /> {exp.location}
+															</>
+														)}
+													</p>
+													<p className='text-xs text-muted-foreground mt-1 flex items-center gap-1'>
+														<Calendar className='h-3 w-3' />
+														{exp.start_date
+															? new Date(exp.start_date).toLocaleDateString('en-US', {
 																	month: 'short',
 																	year: 'numeric',
 																})
-															: 'End'}
-												</p>
-												{exp.description && (
-													<p className='text-sm mt-2 text-muted-foreground'>{exp.description}</p>
-												)}
-												{exp.achievements &&
-													Array.isArray(exp.achievements) &&
-													exp.achievements.length > 0 && (
-														<ul className='mt-2 space-y-1'>
-															{exp.achievements.map((a, i) => (
-																<li
-																	key={i}
-																	className='text-xs text-muted-foreground flex items-start gap-1.5'
-																>
-																	<Star className='h-3 w-3 text-amber-400 mt-0.5 shrink-0' />
-																	{a}
-																</li>
-															))}
-														</ul>
+															: 'Start'}{' '}
+														—{' '}
+														{exp.is_current
+															? 'Present'
+															: exp.end_date
+																? new Date(exp.end_date).toLocaleDateString('en-US', {
+																		month: 'short',
+																		year: 'numeric',
+																	})
+																: 'End'}
+													</p>
+													{exp.description && (
+														<p className='text-sm mt-2 text-muted-foreground'>{exp.description}</p>
 													)}
-												{exp.skills_used &&
-													Array.isArray(exp.skills_used) &&
-													exp.skills_used.length > 0 && (
-														<div className='flex flex-wrap gap-1 mt-2'>
-															{(typeof exp.skills_used === 'string'
-																? JSON.parse(exp.skills_used)
-																: exp.skills_used
-															).map((s: string) => (
-																<Badge key={s} variant='secondary' className='text-[10px]'>
-																	{s}
-																</Badge>
-															))}
-														</div>
-													)}
-											</div>
-											<div className='flex items-center gap-1 shrink-0'>
-												<Button variant='ghost' size='sm' onClick={() => openEdit(exp)}>
-													<Pencil className='h-3.5 w-3.5' />
-												</Button>
-												<Button
-													variant='ghost'
-													size='sm'
-													onClick={() => handleDelete(exp.id)}
-													className='text-destructive hover:text-destructive'
-												>
-													<Trash2 className='h-3.5 w-3.5' />
-												</Button>
+													{exp.achievements &&
+														Array.isArray(exp.achievements) &&
+														exp.achievements.length > 0 && (
+															<ul className='mt-2 space-y-1'>
+																{exp.achievements.map((a, i) => (
+																	<li
+																		key={i}
+																		className='text-xs text-muted-foreground flex items-start gap-1.5'
+																	>
+																		<Star className='h-3 w-3 text-amber-400 mt-0.5 shrink-0' />
+																		{a}
+																	</li>
+																))}
+															</ul>
+														)}
+													{exp.skills_used &&
+														Array.isArray(exp.skills_used) &&
+														exp.skills_used.length > 0 && (
+															<div className='flex flex-wrap gap-1 mt-2'>
+																{(typeof exp.skills_used === 'string'
+																	? JSON.parse(exp.skills_used)
+																	: exp.skills_used
+																).map((s: string) => (
+																	<Badge key={s} variant='secondary' className='text-[10px]'>
+																		{s}
+																	</Badge>
+																))}
+															</div>
+														)}
+												</div>
+												<div className='flex items-center gap-1 shrink-0'>
+													<Button variant='ghost' size='sm' onClick={() => openEdit(exp)}>
+														<Pencil className='h-3.5 w-3.5' />
+													</Button>
+													<Button
+														variant='ghost'
+														size='sm'
+														onClick={() => handleDelete(exp.id)}
+														className='text-destructive hover:text-destructive'
+													>
+														<Trash2 className='h-3.5 w-3.5' />
+													</Button>
+												</div>
 											</div>
 										</div>
 									</div>
-								</div>
-							</CardContent>
-						</Card>
-					))}
-				</div>
-			)}
+								</CardContent>
+							</Card>
+						))}
+					</div>
+				)}
 			</CollapsibleSection>
 
 			{/* Edit dialog */}
@@ -1743,9 +1749,9 @@ function EducationTab({
 }) {
 	const [editing, setEditing] = useState<Education | null>(null)
 	const [isNew, setIsNew] = useState(false)
-	const [expanded, setExpanded] = useState<Set<number>>(new Set())
+	const [_expanded, setExpanded] = useState<Set<number>>(new Set())
 
-	function toggleExpanded(id: number) {
+	function _toggleExpanded(id: number) {
 		setExpanded((prev) => {
 			const next = new Set(prev)
 			if (next.has(id)) next.delete(id)
@@ -1808,70 +1814,71 @@ function EducationTab({
 					</Button>
 				}
 			>
-
-			{education.length === 0 ? (
-				<Card>
-					<CardContent className='py-16 text-center'>
-						<GraduationCap className='mx-auto mb-3 h-12 w-12 opacity-20' />
-						<p className='text-muted-foreground mb-4'>No education added yet</p>
-						<Button onClick={openNew} className='gap-1'>
-							<Plus className='h-4 w-4' /> Add Education
-						</Button>
-					</CardContent>
-				</Card>
-			) : (
-				<div className='space-y-4'>
-					{education.map((edu, index) => (
-						<Card key={edu.id} className='overflow-hidden'>
-							<CardContent className='p-5'>
-								<div className='flex items-start gap-4'>
-									<div className='flex flex-col items-center'>
-										<div className='h-10 w-10 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0'>
-											<GraduationCap className='h-5 w-5 text-indigo-600' />
-										</div>
-										{index < education.length - 1 && <div className='w-px flex-1 bg-border mt-2' />}
-									</div>
-									<div className='flex-1 min-w-0'>
-										<div className='flex items-start justify-between gap-2'>
-											<div>
-												<h4 className='font-semibold'>
-													{edu.degree}
-													{edu.field_of_study ? ` in ${edu.field_of_study}` : ''}
-												</h4>
-												<p className='text-sm text-muted-foreground flex items-center gap-1.5'>
-													<Building2 className='h-3.5 w-3.5' /> {edu.institution}
-												</p>
-												<p className='text-xs text-muted-foreground mt-1'>
-													{edu.start_date ? new Date(edu.start_date).getFullYear() : 'Start'} —{' '}
-													{edu.is_current
-														? 'Present'
-														: edu.end_date
-															? new Date(edu.end_date).getFullYear()
-															: 'End'}
-													{edu.gpa && ` · GPA: ${edu.gpa}`}
-												</p>
+				{education.length === 0 ? (
+					<Card>
+						<CardContent className='py-16 text-center'>
+							<GraduationCap className='mx-auto mb-3 h-12 w-12 opacity-20' />
+							<p className='text-muted-foreground mb-4'>No education added yet</p>
+							<Button onClick={openNew} className='gap-1'>
+								<Plus className='h-4 w-4' /> Add Education
+							</Button>
+						</CardContent>
+					</Card>
+				) : (
+					<div className='space-y-4'>
+						{education.map((edu, index) => (
+							<Card key={edu.id} className='overflow-hidden'>
+								<CardContent className='p-5'>
+									<div className='flex items-start gap-4'>
+										<div className='flex flex-col items-center'>
+											<div className='h-10 w-10 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0'>
+												<GraduationCap className='h-5 w-5 text-indigo-600' />
 											</div>
-											<div className='flex items-center gap-1 shrink-0'>
-												<Button variant='ghost' size='sm' onClick={() => openEdit(edu)}>
-													<Pencil className='h-3.5 w-3.5' />
-												</Button>
-												<Button
-													variant='ghost'
-													size='sm'
-													onClick={() => handleDelete(edu.id)}
-													className='text-destructive hover:text-destructive'
-												>
-													<Trash2 className='h-3.5 w-3.5' />
-												</Button>
+											{index < education.length - 1 && (
+												<div className='w-px flex-1 bg-border mt-2' />
+											)}
+										</div>
+										<div className='flex-1 min-w-0'>
+											<div className='flex items-start justify-between gap-2'>
+												<div>
+													<h4 className='font-semibold'>
+														{edu.degree}
+														{edu.field_of_study ? ` in ${edu.field_of_study}` : ''}
+													</h4>
+													<p className='text-sm text-muted-foreground flex items-center gap-1.5'>
+														<Building2 className='h-3.5 w-3.5' /> {edu.institution}
+													</p>
+													<p className='text-xs text-muted-foreground mt-1'>
+														{edu.start_date ? new Date(edu.start_date).getFullYear() : 'Start'} —{' '}
+														{edu.is_current
+															? 'Present'
+															: edu.end_date
+																? new Date(edu.end_date).getFullYear()
+																: 'End'}
+														{edu.gpa && ` · GPA: ${edu.gpa}`}
+													</p>
+												</div>
+												<div className='flex items-center gap-1 shrink-0'>
+													<Button variant='ghost' size='sm' onClick={() => openEdit(edu)}>
+														<Pencil className='h-3.5 w-3.5' />
+													</Button>
+													<Button
+														variant='ghost'
+														size='sm'
+														onClick={() => handleDelete(edu.id)}
+														className='text-destructive hover:text-destructive'
+													>
+														<Trash2 className='h-3.5 w-3.5' />
+													</Button>
+												</div>
 											</div>
 										</div>
 									</div>
-								</div>
-							</CardContent>
-						</Card>
-					))}
-				</div>
-			)}
+								</CardContent>
+							</Card>
+						))}
+					</div>
+				)}
 			</CollapsibleSection>
 
 			{/* Edit dialog */}
@@ -1970,11 +1977,11 @@ function SkillsTab({
 	const [newCategory, setNewCategory] = useState('technical')
 	const [newLevel, setNewLevel] = useState(3)
 	const [adding, setAdding] = useState(false)
-	const [endorsing, setEndorsing] = useState<number | null>(null)
-	const [expanded, setExpanded] = useState<Set<number>>(new Set())
+	const [_endorsing, setEndorsing] = useState<number | null>(null)
+	const [_expanded, setExpanded] = useState<Set<number>>(new Set())
 	const [addingMode, setAddingMode] = useState(false)
 
-	function toggleExpanded(id: number) {
+	function _toggleExpanded(id: number) {
 		setExpanded((prev) => {
 			const next = new Set(prev)
 			if (next.has(id)) next.delete(id)
@@ -2002,7 +2009,7 @@ function SkillsTab({
 		}
 	}
 
-	async function updateLevel(skill: Skill, level: number) {
+	async function _updateLevel(skill: Skill, level: number) {
 		try {
 			await apiCall(`/candidate/skills/${skill.id}`, { method: 'PUT', body: { level } })
 			setSkills((prev) => prev.map((s) => (s.id === skill.id ? { ...s, level } : s)))
@@ -2021,7 +2028,7 @@ function SkillsTab({
 		}
 	}
 
-	async function endorseSkill(skillId: number) {
+	async function _endorseSkill(skillId: number) {
 		setEndorsing(skillId)
 		try {
 			await apiCall(`/candidate/skills/${skillId}/endorse`, { method: 'POST' })
@@ -2113,7 +2120,9 @@ function SkillsTab({
 					{skills.length === 0 ? (
 						<div className='py-8 text-center'>
 							<Wrench className='mx-auto mb-3 h-10 w-10 opacity-20' />
-							<p className='text-sm text-muted-foreground'>No skills added yet. Add your skills to improve your profile.</p>
+							<p className='text-sm text-muted-foreground'>
+								No skills added yet. Add your skills to improve your profile.
+							</p>
 						</div>
 					) : (
 						<div className='space-y-5'>
@@ -2129,15 +2138,16 @@ function SkillsTab({
 												key={skill.id}
 												className='group inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1.5 text-sm hover:bg-muted/50 transition-colors'
 											>
-												{skill.is_verified && (
-													<Award className='h-3 w-3 text-amber-500' />
-												)}
+												{skill.is_verified && <Award className='h-3 w-3 text-amber-500' />}
 												<span className='font-medium'>{skill.skill_name}</span>
 												<span className='text-[10px] text-muted-foreground'>
 													{levelLabels[skill.level]}
 												</span>
 												{skill.endorsements && skill.endorsements > 0 && (
-													<Badge variant='outline' className='text-[10px] h-4 gap-0.5 px-1.5 border-green-200 bg-green-50 text-green-700'>
+													<Badge
+														variant='outline'
+														className='text-[10px] h-4 gap-0.5 px-1.5 border-green-200 bg-green-50 text-green-700'
+													>
 														<ThumbsUp className='h-2.5 w-2.5' />
 														{skill.endorsements}
 													</Badge>

@@ -136,7 +136,11 @@ export function CompanyProfilePage() {
 	return (
 		<div className='space-y-6'>
 			<div className='flex items-center gap-2'>
-				<Button variant='ghost' onClick={() => navigate('/candidate')} className='min-h-[44px] min-w-[44px]'>
+				<Button
+					variant='ghost'
+					onClick={() => navigate('/candidate')}
+					className='min-h-[44px] min-w-[44px]'
+				>
 					<ArrowLeft className='h-4 w-4 mr-2' />
 					Back to Dashboard
 				</Button>

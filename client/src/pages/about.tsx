@@ -204,7 +204,9 @@ export function AboutPage() {
 										<div className='flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10'>
 											<Target className='h-6 w-6 text-primary' />
 										</div>
-										<p className='mt-4 font-heading text-2xl sm:text-2xl sm:text-2xl sm:text-3xl font-bold text-primary'>40%</p>
+										<p className='mt-4 font-heading text-2xl sm:text-2xl sm:text-2xl sm:text-3xl font-bold text-primary'>
+											40%
+										</p>
 										<p className='mt-1 text-sm text-muted-foreground'>Faster time-to-hire</p>
 									</CardContent>
 								</Card>
@@ -213,7 +215,9 @@ export function AboutPage() {
 										<div className='flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/10'>
 											<Heart className='h-6 w-6 text-green-600' />
 										</div>
-										<p className='mt-4 font-heading text-2xl sm:text-3xl font-bold text-green-600'>3x</p>
+										<p className='mt-4 font-heading text-2xl sm:text-3xl font-bold text-green-600'>
+											3x
+										</p>
 										<p className='mt-1 text-sm text-muted-foreground'>Better candidate matches</p>
 									</CardContent>
 								</Card>
@@ -222,7 +226,9 @@ export function AboutPage() {
 										<div className='flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10'>
 											<Globe className='h-6 w-6 text-amber-600' />
 										</div>
-										<p className='mt-4 font-heading text-2xl sm:text-3xl font-bold text-amber-600'>15+</p>
+										<p className='mt-4 font-heading text-2xl sm:text-3xl font-bold text-amber-600'>
+											15+
+										</p>
 										<p className='mt-1 text-sm text-muted-foreground'>Countries supported</p>
 									</CardContent>
 								</Card>
@@ -231,7 +237,9 @@ export function AboutPage() {
 										<div className='flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/10'>
 											<Users className='h-6 w-6 text-purple-600' />
 										</div>
-										<p className='mt-4 font-heading text-2xl sm:text-3xl font-bold text-purple-600'>50K+</p>
+										<p className='mt-4 font-heading text-2xl sm:text-3xl font-bold text-purple-600'>
+											50K+
+										</p>
 										<p className='mt-1 text-sm text-muted-foreground'>Candidates matched</p>
 									</CardContent>
 								</Card>

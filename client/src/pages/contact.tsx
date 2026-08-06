@@ -89,7 +89,7 @@ export function ContactPage() {
 		subject: '',
 		message: '',
 	})
-	const [errors, setErrors] = useState<Record<string, string>>({})
+	const [_errors, setErrors] = useState<Record<string, string>>({})
 	const [touched, setTouched] = useState<Record<string, boolean>>({})
 
 	function validateField(field: string, value: string): string {
@@ -140,9 +140,12 @@ export function ContactPage() {
 		}
 	}
 
-	const handleBlur = (field: string) => {
+	const _handleBlur = (field: string) => {
 		setTouched((prev) => ({ ...prev, [field]: true }))
-		setErrors((prev) => ({ ...prev, [field]: validateField(field, formData[field as keyof typeof formData]) }))
+		setErrors((prev) => ({
+			...prev,
+			[field]: validateField(field, formData[field as keyof typeof formData]),
+		}))
 	}
 
 	return (

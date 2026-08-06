@@ -95,10 +95,13 @@ export function ProgressTab({ categoryProgress, recentSessions }: ProgressTabPro
 						</p>
 					) : (
 						<div className='space-y-3'>
-							{recentSessions.map((s, i) => {
+							{recentSessions.map((s, _i) => {
 								const catCfg = categoryConfig[s.category] || categoryConfig.behavioral
 								return (
-									<div key={s.created_at} className='flex items-start gap-3 p-3 rounded-lg bg-muted/50'>
+									<div
+										key={s.created_at}
+										className='flex items-start gap-3 p-3 rounded-lg bg-muted/50'
+									>
 										<div className='flex items-center justify-center h-10 w-10 rounded-lg bg-primary/10 text-primary font-bold text-sm shrink-0'>
 											{s.score}/10
 										</div>
@@ -423,7 +426,7 @@ export function HistoryTab({
 																			✓ Strengths
 																		</h5>
 																		<ul className='space-y-1'>
-																			{cd.content.strengths.map((s: string, i: number) => (
+																			{cd.content.strengths.map((s: string, _i: number) => (
 																				<li key={s} className='text-xs text-green-700'>
 																					{s}
 																				</li>
@@ -437,7 +440,7 @@ export function HistoryTab({
 																			↑ Improve
 																		</h5>
 																		<ul className='space-y-1'>
-																			{cd.content.improvements.map((s: string, i: number) => (
+																			{cd.content.improvements.map((s: string, _i: number) => (
 																				<li key={s} className='text-xs text-amber-700'>
 																					{s}
 																				</li>
@@ -451,7 +454,7 @@ export function HistoryTab({
 																			💡 Tips
 																		</h5>
 																		<ul className='space-y-1'>
-																			{cd.content.specific_tips.map((s: string, i: number) => (
+																			{cd.content.specific_tips.map((s: string, _i: number) => (
 																				<li key={s} className='text-xs text-blue-700'>
 																					{s}
 																				</li>
@@ -629,7 +632,7 @@ export function HistoryTab({
 																			💡 Speech Tips
 																		</h5>
 																		<ul className='space-y-1'>
-																			{cd.communication.tips.map((t: string, i: number) => (
+																			{cd.communication.tips.map((t: string, _i: number) => (
 																				<li key={t} className='text-xs text-blue-700'>
 																					{t}
 																				</li>
@@ -839,7 +842,7 @@ export function HistoryTab({
 																✓ Strengths
 															</h5>
 															<ul className='space-y-1'>
-																{cd.strengths.map((s: string, i: number) => (
+																{cd.strengths.map((s: string, _i: number) => (
 																	<li key={s} className='text-xs text-green-700'>
 																		{s}
 																	</li>
@@ -853,7 +856,7 @@ export function HistoryTab({
 																↑ Areas for Improvement
 															</h5>
 															<ul className='space-y-1'>
-																{cd.improvements.map((s: string, i: number) => (
+																{cd.improvements.map((s: string, _i: number) => (
 																	<li key={s} className='text-xs text-amber-700'>
 																		{s}
 																	</li>
@@ -982,7 +985,7 @@ export function HistoryTab({
 																		✓ Strengths
 																	</h5>
 																	<ul className='space-y-1'>
-																		{cd.content.strengths.map((s: string, i: number) => (
+																		{cd.content.strengths.map((s: string, _i: number) => (
 																			<li key={s} className='text-xs text-green-700'>
 																				{s}
 																			</li>
@@ -996,7 +999,7 @@ export function HistoryTab({
 																		↑ Improve
 																	</h5>
 																	<ul className='space-y-1'>
-																		{cd.content.improvements.map((s: string, i: number) => (
+																		{cd.content.improvements.map((s: string, _i: number) => (
 																			<li key={s} className='text-xs text-amber-700'>
 																				{s}
 																			</li>
@@ -1010,7 +1013,7 @@ export function HistoryTab({
 																		💡 Tips
 																	</h5>
 																	<ul className='space-y-1'>
-																		{cd.content.specific_tips.map((s: string, i: number) => (
+																		{cd.content.specific_tips.map((s: string, _i: number) => (
 																			<li key={s} className='text-xs text-blue-700'>
 																				{s}
 																			</li>
@@ -1122,7 +1125,7 @@ export function HistoryTab({
 																		💡 Speech Tips
 																	</h5>
 																	<ul className='space-y-1'>
-																		{cd.communication.tips.map((t: string, i: number) => (
+																		{cd.communication.tips.map((t: string, _i: number) => (
 																			<li key={t} className='text-xs text-blue-700'>
 																				{t}
 																			</li>
@@ -1273,7 +1276,7 @@ export function HistoryTab({
 														✓ Strengths
 													</h5>
 													<ul className='space-y-1'>
-														{cd.strengths.map((s: string, i: number) => (
+														{cd.strengths.map((s: string, _i: number) => (
 															<li key={s} className='text-xs text-green-700'>
 																{s}
 															</li>
@@ -1287,7 +1290,7 @@ export function HistoryTab({
 														↑ Areas for Improvement
 													</h5>
 													<ul className='space-y-1'>
-														{cd.improvements.map((s: string, i: number) => (
+														{cd.improvements.map((s: string, _i: number) => (
 															<li key={s} className='text-xs text-amber-700'>
 																{s}
 															</li>
@@ -1299,7 +1302,7 @@ export function HistoryTab({
 												<div className='p-3 rounded-lg bg-blue-50 border border-blue-100'>
 													<h5 className='text-xs font-semibold text-blue-800 mb-1.5'>💡 Tips</h5>
 													<ul className='space-y-1'>
-														{cd.specific_tips.map((s: string, i: number) => (
+														{cd.specific_tips.map((s: string, _i: number) => (
 															<li key={s} className='text-xs text-blue-700'>
 																{s}
 															</li>

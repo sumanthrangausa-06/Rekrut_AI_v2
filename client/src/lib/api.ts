@@ -65,7 +65,7 @@ export function clearTokens() {
 
 // CSRF token management — read from cookie directly (most reliable)
 function getCsrfTokenFromCookie(): string | null {
-	const match = document.cookie.match(new RegExp('(^| )_csrf=([^;]+)'))
+	const match = document.cookie.match(/(^| )_csrf=([^;]+)/)
 	return match ? decodeURIComponent(match[2]) : null
 }
 
@@ -108,8 +108,8 @@ function parseJwtPayload(token: string): Record<string, unknown> | null {
 		const jsonPayload = decodeURIComponent(
 			atob(base64)
 				.split('')
-				.map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-				.join('')
+				.map((c) => `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`)
+				.join(''),
 		)
 		return JSON.parse(jsonPayload)
 	} catch {
@@ -143,10 +143,7 @@ export function startAuthRefresh() {
 	}
 
 	// Refresh at 80% of lifetime, but at least 30s before expiry
-	const refreshIn = Math.min(
-		Math.floor(lifetime * REFRESH_THRESHOLD),
-		lifetime - 30_000
-	)
+	const refreshIn = Math.min(Math.floor(lifetime * REFRESH_THRESHOLD), lifetime - 30_000)
 
 	if (refreshIn <= 0) {
 		// Very close to expiry — refresh immediately

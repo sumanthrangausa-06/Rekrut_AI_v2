@@ -25,7 +25,7 @@ export function RegisterPage() {
 	const [loading, setLoading] = useState(false)
 	const [showPassword, setShowPassword] = useState(false)
 	const [errors, setErrors] = useState<Record<string, string>>({})
-	const [touched, setTouched] = useState<Record<string, boolean>>({})
+	const [_touched, setTouched] = useState<Record<string, boolean>>({})
 
 	// Read ?role=recruiter from URL and pre-select employer role
 	useEffect(() => {
@@ -48,7 +48,9 @@ export function RegisterPage() {
 				if (!/[0-9]/.test(value)) return 'Password must include at least one number'
 				return ''
 			case 'company':
-				return role === 'employer' && value.trim().length < 2 ? 'Company name is required for employers' : ''
+				return role === 'employer' && value.trim().length < 2
+					? 'Company name is required for employers'
+					: ''
 			default:
 				return ''
 		}
@@ -58,7 +60,10 @@ export function RegisterPage() {
 		const newErrors: Record<string, string> = {}
 		let hasError = false
 		;['name', 'email', 'password'].forEach((field) => {
-			const error = validateField(field, field === 'name' ? name : field === 'email' ? email : password)
+			const error = validateField(
+				field,
+				field === 'name' ? name : field === 'email' ? email : password,
+			)
 			if (error) {
 				newErrors[field] = error
 				hasError = true
@@ -110,7 +115,14 @@ export function RegisterPage() {
 
 	const handleBlur = (field: string) => {
 		setTouched((prev) => ({ ...prev, [field]: true }))
-		const value = field === 'name' ? name : field === 'email' ? email : field === 'password' ? password : companyName
+		const value =
+			field === 'name'
+				? name
+				: field === 'email'
+					? email
+					: field === 'password'
+						? password
+						: companyName
 		setErrors((prev) => ({ ...prev, [field]: validateField(field, value) }))
 	}
 

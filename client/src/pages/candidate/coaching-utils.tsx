@@ -72,7 +72,9 @@ export function ScoreBar({
 				{failed ? (
 					<span className='font-bold text-muted-foreground text-xs sm:text-sm'>Failed</span>
 				) : (
-					<span className={`font-bold ${scoreColor(displayScore)} text-sm sm:text-base`}>{displayScore}/10</span>
+					<span className={`font-bold ${scoreColor(displayScore)} text-sm sm:text-base`}>
+						{displayScore}/10
+					</span>
 				)}
 			</div>
 			<div className='h-2 bg-muted rounded-full overflow-hidden'>

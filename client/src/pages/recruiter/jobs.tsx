@@ -546,7 +546,7 @@ export function RecruiterJobsPage() {
 // === JOB DETAIL PANEL (Responsive for mobile & desktop) ===
 function JobDetailPanel({
 	job,
-	onClose,
+	onClose: _onClose,
 	onViewApplicants,
 	onEdit,
 	onToggleStatus,

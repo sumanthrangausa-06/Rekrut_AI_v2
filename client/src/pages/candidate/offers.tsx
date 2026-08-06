@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify'
 import {
 	AlertCircle,
 	Building2,
@@ -13,7 +14,6 @@ import {
 	XCircle,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import DOMPurify from 'dompurify'
 import { EmptyState } from '@/components/domain/empty-state'
 import { Skeleton } from '@/components/domain/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -377,7 +377,10 @@ export function CandidateOffersPage() {
 					</DialogHeader>
 					<div className='space-y-4'>
 						<div className='bg-white rounded-lg border shadow-inner overflow-auto max-h-[70vh]'>
-							<div className='p-8' dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(letterHtml) }} />
+							<div
+								className='p-8'
+								dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(letterHtml) }}
+							/>
 						</div>
 						<div className='flex gap-2 justify-end'>
 							<Button
@@ -386,7 +389,8 @@ export function CandidateOffersPage() {
 									setShowLetter(false)
 									setLetterHtml('')
 								}}
-							 className='min-h-[44px]'>
+								className='min-h-[44px]'
+							>
 								Close
 							</Button>
 							{selectedOffer && ['sent', 'viewed'].includes(selectedOffer.status) && (
@@ -486,7 +490,8 @@ export function CandidateOffersPage() {
 									setSignDialog(false)
 									setSignatureName('')
 								}}
-							 className='min-h-[44px]'>
+								className='min-h-[44px]'
+							>
 								Cancel
 							</Button>
 						</div>
@@ -523,7 +528,11 @@ export function CandidateOffersPage() {
 							)}
 							Confirm Decline
 						</Button>
-						<Button variant='outline' onClick={() => setDeclineDialog(false)} className='min-h-[44px]'>
+						<Button
+							variant='outline'
+							onClick={() => setDeclineDialog(false)}
+							className='min-h-[44px]'
+						>
 							Cancel
 						</Button>
 					</div>

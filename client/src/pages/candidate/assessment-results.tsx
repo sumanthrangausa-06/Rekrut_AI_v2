@@ -108,7 +108,11 @@ export function AssessmentResultsPage() {
 		return (
 			<div className='space-y-6 px-4 sm:px-6'>
 				<div className='flex items-center gap-2'>
-					<Button variant='ghost' onClick={() => navigate('/candidate/assessments')} className='min-h-[44px]'>
+					<Button
+						variant='ghost'
+						onClick={() => navigate('/candidate/assessments')}
+						className='min-h-[44px]'
+					>
 						<ArrowLeft className='h-4 w-4 mr-2' />
 						Back to Assessments
 					</Button>
@@ -154,13 +158,21 @@ export function AssessmentResultsPage() {
 		<div className='space-y-6 px-4 sm:px-6'>
 			<div className='flex items-center justify-between'>
 				<div className='flex items-center gap-2'>
-					<Button variant='ghost' onClick={() => navigate('/candidate/assessments')} className='min-h-[44px]'>
+					<Button
+						variant='ghost'
+						onClick={() => navigate('/candidate/assessments')}
+						className='min-h-[44px]'
+					>
 						<ArrowLeft className='h-4 w-4 mr-2' />
 						Back to Assessments
 					</Button>
 				</div>
 				<div className='flex gap-2'>
-					<Button variant='outline' onClick={() => navigate('/candidate/omniscore')} className='min-h-[44px]'>
+					<Button
+						variant='outline'
+						onClick={() => navigate('/candidate/omniscore')}
+						className='min-h-[44px]'
+					>
 						<Trophy className='h-4 w-4 mr-2' />
 						View OmniScore
 					</Button>
@@ -251,7 +263,9 @@ export function AssessmentResultsPage() {
 				<Card>
 					<CardContent className='pt-6 text-center'>
 						<TrendingUp className='h-8 w-8 text-primary mx-auto mb-2' />
-						<div className='text-2xl sm:text-3xl font-bold'>{result.max_difficulty_reached || 2}/5</div>
+						<div className='text-2xl sm:text-3xl font-bold'>
+							{result.max_difficulty_reached || 2}/5
+						</div>
 						<div className='text-sm text-muted-foreground'>Max Difficulty</div>
 					</CardContent>
 				</Card>

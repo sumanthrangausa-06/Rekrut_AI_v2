@@ -1363,7 +1363,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 					{/* Conversation transcript */}
 					<div className='max-h-[40vh] overflow-y-auto space-y-3 p-3 rounded-lg bg-muted/30'>
 						{mockSession.conversation.map((turn, i) => (
-							<div key={turn.id || `turn-${i}`} className="flex gap-3">
+							<div key={turn.id || `turn-${i}`} className='flex gap-3'>
 								<div
 									className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${
 										turn.role === 'interviewer' ? 'bg-violet-100' : 'bg-green-100'
@@ -1535,11 +1535,21 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 						</h3>
 						<div className='flex items-center gap-2'>
 							{viewingHistorySession && (
-								<Button size='sm' variant='ghost' onClick={backToSetup} className='min-h-[44px] min-w-[44px]'>
+								<Button
+									size='sm'
+									variant='ghost'
+									onClick={backToSetup}
+									className='min-h-[44px] min-w-[44px]'
+								>
 									← Back
 								</Button>
 							)}
-							<Button size='sm' variant='outline' onClick={resetMockInterview} className='min-h-[44px] min-w-[44px]'>
+							<Button
+								size='sm'
+								variant='outline'
+								onClick={resetMockInterview}
+								className='min-h-[44px] min-w-[44px]'
+							>
 								<Plus className='h-3.5 w-3.5 mr-1.5' /> New Interview
 							</Button>
 						</div>
@@ -1649,8 +1659,8 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 											<div className='p-3 rounded-lg bg-green-50 border border-green-100'>
 												<h5 className='text-xs font-semibold text-green-800 mb-1.5'>✓ Strengths</h5>
 												<ul className='space-y-1'>
-													{(mockFeedback as any).content.strengths.map((s: string, i: number) => (
-														<li key={s} className="text-xs text-green-700">
+													{(mockFeedback as any).content.strengths.map((s: string, _i: number) => (
+														<li key={s} className='text-xs text-green-700'>
 															{s}
 														</li>
 													))}
@@ -1662,8 +1672,8 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 												<h5 className='text-xs font-semibold text-amber-800 mb-1.5'>↑ Improve</h5>
 												<ul className='space-y-1'>
 													{(mockFeedback as any).content.improvements.map(
-														(s: string, i: number) => (
-															<li key={s} className="text-xs text-amber-700">
+														(s: string, _i: number) => (
+															<li key={s} className='text-xs text-amber-700'>
 																{s}
 															</li>
 														),
@@ -1677,7 +1687,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 												<ul className='space-y-1'>
 													{(mockFeedback as any).content.specific_tips.map(
 														(s: string, i: number) => (
-															<li key={i} className="text-xs text-blue-700">
+															<li key={i} className='text-xs text-blue-700'>
 																{s}
 															</li>
 														),
@@ -1859,7 +1869,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 												<ul className='space-y-1'>
 													{(mockFeedback as any).communication.tips.map(
 														(tip: string, i: number) => (
-															<li key={i} className="text-xs text-blue-700">
+															<li key={i} className='text-xs text-blue-700'>
 																{tip}
 															</li>
 														),
@@ -2023,7 +2033,10 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 								<h4 className='text-sm font-semibold mb-3'>Question-by-Question Scores</h4>
 								<div className='space-y-2'>
 									{mockFeedback.question_scores.map((qs: any, i: number) => (
-										<div key={qs.question_summary || `qs-${i}`} className="flex items-start gap-3 p-2 rounded-lg bg-muted/30">
+										<div
+											key={qs.question_summary || `qs-${i}`}
+											className='flex items-start gap-3 p-2 rounded-lg bg-muted/30'
+										>
 											<div
 												className={`text-sm font-bold shrink-0 w-10 text-center ${scoreColor(qs.score)}`}
 											>
@@ -2059,7 +2072,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 								</h4>
 								<div className='space-y-3 max-h-[50vh] overflow-y-auto'>
 									{mockSession.conversation.map((turn: any, i: number) => (
-										<div key={turn.id || `turn-${i}`} className="flex gap-3">
+										<div key={turn.id || `turn-${i}`} className='flex gap-3'>
 											<div
 												className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${
 													turn.role === 'interviewer' ? 'bg-violet-100' : 'bg-green-100'
@@ -2129,7 +2142,11 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 										<Brain className='h-3.5 w-3.5' /> Voice & delivery coaching
 									</div>
 								</div>
-								<Button onClick={() => setMockShowSetup(true)} size='lg' className='min-h-[44px] min-w-[44px]'>
+								<Button
+									onClick={() => setMockShowSetup(true)}
+									size='lg'
+									className='min-h-[44px] min-w-[44px]'
+								>
 									<Video className='h-4 w-4 mr-2' /> Start Mock Interview
 								</Button>
 							</CardContent>

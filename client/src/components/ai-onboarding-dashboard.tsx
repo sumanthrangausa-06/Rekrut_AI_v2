@@ -20,7 +20,7 @@ import {
 	User,
 	Users,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -149,32 +149,7 @@ export function AiOnboardingDashboard() {
 	// Expanded phases
 	const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set(['day_1']))
 
-	useEffect(() => {
-		loadPlans()
-	}, [loadPlans])
-
-	useEffect(() => {
-		chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-	}, [])
-
-	async function loadPlans() {
-		try {
-			setLoading(true)
-			const data = await apiCall<OnboardingPlan[]>('/onboarding/plans/mine')
-			setPlans(data)
-			// Auto-load the first active plan
-			if (data.length > 0) {
-				const activePlanItem = data.find((p) => p.status === 'active') || data[0]
-				await loadPlanProgress(activePlanItem.id)
-			}
-		} catch (err: any) {
-			setError(err.message)
-		} finally {
-			setLoading(false)
-		}
-	}
-
-	async function loadPlanProgress(planId: number) {
+	const loadPlanProgress = useCallback(async (planId: number) => {
 		try {
 			setLoadingPlan(true)
 			const data = await apiCall<ProgressData>(`/onboarding/${planId}/progress`)
@@ -189,7 +164,32 @@ export function AiOnboardingDashboard() {
 		} finally {
 			setLoadingPlan(false)
 		}
-	}
+	}, [])
+
+	const loadPlans = useCallback(async () => {
+		try {
+			setLoading(true)
+			const data = await apiCall<OnboardingPlan[]>('/onboarding/plans/mine')
+			setPlans(data)
+			// Auto-load the first active plan
+			if (data.length > 0) {
+				const activePlanItem = data.find((p) => p.status === 'active') || data[0]
+				await loadPlanProgress(activePlanItem.id)
+			}
+		} catch (err: any) {
+			setError(err.message)
+		} finally {
+			setLoading(false)
+		}
+	}, [loadPlanProgress])
+
+	useEffect(() => {
+		loadPlans()
+	}, [loadPlans])
+
+	useEffect(() => {
+		chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+	}, [])
 
 	async function completeTask(taskId: number) {
 		try {
@@ -648,10 +648,10 @@ export function AiOnboardingDashboard() {
 								<div className='relative'>
 									<div className='absolute left-4 top-0 bottom-0 w-0.5 bg-muted' />
 									<div className='space-y-4'>
-										{planData.milestones.map((m, i) => {
+										{planData.milestones.map((m) => {
 											const reached = progress.days_since_start >= m.day
 											return (
-												<div key={i} className='flex items-start gap-4 relative'>
+												<div key={`${m.phase}-${m.day}`} className='flex items-start gap-4 relative'>
 													<div
 														className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 z-10 ${
 															reached ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground'
@@ -764,9 +764,9 @@ function ChatWidget({
 						</div>
 					</div>
 				)}
-				{messages.map((msg, i) => (
+				{messages.map((msg) => (
 					<div
-						key={i}
+						key={`${msg.role}-${msg.timestamp}`}
 						className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
 					>
 						{msg.role === 'assistant' && (

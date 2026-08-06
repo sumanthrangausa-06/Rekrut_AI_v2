@@ -9,6 +9,7 @@ export function Skeleton({ className, count = 1 }: { className?: string; count?:
 	return (
 		<>
 			{Array.from({ length: count }).map((_, i) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholders
 				<div key={i} className={cn('animate-pulse rounded-md bg-muted', className)} />
 			))}
 		</>
@@ -42,13 +43,16 @@ export function SkeletonTable({ rows = 5, cols = 4 }: { rows?: number; cols?: nu
 			{/* Header */}
 			<div className='flex gap-4'>
 				{Array.from({ length: cols }).map((_, i) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
 					<Skeleton key={i} className='h-8 flex-1' />
 				))}
 			</div>
 			{/* Rows */}
 			{Array.from({ length: rows }).map((_, i) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
 				<div key={i} className='flex gap-4'>
 					{Array.from({ length: cols }).map((_, j) => (
+						// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
 						<Skeleton key={j} className='h-12 flex-1' />
 					))}
 				</div>
@@ -61,6 +65,7 @@ export function SkeletonKpiCards({ count = 4 }: { count?: number }) {
 	return (
 		<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
 			{Array.from({ length: count }).map((_, i) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
 				<Card key={i}>
 					<CardContent className='p-4 space-y-3'>
 						<Skeleton className='h-4 w-24' />
@@ -133,6 +138,7 @@ export function RecruiterDashboardSkeleton() {
 			{/* Quick stats */}
 			<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-5'>
 				{Array.from({ length: 5 }).map((_, i) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
 					<Card key={i}>
 						<CardContent className='p-4 space-y-3'>
 							<div className='flex items-center justify-between'>
@@ -154,6 +160,7 @@ export function RecruiterDashboardSkeleton() {
 				<CardContent className='pt-0'>
 					<div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
 						{Array.from({ length: 4 }).map((_, i) => (
+							// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
 							<div key={i} className='flex items-center gap-3 rounded-lg border p-3'>
 								<Skeleton className='h-8 w-8 rounded-md shrink-0' />
 								<div className='min-w-0 flex-1 space-y-2'>
@@ -181,6 +188,7 @@ export function RecruiterDashboardSkeleton() {
 					{/* Horizontal pipeline bar */}
 					<div className='flex items-center gap-1 rounded-lg border bg-card p-4 overflow-x-auto'>
 						{Array.from({ length: 6 }).map((_, i) => (
+							// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
 							<div key={i} className='flex items-center gap-1 shrink-0'>
 								<Skeleton className='h-16 w-[72px] sm:w-[100px] rounded-lg' />
 								{i < 5 && <Skeleton className='h-4 w-4' />}
@@ -190,6 +198,7 @@ export function RecruiterDashboardSkeleton() {
 					{/* Pipeline cards */}
 					<div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
 						{Array.from({ length: 3 }).map((_, i) => (
+							// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
 							<Card key={i}>
 								<CardHeader className='pb-2'>
 									<div className='flex items-center justify-between'>
@@ -199,6 +208,7 @@ export function RecruiterDashboardSkeleton() {
 								</CardHeader>
 								<CardContent className='pt-0 space-y-2'>
 									{Array.from({ length: 3 }).map((_, j) => (
+										// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
 										<div key={j} className='flex items-center gap-2 rounded-md p-2'>
 											<Skeleton className='h-7 w-7 rounded-full shrink-0' />
 											<div className='min-w-0 flex-1 space-y-1'>
@@ -224,6 +234,7 @@ export function RecruiterDashboardSkeleton() {
 						<CardContent className='pt-0'>
 							<div className='space-y-3'>
 								{Array.from({ length: 5 }).map((_, i) => (
+									// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
 									<div key={i} className='flex items-start gap-3 rounded-md p-2'>
 										<Skeleton className='h-8 w-8 rounded-md shrink-0' />
 										<div className='min-w-0 flex-1 space-y-1'>
@@ -245,6 +256,7 @@ export function RecruiterDashboardSkeleton() {
 						</CardHeader>
 						<CardContent className='pt-0 space-y-4'>
 							{Array.from({ length: 4 }).map((_, i) => (
+								// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
 								<div key={i}>
 									<div className='flex items-center justify-between mb-1'>
 										<Skeleton className='h-3 w-24' />
@@ -263,6 +275,7 @@ export function RecruiterDashboardSkeleton() {
 			{/* Quick Actions Bar */}
 			<div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
 				{Array.from({ length: 4 }).map((_, i) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
 					<Card key={i}>
 						<CardContent className='flex items-center gap-3 p-4'>
 							<Skeleton className='h-10 w-10 rounded-lg shrink-0' />

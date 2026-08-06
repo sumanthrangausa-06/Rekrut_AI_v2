@@ -131,9 +131,7 @@ export function RecruiterOnboardingPage() {
 		setError('')
 		try {
 			const docs = await withTimeout(
-				apiCall<CandidateDocument[]>(
-					`/onboarding/recruiter/candidate/${c.candidate_id}/documents`,
-				),
+				apiCall<CandidateDocument[]>(`/onboarding/recruiter/candidate/${c.candidate_id}/documents`),
 				FETCH_TIMEOUT,
 				'Candidate documents',
 			)
@@ -206,7 +204,11 @@ export function RecruiterOnboardingPage() {
 		return (
 			<div className='space-y-6 px-4 sm:px-6'>
 				{/* Back button */}
-				<Button variant='ghost' onClick={() => setSelectedCandidate(null)} className='gap-2 min-h-[44px]'>
+				<Button
+					variant='ghost'
+					onClick={() => setSelectedCandidate(null)}
+					className='gap-2 min-h-[44px]'
+				>
 					<ArrowLeft className='h-4 w-4' />
 					Back to all candidates
 				</Button>
@@ -339,7 +341,8 @@ export function RecruiterOnboardingPage() {
 												size='sm'
 												onClick={() => downloadDocument(doc.id)}
 												title='View / Download'
-											 className="min-h-[44px]">
+												className='min-h-[44px]'
+											>
 												<Download className='h-4 w-4' />
 											</Button>
 										</div>
@@ -445,7 +448,8 @@ export function RecruiterOnboardingPage() {
 											variant={statusFilter === s ? 'default' : 'outline'}
 											size='sm'
 											onClick={() => setStatusFilter(s)}
-										 className="min-h-[44px]">
+											className='min-h-[44px]'
+										>
 											{s === 'all'
 												? 'All'
 												: s === 'in_progress'

@@ -42,7 +42,15 @@ import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/comp
 import { Slider } from '@/components/ui/slider'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/contexts/auth-context'
-import { apiCall, likeJob, unlikeJob, dismissJob, restoreJob, getLikedJobs, getDismissedJobs } from '@/lib/api'
+import {
+	apiCall,
+	dismissJob,
+	getDismissedJobs,
+	getLikedJobs,
+	likeJob,
+	restoreJob,
+	unlikeJob,
+} from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 interface Job {
@@ -921,36 +929,38 @@ export function CandidateJobsPage() {
 																	</Tooltip>
 																)}
 																<button
-																		onClick={(e) => toggleLikeJob(job.id, e)}
-																		className={cn(
-																			'p-1 rounded transition-colors',
-																			likedJobIds.has(job.id)
-																				? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
-																				: 'text-muted-foreground hover:bg-muted hover:text-emerald-600',
-																		)}
-																		aria-label={likedJobIds.has(job.id) ? 'Unlike job' : 'Like job'}
-																	>
-																		<ThumbsUp className='h-4 w-4' />
-																	</button>
-																	<button
-																		onClick={(e) => toggleDismissJob(job.id, e)}
-																		className={cn(
-																			'p-1 rounded transition-colors',
-																			dismissedJobIds.has(job.id)
-																				? 'text-red-600 bg-red-50 hover:bg-red-100'
-																				: activeTab === 'dismissed'
-																					? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
-																					: 'text-muted-foreground hover:bg-muted hover:text-red-600',
-																		)}
-																		aria-label={dismissedJobIds.has(job.id) ? 'Restore job' : 'Dismiss job'}
-																	>
-																		{activeTab === 'dismissed' ? (
-																			<RotateCcw className='h-4 w-4' />
-																		) : (
-																			<X className='h-4 w-4' />
-																		)}
-																	</button>
-																	<button
+																	onClick={(e) => toggleLikeJob(job.id, e)}
+																	className={cn(
+																		'p-1 rounded transition-colors',
+																		likedJobIds.has(job.id)
+																			? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
+																			: 'text-muted-foreground hover:bg-muted hover:text-emerald-600',
+																	)}
+																	aria-label={likedJobIds.has(job.id) ? 'Unlike job' : 'Like job'}
+																>
+																	<ThumbsUp className='h-4 w-4' />
+																</button>
+																<button
+																	onClick={(e) => toggleDismissJob(job.id, e)}
+																	className={cn(
+																		'p-1 rounded transition-colors',
+																		dismissedJobIds.has(job.id)
+																			? 'text-red-600 bg-red-50 hover:bg-red-100'
+																			: activeTab === 'dismissed'
+																				? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
+																				: 'text-muted-foreground hover:bg-muted hover:text-red-600',
+																	)}
+																	aria-label={
+																		dismissedJobIds.has(job.id) ? 'Restore job' : 'Dismiss job'
+																	}
+																>
+																	{activeTab === 'dismissed' ? (
+																		<RotateCcw className='h-4 w-4' />
+																	) : (
+																		<X className='h-4 w-4' />
+																	)}
+																</button>
+																<button
 																	onClick={(e) => toggleSaveJob(job.id, e)}
 																	className='p-1 rounded hover:bg-muted transition-colors'
 																	aria-label={isSaved ? 'Unsave job' : 'Save job'}
@@ -1162,7 +1172,7 @@ function FilterSidebar({
 	clearAllFilters,
 	jobTypes,
 	allSkills,
-	allLocations,
+	allLocations: _allLocations,
 }: {
 	filters: FilterState
 	setSearch: (key: keyof FilterState, value: any) => void

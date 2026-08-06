@@ -286,7 +286,9 @@ export function AdminDashboardPage() {
 									<div className='flex items-center justify-between'>
 										<div>
 											<p className='text-sm font-medium text-slate-400'>System Health</p>
-											<p className='mt-2 text-2xl sm:text-3xl font-bold text-white'>{stats.systemHealth}%</p>
+											<p className='mt-2 text-2xl sm:text-3xl font-bold text-white'>
+												{stats.systemHealth}%
+											</p>
 											<div className='mt-2'>
 												<Progress value={stats.systemHealth} className='h-1.5 bg-slate-700' />
 											</div>
@@ -303,7 +305,9 @@ export function AdminDashboardPage() {
 									<div className='flex items-center justify-between'>
 										<div>
 											<p className='text-sm font-medium text-slate-400'>Recent Signups</p>
-											<p className='mt-2 text-2xl sm:text-3xl font-bold text-white'>{stats.recentSignups}</p>
+											<p className='mt-2 text-2xl sm:text-3xl font-bold text-white'>
+												{stats.recentSignups}
+											</p>
 											<div className='mt-1 flex items-center gap-1 text-xs text-slate-400'>
 												<Zap className='h-3 w-3' />
 												{stats.conversionRate.toFixed(1)}% conversion
@@ -409,7 +413,8 @@ export function AdminDashboardPage() {
 													<ArrowRight className='h-4 w-4 text-slate-500 transition-colors group-hover:text-amber-400' />
 												</div>
 												<p className='mt-1 text-sm text-slate-400'>
-													Audit trail, risk classification, bias detection, and transparency for EU AI Act (Regulation 2024/1689)
+													Audit trail, risk classification, bias detection, and transparency for EU
+													AI Act (Regulation 2024/1689)
 												</p>
 											</div>
 										</div>
@@ -431,7 +436,8 @@ export function AdminDashboardPage() {
 													<ArrowRight className='h-4 w-4 text-slate-500 transition-colors group-hover:text-blue-400' />
 												</div>
 												<p className='mt-1 text-sm text-slate-400'>
-													Monitor email queue status, retry failed emails, and view delivery statistics
+													Monitor email queue status, retry failed emails, and view delivery
+													statistics
 												</p>
 											</div>
 										</div>

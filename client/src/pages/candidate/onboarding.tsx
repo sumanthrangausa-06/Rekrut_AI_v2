@@ -38,7 +38,7 @@ function withTimeout<T>(promise: Promise<T>, ms = FETCH_TIMEOUT, label = 'Reques
 		promise,
 		new Promise<T>((_, reject) =>
 			setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
-			),
+		),
 	])
 }
 
@@ -181,7 +181,7 @@ function NonUSWizardStep({
 	setEcRelationship,
 	bankName,
 	setBankName,
-	stepErrors,
+	stepErrors: _stepErrors,
 }: any) {
 	const updateField = (key: string, value: string) => {
 		setCountryFields((prev: any) => ({ ...prev, [key]: value }))
@@ -1138,7 +1138,11 @@ function NonUSWizardStep({
 				</div>
 				<div>
 					<Label>Last Name *</Label>
-					<Input value={lastName} onChange={(e) => setLastName(e.target.value)} className='mt-1 h-10' />
+					<Input
+						value={lastName}
+						onChange={(e) => setLastName(e.target.value)}
+						className='mt-1 h-10'
+					/>
 				</div>
 			</div>
 			{step === 1 && (
@@ -1361,7 +1365,7 @@ export function CandidateOnboardingPage() {
 
 	useEffect(() => {
 		loadProgress()
-	}, [])
+	}, [loadProgress])
 
 	async function loadProgress() {
 		try {
@@ -1745,7 +1749,7 @@ export function CandidateOnboardingPage() {
 				<Loader2 className='h-8 w-8 animate-spin text-primary' />
 				<p className='text-muted-foreground'>Loading your onboarding...</p>
 			</div>
-			)
+		)
 	}
 
 	// ─── View Toggle (Paperwork vs AI Plan) ──────────────────────────
@@ -1771,7 +1775,7 @@ export function CandidateOnboardingPage() {
 				{viewTabs}
 				<AiOnboardingDashboard />
 			</div>
-			)
+		)
 	}
 
 	// ─── Paperwork View ──────────────────────────────────────────────
@@ -1802,10 +1806,10 @@ export function CandidateOnboardingPage() {
 					</p>
 				</div>
 			</div>
-			)
+		)
 	}
 
-	const checklist = progress.checklist!
+	const checklist = progress.checklist ?? []
 	const wizard = progress.wizard
 
 	// ─── Completed ────────────────────────────────────────────────────
@@ -1877,7 +1881,7 @@ export function CandidateOnboardingPage() {
 					</Card>
 				</div>
 			</div>
-			)
+		)
 	}
 
 	// ─── Active wizard ────────────────────────────────────────────────
@@ -2062,14 +2066,16 @@ export function CandidateOnboardingPage() {
 											value={lastName}
 											onChange={(e) => setLastName(e.target.value)}
 											placeholder='Doe'
-										 className='h-10' />
+											className='h-10'
+										/>
 									</FieldGroup>
 									<FieldGroup label='First Name (Given Name) *' error={stepErrors.firstName}>
 										<Input
 											value={firstName}
 											onChange={(e) => setFirstName(e.target.value)}
 											placeholder='John'
-										 className='h-10' />
+											className='h-10'
+										/>
 									</FieldGroup>
 									<FieldGroup label='Middle Initial'>
 										<Input
@@ -2077,14 +2083,16 @@ export function CandidateOnboardingPage() {
 											onChange={(e) => setMiddleName(e.target.value)}
 											placeholder='M'
 											maxLength={50}
-										 className='h-10' />
+											className='h-10'
+										/>
 									</FieldGroup>
 									<FieldGroup label='Other Last Names Used'>
 										<Input
 											value={otherLastNames}
 											onChange={(e) => setOtherLastNames(e.target.value)}
 											placeholder='Maiden name, etc.'
-										 className='h-10' />
+											className='h-10'
+										/>
 									</FieldGroup>
 								</div>
 
@@ -2100,7 +2108,8 @@ export function CandidateOnboardingPage() {
 													value={address1}
 													onChange={(e) => setAddress1(e.target.value)}
 													placeholder='123 Main St'
-												 className='h-10' />
+													className='h-10'
+												/>
 											</FieldGroup>
 										</div>
 										<FieldGroup label='Apt. Number'>
@@ -2108,14 +2117,16 @@ export function CandidateOnboardingPage() {
 												value={address2}
 												onChange={(e) => setAddress2(e.target.value)}
 												placeholder='Apt 4B'
-											 className='h-10' />
+												className='h-10'
+											/>
 										</FieldGroup>
 										<FieldGroup label='City or Town *' error={stepErrors.city}>
 											<Input
 												value={city}
 												onChange={(e) => setCity(e.target.value)}
 												placeholder='New York'
-											 className='h-10' />
+												className='h-10'
+											/>
 										</FieldGroup>
 									</div>
 									<div className='grid grid-cols-2 sm:grid-cols-4 gap-4'>
@@ -2134,7 +2145,8 @@ export function CandidateOnboardingPage() {
 												value={zip}
 												onChange={(e) => setZip(e.target.value)}
 												placeholder='10001'
-											 className='h-10' />
+												className='h-10'
+											/>
 										</FieldGroup>
 									</div>
 								</div>
@@ -2142,7 +2154,12 @@ export function CandidateOnboardingPage() {
 								{/* Row 3: DOB, SSN, Email, Phone per official I-9 layout */}
 								<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
 									<FieldGroup label='Date of Birth (mm/dd/yyyy) *' error={stepErrors.dob}>
-										<Input type='date' value={dob} onChange={(e) => setDob(e.target.value)}  className='h-10' />
+										<Input
+											type='date'
+											value={dob}
+											onChange={(e) => setDob(e.target.value)}
+											className='h-10'
+										/>
 									</FieldGroup>
 									<FieldGroup label='U.S. Social Security Number *' error={stepErrors.ssn}>
 										<div className='relative'>
@@ -2153,7 +2170,8 @@ export function CandidateOnboardingPage() {
 												placeholder={
 													progress?.wizard?.ssn_encrypted ? '••••••••• (saved)' : 'XXX-XX-XXXX'
 												}
-											 className='h-10' />
+												className='h-10'
+											/>
 											<Lock className='absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
 										</div>
 									</FieldGroup>
@@ -2165,14 +2183,16 @@ export function CandidateOnboardingPage() {
 											value={i9Email}
 											onChange={(e) => setI9Email(e.target.value)}
 											placeholder='john.doe@email.com'
-										 className='h-10' />
+											className='h-10'
+										/>
 									</FieldGroup>
 									<FieldGroup label="Employee's Telephone Number *" error={stepErrors.phone}>
 										<Input
 											value={phone}
 											onChange={(e) => setPhone(e.target.value)}
 											placeholder='(555) 123-4567'
-										 className='h-10' />
+											className='h-10'
+										/>
 									</FieldGroup>
 								</div>
 
@@ -2271,14 +2291,16 @@ export function CandidateOnboardingPage() {
 														value={alienNumber}
 														onChange={(e) => setAlienNumber(e.target.value)}
 														placeholder='A-number (if applicable)'
-													 className='h-10' />
+														className='h-10'
+													/>
 												</FieldGroup>
 												<FieldGroup label='Form I-94 Admission Number'>
 													<Input
 														value={admissionNumber}
 														onChange={(e) => setAdmissionNumber(e.target.value)}
 														placeholder='I-94 number (if applicable)'
-													 className='h-10' />
+														className='h-10'
+													/>
 												</FieldGroup>
 											</div>
 											<div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
@@ -2287,7 +2309,8 @@ export function CandidateOnboardingPage() {
 														value={passportNumber}
 														onChange={(e) => setPassportNumber(e.target.value)}
 														placeholder='Passport number (if applicable)'
-													 className='h-10' />
+														className='h-10'
+													/>
 												</FieldGroup>
 												{passportNumber && (
 													<FieldGroup label='Country of Issuance *'>
@@ -2295,7 +2318,8 @@ export function CandidateOnboardingPage() {
 															value={countryOfIssuance}
 															onChange={(e) => setCountryOfIssuance(e.target.value)}
 															placeholder='Country'
-														 className='h-10' />
+															className='h-10'
+														/>
 													</FieldGroup>
 												)}
 											</div>
@@ -2374,7 +2398,8 @@ export function CandidateOnboardingPage() {
 											value={ecName}
 											onChange={(e) => setEcName(e.target.value)}
 											placeholder='Jane Doe'
-										 className='h-10' />
+											className='h-10'
+										/>
 									</FieldGroup>
 									<FieldGroup label='Relationship *' error={stepErrors.ecRelationship}>
 										<Select
@@ -2399,7 +2424,8 @@ export function CandidateOnboardingPage() {
 											value={ecPhone}
 											onChange={(e) => setEcPhone(e.target.value)}
 											placeholder='(555) 123-4567'
-										 className='h-10' />
+											className='h-10'
+										/>
 									</FieldGroup>
 									<FieldGroup label='Email (optional)'>
 										<Input
@@ -2407,7 +2433,8 @@ export function CandidateOnboardingPage() {
 											value={ecEmail}
 											onChange={(e) => setEcEmail(e.target.value)}
 											placeholder='jane@example.com'
-										 className='h-10' />
+											className='h-10'
+										/>
 									</FieldGroup>
 								</div>
 							</div>
@@ -2440,7 +2467,8 @@ export function CandidateOnboardingPage() {
 											value={bankName}
 											onChange={(e) => setBankName(e.target.value)}
 											placeholder='Chase, Bank of America, etc.'
-										 className='h-10' />
+											className='h-10'
+										/>
 									</FieldGroup>
 									<FieldGroup label='Account Type'>
 										<Select value={accountType} onChange={(e) => setAccountType(e.target.value)}>
@@ -2463,7 +2491,8 @@ export function CandidateOnboardingPage() {
 														? '••••••••• (saved)'
 														: '9 digits'
 												}
-											 className='h-10' />
+												className='h-10'
+											/>
 											<Lock className='absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
 										</div>
 									</FieldGroup>
@@ -2478,7 +2507,8 @@ export function CandidateOnboardingPage() {
 														? '••••••••• (saved)'
 														: 'Account number'
 												}
-											 className='h-10' />
+												className='h-10'
+											/>
 											<Lock className='absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
 										</div>
 									</FieldGroup>
@@ -2506,7 +2536,8 @@ export function CandidateOnboardingPage() {
 											size='sm'
 											onClick={loadW4Guidance}
 											disabled={loadingGuidance}
-										 className='min-h-[44px]'>
+											className='min-h-[44px]'
+										>
 											{loadingGuidance ? (
 												<Loader2 className='h-4 w-4 animate-spin mr-1' />
 											) : (
@@ -2864,7 +2895,11 @@ export function CandidateOnboardingPage() {
 										<p className='text-muted-foreground mb-4'>
 											Documents haven't been generated yet.
 										</p>
-										<Button onClick={generateDocuments} disabled={generatingDocs} className='min-h-[44px]'>
+										<Button
+											onClick={generateDocuments}
+											disabled={generatingDocs}
+											className='min-h-[44px]'
+										>
 											<Sparkles className='h-4 w-4 mr-2' />
 											Generate Documents
 										</Button>
@@ -2937,7 +2972,12 @@ export function CandidateOnboardingPage() {
 														onMouseLeave={stopDrawing}
 													/>
 													<div className='flex justify-end mt-1'>
-														<Button variant='ghost' size='sm' onClick={clearCanvas} className='min-h-[44px]'>
+														<Button
+															variant='ghost'
+															size='sm'
+															onClick={clearCanvas}
+															className='min-h-[44px]'
+														>
 															Clear
 														</Button>
 													</div>
@@ -2975,7 +3015,8 @@ export function CandidateOnboardingPage() {
 									variant='outline'
 									onClick={handleBack}
 									disabled={currentStep === 1 || saving}
-								 className='min-h-[44px]'>
+									className='min-h-[44px]'
+								>
 									<ArrowLeft className='h-4 w-4 mr-2' />
 									Back
 								</Button>

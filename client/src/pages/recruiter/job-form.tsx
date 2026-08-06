@@ -629,7 +629,12 @@ export function RecruiterJobFormPage() {
 
 			{/* Header */}
 			<div className='flex items-center gap-3'>
-				<Button variant='ghost' size='sm' onClick={() => navigate('/recruiter/jobs')} className='min-h-[44px]'>
+				<Button
+					variant='ghost'
+					size='sm'
+					onClick={() => navigate('/recruiter/jobs')}
+					className='min-h-[44px]'
+				>
 					<ArrowLeft className='h-4 w-4' />
 				</Button>
 				<div>
@@ -809,7 +814,7 @@ export function RecruiterJobFormPage() {
 											<X className='h-3 w-3' />
 										</Button>
 									</div>
-									{titleSuggestions.map((s, i) => (
+									{titleSuggestions.map((s, _i) => (
 										<button
 											key={s.title}
 											onClick={() => {
@@ -1051,7 +1056,7 @@ export function RecruiterJobFormPage() {
 										</div>
 										{skillSuggestions.length > 0 && (
 											<div className='flex flex-wrap gap-1.5'>
-												{skillSuggestions.map((s, i) => (
+												{skillSuggestions.map((s, _i) => (
 													<span
 														key={s.skill}
 														className={`text-[11px] rounded-full px-2.5 py-1 border ${
@@ -1070,7 +1075,7 @@ export function RecruiterJobFormPage() {
 										)}
 										{suggestedRequirements.length > 0 && (
 											<div className='text-xs text-muted-foreground space-y-1'>
-												{suggestedRequirements.slice(0, 5).map((r, i) => (
+												{suggestedRequirements.slice(0, 5).map((r, _i) => (
 													<p key={r} className='flex items-start gap-1.5'>
 														<CheckCircle2 className='h-3 w-3 text-violet-400 mt-0.5 shrink-0' />
 														{r}
@@ -1181,11 +1186,16 @@ export function RecruiterJobFormPage() {
 								<div className='mb-4 rounded-lg border bg-muted/30 p-3 space-y-2'>
 									<div className='flex items-center justify-between mb-2'>
 										<p className='text-sm font-medium'>Common Questions</p>
-										<Button variant='ghost' size='sm' onClick={addAllDefaults} className='text-xs min-h-[44px]'>
+										<Button
+											variant='ghost'
+											size='sm'
+											onClick={addAllDefaults}
+											className='text-xs min-h-[44px]'
+										>
 											Add All
 										</Button>
 									</div>
-									{defaultQuestionTemplates.map((t, i) => {
+									{defaultQuestionTemplates.map((t, _i) => {
 										const alreadyAdded = screeningQuestions.some(
 											(q) => q.question.toLowerCase() === t.question.toLowerCase(),
 										)
@@ -1305,7 +1315,8 @@ export function RecruiterJobFormPage() {
 														value={q.question}
 														onChange={(e) => updateQuestion(i, { question: e.target.value })}
 														placeholder={`Question ${i + 1}...`}
-													 className='min-h-[44px]' />
+														className='min-h-[44px]'
+													/>
 													<div className='flex flex-wrap items-center gap-2'>
 														<Select
 															value={q.type}
@@ -1659,7 +1670,10 @@ export function RecruiterJobFormPage() {
 				)}
 				<div className='flex-1' />
 				{step < 3 ? (
-					<Button onClick={nextStep} className='gap-1 bg-indigo-600 hover:bg-indigo-700 min-h-[44px]'>
+					<Button
+						onClick={nextStep}
+						className='gap-1 bg-indigo-600 hover:bg-indigo-700 min-h-[44px]'
+					>
 						Next <ChevronRight className='h-4 w-4' />
 					</Button>
 				) : (

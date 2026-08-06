@@ -314,9 +314,7 @@ export function RecruiterAnalyticsPage() {
 
 		const csv = [
 			headers.join(','),
-			...rows.map((row) =>
-				row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(','),
-			),
+			...rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')),
 		].join('\n')
 
 		const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -349,12 +347,7 @@ export function RecruiterAnalyticsPage() {
 						<option value='90'>Last 90 days</option>
 						<option value='365'>Last year</option>
 					</select>
-					<Button
-						variant='outline'
-						size='sm'
-						className='gap-1 min-h-[44px]'
-						onClick={handleExport}
-					>
+					<Button variant='outline' size='sm' className='gap-1 min-h-[44px]' onClick={handleExport}>
 						<Download className='h-4 w-4' />
 						Export
 					</Button>

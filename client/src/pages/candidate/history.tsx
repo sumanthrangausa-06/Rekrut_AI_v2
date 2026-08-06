@@ -43,12 +43,19 @@ export function HistoryPage() {
 		<div className='space-y-6'>
 			<div className='flex items-center justify-between'>
 				<div className='flex items-center gap-2'>
-					<Button variant='ghost' onClick={() => navigate('/candidate')} className='min-h-[44px] min-w-[44px]'>
+					<Button
+						variant='ghost'
+						onClick={() => navigate('/candidate')}
+						className='min-h-[44px] min-w-[44px]'
+					>
 						<ArrowLeft className='h-4 w-4 mr-2' />
 						Back to Dashboard
 					</Button>
 				</div>
-				<Button onClick={() => navigate('/candidate/ai-coaching')} className='min-h-[44px] min-w-[44px]'>
+				<Button
+					onClick={() => navigate('/candidate/ai-coaching')}
+					className='min-h-[44px] min-w-[44px]'
+				>
 					<Video className='h-4 w-4 mr-2' />
 					New Interview
 				</Button>
@@ -82,7 +89,10 @@ export function HistoryPage() {
 								<p className='text-muted-foreground mb-4'>
 									Start practicing to build your interview history
 								</p>
-								<Button onClick={() => navigate('/candidate/ai-coaching')} className='min-h-[44px] min-w-[44px]'>
+								<Button
+									onClick={() => navigate('/candidate/ai-coaching')}
+									className='min-h-[44px] min-w-[44px]'
+								>
 									<Video className='h-4 w-4 mr-2' />
 									Start Mock Interview
 								</Button>
@@ -200,7 +210,8 @@ function HistoryItem({ interview }: { interview: HistoryInterview }) {
 
 					<Button
 						variant='ghost'
-						size='sm' className='min-h-[44px] min-w-[44px]'
+						size='sm'
+						className='min-h-[44px] min-w-[44px]'
 						onClick={() =>
 							navigate(
 								isCompleted

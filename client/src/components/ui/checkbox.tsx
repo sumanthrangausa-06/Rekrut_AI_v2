@@ -1,4 +1,4 @@
-import * as React from 'react'
+import { useId } from 'react'
 import { cn } from '@/lib/utils'
 
 interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -10,11 +10,12 @@ interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
 	({ className, checked, onCheckedChange, label, id, ...props }, ref) => {
+		// biome-ignore lint/correctness/useHookAtTopLevel: useId is at the top level of the forwardRef render function
+		const uniqueId = id || useId()
 		const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 			onCheckedChange?.(e.target.checked)
 			props.onChange?.(e)
 		}
-		const uniqueId = id || React.useId()
 
 		return (
 			<label

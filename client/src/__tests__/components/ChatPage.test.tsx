@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChatPage } from '@/components/domain/chat'
 
 // Mock the API module
 vi.mock('@/lib/api', () => ({
-  apiCall: vi.fn(() => Promise.reject(new Error('mock')))
+	apiCall: vi.fn(() => Promise.reject(new Error('mock'))),
 }))
 
 import { apiCall } from '@/lib/api'
@@ -13,46 +13,42 @@ import { apiCall } from '@/lib/api'
 const mockApiCall = vi.mocked(apiCall)
 
 function renderWithRouter(component: React.ReactNode) {
-  return render(
-    <BrowserRouter>
-      {component}
-    </BrowserRouter>
-  )
+	return render(<BrowserRouter>{component}</BrowserRouter>)
 }
 
 describe('ChatPage', () => {
-  beforeEach(() => {
-    mockApiCall.mockClear()
-  })
+	beforeEach(() => {
+		mockApiCall.mockClear()
+	})
 
-  it('renders chat interface', async () => {
-    renderWithRouter(<ChatPage mode='candidate' />)
-    expect(await screen.findByPlaceholderText(/type a message/i)).toBeInTheDocument()
-  })
+	it('renders chat interface', async () => {
+		renderWithRouter(<ChatPage mode='candidate' />)
+		expect(await screen.findByPlaceholderText(/type a message/i)).toBeInTheDocument()
+	})
 
-  it('displays conversation list from mock data', async () => {
-    renderWithRouter(<ChatPage mode='candidate' />)
+	it('displays conversation list from mock data', async () => {
+		renderWithRouter(<ChatPage mode='candidate' />)
 
-    await waitFor(() => {
-      expect(screen.getByText('Messages')).toBeInTheDocument()
-    })
-  })
+		await waitFor(() => {
+			expect(screen.getByText('Messages')).toBeInTheDocument()
+		})
+	})
 
-  it.skip('sends message', async () => {
-    // Skipped: requires complex socket/API mocking
-  })
+	it.skip('sends message', async () => {
+		// Skipped: requires complex socket/API mocking
+	})
 
-  it('shows file attachment button', async () => {
-    renderWithRouter(<ChatPage mode='candidate' />)
-    await waitFor(() => expect(screen.getByTitle('Attach file')).toBeInTheDocument())
-  })
+	it('shows file attachment button', async () => {
+		renderWithRouter(<ChatPage mode='candidate' />)
+		await waitFor(() => expect(screen.getByTitle('Attach file')).toBeInTheDocument())
+	})
 
-  it('shows video call button', async () => {
-    renderWithRouter(<ChatPage mode='candidate' />)
-    await waitFor(() => expect(screen.getByTitle('Video call')).toBeInTheDocument())
-  })
+	it('shows video call button', async () => {
+		renderWithRouter(<ChatPage mode='candidate' />)
+		await waitFor(() => expect(screen.getByTitle('Video call')).toBeInTheDocument())
+	})
 
-  it.skip('handles API errors', async () => {
-    // Skipped: component falls back to mock data
-  })
+	it.skip('handles API errors', async () => {
+		// Skipped: component falls back to mock data
+	})
 })

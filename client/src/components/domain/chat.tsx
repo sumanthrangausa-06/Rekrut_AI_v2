@@ -17,7 +17,7 @@ import {
 	Video,
 	X,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -122,6 +122,49 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 
 	const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
 
+	const loadConversations = useCallback(async () => {
+		setLoading(true)
+		try {
+			const endpoint =
+				mode === 'candidate' ? '/candidate/conversations' : '/recruiter/conversations'
+			const data = await apiCall<any>(endpoint)
+			const convs = data.conversations || data || []
+			setConversations(convs)
+			if (convs.length > 0 && !activeConv) {
+				setActiveConv(convs[0].id)
+			}
+		} catch {
+			// Mock data for demo
+			setConversations(getMockConversations(mode))
+			if (!activeConv) setActiveConv(1)
+		} finally {
+			setLoading(false)
+		}
+	}, [mode, activeConv])
+
+	const loadMessages = useCallback(async (convId: number) => {
+		try {
+			const data = await apiCall<any>(`/conversations/${convId}/messages`)
+			setMessages(data.messages || data || [])
+		} catch {
+			setMessages(getMockMessages(convId, mode))
+		}
+	}, [mode])
+
+	const pollNewMessages = useCallback(async (convId: number) => {
+		try {
+			const data = await apiCall<any>(
+				`/conversations/${convId}/messages?after=${messages.length > 0 ? messages[messages.length - 1].id : 0}`,
+			)
+			const newMessages = data.messages || data || []
+			if (newMessages.length > 0) {
+				setMessages((prev) => [...prev, ...newMessages])
+			}
+		} catch {
+			// silent fail on polling
+		}
+	}, [messages])
+
 	// Load conversations
 	useEffect(() => {
 		loadConversations()
@@ -168,49 +211,6 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 		}, 3000)
 		return () => clearTimeout(timer)
 	}, [activeConv, conversations.find])
-
-	async function loadConversations() {
-		setLoading(true)
-		try {
-			const endpoint =
-				mode === 'candidate' ? '/candidate/conversations' : '/recruiter/conversations'
-			const data = await apiCall<any>(endpoint)
-			const convs = data.conversations || data || []
-			setConversations(convs)
-			if (convs.length > 0 && !activeConv) {
-				setActiveConv(convs[0].id)
-			}
-		} catch {
-			// Mock data for demo
-			setConversations(getMockConversations(mode))
-			if (!activeConv) setActiveConv(1)
-		} finally {
-			setLoading(false)
-		}
-	}
-
-	async function loadMessages(convId: number) {
-		try {
-			const data = await apiCall<any>(`/conversations/${convId}/messages`)
-			setMessages(data.messages || data || [])
-		} catch {
-			setMessages(getMockMessages(convId, mode))
-		}
-	}
-
-	async function pollNewMessages(convId: number) {
-		try {
-			const data = await apiCall<any>(
-				`/conversations/${convId}/messages?after=${messages.length > 0 ? messages[messages.length - 1].id : 0}`,
-			)
-			const newMessages = data.messages || data || []
-			if (newMessages.length > 0) {
-				setMessages((prev) => [...prev, ...newMessages])
-			}
-		} catch {
-			// silent fail on polling
-		}
-	}
 
 	async function sendMessage() {
 		if (!inputText.trim() || !activeConv) return

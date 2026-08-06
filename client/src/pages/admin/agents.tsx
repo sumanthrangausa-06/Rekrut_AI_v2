@@ -14,7 +14,7 @@ import {
 	XCircle,
 	Zap,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ChartCard } from '@/components/domain/chart-card'
 import { EmptyState } from '@/components/domain/empty-state'
 import { Skeleton } from '@/components/domain/skeleton'
@@ -137,7 +137,7 @@ export function AdminAgentsDashboardPage() {
 	const [searchQuery, setSearchQuery] = useState('')
 	const [statusFilter, setStatusFilter] = useState<string>('all')
 
-	const loadData = async () => {
+	const loadData = useCallback(async () => {
 		setLoading(true)
 		try {
 			const [agentsData, runsData, statsData] = await Promise.all([
@@ -157,7 +157,7 @@ export function AdminAgentsDashboardPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
 
 	useEffect(() => {
 		loadData()

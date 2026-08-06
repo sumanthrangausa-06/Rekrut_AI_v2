@@ -71,9 +71,10 @@ export function CandidateScreeningPage() {
 
 	useEffect(() => {
 		if (screening?.expires_at && screening.status === 'in_progress') {
+			const expiresAt = screening.expires_at
 			timerRef.current = setInterval(() => {
-				setTimeRemaining(formatTimeRemaining(screening.expires_at!))
-				if (new Date(screening.expires_at!).getTime() <= Date.now()) {
+				setTimeRemaining(formatTimeRemaining(expiresAt))
+				if (new Date(expiresAt).getTime() <= Date.now()) {
 					if (timerRef.current) clearInterval(timerRef.current)
 					setError('This screening session has expired.')
 				}
@@ -406,14 +407,14 @@ export function CandidateScreeningPage() {
 										<Button
 											variant='outline'
 											onClick={() => setCurrentQuestion((prev) => prev - 1)}
-									className='min-h-[44px]'
+											className='min-h-[44px]'
 										>
 											Previous
 										</Button>
 									)}
 									<Button
 										onClick={() => submitAnswer(question.id)}
-									className='min-h-[44px]'
+										className='min-h-[44px]'
 										disabled={submitting || !answers[question.id]?.trim()}
 									>
 										{submitting ? (

@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify'
 import {
 	AlertCircle,
 	Ban,
@@ -18,7 +19,6 @@ import {
 	XCircle,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import DOMPurify from 'dompurify'
 import { useSearchParams } from 'react-router-dom'
 import { EmptyState } from '@/components/domain/empty-state'
 import { Skeleton } from '@/components/domain/skeleton'
@@ -387,7 +387,8 @@ export function RecruiterOffersPage() {
 					variant={!statusFilter ? 'default' : 'outline'}
 					size='sm'
 					onClick={() => setStatusFilter('')}
-				 className="min-h-[44px]">
+					className='min-h-[44px]'
+				>
 					All ({offers.length})
 				</Button>
 				{allStatuses.map((s) =>
@@ -397,7 +398,8 @@ export function RecruiterOffersPage() {
 							variant={statusFilter === s ? 'default' : 'outline'}
 							size='sm'
 							onClick={() => setStatusFilter(s)}
-						 className="min-h-[44px]">
+							className='min-h-[44px]'
+						>
 							{statusConfig[s]?.label || s} ({statusCounts[s]})
 						</Button>
 					) : null,
@@ -730,7 +732,11 @@ export function RecruiterOffersPage() {
 					<div className='space-y-4'>
 						{/* Letter preview in a document-style container */}
 						<div className='bg-white rounded-lg border shadow-inner overflow-auto max-h-[70vh]'>
-							<div className='p-8' dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewHtml) }} />
+							<div
+								className='p-8'
+								// biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized with DOMPurify
+								dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewHtml) }}
+							/>
 						</div>
 						<div className='flex gap-2 justify-end'>
 							<Button
@@ -801,7 +807,11 @@ export function RecruiterOffersPage() {
 						</div>
 						<div>
 							<Label>Job Position *</Label>
-							<Select value={jobId} onChange={(e) => setJobId(e.target.value)} className='mt-1 min-h-[44px]'>
+							<Select
+								value={jobId}
+								onChange={(e) => setJobId(e.target.value)}
+								className='mt-1 min-h-[44px]'
+							>
 								<option value=''>Select job...</option>
 								{jobs.map((j) => (
 									<option key={j.id} value={j.id}>
@@ -899,7 +909,8 @@ export function RecruiterOffersPage() {
 								setShowCreate(false)
 								resetForm()
 							}}
-						 className="min-h-[44px]">
+							className='min-h-[44px]'
+						>
 							Cancel
 						</Button>
 					</div>

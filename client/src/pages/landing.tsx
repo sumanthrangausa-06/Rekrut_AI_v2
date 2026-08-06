@@ -601,7 +601,7 @@ function HeroSection() {
 										{ name: 'Product Manager at Netflix', score: 91, match: 'Strong fit' },
 										{ name: 'UX Designer at Airbnb', score: 89, match: 'Great fit' },
 									].map((job) => (
-										<div className='flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2'>
+										<div key={job.name} className='flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2'>
 											<div className='flex items-center gap-3 min-w-0 overflow-hidden'>
 												<div className='flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary shrink-0'>
 													{job.name

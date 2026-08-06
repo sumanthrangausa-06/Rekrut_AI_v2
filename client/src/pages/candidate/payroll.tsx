@@ -10,7 +10,7 @@ import {
 	Receipt,
 	TrendingDown,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -121,16 +121,20 @@ export function CandidatePayrollPage() {
 	const [bankRouting, setBankRouting] = useState('')
 	const [savingBank, setSavingBank] = useState(false)
 
-	useEffect(() => {
-		loadAll()
-	}, [])
-
-	async function loadAll() {
+	const loadAll = useCallback(async () => {
 		setLoading(true)
 		try {
 			const [profileRes, checksRes] = await Promise.allSettled([
-				withTimeout(apiCall<{ profile: PayrollProfile }>('/payroll/employee/profile'), FETCH_TIMEOUT, 'Payroll profile'),
-				withTimeout(apiCall<{ paychecks: Paycheck[] }>('/payroll/employee/paychecks'), FETCH_TIMEOUT, 'Paychecks'),
+				withTimeout(
+					apiCall<{ profile: PayrollProfile }>('/payroll/employee/profile'),
+					FETCH_TIMEOUT,
+					'Payroll profile',
+				),
+				withTimeout(
+					apiCall<{ paychecks: Paycheck[] }>('/payroll/employee/paychecks'),
+					FETCH_TIMEOUT,
+					'Paychecks',
+				),
 			])
 
 			if (profileRes.status === 'fulfilled') {
@@ -147,7 +151,11 @@ export function CandidatePayrollPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
+
+	useEffect(() => {
+		loadAll()
+	}, [loadAll])
 
 	async function saveBankDetails() {
 		setSavingBank(true)

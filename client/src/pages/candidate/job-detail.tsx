@@ -29,7 +29,7 @@ import {
 	X,
 	Zap,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Skeleton } from '@/components/domain/skeleton'
 import { Avatar } from '@/components/ui/avatar'
@@ -129,6 +129,60 @@ export function CandidateJobDetailPage() {
 	const [isPlaying, setIsPlaying] = useState(false)
 	const audioRef = useRef<HTMLAudioElement | null>(null)
 
+	const loadJob = useCallback(async () => {
+		try {
+			const data = await apiCall<{ job: Job }>(`/jobs/${id}`)
+			setJob(data.job)
+		} catch {
+		} finally {
+			setLoading(false)
+		}
+	}, [id])
+
+	const checkSaved = useCallback(async () => {
+		try {
+			const data = await apiCall<{ saved_jobs: { job_id: number }[] }>('/candidate/saved-jobs')
+			if (data.saved_jobs?.some((sj) => sj.job_id === Number(id))) setSaved(true)
+		} catch {}
+	}, [id])
+
+	const loadProfileCompleteness = useCallback(async () => {
+		try {
+			const data = await apiCall<{ profile: { completeness: number } }>('/candidate/profile')
+			setProfileCompleteness(data.profile?.completeness || 0)
+		} catch {}
+	}, [])
+
+	const loadJobAssessment = useCallback(async () => {
+		try {
+			const data = await apiCall<{ assessment: any }>(`/assessments/job/${id}`)
+			if (data.assessment?.status === 'published') setJobAssessment(data.assessment)
+		} catch {}
+	}, [id])
+
+	const checkIfApplied = useCallback(async () => {
+		try {
+			const data = await apiCall<{ success: boolean; applications: { job_id: number }[] }>(
+				'/candidate/applications',
+			)
+			if (data.applications?.some((a) => a.job_id === Number(id))) setApplied(true)
+		} catch {}
+	}, [id])
+
+	const loadMatchBreakdown = useCallback(async () => {
+		if (!user || !id) return
+		setLoadingMatch(true)
+		try {
+			const data = await apiCall<{ success: boolean; breakdown: any }>(
+				`/memory/match-breakdown/${user.id}/${id}`,
+			)
+			if (data.breakdown) setMatchBreakdown(data.breakdown)
+		} catch {
+		} finally {
+			setLoadingMatch(false)
+		}
+	}, [user, id])
+
 	useEffect(() => {
 		loadJob()
 		if (user) {
@@ -147,16 +201,6 @@ export function CandidateJobDetailPage() {
 		loadJobAssessment,
 		checkIfApplied,
 	])
-
-	async function loadJob() {
-		try {
-			const data = await apiCall<{ job: Job }>(`/jobs/${id}`)
-			setJob(data.job)
-		} catch {
-		} finally {
-			setLoading(false)
-		}
-	}
 
 	async function handleListen() {
 		if (!job) return
@@ -194,20 +238,6 @@ export function CandidateJobDetailPage() {
 		setIsPlaying(false)
 	}
 
-	async function checkSaved() {
-		try {
-			const data = await apiCall<{ saved_jobs: { job_id: number }[] }>('/candidate/saved-jobs')
-			if (data.saved_jobs?.some((sj) => sj.job_id === Number(id))) setSaved(true)
-		} catch {}
-	}
-
-	async function loadProfileCompleteness() {
-		try {
-			const data = await apiCall<{ profile: { completeness: number } }>('/candidate/profile')
-			setProfileCompleteness(data.profile?.completeness || 0)
-		} catch {}
-	}
-
 	async function toggleSave() {
 		try {
 			if (saved) {
@@ -220,37 +250,7 @@ export function CandidateJobDetailPage() {
 		} catch {}
 	}
 
-	async function loadJobAssessment() {
-		try {
-			const data = await apiCall<{ assessment: any }>(`/assessments/job/${id}`)
-			if (data.assessment?.status === 'published') setJobAssessment(data.assessment)
-		} catch {}
-	}
-
-	async function checkIfApplied() {
-		try {
-			const data = await apiCall<{ success: boolean; applications: { job_id: number }[] }>(
-				'/candidate/applications',
-			)
-			if (data.applications?.some((a) => a.job_id === Number(id))) setApplied(true)
-		} catch {}
-	}
-
-	async function loadMatchBreakdown() {
-		if (!user || !id) return
-		setLoadingMatch(true)
-		try {
-			const data = await apiCall<{ success: boolean; breakdown: any }>(
-				`/memory/match-breakdown/${user.id}/${id}`,
-			)
-			if (data.breakdown) setMatchBreakdown(data.breakdown)
-		} catch {
-		} finally {
-			setLoadingMatch(false)
-		}
-	}
-
-	async function loadAutoFill() {
+	const loadAutoFill = useCallback(async () => {
 		if (!user || !id) return
 		try {
 			const data = await apiCall<{ success: boolean; auto_fill: AutoFillData }>(
@@ -271,7 +271,7 @@ export function CandidateJobDetailPage() {
 				setAutoFillSources(sources)
 			}
 		} catch {}
-	}
+	}, [user, id, coverLetter, screeningAnswers])
 
 	useEffect(() => {
 		if (showApplyForm && user) loadAutoFill()
@@ -875,7 +875,7 @@ export function CandidateJobDetailPage() {
 										</div>
 										<p className='text-sm text-green-700'>{tailoredDocs.match_summary}</p>
 										<div className='flex flex-wrap gap-1.5 mt-2'>
-											{tailoredDocs.key_strengths.map((s, i) => (
+											{tailoredDocs.key_strengths.map((s, _i) => (
 												<Badge
 													key={s}
 													variant='outline'
@@ -1090,7 +1090,7 @@ export function CandidateJobDetailPage() {
 								</div>
 								{reviewResult.strengths?.length > 0 && (
 									<div className='space-y-0.5'>
-										{reviewResult.strengths.slice(0, 2).map((s: string, i: number) => (
+										{reviewResult.strengths.slice(0, 2).map((s: string, _i: number) => (
 											<p key={s} className='text-xs text-green-700 flex items-center gap-1'>
 												<CheckCircle className='h-3 w-3 shrink-0' />
 												{s}

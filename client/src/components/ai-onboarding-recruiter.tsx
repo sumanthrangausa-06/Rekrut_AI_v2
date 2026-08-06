@@ -16,7 +16,7 @@ import {
 	User,
 	Users as UsersIcon,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -132,12 +132,7 @@ export function AiOnboardingRecruiter() {
 	const [candidates, setCandidates] = useState<Candidate[]>([])
 	const [jobs, setJobs] = useState<Job[]>([])
 
-	useEffect(() => {
-		loadPlans()
-		loadCandidatesAndJobs()
-	}, [loadPlans, loadCandidatesAndJobs])
-
-	async function loadPlans() {
+	const loadPlans = useCallback(async () => {
 		try {
 			setLoading(true)
 			const data = await apiCall<OnboardingPlan[]>('/onboarding/plans/list')
@@ -147,9 +142,9 @@ export function AiOnboardingRecruiter() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
 
-	async function loadCandidatesAndJobs() {
+	const loadCandidatesAndJobs = useCallback(async () => {
 		try {
 			const [cands, jobsList] = await Promise.all([
 				apiCall<Candidate[]>('/candidate/list').catch(() => []),
@@ -160,7 +155,12 @@ export function AiOnboardingRecruiter() {
 		} catch {
 			/* non-fatal */
 		}
-	}
+	}, [])
+
+	useEffect(() => {
+		loadPlans()
+		loadCandidatesAndJobs()
+	}, [loadPlans, loadCandidatesAndJobs])
 
 	async function generatePlan() {
 		if (!roleTitle.trim()) {

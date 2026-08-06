@@ -324,7 +324,7 @@ export function InterviewAnalysisPage() {
 											Improvement Suggestions
 										</h4>
 										<ul className='space-y-1'>
-											{suggestions.map((s, i) => (
+											{suggestions.map((s, _i) => (
 												<li key={s} className='text-sm text-amber-800'>
 													• {s}
 												</li>

@@ -8,7 +8,6 @@ import {
 	MapPin,
 	RotateCcw,
 	Star,
-	ThumbsDown,
 	ThumbsUp,
 	TrendingUp,
 	X,
@@ -57,7 +56,7 @@ function formatSalary(min?: number, max?: number, currency = 'USD', period = 'ye
 	const periodLabel = period === 'year' ? '/yr' : period === 'month' ? '/mo' : '/hr'
 	if (min && max) return `${fmt.format(min)} – ${fmt.format(max)}${periodLabel}`
 	if (min) return `${fmt.format(min)}+${periodLabel}`
-	return `Up to ${fmt.format(max!)}${periodLabel}`
+	return `Up to ${fmt.format(max ?? 0)}${periodLabel}`
 }
 
 function locationLabel(type: string): string {
@@ -192,11 +191,7 @@ export function JobCard({
 							)}
 							aria-label={mode === 'trash' ? 'Restore job' : 'Dismiss job'}
 						>
-							{mode === 'trash' ? (
-								<RotateCcw className='h-4 w-4' />
-							) : (
-								<X className='h-4 w-4' />
-							)}
+							{mode === 'trash' ? <RotateCcw className='h-4 w-4' /> : <X className='h-4 w-4' />}
 						</button>
 						<button
 							type='button'

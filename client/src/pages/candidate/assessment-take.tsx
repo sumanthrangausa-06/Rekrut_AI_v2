@@ -55,11 +55,7 @@ export function AssessmentTakePage() {
 	const [maxDifficulty, setMaxDifficulty] = useState(0)
 	const startTimeRef = useRef(Date.now())
 
-	useEffect(() => {
-		loadSession()
-	}, [loadSession])
-
-	async function loadSession() {
+	const loadSession = useCallback(async () => {
 		try {
 			// Try sessionStorage first (set by assessments page when starting)
 			const stored = sessionStorage.getItem(`assessment_${sessionId}`)
@@ -101,7 +97,11 @@ export function AssessmentTakePage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [sessionId, navigate])
+
+	useEffect(() => {
+		loadSession()
+	}, [loadSession])
 
 	const handleSubmit = useCallback(
 		async (timedOut = false) => {

@@ -17,7 +17,7 @@ import {
 	Upload,
 	User,
 } from 'lucide-react'
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -48,7 +48,7 @@ interface PrivacySettings {
 
 export function SettingsPage() {
 	const { user, logout } = useAuth()
-	const { theme, toggleTheme, setTheme } = useTheme()
+	const { theme, setTheme } = useTheme()
 	const [activeTab, setActiveTab] = useState('profile')
 	const [saving, setSaving] = useState(false)
 	const [saved, setSaved] = useState(false)
@@ -103,13 +103,7 @@ export function SettingsPage() {
 	const [billingError, setBillingError] = useState<string | null>(null)
 	const [cancelLoading, setCancelLoading] = useState(false)
 
-	useEffect(() => {
-		trackEvent('page_view_settings')
-		loadSettings()
-		loadBilling()
-	}, [loadSettings, loadBilling])
-
-	async function loadSettings() {
+	const loadSettings = useCallback(async () => {
 		try {
 			const data = await apiCall<{
 				profile?: { bio?: string; location?: string }
@@ -125,9 +119,9 @@ export function SettingsPage() {
 		} catch (_err) {
 			// Use defaults if API fails
 		}
-	}
+	}, [])
 
-	async function loadBilling() {
+	const loadBilling = useCallback(async () => {
 		setBillingLoading(true)
 		setBillingError(null)
 		try {
@@ -143,7 +137,13 @@ export function SettingsPage() {
 		} finally {
 			setBillingLoading(false)
 		}
-	}
+	}, [])
+
+	useEffect(() => {
+		trackEvent('page_view_settings')
+		loadSettings()
+		loadBilling()
+	}, [loadSettings, loadBilling])
 
 	async function handleCancelSubscription() {
 		if (

@@ -5,8 +5,8 @@ import {
 	Briefcase,
 	Building2,
 	ClipboardList,
-	Crown,
 	CreditCard,
+	Crown,
 	DollarSign,
 	File,
 	FileText,
@@ -60,8 +60,19 @@ const candidateSections: NavSection[] = [
 			{ label: 'Dashboard', href: '/candidate', icon: LayoutDashboard },
 			{ label: 'Job Board', href: '/candidate/jobs', icon: Briefcase, count: 0 },
 			{ label: 'Applications', href: '/candidate/applications', icon: FileText, count: 0 },
-			{ label: 'Top Matches', href: '/candidate/top-matches', icon: Sparkles, count: 0, isNew: true },
-			{ label: 'Company Matches', href: '/candidate/company-matches', icon: Building2, isNew: true },
+			{
+				label: 'Top Matches',
+				href: '/candidate/top-matches',
+				icon: Sparkles,
+				count: 0,
+				isNew: true,
+			},
+			{
+				label: 'Company Matches',
+				href: '/candidate/company-matches',
+				icon: Building2,
+				isNew: true,
+			},
 			{ label: 'Saved Jobs', href: '/candidate/saved-jobs', icon: Bookmark, count: 0 },
 			{ label: 'AI Search', href: '/candidate/ai-search', icon: Brain },
 		],
@@ -71,7 +82,12 @@ const candidateSections: NavSection[] = [
 		items: [
 			{ label: 'Profile', href: '/candidate/profile', icon: User },
 			{ label: 'CV Review', href: '/candidate/cv-review', icon: FileText, isNew: true },
-			{ label: 'LinkedIn Optimizer', href: '/candidate/linkedin-optimizer', icon: Linkedin, isNew: true },
+			{
+				label: 'LinkedIn Optimizer',
+				href: '/candidate/linkedin-optimizer',
+				icon: Linkedin,
+				isNew: true,
+			},
 			{ label: 'Career Diagnosis', href: '/candidate/career-diagnosis', icon: Target, isNew: true },
 			{ label: 'Coaching', href: '/candidate/ai-coaching', icon: MessageSquare },
 			{ label: 'Assessments', href: '/candidate/assessments', icon: GraduationCap },
@@ -113,13 +129,13 @@ const recruiterNav: NavItem[] = [
 
 export function Sidebar({ open, onClose }: SidebarProps) {
 	const { isRecruiter, user, logout } = useAuth()
-	const location = useLocation()
+	const _location = useLocation()
 
 	// Close mobile sidebar on route change
 	useEffect(() => {
 		onClose()
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [location.pathname])
+	}, [onClose])
 
 	const isProUser = (user as any)?.subscription_tier === 'pro' || (user as any)?.plan === 'pro'
 	const showUpgradeCta = !isRecruiter && !isProUser

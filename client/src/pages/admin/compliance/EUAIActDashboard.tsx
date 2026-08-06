@@ -24,10 +24,8 @@ import {
 	HardDrive,
 	ListChecks,
 	Lock,
-	MonitorSmartphone,
 	MousePointerClick,
 	ScrollText,
-	Server,
 	Settings,
 	Share2,
 	Shield,
@@ -288,35 +286,50 @@ export function EUAIActDashboard() {
 		async function loadCompliance() {
 			setLoading(true)
 			try {
-				const [decisionsData, biasData, riskData, explanationsData, overridesData, checklistData, processingData, requestsData, consentData] =
-					await Promise.all([
-						apiCall<{ decisions: ComplianceDecision[] }>('/admin/compliance/decisions'),
-						apiCall<{ report: BiasReport }>('/admin/compliance/bias-report').catch(() => ({
-							report: null,
-						})),
-						apiCall<{ classifications: RiskClassification[] }>(
-							'/admin/compliance/risk-classifications',
-						).catch(() => ({ classifications: [] })),
-						apiCall<{ explanations: ExplainabilityLog[] }>('/admin/compliance/explanations').catch(
-							() => ({ explanations: [] }),
-						),
-						apiCall<{ overrides: HumanOverride[]; summary: OverrideSummary }>(
-							'/admin/compliance/overrides',
-						).catch(() => ({ overrides: [], summary: null })),
-						apiCall<{ checklist: RiskChecklistItem[]; summary: RiskChecklistSummary }>(
-							'/admin/compliance/risk-checklist',
-						).catch(() => ({ checklist: [], summary: null })),
-						apiCall<{ activities: DataProcessingActivity[] }>('/admin/compliance/data-processing').catch(() => ({
-							activities: [],
-						})),
-						apiCall<{ requests: DataSubjectRequest[] }>('/admin/compliance/data-requests').catch(() => ({
+				const [
+					decisionsData,
+					biasData,
+					riskData,
+					explanationsData,
+					overridesData,
+					checklistData,
+					processingData,
+					requestsData,
+					consentData,
+				] = await Promise.all([
+					apiCall<{ decisions: ComplianceDecision[] }>('/admin/compliance/decisions'),
+					apiCall<{ report: BiasReport }>('/admin/compliance/bias-report').catch(() => ({
+						report: null,
+					})),
+					apiCall<{ classifications: RiskClassification[] }>(
+						'/admin/compliance/risk-classifications',
+					).catch(() => ({ classifications: [] })),
+					apiCall<{ explanations: ExplainabilityLog[] }>('/admin/compliance/explanations').catch(
+						() => ({ explanations: [] }),
+					),
+					apiCall<{ overrides: HumanOverride[]; summary: OverrideSummary }>(
+						'/admin/compliance/overrides',
+					).catch(() => ({ overrides: [], summary: null })),
+					apiCall<{ checklist: RiskChecklistItem[]; summary: RiskChecklistSummary }>(
+						'/admin/compliance/risk-checklist',
+					).catch(() => ({ checklist: [], summary: null })),
+					apiCall<{ activities: DataProcessingActivity[] }>(
+						'/admin/compliance/data-processing',
+					).catch(() => ({
+						activities: [],
+					})),
+					apiCall<{ requests: DataSubjectRequest[] }>('/admin/compliance/data-requests').catch(
+						() => ({
 							requests: [],
-						})),
-						apiCall<{ records: ConsentRecord[]; summary: ConsentSummary }>('/admin/compliance/consent').catch(() => ({
-							records: [],
-							summary: null,
-						})),
-					])
+						}),
+					),
+					apiCall<{ records: ConsentRecord[]; summary: ConsentSummary }>(
+						'/admin/compliance/consent',
+					).catch(() => ({
+						records: [],
+						summary: null,
+					})),
+				])
 				setDecisions(decisionsData.decisions || [])
 				setBiasReport(biasData.report)
 				setRiskClasses(riskData.classifications || [])
@@ -736,7 +749,7 @@ export function EUAIActDashboard() {
 									</CardHeader>
 									<CardContent>
 										<ul className='space-y-2'>
-											{biasReport.topConcerns.map((concern, i) => (
+											{biasReport.topConcerns.map((concern, _i) => (
 												<li key={concern} className='flex items-start gap-2 text-sm'>
 													<AlertTriangle className='h-4 w-4 text-amber-500 mt-0.5 shrink-0' />
 													{concern}
@@ -754,7 +767,7 @@ export function EUAIActDashboard() {
 									</CardHeader>
 									<CardContent>
 										<ul className='space-y-2'>
-											{biasReport.improvements.map((item, i) => (
+											{biasReport.improvements.map((item, _i) => (
 												<li key={item} className='flex items-start gap-2 text-sm'>
 													<CheckCircle className='h-4 w-4 text-green-500 mt-0.5 shrink-0' />
 													{item}
@@ -1264,10 +1277,7 @@ export function EUAIActDashboard() {
 											</div>
 										</div>
 										{activity.crossBorder && (
-											<Badge
-												variant='outline'
-												className='text-amber-600 border-amber-200'
-											>
+											<Badge variant='outline' className='text-amber-600 border-amber-200'>
 												<Globe className='h-3 w-3 mr-1' />
 												Cross-Border Transfer
 											</Badge>
@@ -1312,12 +1322,16 @@ export function EUAIActDashboard() {
 								/>
 								<ChartCard
 									title='Overdue'
-									value={dataRequests.filter((r) => new Date(r.responseDeadline) < new Date() && r.status !== 'completed').length}
+									value={
+										dataRequests.filter(
+											(r) => new Date(r.responseDeadline) < new Date() && r.status !== 'completed',
+										).length
+									}
 									icon={<AlertTriangle className='h-4 w-4' />}
-										trend='down'
-										trendValue='Urgent'
-									/>
-								</div>
+									trend='down'
+									trendValue='Urgent'
+								/>
+							</div>
 							<Card>
 								<CardHeader>
 									<CardTitle className='flex items-center gap-2'>
@@ -1342,14 +1356,24 @@ export function EUAIActDashboard() {
 											{dataRequests.map((req) => {
 												const typeConfig = {
 													access: { icon: <FileSearch className='h-4 w-4' />, label: 'Access' },
-													rectification: { icon: <FileEdit className='h-4 w-4' />, label: 'Rectification' },
+													rectification: {
+														icon: <FileEdit className='h-4 w-4' />,
+														label: 'Rectification',
+													},
 													erasure: { icon: <Trash2 className='h-4 w-4' />, label: 'Erasure' },
-													portability: { icon: <Share2 className='h-4 w-4' />, label: 'Portability' },
-													explanation: { icon: <BrainCircuit className='h-4 w-4' />, label: 'Explanation' },
+													portability: {
+														icon: <Share2 className='h-4 w-4' />,
+														label: 'Portability',
+													},
+													explanation: {
+														icon: <BrainCircuit className='h-4 w-4' />,
+														label: 'Explanation',
+													},
 													appeal: { icon: <UserX className='h-4 w-4' />, label: 'Appeal' },
 												}
 												const tc = typeConfig[req.requestType]
-												const isOverdue = new Date(req.responseDeadline) < new Date() && req.status !== 'completed'
+												const isOverdue =
+													new Date(req.responseDeadline) < new Date() && req.status !== 'completed'
 												return (
 													<TableRow key={req.id}>
 														<TableCell className='text-xs text-muted-foreground whitespace-nowrap'>
@@ -1397,7 +1421,10 @@ export function EUAIActDashboard() {
 																</Badge>
 															)}
 														</TableCell>
-														<TableCell className='text-sm max-w-xs truncate' title={req.description}>
+														<TableCell
+															className='text-sm max-w-xs truncate'
+															title={req.description}
+														>
 															{req.description}
 														</TableCell>
 														<TableCell className='text-sm'>{req.handledBy || '—'}</TableCell>
@@ -1491,8 +1518,8 @@ export function EUAIActDashboard() {
 															</div>
 															<span className='text-xs text-muted-foreground'>{count}</span>
 														</div>
-												</div>
-											))}
+													</div>
+												))}
 											</div>
 										) : (
 											<p className='text-sm text-muted-foreground'>No summary data</p>
@@ -1553,9 +1580,7 @@ export function EUAIActDashboard() {
 																	</Badge>
 																)}
 															</TableCell>
-															<TableCell className='text-xs'>
-																{record.geographicRegion}
-															</TableCell>
+															<TableCell className='text-xs'>{record.geographicRegion}</TableCell>
 															<TableCell className='text-xs text-muted-foreground'>
 																{record.ipAddress}
 															</TableCell>

@@ -199,7 +199,9 @@ export function PublicCompanyPage() {
 
 						<div className='flex-1 min-w-0'>
 							<div className='flex items-center gap-3 flex-wrap'>
-								<h1 className='font-heading text-2xl sm:text-3xl md:text-4xl font-bold'>{c.name}</h1>
+								<h1 className='font-heading text-2xl sm:text-3xl md:text-4xl font-bold'>
+									{c.name}
+								</h1>
 								{c.is_verified && (
 									<Badge
 										variant='outline'
@@ -333,7 +335,7 @@ export function PublicCompanyPage() {
 						<p className='text-muted-foreground leading-relaxed'>{c.culture_description}</p>
 						{c.core_values && c.core_values.length > 0 && (
 							<div className='flex flex-wrap gap-2 mt-4'>
-								{c.core_values.map((v, i) => (
+								{c.core_values.map((v, _i) => (
 									<Badge key={v} variant='secondary' className='gap-1'>
 										<Sparkles className='h-3 w-3 text-amber-500' /> {v}
 									</Badge>
@@ -349,7 +351,7 @@ export function PublicCompanyPage() {
 							<Award className='h-5 w-5 text-emerald-500' /> Benefits & Perks
 						</h2>
 						<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
-							{c.benefits.map((b, i) => (
+							{c.benefits.map((b, _i) => (
 								<div key={b} className='flex items-center gap-2 text-sm'>
 									<CheckCircle className='h-4 w-4 text-emerald-500 shrink-0' />
 									<span>{b}</span>
@@ -368,7 +370,7 @@ export function PublicCompanyPage() {
 							<MapPin className='h-5 w-5 text-primary' /> Office Locations
 						</h2>
 						<div className='flex flex-wrap gap-2'>
-							{c.office_locations.map((loc, i) => (
+							{c.office_locations.map((loc, _i) => (
 								<Badge key={loc} variant='outline' className='gap-1'>
 									<MapPin className='h-3 w-3' /> {loc}
 								</Badge>

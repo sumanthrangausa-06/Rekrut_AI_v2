@@ -747,7 +747,12 @@ export function RecruiterCandidatesPage() {
 						>
 							<Download className='h-3 w-3' /> Export
 						</Button>
-						<Button size='sm' variant='outline' className='gap-1 text-xs h-8 min-h-[44px]' onClick={selectAll}>
+						<Button
+							size='sm'
+							variant='outline'
+							className='gap-1 text-xs h-8 min-h-[44px]'
+							onClick={selectAll}
+						>
 							<Square className='h-3 w-3' /> Select All
 						</Button>
 						<select

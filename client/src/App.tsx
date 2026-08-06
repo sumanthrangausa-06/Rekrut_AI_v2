@@ -539,7 +539,7 @@ function AppRoutes() {
 					}
 				/>
 				<Route
-	path='saved-jobs'
+					path='saved-jobs'
 					element={
 						<Protected>
 							<_PlaceholderPage />
@@ -548,54 +548,54 @@ function AppRoutes() {
 				/>
 				<Route
 					path='top-matches'
-						element={
-							<Protected>
-								<_PlaceholderPage />
-							</Protected>
-						}
-					/>
-					<Route
-						path='company-matches'
-						element={
-							<Protected>
-								<_PlaceholderPage />
-							</Protected>
-						}
-					/>
-					<Route
-						path='ai-search'
-						element={
-							<Protected>
-								<_PlaceholderPage />
-							</Protected>
-						}
-					/>
-					<Route
-						path='cv-review'
-						element={
-							<Protected>
-								<_PlaceholderPage />
-							</Protected>
-						}
-					/>
-					<Route
-						path='linkedin-optimizer'
-						element={
-							<Protected>
-								<_PlaceholderPage />
-							</Protected>
-						}
-					/>
-					<Route
-						path='career-diagnosis'
-						element={
-							<Protected>
-								<_PlaceholderPage />
-							</Protected>
-						}
-					/>
-					<Route
-						path='offers/manage'
+					element={
+						<Protected>
+							<_PlaceholderPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path='company-matches'
+					element={
+						<Protected>
+							<_PlaceholderPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path='ai-search'
+					element={
+						<Protected>
+							<_PlaceholderPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path='cv-review'
+					element={
+						<Protected>
+							<_PlaceholderPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path='linkedin-optimizer'
+					element={
+						<Protected>
+							<_PlaceholderPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path='career-diagnosis'
+					element={
+						<Protected>
+							<_PlaceholderPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path='offers/manage'
 					element={
 						<Protected>
 							<OfferManagementPage />

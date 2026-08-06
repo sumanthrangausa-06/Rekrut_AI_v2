@@ -11,7 +11,7 @@ import {
 	Sparkles,
 	Trophy,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -66,33 +66,7 @@ export function JobAssessmentTakePage() {
 
 	const startTimeRef = useRef(Date.now())
 
-	useEffect(() => {
-		startAssessment()
-	}, [startAssessment])
-
-	// Timer
-	useEffect(() => {
-		if (timeLeft <= 0 || completed) return
-		const t = setInterval(() => setTimeLeft((p) => Math.max(0, p - 1)), 1000)
-		return () => clearInterval(t)
-	}, [timeLeft, completed])
-
-	// Anti-cheat: detect tab switches
-	useEffect(() => {
-		if (!attemptId) return
-		const handler = () => {
-			if (document.hidden) {
-				apiCall(`/assessments/job-assessment/${assessmentId}/event`, {
-					method: 'POST',
-					body: { attemptId, eventType: 'tab_switch' },
-				}).catch(() => {})
-			}
-		}
-		document.addEventListener('visibilitychange', handler)
-		return () => document.removeEventListener('visibilitychange', handler)
-	}, [attemptId, assessmentId])
-
-	async function startAssessment() {
+	const startAssessment = useCallback(async () => {
 		try {
 			const applicationId = searchParams.get('applicationId')
 			const data = await apiCall<{
@@ -117,7 +91,13 @@ export function JobAssessmentTakePage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [assessmentId, searchParams])
+
+	useEffect(() => {
+		startAssessment()
+	}, [startAssessment])
+
+	// Timer
 
 	async function submitAnswer() {
 		if (!attemptId || !question) return
@@ -326,7 +306,7 @@ export function JobAssessmentTakePage() {
 					{/* Multiple choice */}
 					{question.type === 'multiple_choice' && question.options && (
 						<div className='space-y-2'>
-							{question.options.map((opt, i) => (
+							{question.options.map((opt, _i) => (
 								<button
 									key={opt}
 									className={`w-full text-left rounded-lg border-2 p-3.5 min-h-[44px] transition-all ${
@@ -407,7 +387,7 @@ export function JobAssessmentTakePage() {
 									onClick={sendConvoMessage}
 									disabled={convoLoading || !convoInput.trim()}
 									className='min-h-[44px] min-w-[44px]'
-									>
+								>
 									<Send className='h-4 w-4' />
 								</Button>
 							</div>

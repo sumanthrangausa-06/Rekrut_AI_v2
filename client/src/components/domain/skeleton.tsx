@@ -83,6 +83,7 @@ export function Skeleton({ count = 1, variant = 'card', className }: SkeletonPro
 	return (
 		<div className={cn('space-y-4', className)}>
 			{items.map((_, i) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
 				<div key={i}>
 					{variant === 'card' && <CardSkeleton />}
 					{variant === 'list' && <ListSkeleton />}

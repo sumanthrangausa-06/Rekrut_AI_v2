@@ -239,7 +239,7 @@ function TaskCard({ task }: { task: AgentTask }) {
 					</div>
 				)}
 				<div className='flex flex-wrap gap-1'>
-					{task.files.slice(0, 3).map((file, i) => (
+					{task.files.slice(0, 3).map((file, _i) => (
 						<Badge key={file} variant='secondary' className='text-[10px] gap-1'>
 							<FileCode className='h-2.5 w-2.5' />
 							{file.split('/').pop()}
@@ -323,7 +323,7 @@ function TeamMemberCard({ member }: { member: TeamMember }) {
 							<AlertCircle className='h-3 w-3' />
 							Blockers
 						</div>
-						{member.blockers.map((b, i) => (
+						{member.blockers.map((b, _i) => (
 							<p key={b} className='text-xs text-red-600'>
 								• {b}
 							</p>
@@ -334,7 +334,7 @@ function TeamMemberCard({ member }: { member: TeamMember }) {
 					<div className='space-y-1'>
 						<p className='text-xs font-medium text-muted-foreground'>Recent Updates</p>
 						<ul className='space-y-0.5'>
-							{member.notes.slice(0, 3).map((n, i) => (
+							{member.notes.slice(0, 3).map((n, _i) => (
 								<li key={n} className='text-xs text-muted-foreground'>
 									• {n}
 								</li>
@@ -834,7 +834,10 @@ export function AgentDashboardPage() {
 								<ScrollArea className='h-48'>
 									<div className='divide-y'>
 										{teamData?.recent_commits.map((c, i) => (
-											<div key={c.sha || c.message || `commit-${i}`} className='p-3 flex items-start gap-3'>
+											<div
+												key={c.sha || c.message || `commit-${i}`}
+												className='p-3 flex items-start gap-3'
+											>
 												<div className='p-1.5 rounded-md bg-primary/10 shrink-0'>
 													<GitBranch className='h-3.5 w-3.5 text-primary' />
 												</div>
