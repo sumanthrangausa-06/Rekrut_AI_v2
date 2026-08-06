@@ -691,7 +691,7 @@ These **must** be resolved before deploying to production. Do not proceed past a
 
 | Detail | Value |
 |--------|-------|
-| **Symptom** | `ghp_REDACTED_PLEASE_REGENERATE` in origin URL |
+| **Symptom** | `[REDACTED]` in origin URL |
 | **Impact** | Full GitHub account compromise if repo is shared |
 | **Fix** | Revoke token in GitHub Settings → Tokens; update remote URL to SSH or HTTPS without token |
 | **ETA** | 15 minutes |
