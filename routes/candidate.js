@@ -2160,6 +2160,38 @@ router.put('/applications/:id/withdraw', authMiddleware, async (req, res) => {
 	}
 });
 
+// Update application status
+router.put('/applications/:id/status', authMiddleware, async (req, res) => {
+	try {
+		const { status } = req.body;
+		const validStatuses = ['applied', 'screening', 'shortlisted', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected', 'withdrawn'];
+
+		if (!status || !validStatuses.includes(status)) {
+			return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+		}
+
+		// Verify application belongs to candidate
+		const existing = await pool.query(
+			`SELECT id, status FROM job_applications WHERE id = $1 AND candidate_id = $2`,
+			[req.params.id, req.user.id],
+		);
+
+		if (existing.rows.length === 0) {
+			return res.status(404).json({ error: 'Application not found' });
+		}
+
+		const result = await pool.query(
+			`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+			[status, req.params.id],
+		);
+
+		res.json({ success: true, application: result.rows[0] });
+	} catch (err) {
+		console.error('Update application status error:', err);
+		res.status(500).json({ error: 'Failed to update application status' });
+	}
+});
+
 // ============= INTERVIEW COACHING =============
 
 router.post('/coaching', authMiddleware, async (req, res) => {

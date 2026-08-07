@@ -1,6 +1,17 @@
 import {
+	DndContext,
+	DragOverlay,
+	MouseSensor,
+	TouchSensor,
+	closestCorners,
+	useSensor,
+	useSensors,
+	type DragEndEvent,
+	type DragStartEvent,
+} from '@dnd-kit/core'
+import {
 	AlertTriangle,
-	ArrowRight,
+	Bookmark,
 	Briefcase,
 	Building2,
 	Calendar,
@@ -13,41 +24,26 @@ import {
 	FileText,
 	Filter,
 	MapPin,
+	MessageCircle,
+	Trophy,
 	XCircle,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { apiCall } from '@/lib/api'
-
-interface ScreeningQuestion {
-	question: string
-	type: 'text' | 'yes_no' | 'select'
-	required?: boolean
-	options?: string[]
-	category?: string
-}
-
-interface Application {
-	id: number
-	job_id: number
-	status: string
-	title: string
-	company: string
-	location: string
-	salary_range: string
-	job_type: string
-	posted_by_company?: string
-	applied_at: string
-	updated_at: string
-	match_score?: number
-	cover_letter?: string
-	screening_answers?: string | Record<string, string>
-	screening_questions?: string | ScreeningQuestion[]
-}
+import {
+	KanbanCard,
+	KanbanColumn,
+	KANBAN_COLUMNS,
+	type KanbanItem,
+	type KanbanApplication,
+	type KanbanSavedJob,
+	type ScreeningQuestion,
+} from '@/components/candidate'
 
 const statusConfig: Record<
 	string,
@@ -68,20 +64,48 @@ const statusConfig: Record<
 	withdrawn: { label: 'Withdrawn', variant: 'secondary', icon: XCircle },
 }
 
-export function CandidateApplicationsPage() {
-	const [applications, setApplications] = useState<Application[]>([])
-	const [loading, setLoading] = useState(true)
-	const [statusFilter, setStatusFilter] = useState('')
-	const [withdrawTarget, setWithdrawTarget] = useState<Application | null>(null)
-	const [withdrawing, setWithdrawing] = useState(false)
-	const [selectedApp, setSelectedApp] = useState<Application | null>(null)
+const COLUMN_STATUS_MAP: Record<string, string> = {
+	applied: 'applied',
+	in_discussion: 'screening',
+	offer_received: 'offered',
+}
 
-	const loadApplications = useCallback(async () => {
+const STATUS_TO_COLUMN: Record<string, string> = {
+	applied: 'applied',
+	screening: 'in_discussion',
+	shortlisted: 'in_discussion',
+	reviewing: 'in_discussion',
+	interviewed: 'in_discussion',
+	offered: 'offer_received',
+	hired: 'offer_received',
+}
+
+export function CandidateApplicationsPage() {
+	const [applications, setApplications] = useState<KanbanApplication[]>([])
+	const [savedJobs, setSavedJobs] = useState<KanbanSavedJob[]>([])
+	const [loading, setLoading] = useState(true)
+	const [withdrawTarget, setWithdrawTarget] = useState<KanbanApplication | null>(null)
+	const [withdrawing, setWithdrawing] = useState(false)
+	const [selectedApp, setSelectedApp] = useState<KanbanApplication | null>(null)
+	const [activeDragItem, setActiveDragItem] = useState<KanbanItem | null>(null)
+	const [updatingStatus, setUpdatingStatus] = useState(false)
+
+	const sensors = useSensors(
+		useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+		useSensor(TouchSensor, {
+			activationConstraint: { delay: 200, tolerance: 8 },
+		}),
+	)
+
+	const loadData = useCallback(async () => {
+		setLoading(true)
 		try {
-			const data = await apiCall<{ success: boolean; applications: Application[] }>(
-				'/candidate/applications',
-			)
-			setApplications(data.applications || [])
+			const [appsData, savedData] = await Promise.all([
+				apiCall<{ success: boolean; applications: KanbanApplication[] }>('/candidate/applications'),
+				apiCall<{ success: boolean; jobs: KanbanSavedJob[] }>('/candidate/jobs/saved'),
+			])
+			setApplications(appsData.applications || [])
+			setSavedJobs(savedData.jobs || [])
 		} catch {
 			// silent
 		} finally {
@@ -90,8 +114,81 @@ export function CandidateApplicationsPage() {
 	}, [])
 
 	useEffect(() => {
-		loadApplications()
-	}, [loadApplications])
+		loadData()
+	}, [loadData])
+
+	// Filter saved jobs to only those without applications
+	const filteredSavedJobs = useMemo(() => {
+		const appliedJobIds = new Set(applications.map((a) => a.job_id))
+		return savedJobs.filter((sj) => !appliedJobIds.has(sj.job_id))
+	}, [savedJobs, applications])
+
+	// Group items into columns
+	const columnItems = useMemo(() => {
+		const result: Record<string, KanbanItem[]> = {
+			saved: filteredSavedJobs.map((j) => ({ type: 'saved' as const, data: j })),
+			applied: [],
+			in_discussion: [],
+			offer_received: [],
+		}
+
+		for (const app of applications) {
+			const colId = STATUS_TO_COLUMN[app.status] || 'applied'
+			if (result[colId]) {
+				result[colId].push({ type: 'application' as const, data: app })
+			}
+		}
+
+		return result
+	}, [applications, filteredSavedJobs])
+
+	function handleDragStart(event: DragStartEvent) {
+		const { active } = event
+		const data = active.data.current?.item as KanbanItem | undefined
+		if (data) setActiveDragItem(data)
+	}
+
+	async function handleDragEnd(event: DragEndEvent) {
+		const { active, over } = event
+		setActiveDragItem(null)
+
+		if (!over) return
+
+		const activeData = active.data.current?.item as KanbanItem | undefined
+		const overColumnId = over.data.current?.columnId as string | undefined
+
+		if (!activeData || activeData.type !== 'application') return
+		if (!overColumnId) return
+
+		const sourceColumnId = active.data.current?.columnId as string
+		if (sourceColumnId === overColumnId) return
+
+		const newStatus = COLUMN_STATUS_MAP[overColumnId]
+		if (!newStatus) return
+
+		const app = activeData.data
+
+		// Optimistic update
+		setApplications((prev) =>
+			prev.map((a) => (a.id === app.id ? { ...a, status: newStatus } : a)),
+		)
+
+		setUpdatingStatus(true)
+		try {
+			await apiCall(`/candidate/applications/${app.id}/status`, {
+				method: 'PUT',
+				body: JSON.stringify({ status: newStatus }),
+			})
+		} catch (err: unknown) {
+			// Revert on error
+			setApplications((prev) =>
+				prev.map((a) => (a.id === app.id ? { ...a, status: app.status } : a)),
+			)
+			alert(err instanceof Error ? err.message : 'Failed to update status')
+		} finally {
+			setUpdatingStatus(false)
+		}
+	}
 
 	async function withdrawApplication() {
 		if (!withdrawTarget) return
@@ -122,7 +219,7 @@ export function CandidateApplicationsPage() {
 		return `${Math.floor(days / 30)} months ago`
 	}
 
-	function parseScreeningData(app: Application) {
+	function parseScreeningData(app: KanbanApplication) {
 		try {
 			const answers =
 				typeof app.screening_answers === 'string'
@@ -134,40 +231,34 @@ export function CandidateApplicationsPage() {
 					: app.screening_questions || []
 			return { answers, questions }
 		} catch {
-			return { answers: null, questions: [] }
+			return { answers: null, questions: [] as ScreeningQuestion[] }
 		}
 	}
 
-	const statuses = [
-		'applied',
-		'screening',
-		'shortlisted',
-		'reviewing',
-		'interviewed',
-		'offered',
-		'hired',
-		'rejected',
-		'withdrawn',
-	]
-	const statusCounts = statuses.reduce(
-		(acc, s) => {
-			acc[s] = applications.filter((a) => a.status === s).length
-			return acc
-		},
-		{} as Record<string, number>,
-	)
+	function handleCardClick(item: KanbanItem) {
+		if (item.type === 'application') {
+			setSelectedApp(item.data)
+		}
+		// Saved jobs: navigate to job detail
+		if (item.type === 'saved') {
+			window.location.href = `/candidate/jobs/${item.data.job_id}`
+		}
+	}
 
-	const filtered = applications.filter((a) => !statusFilter || a.status === statusFilter)
-
-	const active = filtered.filter((a) => !['rejected', 'withdrawn', 'hired'].includes(a.status))
-	const completed = filtered.filter((a) => ['rejected', 'withdrawn', 'hired'].includes(a.status))
+	const activeCount = applications.filter(
+		(a) => !['rejected', 'withdrawn', 'hired'].includes(a.status),
+	).length
+	const inProgressCount = applications.filter((a) =>
+		['reviewing', 'interviewed'].includes(a.status),
+	).length
+	const offerCount = applications.filter((a) => ['offered', 'hired'].includes(a.status)).length
 
 	return (
 		<div className='space-y-6'>
 			<div>
 				<h1 className='font-heading text-2xl font-bold'>My Applications</h1>
 				<p className='text-muted-foreground'>
-					Track your job application status and manage active applications
+					Track your job pipeline from saved jobs to offers
 				</p>
 			</div>
 
@@ -181,117 +272,80 @@ export function CandidateApplicationsPage() {
 				</Card>
 				<Card>
 					<CardContent className='p-4 text-center'>
-						<p className='text-2xl font-bold text-blue-600'>
-							{
-								applications.filter((a) => !['rejected', 'withdrawn', 'hired'].includes(a.status))
-									.length
-							}
-						</p>
+						<p className='text-2xl font-bold text-indigo-600'>{activeCount}</p>
 						<p className='text-xs text-muted-foreground'>Active</p>
 					</CardContent>
 				</Card>
 				<Card>
 					<CardContent className='p-4 text-center'>
-						<p className='text-2xl font-bold text-amber-600'>
-							{applications.filter((a) => ['reviewing', 'interviewed'].includes(a.status)).length}
-						</p>
+						<p className='text-2xl font-bold text-amber-600'>{inProgressCount}</p>
 						<p className='text-xs text-muted-foreground'>In Progress</p>
 					</CardContent>
 				</Card>
 				<Card>
 					<CardContent className='p-4 text-center'>
-						<p className='text-2xl font-bold text-emerald-600'>
-							{applications.filter((a) => ['offered', 'hired'].includes(a.status)).length}
-						</p>
+						<p className='text-2xl font-bold text-emerald-600'>{offerCount}</p>
 						<p className='text-xs text-muted-foreground'>Offers / Hired</p>
 					</CardContent>
 				</Card>
 			</div>
 
-			{/* Status filter pills */}
-			<div className='flex flex-wrap gap-2'>
-				<Button
-					variant={!statusFilter ? 'default' : 'outline'}
-					size='sm'
-					className='min-h-[44px]'
-					onClick={() => setStatusFilter('')}
-				>
-					All ({applications.length})
-				</Button>
-				{statuses.map((s) =>
-					statusCounts[s] > 0 ? (
-						<Button
-							key={s}
-							variant={statusFilter === s ? 'default' : 'outline'}
-							size='sm'
-							className='min-h-[44px]'
-							onClick={() => setStatusFilter(s)}
-						>
-							{statusConfig[s]?.label || s} ({statusCounts[s]})
-						</Button>
-					) : null,
-				)}
-			</div>
-
+			{/* Kanban Board */}
 			{loading ? (
 				<div className='flex items-center justify-center py-16'>
 					<div className='h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent' />
 				</div>
-			) : applications.length === 0 ? (
+			) : applications.length === 0 && savedJobs.length === 0 ? (
 				<Card>
 					<CardContent className='py-16 text-center'>
 						<FileText className='mx-auto mb-3 h-10 w-10 opacity-30' />
-						<p className='text-muted-foreground mb-4'>You haven't applied to any jobs yet</p>
+						<p className='text-muted-foreground mb-4'>
+							You haven&apos;t applied to any jobs yet
+						</p>
 						<Link to='/candidate/jobs'>
 							<Button>Browse Jobs</Button>
 						</Link>
 					</CardContent>
 				</Card>
-			) : filtered.length === 0 ? (
-				<Card>
-					<CardContent className='py-16 text-center'>
-						<Filter className='mx-auto mb-3 h-10 w-10 opacity-30' />
-						<p className='text-muted-foreground'>No applications match this filter</p>
-					</CardContent>
-				</Card>
 			) : (
-				<div className='space-y-6'>
-					{active.length > 0 && (
-						<div>
-							<h2 className='font-medium text-sm text-muted-foreground mb-3'>
-								Active Applications ({active.length})
-							</h2>
-							<div className='space-y-3'>
-								{active.map((app) => (
-									<ApplicationCard
-										key={app.id}
-										app={app}
-										timeAgo={timeAgo}
-										onWithdraw={() => setWithdrawTarget(app)}
-										onClick={() => setSelectedApp(app)}
-									/>
-								))}
-							</div>
+				<div className='relative'>
+					{updatingStatus && (
+						<div className='absolute top-0 right-0 z-10 flex items-center gap-2 rounded-lg bg-white border px-3 py-1.5 shadow-sm text-xs text-muted-foreground'>
+							<div className='h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent' />
+							Updating...
 						</div>
 					)}
-
-					{completed.length > 0 && (
-						<div>
-							<h2 className='font-medium text-sm text-muted-foreground mb-3'>
-								Completed ({completed.length})
-							</h2>
-							<div className='space-y-3'>
-								{completed.map((app) => (
-									<ApplicationCard
-										key={app.id}
-										app={app}
-										timeAgo={timeAgo}
-										onClick={() => setSelectedApp(app)}
+					<DndContext
+						sensors={sensors}
+						collisionDetection={closestCorners}
+						onDragStart={handleDragStart}
+						onDragEnd={handleDragEnd}
+					>
+						<div className='flex gap-4 overflow-x-auto pb-4 -mx-2 px-2 snap-x snap-mandatory'>
+							{KANBAN_COLUMNS.map((column) => (
+								<div key={column.id} className='snap-start'>
+									<KanbanColumn
+										column={column}
+										items={columnItems[column.id] || []}
+										onCardClick={handleCardClick}
 									/>
-								))}
-							</div>
+								</div>
+							))}
 						</div>
-					)}
+						<DragOverlay>
+							{activeDragItem ? (
+								<KanbanCard
+									item={activeDragItem}
+									columnId={
+										activeDragItem.type === 'application'
+											? STATUS_TO_COLUMN[activeDragItem.data.status] || 'applied'
+											: 'saved'
+									}
+									isOverlay
+								/>
+							) : null}
+						</DragOverlay>
+					</DndContext>
 				</div>
 			)}
 
@@ -370,7 +424,10 @@ export function CandidateApplicationsPage() {
 						)}
 
 						{/* Screening answers */}
-						<ScreeningAnswersSection app={selectedApp} parseScreeningData={parseScreeningData} />
+						<ScreeningAnswersSection
+							app={selectedApp}
+							parseScreeningData={parseScreeningData}
+						/>
 
 						{/* Actions */}
 						<div className='flex gap-2 pt-2'>
@@ -455,8 +512,8 @@ function ScreeningAnswersSection({
 	app,
 	parseScreeningData,
 }: {
-	app: Application
-	parseScreeningData: (app: Application) => {
+	app: KanbanApplication
+	parseScreeningData: (app: KanbanApplication) => {
 		answers: Record<string, string> | null
 		questions: ScreeningQuestion[]
 	}
@@ -608,186 +665,5 @@ function ApplicationTimeline({
 				)}
 			</div>
 		</div>
-	)
-}
-
-function ApplicationCard({
-	app,
-	timeAgo,
-	onWithdraw,
-	onClick,
-}: {
-	app: Application
-	timeAgo: (d: string) => string
-	onWithdraw?: () => void
-	onClick?: () => void
-}) {
-	const config = statusConfig[app.status] || {
-		label: app.status,
-		variant: 'secondary' as const,
-		icon: Clock,
-	}
-
-	// Progress steps (aligned with pipeline stages)
-	const steps = ['Applied', 'Screening', 'Interview', 'Offer']
-	const currentStep =
-		{
-			applied: 0,
-			screening: 1,
-			shortlisted: 1,
-			reviewing: 1,
-			interviewed: 2,
-			offered: 3,
-			hired: 4,
-			rejected: -1,
-			withdrawn: -1,
-		}[app.status] ?? 0
-
-	// Check if has screening answers
-	let hasScreening = false
-	try {
-		const answers =
-			typeof app.screening_answers === 'string'
-				? JSON.parse(app.screening_answers)
-				: app.screening_answers
-		hasScreening = answers && Object.keys(answers).length > 0
-	} catch {
-		/* ignore */
-	}
-
-	return (
-		<Card className='cursor-pointer transition-shadow hover:shadow-md' onClick={onClick}>
-			<CardContent className='p-4'>
-				<div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-					<div className='min-w-0 flex-1'>
-						<div className='flex items-center gap-2 mb-1'>
-							<h3 className='font-semibold truncate'>{app.title}</h3>
-							<Badge variant={config.variant}>{config.label}</Badge>
-							{hasScreening && (
-								<Badge variant='outline' className='gap-1 text-[10px]'>
-									<ClipboardList className='h-3 w-3' /> Screening
-								</Badge>
-							)}
-						</div>
-						<div className='flex flex-wrap items-center gap-3 text-sm text-muted-foreground'>
-							<span className='flex items-center gap-1'>
-								<Building2 className='h-3.5 w-3.5' />
-								{app.company || app.posted_by_company || 'Company'}
-							</span>
-							{app.location && (
-								<span className='flex items-center gap-1'>
-									<MapPin className='h-3.5 w-3.5' />
-									{app.location}
-								</span>
-							)}
-							<span className='flex items-center gap-1'>
-								<Calendar className='h-3.5 w-3.5' />
-								Applied {timeAgo(app.applied_at)}
-							</span>
-							{app.salary_range && (
-								<span className='flex items-center gap-1'>
-									<DollarSign className='h-3.5 w-3.5' />
-									{app.salary_range}
-								</span>
-							)}
-						</div>
-
-						{/* Progress timeline */}
-						{currentStep >= 0 && (
-							<div className='mt-3 flex items-center gap-1'>
-								{steps.map((step, i) => (
-									<div key={step} className='flex items-center gap-1'>
-										<div
-											className={`h-2 w-2 rounded-full ${
-												i === currentStep
-													? 'bg-primary ring-2 ring-primary/30'
-													: i < currentStep
-														? 'bg-primary'
-														: 'bg-muted'
-											}`}
-										/>
-										<span
-											className={`text-[10px] ${i <= currentStep ? 'text-foreground' : 'text-muted-foreground'}`}
-										>
-											{step}
-										</span>
-										{i < steps.length - 1 && (
-											<div className={`h-px w-4 ${i < currentStep ? 'bg-primary' : 'bg-muted'}`} />
-										)}
-									</div>
-								))}
-							</div>
-						)}
-
-						{/* Match score */}
-						{app.match_score && (
-							<div className='mt-2 flex items-center gap-2'>
-								<div
-									className={`h-2 w-2 rounded-full ${
-										app.match_score >= 80
-											? 'bg-green-500'
-											: app.match_score >= 60
-												? 'bg-amber-500'
-												: 'bg-red-400'
-									}`}
-								/>
-								<span className='text-xs font-medium text-muted-foreground'>
-									Match: {app.match_score}%
-								</span>
-								<div className='flex-1 h-1.5 rounded-full bg-muted overflow-hidden'>
-									<div
-										className={`h-full rounded-full transition-all ${
-											app.match_score >= 80
-												? 'bg-green-500'
-												: app.match_score >= 60
-													? 'bg-amber-500'
-													: 'bg-red-400'
-										}`}
-										style={{ width: `${app.match_score}%` }}
-									/>
-								</div>
-							</div>
-						)}
-
-						{/* Next steps for active applications */}
-						{!['rejected', 'withdrawn', 'hired'].includes(app.status) && (
-							<div className='mt-2 flex items-center gap-1.5 text-xs text-muted-foreground'>
-								<div className='h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0'>
-									<ArrowRight className='h-3 w-3 text-primary' />
-								</div>
-								<span>
-									{app.status === 'applied' && 'Awaiting recruiter review'}
-									{app.status === 'screening' && 'In screening stage — expect a call'}
-									{app.status === 'shortlisted' && "You've been shortlisted!"}
-									{app.status === 'reviewing' && 'Under detailed review by the team'}
-									{app.status === 'interviewed' && 'Interview completed — awaiting decision'}
-									{app.status === 'offered' && 'Offer received! Review the details'}
-								</span>
-							</div>
-						)}
-					</div>
-					<div className='flex items-center gap-2 shrink-0'>
-						{onWithdraw && !['rejected', 'withdrawn', 'hired'].includes(app.status) && (
-							<Button
-								variant='ghost'
-								size='sm'
-								onClick={(e) => {
-									e.stopPropagation()
-									onWithdraw()
-								}}
-								className='gap-1 text-muted-foreground hover:text-destructive min-h-[44px]'
-							>
-								<XCircle className='h-3.5 w-3.5' /> Withdraw
-							</Button>
-						)}
-						<Link to={`/candidate/jobs/${app.job_id}`} onClick={(e) => e.stopPropagation()}>
-							<Button variant='ghost' size='sm' className='gap-1 shrink-0 min-h-[44px]'>
-								View Job <ExternalLink className='h-3 w-3' />
-							</Button>
-						</Link>
-					</div>
-				</div>
-			</CardContent>
-		</Card>
 	)
 }
