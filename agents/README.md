@@ -1,14 +1,30 @@
 # Agent Collaboration Workspace
 
+> **Canonical Structure:** See [SCHEMA.md](../SCHEMA.md) for the complete repository schema.
+
 This is the shared workspace for Rekrut AI agents. All agents push/pull from this repo to stay synchronized.
 
 ## Structure
 
-- `agents/suga/` — Suga's agent files (CEO/strategic)
-- `agents/kimiclaw/` — Kimiclaw's agent files (CTO/technical)
-- `agents/shared/tasks/` — Shared task tracking
-- `agents/shared/progress/` — Progress updates and status reports
-- `agents/shared/skills/` — Shared skill definitions
+```
+agents/
+├── README.md              # This file
+├── AGENT_BRIEFING.md      # Onboarding briefing
+├── AGENT_COMPANY.md       # Company context
+├── AGENT_PROTOCOL.md      # Mandatory rules (READ FIRST)
+├── shared/                # Shared across all agents
+│   ├── tasks/             # Task tracking (TASK-###-*.md)
+│   └── progress/          # Progress reports (YYYY-MM-DD-agent.md)
+└── <agent-name>/          # Individual agent folders
+    ├── IDENTITY.md
+    ├── SOUL.md
+    ├── MEMORY.md
+    └── ...
+```
+
+### Current Agents
+- `kimiclaw/` — Kimiclaw's agent files (CTO/technical)
+- `shared/` — Shared resources for all agents
 
 ## How It Works
 

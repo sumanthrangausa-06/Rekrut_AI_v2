@@ -1,6 +1,22 @@
 # Rekrut AI - Agent Protocol
 
+> **Required Reading:** 
+> - [SCHEMA.md](../SCHEMA.md) - Repository file structure
+> - [docs/CODE_REVIEW_GRAPH.md](../docs/CODE_REVIEW_GRAPH.md) - Codebase architecture and navigation
+
 ## 🚨 MANDATORY RULES FOR ALL AGENTS
+
+### 0. STARTUP - CHECK FOR NEW COMMITS
+```
+⚠️ BEFORE doing ANY work, always sync with remote:
+
+1. git fetch origin
+2. git status (check if behind remote)
+3. git pull origin <current-branch>
+
+This ensures you have the latest changes from other agents.
+If there are merge conflicts, resolve them before proceeding.
+```
 
 ### 1. BRANCH RULES
 ```
@@ -8,8 +24,8 @@
 ❌ NEVER push directly to 'main'
 
 Workflow:
-1. git checkout dev
-2. git pull origin dev
+1. git fetch origin && git pull origin dev
+2. git checkout dev
 3. Make changes
 4. git add . && git commit -m "type: description"
 5. git push origin dev
@@ -32,14 +48,23 @@ AFTER finishing work:
 ### 3. FILE PATHS
 ```
 Shared Files (ALL agents read/write):
-- /home/workspace/Rekrut_AI_v2/TASKS.md
-- /home/workspace/Rekrut_AI_v2/COORDINATION.md
-- /home/workspace/Rekrut_AI_v2/KNOWLEDGE.md
+- docs/guides/TASKS.md
+- docs/guides/COORDINATION.md
 
 Reference Files (READ ONLY):
-- /home/workspace/Rekrut_AI_v2/GAP_ANALYSIS.md
-- /home/workspace/Rekrut_AI_v2/FEATURE_MAP.md
-- /home/workspace/Rekrut_AI_v2/ARCHITECTURE_CURRENT.md
+- docs/analysis/GAP_ANALYSIS.md
+- docs/guides/FEATURE_MAP.md
+- docs/architecture/ARCHITECTURE_CURRENT.md
+
+Documentation Structure:
+- docs/README.md              - Documentation index
+- docs/architecture/          - System architecture
+- docs/deployment/            - Deployment docs
+- docs/security/              - Security audits
+- docs/qa/                    - QA and testing
+- docs/analysis/              - Technical analysis
+- docs/reports/               - Business reports
+- docs/guides/                - Workflows and guides
 ```
 
 ### 4. COMMIT MESSAGE FORMAT
