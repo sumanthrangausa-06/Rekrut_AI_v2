@@ -65,7 +65,7 @@ async function initAdminCredentials() {
 
 	if (!password || ADMIN_PASSWORD_PLACEHOLDERS.includes(password)) {
 		const env = process.env.NODE_ENV || 'development';
-		if (env === 'development' || env === 'test' || env === 'e2e') {
+		if (env === 'development' || env === 'test' || env === 'e2e' || env === 'staging') {
 			password = TEST_ADMIN_PASSWORD;
 			console.log('[admin] Using default test admin password for dev/test environment');
 		} else {
