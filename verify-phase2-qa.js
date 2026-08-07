@@ -45,7 +45,11 @@ async function api(path, opts = {}) {
 const TS = Date.now();
 const CAND_EMAIL = `qa_cand_${TS}@test.com`;
 const REC_EMAIL = `qa_rec_${TS}@test.com`;
-const PASSWORD = 'TestPass123!';
+const PASSWORD = process.env.TEST_USER_PASSWORD;
+if (!PASSWORD) {
+  console.error('TEST_USER_PASSWORD environment variable is required');
+  process.exit(1);
+}
 
 async function run() {
   console.log('\n🏁 Rekrut AI Phase 2 QA — E2E Test Suite');

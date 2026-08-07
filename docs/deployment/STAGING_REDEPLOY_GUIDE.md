@@ -116,7 +116,7 @@ curl https://rekrutai-staging.onrender.com/deploy-check
 # Auth register (should show detailed errors, not generic)
 curl -X POST https://rekrutai-staging.onrender.com/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"123"}'
+  -d '{"email":"test@example.com","password":"YOUR_STRONG_PASSWORD_HERE"}'
 ```
 
 ## Pipeline Status (Blocked)

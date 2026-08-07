@@ -7,7 +7,14 @@ const http = require('node:http');
 const _BASE_URL = 'http://localhost:3000';
 const TEST_USER = {
 	email: 'analytics-test@rekrutai.co',
-	password: 'Test1234!',
+	get password() {
+		const p = process.env.TEST_LOGIN_PASSWORD;
+		if (!p) {
+			console.error('TEST_LOGIN_PASSWORD environment variable is required');
+			process.exit(1);
+		}
+		return p;
+	},
 };
 
 function request(path, method, headers, body) {

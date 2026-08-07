@@ -37,13 +37,13 @@ If testing new features, verify the schema:
 2. LOGIN (Recruiter)
    curl -X POST https://rekrutai.co/api/auth/login \
      -H "Content-Type: application/json" \
-     -d '{"email":"test_recruiter@rekrutai.co","password":"Test123!"}'
+     -d '{"email":"test_recruiter@rekrutai.co","password":"YOUR_STRONG_PASSWORD_HERE"}'
    Expected: {"success":true,"token":"..."}
 
 3. LOGIN (Candidate)
    curl -X POST https://rekrutai.co/api/auth/login \
      -H "Content-Type: application/json" \
-     -d '{"email":"test_candidate@rekrutai.co","password":"Test123!"}'
+     -d '{"email":"test_candidate@rekrutai.co","password":"YOUR_STRONG_PASSWORD_HERE"}'
    Expected: {"success":true,"token":"..."}
 
 4. API ENDPOINTS

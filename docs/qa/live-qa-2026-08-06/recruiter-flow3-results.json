@@ -1,0 +1,32 @@
+[
+  {
+    "step": "Login",
+    "ok": true,
+    "detail": "https://rekrutai.co/recruiter"
+  },
+  {
+    "step": "Page: jobs",
+    "ok": true,
+    "detail": "url=https://rekrutai.co/recruiter/jobs body_len=483"
+  },
+  {
+    "step": "Page: candidates",
+    "ok": true,
+    "detail": "url=https://rekrutai.co/recruiter/candidates body_len=740"
+  },
+  {
+    "step": "Page: analytics",
+    "ok": true,
+    "detail": "url=https://rekrutai.co/recruiter/analytics body_len=1797"
+  },
+  {
+    "step": "Page: create-job",
+    "ok": true,
+    "detail": "url=https://rekrutai.co/recruiter/jobs body_len=483"
+  },
+  {
+    "step": "Console errors",
+    "ok": false,
+    "detail": "19: ['Failed to load resource: the server responded with a status of 403 ()', 'Failed to load resource: the server responded with a status of 403 ()', 'Failed to load resource: the server responded with a status of 403 ()', 'Failed to load resource: the server responded with a status of 404 ()', 'Failed to load resource: the server responded with a status of 404 ()', 'Failed to load resource: the server responded with a status of 404 ()', 'Failed to load resource: the server responded with a status of 404 ()', 'Failed to load resource: the server responded with a status of 404 ()', 'Failed to load resource: the server responded with a status of 404 ()', 'Failed to load resource: the server responded with a status of 404 ()']"
+  }
+]

@@ -96,7 +96,7 @@ describe('POST /api/auth/login', () => {
   it('returns 200 with valid credentials', async () => {
     const res = await request(app)
       .post('/api/auth/login')
-      .send({ email: 'test@example.com', password: 'password123' });
+      .send({ email: 'test@example.com', password: 'YOUR_STRONG_PASSWORD_HERE' });
     expect(res.status).toBe(200);
     expect(res.body.token).toBeDefined();
   });

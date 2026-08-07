@@ -205,8 +205,8 @@ jest.mock('../../lib/metrics-collector', () => {
 
 // ─── Environment ────────────────────────────────────────────────────────────
 process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = 'test-jwt-secret-for-testing-only';
-process.env.SESSION_SECRET = 'test-session-secret-for-testing';
+process.env.JWT_SECRET = require('crypto').randomBytes(64).toString('hex');
+process.env.SESSION_SECRET = require('crypto').randomBytes(64).toString('hex');
 process.env.DATABASE_URL = 'postgresql://localhost:5432/test';
 process.env.FRONTEND_URL = 'http://localhost:5173';
 

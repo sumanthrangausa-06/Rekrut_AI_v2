@@ -1,0 +1,10 @@
+{
+  "email": "qa.recruiter.1786085084@gmail.com",
+  "log": [
+    {
+      "step": "URL after signup + 20s wait",
+      "ok": true,
+      "detail": "https://rekrutai.co/recruiter"
+    }
+  ]
+}

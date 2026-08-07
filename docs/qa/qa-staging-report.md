@@ -239,7 +239,7 @@ $ curl -s -H "Origin: https://rekrutai-staging.onrender.com" \
 ```bash
 $ curl -s -X POST -H "Content-Type: application/json" \
     -H "X-CSRF-Token: <token>" \
-    -d '{"email":"e2e-test@rekrutai.test","password":"TestPass123!","name":"E2E Test"}' \
+    -d '{"email":"e2e-test@rekrutai.test","password":"YOUR_STRONG_PASSWORD_HERE","name":"E2E Test"}' \
     https://rekrutai-staging.onrender.com/api/auth/register
 {"error":"Registration failed. Please try again."}
 HTTP_CODE: 500
@@ -249,7 +249,7 @@ HTTP_CODE: 500
 ```bash
 $ curl -s -X POST -H "Content-Type: application/json" \
     -H "X-CSRF-Token: <token>" \
-    -d '{"email":"e2e-candidate@rekrutai.test","password":"TestPass123!"}' \
+    -d '{"email":"e2e-candidate@rekrutai.test","password":"YOUR_STRONG_PASSWORD_HERE"}' \
     https://rekrutai-staging.onrender.com/api/auth/login
 {"error":"Login failed"}
 HTTP_CODE: 500

@@ -1,0 +1,52 @@
+[
+  {
+    "step": "Login redirect",
+    "ok": true,
+    "detail": "https://rekrutai.co/candidate"
+  },
+  {
+    "step": "Page: dashboard",
+    "ok": true,
+    "detail": "url=https://rekrutai.co/candidate body_len=1173"
+  },
+  {
+    "step": "Page: jobs",
+    "ok": true,
+    "detail": "url=https://rekrutai.co/candidate/jobs body_len=861"
+  },
+  {
+    "step": "Page: profile",
+    "ok": true,
+    "detail": "url=https://rekrutai.co/candidate/profile body_len=1192"
+  },
+  {
+    "step": "Page: applications",
+    "ok": true,
+    "detail": "url=https://rekrutai.co/candidate/applications body_len=628"
+  },
+  {
+    "step": "Page: interviews",
+    "ok": true,
+    "detail": "url=https://rekrutai.co/candidate/interviews body_len=619"
+  },
+  {
+    "step": "Page: assessments",
+    "ok": true,
+    "detail": "url=https://rekrutai.co/candidate/assessments body_len=1921"
+  },
+  {
+    "step": "Page: omniscore",
+    "ok": true,
+    "detail": "url=https://rekrutai.co/candidate/omniscore body_len=423"
+  },
+  {
+    "step": "Page: settings",
+    "ok": true,
+    "detail": "url=https://rekrutai.co/candidate/settings body_len=711"
+  },
+  {
+    "step": "Console errors total",
+    "ok": false,
+    "detail": "5: ['Failed to load resource: the server responded with a status of 403 ()', 'Failed to load resource: the server responded with a status of 403 ()', 'Failed to load resource: the server responded with a status of 403 ()', 'Failed to load resource: the server responded with a status of 404 ()', 'Failed to load resource: the server responded with a status of 403 ()']"
+  }
+]

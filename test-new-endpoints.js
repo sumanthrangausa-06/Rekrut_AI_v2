@@ -3,12 +3,18 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 async function testNewEndpoints() {
+  const password = process.env.TEST_LOGIN_PASSWORD;
+  if (!password) {
+    console.error('TEST_LOGIN_PASSWORD environment variable is required');
+    process.exit(1);
+  }
+
   try {
     // Candidate login
     const loginRes = await fetch('https://rekrutai-dev.onrender.com/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'test_candidate@rekrutai.co', password: 'Test123!' })
+      body: JSON.stringify({ email: 'test_candidate@rekrutai.co', password })
     });
     const loginData = await loginRes.json();
     const token = loginData.accessToken;
@@ -28,7 +34,7 @@ async function testNewEndpoints() {
     const recLoginRes = await fetch('https://rekrutai-dev.onrender.com/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'test_recruiter@rekrutai.co', password: 'Test123!' })
+      body: JSON.stringify({ email: 'test_recruiter@rekrutai.co', password })
     });
     const recLoginData = await recLoginRes.json();
     const recToken = recLoginData.accessToken;

@@ -1,6 +1,8 @@
 const request = require('supertest')
 const app = require('../../../server')
 
+const TEST_PASSWORD = process.env.TEST_PASSWORD || 'Password123!'
+
 describe('Authentication API', () => {
   describe('POST /api/auth/register', () => {
     it('creates a new user with valid data', async () => {
@@ -8,7 +10,7 @@ describe('Authentication API', () => {
         .post('/api/auth/register')
         .send({
           email: 'test@example.com',
-          password: 'Password123!',
+          password: TEST_PASSWORD,
           name: 'Test User',
           role: 'candidate'
         })
@@ -26,7 +28,7 @@ describe('Authentication API', () => {
         .post('/api/auth/register')
         .send({
           email: 'duplicate@example.com',
-          password: 'Password123!',
+          password: TEST_PASSWORD,
           name: 'Test User',
           role: 'candidate'
         })
@@ -36,7 +38,7 @@ describe('Authentication API', () => {
         .post('/api/auth/register')
         .send({
           email: 'duplicate@example.com',
-          password: 'Password123!',
+          password: TEST_PASSWORD,
           name: 'Test User 2',
           role: 'candidate'
         })
@@ -65,7 +67,7 @@ describe('Authentication API', () => {
         .post('/api/auth/register')
         .send({
           email: 'login-test@example.com',
-          password: 'Password123!',
+          password: TEST_PASSWORD,
           name: 'Login Test',
           role: 'candidate'
         })
@@ -76,7 +78,7 @@ describe('Authentication API', () => {
         .post('/api/auth/login')
         .send({
           email: 'login-test@example.com',
-          password: 'Password123!'
+          password: TEST_PASSWORD
         })
 
       expect(res.status).toBe(200)
@@ -100,7 +102,7 @@ describe('Authentication API', () => {
         .post('/api/auth/login')
         .send({
           email: 'nonexistent@example.com',
-          password: 'Password123!'
+          password: TEST_PASSWORD
         })
 
       expect(res.status).toBe(401)
@@ -114,7 +116,7 @@ describe('Authentication API', () => {
         .post('/api/auth/register')
         .send({
           email: 'me-test@example.com',
-          password: 'Password123!',
+          password: TEST_PASSWORD,
           name: 'Me Test',
           role: 'candidate'
         })

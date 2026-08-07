@@ -1,0 +1,24 @@
+{
+  "email": "qa.candidate.1786083173@gmail.com",
+  "api_calls": [
+    {
+      "url": "https://rekrutai.co/api/analytics/events",
+      "status": 403,
+      "method": "POST",
+      "body": "{\"error\":\"CSRF token validation failed\",\"code\":\"CSRF_INVALID\"}"
+    },
+    {
+      "url": "https://rekrutai.co/api/analytics/events",
+      "status": 403,
+      "method": "POST",
+      "body": "{\"error\":\"CSRF token validation failed\",\"code\":\"CSRF_INVALID\"}"
+    },
+    {
+      "url": "https://rekrutai.co/api/auth/register",
+      "status": 201,
+      "method": "POST",
+      "body": "{\"success\":true,\"user\":{\"id\":114,\"email\":\"qa.candidate.1786083173@gmail.com\",\"name\":\"QA Test Candidate\",\"role\":\"candidate\"},\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTE0LCJlbWFpbCI6InFhLmNhbmRpZGF0ZS4xNzg2MDgzMTczQGdtYWlsLmNvbSIsInJvbGUiOiJjYW5kaWRhdGUiLCJpYXQiOjE3ODYwODMxODEsImV4cCI6MTc4NjA4NDA4MX0.zrHF3tj6ccpAaSqGThDKsw6rSv8S5i6z3Z9s6ekX-sY\",\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTE0LCJlbWFpbCI6InFhLmNhbmRpZGF0ZS4xNzg2MDgzMTczQGdtYWlsLmNvbSIsInJvbGUiOiJjYW5ka"
+    }
+  ],
+  "final_url": "https://rekrutai.co/login"
+}

@@ -632,7 +632,7 @@ curl -s https://rekrutai.co/health
 # 2. Smoke test — login
 curl -s -X POST https://rekrutai.co/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"test_recruiter@rekrutai.co","password":"Test123!"}'
+  -d '{"email":"test_recruiter@rekrutai.co","password":"YOUR_STRONG_PASSWORD_HERE"}'
 # Expected: 200 OK
 
 # 3. Check Render logs for errors

@@ -109,6 +109,12 @@ jobs:
           done
           echo "PostgreSQL is ready"
 
+      - name: Generate test secrets
+        run: |
+          echo "JWT_SECRET=$(openssl rand -hex 64)" >> $GITHUB_ENV
+          echo "SESSION_SECRET=$(openssl rand -hex 64)" >> $GITHUB_ENV
+          echo "ADMIN_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 16)!A1" >> $GITHUB_ENV
+
       - name: Run database migrations
         run: |
           npm run migrate 2>&1 | tee migration-debug.log
@@ -121,8 +127,8 @@ jobs:
         env:
           NODE_ENV: e2e
           DATABASE_URL: postgresql://test:test@localhost:5432/rekrut_test
-          JWT_SECRET: test-jwt-secret
-          SESSION_SECRET: test-session-secret
+          JWT_SECRET: ${{ env.JWT_SECRET }}
+          SESSION_SECRET: ${{ env.SESSION_SECRET }}
 
       - name: Upload migration debug log
         if: failure()
@@ -152,9 +158,9 @@ jobs:
           NODE_ENV: e2e
           PORT: 3000
           DATABASE_URL: postgresql://test:test@localhost:5432/rekrut_test
-          JWT_SECRET: test-jwt-secret
-          SESSION_SECRET: test-session-secret
-          ADMIN_PASSWORD: test-admin-password
+          JWT_SECRET: ${{ env.JWT_SECRET }}
+          SESSION_SECRET: ${{ env.SESSION_SECRET }}
+          ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
           ADMIN_USERNAME: admin
 
       - name: Run E2E tests (${{ matrix.group }})
@@ -194,9 +200,9 @@ jobs:
           PORT: 3000
           BASE_URL: http://localhost:3000
           DATABASE_URL: postgresql://test:test@localhost:5432/rekrut_test
-          JWT_SECRET: test-jwt-secret
-          SESSION_SECRET: test-session-secret
-          ADMIN_PASSWORD: test-admin-password
+          JWT_SECRET: ${{ env.JWT_SECRET }}
+          SESSION_SECRET: ${{ env.SESSION_SECRET }}
+          ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
           ADMIN_USERNAME: admin
 
       - name: Upload test results

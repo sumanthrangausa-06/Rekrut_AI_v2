@@ -1,0 +1,73 @@
+{
+  "test_email": "qa-candidate-1786082964@rekrutai-qa-test.com",
+  "log": [
+    {
+      "step": "Candidate Signup",
+      "ok": false,
+      "detail": "Landed on https://rekrutai.co/register",
+      "console_errors": [],
+      "failed_requests": []
+    },
+    {
+      "step": "Candidate Dashboard Landing",
+      "ok": false,
+      "detail": "https://rekrutai.co/login",
+      "console_errors": [],
+      "failed_requests": []
+    },
+    {
+      "step": "Job Search Page",
+      "ok": true,
+      "detail": "body_len=1735",
+      "console_errors": [],
+      "failed_requests": []
+    },
+    {
+      "step": "Profile Page",
+      "ok": false,
+      "detail": "Page.goto: Timeout 25000ms exceeded.\nCall log:\n  - navigating to \"https://rekrutai.co/candidate/profile\", waiting until \"networkidle\"\n",
+      "console_errors": [],
+      "failed_requests": []
+    },
+    {
+      "step": "Applications Page",
+      "ok": true,
+      "detail": "body_len=628",
+      "console_errors": [],
+      "failed_requests": []
+    },
+    {
+      "step": "Candidate Re-login",
+      "ok": false,
+      "detail": "Page.fill: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\"input[placeholder=\\\"example.email@gmail.com\\\"]\")\n",
+      "console_errors": [],
+      "failed_requests": []
+    },
+    {
+      "step": "Aggregate console errors",
+      "ok": false,
+      "detail": "5 errors",
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 403 ()",
+        "Failed to load resource: the server responded with a status of 403 ()",
+        "Failed to load resource: the server responded with a status of 401 ()",
+        "Failed to load resource: the server responded with a status of 403 ()",
+        "Failed to load resource: the server responded with a status of 403 ()"
+      ],
+      "failed_requests": []
+    },
+    {
+      "step": "Aggregate failed requests",
+      "ok": false,
+      "detail": "5 failed",
+      "console_errors": [
+        "403 https://rekrutai.co/api/analytics/events",
+        "403 https://rekrutai.co/api/analytics/events",
+        "401 https://rekrutai.co/api/billing/tier",
+        "403 https://rekrutai.co/api/analytics/events",
+        "403 https://rekrutai.co/api/analytics/events"
+      ],
+      "failed_requests": []
+    }
+  ]
+}

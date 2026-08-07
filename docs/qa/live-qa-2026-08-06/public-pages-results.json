@@ -1,0 +1,174 @@
+[
+  {
+    "name": "home",
+    "url": "https://rekrutai.co/",
+    "status": 200,
+    "title": "Rekrut AI - AI Recruiting Tools for Screening & Analytics",
+    "body_len": 7466,
+    "body_preview": "Rekrut AI Pricing Blog About Contact Sign in Get started AI-powered career companion for candidates who want to get hired faster Your AI-Powered Career Companion  Match with jobs that fit your skills.",
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 403 ()"
+    ],
+    "failed_requests": [
+      "403 https://rekrutai.co/api/analytics/events"
+    ]
+  },
+  {
+    "name": "pricing",
+    "url": "https://rekrutai.co/pricing",
+    "status": 200,
+    "title": "Rekrut AI - AI Recruiting Tools for Screening & Analytics",
+    "body_len": 1112,
+    "body_preview": "Rekrut AI Sign in Get started Simple plans for teams that need to hire faster Choose a plan that fits your hiring volume.  Launch with a clean pricing page, then send buyers straight into Stripe Check",
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 403 ()",
+      "Failed to load resource: the server responded with a status of 403 ()"
+    ],
+    "failed_requests": [
+      "403 https://rekrutai.co/api/analytics/events",
+      "403 https://rekrutai.co/api/analytics/events"
+    ]
+  },
+  {
+    "name": "about",
+    "url": "https://rekrutai.co/about",
+    "status": 200,
+    "title": "Rekrut AI - AI Recruiting Tools for Screening & Analytics",
+    "body_len": 2655,
+    "body_preview": "Rekrut AI Back to home About us Building the future of hiring  Rekrut AI (formerly HireLoop) was founded in 2026 with a simple belief: hiring should be transparent, intelligent, and fair for everyone ",
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 403 ()"
+    ],
+    "failed_requests": [
+      "403 https://rekrutai.co/api/analytics/events"
+    ]
+  },
+  {
+    "name": "contact",
+    "url": "https://rekrutai.co/contact",
+    "status": 200,
+    "title": "Rekrut AI - AI Recruiting Tools for Screening & Analytics",
+    "body_len": 868,
+    "body_preview": "Rekrut AI Back to home Contact Let us talk  Whether you are a recruiter looking to transform your hiring process, a candidate with feedback, or a journalist interested in our story \u2014 we would love to ",
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 403 ()"
+    ],
+    "failed_requests": [
+      "403 https://rekrutai.co/api/analytics/events"
+    ]
+  },
+  {
+    "name": "blog",
+    "url": "https://rekrutai.co/blog",
+    "status": 200,
+    "title": "Rekrut AI - AI Recruiting Tools for Screening & Analytics",
+    "body_len": 1372,
+    "body_preview": "Home / Blog Rekrut AI Blog  Insights, tips, and strategies for modern recruitment and career growth.  All Industry Insights Product Company News Tips & Guides Featured The State of AI in Recruiting: 2",
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 403 ()"
+    ],
+    "failed_requests": [
+      "403 https://rekrutai.co/api/analytics/events"
+    ]
+  },
+  {
+    "name": "terms",
+    "url": "https://rekrutai.co/terms",
+    "status": 200,
+    "title": "Rekrut AI - AI Recruiting Tools for Screening & Analytics",
+    "body_len": 7277,
+    "body_preview": "Rekrut AI Back to home Legal Terms of Service  Last updated: August 6, 2026  1. Acceptance of Terms By accessing or using the Rekrut AI platform and services (the \"Service\"), you agree to be bound by ",
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 403 ()"
+    ],
+    "failed_requests": [
+      "403 https://rekrutai.co/api/analytics/events"
+    ]
+  },
+  {
+    "name": "privacy",
+    "url": "https://rekrutai.co/privacy",
+    "status": 200,
+    "title": "Rekrut AI - AI Recruiting Tools for Screening & Analytics",
+    "body_len": 6296,
+    "body_preview": "Rekrut AI Back to home Legal Privacy Policy  Last updated: August 6, 2026  1. Introduction Rekrut AI (\"we\", \"our\", or \"us\") is committed to protecting your privacy. This Privacy Policy explains how we",
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 403 ()"
+    ],
+    "failed_requests": [
+      "403 https://rekrutai.co/api/analytics/events"
+    ]
+  },
+  {
+    "name": "login",
+    "url": "https://rekrutai.co/login",
+    "status": 200,
+    "title": "Rekrut AI - AI Recruiting Tools for Screening & Analytics",
+    "body_len": 209,
+    "body_preview": "Rekrut AI  Don't have an account? Sign up  Sign in Email Password Remember me Forgot password? Sign in Welcome back!  Sign in to access your dashboard, track applications, and continue your interview ",
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 403 ()"
+    ],
+    "failed_requests": [
+      "403 https://rekrutai.co/api/analytics/events"
+    ]
+  },
+  {
+    "name": "register",
+    "url": "https://rekrutai.co/register",
+    "status": 200,
+    "title": "Rekrut AI - AI Recruiting Tools for Screening & Analytics",
+    "body_len": 318,
+    "body_preview": "Rekrut AI Welcome! First things first...  Create your account to start matching with AI-recommended jobs, practice mock interviews, and build your OmniScore.  Dark mode  Already have an account? Sign ",
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 403 ()"
+    ],
+    "failed_requests": [
+      "403 https://rekrutai.co/api/analytics/events"
+    ]
+  },
+  {
+    "name": "forgot-password",
+    "url": "https://rekrutai.co/forgot-password",
+    "status": 200,
+    "title": "Rekrut AI - AI Recruiting Tools for Screening & Analytics",
+    "body_len": 143,
+    "body_preview": "Rekrut AI Reset your password  Enter your email address and we'll send you a link to reset your password  Email Send reset link Back to sign in",
+    "console_errors": [],
+    "failed_requests": []
+  },
+  {
+    "name": "recruiter-register",
+    "url": "https://rekrutai.co/recruiter-register",
+    "status": 200,
+    "title": "Rekrut AI - AI Recruiting Tools for Screening & Analytics",
+    "body_len": 331,
+    "body_preview": "Rekrut AI Welcome! First things first...  Create your account to start matching with AI-recommended jobs, practice mock interviews, and build your OmniScore.  Dark mode  Already have an account? Sign ",
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 403 ()"
+    ],
+    "failed_requests": [
+      "403 https://rekrutai.co/api/analytics/events"
+    ]
+  },
+  {
+    "name": "admin-login",
+    "url": "https://rekrutai.co/admin-login",
+    "status": 200,
+    "title": "Rekrut AI - AI Recruiting Tools for Screening & Analytics",
+    "body_len": 171,
+    "body_preview": "Admin Access  HireLoop Administration Panel  Username Password Sign In  Protected admin area. Unauthorized access is prohibited. Rate limited to 5 attempts per 15 minutes.",
+    "console_errors": [],
+    "failed_requests": []
+  },
+  {
+    "name": "nonexistent",
+    "url": "https://rekrutai.co/this-page-does-not-exist-12345",
+    "status": 200,
+    "title": "Rekrut AI - AI Recruiting Tools for Screening & Analytics",
+    "body_len": 99,
+    "body_preview": "! 404 Page Not Found  The page you're looking for doesn't exist or has been moved.  Go Home Go Back",
+    "console_errors": [],
+    "failed_requests": []
+  }
+]

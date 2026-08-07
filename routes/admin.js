@@ -38,22 +38,41 @@ async function checkRateLimit(ip) {
 }
 
 // ─── Admin Credentials ─────────────────────────────────────────────────────
-// Uses ADMIN_PASSWORD env var; MUST be set in production and development
+// Uses ADMIN_PASSWORD env var; MUST be set in production and development.
+// Admin password must be at least 8 characters with uppercase, lowercase,
+// number, and symbol.
 let ADMIN_PASSWORD_HASH = null;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+
+function isStrongPassword(password) {
+	if (typeof password !== 'string' || password.length < 8 || password.length > 128) return false;
+	return (
+		/[a-z]/.test(password) &&
+		/[A-Z]/.test(password) &&
+		/\d/.test(password) &&
+		/[^A-Za-z0-9]/.test(password)
+	);
+}
 
 async function initAdminCredentials() {
 	const password = process.env.ADMIN_PASSWORD;
 
-	if (password) {
-		ADMIN_PASSWORD_HASH = await bcrypt.hash(password, 13);
-		console.log('[admin] Admin credentials loaded from env vars');
-	} else {
-		// In CI/test environments, admin password may not be configured.
-		// Don't crash the server — just disable admin auth.
-		console.warn('[admin] ADMIN_PASSWORD not set — admin panel will be disabled');
-		ADMIN_PASSWORD_HASH = null;
+	if (!password) {
+		throw new Error(
+			'ADMIN_PASSWORD environment variable is required. ' +
+			'Set a strong password (min 8 chars, mixed case, number, and symbol).'
+		);
 	}
+
+	if (!isStrongPassword(password)) {
+		throw new Error(
+			'ADMIN_PASSWORD does not meet strength requirements. ' +
+			'Must be at least 8 characters and include uppercase, lowercase, number, and symbol.'
+		);
+	}
+
+	ADMIN_PASSWORD_HASH = await bcrypt.hash(password, 13);
+	console.log('[admin] Admin credentials loaded from env vars');
 }
 
 // Initialize on module load
