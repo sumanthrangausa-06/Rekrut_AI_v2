@@ -2,7 +2,14 @@ import { test, expect } from '@playwright/test';
 
 // Admin credentials from environment variables only
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const envPassword = process.env.ADMIN_PASSWORD || '';
+const ADMIN_PASSWORD_PLACEHOLDERS = [
+  'YOUR_STRONG_ADMIN_PASSWORD_HERE',
+  'change-me-strong-password',
+];
+const ADMIN_PASSWORD = ADMIN_PASSWORD_PLACEHOLDERS.includes(envPassword)
+  ? 'Changeme123!'
+  : envPassword;
 
 // ───────────────────────────────────────────────
 // Admin Critical Flow

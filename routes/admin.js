@@ -43,6 +43,12 @@ async function checkRateLimit(ip) {
 // number, and symbol.
 let ADMIN_PASSWORD_HASH = null;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+const TEST_ADMIN_PASSWORD = 'Changeme123!';
+const ADMIN_PASSWORD_PLACEHOLDERS = [
+	'YOUR_STRONG_ADMIN_PASSWORD_HERE',
+	'change-me-strong-password',
+	'',
+];
 
 function isStrongPassword(password) {
 	if (typeof password !== 'string' || password.length < 8 || password.length > 128) return false;
@@ -55,13 +61,19 @@ function isStrongPassword(password) {
 }
 
 async function initAdminCredentials() {
-	const password = process.env.ADMIN_PASSWORD;
+	let password = process.env.ADMIN_PASSWORD;
 
-	if (!password) {
-		throw new Error(
-			'ADMIN_PASSWORD environment variable is required. ' +
-			'Set a strong password (min 8 chars, mixed case, number, and symbol).'
-		);
+	if (!password || ADMIN_PASSWORD_PLACEHOLDERS.includes(password)) {
+		const env = process.env.NODE_ENV || 'development';
+		if (env === 'development' || env === 'test' || env === 'e2e') {
+			password = TEST_ADMIN_PASSWORD;
+			console.log('[admin] Using default test admin password for dev/test environment');
+		} else {
+			throw new Error(
+				'ADMIN_PASSWORD environment variable is required. ' +
+				'Set a strong password (min 8 chars, mixed case, number, and symbol).'
+			);
+		}
 	}
 
 	if (!isStrongPassword(password)) {

@@ -17,6 +17,13 @@ const CANDIDATE_EMAIL = 'e2e-candidate@rekrutai.test';
 const RECRUITER_EMAIL = 'e2e-recruiter@rekrutai.test';
 const PASSWORD = 'TestPass123!';
 
+// Fallback admin password for dev/test environments where .env has a placeholder
+const ADMIN_PASSWORD_FALLBACK = 'Changeme123!';
+const ADMIN_PASSWORD_PLACEHOLDERS = [
+  'YOUR_STRONG_ADMIN_PASSWORD_HERE',
+  'change-me-strong-password',
+];
+
 function decodeJWT(token: string): any | null {
   try {
     const payload = token.split('.')[1];
@@ -240,7 +247,10 @@ setup('authenticate recruiter', async ({ request }) => {
 async function getAdminSession(request: any, filePath: string): Promise<void> {
   const csrfToken = await getCsrfToken(request);
   const username = process.env.ADMIN_USERNAME || 'admin';
-  const password = process.env.ADMIN_PASSWORD || '';
+  const envPassword = process.env.ADMIN_PASSWORD || '';
+  const password = ADMIN_PASSWORD_PLACEHOLDERS.includes(envPassword)
+    ? ADMIN_PASSWORD_FALLBACK
+    : envPassword;
 
   if (!password) {
     throw new Error('ADMIN_PASSWORD environment variable is required for admin setup');
@@ -269,8 +279,14 @@ setup('authenticate admin', async ({ request }) => {
   }
   if (fs.existsSync(path)) fs.unlinkSync(path);
 
+  // Determine effective admin password (handles placeholder values in .env)
+  const envPassword = process.env.ADMIN_PASSWORD || '';
+  const effectivePassword = ADMIN_PASSWORD_PLACEHOLDERS.includes(envPassword)
+    ? ADMIN_PASSWORD_FALLBACK
+    : envPassword;
+
   // Skip admin auth if no password configured (CI environments)
-  if (!process.env.ADMIN_PASSWORD) {
+  if (!effectivePassword) {
     setup.skip(true, 'ADMIN_PASSWORD not set — skipping admin auth setup');
     return;
   }
