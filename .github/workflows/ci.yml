@@ -98,6 +98,9 @@ jobs:
       - name: Install client dependencies
         run: cd client && npm ci
 
+      - name: Build client
+        run: npm run build --prefix client
+
       - name: Install Playwright browsers
         run: npx playwright install chromium
 
