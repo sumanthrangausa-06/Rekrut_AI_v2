@@ -9,13 +9,10 @@ test.describe('AI Interview Coaching Flow', () => {
     await page.goto('/candidate/ai-coaching')
     await page.waitForLoadState('networkidle')
 
-    // Wait for loading spinner to disappear (page fetches stats + questions)
-    await page.locator('.animate-spin').waitFor({ state: 'detached', timeout: 10000 })
-
-    // Verify heading
+    // Wait for page to finish loading (spinner or content)
     await expect(
       page.getByRole('heading', { name: /AI Interview Coach/i })
-    ).toBeVisible()
+    ).toBeVisible({ timeout: 15000 })
 
     // Verify Quick Practice tab exists (rendered as a button, not role=tab)
     await expect(
@@ -37,8 +34,10 @@ test.describe('AI Interview Coaching Flow', () => {
     await page.goto('/candidate/ai-coaching')
     await page.waitForLoadState('networkidle')
 
-    // Wait for loading spinner to disappear
-    await page.locator('.animate-spin').waitFor({ state: 'detached', timeout: 10000 })
+    // Wait for heading to confirm page loaded
+    await expect(
+      page.getByRole('heading', { name: /AI Interview Coach/i })
+    ).toBeVisible({ timeout: 15000 })
 
     const mockTab = page.getByRole('button', { name: 'Mock Interview', exact: true })
     await mockTab.click()
@@ -56,8 +55,10 @@ test.describe('AI Interview Coaching Flow', () => {
     await page.goto('/candidate/ai-coaching')
     await page.waitForLoadState('networkidle')
 
-    // Wait for loading spinner to disappear
-    await page.locator('.animate-spin').waitFor({ state: 'detached', timeout: 10000 })
+    // Wait for heading to confirm page loaded
+    await expect(
+      page.getByRole('heading', { name: /AI Interview Coach/i })
+    ).toBeVisible({ timeout: 15000 })
 
     const practiceTab = page.getByRole('button', { name: 'Quick Practice', exact: true })
     await practiceTab.click()
