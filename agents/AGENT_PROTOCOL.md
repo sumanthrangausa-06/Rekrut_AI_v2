@@ -3,6 +3,7 @@
 > **Required Reading:** 
 > - [SCHEMA.md](../SCHEMA.md) - Repository file structure
 > - [docs/CODE_REVIEW_GRAPH.md](../docs/CODE_REVIEW_GRAPH.md) - Codebase architecture and navigation
+> - [docs/GSTACK_SKILLS.md](../docs/GSTACK_SKILLS.md) - gstack skills for each task type
 
 ## 🚨 MANDATORY RULES FOR ALL AGENTS
 
@@ -112,4 +113,59 @@ Examples:
 ❌ Change database schema without migration
 ❌ Modify another agent's code without coordination
 ❌ Skip writing to COORDINATION.md
+```
+
+### 7. GSTACK SKILLS - USE FOR EVERY TASK
+```
+gstack provides specialized AI workflows. ALWAYS use the right skill:
+
+Planning & Strategy:
+  /office-hours      - New ideas, brainstorming
+  /plan-ceo-review   - Strategy, scope validation
+  /plan-eng-review   - Architecture review
+  /spec              - Write specs/issues
+
+Code & Review:
+  /review            - Code review before commit
+  /investigate       - Bug investigation
+  /cso               - Security audit
+
+QA & Testing:
+  /qa                - Full QA with browser testing
+  /qa-only           - Report bugs only
+  /benchmark         - Performance testing
+
+Shipping:
+  /ship              - Create PR, deploy
+  /land-and-deploy   - Full deploy pipeline
+  /canary            - Post-deploy monitoring
+
+Documentation:
+  /document-release  - Update docs after shipping
+  /document-generate - Write new docs
+
+See docs/GSTACK_SKILLS.md for complete reference.
+```
+
+### 8. STANDARD WORKFLOW WITH GSTACK
+```
+New Feature:
+1. /office-hours → Brainstorm
+2. /plan-eng-review → Lock architecture
+3. (implement)
+4. /review → Code review
+5. /qa → Test
+6. /ship → Deploy
+
+Bug Fix:
+1. /investigate → Find root cause
+2. (fix)
+3. /review → Review fix
+4. /ship → Deploy
+
+Security Issue:
+1. /cso → Security audit
+2. /investigate → Deep dive
+3. /review → Review fix
+4. /ship → Deploy
 ```

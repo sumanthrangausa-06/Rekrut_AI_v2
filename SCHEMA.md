@@ -3,6 +3,7 @@
 > **For All Agents**: This document defines the canonical structure of the Rekrut AI repository.
 > Read this before creating or organizing any files.
 > **Code Navigation:** See [docs/CODE_REVIEW_GRAPH.md](docs/CODE_REVIEW_GRAPH.md) for visual codebase overview.
+> **Task Skills:** See [docs/GSTACK_SKILLS.md](docs/GSTACK_SKILLS.md) for which gstack skill to use for each task type.
 
 **Last Updated:** 2026-08-06
 
