@@ -1,0 +1,42 @@
+[
+  {
+    "url": "https://rekrutai.co/api/auth/me",
+    "status": 200,
+    "body": "{\"user\":{\"id\":114,\"email\":\"qa.candidate.1786083173@gmail.com\",\"name\":\"QA Test Candidate\",\"role\":\"candidate\",\"company_id\":null,\"company_name\":null,\"is_paid\":false,\"google_id\":null,\"linkedin_id\":null,\"created_at\":\"2026-08-07T06:13:01.863Z\"}}"
+  },
+  {
+    "url": "https://rekrutai.co/api/auth/me",
+    "status": 200,
+    "body": "{\"user\":{\"id\":114,\"email\":\"qa.candidate.1786083173@gmail.com\",\"name\":\"QA Test Candidate\",\"role\":\"candidate\",\"company_id\":null,\"company_name\":null,\"is_paid\":false,\"google_id\":null,\"linkedin_id\":null,\"created_at\":\"2026-08-07T06:13:01.863Z\"}}"
+  },
+  {
+    "url": "https://rekrutai.co/api/billing/tier",
+    "status": 200,
+    "body": "{\"tier\":\"free\",\"isPro\":false,\"plan\":\"free\",\"status\":\"active\",\"features\":[{\"feature\":\"ai_job_matching\",\"name\":\"AI Job Matching\",\"allowed\":true,\"limit\":20,\"used\":0,\"remaining\":20,\"tier\":\"free\",\"tierLevel\":null},{\"feature\":\"mock_interviews\",\"name\":\"Mock Interviews\",\"allowed\":true,\"limit\":3,\"used\":0,\"re"
+  },
+  {
+    "url": "https://rekrutai.co/api/billing/tier",
+    "status": 200,
+    "body": "{\"tier\":\"free\",\"isPro\":false,\"plan\":\"free\",\"status\":\"active\",\"features\":[{\"feature\":\"ai_job_matching\",\"name\":\"AI Job Matching\",\"allowed\":true,\"limit\":20,\"used\":0,\"remaining\":20,\"tier\":\"free\",\"tierLevel\":null},{\"feature\":\"mock_interviews\",\"name\":\"Mock Interviews\",\"allowed\":true,\"limit\":3,\"used\":0,\"re"
+  },
+  {
+    "url": "https://rekrutai.co/api/candidate/jobs/dismissed",
+    "status": 200,
+    "body": "{\"success\":true,\"jobs\":[],\"dismissed_jobs\":[]}"
+  },
+  {
+    "url": "https://rekrutai.co/api/candidate/jobs/liked",
+    "status": 200,
+    "body": "{\"success\":true,\"jobs\":[],\"liked_jobs\":[]}"
+  },
+  {
+    "url": "https://rekrutai.co/api/candidate/saved-jobs",
+    "status": 200,
+    "body": "{\"success\":true,\"saved_jobs\":[],\"data\":[]}"
+  },
+  {
+    "url": "https://rekrutai.co/api/candidate/jobs?limit=200",
+    "status": 200,
+    "body": "{\"success\":true,\"data\":[{\"id\":173,\"title\":\"E2E Test Engineer 1780943007852 Updated\",\"description\":\"End-to-end testing position.\",\"company\":\"E2E Test Co\",\"poster_company\":\"E2E Test Co\",\"location\":\"Remote\",\"job_type\":\"full-time\",\"salary_min\":null,\"salary_max\":null,\"salary_range\":\"\",\"currency_code\":\"US"
+  }
+]
