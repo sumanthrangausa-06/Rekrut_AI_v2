@@ -1,3 +1,4 @@
+import React from 'react'
 import * as React from 'react'
 import { getDiceBearAvatar } from '@/lib/avatar'
 import { cn } from '@/lib/utils'
