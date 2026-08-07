@@ -230,6 +230,7 @@ export function CandidateJobsPage() {
 	}, [filters.search, filters.type, filters.location, saveRecentSearch, filters])
 
 	const loadJobs = useCallback(async () => {
+		setLoading(true)
 		try {
 			const params = new URLSearchParams()
 			params.set('limit', '200')
@@ -247,25 +248,32 @@ export function CandidateJobsPage() {
 			const queryString = params.toString()
 			const url = queryString ? `/candidate/jobs?${queryString}` : '/candidate/jobs?limit=200'
 
-			const [allData, recData] = await Promise.allSettled([
-				apiCall<{ data: Job[]; pagination: { total: number } }>(url),
-				apiCall<{ recommended_jobs: Job[] }>('/candidate/jobs/recommended'),
-			])
-			const allJobs = allData.status === 'fulfilled' ? allData.value.data || [] : []
-			const recJobs = recData.status === 'fulfilled' ? recData.value.recommended_jobs || [] : []
+			// Primary call — render jobs immediately, do NOT block on recommended
+			const primaryRes = await apiCall<{ data: Job[]; pagination: { total: number } }>(url)
+			const allJobs = primaryRes?.data || []
+			setJobs(allJobs)
+			setLoading(false)
 
-			const recMap = new Map<number, Job>()
-			for (const rj of recJobs) recMap.set(rj.job_id ?? rj.id, rj)
+			// Recommended call — best-effort background enrichment
+			try {
+				const recRes = await apiCall<{ recommended_jobs: Job[] }>('/candidate/jobs/recommended')
+				const recJobs = recRes?.recommended_jobs || []
 
-			const enriched = allJobs.map((j) => {
-				const rec = recMap.get(j.id)
-				return rec ? { ...j, ...rec } : j
-			})
+				const recMap = new Map<number, Job>()
+				for (const rj of recJobs) recMap.set(rj.job_id ?? rj.id, rj)
 
-			setJobs(enriched)
-			setRecommendedJobs(recJobs.slice(0, 5))
-		} catch {
-		} finally {
+				setJobs((prev) =>
+					prev.map((j) => {
+						const rec = recMap.get(j.id)
+						return rec ? { ...j, ...rec } : j
+					}),
+				)
+				setRecommendedJobs(recJobs.slice(0, 5))
+			} catch (recErr) {
+				console.warn('[jobs] Recommended jobs fetch failed (non-blocking):', recErr)
+			}
+		} catch (err) {
+			console.error('[jobs] Failed to load jobs:', err)
 			setLoading(false)
 		}
 	}, [filters])
