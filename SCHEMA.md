@@ -120,14 +120,20 @@ agents/
 │   └── progress/          # Progress reports
 │       └── YYYY-MM-DD-agent.md
 │
-└── <agent-name>/          # Individual agent folders
-    ├── IDENTITY.md        # Agent-specific identity
-    ├── SOUL.md            # Agent-specific personality
-    ├── MEMORY.md          # Long-term memory (private)
-    ├── HEARTBEAT.md       # Agent heartbeat state
-    ├── TOOLS.md           # Agent-specific tools
-    └── USER.md            # Agent-specific user context
+├── <agent-name>/          # Individual agent folders
+│   ├── IDENTITY.md        # Agent-specific identity
+│   ├── SOUL.md            # Agent-specific personality
+│   ├── MEMORY.md          # Long-term memory (private)
+│   ├── HEARTBEAT.md       # Agent heartbeat state
+│   ├── TOOLS.md           # Agent-specific tools
+│   └── USER.md            # Agent-specific user context
+│
+└── workspace-archive/     # Historical identity/memory snapshots synced in bulk
+                           # from an agent's local home workspace (not canonical —
+                           # canonical copies live in agents/shared/ or agents/<agent-name>/)
 ```
+
+> **Rule:** Never dump raw agent identity/memory files (`SOUL.md`, `IDENTITY.md`, `USER.md`, `TOOLS.md`, `HEARTBEAT.md`, `MEMORY.md`) into `docs/`. They belong in `agents/shared/` (if canonical) or `agents/<agent-name>/`. One-off bulk syncs from an agent's home workspace go in `agents/workspace-archive/` instead. Automated test/queue artifacts (`agent-*-result-*.md`, `*-test-queue.md`, `autonomous-work-log.md`) go in `agents/shared/agent-artifacts/`, not `docs/`. (Note: avoid naming any new folder `logs/` — `.gitignore` has a blanket `logs/` rule.)
 
 ### Agent File Templates
 
@@ -319,3 +325,4 @@ See [Task Template](agents/shared/tasks/TEMPLATE.md)
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-08-06 | Initial schema creation | Agent |
+| 2026-08-06 | Re-sorted 90+ files dumped flat into `docs/` by a workspace sync (commit `1c1dfab`) into correct subfolders; added `agents/workspace-archive/` and `agents/shared/logs/` for non-canonical identity/log files; added rule against dumping agent identity files into `docs/` | Agent |
