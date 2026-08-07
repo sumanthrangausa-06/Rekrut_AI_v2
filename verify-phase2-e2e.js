@@ -9,16 +9,21 @@ const BASE_URL = process.env.BASE_URL || 'https://hireloop-vzvw.polsia.app';
 
 // Unique suffix for test data
 const TS = Date.now().toString(36);
+const TEST_PASSWORD = process.env.TEST_USER_PASSWORD;
+if (!TEST_PASSWORD) {
+  console.error('TEST_USER_PASSWORD environment variable is required');
+  process.exit(1);
+}
 
 const CANDIDATE = {
   email: `qa-candidate-${TS}@test.com`,
-  password: 'TestPass123!',
+  password: TEST_PASSWORD,
   name: `QA Candidate ${TS}`,
 };
 
 const RECRUITER = {
   email: `qa-recruiter-${TS}@test.com`,
-  password: 'TestPass123!',
+  password: TEST_PASSWORD,
   name: `QA Recruiter ${TS}`,
   company_name: `QA Corp ${TS}`,
 };

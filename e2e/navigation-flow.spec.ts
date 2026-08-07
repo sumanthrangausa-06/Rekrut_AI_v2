@@ -157,7 +157,7 @@ test.describe('End-to-End Integration Flow', () => {
   test('recruiter posts job, candidate applies, recruiter views applicants', async ({ request, page }) => {
     // 1. Recruiter creates a job via API (fast, no extra browser context)
     const recruiterLogin = await request.post('/api/auth/login', {
-      data: { email: 'e2e-recruiter@rekrutai.test', password: 'TestPass123!' },
+      data: { email: 'e2e-recruiter@rekrutai.test', password: process.env.TEST_LOGIN_PASSWORD || '' },
     });
     const recruiterData = await recruiterLogin.json();
     const recruiterToken = recruiterData.token || recruiterData.accessToken;

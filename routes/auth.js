@@ -43,6 +43,25 @@ function isStrongPassword(password) {
 	);
 }
 
+function isMinimumPassword(password) {
+	if (typeof password !== 'string' || password.length < 8 || password.length > 128) return false;
+	return true;
+}
+
+function validatePasswordForRole(password, role) {
+	if (role === 'admin') {
+		return isStrongPassword(password);
+	}
+	return isMinimumPassword(password);
+}
+
+function getPasswordPolicyMessage(role) {
+	if (role === 'admin') {
+		return 'Password must be at least 8 characters and include uppercase, lowercase, number, and symbol';
+	}
+	return 'Password must be at least 8 characters';
+}
+
 // ============= EMAIL/PASSWORD AUTH =============
 
 // Register
@@ -54,10 +73,9 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 			return res.status(400).json({ error: 'Email and password are required' });
 		}
 
-		if (!isStrongPassword(password)) {
+		if (!validatePasswordForRole(password, role)) {
 			return res.status(400).json({
-				error:
-					'Password must be at least 8 characters and include uppercase, lowercase, number, and symbol',
+				error: getPasswordPolicyMessage(role),
 			});
 		}
 
@@ -811,13 +829,6 @@ router.post('/reset-password', rateLimits.strict, async (req, res) => {
 			return res.status(400).json({ error: 'Token and password are required' });
 		}
 
-		if (!isStrongPassword(password)) {
-			return res.status(400).json({
-				error:
-					'Password must be at least 8 characters and include uppercase, lowercase, number, and symbol',
-			});
-		}
-
 		// Find valid token
 		const tokenResult = await pool.query(
 			'SELECT user_id FROM password_reset_tokens WHERE token = $1 AND expires_at > NOW() AND used_at IS NULL',
@@ -829,6 +840,16 @@ router.post('/reset-password', rateLimits.strict, async (req, res) => {
 		}
 
 		const userId = tokenResult.rows[0].user_id;
+
+		// Look up user role for password policy
+		const userResult = await pool.query('SELECT role FROM users WHERE id = $1', [userId]);
+		const userRole = userResult.rows[0]?.role || 'candidate';
+
+		if (!validatePasswordForRole(password, userRole)) {
+			return res.status(400).json({
+				error: getPasswordPolicyMessage(userRole),
+			});
+		}
 
 		// Hash new password
 		const passwordHash = await bcrypt.hash(password, 13);

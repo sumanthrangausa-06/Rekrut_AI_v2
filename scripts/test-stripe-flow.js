@@ -5,11 +5,18 @@ if (process.env.NODE_ENV === 'production') {
 const crypto = require('node:crypto');
 const http = require('node:http');
 
-const WEBHOOK_SECRET = 'whsec_test_1234567890abcdef';
+const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test_1234567890abcdef';
 const _BASE_URL = 'http://localhost:3000';
 const TEST_USER = {
 	email: 'test-stripe@rekrutai.co',
-	password: 'Test1234!',
+	get password() {
+		const p = process.env.TEST_LOGIN_PASSWORD;
+		if (!p) {
+			console.error('TEST_LOGIN_PASSWORD environment variable is required');
+			process.exit(1);
+		}
+		return p;
+	},
 };
 
 function request(path, method, headers, body) {

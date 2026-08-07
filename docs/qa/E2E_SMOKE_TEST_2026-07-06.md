@@ -57,7 +57,7 @@ Body: {"status":"ok","db":{"connected":true,"latencyMs":58},...}
 ### 2.1 Login
 ```
 POST /api/auth/login
-Body: {"email":"qa.candidate@rekrutai.co","password":"TestPass123!"}
+Body: {"email":"qa.candidate@rekrutai.co","password":"YOUR_STRONG_PASSWORD_HERE"}
 Status: 200 OK
 ```
 Response:
@@ -108,7 +108,7 @@ The test account `qa.candidate@rekrutai.co` did not exist in the staging databas
 ### 3.1 Login
 ```
 POST /api/auth/login
-Body: {"email":"qa.recruiter@rekrutai.co","password":"TestPass123!"}
+Body: {"email":"qa.recruiter@rekrutai.co","password":"YOUR_STRONG_PASSWORD_HERE"}
 Status: 200 OK
 ```
 Response:
@@ -150,7 +150,7 @@ Status: 200 OK
 ### 4.2 API Registration
 ```
 POST /api/auth/register
-Body: {"email":"...","password":"TestPass123!","firstName":"...","lastName":"...","role":"candidate|recruiter"}
+Body: {"email":"...","password":"YOUR_STRONG_PASSWORD_HERE","firstName":"...","lastName":"...","role":"candidate|recruiter"}
 Status: 201 Created
 ```
 - Candidate registration: ✅

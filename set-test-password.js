@@ -2,8 +2,8 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
 const pool = new Pool({
-  connectionString: 'postgresql://neondb_owner:npg_IC0wumYoWbe4@ep-calm-field-aipg6g97-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
-  ssl: { rejectUnauthorized: false }
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
 async function setPassword(email, password) {
@@ -18,11 +18,24 @@ async function setPassword(email, password) {
 }
 
 async function main() {
-  await setPassword('test_candidate@rekrutai.co', 'Test123!');
-  await setPassword('test_recruiter@rekrutai.co', 'Test123!');
-  await setPassword('qa_test@rekrutai.co', 'Test123!');
-  await setPassword('test_candidate_qa@rekrutai.co', 'Test123!');
-  await setPassword('test_recruiter_qa@rekrutai.co', 'Test123!');
+  const password = process.env.TEST_USER_PASSWORD;
+  if (!password) {
+    console.error('TEST_USER_PASSWORD environment variable is required');
+    process.exit(1);
+  }
+
+  const emails = [
+    'test_candidate@rekrutai.co',
+    'test_recruiter@rekrutai.co',
+    'qa_test@rekrutai.co',
+    'test_candidate_qa@rekrutai.co',
+    'test_recruiter_qa@rekrutai.co',
+  ];
+
+  for (const email of emails) {
+    await setPassword(email, password);
+  }
+
   await pool.end();
   console.log('Done');
 }

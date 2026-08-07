@@ -13,7 +13,14 @@ const pool = new Pool({
 
 (async () => {
   try {
-    const email = 'sumanthrangausa@gmail.com';
+    const email = process.argv[2] || process.env.CHECK_USER_EMAIL;
+    const testPassword = process.argv[3] || process.env.CHECK_USER_PASSWORD;
+
+    if (!email || !testPassword) {
+      console.error('Usage: node check-password.js <email> <password>');
+      console.error('   or: CHECK_USER_EMAIL=... CHECK_USER_PASSWORD=... node check-password.js');
+      process.exit(1);
+    }
 
     // Get current password hash
     const user = await pool.query(
@@ -34,10 +41,9 @@ const pool = new Pool({
     console.log('Password hash (first 30 chars):', userRecord.password_hash.substring(0, 30) + '...');
     console.log('Password hash length:', userRecord.password_hash.length);
 
-    // Check if a specific password matches
-    const testPassword = 'Test@1234'; // Common test password
+    // Check if password matches
     const isMatch = await bcrypt.compare(testPassword, userRecord.password_hash);
-    console.log(`\nDoes password "${testPassword}" match?`, isMatch ? 'YES' : 'NO');
+    console.log(`\nDoes provided password match?`, isMatch ? 'YES' : 'NO');
 
     // Check all tokens for this user
     const tokens = await pool.query(

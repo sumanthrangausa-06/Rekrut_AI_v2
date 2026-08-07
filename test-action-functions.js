@@ -74,10 +74,15 @@ async function setup() {
 
   // Create recruiter user
   try {
+    const testPassword = process.env.TEST_USER_PASSWORD;
+    if (!testPassword) {
+      console.error('TEST_USER_PASSWORD environment variable is required');
+      process.exit(1);
+    }
     const recruiterRes = await makeRequest('POST', '/api/auth/register', {
       name: 'Test Recruiter',
       email: `recruiter-${Date.now()}@test.com`,
-      password: 'test123',
+      password: testPassword,
       role: 'recruiter',
       company_name: 'Test Company'
     });
@@ -94,10 +99,15 @@ async function setup() {
 
   // Create candidate user
   try {
+    const testPassword = process.env.TEST_USER_PASSWORD;
+    if (!testPassword) {
+      console.error('TEST_USER_PASSWORD environment variable is required');
+      process.exit(1);
+    }
     const candidateRes = await makeRequest('POST', '/api/auth/register', {
       name: 'Test Candidate',
       email: `candidate-${Date.now()}@test.com`,
-      password: 'test123',
+      password: testPassword,
       role: 'candidate'
     });
 
