@@ -20,13 +20,16 @@ mkdir -p "$REPORT_DIR/screenshots"
 
 cd "$REPO_DIR"
 
+# Set BASE_URL for Playwright tests
+export BASE_URL="$STAGING_URL"
+
 # ───────────────────────────────────────────────
 # Phase 1: Smoke Test (Quick — 30 seconds)
 # ───────────────────────────────────────────────
 echo ""
 echo "--- Phase 1: Smoke Test ---"
 
-# Run Playwright smoke tests
+# Run Playwright smoke tests (skip auth setup — smoke test is public-only)
 npx playwright test e2e/smoke-test.spec.ts --reporter=json 2>/dev/null > "$REPORT_DIR/$RUN_ID-smoke.json" || true
 
 # Check if tests passed

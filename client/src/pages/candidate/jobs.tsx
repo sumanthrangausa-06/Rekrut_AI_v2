@@ -38,6 +38,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { ScoreRing } from '@/components/domain/score-ring'
+import { JobDetailDrawer } from '@/components/domain/job-detail-drawer'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Slider } from '@/components/ui/slider'
@@ -809,7 +810,7 @@ export function CandidateJobsPage() {
 					</div>
 
 					{/* Job List */}
-					<div ref={jobListRef} className='flex-1 overflow-y-auto px-4 py-3 space-y-3'>
+					<div ref={jobListRef} data-job-list className='flex-1 overflow-y-auto px-4 py-3 space-y-3'>
 						{loading ? (
 							<div className='flex items-center justify-center py-16'>
 								<div className='h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent' />
@@ -1072,68 +1073,26 @@ export function CandidateJobsPage() {
 					</div>
 				</div>
 
-				{/* Right: Detail Panel (desktop only) */}
-				<div
-					className={cn(
-						'hidden lg:block w-[480px] xl:w-[520px] border-l bg-background overflow-y-auto shrink-0 transition-all',
-						showDetailPanel ? 'opacity-100' : 'opacity-0',
-					)}
-				>
-					{selectedJob ? (
-						<JobDetailPanel
-							job={selectedJob}
-							isSaved={savedJobIds.has(selectedJob.id)}
-							onToggleSave={(e) => toggleSaveJob(selectedJob.id, e)}
-							onClose={() => {
-								setShowDetailPanel(false)
-								setSelectedJob(null)
-							}}
-							onApply={() => navigate(`/candidate/jobs/${selectedJob.id}?apply=true`)}
-							onViewFullPage={() => navigate(`/candidate/jobs/${selectedJob.id}`)}
-						/>
-					) : (
-						<div className='flex flex-col items-center justify-center h-full text-center p-8'>
-							<Briefcase className='h-16 w-16 text-muted-foreground/20 mb-4' />
-							<p className='text-muted-foreground font-medium'>Select a job to view details</p>
-							<p className='text-sm text-muted-foreground mt-1'>
-								Click any job card from the list to see the full description, requirements, and
-								apply options.
-							</p>
-						</div>
-					)}
-				</div>
-			</div>
-
-			{/* Mobile Detail Panel */}
-			<div className='lg:hidden'>
-				<Sheet
-					open={showDetailPanel && selectedJob != null}
-					onOpenChange={setShowDetailPanel}
-					className='w-full'
-				>
-					<SheetHeader>
-						<SheetTitle className='flex items-center gap-2'>
-							<Briefcase className='h-5 w-5' /> Job Details
-						</SheetTitle>
-						<SheetClose />
-					</SheetHeader>
-					<SheetContent className='p-0 overflow-x-hidden'>
-						{selectedJob && (
-							<JobDetailPanel
-								job={selectedJob}
-								isSaved={savedJobIds.has(selectedJob.id)}
-								onToggleSave={(e) => toggleSaveJob(selectedJob.id, e)}
-								onClose={() => {
-									setShowDetailPanel(false)
-									setSelectedJob(null)
-								}}
-								onApply={() => navigate(`/candidate/jobs/${selectedJob.id}?apply=true`)}
-								onViewFullPage={() => navigate(`/candidate/jobs/${selectedJob.id}`)}
-							/>
-						)}
-					</SheetContent>
-				</Sheet>
-			</div>
+				{/* Job Detail Drawer (all viewports) */}
+			<JobDetailDrawer
+				job={selectedJob}
+				open={showDetailPanel && selectedJob != null}
+				onOpenChange={(open) => {
+					setShowDetailPanel(open)
+					if (!open) setSelectedJob(null)
+				}}
+				isSaved={selectedJob ? savedJobIds.has(selectedJob.id) : false}
+				onToggleSave={(e) => {
+					if (selectedJob) toggleSaveJob(selectedJob.id, e)
+				}}
+				onApply={() => {
+					if (selectedJob) navigate(`/candidate/jobs/${selectedJob.id}?apply=true`)
+				}}
+				onViewFullPage={() => {
+					if (selectedJob) navigate(`/candidate/jobs/${selectedJob.id}`)
+				}}
+			/>
+		</div>
 
 			{/* === MOBILE FILTERS SHEET === */}
 			<Sheet open={showFiltersMobile} onOpenChange={setShowFiltersMobile} side='left'>
@@ -1353,213 +1312,6 @@ function FilterSidebar({
 						))}
 					</div>
 				)}
-			</div>
-		</div>
-	)
-}
-
-// === JOB DETAIL PANEL (Right side) ===
-function JobDetailPanel({
-	job,
-	isSaved,
-	onToggleSave,
-	onClose,
-	onApply,
-	onViewFullPage,
-}: {
-	job: Job
-	isSaved: boolean
-	onToggleSave: (e: React.MouseEvent) => void
-	onClose: () => void
-	onApply: () => void
-	onViewFullPage?: () => void
-}) {
-	const score = job.weighted_score ? Math.round(job.weighted_score) : null
-	const screeningQuestions = (() => {
-		if (!job.screening_questions) return []
-		try {
-			const raw =
-				typeof job.screening_questions === 'string'
-					? JSON.parse(job.screening_questions)
-					: job.screening_questions
-			return Array.isArray(raw) ? raw : []
-		} catch {
-			return []
-		}
-	})()
-
-	return (
-		<div className='p-4 sm:p-5 space-y-5'>
-			{/* Header with actions */}
-			<div className='flex items-start justify-between gap-3'>
-				<div className='flex items-start gap-3'>
-					<Avatar
-						src={job.company_logo}
-						fallback={(job.company || job.poster_company || 'C').charAt(0)}
-						size='lg'
-						className='h-14 w-14'
-					/>
-					<div className='min-w-0'>
-						<h2 className='font-bold text-lg leading-tight break-words'>{job.title}</h2>
-						<p className='text-sm text-muted-foreground flex items-center gap-1 mt-0.5'>
-							<Building2 className='h-3.5 w-3.5' />
-							<span className='break-words'>{job.company || job.poster_company || 'Company'}</span>
-						</p>
-					</div>
-				</div>
-				<div className='flex items-center gap-1.5 shrink-0'>
-					<button
-						onClick={onToggleSave}
-						className='p-2 rounded-lg hover:bg-muted transition-colors'
-						aria-label={isSaved ? 'Unsave' : 'Save'}
-					>
-						{isSaved ? (
-							<Bookmark className='h-5 w-5 text-amber-500 fill-amber-500' />
-						) : (
-							<BookmarkPlus className='h-5 w-5 text-muted-foreground' />
-						)}
-					</button>
-					<button
-						onClick={onClose}
-						className='p-2 rounded-lg hover:bg-muted transition-colors lg:hidden'
-					>
-						<X className='h-5 w-5' />
-					</button>
-				</div>
-			</div>
-
-			{/* Match Score Banner */}
-			{score != null && (
-				<div className={cn('rounded-lg border p-3', matchBg(score))}>
-					<div className='flex items-center justify-between'>
-						<div className='flex items-center gap-3'>
-							<ScoreRing score={score} size='md' />
-							<div>
-								<p className='font-semibold text-sm'>{matchLevelLabel(job.match_level || '')}</p>
-								<p className='text-xs opacity-80'>
-									{job.skill_match_pct != null && `${job.skill_match_pct}% skills match`}
-									{job.matching_skills &&
-										` · ${job.matching_skills.length}/${(job.matching_skills?.length || 0) + (job.missing_skills?.length || 0)} skills`}
-								</p>
-							</div>
-						</div>
-						{job.match_level === 'excellent' && <Zap className='h-5 w-5 text-green-600' />}
-					</div>
-					{job.missing_skills && job.missing_skills.length > 0 && score < 80 && (
-						<div className='mt-2 pt-2 border-t border-current/10'>
-							<p className='text-xs font-medium opacity-70'>
-								To reach 90% match, add these skills:
-							</p>
-							<div className='flex flex-wrap gap-1 mt-1'>
-								{job.missing_skills.map((s) => (
-									<span key={s} className='text-[10px] bg-white/50 rounded px-1.5 py-0.5'>
-										{s}
-									</span>
-								))}
-							</div>
-						</div>
-					)}
-				</div>
-			)}
-
-			{/* Job Meta */}
-			<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
-				<div className='flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50'>
-					<MapPin className='h-4 w-4 text-muted-foreground shrink-0' />
-					<span className='truncate'>{job.location || 'Location not specified'}</span>
-				</div>
-				<div className='flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50'>
-					<DollarSign className='h-4 w-4 text-muted-foreground shrink-0' />
-					<span className='truncate'>{job.salary_range || 'Salary not specified'}</span>
-				</div>
-				<div className='flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50'>
-					<Briefcase className='h-4 w-4 text-muted-foreground shrink-0' />
-					<span>{job.job_type || 'Not specified'}</span>
-				</div>
-				<div className='flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50'>
-					<Clock className='h-4 w-4 text-muted-foreground shrink-0' />
-					<span>Posted {timeAgo(job.created_at)}</span>
-				</div>
-			</div>
-
-			{/* Skills Required */}
-			{(job.skills_required || job.matching_skills) && (
-				<div>
-					<p className='text-sm font-semibold mb-2 flex items-center gap-1'>
-						<GraduationCap className='h-4 w-4' /> Required Skills
-					</p>
-					<div className='flex flex-wrap gap-1.5'>
-						{(job.skills_required || job.matching_skills || []).map((skill) => {
-							const isMatch = job.matching_skills?.includes(skill)
-							return (
-								<Badge
-									key={skill}
-									variant={isMatch ? 'default' : 'outline'}
-									className={cn(
-										'text-xs h-6',
-										isMatch
-											? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200'
-											: '',
-									)}
-								>
-									{isMatch && <CheckCircle2 className='h-3 w-3 mr-1' />}
-									{skill}
-								</Badge>
-							)
-						})}
-					</div>
-				</div>
-			)}
-
-			<Separator />
-
-			{/* Description */}
-			<div>
-				<p className='text-sm font-semibold mb-2'>About the Role</p>
-				<div className='prose prose-sm max-w-none text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed break-words overflow-x-hidden'>
-					{job.description || 'No description provided.'}
-				</div>
-			</div>
-
-			{/* Requirements */}
-			{job.requirements && (
-				<div>
-					<p className='text-sm font-semibold mb-2'>Requirements</p>
-					<div className='prose prose-sm max-w-none text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed break-words overflow-x-hidden'>
-						{job.requirements}
-					</div>
-				</div>
-			)}
-
-			{/* Screening Questions */}
-			{screeningQuestions.length > 0 && (
-				<div>
-					<p className='text-sm font-semibold mb-2 flex items-center gap-1'>
-						<Award className='h-4 w-4' /> Screening Questions ({screeningQuestions.length})
-					</p>
-					<div className='space-y-2'>
-						{screeningQuestions.map((q, _i) => (
-							<div key={q.question?.slice(0, 30)} className='text-sm p-2 rounded-lg bg-muted/50'>
-								<p className='font-medium text-xs'>
-									{q.question}
-									{q.required && <span className='text-destructive'> *</span>}
-								</p>
-							</div>
-						))}
-					</div>
-				</div>
-			)}
-
-			{/* Apply Actions */}
-			<div className='sticky bottom-0 bg-background pt-2 pb-4 border-t'>
-				<div className='flex flex-col sm:flex-row gap-2'>
-					<Button className='flex-1 gap-2' onClick={onApply}>
-						<Send className='h-4 w-4' /> Apply Now
-					</Button>
-					<Button variant='outline' className='gap-2' onClick={onViewFullPage || onApply}>
-						<ExternalLink className='h-4 w-4' /> View Full Page
-					</Button>
-				</div>
 			</div>
 		</div>
 	)

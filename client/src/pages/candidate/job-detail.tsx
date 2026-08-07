@@ -32,6 +32,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Skeleton } from '@/components/domain/skeleton'
+import { JobDetailContent } from '@/components/domain/job-detail-drawer'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -1179,64 +1180,16 @@ export function CandidateJobDetailPage() {
 				</Card>
 			)}
 
-			{/* Description */}
+			{/* Job Detail Content */}
 			<Card>
-				<CardHeader>
-					<CardTitle className='flex items-center gap-2'>
-						<Briefcase className='h-5 w-5' /> Job Description
-					</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className='prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed break-words overflow-x-hidden px-1'>
-						{job.description || 'No description provided.'}
-					</div>
-				</CardContent>
+				<JobDetailContent
+					job={job as any}
+					isSaved={saved}
+					onToggleSave={toggleSave}
+					hideHeader={true}
+					showCloseButton={false}
+				/>
 			</Card>
-
-			{/* Requirements */}
-			{job.requirements && (
-				<Card>
-					<CardHeader>
-						<CardTitle className='flex items-center gap-2'>
-							<FileText className='h-5 w-5' /> Requirements
-						</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<div className='prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed break-words overflow-x-hidden px-1'>
-							{job.requirements}
-						</div>
-					</CardContent>
-				</Card>
-			)}
-
-			{/* Skills Required */}
-			{skillsRequired.length > 0 && (
-				<Card>
-					<CardHeader>
-						<CardTitle className='flex items-center gap-2'>
-							<BookOpen className='h-5 w-5' /> Required Skills
-						</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<div className='flex flex-wrap gap-1.5'>
-							{skillsRequired.map((skill) => (
-								<Badge
-									key={skill}
-									variant={matchingSkills.includes(skill) ? 'default' : 'outline'}
-									className={
-										matchingSkills.includes(skill)
-											? 'bg-green-100 text-green-700 border-green-200'
-											: ''
-									}
-								>
-									{matchingSkills.includes(skill) && <CheckCircle className='h-3 w-3 mr-1' />}
-									{skill}
-								</Badge>
-							))}
-						</div>
-					</CardContent>
-				</Card>
-			)}
 
 			{screeningQuestions.length > 0 && !showApplyForm && !applied && (
 				<div className='rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground flex items-center gap-2'>
