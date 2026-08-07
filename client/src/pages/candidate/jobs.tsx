@@ -1,5 +1,4 @@
 import {
-	Award,
 	Bookmark,
 	BookmarkPlus,
 	Brain,
@@ -10,24 +9,20 @@ import {
 	ChevronUp,
 	Clock,
 	DollarSign,
-	ExternalLink,
 	Filter,
 	Flame,
 	Globe,
-	GraduationCap,
 	History,
 	Loader2,
 	MapPin,
 	RotateCcw,
 	Search,
-	Send,
 	SlidersHorizontal,
 	Sparkles,
 	Target,
 	ThumbsUp,
 	TrendingUp,
 	X,
-	Zap,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'

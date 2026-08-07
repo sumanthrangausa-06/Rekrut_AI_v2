@@ -4,7 +4,6 @@ import {
 	BarChart3,
 	Bookmark,
 	BookmarkPlus,
-	BookOpen,
 	Brain,
 	Briefcase,
 	Building2,
