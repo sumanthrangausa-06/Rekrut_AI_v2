@@ -3,11 +3,13 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/auth-context'
 import { Header } from './header'
 import { Sidebar } from './sidebar'
+import { AIChatFAB } from '@/components/domain/ai-chat-fab'
 
 export function DashboardLayout() {
-	const { isAuthenticated, loading } = useAuth()
+	const { isAuthenticated, loading, user } = useAuth()
 	const [sidebarOpen, setSidebarOpen] = useState(false)
-	const _location = useLocation()
+	const location = useLocation()
+	const isCandidateRoute = location.pathname.startsWith('/candidate') || user?.role === 'candidate'
 
 	const handleCloseSidebar = useCallback(() => setSidebarOpen(false), [])
 
@@ -93,6 +95,7 @@ export function DashboardLayout() {
 					</div>
 				</footer>
 			</div>
+			{isCandidateRoute && <AIChatFAB />}
 		</div>
 	)
 }
