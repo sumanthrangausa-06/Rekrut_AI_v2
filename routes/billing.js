@@ -2,7 +2,8 @@ const express = require('express');
 const fetch = require('node-fetch');
 const crypto = require('node:crypto');
 const pool = require('../lib/db');
-const { optionalAuth } = require('../lib/auth');
+const { optionalAuth, authMiddleware } = require('../lib/auth');
+const { getTierSummary, getUserFeatureList, checkFeatureAccess } = require('../lib/subscription');
 
 const router = express.Router();
 
@@ -393,6 +394,25 @@ router.post('/webhook', async (req, res) => {
 	}
 });
 
+router.get('/tier', authMiddleware, async (req, res) => {
+	try {
+		if (!req.user) {
+			return res.status(401).json({ error: 'Authentication required.' });
+		}
+
+		const tierSummary = getTierSummary(req.user);
+		const features = await getUserFeatureList(req.user);
+
+		res.json({
+			...tierSummary,
+			features,
+		});
+	} catch (error) {
+		console.error('[billing] tier error:', error.message);
+		res.status(500).json({ error: 'Failed to fetch tier information.' });
+	}
+});
+
 router.get('/subscription-status', optionalAuth, async (req, res) => {
 	try {
 		if (!req.user) {
@@ -425,6 +445,8 @@ router.get('/subscription-status', optionalAuth, async (req, res) => {
 			plan: user.subscription_plan,
 			status: user.subscription_status || 'inactive',
 			stripeLive: stripeData,
+			tier: getTierSummary(user).tier,
+			isPro: getTierSummary(user).isPro,
 		});
 	} catch (error) {
 		console.error('[billing] subscription-status error:', error.message);
@@ -471,6 +493,25 @@ router.post('/cancel-subscription', optionalAuth, async (req, res) => {
 		res
 			.status(error.status || 500)
 			.json({ error: 'Failed to cancel subscription. Please try again.' });
+	}
+});
+
+router.get('/usage', authMiddleware, async (req, res) => {
+	try {
+		if (!req.user) {
+			return res.status(401).json({ error: 'Authentication required.' });
+		}
+
+		const { feature } = req.query;
+		if (!feature) {
+			return res.status(400).json({ error: 'feature query param is required.' });
+		}
+
+		const access = await checkFeatureAccess(req.user, feature);
+		res.json(access);
+	} catch (error) {
+		console.error('[billing] usage error:', error.message);
+		res.status(500).json({ error: 'Failed to fetch usage information.' });
 	}
 });
 

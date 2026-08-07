@@ -19,6 +19,7 @@ interface AuthContextType {
 	login: (email: string, password: string) => Promise<void>
 	register: (data: RegisterData) => Promise<void>
 	logout: () => void
+	refreshSubscription: () => Promise<void>
 }
 
 interface RegisterData {
@@ -45,8 +46,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 		// Verify token by fetching current user
 		apiCall<{ user: User }>('/auth/me', { skipAuthCheck: false })
-			.then((data) => {
-				setUser(data.user)
+			.then(async (data) => {
+				const user = data.user
+				// Fetch subscription tier
+				try {
+					const tierData = await apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', { skipAuthCheck: false })
+					user.subscriptionTier = tierData.tier
+				} catch {
+					// Tier endpoint may fail if billing is not configured — default to free
+					user.subscriptionTier = 'free'
+				}
+				setUser(user)
 				startAuthRefresh() // belt-and-suspenders: ensure timer is running
 			})
 			.catch(() => {
@@ -71,8 +81,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			skipAuthCheck: true,
 		})
 
+		const user = data.user
+		// Fetch subscription tier after login
+		try {
+			const tierData = await apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', { skipAuthCheck: false })
+			user.subscriptionTier = tierData.tier
+		} catch {
+			user.subscriptionTier = 'free'
+		}
 		setTokens(data.accessToken || data.token, data.refreshToken)
-		setUser(data.user)
+		setUser(user)
 	}
 
 	const register = async (registerData: RegisterData) => {
@@ -88,14 +106,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			skipAuthCheck: true,
 		})
 
+		const user = data.user
+		// Fetch subscription tier after register
+		try {
+			const tierData = await apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', { skipAuthCheck: false })
+			user.subscriptionTier = tierData.tier
+		} catch {
+			user.subscriptionTier = 'free'
+		}
 		setTokens(data.accessToken || data.token, data.refreshToken)
-		setUser(data.user)
+		setUser(user)
 	}
 
 	const logout = () => {
 		clearTokens()
 		setUser(null)
 		window.location.href = '/login'
+	}
+
+	const refreshSubscription = async () => {
+		if (!user) return
+		try {
+			const tierData = await apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', { skipAuthCheck: false })
+			setUser({ ...user, subscriptionTier: tierData.tier })
+		} catch {
+			setUser({ ...user, subscriptionTier: 'free' })
+		}
 	}
 
 	return (
@@ -108,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				login,
 				register,
 				logout,
+				refreshSubscription,
 			}}
 		>
 			{children}
