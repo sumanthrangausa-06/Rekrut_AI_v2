@@ -330,7 +330,7 @@ export function CandidateJobsPage() {
 					return next
 				})
 			} else {
-				await apiCall(`/candidate/saved-jobs`, { method: 'POST', body: { job_id: jobId } })
+				await apiCall('/candidate/saved-jobs', { method: 'POST', body: { job_id: jobId } })
 				setSavedJobIds((prev) => new Set(prev).add(jobId))
 			}
 		} catch {}
@@ -548,11 +548,11 @@ export function CandidateJobsPage() {
 			{/* === HERO SEARCH BAR === */}
 			<div className='shrink-0 bg-gradient-to-br from-indigo-600 via-indigo-500 to-purple-600 px-4 py-6 sm:py-8'>
 				<div className='max-w-4xl mx-auto'>
-					<div className='flex items-center justify-between mb-4'>
-						<div>
+					<div className='flex items-center justify-between mb-4 gap-2'>
+						<div className='min-w-0'>
 							<h1 className='text-white text-xl sm:text-2xl font-bold flex items-center gap-2'>
-								<Briefcase className='h-5 w-5' />
-								Find Your Next Opportunity
+								<Briefcase className='h-5 w-5 shrink-0' />
+								<span className='break-words'>Find Your Next Opportunity</span>
 							</h1>
 							<p className='text-indigo-100 text-sm mt-1'>
 								{aiResults
@@ -560,12 +560,12 @@ export function CandidateJobsPage() {
 									: `${filtered.length} active jobs`}
 							</p>
 						</div>
-						<div className='flex items-center gap-2'>
+						<div className='flex items-center gap-2 shrink-0'>
 							{savedJobs.length > 0 && (
 								<Button
 									variant='outline'
 									size='sm'
-									className='bg-white/10 border-white/20 text-white hover:bg-white/20 gap-1.5 min-h-[44px]'
+									className='bg-white/10 border-white/20 text-white hover:bg-white/20 gap-1.5 min-h-[44px] min-w-[44px]'
 									onClick={() => setShowDetailPanel(true)}
 								>
 									<Bookmark className='h-3.5 w-3.5' />
@@ -578,7 +578,7 @@ export function CandidateJobsPage() {
 							<Button
 								variant='outline'
 								size='sm'
-								className='bg-white/10 border-white/20 text-white hover:bg-white/20 gap-1.5 min-h-[44px]'
+								className='bg-white/10 border-white/20 text-white hover:bg-white/20 gap-1.5 min-h-[44px] min-w-[44px]'
 								onClick={() => setAiSearchMode(!aiSearchMode)}
 							>
 								{aiSearchMode ? <X className='h-3.5 w-3.5' /> : <Brain className='h-3.5 w-3.5' />}
@@ -618,9 +618,11 @@ export function CandidateJobsPage() {
 							</div>
 							{aiResults && (
 								<p className='text-xs text-indigo-100 flex items-center gap-1.5'>
-									<CheckCircle2 className='h-3 w-3 text-green-300' />
-									AI found {aiResults.length} matching jobs for "{aiSearchQuery}"
-									<button className='underline ml-1 hover:text-white' onClick={clearAiSearch}>
+									<CheckCircle2 className='h-3 w-3 text-green-300 shrink-0' />
+									<span className='break-words'>
+										AI found {aiResults.length} matching jobs for "{aiSearchQuery}"
+									</span>
+									<button className='underline ml-1 hover:text-white shrink-0' onClick={clearAiSearch}>
 										Clear
 									</button>
 								</p>
@@ -647,7 +649,7 @@ export function CandidateJobsPage() {
 								/>
 							</div>
 							<Button
-								className='bg-white text-indigo-600 hover:bg-white/90 h-11 px-6 font-semibold shadow-lg gap-2'
+								className='bg-white text-indigo-600 hover:bg-white/90 h-11 px-6 font-semibold shadow-lg gap-2 min-h-[44px]'
 								onClick={() => setShowFiltersMobile(true)}
 							>
 								<Filter className='h-4 w-4' />
@@ -663,16 +665,16 @@ export function CandidateJobsPage() {
 
 					{/* Recent searches */}
 					{!aiSearchMode && recentSearches.length > 0 && !filters.search && !filters.location && (
-						<div className='flex items-center gap-2 mt-3 overflow-x-auto'>
+						<div className='flex items-center gap-2 mt-3 overflow-x-auto scrollbar-hide pb-1'>
 							<History className='h-3.5 w-3.5 text-indigo-200 shrink-0' />
 							<span className='text-xs text-indigo-200 shrink-0'>Recent:</span>
 							{recentSearches.slice(0, 3).map((rs, i) => (
 								<button
 									key={rs.query || `rs-${i}`}
 									onClick={() => setFilters(rs.filters)}
-									className='text-xs text-white/80 hover:text-white bg-white/10 rounded-full px-2.5 py-1 transition-colors whitespace-nowrap flex items-center gap-1'
+									className='text-xs text-white/80 hover:text-white bg-white/10 rounded-full px-2.5 py-1.5 transition-colors whitespace-nowrap flex items-center gap-1 min-h-[44px]'
 								>
-									<Clock className='h-3 w-3' />
+									<Clock className='h-3 w-3 shrink-0' />
 									{rs.query}
 								</button>
 							))}
@@ -686,12 +688,12 @@ export function CandidateJobsPage() {
 				{/* Left: Job List */}
 				<div className='flex-1 flex flex-col overflow-hidden min-w-0'>
 					{/* Toolbar with tabs */}
-					<div className='shrink-0 flex items-center justify-between px-4 py-2 border-b bg-background'>
-						<div className='flex items-center gap-1'>
+					<div className='shrink-0 flex items-center justify-between px-4 py-2 border-b bg-background gap-2'>
+						<div className='flex items-center gap-1 overflow-x-auto scrollbar-hide min-h-[44px]'>
 							<button
 								onClick={() => setActiveTab('all')}
 								className={cn(
-									'px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5',
+									'px-3 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 min-h-[44px] whitespace-nowrap',
 									activeTab === 'all'
 										? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
 										: 'text-muted-foreground hover:bg-muted',
@@ -706,7 +708,7 @@ export function CandidateJobsPage() {
 							<button
 								onClick={() => setActiveTab('liked')}
 								className={cn(
-									'px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5',
+									'px-3 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 min-h-[44px] whitespace-nowrap',
 									activeTab === 'liked'
 										? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
 										: 'text-muted-foreground hover:bg-muted',
@@ -723,7 +725,7 @@ export function CandidateJobsPage() {
 							<button
 								onClick={() => setActiveTab('dismissed')}
 								className={cn(
-									'px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5',
+									'px-3 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 min-h-[44px] whitespace-nowrap',
 									activeTab === 'dismissed'
 										? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
 										: 'text-muted-foreground hover:bg-muted',
@@ -740,17 +742,17 @@ export function CandidateJobsPage() {
 							{activeFilterCount > 0 && (
 								<button
 									onClick={clearAllFilters}
-									className='text-xs text-primary hover:underline flex items-center gap-1 ml-2'
+									className='text-xs text-primary hover:underline flex items-center gap-1 ml-2 min-h-[44px] px-2 shrink-0'
 								>
 									<X className='h-3 w-3' /> Clear all
 								</button>
 							)}
 						</div>
-						<div className='flex items-center gap-2'>
+						<div className='flex items-center gap-2 shrink-0'>
 							<select
 								value={filters.sortBy}
 								onChange={(e) => setSearch('sortBy', e.target.value)}
-								className='text-xs bg-transparent border rounded px-2 py-1'
+								className='text-xs bg-transparent border rounded px-2 py-1.5 h-9'
 							>
 								<option value='match'>Best Match</option>
 								<option value='newest'>Newest</option>
@@ -848,7 +850,7 @@ export function CandidateJobsPage() {
 									</>
 								)}
 								{activeTab !== 'liked' && activeTab !== 'dismissed' && (
-									<Button variant='outline' className='mt-4 gap-1' onClick={clearAllFilters}>
+									<Button variant='outline' className='mt-4 gap-1 min-h-[44px]' onClick={clearAllFilters}>
 										<RotateCcw className='h-4 w-4' /> Reset Filters
 									</Button>
 								)}
@@ -861,7 +863,7 @@ export function CandidateJobsPage() {
 									!aiResults &&
 									recommendedJobs.length > 0 && (
 										<div className='flex items-center gap-2 mb-1'>
-											<Sparkles className='h-4 w-4 text-amber-500' />
+											<Sparkles className='h-4 w-4 text-amber-500 shrink-0' />
 											<span className='text-xs font-medium text-amber-600'>
 												Recommended for you
 											</span>
@@ -905,16 +907,18 @@ export function CandidateJobsPage() {
 																	{job.title}
 																</h3>
 																<p className='text-xs text-muted-foreground flex items-center gap-1 mt-0.5'>
-																	<Building2 className='h-3 w-3' />
-																	{job.company || job.poster_company || 'Company'}
+																	<Building2 className='h-3 w-3 shrink-0' />
+																	<span className='break-words'>
+																		{job.company || job.poster_company || 'Company'}
+																	</span>
 																	{job.company_size && (
 																		<span className='text-[10px] bg-muted rounded px-1'>
 																			{job.company_size}
 																		</span>
 																	)}
-																</p>
-															</div>
-															<div className='flex items-center gap-1.5 shrink-0'>
+															</p>
+														</div>
+															<div className='flex items-center gap-1 shrink-0'>
 																{job.has_applied && (
 																	<Badge className='bg-green-500 text-white text-[10px] px-1.5 py-0'>
 																		Applied
@@ -922,67 +926,69 @@ export function CandidateJobsPage() {
 																)}
 																{score != null && (
 																	<Tooltip
-	content={`${matchLevelLabel(job.match_level || '')} - ${score}% match`}
->
-	<ScoreRing score={score} size='sm' />
-</Tooltip>
+																		content={`${matchLevelLabel(job.match_level || '')} - ${score}% match`}
+																	>
+																		<ScoreRing score={score} size='sm' />
+																	</Tooltip>
 																)}
 																<button
-																	onClick={(e) => toggleLikeJob(job.id, e)}
-																	className={cn(
-																		'p-1 rounded transition-colors',
-																		likedJobIds.has(job.id)
-																			? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
-																			: 'text-muted-foreground hover:bg-muted hover:text-emerald-600',
-																	)}
-																	aria-label={likedJobIds.has(job.id) ? 'Unlike job' : 'Like job'}
-																>
-																	<ThumbsUp className='h-4 w-4' />
-																</button>
-																<button
-																	onClick={(e) => toggleDismissJob(job.id, e)}
-																	className={cn(
-																		'p-1 rounded transition-colors',
-																		dismissedJobIds.has(job.id)
-																			? 'text-red-600 bg-red-50 hover:bg-red-100'
-																			: activeTab === 'dismissed'
-																				? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
-																				: 'text-muted-foreground hover:bg-muted hover:text-red-600',
-																	)}
-																	aria-label={
-																		dismissedJobIds.has(job.id) ? 'Restore job' : 'Dismiss job'
-																	}
-																>
-																	{activeTab === 'dismissed' ? (
-																		<RotateCcw className='h-4 w-4' />
-																	) : (
-																		<X className='h-4 w-4' />
-																	)}
-																</button>
-																<button
-																	onClick={(e) => toggleSaveJob(job.id, e)}
-																	className='p-1 rounded hover:bg-muted transition-colors'
-																	aria-label={isSaved ? 'Unsave job' : 'Save job'}
-																>
-																	{isSaved ? (
-																		<Bookmark className='h-4 w-4 text-amber-500 fill-amber-500' />
-																	) : (
-																		<BookmarkPlus className='h-4 w-4 text-muted-foreground hover:text-amber-500' />
-																	)}
-																</button>
+																		onClick={(e) => toggleLikeJob(job.id, e)}
+																		className={cn(
+																			'rounded transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center',
+																			likedJobIds.has(job.id)
+																				? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
+																				: 'text-muted-foreground hover:bg-muted hover:text-emerald-600',
+																		)}
+																		aria-label={likedJobIds.has(job.id) ? 'Unlike job' : 'Like job'}
+																	>
+																		<ThumbsUp className='h-4 w-4' />
+																	</button>
+																	<button
+																			onClick={(e) => toggleDismissJob(job.id, e)}
+																			className={cn(
+																				'rounded transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center',
+																				dismissedJobIds.has(job.id)
+																					? 'text-red-600 bg-red-50 hover:bg-red-100'
+																					: activeTab === 'dismissed'
+																						? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
+																						: 'text-muted-foreground hover:bg-muted hover:text-red-600',
+																			)}
+																		aria-label={
+																			dismissedJobIds.has(job.id) ? 'Restore job' : 'Dismiss job'
+																		}
+																	>
+																		{activeTab === 'dismissed' ? (
+																			<RotateCcw className='h-4 w-4' />
+																		) : (
+																			<X className='h-4 w-4' />
+																		)}
+																	</button>
+																	<button
+																			onClick={(e) => toggleSaveJob(job.id, e)}
+																			className='rounded transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center hover:bg-muted'
+																			aria-label={isSaved ? 'Unsave job' : 'Save job'}
+																		>
+																		{isSaved ? (
+																			<Bookmark className='h-4 w-4 text-amber-500 fill-amber-500' />
+																		) : (
+																			<BookmarkPlus className='h-4 w-4 text-muted-foreground hover:text-amber-500' />
+																		)}
+																	</button>
 															</div>
 														</div>
 
 														{/* Meta row */}
 														<div className='flex flex-wrap items-center gap-2 mt-2 text-xs text-muted-foreground'>
 															{job.location && (
-																<span className='flex items-center gap-0.5'>
-																	<MapPin className='h-3 w-3' /> {job.location}
+																<span className='flex items-center gap-0.5 min-w-0'>
+																	<MapPin className='h-3 w-3 shrink-0' />
+																	<span className='break-words'>{job.location}</span>
 																</span>
 															)}
 															{job.salary_range && (
-																<span className='flex items-center gap-0.5'>
-																	<DollarSign className='h-3 w-3' /> {job.salary_range}
+																<span className='flex items-center gap-0.5 min-w-0'>
+																	<DollarSign className='h-3 w-3 shrink-0' />
+																	<span className='break-words'>{job.salary_range}</span>
 																</span>
 															)}
 															{job.job_type && (
@@ -998,12 +1004,14 @@ export function CandidateJobsPage() {
 																	{job.remote_type}
 																</Badge>
 															)}
-															<span className='flex items-center gap-0.5'>
-																<Clock className='h-3 w-3' /> {timeAgo(job.created_at)}
+															<span className='flex items-center gap-0.5 min-w-0'>
+																<Clock className='h-3 w-3 shrink-0' />
+																<span className='break-words'>{timeAgo(job.created_at)}</span>
 															</span>
 															{job.applicants_count != null && (
-																<span className='flex items-center gap-0.5'>
-																	<Flame className='h-3 w-3' /> {job.applicants_count} applicants
+																<span className='flex items-center gap-0.5 min-w-0'>
+																	<Flame className='h-3 w-3 shrink-0' />
+																	<span className='break-words'>{job.applicants_count} applicants</span>
 																</span>
 															)}
 														</div>
@@ -1035,7 +1043,7 @@ export function CandidateJobsPage() {
 															score != null &&
 															score < 80 && (
 																<div className='flex flex-wrap items-center gap-1 mt-1'>
-																	<span className='text-[10px] text-amber-500'>To improve:</span>
+																	<span className='text-[10px] text-amber-500 shrink-0'>To improve:</span>
 																	{job.missing_skills.slice(0, 2).map((s) => (
 																		<span
 																			key={s}
@@ -1049,8 +1057,8 @@ export function CandidateJobsPage() {
 																			+{job.missing_skills.length - 2}
 																		</span>
 																	)}
-																</div>
-															)}
+															</div>
+														)}
 													</div>
 												</div>
 											</CardContent>
@@ -1058,66 +1066,66 @@ export function CandidateJobsPage() {
 									)
 								})}
 
-								{/* Load more / Pagination */}
-								{hasMoreResults && (
-									<div className='flex justify-center py-4'>
-										<Button
-											variant='outline'
-											onClick={() => setPage((p) => p + 1)}
-											className='gap-2'
-										>
-											<TrendingUp className='h-4 w-4' />
-											Load More ({(aiResults || filtered).length - page * PAGE_SIZE} remaining)
-										</Button>
-									</div>
-								)}
-							</>
-						)}
+									{/* Load more / Pagination */}
+									{hasMoreResults && (
+										<div className='flex justify-center py-4'>
+											<Button
+												variant='outline'
+												onClick={() => setPage((p) => p + 1)}
+												className='gap-2 min-h-[44px]'
+											>
+												<TrendingUp className='h-4 w-4' />
+												Load More ({(aiResults || filtered).length - page * PAGE_SIZE} remaining)
+											</Button>
+										</div>
+									)}
+								</>
+							)}
+						</div>
 					</div>
+
+					{/* Job Detail Drawer (all viewports) */}
+					<JobDetailDrawer
+						job={selectedJob}
+						open={showDetailPanel && selectedJob != null}
+						onOpenChange={(open) => {
+							setShowDetailPanel(open)
+							if (!open) setSelectedJob(null)
+						}}
+						isSaved={selectedJob ? savedJobIds.has(selectedJob.id) : false}
+						onToggleSave={(e) => {
+							if (selectedJob) toggleSaveJob(selectedJob.id, e)
+						}}
+						onApply={() => {
+							if (selectedJob) navigate(`/candidate/jobs/${selectedJob.id}?apply=true`)
+						}}
+						onViewFullPage={() => {
+							if (selectedJob) navigate(`/candidate/jobs/${selectedJob.id}`)
+						}}
+					/>
 				</div>
 
-				{/* Job Detail Drawer (all viewports) */}
-			<JobDetailDrawer
-				job={selectedJob}
-				open={showDetailPanel && selectedJob != null}
-				onOpenChange={(open) => {
-					setShowDetailPanel(open)
-					if (!open) setSelectedJob(null)
-				}}
-				isSaved={selectedJob ? savedJobIds.has(selectedJob.id) : false}
-				onToggleSave={(e) => {
-					if (selectedJob) toggleSaveJob(selectedJob.id, e)
-				}}
-				onApply={() => {
-					if (selectedJob) navigate(`/candidate/jobs/${selectedJob.id}?apply=true`)
-				}}
-				onViewFullPage={() => {
-					if (selectedJob) navigate(`/candidate/jobs/${selectedJob.id}`)
-				}}
-			/>
-		</div>
-
-			{/* === MOBILE FILTERS SHEET === */}
-			<Sheet open={showFiltersMobile} onOpenChange={setShowFiltersMobile} side='left'>
-				<SheetHeader>
-					<SheetTitle className='flex items-center gap-2'>
-						<SlidersHorizontal className='h-5 w-5' /> Filters
-					</SheetTitle>
-					<SheetClose />
-				</SheetHeader>
-				<SheetContent>
-					<FilterSidebar
-						filters={filters}
-						setSearch={setSearch}
-						toggleSkill={toggleSkill}
-						clearAllFilters={clearAllFilters}
-						jobTypes={jobTypes}
-						allSkills={allSkills}
-						allLocations={allLocations}
-					/>
-				</SheetContent>
-			</Sheet>
-		</div>
+				{/* === MOBILE FILTERS SHEET === */}
+				<Sheet open={showFiltersMobile} onOpenChange={setShowFiltersMobile} side='left'>
+					<SheetHeader>
+						<SheetTitle className='flex items-center gap-2'>
+							<SlidersHorizontal className='h-5 w-5' /> Filters
+						</SheetTitle>
+						<SheetClose />
+					</SheetHeader>
+					<SheetContent>
+						<FilterSidebar
+							filters={filters}
+							setSearch={setSearch}
+							toggleSkill={toggleSkill}
+							clearAllFilters={clearAllFilters}
+							jobTypes={jobTypes}
+							allSkills={allSkills}
+							allLocations={allLocations}
+						/>
+					</SheetContent>
+				</Sheet>
+			</div>
 	)
 }
 
@@ -1152,7 +1160,7 @@ function FilterSidebar({
 				</span>
 				<button
 					onClick={clearAllFilters}
-					className='text-xs text-primary hover:underline flex items-center gap-1'
+					className='text-xs text-primary hover:underline flex items-center gap-1 min-h-[44px] px-2'
 				>
 					<RotateCcw className='h-3 w-3' /> Reset all
 				</button>
@@ -1162,7 +1170,7 @@ function FilterSidebar({
 			<div>
 				<p className='text-sm font-semibold mb-2'>Job Type</p>
 				<div className='space-y-1.5'>
-					<label className='flex items-center gap-2 cursor-pointer'>
+					<label className='flex items-center gap-2 cursor-pointer min-h-[44px]'>
 						<input
 							type='radio'
 							name='jobType'
@@ -1173,7 +1181,7 @@ function FilterSidebar({
 						<span className='text-sm'>All Types</span>
 					</label>
 					{jobTypes.map((t) => (
-						<label key={t} className='flex items-center gap-2 cursor-pointer'>
+						<label key={t} className='flex items-center gap-2 cursor-pointer min-h-[44px]'>
 							<input
 								type='radio'
 								name='jobType'
@@ -1193,7 +1201,7 @@ function FilterSidebar({
 			<div>
 				<button
 					onClick={() => setShowRemote(!showRemote)}
-					className='flex items-center justify-between w-full mb-2'
+					className='flex items-center justify-between w-full mb-2 min-h-[44px]'
 				>
 					<p className='text-sm font-semibold'>Work Mode</p>
 					{showRemote ? <ChevronUp className='h-4 w-4' /> : <ChevronDown className='h-4 w-4' />}
@@ -1201,7 +1209,7 @@ function FilterSidebar({
 				{showRemote && (
 					<div className='space-y-1.5'>
 						{['', 'remote', 'hybrid', 'onsite', 'flexible'].map((val) => (
-							<label key={val} className='flex items-center gap-2 cursor-pointer'>
+							<label key={val} className='flex items-center gap-2 cursor-pointer min-h-[44px]'>
 								<input
 									type='radio'
 									name='remoteType'
@@ -1224,7 +1232,7 @@ function FilterSidebar({
 			<div>
 				<button
 					onClick={() => setShowExperience(!showExperience)}
-					className='flex items-center justify-between w-full mb-2'
+					className='flex items-center justify-between w-full mb-2 min-h-[44px]'
 				>
 					<p className='text-sm font-semibold'>Experience Level</p>
 					{showExperience ? <ChevronUp className='h-4 w-4' /> : <ChevronDown className='h-4 w-4' />}
@@ -1232,7 +1240,7 @@ function FilterSidebar({
 				{showExperience && (
 					<div className='space-y-1.5'>
 						{['', 'entry', 'mid', 'senior', 'lead', 'executive'].map((val) => (
-							<label key={val} className='flex items-center gap-2 cursor-pointer'>
+							<label key={val} className='flex items-center gap-2 cursor-pointer min-h-[44px]'>
 								<input
 									type='radio'
 									name='expLevel'
@@ -1250,72 +1258,72 @@ function FilterSidebar({
 												: val === 'lead'
 													? 'Lead / Staff'
 													: val.charAt(0).toUpperCase() + val.slice(1)}
-								</span>
-							</label>
-						))}
-					</div>
-				)}
-			</div>
+									</span>
+								</label>
+							))}
+						</div>
+					)}
+				</div>
 
-			<Separator />
+				<Separator />
 
-			{/* Salary Range */}
-			<div>
-				<button
-					onClick={() => setShowSalary(!showSalary)}
-					className='flex items-center justify-between w-full mb-2'
-				>
-					<p className='text-sm font-semibold'>Salary Range</p>
-					{showSalary ? <ChevronUp className='h-4 w-4' /> : <ChevronDown className='h-4 w-4' />}
-				</button>
-				{showSalary && (
-					<div className='space-y-3'>
-						<Slider
-							value={[filters.salaryMin]}
-							onValueChange={(v) => setSearch('salaryMin', v[0])}
-							min={0}
-							max={300000}
-							step={5000}
-							label='Minimum Salary'
-							formatLabel={(v) => `$${(v / 1000).toFixed(0)}k`}
-						/>
-						<Slider
-							value={[filters.salaryMax]}
-							onValueChange={(v) => setSearch('salaryMax', v[0])}
-							min={0}
-							max={300000}
-							step={5000}
-							label='Maximum Salary'
-							formatLabel={(v) => `$${(v / 1000).toFixed(0)}k`}
-						/>
-					</div>
-				)}
-			</div>
-
-			<Separator />
-
-			{/* Skills */}
-			<div>
-				<button
-					onClick={() => setShowSkills(!showSkills)}
-					className='flex items-center justify-between w-full mb-2'
-				>
-					<p className='text-sm font-semibold'>Skills ({allSkills.length})</p>
-					{showSkills ? <ChevronUp className='h-4 w-4' /> : <ChevronDown className='h-4 w-4' />}
-				</button>
-				{showSkills && (
-					<div className='max-h-48 overflow-y-auto space-y-1.5'>
-						{allSkills.map((skill) => (
-							<Checkbox
-								key={skill}
-								checked={filters.skills.includes(skill)}
-								onCheckedChange={() => toggleSkill(skill)}
-								label={skill}
+				{/* Salary Range */}
+				<div>
+					<button
+						onClick={() => setShowSalary(!showSalary)}
+						className='flex items-center justify-between w-full mb-2 min-h-[44px]'
+					>
+						<p className='text-sm font-semibold'>Salary Range</p>
+						{showSalary ? <ChevronUp className='h-4 w-4' /> : <ChevronDown className='h-4 w-4' />}
+					</button>
+					{showSalary && (
+						<div className='space-y-3'>
+							<Slider
+								value={[filters.salaryMin]}
+								onValueChange={(v) => setSearch('salaryMin', v[0])}
+								min={0}
+								max={300000}
+								step={5000}
+								label='Minimum Salary'
+								formatLabel={(v) => `$${(v / 1000).toFixed(0)}k`}
 							/>
-						))}
-					</div>
-				)}
+							<Slider
+								value={[filters.salaryMax]}
+								onValueChange={(v) => setSearch('salaryMax', v[0])}
+								min={0}
+								max={300000}
+								step={5000}
+								label='Maximum Salary'
+								formatLabel={(v) => `$${(v / 1000).toFixed(0)}k`}
+							/>
+						</div>
+					)}
+				</div>
+
+				<Separator />
+
+				{/* Skills */}
+				<div>
+					<button
+						onClick={() => setShowSkills(!showSkills)}
+						className='flex items-center justify-between w-full mb-2 min-h-[44px]'
+					>
+						<p className='text-sm font-semibold'>Skills ({allSkills.length})</p>
+						{showSkills ? <ChevronUp className='h-4 w-4' /> : <ChevronDown className='h-4 w-4' />}
+					</button>
+					{showSkills && (
+						<div className='max-h-48 overflow-y-auto space-y-1.5'>
+							{allSkills.map((skill) => (
+								<Checkbox
+									key={skill}
+									checked={filters.skills.includes(skill)}
+									onCheckedChange={() => toggleSkill(skill)}
+									label={skill}
+								/>
+							))}
+						</div>
+					)}
+				</div>
 			</div>
-		</div>
-	)
-}
+		)
+	}

@@ -57,12 +57,19 @@
     scroll-behavior: smooth;
     /* Prevent iOS overscroll bounce on the whole page */
     overscroll-behavior: none;
+    /* Prevent horizontal scroll at all viewport widths */
+    overflow-x: hidden;
   }
 
   body {
     @apply bg-background text-foreground;
     /* Prevent iOS rubber-banding on body */
     overscroll-behavior-y: none;
+    /* Prevent horizontal scroll at all viewport widths */
+    overflow-x: hidden;
+    /* Ensure text wraps properly even at high zoom levels */
+    word-break: break-word;
+    overflow-wrap: anywhere;
   }
 }
 

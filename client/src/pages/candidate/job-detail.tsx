@@ -445,7 +445,7 @@ export function CandidateJobDetailPage() {
 							variant={value === 'Yes' ? 'default' : 'outline'}
 							size='sm'
 							onClick={() => updateAnswer(key, 'Yes')}
-							className='flex-1'
+							className='flex-1 min-h-[44px]'
 						>
 							Yes
 						</Button>
@@ -454,7 +454,7 @@ export function CandidateJobDetailPage() {
 							variant={value === 'No' ? 'default' : 'outline'}
 							size='sm'
 							onClick={() => updateAnswer(key, 'No')}
-							className='flex-1'
+							className='flex-1 min-h-[44px]'
 						>
 							No
 						</Button>
@@ -658,7 +658,7 @@ export function CandidateJobDetailPage() {
 					<CardContent className='p-4'>
 						<div className='flex items-start gap-3'>
 							<AlertCircle className='h-5 w-5 text-amber-600 mt-0.5 shrink-0' />
-							<div className='flex-1'>
+							<div className='flex-1 min-h-[44px]'>
 								<p className='font-semibold text-sm text-amber-900'>
 									Complete your profile for better matches
 								</p>

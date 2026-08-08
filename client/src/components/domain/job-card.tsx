@@ -147,8 +147,8 @@ export function JobCard({
 		<Card className={cn('group overflow-hidden transition-all hover:shadow-md', className)}>
 			<CardHeader className='pb-2'>
 				<div className='flex items-start justify-between gap-3'>
-					<div className='flex items-center gap-3'>
-						<Avatar className='h-10 w-10 border'>
+					<div className='flex items-center gap-3 min-w-0'>
+						<Avatar className='h-10 w-10 border shrink-0'>
 							<AvatarImage src={companyLogo} alt={company} />
 							<AvatarFallback className='bg-primary/10 text-primary text-sm font-semibold'>
 								{company.slice(0, 2).toUpperCase()}
@@ -159,8 +159,8 @@ export function JobCard({
 								{title}
 							</h3>
 							<p className='text-sm text-muted-foreground flex items-center gap-1'>
-								<Building2 className='h-3 w-3' />
-								{company}
+								<Building2 className='h-3 w-3 shrink-0' />
+								<span className='break-words'>{company}</span>
 							</p>
 						</div>
 					</div>
@@ -169,7 +169,7 @@ export function JobCard({
 							type='button'
 							onClick={handleLike}
 							className={cn(
-								'rounded-full p-1.5 transition-colors',
+								'rounded-full transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center',
 								isLiked
 									? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400'
 									: 'text-muted-foreground hover:bg-muted hover:text-emerald-600',
@@ -182,7 +182,7 @@ export function JobCard({
 							type='button'
 							onClick={handleDislike}
 							className={cn(
-								'rounded-full p-1.5 transition-colors',
+								'rounded-full transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center',
 								isDisliked
 									? 'text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400'
 									: mode === 'trash'
@@ -196,7 +196,7 @@ export function JobCard({
 						<button
 							type='button'
 							onClick={handleSave}
-							className='rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-primary transition-colors'
+							className='rounded-full transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-primary'
 							aria-label={isSaved ? 'Remove bookmark' : 'Save job'}
 						>
 							{isSaved ? (
@@ -240,20 +240,20 @@ export function JobCard({
 
 				{/* Meta row */}
 				<div className='flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground'>
-					<span className='flex items-center gap-1'>
-						<MapPin className='h-3.5 w-3.5' />
-						{location}
+					<span className='flex items-center gap-1 min-w-0'>
+						<MapPin className='h-3.5 w-3.5 shrink-0' />
+						<span className='break-words'>{location}</span>
 					</span>
 					<Badge variant={locationBadgeVariant(locationType)} className='text-xs px-1.5 py-0'>
 						{locationLabel(locationType)}
 					</Badge>
-					<span className='flex items-center gap-1'>
-						<Clock className='h-3.5 w-3.5' />
-						{jobType}
+					<span className='flex items-center gap-1 min-w-0'>
+						<Clock className='h-3.5 w-3.5 shrink-0' />
+						<span className='break-words'>{jobType}</span>
 					</span>
-					<span className='flex items-center gap-1'>
-						<DollarSign className='h-3.5 w-3.5' />
-						{formatSalary(salaryMin, salaryMax, salaryCurrency, salaryPeriod)}
+					<span className='flex items-center gap-1 min-w-0'>
+						<DollarSign className='h-3.5 w-3.5 shrink-0' />
+						<span className='break-words'>{formatSalary(salaryMin, salaryMax, salaryCurrency, salaryPeriod)}</span>
 					</span>
 				</div>
 
@@ -278,13 +278,13 @@ export function JobCard({
 
 			<CardFooter className='pt-0'>
 				<div className='flex w-full gap-2'>
-					<Button size='sm' className='flex-1 gap-1' onClick={handleApply} asChild>
+					<Button size='sm' className='flex-1 gap-1 min-h-[44px]' onClick={handleApply} asChild>
 						<Link to={`/candidate/jobs/${id}`}>
 							View details
 							<ChevronRight className='h-3.5 w-3.5' />
 						</Link>
 					</Button>
-					<Button size='sm' variant='outline' className='flex-1' onClick={handleApply}>
+					<Button size='sm' variant='outline' className='flex-1 min-h-[44px]' onClick={handleApply}>
 						Quick apply
 					</Button>
 				</div>
