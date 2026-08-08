@@ -18,7 +18,7 @@ import {
 	User,
 	XCircle,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { EmptyState } from '@/components/domain/empty-state'
 import { Skeleton } from '@/components/domain/skeleton'
@@ -144,7 +144,7 @@ export function RecruiterOffersPage() {
 		}
 	}, [message])
 
-	async function loadData() {
+	const loadData = useCallback(async () => {
 		try {
 			const [offersRes, candidatesRes, jobsRes] = await Promise.allSettled([
 				apiCall<Offer[]>('/onboarding/offers'),
@@ -160,7 +160,7 @@ export function RecruiterOffersPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
 
 	async function createOffer() {
 		if (!candidateId || !jobId || !salary) {

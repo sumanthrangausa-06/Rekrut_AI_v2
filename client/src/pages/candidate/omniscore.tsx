@@ -15,7 +15,7 @@ import {
 	Users,
 	Zap,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -270,7 +270,7 @@ export function CandidateOmniScorePage() {
 		if (tab === 'rate-companies' && companies.length === 0) loadCompanies()
 	}, [tab, loadCompanies, loadMatches, matches.length, companies.length])
 
-	async function loadMyScore() {
+	const loadMyScore = useCallback(async () => {
 		try {
 			// Daily checkin + breakdown + trend + explainer in parallel
 			await apiCall('/omniscore/checkin', { method: 'POST' }).catch(() => {})
@@ -287,9 +287,9 @@ export function CandidateOmniScorePage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
 
-	async function loadMatches() {
+	const loadMatches = useCallback(async () => {
 		setMatchesLoading(true)
 		try {
 			const data = await apiCall<any>('/omniscore/mutual-matches')
@@ -298,9 +298,9 @@ export function CandidateOmniScorePage() {
 		} finally {
 			setMatchesLoading(false)
 		}
-	}
+	}, [])
 
-	async function loadCompanies() {
+	const loadCompanies = useCallback(async () => {
 		setCompaniesLoading(true)
 		try {
 			const data = await apiCall<any>('/omniscore/ratable-companies')
@@ -309,7 +309,7 @@ export function CandidateOmniScorePage() {
 		} finally {
 			setCompaniesLoading(false)
 		}
-	}
+	}, [])
 
 	async function submitRating() {
 		if (!ratingForm || ratings.overall_rating === 0) return

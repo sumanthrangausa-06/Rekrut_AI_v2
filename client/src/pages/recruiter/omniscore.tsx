@@ -1,5 +1,5 @@
 import { MessageSquare, Shield, Star, Users } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -197,7 +197,7 @@ export function RecruiterOmniScorePage() {
 		if (tab === 'candidates' && candidates.length === 0) loadCandidates()
 	}, [tab, loadCandidates, candidates.length])
 
-	async function loadCompanyDashboard() {
+	const loadCompanyDashboard = useCallback(async () => {
 		try {
 			const data = await apiCall<any>('/omniscore/company-dashboard')
 			setTrustScore(data.trust_score)
@@ -210,9 +210,9 @@ export function RecruiterOmniScorePage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
 
-	async function loadCandidates() {
+	const loadCandidates = useCallback(async () => {
 		setCandidatesLoading(true)
 		try {
 			const data = await apiCall<any>('/omniscore/leaderboard?limit=50')
@@ -222,7 +222,7 @@ export function RecruiterOmniScorePage() {
 		} finally {
 			setCandidatesLoading(false)
 		}
-	}
+	}, [])
 
 	if (loading) {
 		return (

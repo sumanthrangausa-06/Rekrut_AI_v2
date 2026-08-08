@@ -290,7 +290,7 @@ export function RecruiterCandidatesPage() {
 		setPage(1)
 	}, [])
 
-	async function loadSavedSearches() {
+	const loadSavedSearches = useCallback(async () => {
 		try {
 			const data = await apiCall<{ searches: SavedSearch[] }>('/recruiter/saved-searches')
 			if (data.searches) setSavedSearches(data.searches)
@@ -315,16 +315,16 @@ export function RecruiterCandidatesPage() {
 				},
 			])
 		}
-	}
+	}, [])
 
-	async function loadJobs() {
+	const loadJobs = useCallback(async () => {
 		try {
 			const data = await apiCall<{ jobs: Array<{ id: number; title: string }> }>('/recruiter/jobs')
 			setJobs((data.jobs || []).map((j) => ({ id: String(j.id), title: j.title })))
 		} catch {
 			setJobs([])
 		}
-	}
+	}, [])
 
 	const handleFilterChange = (id: string, value: string | string[]) => {
 		setActiveFilters((prev) => ({ ...prev, [id]: value as string }))

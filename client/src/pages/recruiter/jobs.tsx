@@ -17,7 +17,7 @@ import {
 	XCircle,
 	Zap,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -94,7 +94,7 @@ export function RecruiterJobsPage() {
 		loadJobs()
 	}, [loadJobs])
 
-	async function loadJobs() {
+	const loadJobs = useCallback(async () => {
 		try {
 			const data = await apiCall<{ jobs: Job[] }>('/recruiter/jobs')
 			setJobs(data.jobs || [])
@@ -103,7 +103,7 @@ export function RecruiterJobsPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
 
 	async function toggleJobStatus(job: Job) {
 		const newStatus = job.status === 'active' ? 'paused' : 'active'

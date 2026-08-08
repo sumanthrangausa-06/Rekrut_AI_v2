@@ -1,6 +1,6 @@
 import DOMPurify from 'dompurify'
 import { Download, Eye, Loader2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -56,7 +56,7 @@ export function RecruiterOnboardingDocsPage() {
 		loadCandidates()
 	}, [loadCandidates])
 
-	async function loadCandidates() {
+	const loadCandidates = useCallback(async () => {
 		try {
 			setLoading(true)
 			const data = await apiCall<OnboardingCandidate[]>('/onboarding/recruiter/summary')
@@ -66,7 +66,7 @@ export function RecruiterOnboardingDocsPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
 
 	async function viewCandidateDetails(candidate: OnboardingCandidate) {
 		setSelectedCandidate(candidate)

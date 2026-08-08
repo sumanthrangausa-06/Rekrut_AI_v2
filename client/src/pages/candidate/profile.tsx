@@ -229,7 +229,7 @@ export function CandidateProfilePage() {
 		}
 	}, [message])
 
-	async function loadProfile() {
+	const loadProfile = useCallback(async () => {
 		try {
 			const data = await apiCall<{
 				success: boolean
@@ -260,7 +260,7 @@ export function CandidateProfilePage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
 
 	function showMessage(type: 'success' | 'error', text: string) {
 		setMessage({ type, text })

@@ -11,7 +11,7 @@ import {
 	Shield,
 	Star,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -82,7 +82,7 @@ export function CandidateScreeningPage() {
 		}
 	}, [screening?.expires_at, screening?.status])
 
-	async function loadScreening() {
+	const loadScreening = useCallback(async () => {
 		try {
 			const res = await fetch(`${API_URL}/api/interviews/screening/session/${token}`)
 			const data = await res.json()
@@ -103,7 +103,7 @@ export function CandidateScreeningPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [token])
 
 	async function startScreening() {
 		if (!screening) return

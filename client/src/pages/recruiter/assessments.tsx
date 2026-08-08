@@ -14,7 +14,7 @@ import {
 	Users,
 	XCircle,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '@/components/domain/empty-state'
 import { Skeleton } from '@/components/domain/skeleton'
@@ -156,7 +156,7 @@ export function RecruiterAssessmentsPage() {
 		loadData()
 	}, [loadData])
 
-	async function loadData() {
+	const loadData = useCallback(async () => {
 		try {
 			const params = new URLSearchParams()
 			if (filterSkill) params.set('skill', filterSkill)
@@ -189,7 +189,7 @@ export function RecruiterAssessmentsPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
 
 	async function viewDetail(assessmentId: number) {
 		setDetailLoading(true)

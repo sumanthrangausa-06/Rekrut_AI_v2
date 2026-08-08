@@ -23,7 +23,7 @@ import {
 	Wand2,
 	X,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -180,14 +180,14 @@ export function RecruiterJobFormPage() {
 		if (isEdit) loadJob()
 	}, [loadJob, loadCountries, isEdit])
 
-	async function loadCountries() {
+	const loadCountries = useCallback(async () => {
 		try {
 			const data = await apiCall<{ countries: any[] }>('/countries')
 			setCountries(data.countries)
 		} catch {
 			/* fallback to US only */
 		}
-	}
+	}, [])
 
 	async function loadPreviousPostings() {
 		setLoadingPostings(true)
@@ -227,7 +227,7 @@ export function RecruiterJobFormPage() {
 		}
 	}
 
-	async function loadJob() {
+	const loadJob = useCallback(async () => {
 		try {
 			const data = await apiCall<{
 				job: {
@@ -275,7 +275,7 @@ export function RecruiterJobFormPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [id, navigate])
 
 	function flashSuccess(msg: string) {
 		setAiSuccess(msg)

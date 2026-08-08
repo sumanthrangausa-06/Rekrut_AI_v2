@@ -20,7 +20,7 @@ import {
 	User,
 } from 'lucide-react'
 import type React from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AiOnboardingDashboard } from '@/components/ai-onboarding-dashboard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -1293,7 +1293,7 @@ export function CandidateOnboardingPage() {
 	const [error, setError] = useState('')
 	const [stepErrors, setStepErrors] = useState<Record<string, string>>({})
 	const [activeView, setActiveView] = useState<'paperwork' | 'ai-plan'>('paperwork')
-	const [prefillLoaded, setPrefillLoaded] = useState(false)
+	const prefillLoadedRef = useRef(false)
 
 	// Country-aware state
 	const [countryCode, setCountryCode] = useState('US')
@@ -1367,7 +1367,7 @@ export function CandidateOnboardingPage() {
 		loadProgress()
 	}, [loadProgress])
 
-	async function loadProgress() {
+	const loadProgress = useCallback(async () => {
 		try {
 			setLoading(true)
 			const data = await withTimeout(
@@ -1441,7 +1441,7 @@ export function CandidateOnboardingPage() {
 			}
 
 			// Load AI pre-fill if first visit (no data saved yet)
-			if (data.has_onboarding && data.wizard && !data.wizard.legal_first_name && !prefillLoaded) {
+			if (data.has_onboarding && data.wizard && !data.wizard.legal_first_name && !prefillLoadedRef.current) {
 				loadAIPrefill()
 			}
 		} catch (err: any) {
@@ -1449,11 +1449,11 @@ export function CandidateOnboardingPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
 
 	async function loadAIPrefill() {
 		try {
-			setPrefillLoaded(true)
+			prefillLoadedRef.current = true
 			const res = await apiCall<{ prefill: any; ai_suggestions: any }>(
 				'/onboarding/wizard/ai-prefill',
 			)

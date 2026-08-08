@@ -13,7 +13,7 @@ import {
 	Shield,
 	XCircle,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { EmptyState } from '@/components/domain/empty-state'
 import { Skeleton } from '@/components/domain/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -87,7 +87,7 @@ export function CandidateOffersPage() {
 		}
 	}, [message])
 
-	async function loadOffers() {
+	const loadOffers = useCallback(async () => {
 		try {
 			const data = await apiCall<Offer[]>('/onboarding/offers/me')
 			setOffers(Array.isArray(data) ? data : [])
@@ -96,7 +96,7 @@ export function CandidateOffersPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
 
 	async function markViewed(offer: Offer) {
 		if (!offer.viewed_at) {
