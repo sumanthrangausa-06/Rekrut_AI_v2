@@ -45,7 +45,7 @@ import {
 	X,
 	Zap,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Skeleton } from '@/components/domain/skeleton'
 import { Avatar } from '@/components/ui/avatar'
@@ -219,16 +219,6 @@ export function CandidateProfilePage() {
 	const [aiOptimizing, setAiOptimizing] = useState(false)
 	const [aiTips, setAiTips] = useState<string[] | null>(null)
 
-	useEffect(() => {
-		loadProfile()
-	}, [loadProfile])
-	useEffect(() => {
-		if (message) {
-			const t = setTimeout(() => setMessage(null), 3000)
-			return () => clearTimeout(t)
-		}
-	}, [message])
-
 	const loadProfile = useCallback(async () => {
 		try {
 			const data = await apiCall<{
@@ -261,6 +251,17 @@ export function CandidateProfilePage() {
 			setLoading(false)
 		}
 	}, [])
+
+	useEffect(() => {
+		loadProfile()
+	}, [loadProfile])
+	useEffect(() => {
+		if (message) {
+			const t = setTimeout(() => setMessage(null), 3000)
+			return () => clearTimeout(t)
+		}
+	}, [message])
+
 
 	function showMessage(type: 'success' | 'error', text: string) {
 		setMessage({ type, text })

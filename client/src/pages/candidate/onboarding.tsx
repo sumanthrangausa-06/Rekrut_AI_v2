@@ -1363,10 +1363,6 @@ export function CandidateOnboardingPage() {
 	const [isDrawing, setIsDrawing] = useState(false)
 	const [hasSignature, setHasSignature] = useState(false)
 
-	useEffect(() => {
-		loadProgress()
-	}, [loadProgress])
-
 	const loadProgress = useCallback(async () => {
 		try {
 			setLoading(true)
@@ -1450,6 +1446,11 @@ export function CandidateOnboardingPage() {
 			setLoading(false)
 		}
 	}, [])
+
+	useEffect(() => {
+		loadProgress()
+	}, [loadProgress])
+
 
 	async function loadAIPrefill() {
 		try {

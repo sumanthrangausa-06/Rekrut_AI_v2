@@ -90,10 +90,6 @@ export function RecruiterJobsPage() {
 
 	const [showMobilePanel, setShowMobilePanel] = useState(false)
 
-	useEffect(() => {
-		loadJobs()
-	}, [loadJobs])
-
 	const loadJobs = useCallback(async () => {
 		try {
 			const data = await apiCall<{ jobs: Job[] }>('/recruiter/jobs')
@@ -104,6 +100,11 @@ export function RecruiterJobsPage() {
 			setLoading(false)
 		}
 	}, [])
+
+	useEffect(() => {
+		loadJobs()
+	}, [loadJobs])
+
 
 	async function toggleJobStatus(job: Job) {
 		const newStatus = job.status === 'active' ? 'paused' : 'active'

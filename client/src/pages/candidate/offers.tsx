@@ -76,6 +76,17 @@ export function CandidateOffersPage() {
 	const [signing, setSigning] = useState(false)
 	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+	const loadOffers = useCallback(async () => {
+		try {
+			const data = await apiCall<Offer[]>('/onboarding/offers/me')
+			setOffers(Array.isArray(data) ? data : [])
+		} catch {
+			// silent
+		} finally {
+			setLoading(false)
+		}
+	}, [])
+
 	useEffect(() => {
 		loadOffers()
 	}, [loadOffers])
@@ -87,16 +98,6 @@ export function CandidateOffersPage() {
 		}
 	}, [message])
 
-	const loadOffers = useCallback(async () => {
-		try {
-			const data = await apiCall<Offer[]>('/onboarding/offers/me')
-			setOffers(Array.isArray(data) ? data : [])
-		} catch {
-			// silent
-		} finally {
-			setLoading(false)
-		}
-	}, [])
 
 	async function markViewed(offer: Offer) {
 		if (!offer.viewed_at) {

@@ -261,15 +261,6 @@ export function CandidateOmniScorePage() {
 	})
 	const [submitting, setSubmitting] = useState(false)
 
-	useEffect(() => {
-		loadMyScore()
-	}, [loadMyScore])
-
-	useEffect(() => {
-		if (tab === 'matches' && matches.length === 0) loadMatches()
-		if (tab === 'rate-companies' && companies.length === 0) loadCompanies()
-	}, [tab, loadCompanies, loadMatches, matches.length, companies.length])
-
 	const loadMyScore = useCallback(async () => {
 		try {
 			// Daily checkin + breakdown + trend + explainer in parallel
@@ -288,17 +279,9 @@ export function CandidateOmniScorePage() {
 			setLoading(false)
 		}
 	}, [])
-
-	const loadMatches = useCallback(async () => {
-		setMatchesLoading(true)
-		try {
-			const data = await apiCall<any>('/omniscore/mutual-matches')
-			setMatches(data.mutual_matches || [])
-		} catch {
-		} finally {
-			setMatchesLoading(false)
-		}
-	}, [])
+	useEffect(() => {
+		loadMyScore()
+	}, [loadMyScore])
 
 	const loadCompanies = useCallback(async () => {
 		setCompaniesLoading(true)
@@ -310,6 +293,24 @@ export function CandidateOmniScorePage() {
 			setCompaniesLoading(false)
 		}
 	}, [])
+
+	const loadMatches = useCallback(async () => {
+		setMatchesLoading(true)
+		try {
+			const data = await apiCall<any>('/omniscore/mutual-matches')
+			setMatches(data.mutual_matches || [])
+		} catch {
+		} finally {
+			setMatchesLoading(false)
+		}
+	}, [])
+	useEffect(() => {
+		if (tab === 'matches' && matches.length === 0) loadMatches()
+		if (tab === 'rate-companies' && companies.length === 0) loadCompanies()
+	}, [tab, loadCompanies, loadMatches, matches.length, companies.length])
+
+
+
 
 	async function submitRating() {
 		if (!ratingForm || ratings.overall_rating === 0) return

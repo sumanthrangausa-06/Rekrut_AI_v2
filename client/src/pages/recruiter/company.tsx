@@ -77,17 +77,6 @@ export function RecruiterCompanyPage() {
 	const [saving, setSaving] = useState(false)
 	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-	useEffect(() => {
-		loadData()
-	}, [loadData])
-
-	useEffect(() => {
-		if (message) {
-			const t = setTimeout(() => setMessage(null), 3000)
-			return () => clearTimeout(t)
-		}
-	}, [message])
-
 	const loadData = useCallback(async () => {
 		try {
 			const [companyData, teamData] = await Promise.all([
@@ -102,6 +91,18 @@ export function RecruiterCompanyPage() {
 			setLoading(false)
 		}
 	}, [])
+
+	useEffect(() => {
+		loadData()
+	}, [loadData])
+
+	useEffect(() => {
+		if (message) {
+			const t = setTimeout(() => setMessage(null), 3000)
+			return () => clearTimeout(t)
+		}
+	}, [message])
+
 
 	function showMessage(type: 'success' | 'error', text: string) {
 		setMessage({ type, text })

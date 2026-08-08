@@ -104,10 +104,6 @@ export function RecruiterApplicationsPage() {
 
 	const jobFilter = searchParams.get('job') || ''
 
-	useEffect(() => {
-		loadData()
-	}, [loadData])
-
 	const loadData = useCallback(async () => {
 		try {
 			const [appsPromise, jobsPromise] = await Promise.allSettled([
@@ -131,6 +127,11 @@ export function RecruiterApplicationsPage() {
 			setLoading(false)
 		}
 	}, [jobFilter])
+
+	useEffect(() => {
+		loadData()
+	}, [loadData])
+
 
 	async function updateStatus(appId: number, newStatus: string) {
 		setUpdating(true)

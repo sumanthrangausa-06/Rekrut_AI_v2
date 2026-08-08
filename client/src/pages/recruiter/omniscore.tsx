@@ -189,14 +189,6 @@ export function RecruiterOmniScorePage() {
 	const [distribution, setDistribution] = useState<Distribution[]>([])
 	const [candidatesLoading, setCandidatesLoading] = useState(false)
 
-	useEffect(() => {
-		loadCompanyDashboard()
-	}, [loadCompanyDashboard])
-
-	useEffect(() => {
-		if (tab === 'candidates' && candidates.length === 0) loadCandidates()
-	}, [tab, loadCandidates, candidates.length])
-
 	const loadCompanyDashboard = useCallback(async () => {
 		try {
 			const data = await apiCall<any>('/omniscore/company-dashboard')
@@ -211,6 +203,9 @@ export function RecruiterOmniScorePage() {
 			setLoading(false)
 		}
 	}, [])
+	useEffect(() => {
+		loadCompanyDashboard()
+	}, [loadCompanyDashboard])
 
 	const loadCandidates = useCallback(async () => {
 		setCandidatesLoading(true)
@@ -223,6 +218,12 @@ export function RecruiterOmniScorePage() {
 			setCandidatesLoading(false)
 		}
 	}, [])
+
+	useEffect(() => {
+		if (tab === 'candidates' && candidates.length === 0) loadCandidates()
+	}, [tab, loadCandidates, candidates.length])
+
+
 
 	if (loading) {
 		return (

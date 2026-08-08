@@ -152,10 +152,6 @@ export function RecruiterAssessmentsPage() {
 	const [selectedDetail, setSelectedDetail] = useState<AssessmentDetail | null>(null)
 	const [detailLoading, setDetailLoading] = useState(false)
 
-	useEffect(() => {
-		loadData()
-	}, [loadData])
-
 	const loadData = useCallback(async () => {
 		try {
 			const params = new URLSearchParams()
@@ -190,6 +186,11 @@ export function RecruiterAssessmentsPage() {
 			setLoading(false)
 		}
 	}, [])
+
+	useEffect(() => {
+		loadData()
+	}, [loadData])
+
 
 	async function viewDetail(assessmentId: number) {
 		setDetailLoading(true)

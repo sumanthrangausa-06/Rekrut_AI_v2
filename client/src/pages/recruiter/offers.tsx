@@ -119,6 +119,24 @@ export function RecruiterOffersPage() {
 	const [location, setLocation] = useState('')
 	const [employmentType, setEmploymentType] = useState('full-time')
 
+	const loadData = useCallback(async () => {
+		try {
+			const [offersRes, candidatesRes, jobsRes] = await Promise.allSettled([
+				apiCall<Offer[]>('/onboarding/offers'),
+				apiCall<{ candidates: Candidate[] }>('/recruiter/candidates'),
+				apiCall<{ jobs: Job[] }>('/recruiter/jobs'),
+			])
+			if (offersRes.status === 'fulfilled')
+				setOffers(Array.isArray(offersRes.value) ? offersRes.value : [])
+			if (candidatesRes.status === 'fulfilled') setCandidates(candidatesRes.value.candidates || [])
+			if (jobsRes.status === 'fulfilled') setJobs(jobsRes.value.jobs || [])
+		} catch {
+			// silent
+		} finally {
+			setLoading(false)
+		}
+	}, [])
+
 	useEffect(() => {
 		loadData()
 	}, [loadData])
@@ -144,23 +162,6 @@ export function RecruiterOffersPage() {
 		}
 	}, [message])
 
-	const loadData = useCallback(async () => {
-		try {
-			const [offersRes, candidatesRes, jobsRes] = await Promise.allSettled([
-				apiCall<Offer[]>('/onboarding/offers'),
-				apiCall<{ candidates: Candidate[] }>('/recruiter/candidates'),
-				apiCall<{ jobs: Job[] }>('/recruiter/jobs'),
-			])
-			if (offersRes.status === 'fulfilled')
-				setOffers(Array.isArray(offersRes.value) ? offersRes.value : [])
-			if (candidatesRes.status === 'fulfilled') setCandidates(candidatesRes.value.candidates || [])
-			if (jobsRes.status === 'fulfilled') setJobs(jobsRes.value.jobs || [])
-		} catch {
-			// silent
-		} finally {
-			setLoading(false)
-		}
-	}, [])
 
 	async function createOffer() {
 		if (!candidateId || !jobId || !salary) {
