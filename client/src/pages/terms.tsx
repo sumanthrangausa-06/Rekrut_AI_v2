@@ -1,3 +1,4 @@
+import { SEO } from '@/components/SEO'
 import {
 	AlertTriangle,
 	ArrowLeft,
@@ -211,6 +212,12 @@ export function TermsPage() {
 
 	return (
 		<div className='min-h-dvh-safe bg-background'>
+			<SEO
+				title='Terms of Service — Rekrut AI'
+				description='Read the Terms of Service for Rekrut AI. By accessing or using our platform, you agree to be bound by these terms.'
+				canonical='/terms'
+				noindex={true}
+			/>
 			<Header />
 
 			<main>

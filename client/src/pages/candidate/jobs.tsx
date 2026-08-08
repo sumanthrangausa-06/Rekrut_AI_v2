@@ -1,3 +1,4 @@
+import { SEO } from '@/components/SEO'
 import {
 	Bookmark,
 	BookmarkPlus,
@@ -545,6 +546,11 @@ export function CandidateJobsPage() {
 
 	return (
 		<div className='min-h-[calc(100dvh-4rem)] flex flex-col overflow-hidden'>
+			<SEO
+				title='Find Your Next Job — AI-Powered Job Matching'
+				description='Browse thousands of AI-matched jobs on Rekrut AI. Filter by location, salary, remote work, and more. Get personalized job recommendations based on your skills.'
+				canonical='/candidate/jobs'
+			/>
 			{/* === HERO SEARCH BAR === */}
 			<div className='shrink-0 bg-gradient-to-br from-indigo-600 via-indigo-500 to-purple-600 px-4 py-6 sm:py-8'>
 				<div className='max-w-4xl mx-auto'>

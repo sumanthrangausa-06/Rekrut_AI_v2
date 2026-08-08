@@ -1,3 +1,4 @@
+import { SEO } from '@/components/SEO'
 import { ArrowRight, BadgeCheck, Check, Crown, Loader2, Sparkles, Zap } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
@@ -184,6 +185,11 @@ export function PricingPage() {
 
 	return (
 		<div className='min-h-dvh-safe bg-gradient-to-b from-background via-background to-muted/30'>
+			<SEO
+				title='Pricing — Free Forever, Pro When You Need It'
+				description='Rekrut AI is free forever. Upgrade to Pro for $19/month for unlimited AI job matching, mock interviews, skill assessments, and coaching.'
+				canonical='/pricing'
+			/>
 			<header className='border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80'>
 				<div className='mx-auto flex min-h-16 max-w-6xl flex-col gap-3 px-4 py-4 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:py-0'>
 					<Link to='/' className='flex items-center gap-2'>
