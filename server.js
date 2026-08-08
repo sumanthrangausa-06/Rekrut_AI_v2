@@ -86,6 +86,7 @@ const billingRoutes = require('./routes/billing');
 const voiceNotificationsRoutes = require('./routes/voice-notifications');
 const screeningRoutes = require('./routes/screening');
 const settingsRoutes = require('./routes/settings');
+const signatureRoutes = require('./routes/signature');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -541,6 +542,9 @@ app.use('/api/screening', screeningRoutes);
 
 // API Routes - Settings (profile, notifications, privacy, avatar)
 app.use('/api/settings', settingsRoutes);
+
+// API Routes - E-Signature Engine
+app.use('/api/signatures', signatureRoutes);
 
 const voiceRoutes = require('./routes/voice');
 const ttsRoutes = require('./routes/tts');
