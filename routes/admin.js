@@ -76,7 +76,11 @@ async function initAdminCredentials() {
 		}
 	}
 
-	if (!isStrongPassword(password)) {
+	const env = process.env.NODE_ENV || 'development';
+	// In staging/dev/test, allow any password (not just strong ones)
+	const enforceStrength = env !== 'development' && env !== 'test' && env !== 'e2e' && env !== 'staging';
+
+	if (!isStrongPassword(password) && enforceStrength) {
 		throw new Error(
 			'ADMIN_PASSWORD does not meet strength requirements. ' +
 			'Must be at least 8 characters and include uppercase, lowercase, number, and symbol.'
