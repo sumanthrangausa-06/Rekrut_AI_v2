@@ -1,0 +1,56 @@
+{
+  "steps": [
+    {
+      "step": "drawer_apply_opens_form",
+      "ok": false,
+      "url": "https://rekrutai-staging.onrender.com/candidate/jobs/174?apply=true",
+      "form_open": false
+    },
+    {
+      "step": "recruiter_sees_applicant",
+      "ok": true,
+      "preview": "Skip to content\nRekrut AI\nDashboard\nJobs\nApplications\nAssessments\nCandidates\nInterviews\nOffers\nOnboarding\nOmniScore\nAnalytics\nCompliance (EU AI Act)\nCompany\nPayroll\nSettings\nSign out\nRecruiter\nQA Recruiter Alpha\nPipeline\n\nQA Loop Engineer 1786179662 "
+    },
+    {
+      "step": "applications_list_shows_candidate",
+      "ok": true,
+      "preview": "Skip to content\nRekrut AI\nDashboard\nJobs\nApplications\nAssessments\nCandidates\nInterviews\nOffers\nOnboarding\nOmniScore\nAnalytics\nCompliance (EU AI Act)\nCompany\nPayroll\nSettings\nSign out\nRecruiter\nQA Recruiter Alpha\nApplications\n\nReview and manage candidate applications\n\nAll Jobs\nQA Loop Engineer 178617"
+    },
+    {
+      "step": "candidates_page_shows_applicant",
+      "ok": false,
+      "preview": "Skip to content\nRekrut AI\nDashboard\nJobs\nApplications\nAssessments\nCandidates\nInterviews\nOffers\nOnboarding\nOmniScore\nAnalytics\nCompliance (EU AI Act)\nCompany\nPayroll\nSettings\nSign out\nRecruiter\nQA Recruiter Alpha\nCandidates\n\nManage and review your candidate pipeline\n\nExport CSV\nPost a Job\nTotal Candi"
+    }
+  ],
+  "drawer_url": "https://rekrutai-staging.onrender.com/candidate/jobs",
+  "drawer_buttons": [
+    "Sign out",
+    "QA Candidate Alpha",
+    "AI Search",
+    "Filters",
+    "All\n50",
+    "Liked",
+    "Trash",
+    "Load More (40 remaining)",
+    "Apply Now",
+    "View Full Page"
+  ],
+  "after_drawer_apply": {
+    "url": "https://rekrutai-staging.onrender.com/candidate/jobs/174?apply=true",
+    "apply_heading": false,
+    "textareas": 0
+  },
+  "applicants_page": "Skip to content\nRekrut AI\nDashboard\nJobs\nApplications\nAssessments\nCandidates\nInterviews\nOffers\nOnboarding\nOmniScore\nAnalytics\nCompliance (EU AI Act)\nCompany\nPayroll\nSettings\nSign out\nRecruiter\nQA Recruiter Alpha\nPipeline\n\nQA Loop Engineer 1786179662 \u2014 1 applicant\n\n\u2728 Assessment\nAutomation\nBoard\nList\n\n1\n\nTotal\n\n1\n\nNew\n\n0\n\nIn Pipeline\n\n0\n\nOffered/Hired\n\nNew\n1\nQ\nQA Candidate Alpha\n0%\nToday\nAdvance\nScreening\n0\n\nNo candidates\n\nShortlisted\n0\n\nNo candidates\n\nReviewing\n0\n\nNo candidates\n\nInterviewed\n0\n\nNo candidates\n\nOffered\n0\n\nNo candidates\n\nHired\n0\n\nNo candidates\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+  "applicants_buttons": [
+    "Sign out",
+    "QA Recruiter Alpha",
+    "\u2728 Assessment",
+    "Automation",
+    "Board",
+    "List",
+    "Advance"
+  ],
+  "applications_list": "Skip to content\nRekrut AI\nDashboard\nJobs\nApplications\nAssessments\nCandidates\nInterviews\nOffers\nOnboarding\nOmniScore\nAnalytics\nCompliance (EU AI Act)\nCompany\nPayroll\nSettings\nSign out\nRecruiter\nQA Recruiter Alpha\nApplications\n\nReview and manage candidate applications\n\nAll Jobs\nQA Loop Engineer 1786179662\n\n1\n\nTotal\n\n1\n\nNew\n\n0\n\nIn Pipeline\n\n0\n\nOffered / Hired\n\nSearch\nFrom Date\nTo Date\nAll (1)\nNew (1)\nSort:\nDate\nName\nMatch\n1 application\nQA Candidate Alpha\nNew\nQA Loop Engineer 1786179662\nqa.cand.1786175062@rekrutqa.test\n8/8/2026\n0\nNew\nScreening\nShortlisted\nReviewing\nInterviewed\nOffered\nHired\nRejected\nWithdrawn\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+  "candidates_page": "Skip to content\nRekrut AI\nDashboard\nJobs\nApplications\nAssessments\nCandidates\nInterviews\nOffers\nOnboarding\nOmniScore\nAnalytics\nCompliance (EU AI Act)\nCompany\nPayroll\nSettings\nSign out\nRecruiter\nQA Recruiter Alpha\nCandidates\n\nManage and review your candidate pipeline\n\nExport CSV\nPost a Job\nTotal Candidates\n1\n12%\nNew Applications\n1\n8%\nIn Screening\n0\n0%\nInterviews\n0\n15%\nHired\n0\n5%\nSaved Searches:\nSenior Engineers - Remote\n\u2605\nHigh Match - Frontend\nFilters\nSave Search\nKanban\nSort: Relevance\nSort: Newest\nSort: Experience\nSort: Match Score\nSort: Name A-Z\nPro tip: Use \"AND\", \"OR\", \"NOT\" for Boolean search. Example: \"react AND senior NOT junior\"\nAll\n1\nApplied\n1\nScreening\n0\nInterview\n0\nOffer\n0\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+  "dashboard": "Skip to content\nRekrut AI\nDashboard\nJobs\nApplications\nAssessments\nCandidates\nInterviews\nOffers\nOnboarding\nOmniScore\nAnalytics\nCompliance (EU AI Act)\nCompany\nPayroll\nSettings\nSign out\nRecruiter\nQA Recruiter Alpha\nWelcome back, QA \ud83d\udc4b\n\nHere's what's happening with your hiring pipeline today\n\nPost a Job\n\nUpgrade to Pro to unlock advanced features\n\nSearch entire candidate database, AI video interviews, advanced analytics, and contract generation\n\nUpgrade\n\nEmployer Trust Score: 150/100\n\nNew Employer \u2014 Higher scores attract more qualified candidates\n\nImprove Score\n2%\n\n1\n\nActive Jobs\n\n12%\n\n1\n\nNew Applicants\n\n1%\n\n0\n\nInterviews Today\n\nSchedule interview \u2192\n1%\n\n0\n\nOffers Pending\n\nManage offers \u2192\n3%\n\n18 days\n\nTime to Fill\n\nPipeline Breakdown\nSour\nAppl\nScre\nInte\nOffe\nHire\n1 candidates total\nFull report\nApplications Over Time\nJan\nFeb\nMar\nApr\nMay\nJun\n6 months trend\n+65%\nSource Breakdown\n100\ntotal\nDirect: 42\nReferral: 28\nLinkedIn: 18\nOther: 12\nAction Items\n\n1 candidates need review\n\n1\n\nNew applications awaiting review\n\n0 interviews today\n\n0\n\nNo interviews scheduled today\n\n0 offers pending\n\n0\n\nNo pending offers\n\nAI screening ready\n\n1\n\n1 candidates in pipeline\n\nPipeline Overview\n\n1 candidates across all stages\n\nView Pipeline\n0\nSourced\n1\nApplied\n0\nScreening\n0\nInterview\n0\nOffer\n0\nHired\nApplied\n1\n?\n\nQA Candidate Alpha\n\nQA Loop Engineer 1786179662\n\n0\nRecent Activity\n\nQA Candidate Alpha\n\nApplied for QA Loop Engineer 1786179662\n\n29m ago\n\nView all activity\nPerformance\nHiring Velocity\n8.5 / 10\n\nAvg. day"
+}

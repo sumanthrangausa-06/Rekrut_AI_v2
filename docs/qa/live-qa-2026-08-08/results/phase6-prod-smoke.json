@@ -1,0 +1,857 @@
+{
+  "env": "https://rekrutai.co",
+  "pages": [
+    {
+      "name": "prod-01-home",
+      "path": "/",
+      "url": "https://rekrutai.co/",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 9.74,
+      "final_url": "https://rekrutai.co/",
+      "redirected": false,
+      "text_len": 7466,
+      "text_preview": "Rekrut AI\nPricing\nBlog\nAbout\nContact\nSign in\nGet started\nAI-powered career companion for candidates who want to get hired faster\nYour AI-Powered Career Companion\n\nMatch with jobs that fit your skills. Practice interviews with AI. Get hired faster \u2014 no spam, no noise.\n\nGet Started Free\nSee How It Works\n\nNo credit card required. Free forever. Upgrade when you are ready.\n\nBank-grade security\nIn-house KYC\n50,000+ active candidates\nAI-matched to real jobs\nrekrutai.co/dashboard\n\nActive Candidates\n\n50,000+\n\nOpen Positions\n\n2,400+\n\nAvg. Match Score\n\n87%\n\nAI Matching Engine Active\nSR\nSenior React Developer at Stripe\nTop match\n94%\nPM\nProduct Manager at Netflix\nStrong fit\n91%\nUD\nUX Designer at Airbnb\nG",
+      "headings": [
+        "Your AI-Powered Career Companion",
+        "Everything you need to land your next job",
+        "From sign-up to hired in 3 steps",
+        "Start free. Upgrade when you are ready.",
+        "Your data is yours. Period.",
+        "Latest insights from the team",
+        "Frequently asked questions",
+        "Get AI hiring insights in your inbox"
+      ],
+      "error_banners": [],
+      "input_count": 2,
+      "buttons": [
+        "Pricing",
+        "Blog",
+        "About",
+        "Contact",
+        "Sign in",
+        "Get started",
+        "Get Started Free",
+        "See How It Works",
+        "Get started free",
+        "Start Pro trial",
+        "Contact sales",
+        "View full pricing details",
+        "View all articles",
+        "Is Rekrut AI really free?",
+        "How is your AI matching different from LinkedIn or Indeed?",
+        "Who sees my profile?",
+        "Is my data secure?",
+        "What is OmniScore?",
+        "When will Pro billing be available?",
+        "Can employers reach out to me?",
+        "What industries do you cover?",
+        "Subscribe",
+        "Get Started Free \u2014 2 Minutes",
+        "See Pricing"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 1,
+      "api_calls": [
+        "POST https://rekrutai.co/api/analytics/events -> 403"
+      ],
+      "looks_broken": false,
+      "screenshot": "prod-01-home.png"
+    },
+    {
+      "name": "prod-02-pricing",
+      "path": "/pricing",
+      "url": "https://rekrutai.co/pricing",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.01,
+      "final_url": "https://rekrutai.co/pricing",
+      "redirected": false,
+      "text_len": 1112,
+      "text_preview": "Rekrut AI\nSign in\nGet started\nSimple plans for teams that need to hire faster\nChoose a plan that fits your hiring volume.\n\nLaunch with a clean pricing page, then send buyers straight into Stripe Checkout with one click.\n\nMonthly\nPay month to month\nYearly\nSave with annual billing\nLean and fast\nStarter\n\nFor small teams that want a polished hiring workflow.\n\n$29\n/month\n3 active job posts\nCandidate screening tools\nBasic analytics dashboard\nEmail support\nStart checkout\nMost popular\nMost popular\nGrowth\n\nFor teams scaling hiring across multiple roles.\n\n$79\n/month\nUnlimited active jobs\nAdvanced analytics\nInterview and onboarding workflows\nPriority support\nStart checkout\nCustom pricing\nEnterprise\n\nCu",
+      "headings": [
+        "Choose a plan that fits your hiring volume.",
+        "Fast checkout",
+        "Easy sync",
+        "Flexible billing"
+      ],
+      "error_banners": [],
+      "input_count": 0,
+      "buttons": [
+        "Sign in",
+        "Get started",
+        "Monthly\nPay month to month",
+        "Yearly\nSave with annual billing",
+        "Start checkout",
+        "Start checkout",
+        "Contact sales"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 2,
+      "api_calls": [
+        "GET https://rekrutai.co/api/billing/plans -> 200",
+        "POST https://rekrutai.co/api/analytics/events -> 403",
+        "POST https://rekrutai.co/api/analytics/events -> 403"
+      ],
+      "looks_broken": false,
+      "screenshot": "prod-02-pricing.png"
+    },
+    {
+      "name": "prod-03-about",
+      "path": "/about",
+      "url": "https://rekrutai.co/about",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 3.22,
+      "final_url": "https://rekrutai.co/about",
+      "redirected": false,
+      "text_len": 2655,
+      "text_preview": "Rekrut AI\nBack to home\nAbout us\nBuilding the future of hiring\n\nRekrut AI (formerly HireLoop) was founded in 2026 with a simple belief: hiring should be transparent, intelligent, and fair for everyone involved. We are building the AI-native recruitment platform that both candidates and recruiters actually want to use.\n\nOur mission\nMake every hire a great match\n\nThe average company takes 42 days to fill a role. Candidates send 100+ applications and hear back from fewer than 10. We exist to fix both sides of this broken equation.\n\nBy combining AI matching, two-sided scoring, and a unified workflow from sourcing to onboarding, we help teams hire 40% faster while giving candidates the transparenc",
+      "headings": [
+        "Building the future of hiring",
+        "Make every hire a great match",
+        "How we work",
+        "Meet the founders",
+        "Our story so far",
+        "Want to join the team?"
+      ],
+      "error_banners": [],
+      "input_count": 0,
+      "buttons": [
+        "Back to home",
+        "Join the mission",
+        "Contact us",
+        "View open roles",
+        "Get in touch"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 1,
+      "api_calls": [
+        "POST https://rekrutai.co/api/analytics/events -> 403"
+      ],
+      "looks_broken": false,
+      "screenshot": "prod-03-about.png"
+    },
+    {
+      "name": "prod-04-contact",
+      "path": "/contact",
+      "url": "https://rekrutai.co/contact",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.04,
+      "final_url": "https://rekrutai.co/contact",
+      "redirected": false,
+      "text_len": 868,
+      "text_preview": "Rekrut AI\nBack to home\nContact\nLet us talk\n\nWhether you are a recruiter looking to transform your hiring process, a candidate with feedback, or a journalist interested in our story \u2014 we would love to hear from you.\n\nEmail\nhello@rekrutai.co\n\nFor general inquiries\n\nPhone\n\n+91 80 1234 5678\n\nIndia HQ\n\nOffice\n\nBangalore, India\n\nRemote-first, global team\n\nSupport Hours\n\nMon \u2013 Fri, 9AM \u2013 6PM IST\n\nPro plans get priority\n\nSend us a message\nName\nEmail\nCompany (optional)\nSubject\nMessage\nSend message\nFollow us\n\nStay updated on product releases, hiring tips, and company news.\n\nTwitter\nLinkedIn\nGitHub\nInstagram\nYouTube\nQuick links\nView pricing\nAbout our company\nRead the blog\nCreate an account\nNeed urgent ",
+      "headings": [
+        "Let us talk"
+      ],
+      "error_banners": [],
+      "input_count": 5,
+      "buttons": [
+        "Back to home",
+        "Send message"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 1,
+      "api_calls": [
+        "POST https://rekrutai.co/api/analytics/events -> 403"
+      ],
+      "looks_broken": false,
+      "screenshot": "prod-04-contact.png"
+    },
+    {
+      "name": "prod-05-blog",
+      "path": "/blog",
+      "url": "https://rekrutai.co/blog",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 1.98,
+      "final_url": "https://rekrutai.co/blog",
+      "redirected": false,
+      "text_len": 1373,
+      "text_preview": "Home\n/\nBlog\nRekrut AI Blog\n\nInsights, tips, and strategies for modern recruitment and career growth.\n\nAll\nIndustry Insights\nProduct\nCompany News\nTips & Guides\nFeatured\nThe State of AI in Recruiting: 2025 Edition\n\nHow AI is transforming talent acquisition, from screening to onboarding. What recruiters need to know to stay ahead.\n\nCMO\n5/31/2025\n5 min read\nRead Article\n\ud83d\udcf0\n\nRekrut AI Insights\n\nProduct\nUnderstanding OmniScore: The Candidate Credit Score\n\nA deep dive into HireLoop's OmniScore system \u2014 how it works, what it measures, and why it matters for both candidates and employers.\n\nSuga\n\u2022\n7 min\n5/27/2025\nOmniScore\nProduct\nHiring\nCompany News\nHireLoop Launches: A New Era for AI-Powered Recruit",
+      "headings": [
+        "Rekrut AI Blog",
+        "The State of AI in Recruiting: 2025 Edition"
+      ],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "All",
+        "Industry Insights",
+        "Product",
+        "Company News",
+        "Tips & Guides",
+        "Read Article"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 1,
+      "api_calls": [
+        "POST https://rekrutai.co/api/analytics/events -> 403"
+      ],
+      "looks_broken": false,
+      "screenshot": "prod-05-blog.png"
+    },
+    {
+      "name": "prod-06-terms",
+      "path": "/terms",
+      "url": "https://rekrutai.co/terms",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.0,
+      "final_url": "https://rekrutai.co/terms",
+      "redirected": false,
+      "text_len": 7277,
+      "text_preview": "Rekrut AI\nBack to home\nLegal\nTerms of Service\n\nLast updated: August 8, 2026\n\n1. Acceptance of Terms\nBy accessing or using the Rekrut AI platform and services (the \"Service\"), you agree to be bound by these Terms of Service (\"Terms\"). If you do not agree to these Terms, you may not use the Service.\n\nThese Terms constitute a legally binding agreement between you and Rekrut AI (\"we\", \"our\", or \"us\"). We reserve the right to modify these Terms at any time. We will notify you of material changes via email or through the platform. Continued use of the Service after changes constitutes acceptance.\n2. Eligibility & Accounts\nYou must be at least 18 years old (or the age of legal majority in your juri",
+      "headings": [
+        "Terms of Service",
+        "1. Acceptance of Terms",
+        "2. Eligibility & Accounts",
+        "3. Use of the Service",
+        "4. Content & Intellectual Property",
+        "5. Payments & Subscriptions",
+        "6. AI & Automated Decision-Making",
+        "7. Disclaimers & Limitations"
+      ],
+      "error_banners": [],
+      "input_count": 0,
+      "buttons": [
+        "Back to home"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 1,
+      "api_calls": [
+        "POST https://rekrutai.co/api/analytics/events -> 403"
+      ],
+      "looks_broken": false,
+      "screenshot": "prod-06-terms.png"
+    },
+    {
+      "name": "prod-07-privacy",
+      "path": "/privacy",
+      "url": "https://rekrutai.co/privacy",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.05,
+      "final_url": "https://rekrutai.co/privacy",
+      "redirected": false,
+      "text_len": 6296,
+      "text_preview": "Rekrut AI\nBack to home\nLegal\nPrivacy Policy\n\nLast updated: August 8, 2026\n\n1. Introduction\nRekrut AI (\"we\", \"our\", or \"us\") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our AI-native recruitment platform and related services (collectively, the \"Service\").\n\nWe operate globally with our primary operations in India. By using the Service, you consent to the practices described in this policy. If you do not agree, please do not use the Service.\n2. Information We Collect\nWe collect information necessary to provide and improve our recruitment services:\n\nPersonal Information: Name, email address, phon",
+      "headings": [
+        "Privacy Policy",
+        "1. Introduction",
+        "2. Information We Collect",
+        "3. How We Use Your Information",
+        "4. Data Sharing & Disclosure",
+        "5. Data Security",
+        "6. International Data Transfers",
+        "7. Your Rights"
+      ],
+      "error_banners": [],
+      "input_count": 0,
+      "buttons": [
+        "Back to home"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 1,
+      "api_calls": [
+        "POST https://rekrutai.co/api/analytics/events -> 403"
+      ],
+      "looks_broken": false,
+      "screenshot": "prod-07-privacy.png"
+    },
+    {
+      "name": "prod-08-login",
+      "path": "/login",
+      "url": "https://rekrutai.co/login",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.04,
+      "final_url": "https://rekrutai.co/login",
+      "redirected": false,
+      "text_len": 209,
+      "text_preview": "Rekrut AI\n\nDon't have an account? Sign up\n\nSign in\nEmail\nPassword\nRemember me\nForgot password?\nSign in\nWelcome back!\n\nSign in to access your dashboard, track applications, and continue your interview practice.",
+      "headings": [
+        "Sign in"
+      ],
+      "error_banners": [],
+      "input_count": 3,
+      "buttons": [
+        "Sign in"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 1,
+      "api_calls": [
+        "GET https://rekrutai.co/api/auth/oauth/status -> 200",
+        "POST https://rekrutai.co/api/analytics/events -> 403"
+      ],
+      "looks_broken": false,
+      "screenshot": "prod-08-login.png"
+    },
+    {
+      "name": "prod-09-register",
+      "path": "/register",
+      "url": "https://rekrutai.co/register",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.0,
+      "final_url": "https://rekrutai.co/register",
+      "redirected": false,
+      "text_len": 318,
+      "text_preview": "Rekrut AI\nWelcome!\nFirst things first...\n\nCreate your account to start matching with AI-recommended jobs, practice mock interviews, and build your OmniScore.\n\nDark mode\n\nAlready have an account? Sign in\n\nCreate an account\nI am a\nJob Seeker\nEmployer / Recruiter\nFull name\nEmail\nPassword\nSign up\nOr sign up with\nLinkedIn",
+      "headings": [
+        "Welcome!",
+        "First things first...",
+        "Create an account"
+      ],
+      "error_banners": [],
+      "input_count": 4,
+      "buttons": [
+        "Sign up",
+        "LinkedIn"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 1,
+      "api_calls": [
+        "POST https://rekrutai.co/api/analytics/events -> 403"
+      ],
+      "looks_broken": false,
+      "screenshot": "prod-09-register.png"
+    },
+    {
+      "name": "prod-10-recruiter-register",
+      "path": "/recruiter-register",
+      "url": "https://rekrutai.co/recruiter-register",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.04,
+      "final_url": "https://rekrutai.co/register?role=recruiter",
+      "redirected": true,
+      "text_len": 331,
+      "text_preview": "Rekrut AI\nWelcome!\nFirst things first...\n\nCreate your account to start matching with AI-recommended jobs, practice mock interviews, and build your OmniScore.\n\nDark mode\n\nAlready have an account? Sign in\n\nCreate an account\nI am a\nJob Seeker\nEmployer / Recruiter\nFull name\nEmail\nPassword\nCompany name\nSign up\nOr sign up with\nLinkedIn",
+      "headings": [
+        "Welcome!",
+        "First things first...",
+        "Create an account"
+      ],
+      "error_banners": [],
+      "input_count": 5,
+      "buttons": [
+        "Sign up",
+        "LinkedIn"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 1,
+      "api_calls": [
+        "POST https://rekrutai.co/api/analytics/events -> 403"
+      ],
+      "looks_broken": false,
+      "screenshot": "prod-10-recruiter-register.png"
+    },
+    {
+      "name": "prod-11-forgot-password",
+      "path": "/forgot-password",
+      "url": "https://rekrutai.co/forgot-password",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.04,
+      "final_url": "https://rekrutai.co/forgot-password",
+      "redirected": false,
+      "text_len": 143,
+      "text_preview": "Rekrut AI\nReset your password\n\nEnter your email address and we'll send you a link to reset your password\n\nEmail\nSend reset link\nBack to sign in",
+      "headings": [],
+      "error_banners": [],
+      "input_count": 1,
+      "buttons": [
+        "Send reset link"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [],
+      "looks_broken": true,
+      "screenshot": "prod-11-forgot-password.png"
+    },
+    {
+      "name": "prod-12-admin-login",
+      "path": "/admin/login",
+      "url": "https://rekrutai.co/admin/login",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.04,
+      "final_url": "https://rekrutai.co/admin/login",
+      "redirected": false,
+      "text_len": 171,
+      "text_preview": "Admin Access\n\nHireLoop Administration Panel\n\nUsername\nPassword\nSign In\n\nProtected admin area. Unauthorized access is prohibited.\nRate limited to 5 attempts per 15 minutes.",
+      "headings": [],
+      "error_banners": [],
+      "input_count": 2,
+      "buttons": [
+        "Sign In"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [],
+      "looks_broken": true,
+      "screenshot": "prod-12-admin-login.png"
+    },
+    {
+      "name": "prod-13-404",
+      "path": "/this-route-does-not-exist",
+      "url": "https://rekrutai.co/this-route-does-not-exist",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.05,
+      "final_url": "https://rekrutai.co/this-route-does-not-exist",
+      "redirected": false,
+      "text_len": 99,
+      "text_preview": "!\n404\nPage Not Found\n\nThe page you're looking for doesn't exist or has been moved.\n\nGo Home\nGo Back",
+      "headings": [
+        "404",
+        "Page Not Found"
+      ],
+      "error_banners": [
+        "!"
+      ],
+      "input_count": 0,
+      "buttons": [
+        "Go Back"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 0,
+      "api_calls": [],
+      "looks_broken": true,
+      "screenshot": "prod-13-404.png"
+    },
+    {
+      "name": "prod-14-protected-redirect",
+      "path": "/candidate/jobs",
+      "url": "https://rekrutai.co/candidate/jobs",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.03,
+      "final_url": "https://rekrutai.co/login",
+      "redirected": true,
+      "text_len": 209,
+      "text_preview": "Rekrut AI\n\nDon't have an account? Sign up\n\nSign in\nEmail\nPassword\nRemember me\nForgot password?\nSign in\nWelcome back!\n\nSign in to access your dashboard, track applications, and continue your interview practice.",
+      "headings": [
+        "Sign in"
+      ],
+      "error_banners": [],
+      "input_count": 3,
+      "buttons": [
+        "Sign in"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 1,
+      "api_calls": [
+        "GET https://rekrutai.co/api/auth/oauth/status -> 200",
+        "POST https://rekrutai.co/api/analytics/events -> 403"
+      ],
+      "looks_broken": false,
+      "screenshot": "prod-14-protected-redirect.png"
+    }
+  ],
+  "mobile": [
+    {
+      "name": "mobile-prod-home",
+      "path": "/",
+      "url": "https://rekrutai.co/",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 3.63,
+      "final_url": "https://rekrutai.co/",
+      "redirected": false,
+      "text_len": 7419,
+      "text_preview": "Rekrut AI\nAI-powered career companion for candidates who want to get hired faster\nYour AI-Powered Career Companion\n\nMatch with jobs that fit your skills. Practice interviews with AI. Get hired faster \u2014 no spam, no noise.\n\nGet Started Free\nSee How It Works\n\nNo credit card required. Free forever. Upgrade when you are ready.\n\nBank-grade security\nIn-house KYC\n50,000+ active candidates\nAI-matched to real jobs\nrekrutai.co/dashboard\n\nActive Candidates\n\n50,000+\n\nOpen Positions\n\n2,400+\n\nAvg. Match Score\n\n87%\n\nAI Matching Engine Active\nSR\nSenior React Developer at Stripe\nTop match\n94%\nPM\nProduct Manager at Netflix\nStrong fit\n91%\nUD\nUX Designer at Airbnb\nGreat fit\n89%\n\n50K+\n\nActive candidates\n\n3x\n\nBett",
+      "headings": [
+        "Your AI-Powered Career Companion",
+        "Everything you need to land your next job",
+        "From sign-up to hired in 3 steps",
+        "Start free. Upgrade when you are ready.",
+        "Your data is yours. Period.",
+        "Latest insights from the team",
+        "Frequently asked questions",
+        "Get AI hiring insights in your inbox"
+      ],
+      "error_banners": [],
+      "input_count": 2,
+      "buttons": [
+        "Pricing",
+        "Blog",
+        "About",
+        "Contact",
+        "Sign in",
+        "Get started",
+        "Get Started Free",
+        "See How It Works",
+        "Get started free",
+        "Start Pro trial",
+        "Contact sales",
+        "View full pricing details",
+        "View all articles",
+        "Is Rekrut AI really free?",
+        "How is your AI matching different from LinkedIn or Indeed?",
+        "Who sees my profile?",
+        "Is my data secure?",
+        "What is OmniScore?",
+        "When will Pro billing be available?",
+        "Can employers reach out to me?",
+        "What industries do you cover?",
+        "Subscribe",
+        "Get Started Free \u2014 2 Minutes",
+        "See Pricing"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 1,
+      "api_calls": [
+        "POST https://rekrutai.co/api/analytics/events -> 403"
+      ],
+      "looks_broken": false,
+      "screenshot": "mobile-prod-home.png"
+    },
+    {
+      "name": "mobile-prod-pricing",
+      "path": "/pricing",
+      "url": "https://rekrutai.co/pricing",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.08,
+      "final_url": "https://rekrutai.co/pricing",
+      "redirected": false,
+      "text_len": 1112,
+      "text_preview": "Rekrut AI\nSign in\nGet started\nSimple plans for teams that need to hire faster\nChoose a plan that fits your hiring volume.\n\nLaunch with a clean pricing page, then send buyers straight into Stripe Checkout with one click.\n\nMonthly\nPay month to month\nYearly\nSave with annual billing\nLean and fast\nStarter\n\nFor small teams that want a polished hiring workflow.\n\n$29\n/month\n3 active job posts\nCandidate screening tools\nBasic analytics dashboard\nEmail support\nStart checkout\nMost popular\nMost popular\nGrowth\n\nFor teams scaling hiring across multiple roles.\n\n$79\n/month\nUnlimited active jobs\nAdvanced analytics\nInterview and onboarding workflows\nPriority support\nStart checkout\nCustom pricing\nEnterprise\n\nCu",
+      "headings": [
+        "Choose a plan that fits your hiring volume.",
+        "Fast checkout",
+        "Easy sync",
+        "Flexible billing"
+      ],
+      "error_banners": [],
+      "input_count": 0,
+      "buttons": [
+        "Sign in",
+        "Get started",
+        "Monthly\nPay month to month",
+        "Yearly\nSave with annual billing",
+        "Start checkout",
+        "Start checkout",
+        "Contact sales"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 2,
+      "api_calls": [
+        "GET https://rekrutai.co/api/billing/plans -> 200",
+        "POST https://rekrutai.co/api/analytics/events -> 403",
+        "POST https://rekrutai.co/api/analytics/events -> 403"
+      ],
+      "looks_broken": false,
+      "screenshot": "mobile-prod-pricing.png"
+    },
+    {
+      "name": "mobile-prod-login",
+      "path": "/login",
+      "url": "https://rekrutai.co/login",
+      "http_status": 200,
+      "spinner_stuck": false,
+      "load_seconds": 2.06,
+      "final_url": "https://rekrutai.co/login",
+      "redirected": false,
+      "text_len": 101,
+      "text_preview": "Rekrut AI\nSign in\nEmail\nPassword\nRemember me\nForgot password?\nSign in\n\nDon't have an account? Sign up",
+      "headings": [
+        "Sign in"
+      ],
+      "error_banners": [],
+      "input_count": 3,
+      "buttons": [
+        "Sign in"
+      ],
+      "table_count": 0,
+      "console_errors": [
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'vr'."
+        },
+        {
+          "type": "warning",
+          "text": "Error with Permissions-Policy header: Unrecognized feature: 'ambient-light-sensor'."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 403 ()"
+        }
+      ],
+      "page_errors": [],
+      "failed_requests": [],
+      "analytics_csrf_failures": 1,
+      "api_calls": [
+        "GET https://rekrutai.co/api/auth/oauth/status -> 200",
+        "POST https://rekrutai.co/api/analytics/events -> 403"
+      ],
+      "looks_broken": true,
+      "screenshot": "mobile-prod-login.png"
+    }
+  ],
+  "mobile_overflow": {
+    "scrollW": 390,
+    "clientW": 390
+  },
+  "broken": [
+    "prod-11-forgot-password",
+    "prod-12-admin-login",
+    "prod-13-404"
+  ]
+}

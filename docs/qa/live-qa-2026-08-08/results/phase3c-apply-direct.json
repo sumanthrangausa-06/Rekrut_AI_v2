@@ -1,0 +1,38 @@
+{
+  "standalone_url": "https://rekrutai-staging.onrender.com/candidate/jobs/174",
+  "standalone_before": {
+    "has_apply_for_heading": false,
+    "textareas": 0,
+    "has_submit": false
+  },
+  "standalone_after": {
+    "has_apply_for_heading": true,
+    "textareas": 1,
+    "has_submit": true
+  },
+  "standalone_buttons_after": [
+    "Sign out",
+    "QA Candidate Alpha",
+    "Back to jobs",
+    "Listen",
+    "Apply Now",
+    "Complete Profile",
+    "\u2728 Generate with AI",
+    "Submit Application",
+    "AI Review",
+    "Cancel"
+  ],
+  "submit_api": [
+    "GET https://rekrutai-staging.onrender.com/api/candidate/auto-fill/174 -> 200",
+    "GET https://rekrutai-staging.onrender.com/api/candidate/auto-fill/174 -> 200",
+    "GET https://rekrutai-staging.onrender.com/api/candidate/auto-fill/174 -> 200",
+    "POST https://rekrutai-staging.onrender.com/api/candidate/jobs/174/apply -> 200",
+    "GET https://rekrutai-staging.onrender.com/api/candidate/auto-fill/174 -> 200",
+    "GET https://rekrutai-staging.onrender.com/api/candidate/auto-fill/174 -> 200"
+  ],
+  "submit_failed": [],
+  "submit_clicked": true,
+  "body_after_submit": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nBack to jobs\nQ\nQA Loop Engineer 1786179662\nQA Staging Co 1786175490\nRemote - Worldwide\nfull-time\nPosted Today\nListen\nApplied\nRemote - Worldwide\nSalary not specified\nfull-time\nPosted Today\n\nAbout the Role\n\nWe are hiring a QA Loop Engineer to design and maintain automated end-to-end test coverage across our hiring platform. You will own regression suites, browser automation and release verification.\n\nRequirements\n\n5+ years in test automation. Strong TypeScript and Python. Experience with Playwright or Cypress. Familiarity ",
+  "applications_page": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nMy Applications\n\nTrack your job pipeline from saved jobs to offers\n\n1\n\nTotal Applied\n\n1\n\nActive\n\n0\n\nIn Progress\n\n0\n\nOffers / Hired\n\nSaved\n0\n\nNo saved jobs yet\n\nSave jobs from the job board to track them here\n\nApplied\n1\nQS\nQA Loop Engineer 1786179662\nQA Staging Co 1786175490\nManual\nRemote - Worldwide\nApplied Today\nView\n0\nIn Discussion\n0\n\nNothing in discussion\n\nApplications under review will show here\n\nOffer Received\n0\n\nNo offers yet\n\nOffers and hires will appear here\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center",
+  "application_listed": true
+}

@@ -1,0 +1,309 @@
+{
+  "detail_url": "https://rekrutai-staging.onrender.com/candidate/jobs",
+  "buttons_before": [
+    {
+      "text": "Sign out",
+      "disabled": false,
+      "cls": "flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium tex",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-me",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "relative flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-2 hover:b",
+      "aria": null
+    },
+    {
+      "text": "QA Candidate Alpha",
+      "disabled": false,
+      "cls": "flex min-h-[44px] items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted focus-visible:o",
+      "aria": null
+    },
+    {
+      "text": "AI Search",
+      "disabled": false,
+      "cls": "inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors fo",
+      "aria": null
+    },
+    {
+      "text": "Filters",
+      "disabled": false,
+      "cls": "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm transition-co",
+      "aria": null
+    },
+    {
+      "text": "All\n50",
+      "disabled": false,
+      "cls": "px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 b",
+      "aria": null
+    },
+    {
+      "text": "Liked",
+      "disabled": false,
+      "cls": "px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 t",
+      "aria": null
+    },
+    {
+      "text": "Trash",
+      "disabled": false,
+      "cls": "px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 t",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-emerald-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-red-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded hover:bg-muted transition-colors",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-emerald-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-red-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded hover:bg-muted transition-colors",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-emerald-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-red-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded hover:bg-muted transition-colors",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-emerald-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-red-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded hover:bg-muted transition-colors",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-emerald-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-red-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded hover:bg-muted transition-colors",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-emerald-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-red-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded hover:bg-muted transition-colors",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-emerald-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-red-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded hover:bg-muted transition-colors",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-emerald-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-red-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded hover:bg-muted transition-colors",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-emerald-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-red-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded hover:bg-muted transition-colors",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-emerald-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-red-600",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-1 rounded hover:bg-muted transition-colors",
+      "aria": null
+    },
+    {
+      "text": "Load More (40 remaining)",
+      "disabled": false,
+      "cls": "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium t",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "rounded-sm opacity-70 hover:opacity-100 transition-opacity min-h-[44px] min-w-[44px] flex ",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "p-2 rounded-lg hover:bg-muted transition-colors",
+      "aria": null
+    },
+    {
+      "text": "Apply Now",
+      "disabled": false,
+      "cls": "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium t",
+      "aria": null
+    },
+    {
+      "text": "View Full Page",
+      "disabled": false,
+      "cls": "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium t",
+      "aria": null
+    },
+    {
+      "text": "",
+      "disabled": false,
+      "cls": "h-14 w-14 rounded-full bg-black text-white shadow-lg flex items-center justify-center hove",
+      "aria": null
+    }
+  ],
+  "apply_visible": true,
+  "apply_enabled": true,
+  "after_click": {
+    "console_errors": [],
+    "page_errors": [],
+    "failed_requests": [],
+    "analytics_csrf_failures": 0,
+    "api_calls": [
+      "GET https://rekrutai-staging.onrender.com/api/assessments/job/174 -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/candidate/saved-jobs -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/candidate/applications -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/jobs/174 -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/jobs/174 -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/assessments/job/174 -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/candidate/saved-jobs -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/candidate/applications -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/memory/match-breakdown/117/174 -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/candidate/profile -> 200",
+      "GET https://rekrutai-staging.onrender.com/api/memory/match-breakdown/117/174 -> 200"
+    ]
+  },
+  "modal_text": [
+    "Rekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out"
+  ],
+  "buttons_after": [
+    "Sign out",
+    "QA Candidate Alpha",
+    "Back to jobs",
+    "Listen",
+    "Apply Now",
+    "Complete Profile"
+  ],
+  "body_after": "Skip to content\nRekrut AI\nOPPORTUNITIES\nDashboard\nJob Board\nApplications\nTop Matches\nNEW\nCompany Matches\nNEW\nSaved Jobs\nAI Search\nIMPROVE YOUR PROFILE\nProfile\nCV Review\nNEW\nLinkedIn Optimizer\nNEW\nCareer Diagnosis\nNEW\nCoaching\nAssessments\nOmniScore\nOTHER\nInterviews\nOffers\nDocuments\nPay & Compensation\nOnboarding\nSettings\nUpgrade to Pro\nSign out\nCandidate\nQA Candidate Alpha\nBack to jobs\nQ\nQA Loop Engineer 1786179662\nQA Staging Co 1786175490\nRemote - Worldwide\nfull-time\nPosted Today\nListen\nApply Now\n\nComplete your profile for better matches\n\nYour profile is 0% complete. A complete profile boosts your match score by up to 30%.\n\nComplete Profile\nRemote - Worldwide\nSalary not specified\nfull-time\nPosted Today\n\nAbout the Role\n\nWe are hiring a QA Loop Engineer to design and maintain automated end-to-end test coverage across our hiring platform. You will own regression suites, browser automation and release verification.\n\nRequirements\n\n5+ years in test automation. Strong TypeScript and Python. Experience with Playwright or Cypress. Familiarity with CI/CD pipelines and REST API testing.\n\n\u00a9 2026 Rekrut AI, Inc.\n\nPrivacy\nTerms\nHelp Center"
+}
