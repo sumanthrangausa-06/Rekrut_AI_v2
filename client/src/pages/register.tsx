@@ -1,4 +1,4 @@
-import { AlertCircle, Eye, EyeOff, Mail, Moon, Sun, UserPlus } from 'lucide-react'
+import { AlertCircle, Clock, Eye, EyeOff, Mail, Moon, Sun, UserPlus } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -25,6 +25,7 @@ export function RegisterPage() {
 	const [loading, setLoading] = useState(false)
 	const [showPassword, setShowPassword] = useState(false)
 	const [errors, setErrors] = useState<Record<string, string>>({})
+	const [pendingApproval, setPendingApproval] = useState(false)
 	const [_touched, setTouched] = useState<Record<string, boolean>>({})
 
 	// Read ?role=recruiter from URL and pre-select employer role
@@ -93,6 +94,7 @@ export function RegisterPage() {
 		setTouched({ name: true, email: true, password: true, company: true })
 		if (!validateAll()) return
 		setError('')
+		setPendingApproval(false)
 		setLoading(true)
 
 		try {
@@ -107,7 +109,23 @@ export function RegisterPage() {
 			})
 			trackEvent('signup_complete', { role, has_company: role === 'employer' })
 		} catch (err) {
-			setError(err instanceof Error ? err.message : 'Registration failed')
+			const errorCode = (err as Error & { code?: string }).code
+			if (errorCode === 'BLOCKED_EMAIL_DOMAIN') {
+				setError(
+					err instanceof Error
+						? err.message
+						: 'Free/disposable email providers are not allowed for recruiter registration. Please use your company email address.',
+				)
+			} else if (errorCode === 'PENDING_APPROVAL') {
+				setPendingApproval(true)
+				setError(
+					err instanceof Error
+						? err.message
+						: 'Your registration is pending approval from the company administrator.',
+				)
+			} else {
+				setError(err instanceof Error ? err.message : 'Registration failed')
+			}
 		} finally {
 			setLoading(false)
 		}
@@ -208,8 +226,8 @@ export function RegisterPage() {
 
 						<form onSubmit={handleSubmit} className='space-y-5'>
 							{error && (
-								<div className='flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive'>
-									<AlertCircle className='h-4 w-4 shrink-0' />
+								<div className={`flex items-center gap-2 rounded-lg p-3 text-sm ${pendingApproval ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-destructive/10 text-destructive'}`}>
+									{pendingApproval ? <Clock className='h-4 w-4 shrink-0' /> : <AlertCircle className='h-4 w-4 shrink-0' />}
 									{error}
 								</div>
 							)}
