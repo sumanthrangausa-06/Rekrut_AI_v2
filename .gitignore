@@ -22,6 +22,8 @@ test-results/
 
 # Playwright auth state (contains tokens)
 e2e/.auth/
+# QA sweeps write storageState next to their reports, outside e2e/
+**/*-auth.json
 
 # Client build is committed for deployment
 # client/node_modules/ is excluded via top-level node_modules/ rule
