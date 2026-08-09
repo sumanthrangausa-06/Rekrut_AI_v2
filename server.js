@@ -61,6 +61,16 @@ if (missingStripe.length > 0) {
 	console.warn(`  Missing: ${missingStripe.join(', ')}`);
 }
 
+// Fatal guard: prevent non-production environments from booting with live Stripe keys
+const nodeEnv = process.env.NODE_ENV || 'development';
+const stripeSecret = process.env.STRIPE_SECRET_KEY || '';
+if (nodeEnv !== 'production' && stripeSecret.startsWith('sk_live_')) {
+	console.error('[FATAL] Non-production environment detected with live Stripe key. Refusing to start.');
+	console.error(`  NODE_ENV: ${nodeEnv}`);
+	console.error(`  STRIPE_SECRET_KEY prefix: sk_live_*`);
+	process.exit(1);
+}
+
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
