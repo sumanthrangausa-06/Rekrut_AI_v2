@@ -297,6 +297,9 @@ const ALLOWED_ORIGINS = [
 	'https://hireloop-vzvw.polsia.app',
 	'https://rekrutai-dev.onrender.com',
 	'https://rekrutai-staging.onrender.com',
+	// Production's Render URL. Vite tags its bundles crossorigin, so a host that
+	// is missing here cannot load its own assets and renders a blank page.
+	'https://rekrut-ai.onrender.com',
 	'https://rekrutai.co',
 	'http://localhost:5173',
 	'http://localhost:3000',
