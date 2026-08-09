@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const pool = require('../lib/db');
+const { encrypt } = require('../lib/crypto-utils');
 const {
 	generateToken,
 	generateRefreshToken,
@@ -517,21 +518,22 @@ router.get('/google/callback', async (req, res) => {
 			user = result.rows[0];
 		}
 
-		// Store OAuth connection
+		// Store OAuth connection — encrypt tokens at rest (AES-256-GCM)
+		const encAccessToken = tokens.access_token ? encrypt(tokens.access_token) : null;
+		const encRefreshToken = tokens.refresh_token ? encrypt(tokens.refresh_token) : null;
+
 		await pool.query(
 			`
-      INSERT INTO oauth_connections (user_id, provider, provider_user_id, access_token, refresh_token, profile_data)
-      VALUES ($1, 'google', $2, $3, $4, $5)
+      INSERT INTO oauth_connections (user_id, provider, provider_user_id, access_token, refresh_token, profile_data, encryption_version)
+      VALUES ($1, 'google', $2, $3, $4, $5, 'v1')
       ON CONFLICT (provider, provider_user_id) DO UPDATE SET
-        access_token = $3, refresh_token = $4, profile_data = $5, updated_at = NOW()
+        access_token = EXCLUDED.access_token,
+        refresh_token = EXCLUDED.refresh_token,
+        profile_data = EXCLUDED.profile_data,
+        updated_at = NOW(),
+        encryption_version = 'v1'
     `,
-			[
-				user.id,
-				googleUser.id,
-				tokens.access_token,
-				tokens.refresh_token,
-				JSON.stringify(googleUser),
-			],
+			[user.id, googleUser.id, encAccessToken, encRefreshToken, JSON.stringify(googleUser)],
 		);
 
 		// Generate tokens
@@ -663,15 +665,20 @@ router.get('/linkedin/callback', async (req, res) => {
 			user = result.rows[0];
 		}
 
-		// Store OAuth connection
+		// Store OAuth connection — encrypt token at rest (AES-256-GCM)
+		const encAccessToken = tokens.access_token ? encrypt(tokens.access_token) : null;
+
 		await pool.query(
 			`
-      INSERT INTO oauth_connections (user_id, provider, provider_user_id, access_token, profile_data)
-      VALUES ($1, 'linkedin', $2, $3, $4)
+      INSERT INTO oauth_connections (user_id, provider, provider_user_id, access_token, profile_data, encryption_version)
+      VALUES ($1, 'linkedin', $2, $3, $4, 'v1')
       ON CONFLICT (provider, provider_user_id) DO UPDATE SET
-        access_token = $3, profile_data = $4, updated_at = NOW()
+        access_token = EXCLUDED.access_token,
+        profile_data = EXCLUDED.profile_data,
+        updated_at = NOW(),
+        encryption_version = 'v1'
     `,
-			[user.id, linkedinUser.sub, tokens.access_token, JSON.stringify(linkedinUser)],
+			[user.id, linkedinUser.sub, encAccessToken, JSON.stringify(linkedinUser)],
 		);
 
 		// Generate tokens

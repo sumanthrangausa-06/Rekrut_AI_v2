@@ -1,6 +1,8 @@
 const { google } = require('googleapis');
 const { AuthorizationCode } = require('simple-oauth2');
 const pool = require('../../lib/db');
+const { encrypt, decrypt } = require('../../lib/crypto-utils');
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
@@ -50,27 +52,33 @@ function getOutlookClient() {
 
 /**
  * Store or update a calendar connection in the database.
+ * Access and refresh tokens are encrypted at rest using AES-256-GCM.
  */
 async function upsertConnection(userId, provider, tokens, calendarId = 'primary') {
-	const accessToken = tokens.access_token || tokens.accessToken;
-	const refreshToken = tokens.refresh_token || tokens.refreshToken;
+	const rawAccessToken = tokens.access_token || tokens.accessToken;
+	const rawRefreshToken = tokens.refresh_token || tokens.refreshToken;
 	const expiresAt = tokens.expiry_date
 		? new Date(tokens.expiry_date)
 		: tokens.expires_at
 			? new Date(tokens.expires_at)
 			: null;
 
+	// Encrypt tokens at rest (AES-256-GCM)
+	const accessToken = rawAccessToken ? encrypt(rawAccessToken) : null;
+	const refreshToken = rawRefreshToken ? encrypt(rawRefreshToken) : null;
+
 	await pool.query(
 		`
-    INSERT INTO calendar_connections (user_id, provider, access_token, refresh_token, expires_at, calendar_id, is_active, updated_at)
-    VALUES ($1, $2, $3, $4, $5, $6, true, NOW())
+    INSERT INTO calendar_connections (user_id, provider, access_token, refresh_token, expires_at, calendar_id, is_active, updated_at, encryption_version)
+    VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), 'v1')
     ON CONFLICT (user_id, provider) DO UPDATE SET
       access_token = EXCLUDED.access_token,
       refresh_token = COALESCE(EXCLUDED.refresh_token, calendar_connections.refresh_token),
       expires_at = EXCLUDED.expires_at,
       calendar_id = EXCLUDED.calendar_id,
       is_active = true,
-      updated_at = NOW()
+      updated_at = NOW(),
+      encryption_version = 'v1'
   `,
 		[userId, provider, accessToken, refreshToken, expiresAt, calendarId],
 	);
@@ -78,13 +86,26 @@ async function upsertConnection(userId, provider, tokens, calendarId = 'primary'
 
 /**
  * Get a user's active calendar connection for a provider.
+ * Decrypts access_token and refresh_token before returning.
  */
 async function getConnection(userId, provider) {
 	const result = await pool.query(
 		`SELECT * FROM calendar_connections WHERE user_id = $1 AND provider = $2 AND is_active = true`,
 		[userId, provider],
 	);
-	return result.rows[0] || null;
+	const row = result.rows[0] || null;
+	if (!row) return null;
+
+	// Decrypt tokens for in-memory use (backward compat: passes through plaintext)
+	try {
+		if (row.access_token) row.access_token = decrypt(row.access_token);
+		if (row.refresh_token) row.refresh_token = decrypt(row.refresh_token);
+	} catch (err) {
+		console.error(`[calendar-service] Failed to decrypt tokens for user ${userId} / ${provider}:`, err.message);
+		throw new Error('Calendar token decryption failed. Please reconnect your calendar.');
+	}
+
+	return row;
 }
 
 /**
