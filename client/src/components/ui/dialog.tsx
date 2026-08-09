@@ -1,6 +1,7 @@
 import React from 'react'
 import { X } from 'lucide-react'
 import * as React from 'react'
+import { useScrollLock } from '@/hooks/use-scroll-lock'
 import { cn } from '@/lib/utils'
 
 interface DialogProps {
@@ -36,29 +37,7 @@ export function DialogContent({
 }
 
 export function Dialog({ open, onOpenChange, onClose, children, className, style }: DialogProps) {
-	const scrollPosRef = React.useRef(0)
-
-	React.useEffect(() => {
-		if (open) {
-			scrollPosRef.current = window.scrollY
-			document.body.style.overflow = 'hidden'
-			document.body.style.top = `-${scrollPosRef.current}px`
-			document.body.style.position = 'fixed'
-			document.body.style.width = '100%'
-		} else {
-			document.body.style.overflow = ''
-			document.body.style.top = ''
-			document.body.style.position = ''
-			document.body.style.width = ''
-			window.scrollTo(0, scrollPosRef.current)
-		}
-		return () => {
-			document.body.style.overflow = ''
-			document.body.style.top = ''
-			document.body.style.position = ''
-			document.body.style.width = ''
-		}
-	}, [open])
+	useScrollLock(Boolean(open))
 
 	if (!open) return null
 
