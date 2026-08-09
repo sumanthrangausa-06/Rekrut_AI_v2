@@ -12,8 +12,14 @@
 //   skills_required: string[]
 // experience_level is free text (e.g. 'entry', 'mid', 'senior').
 //
-// skills_required is TEXT[] because routes/recruiter.js reads it with
-// UNNEST(skills_required), which requires an array type.
+// skills_required is JSONB to match the deployed databases and the candidate
+// search read path, which filters with `j.skills_required::jsonb ? $n`. A
+// text[] column cannot be cast to jsonb, so declaring it as an array here made
+// migration-built databases 500 on the skills filter while long-lived
+// environments returned results. routes/recruiter.js reads the same column with
+// UNNEST(skills_required), which is incompatible with jsonb — that call is
+// already wrapped in a fallback, and reconciling the two read paths onto one
+// canonical type is tracked separately.
 
 module.exports = {
 	up: async (client) => {
@@ -29,7 +35,7 @@ module.exports = {
 
 		await client.query(`
 			ALTER TABLE jobs
-			ADD COLUMN IF NOT EXISTS skills_required TEXT[]
+			ADD COLUMN IF NOT EXISTS skills_required JSONB
 		`);
 
 		// Both columns are used as WHERE filters on the job search feed.
