@@ -80,6 +80,19 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 			});
 		}
 
+		// --- Issue #103: Enforce company email domain for recruiter roles ---
+		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+		if (recruiterRoles.includes(role)) {
+			const { validateRecruiterEmail, getBlockedDomainExamples } = require('../services/email-domain-validator');
+			const emailValidation = validateRecruiterEmail(email);
+			if (!emailValidation.valid) {
+				return res.status(400).json({
+					error: `${emailValidation.error} Free/disposable email providers (${getBlockedDomainExamples()}) are not allowed for recruiter registration. Please use your company email address.`,
+					code: 'BLOCKED_EMAIL_DOMAIN',
+				});
+			}
+		}
+
 		// Check if user exists
 		const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
 		if (existing.rows.length > 0) {
@@ -103,20 +116,51 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 		const user = result.rows[0];
 
 		// Auto-create company for recruiter/employer roles
-		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
 		if (recruiterRoles.includes(role) && company_name) {
 			try {
+				const { findCompanyByDomain, createJoinRequest } = require('../services/company-domain-service');
+				const { extractDomain } = require('../services/email-domain-validator');
+
+				const email_domain = extractDomain(email);
+
+				// Check if a company with this domain already exists
+				const existingCompany = await findCompanyByDomain(email_domain);
+				if (existingCompany) {
+					// Route to approval workflow instead of creating duplicate company
+					await createJoinRequest(user.id, existingCompany.id, email, email_domain);
+
+					const accessToken = generateToken(user);
+					const { token: refreshToken } = await generateRefreshToken(user.id);
+
+					return res.status(202).json({
+						success: true,
+						pending_approval: true,
+						user: {
+							id: user.id,
+							email: user.email,
+							name: user.name,
+							role: user.role,
+							company_id: null,
+						},
+						token: accessToken,
+						accessToken,
+						refreshToken,
+						message: `A company with domain "${email_domain}" already exists. Your registration is pending approval from the company administrator.`,
+					});
+				}
+
+				// No existing company — create new one
 				const slug = company_name
 					.toLowerCase()
 					.replace(/[^a-z0-9]+/g, '-')
 					.replace(/^-|-$/g, '')
 					.substring(0, 50);
 				const companyResult = await pool.query(
-					`INSERT INTO companies (owner_id, name, slug)
-           VALUES ($1, $2, $3)
+					`INSERT INTO companies (owner_id, name, slug, email_domain, verified_domain, is_verified, domain_enforced_at)
+           VALUES ($1, $2, $3, $4, $5, true, NOW())
            ON CONFLICT DO NOTHING
            RETURNING id`,
-					[user.id, company_name, `${slug}-${user.id}`],
+					[user.id, company_name, `${slug}-${user.id}`, email_domain, email_domain],
 				);
 
 				if (companyResult.rows.length > 0) {

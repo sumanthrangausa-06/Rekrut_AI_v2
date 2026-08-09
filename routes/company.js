@@ -11,32 +11,26 @@ const {
 } = require('../lib/auth');
 const trustscoreService = require('../services/trustscore');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
+const {
+	validateRecruiterEmail,
+	getBlockedDomainExamples,
+	isCompanyEmail,
+} = require('../services/email-domain-validator');
+const {
+	findCompanyByDomain,
+	storeVerifiedDomain,
+	createJoinRequest,
+	approveJoinRequest,
+	rejectJoinRequest,
+	listPendingJoinRequests,
+	getJoinRequestById,
+} = require('../services/company-domain-service');
 
 const router = express.Router();
 
-// List of common personal email domains
-const PERSONAL_EMAIL_DOMAINS = [
-	'gmail.com',
-	'yahoo.com',
-	'hotmail.com',
-	'outlook.com',
-	'aol.com',
-	'icloud.com',
-	'mail.com',
-	'protonmail.com',
-	'zoho.com',
-	'yandex.com',
-	'gmx.com',
-	'live.com',
-	'msn.com',
-	'me.com',
-	'inbox.com',
-];
-
-// Check if email is a company email
-function isCompanyEmail(email) {
-	const domain = email.split('@')[1]?.toLowerCase();
-	return domain && !PERSONAL_EMAIL_DOMAINS.includes(domain);
+// Re-export for backward compatibility
+function isCompanyEmailCompat(email) {
+	return isCompanyEmail(email);
 }
 
 // Register company and recruiter account
@@ -65,9 +59,17 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 			});
 		}
 
-		// Verify company email domain
-		const email_domain = email.split('@')[1]?.toLowerCase();
-		const isWorkEmail = isCompanyEmail(email);
+		// --- Issue #103: Enforce company email domain ---
+		// 1. Block free/disposable email providers
+		const emailValidation = validateRecruiterEmail(email);
+		if (!emailValidation.valid) {
+			return res.status(400).json({
+				error: `${emailValidation.error} Free/disposable email providers (${getBlockedDomainExamples()}) are not allowed for recruiter registration. Please use your company email address.`,
+				code: 'BLOCKED_EMAIL_DOMAIN',
+			});
+		}
+
+		const email_domain = emailValidation.domain;
 
 		// Check if user exists
 		const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
@@ -75,18 +77,53 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 			return res.status(400).json({ error: 'Email already registered' });
 		}
 
-		// Check if company domain already registered
-		if (isWorkEmail) {
-			const existingCompany = await pool.query('SELECT id FROM companies WHERE email_domain = $1', [
-				email_domain,
-			]);
-			if (existingCompany.rows.length > 0) {
-				return res.status(400).json({
-					error:
-						'A company with this email domain already exists. Please contact your administrator.',
-					existing_company: true,
-				});
-			}
+		// 2. Check if company domain already maps to an existing company
+		const existingCompany = await findCompanyByDomain(email_domain);
+		if (existingCompany) {
+			// 3. Route to approval workflow instead of creating duplicate company
+			// Create the user first (without company_id, they'll be pending)
+			const password_hash = await bcrypt.hash(password, 13);
+			const userResult = await pool.query(
+				`INSERT INTO users (email, password_hash, name, role, company_name)
+         VALUES ($1, $2, $3, 'recruiter', $4)
+         RETURNING id, email, name, role, company_name, created_at`,
+				[email, password_hash, name, company_name],
+			);
+			const user = userResult.rows[0];
+
+			// Create join request for approval
+			await createJoinRequest(user.id, existingCompany.id, email, email_domain);
+
+			// Generate tokens so they can log in and see pending status
+			const token = generateToken({
+				...user,
+				role: 'recruiter',
+				company_id: null,
+				company_name: company_name,
+			});
+			const { token: refreshToken } = await generateRefreshToken(user.id);
+
+			return res.status(202).json({
+				success: true,
+				pending_approval: true,
+				user: {
+					id: user.id,
+					email: user.email,
+					name: user.name,
+					role: 'recruiter',
+					company_id: null,
+					company_name: company_name,
+				},
+				company: {
+					id: existingCompany.id,
+					name: existingCompany.name,
+					slug: existingCompany.slug,
+				},
+				token,
+				accessToken: token,
+				refreshToken,
+				message: `A company with domain "${email_domain}" already exists. Your registration is pending approval from the company administrator.`,
+			});
 		}
 
 		// Generate slug from company name
@@ -109,15 +146,16 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 			const companyCountries = operating_countries || [companyCountry];
 			const companyResult = await client.query(
 				`INSERT INTO companies (
-          name, slug, email_domain, description, industry, company_size,
+          name, slug, email_domain, verified_domain, description, industry, company_size,
           website, linkedin_url, headquarters, founded_year, is_verified,
-          primary_country, operating_countries
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          primary_country, operating_countries, domain_enforced_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
         RETURNING *`,
 				[
 					company_name,
 					finalSlug,
-					isWorkEmail ? email_domain : null,
+					email_domain,
+					email_domain,
 					company_description,
 					industry,
 					company_size,
@@ -125,7 +163,7 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 					linkedin_url,
 					headquarters,
 					founded_year,
-					isWorkEmail,
+					true, // verified via email domain
 					companyCountry,
 					JSON.stringify(companyCountries),
 				],
@@ -152,14 +190,12 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 				[company.id, 500],
 			);
 
-			// Add verification bonus if work email
-			if (isWorkEmail) {
-				await client.query(
-					`INSERT INTO trust_score_components (company_id, component_type, source_type, points, max_points, metadata)
+			// Add verification bonus for work email (domain verified)
+			await client.query(
+				`INSERT INTO trust_score_components (company_id, component_type, source_type, points, max_points, metadata)
            VALUES ($1, 'verification', 'email_domain', 50, 50, $2)`,
-					[company.id, JSON.stringify({ domain: email_domain, verified: true })],
-				);
-			}
+				[company.id, JSON.stringify({ domain: email_domain, verified: true })],
+			);
 
 			await client.query('COMMIT');
 
@@ -172,7 +208,7 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 			});
 			const { token: refreshToken } = await generateRefreshToken(user.id);
 
-			res.json({
+			res.status(201).json({
 				success: true,
 				user: {
 					id: user.id,
@@ -186,14 +222,13 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 					id: company.id,
 					name: company.name,
 					slug: company.slug,
-					is_verified: company.is_verified,
+					is_verified: true,
+					verified_domain: company.verified_domain,
 				},
 				token,
 				accessToken: token,
 				refreshToken,
-				message: isWorkEmail
-					? 'Company verified automatically via email domain!'
-					: 'Account created. Consider using a company email for automatic verification.',
+				message: 'Company verified automatically via email domain!',
 			});
 		} catch (err) {
 			await client.query('ROLLBACK');
@@ -621,6 +656,29 @@ router.post('/team/invite', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'Email is required' });
 		}
 
+		// Validate invited email domain matches company domain
+		const companyResult = await pool.query(
+			'SELECT verified_domain, email_domain FROM companies WHERE id = $1',
+			[req.user.company_id],
+		);
+		const company = companyResult.rows[0];
+		const companyDomain = company?.verified_domain || company?.email_domain;
+
+		if (companyDomain) {
+			const invitedDomain = email.split('@')[1]?.toLowerCase();
+			if (invitedDomain) {
+				const { normalizeDomain } = require('../services/email-domain-validator');
+				const normalizedInvited = normalizeDomain(invitedDomain);
+				const normalizedCompany = normalizeDomain(companyDomain);
+				if (normalizedInvited !== normalizedCompany) {
+					return res.status(400).json({
+						error: `Invited email domain "${invitedDomain}" does not match the company domain "${companyDomain}". All team members must use the company's verified email domain.`,
+						code: 'DOMAIN_MISMATCH',
+					});
+				}
+			}
+		}
+
 		// Check if user already exists
 		const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
 		if (existing.rows.length > 0) {
@@ -632,7 +690,7 @@ router.post('/team/invite', authMiddleware, async (req, res) => {
 		const password_hash = await bcrypt.hash(tempPassword, 13);
 
 		// Get company name
-		const company = await pool.query('SELECT name FROM companies WHERE id = $1', [
+		const companyNameResult = await pool.query('SELECT name FROM companies WHERE id = $1', [
 			req.user.company_id,
 		]);
 
@@ -640,7 +698,7 @@ router.post('/team/invite', authMiddleware, async (req, res) => {
 			`INSERT INTO users (email, password_hash, name, role, company_name, company_id)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, email, name, role`,
-			[email, password_hash, name, role, company.rows[0].name, req.user.company_id],
+			[email, password_hash, name, role, companyNameResult.rows[0].name, req.user.company_id],
 		);
 
 		// In production, send email with invite link
@@ -653,6 +711,134 @@ router.post('/team/invite', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Invite team member error:', err);
 		res.status(500).json({ error: 'Failed to invite team member' });
+	}
+});
+
+// ============= JOIN REQUEST MANAGEMENT (Issue #103) =============
+
+// List pending join requests for the current company
+router.get('/join-requests', authMiddleware, async (req, res) => {
+	try {
+		if (!req.user.company_id) {
+			return res.status(400).json({ error: 'No company associated with this account' });
+		}
+
+		// Only company owner/admin or existing recruiters can approve
+		const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+		if (!recruiterRoles.includes(req.user.role)) {
+			return res.status(403).json({ error: 'Not authorized to view join requests' });
+		}
+
+		const requests = await listPendingJoinRequests(req.user.company_id);
+		res.json({ success: true, requests });
+	} catch (err) {
+		console.error('List join requests error:', err);
+		res.status(500).json({ error: 'Failed to fetch join requests' });
+	}
+});
+
+// Approve a join request
+router.post('/join-requests/:id/approve', authMiddleware, async (req, res) => {
+	try {
+		if (!req.user.company_id) {
+			return res.status(400).json({ error: 'No company associated with this account' });
+		}
+
+		const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+		if (!recruiterRoles.includes(req.user.role)) {
+			return res.status(403).json({ error: 'Not authorized to approve join requests' });
+		}
+
+		const request = await getJoinRequestById(req.params.id);
+		if (!request) {
+			return res.status(404).json({ error: 'Join request not found' });
+		}
+
+		// Verify the request is for the current user's company
+		if (request.company_id !== req.user.company_id) {
+			return res.status(403).json({ error: 'Not authorized to approve this request' });
+		}
+
+		const approved = await approveJoinRequest(request.id, req.user.id);
+		if (!approved) {
+			return res.status(400).json({ error: 'Failed to approve join request' });
+		}
+
+		res.json({
+			success: true,
+			message: 'Recruiter approved and added to company',
+			request: approved,
+		});
+	} catch (err) {
+		console.error('Approve join request error:', err);
+		res.status(500).json({ error: 'Failed to approve join request' });
+	}
+});
+
+// Reject a join request
+router.post('/join-requests/:id/reject', authMiddleware, async (req, res) => {
+	try {
+		if (!req.user.company_id) {
+			return res.status(400).json({ error: 'No company associated with this account' });
+		}
+
+		const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+		if (!recruiterRoles.includes(req.user.role)) {
+			return res.status(403).json({ error: 'Not authorized to reject join requests' });
+		}
+
+		const request = await getJoinRequestById(req.params.id);
+		if (!request) {
+			return res.status(404).json({ error: 'Join request not found' });
+		}
+
+		if (request.company_id !== req.user.company_id) {
+			return res.status(403).json({ error: 'Not authorized to reject this request' });
+		}
+
+		const { reason } = req.body;
+		const rejected = await rejectJoinRequest(request.id, req.user.id, reason);
+		if (!rejected) {
+			return res.status(400).json({ error: 'Failed to reject join request' });
+		}
+
+		res.json({
+			success: true,
+			message: 'Join request rejected',
+			request: rejected,
+		});
+	} catch (err) {
+		console.error('Reject join request error:', err);
+		res.status(500).json({ error: 'Failed to reject join request' });
+	}
+});
+
+// Check if current user has a pending join request
+router.get('/join-requests/me', authMiddleware, async (req, res) => {
+	try {
+		const { findPendingJoinRequest } = require('../services/company-domain-service');
+		const request = await findPendingJoinRequest(req.user.id);
+
+		if (!request) {
+			return res.json({ success: true, hasPendingRequest: false });
+		}
+
+		const company = await pool.query('SELECT name, slug FROM companies WHERE id = $1', [
+			request.company_id,
+		]);
+
+		res.json({
+			success: true,
+			hasPendingRequest: true,
+			request: {
+				...request,
+				company_name: company.rows[0]?.name,
+				company_slug: company.rows[0]?.slug,
+			},
+		});
+	} catch (err) {
+		console.error('Get my join request error:', err);
+		res.status(500).json({ error: 'Failed to fetch join request status' });
 	}
 });
 

@@ -282,7 +282,10 @@ export async function apiCall<T = unknown>(url: string, options: ApiCallOptions 
 
 	if (!res.ok) {
 		const errorData = await res.json().catch(() => ({ error: 'Request failed' }))
-		throw new Error(errorData.error || `Request failed: ${res.status}`)
+		const error = new Error(errorData.error || `Request failed: ${res.status}`)
+		// Attach error code for programmatic handling (e.g., BLOCKED_EMAIL_DOMAIN)
+		;(error as Error & { code?: string }).code = errorData.code
+		throw error
 	}
 
 	return res.json()

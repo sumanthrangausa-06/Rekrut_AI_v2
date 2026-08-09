@@ -100,11 +100,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			accessToken: string
 			refreshToken: string
 			token: string
+			pending_approval?: boolean
+			message?: string
+			company?: { id: number; name: string; slug: string }
 		}>('/auth/register', {
 			method: 'POST',
 			body: registerData,
 			skipAuthCheck: true,
 		})
+
+		// Handle pending approval workflow (Issue #103)
+		if (data.pending_approval) {
+			// Still store tokens so user can log in and see pending status
+			setTokens(data.accessToken || data.token, data.refreshToken)
+			const user = data.user
+			user.subscriptionTier = 'free'
+			setUser(user)
+			// Throw with a clear message so UI can show pending approval state
+			const err = new Error(
+				data.message || 'Your registration is pending approval from the company administrator.',
+			)
+			;(err as Error & { code?: string; pendingApproval?: boolean }).code = 'PENDING_APPROVAL'
+			;(err as Error & { code?: string; pendingApproval?: boolean }).pendingApproval = true
+			throw err
+		}
 
 		const user = data.user
 		// Fetch subscription tier after register
