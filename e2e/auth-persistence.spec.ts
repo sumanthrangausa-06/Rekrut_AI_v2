@@ -92,9 +92,9 @@ test.describe('Auth Persistence & Token Tests — Recruiter', () => {
   test('recruiter can navigate directly to /recruiter/jobs when authenticated', async ({ page }) => {
     // Navigate directly to protected route (already authenticated via storageState)
     await page.goto('/recruiter/jobs')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await expect(page).toHaveURL(/.*\/recruiter\/jobs/)
-    await expect(page.locator('text=Job Board').first()).toBeVisible()
+    await expect(page.locator('text=Job Postings').first()).toBeVisible()
   })
 })
 
