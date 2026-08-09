@@ -7,7 +7,7 @@ test.use({ storageState: CANDIDATE_STORAGE })
 test.describe('Settings Flow', () => {
   test('settings page loads with all tabs', async ({ page }) => {
     await page.goto('/settings')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Verify page header
     await expect(page.getByRole('heading', { name: /Settings/i })).toBeVisible({ timeout: 10000 })
@@ -25,7 +25,7 @@ test.describe('Settings Flow', () => {
 
   test('profile tab displays user info and can be updated', async ({ page }) => {
     await page.goto('/settings')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Ensure Profile tab is active
     await page.getByRole('button', { name: 'Profile', exact: true }).click()
@@ -51,7 +51,7 @@ test.describe('Settings Flow', () => {
 
   test('account tab shows password change form and danger zone', async ({ page }) => {
     await page.goto('/settings')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Account', exact: true }).click()
     await page.waitForTimeout(300)
@@ -84,7 +84,7 @@ test.describe('Settings Flow', () => {
 
   test('notifications tab toggles and saves preferences', async ({ page }) => {
     await page.goto('/settings')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Notifications', exact: true }).nth(1).click()
     await page.waitForTimeout(300)
@@ -115,7 +115,7 @@ test.describe('Settings Flow', () => {
 
   test('privacy tab shows data export and privacy toggles', async ({ page }) => {
     await page.goto('/settings')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Privacy', exact: true }).click()
     await page.waitForTimeout(300)
@@ -138,7 +138,7 @@ test.describe('Settings Flow', () => {
 
   test('appearance tab shows theme options', async ({ page }) => {
     await page.goto('/settings')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Appearance', exact: true }).click()
     await page.waitForTimeout(300)
@@ -153,7 +153,7 @@ test.describe('Settings Flow', () => {
 
   test('billing tab loads subscription info', async ({ page }) => {
     await page.goto('/settings')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Billing', exact: true }).click()
     await page.waitForTimeout(300)

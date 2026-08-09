@@ -73,7 +73,7 @@ test.describe('Candidate Full Journey', () => {
     // ─── 2. Complete profile ───
     await page.goto('/candidate/profile');
     await page.waitForURL('/candidate/profile');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     await page.getByRole('button', { name: 'Settings' }).click();
     await expect(page.getByRole('heading', { name: 'Personal Information' })).toBeVisible({ timeout: 10000 });
@@ -88,7 +88,7 @@ test.describe('Candidate Full Journey', () => {
 
     // ─── 3. Search for the seeded job ───
     await page.goto('/candidate/jobs');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await expect(page.getByText(/active jobs|results/).first()).toBeVisible({ timeout: 15000 });
 
     const searchInput = page.getByPlaceholder(/Search by title/).first();
@@ -100,7 +100,7 @@ test.describe('Candidate Full Journey', () => {
     // ─── 4. Navigate directly to the seeded job detail ───
     await page.goto(`/candidate/jobs/${jobId}`);
     await expect(page).toHaveURL(`/candidate/jobs/${jobId}`, { timeout: 15000 });
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(1000);
 
     // Wait for the job to load by checking the Apply Now button
@@ -153,7 +153,7 @@ test.describe('Candidate Full Journey', () => {
     // ─── 6. Verify in My Applications ───
     const jobTitleWords = jobTitle.split(' ').slice(0, 3).join(' ');
     await page.goto('/candidate/applications');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(800);
 
     await expect(page.getByRole('heading', { name: 'My Applications' }).first()).toBeVisible({ timeout: 10000 });

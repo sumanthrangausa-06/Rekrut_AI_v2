@@ -41,7 +41,7 @@ test.describe('Candidate Apply Flow', () => {
 
     // ─── 1. Browse Jobs ───
     await page.goto('/candidate/jobs');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     await expect(page.getByText(/active jobs|results/).first()).toBeVisible({ timeout: 15000 });
 
@@ -69,22 +69,18 @@ test.describe('Candidate Apply Flow', () => {
     await targetJob.click();
     await page.waitForTimeout(800);
 
-    // Some job cards may not navigate to a detail page (SPA behavior varies)
-    const currentUrl = page.url();
-    if (!currentUrl.match(/.*\/candidate\/jobs\/\d+/)) {
-      throw new Error('Job cards do not navigate to detail page in current UI — test cannot proceed');
+    // Job cards now open a slide-out drawer — click "View Full Page" to navigate
+    const viewFullPageBtn = page.getByRole('button', { name: /View full page/i }).first();
+    const hasViewFullPage = await viewFullPageBtn.isVisible().catch(() => false);
+
+    if (hasViewFullPage) {
+      await viewFullPageBtn.click();
+      await page.waitForTimeout(500);
     }
 
-    // Wait for the detail panel to show the Apply button
-    await expect(page.getByRole('button', { name: 'Apply Now' }).first()).toBeVisible({ timeout: 10000 });
-
-    // ─── 3. Navigate to Job Detail Page ───
-    const applyBtn = page.getByRole('button', { name: 'Apply Now' }).first();
-    await applyBtn.click();
-
-    // Wait for navigation to job detail page
+    // Verify we're on the job detail page
     await expect(page).toHaveURL(/.*\/candidate\/jobs\/\d+/, { timeout: 10000 });
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(800);
 
     // Click Apply Now on the job detail page to open the form
@@ -116,7 +112,7 @@ test.describe('Candidate Apply Flow', () => {
 
     // ─── 4. Verify on Dashboard ───
     await page.goto('/candidate');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(800);
 
     await expect(page.getByText('Welcome back').first()).toBeVisible({ timeout: 10000 });
@@ -124,7 +120,7 @@ test.describe('Candidate Apply Flow', () => {
 
     // ─── 5. Verify on My Applications ───
     await page.goto('/candidate/applications');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(800);
 
     await expect(page.getByRole('heading', { name: 'My Applications' }).first()).toBeVisible({ timeout: 10000 });

@@ -40,7 +40,7 @@ test.describe('Candidate Job Search + Apply Flow', () => {
 
     // ─── 1. Navigate to Jobs Page ───
     await page.goto('/candidate/jobs');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     await expect(page.getByText(/active jobs|results/).first()).toBeVisible({ timeout: 15000 });
 
@@ -113,7 +113,7 @@ test.describe('Candidate Job Search + Apply Flow', () => {
 
     // ─── 7. Verify application appears in My Applications ───
     await page.goto('/candidate/applications');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(800);
 
     await expect(page.getByRole('heading', { name: 'My Applications' }).first()).toBeVisible({ timeout: 10000 });
@@ -124,7 +124,7 @@ test.describe('Candidate Job Search + Apply Flow', () => {
 
   test('filter and sort jobs, then apply to a job', async ({ page }) => {
     await page.goto('/candidate/jobs');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     await expect(page.getByText(/active jobs|results/).first()).toBeVisible({ timeout: 15000 });
 
@@ -197,7 +197,7 @@ test.describe('Candidate Job Search + Apply Flow', () => {
 
     // ─── Clear filters ───
     await page.goto('/candidate/jobs');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     const resetBtn = page.getByRole('button', { name: /Reset Filters|Clear all/ }).first();
     if (await resetBtn.isVisible().catch(() => false)) {
       await resetBtn.click();

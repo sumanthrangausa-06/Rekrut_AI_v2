@@ -29,7 +29,7 @@ test.describe('admin dashboard flow', () => {
 
     // Should redirect to admin area
     await expect(page).toHaveURL(/.*\/admin\/(ai-health|dashboard)/, { timeout: 10000 })
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await page.waitForTimeout(600)
     await expect(page.locator('text=Admin').or(page.locator('text=Dashboard')).first()).toBeVisible({ timeout: 10000 })
 

@@ -5,7 +5,7 @@ test.use({ storageState: 'e2e/.auth/admin.json' });
 test.describe('Admin Revenue Flow', () => {
   test('admin revenue dashboard loads and shows key sections', async ({ page }) => {
     await page.goto('/admin/revenue');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(1200);
 
     // Verify main heading

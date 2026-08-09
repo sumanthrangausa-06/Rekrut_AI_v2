@@ -7,7 +7,7 @@ test.use({ storageState: RECRUITER_STORAGE })
 test.describe('Recruiter Analytics Dashboard', () => {
   test('dashboard loads with heading and key metrics', async ({ page }) => {
     await page.goto('/recruiter/analytics')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Verify heading
     await expect(page.getByRole('heading', { name: /Hiring Analytics/i })).toBeVisible({ timeout: 10000 })
@@ -22,7 +22,7 @@ test.describe('Recruiter Analytics Dashboard', () => {
 
   test('hiring funnel renders with stages', async ({ page }) => {
     await page.goto('/recruiter/analytics')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await expect(page.getByRole('heading', { name: /Hiring Funnel/i })).toBeVisible({ timeout: 10000 })
 
@@ -35,7 +35,7 @@ test.describe('Recruiter Analytics Dashboard', () => {
 
   test('hiring velocity chart renders with data', async ({ page }) => {
     await page.goto('/recruiter/analytics')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await expect(page.getByRole('heading', { name: /Hiring Velocity/i })).toBeVisible({ timeout: 10000 })
 
@@ -47,7 +47,7 @@ test.describe('Recruiter Analytics Dashboard', () => {
 
   test('application sources breakdown renders', async ({ page }) => {
     await page.goto('/recruiter/analytics')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await expect(page.getByRole('heading', { name: /Application Sources/i })).toBeVisible({ timeout: 10000 })
 
@@ -59,7 +59,7 @@ test.describe('Recruiter Analytics Dashboard', () => {
 
   test('time to hire by stage renders', async ({ page }) => {
     await page.goto('/recruiter/analytics')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await expect(page.getByRole('heading', { name: /Time to Hire by Stage/i })).toBeVisible({ timeout: 10000 })
 
@@ -69,7 +69,7 @@ test.describe('Recruiter Analytics Dashboard', () => {
 
   test('OmniScore distribution renders', async ({ page }) => {
     await page.goto('/recruiter/analytics')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await expect(page.getByRole('heading', { name: /Candidate Quality/i })).toBeVisible({ timeout: 10000 })
 
@@ -81,7 +81,7 @@ test.describe('Recruiter Analytics Dashboard', () => {
 
   test('time range filter changes data', async ({ page }) => {
     await page.goto('/recruiter/analytics')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     const timeRangeSelect = page.locator('select').first()
     const hasSelect = await timeRangeSelect.isVisible().catch(() => false)
@@ -93,7 +93,7 @@ test.describe('Recruiter Analytics Dashboard', () => {
 
     // Change to 7 days
     await timeRangeSelect.selectOption('7')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Verify dashboard still loads after filter change
     await expect(page.getByRole('heading', { name: /Hiring Analytics/i })).toBeVisible({ timeout: 10000 })
@@ -101,13 +101,13 @@ test.describe('Recruiter Analytics Dashboard', () => {
 
     // Change to 90 days
     await timeRangeSelect.selectOption('90')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await expect(page.locator('text=Applications').first()).toBeVisible()
   })
 
   test('advanced metrics section renders for Pro tier', async ({ page }) => {
     await page.goto('/recruiter/analytics')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await expect(page.getByRole('heading', { name: /Advanced Metrics/i })).toBeVisible({ timeout: 10000 })
     await expect(page.locator('text=Pro').first()).toBeVisible()
@@ -120,7 +120,7 @@ test.describe('Recruiter Analytics Dashboard', () => {
 
   test('export button is visible', async ({ page }) => {
     await page.goto('/recruiter/analytics')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     const exportBtn = page.getByRole('button', { name: /Export/i })
     await expect(exportBtn).toBeVisible()
