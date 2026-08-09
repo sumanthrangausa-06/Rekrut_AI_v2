@@ -8,6 +8,7 @@ const jobOptimizer = require('../services/job-optimizer');
 const calendarService = require('../server/services/calendar-service');
 const { AuditLogger } = require('../services/auditLogger');
 const emailService = require('../lib/email-service');
+const DOMPurify = require('isomorphic-dompurify');
 
 const router = express.Router();
 
@@ -2554,6 +2555,26 @@ router.put('/offers/:id', authMiddleware, requireRecruiter, async (req, res) => 
 			offer_letter_html,
 		} = req.body;
 
+		// Sanitize AI-generated / user-supplied HTML before storage (defence in depth)
+		const sanitizedOfferLetterHtml = offer_letter_html
+			? DOMPurify.sanitize(offer_letter_html, {
+					ALLOWED_TAGS: [
+						'p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+						'ul', 'ol', 'li', 'a', 'div', 'span', 'hr', 'table', 'thead', 'tbody',
+						'tr', 'td', 'th', 'img', 'blockquote', 'pre', 'code', 'sup', 'sub',
+						'section', 'article', 'header', 'footer', 'main', 'aside', 'nav',
+						'figure', 'figcaption', 'details', 'summary', 'mark', 'small', 'time',
+					],
+					ALLOWED_ATTR: [
+						'href', 'title', 'target', 'rel', 'class', 'id', 'style',
+						'src', 'alt', 'width', 'height', 'colspan', 'rowspan', 'datetime',
+					],
+					ALLOW_DATA_ATTR: false,
+					FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur'],
+					KEEP_CONTENT: true,
+			  })
+			: offer_letter_html;
+
 		// Verify offer belongs to company
 		const existing = await pool.query(
 			'SELECT id, status FROM offers WHERE id = $1 AND company_id = $2',
@@ -2585,7 +2606,7 @@ router.put('/offers/:id', authMiddleware, requireRecruiter, async (req, res) => 
 				location,
 				employment_type,
 				reporting_to,
-				offer_letter_html,
+				sanitizedOfferLetterHtml,
 				req.params.id,
 			],
 		);

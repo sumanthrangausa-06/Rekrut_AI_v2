@@ -30,7 +30,7 @@ import {
 	Zap,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Skeleton } from '@/components/domain/skeleton'
 import { JobDetailContent } from '@/components/domain/job-detail-drawer'
 import { Avatar } from '@/components/ui/avatar'
@@ -95,6 +95,7 @@ interface TailoredDocument {
 export function CandidateJobDetailPage() {
 	const { id } = useParams()
 	const navigate = useNavigate()
+	const [searchParams] = useSearchParams()
 	const { user } = useAuth()
 	const [job, setJob] = useState<Job | null>(null)
 	const [loading, setLoading] = useState(true)
@@ -202,6 +203,12 @@ export function CandidateJobDetailPage() {
 		loadJobAssessment,
 		checkIfApplied,
 	])
+
+	useEffect(() => {
+		if (searchParams.get('apply') === 'true') {
+			setShowApplyForm(true)
+		}
+	}, [searchParams])
 
 	async function handleListen() {
 		if (!job) return

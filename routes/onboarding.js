@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const polsiaAI = require('../lib/polsia-ai');
+const DOMPurify = require('isomorphic-dompurify');
 const countryConfig = require('../services/country-config');
 
 // ============================================
@@ -150,6 +151,24 @@ FORMAT RULES:
 		if (cleanHtml.startsWith('```')) {
 			cleanHtml = cleanHtml.replace(/^```(?:html)?\n?/, '').replace(/\n?```$/, '');
 		}
+
+		// Sanitize AI-generated HTML before storage (defence in depth)
+		cleanHtml = DOMPurify.sanitize(cleanHtml, {
+			ALLOWED_TAGS: [
+				'p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+				'ul', 'ol', 'li', 'a', 'div', 'span', 'hr', 'table', 'thead', 'tbody',
+				'tr', 'td', 'th', 'img', 'blockquote', 'pre', 'code', 'sup', 'sub',
+				'section', 'article', 'header', 'footer', 'main', 'aside', 'nav',
+				'figure', 'figcaption', 'details', 'summary', 'mark', 'small', 'time',
+			],
+			ALLOWED_ATTR: [
+				'href', 'title', 'target', 'rel', 'class', 'id', 'style',
+				'src', 'alt', 'width', 'height', 'colspan', 'rowspan', 'datetime',
+			],
+			ALLOW_DATA_ATTR: false,
+			FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur'],
+			KEEP_CONTENT: true,
+		});
 
 		// Store the generated letter
 		await pool.query(

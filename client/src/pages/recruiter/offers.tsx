@@ -1,4 +1,4 @@
-import DOMPurify from 'dompurify'
+import { SafeHtml } from '@/components/SafeHtml'
 import {
 	AlertCircle,
 	Ban,
@@ -733,11 +733,7 @@ export function RecruiterOffersPage() {
 					<div className='space-y-4'>
 						{/* Letter preview in a document-style container */}
 						<div className='bg-white rounded-lg border shadow-inner overflow-auto max-h-[70vh]'>
-							<div
-								className='p-8'
-								// biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized with DOMPurify
-								dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewHtml) }}
-							/>
+							<SafeHtml html={previewHtml} className='p-8' />
 						</div>
 						<div className='flex gap-2 justify-end'>
 							<Button

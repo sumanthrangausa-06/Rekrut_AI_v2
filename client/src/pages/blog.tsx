@@ -1,5 +1,5 @@
 import { SEO } from '@/components/SEO'
-import DOMPurify from 'dompurify'
+import { SafeHtml } from '@/components/SafeHtml'
 import { ArrowLeft, Calendar, Clock, Tag, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -388,10 +388,7 @@ export function BlogPostPage() {
 			{/* Content */}
 			<div className='max-w-3xl mx-auto px-6 py-8'>
 				<div className='prose prose-slate dark:prose-invert max-w-none'>
-					<div
-						// biome-ignore lint/security/noDangerouslySetInnerHtml: blog content is sanitized with DOMPurify
-						dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
-					/>
+					<SafeHtml html={post.content} />
 				</div>
 			</div>
 

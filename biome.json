@@ -14,7 +14,9 @@
 			"lib/**/*.js",
 			"scripts/**/*.js",
 			"migrations/**/*.js",
-			"e2e/**/*.js"
+			"e2e/**/*.js",
+			"server/**/*.js",
+			"client/src/**/*.{js,jsx,ts,tsx}"
 		]
 	},
 	"formatter": {
@@ -28,6 +30,9 @@
 			"recommended": true,
 			"correctness": {
 				"noUnusedVariables": "error"
+			},
+			"security": {
+				"noDangerouslySetInnerHtml": "error"
 			},
 			"suspicious": {
 				"noControlCharactersInRegex": "off"

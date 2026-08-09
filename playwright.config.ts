@@ -3,7 +3,9 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
   testDir: './e2e',
   outputDir: 'test-results',
-  preserveOutput: 'never',
+  // 'never' deletes screenshots and traces before CI can upload them, which
+  // left 30 consecutive red runs with no evidence of what failed.
+  preserveOutput: 'failures-only',
 
   // Shard note: For the full suite, use the shard runner (run-e2e-full-suite.sh)
   // which splits the suite into sequential chunks. Each chunk runs in a fresh
@@ -14,8 +16,11 @@ export default defineConfig({
   // This prevents memory spikes from many concurrent browser contexts.
   fullyParallel: false,
 
-  // Fail fast — don't keep spawning browsers if the app is broken
-  maxFailures: 5,
+  // Fail fast — don't keep spawning browsers if the app is broken.
+  // CI runs one matrix group per job, so a low cap there truncates the report
+  // and makes every group look identically broken. Keep a ceiling to guard
+  // against runaway memory, but high enough to see the real failure count.
+  maxFailures: process.env.CI ? 25 : 5,
 
   // Explicit timeout: 60s per test (Playwright default is 30s)
   timeout: 60000,
@@ -37,7 +42,9 @@ export default defineConfig({
   // while still capturing them when needed for debugging.
   // (trace is set to 'on-first-retry' in use:{} below)
 
-  reporter: 'list',
+  reporter: process.env.CI
+    ? [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]]
+    : 'list',
 
   use: {
     baseURL: process.env.BASE_URL || 'http://localhost:3000',

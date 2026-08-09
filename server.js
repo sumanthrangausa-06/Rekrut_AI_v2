@@ -7,6 +7,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const helmet = require('helmet');
 const crypto = require('node:crypto');
+const { cspMiddleware } = require('./server/middleware/csp');
 
 // Load environment variables from .env file
 require('dotenv').config();
@@ -60,6 +61,16 @@ if (missingStripe.length > 0) {
 	console.warn(`  Missing: ${missingStripe.join(', ')}`);
 }
 
+// Fatal guard: prevent non-production environments from booting with live Stripe keys
+const nodeEnv = process.env.NODE_ENV || 'development';
+const stripeSecret = process.env.STRIPE_SECRET_KEY || '';
+if (nodeEnv !== 'production' && stripeSecret.startsWith('sk_live_')) {
+	console.error('[FATAL] Non-production environment detected with live Stripe key. Refusing to start.');
+	console.error(`  NODE_ENV: ${nodeEnv}`);
+	console.error(`  STRIPE_SECRET_KEY prefix: sk_live_*`);
+	process.exit(1);
+}
+
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
@@ -101,22 +112,7 @@ app.set('trust proxy', 1);
 // Security headers — MUST be first, before all middleware and routes
 app.use(
 	helmet({
-		contentSecurityPolicy: {
-			directives: {
-				defaultSrc: ["'self'"],
-				styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-				fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-				scriptSrc: ["'self'"],
-				imgSrc: ["'self'", 'data:', 'https:'],
-				connectSrc: [
-					"'self'",
-					...(process.env.NODE_ENV === 'development' ? ['https://rekrutai-dev.onrender.com'] : []),
-					'https://api.rekrutai.co',
-				],
-				frameAncestors: ["'none'"],
-				upgradeInsecureRequests: [],
-			},
-		},
+		contentSecurityPolicy: false, // Handled by dedicated cspMiddleware below
 		crossOriginEmbedderPolicy: false, // Allow embedded resources
 		hsts: {
 			maxAge: 31536000,
@@ -125,6 +121,7 @@ app.use(
 		},
 	}),
 );
+app.use(cspMiddleware);
 
 // Deploy verification endpoint — dynamically reads actual git commit
 app.get('/deploy-check', (_req, res) => {

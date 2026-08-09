@@ -16,19 +16,18 @@ export default defineConfig({
 	build: {
 		outDir: 'dist',
 		emptyOutDir: true,
-		chunkSizeWarningLimit: 600,
+		chunkSizeWarningLimit: 1200,
 		rollupOptions: {
 			output: {
+				// Keep every dependency in one chunk. Splitting react/react-dom/router
+				// apart strands `scheduler` in the catch-all chunk, which makes the
+				// vendor chunks import each other; under a circular chunk graph the
+				// scheduler module body evaluates before its exports object exists and
+				// throws "Cannot set properties of undefined (setting 'unstable_now')",
+				// so React never mounts. These chunks all load eagerly on first paint
+				// anyway, so merging them costs no extra bytes.
 				manualChunks(id: string) {
-					// Vendor libraries
-					if (id.includes('node_modules')) {
-						if (id.includes('react-router')) return 'router'
-						if (id.includes('react-dom')) return 'react-dom'
-						if (id.includes('react')) return 'react'
-						if (id.includes('lucide-react')) return 'icons'
-						// Catch-all for any other heavy deps
-						return 'vendor'
-					}
+					if (id.includes('node_modules')) return 'vendor'
 				},
 				entryFileNames: 'assets/[name]-[hash].js',
 				chunkFileNames: 'assets/[name]-[hash].js',
