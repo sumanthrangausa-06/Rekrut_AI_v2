@@ -22,18 +22,18 @@ test.describe('Recruiter Critical Flow', () => {
 
     // ─── 1. Login (handled by storageState) — verify recruiter dashboard ───
     await page.goto('/recruiter');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await expect(page.getByText(/Welcome back|Active Jobs|Dashboard|Recruiter/i).first()).toBeVisible({ timeout: 15000 });
 
     // ─── 2. Post a Job ───
     await page.goto('/recruiter/jobs');
     await page.waitForURL('/recruiter/jobs');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(500);
 
     await page.getByRole('button', { name: 'Post New Job' }).first().click();
     await page.waitForURL('/recruiter/jobs/new');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     // Step 1: Job Details
     await page.waitForSelector(
@@ -99,7 +99,7 @@ test.describe('Recruiter Critical Flow', () => {
 
     // ─── 4. View Candidates / Applicants ───
     await page.goto(`/recruiter/jobs/${job.id}/applicants`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(800);
 
     await expect(page.getByRole('heading', { name: 'Pipeline' }).first()).toBeVisible({ timeout: 10000 });
@@ -118,7 +118,7 @@ test.describe('Recruiter Critical Flow', () => {
 
     // ─── 6. View Analytics Dashboard ───
     await page.goto('/recruiter/analytics');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     await expect(page.getByRole('heading', { name: /Hiring Analytics/i })).toBeVisible({ timeout: 10000 });
     await expect(page.locator('text=Job Views').first()).toBeVisible({ timeout: 10000 });
