@@ -7,6 +7,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const helmet = require('helmet');
 const crypto = require('node:crypto');
+const { cspMiddleware } = require('./server/middleware/csp');
 
 // Load environment variables from .env file
 require('dotenv').config();
@@ -100,22 +101,7 @@ app.set('trust proxy', 1);
 // Security headers — MUST be first, before all middleware and routes
 app.use(
 	helmet({
-		contentSecurityPolicy: {
-			directives: {
-				defaultSrc: ["'self'"],
-				styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-				fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-				scriptSrc: ["'self'"],
-				imgSrc: ["'self'", 'data:', 'https:'],
-				connectSrc: [
-					"'self'",
-					...(process.env.NODE_ENV === 'development' ? ['https://rekrutai-dev.onrender.com'] : []),
-					'https://api.rekrutai.co',
-				],
-				frameAncestors: ["'none'"],
-				upgradeInsecureRequests: [],
-			},
-		},
+		contentSecurityPolicy: false, // Handled by dedicated cspMiddleware below
 		crossOriginEmbedderPolicy: false, // Allow embedded resources
 		hsts: {
 			maxAge: 31536000,
@@ -124,6 +110,7 @@ app.use(
 		},
 	}),
 );
+app.use(cspMiddleware);
 
 // Deploy verification endpoint — dynamically reads actual git commit
 app.get('/deploy-check', (_req, res) => {
