@@ -1,3 +1,4 @@
+import { SEO } from '@/components/SEO'
 import {
 	AlertCircle,
 	ArrowLeft,
@@ -150,6 +151,11 @@ export function ContactPage() {
 
 	return (
 		<div className='min-h-dvh-safe bg-background'>
+			<SEO
+				title='Contact Us — We Would Love to Hear From You'
+				description='Reach out to Rekrut AI for support, partnerships, press inquiries, or general questions. Email us at hello@rekrutai.co or use our contact form.'
+				canonical='/contact'
+			/>
 			<Header />
 
 			<main>

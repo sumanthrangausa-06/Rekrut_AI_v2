@@ -57,7 +57,7 @@ test.describe('Recruiter Interview Scheduling', () => {
   test('recruiter navigates to Interviews page and sees tabs + Schedule button', async ({ page }) => {
     await test.step('Navigate to Interviews page', async () => {
       await page.goto('/recruiter/interviews');
-      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(1000);
     });
 
     await test.step('Verify page header and tabs', async () => {
@@ -72,7 +72,7 @@ test.describe('Recruiter Interview Scheduling', () => {
   test('Schedule Interview dialog opens and validates empty form', async ({ page }) => {
     await test.step('Open dialog', async () => {
       await page.goto('/recruiter/interviews');
-      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(1000);
 
       await page.getByRole('button', { name: /Schedule Interview/i }).first().click();
       await page.waitForTimeout(500);
@@ -166,7 +166,7 @@ test.describe('Recruiter Interview Scheduling', () => {
 
     await test.step('Navigate to Interviews and open schedule dialog', async () => {
       await page.goto('/recruiter/interviews');
-      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(1000);
       await page.waitForTimeout(800);
 
       await page.getByRole('button', { name: /Schedule Interview/i }).first().click();
@@ -299,7 +299,7 @@ test.describe('Recruiter Interview Scheduling', () => {
 
     await test.step('Navigate to Upcoming tab and cancel', async () => {
       await page.goto('/recruiter/interviews');
-      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(1000);
       await page.waitForTimeout(800);
 
       // Ensure we're on Upcoming tab
@@ -329,7 +329,7 @@ test.describe('Recruiter Interview Scheduling', () => {
 
     await test.step('Verify interview is removed or moved to Past', async () => {
       await page.reload();
-      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(1000);
       await page.waitForTimeout(800);
 
       await page.getByRole('tab', { name: /Upcoming/i }).click();

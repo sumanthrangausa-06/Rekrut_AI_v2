@@ -130,17 +130,17 @@ export function JobDetailContent({
 			{!hideHeader && (
 				// Header with actions
 				<div className='flex items-start justify-between gap-3'>
-					<div className='flex items-start gap-3'>
+					<div className='flex items-start gap-3 min-w-0'>
 						<Avatar
 							src={job.company_logo}
 							fallback={(job.company || job.poster_company || 'C').charAt(0)}
 							size='lg'
-							className='h-14 w-14'
+							className='h-14 w-14 shrink-0'
 						/>
 						<div className='min-w-0'>
-							<h2 className='font-bold text-lg leading-tight break-words'>{job.title}</h2>
+							<h2 className='font-bold text-base sm:text-lg leading-tight break-words'>{job.title}</h2>
 							<p className='text-sm text-muted-foreground flex items-center gap-1 mt-0.5'>
-								<Building2 className='h-3.5 w-3.5' />
+								<Building2 className='h-3.5 w-3.5 shrink-0' />
 								<span className='break-words'>
 									{job.company || job.poster_company || 'Company'}
 								</span>
@@ -151,7 +151,7 @@ export function JobDetailContent({
 						{onToggleSave && (
 							<button
 								onClick={onToggleSave}
-								className='p-2 rounded-lg hover:bg-muted transition-colors'
+								className='p-2 rounded-lg hover:bg-muted transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center'
 								aria-label={isSaved ? 'Unsave' : 'Save'}
 							>
 								{isSaved ? (
@@ -164,7 +164,7 @@ export function JobDetailContent({
 						{showCloseButton && onClose && (
 							<button
 								onClick={onClose}
-								className='p-2 rounded-lg hover:bg-muted transition-colors'
+								className='p-2 rounded-lg hover:bg-muted transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center'
 								aria-label='Close drawer'
 							>
 								<X className='h-5 w-5' />
@@ -177,21 +177,21 @@ export function JobDetailContent({
 			{/* Match Score Banner */}
 			{score != null && (
 				<div className={cn('rounded-lg border p-3', matchBg(score))}>
-					<div className='flex items-center justify-between'>
-						<div className='flex items-center gap-3'>
+					<div className='flex items-center justify-between gap-2'>
+						<div className='flex items-center gap-3 min-w-0'>
 							<ScoreRing score={score} size='md' />
-							<div>
-								<p className='font-semibold text-sm'>
+							<div className='min-w-0'>
+								<p className='font-semibold text-sm break-words'>
 									{matchLevelLabel(job.match_level || '')}
 								</p>
-								<p className='text-xs opacity-80'>
+								<p className='text-xs opacity-80 break-words'>
 									{job.skill_match_pct != null && `${job.skill_match_pct}% skills match`}
 									{job.matching_skills &&
 										` · ${job.matching_skills.length}/${(job.matching_skills?.length || 0) + (job.missing_skills?.length || 0)} skills`}
 								</p>
 							</div>
 						</div>
-						{job.match_level === 'excellent' && <Zap className='h-5 w-5 text-green-600' />}
+						{job.match_level === 'excellent' && <Zap className='h-5 w-5 text-green-600 shrink-0' />}
 					</div>
 					{job.missing_skills && job.missing_skills.length > 0 && score < 80 && (
 						<div className='mt-2 pt-2 border-t border-current/10'>
@@ -212,19 +212,19 @@ export function JobDetailContent({
 
 			{/* Job Meta */}
 			<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
-				<div className='flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50'>
+				<div className='flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50 min-w-0'>
 					<MapPin className='h-4 w-4 text-muted-foreground shrink-0' />
 					<span className='truncate'>{job.location || 'Location not specified'}</span>
 				</div>
-				<div className='flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50'>
+				<div className='flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50 min-w-0'>
 					<DollarSign className='h-4 w-4 text-muted-foreground shrink-0' />
 					<span className='truncate'>{job.salary_range || 'Salary not specified'}</span>
 				</div>
-				<div className='flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50'>
+				<div className='flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50 min-w-0'>
 					<Briefcase className='h-4 w-4 text-muted-foreground shrink-0' />
-					<span>{job.job_type || 'Not specified'}</span>
+					<span className='break-words'>{job.job_type || 'Not specified'}</span>
 				</div>
-				<div className='flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50'>
+				<div className='flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50 min-w-0'>
 					<Clock className='h-4 w-4 text-muted-foreground shrink-0' />
 					<span>Posted {timeAgo(job.created_at)}</span>
 				</div>
@@ -291,7 +291,7 @@ export function JobDetailContent({
 								key={q.question?.slice(0, 30)}
 								className='text-sm p-2 rounded-lg bg-muted/50'
 							>
-								<p className='font-medium text-xs'>
+								<p className='font-medium text-xs break-words'>
 									{q.question}
 									{q.required && <span className='text-destructive'> *</span>}
 								</p>
@@ -306,12 +306,12 @@ export function JobDetailContent({
 				<div className='sticky bottom-0 bg-background pt-2 pb-4 border-t'>
 					<div className='flex flex-col sm:flex-row gap-2'>
 						{onApply && (
-							<Button className='flex-1 gap-2' onClick={onApply}>
+							<Button className='flex-1 gap-2 min-h-[44px]' onClick={onApply}>
 								<Send className='h-4 w-4' /> Apply Now
 							</Button>
 						)}
 						{onViewFullPage && (
-							<Button variant='outline' className='gap-2' onClick={onViewFullPage}>
+							<Button variant='outline' className='gap-2 min-h-[44px]' onClick={onViewFullPage}>
 								<ExternalLink className='h-4 w-4' /> View Full Page
 							</Button>
 						)}
@@ -347,6 +347,7 @@ export function JobDetailDrawer({
 }: JobDetailDrawerProps) {
 	// Restore scroll position when closing
 	const scrollPosRef = useRef(0)
+	const bodyScrollPosRef = useRef(0)
 
 	useEffect(() => {
 		if (open) {
@@ -355,6 +356,8 @@ export function JobDetailDrawer({
 			if (listEl) {
 				scrollPosRef.current = listEl.scrollTop
 			}
+			// Capture body scroll position
+			bodyScrollPosRef.current = window.scrollY
 		} else {
 			// Restore scroll position after the drawer closes
 			const timer = setTimeout(() => {
@@ -362,6 +365,7 @@ export function JobDetailDrawer({
 				if (listEl) {
 					listEl.scrollTop = scrollPosRef.current
 				}
+				window.scrollTo(0, bodyScrollPosRef.current)
 			}, 50)
 			return () => clearTimeout(timer)
 		}

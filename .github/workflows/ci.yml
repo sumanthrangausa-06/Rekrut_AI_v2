@@ -27,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install root dependencies
@@ -49,7 +49,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -89,7 +89,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install root dependencies
@@ -143,20 +143,25 @@ jobs:
 
       - name: Start application
         run: |
-          npm start &
+          nohup npm start > /tmp/server.log 2>&1 &
           SERVER_PID=$!
+          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
           # Wait for server to be ready
           for i in {1..30}; do
             if curl -s http://localhost:3000/health > /dev/null; then
-              echo "Server is ready"
-              exit 0
+              echo "✅ Server is ready (PID $SERVER_PID)"
+              break
             fi
             echo "Waiting for server... ($i/30)"
             sleep 2
           done
-          echo "❌ Server failed to start"
-          kill $SERVER_PID 2>/dev/null || true
-          exit 1
+          # Keep step alive so server keeps running
+          sleep 2
+          # Verify server is still up
+          if ! curl -s http://localhost:3000/health > /dev/null; then
+            echo "❌ Server failed to start"
+            exit 1
+          fi
         env:
           NODE_ENV: e2e
           PORT: 3000
@@ -189,7 +194,6 @@ jobs:
               npx playwright test \
                 e2e/auth-persistence.spec.ts \
                 e2e/dark-mode.spec.ts \
-                e2e/debug-*.spec.ts \
                 e2e/mobile-navigation.spec.ts \
                 e2e/navigation-*.spec.ts \
                 e2e/password-reset-flow.spec.ts \
@@ -208,12 +212,22 @@ jobs:
           ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
           ADMIN_USERNAME: admin
 
+      # The server writes to /tmp, which the upload step below can't reach.
+      # Its stack traces are the only explanation for API 500s.
+      - name: Collect server log
+        if: failure()
+        run: cp /tmp/server.log server.log || true
+
       - name: Upload test results
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ matrix.group }}
-          path: test-results/
+          path: |
+            test-results/
+            playwright-report/
+            server.log
+          if-no-files-found: warn
           retention-days: 7
 
   health-check:

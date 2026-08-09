@@ -11,7 +11,7 @@ import {
 	Shield,
 	Star,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -62,27 +62,7 @@ export function CandidateScreeningPage() {
 	const [timeRemaining, setTimeRemaining] = useState('')
 	const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-	useEffect(() => {
-		loadScreening()
-		return () => {
-			if (timerRef.current) clearInterval(timerRef.current)
-		}
-	}, [loadScreening])
-
-	useEffect(() => {
-		if (screening?.expires_at && screening.status === 'in_progress') {
-			const expiresAt = screening.expires_at
-			timerRef.current = setInterval(() => {
-				setTimeRemaining(formatTimeRemaining(expiresAt))
-				if (new Date(expiresAt).getTime() <= Date.now()) {
-					if (timerRef.current) clearInterval(timerRef.current)
-					setError('This screening session has expired.')
-				}
-			}, 1000)
-		}
-	}, [screening?.expires_at, screening?.status])
-
-	async function loadScreening() {
+	const loadScreening = useCallback(async () => {
 		try {
 			const res = await fetch(`${API_URL}/api/interviews/screening/session/${token}`)
 			const data = await res.json()
@@ -103,7 +83,28 @@ export function CandidateScreeningPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [token])
+
+	useEffect(() => {
+		loadScreening()
+		return () => {
+			if (timerRef.current) clearInterval(timerRef.current)
+		}
+	}, [loadScreening])
+
+	useEffect(() => {
+		if (screening?.expires_at && screening.status === 'in_progress') {
+			const expiresAt = screening.expires_at
+			timerRef.current = setInterval(() => {
+				setTimeRemaining(formatTimeRemaining(expiresAt))
+				if (new Date(expiresAt).getTime() <= Date.now()) {
+					if (timerRef.current) clearInterval(timerRef.current)
+					setError('This screening session has expired.')
+				}
+			}, 1000)
+		}
+	}, [screening?.expires_at, screening?.status])
+
 
 	async function startScreening() {
 		if (!screening) return

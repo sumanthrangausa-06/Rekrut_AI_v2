@@ -15,7 +15,7 @@ import {
 	Users,
 	Zap,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -261,16 +261,7 @@ export function CandidateOmniScorePage() {
 	})
 	const [submitting, setSubmitting] = useState(false)
 
-	useEffect(() => {
-		loadMyScore()
-	}, [loadMyScore])
-
-	useEffect(() => {
-		if (tab === 'matches' && matches.length === 0) loadMatches()
-		if (tab === 'rate-companies' && companies.length === 0) loadCompanies()
-	}, [tab, loadCompanies, loadMatches, matches.length, companies.length])
-
-	async function loadMyScore() {
+	const loadMyScore = useCallback(async () => {
 		try {
 			// Daily checkin + breakdown + trend + explainer in parallel
 			await apiCall('/omniscore/checkin', { method: 'POST' }).catch(() => {})
@@ -287,20 +278,12 @@ export function CandidateOmniScorePage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
+	useEffect(() => {
+		loadMyScore()
+	}, [loadMyScore])
 
-	async function loadMatches() {
-		setMatchesLoading(true)
-		try {
-			const data = await apiCall<any>('/omniscore/mutual-matches')
-			setMatches(data.mutual_matches || [])
-		} catch {
-		} finally {
-			setMatchesLoading(false)
-		}
-	}
-
-	async function loadCompanies() {
+	const loadCompanies = useCallback(async () => {
 		setCompaniesLoading(true)
 		try {
 			const data = await apiCall<any>('/omniscore/ratable-companies')
@@ -309,7 +292,25 @@ export function CandidateOmniScorePage() {
 		} finally {
 			setCompaniesLoading(false)
 		}
-	}
+	}, [])
+
+	const loadMatches = useCallback(async () => {
+		setMatchesLoading(true)
+		try {
+			const data = await apiCall<any>('/omniscore/mutual-matches')
+			setMatches(data.mutual_matches || [])
+		} catch {
+		} finally {
+			setMatchesLoading(false)
+		}
+	}, [])
+	useEffect(() => {
+		if (tab === 'matches' && matches.length === 0) loadMatches()
+		if (tab === 'rate-companies' && companies.length === 0) loadCompanies()
+	}, [tab, loadCompanies, loadMatches, matches.length, companies.length])
+
+
+
 
 	async function submitRating() {
 		if (!ratingForm || ratings.overall_rating === 0) return

@@ -23,7 +23,7 @@ import {
 	Wand2,
 	X,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -175,59 +175,7 @@ export function RecruiterJobFormPage() {
 		{ country_code: string; country_name: string; currency_code: string; currency_symbol: string }[]
 	>([])
 
-	useEffect(() => {
-		loadCountries()
-		if (isEdit) loadJob()
-	}, [loadJob, loadCountries, isEdit])
-
-	async function loadCountries() {
-		try {
-			const data = await apiCall<{ countries: any[] }>('/countries')
-			setCountries(data.countries)
-		} catch {
-			/* fallback to US only */
-		}
-	}
-
-	async function loadPreviousPostings() {
-		setLoadingPostings(true)
-		try {
-			const data = await apiCall<{ success: boolean; autofill: { recent_postings: any[] } }>(
-				'/memory/autofill/recruiter',
-			)
-			setPreviousPostings(data.autofill?.recent_postings || [])
-			setShowPreviousPostings(true)
-		} catch {
-		} finally {
-			setLoadingPostings(false)
-		}
-	}
-
-	function applyTemplate(posting: any) {
-		if (posting.title) setTitle(posting.title)
-		if (posting.company) setCompany(posting.company)
-		if (posting.description) setDescription(posting.description)
-		if (posting.requirements) setRequirements(posting.requirements)
-		if (posting.location) setLocation(posting.location)
-		if (posting.salary_range) setSalaryRange(posting.salary_range)
-		if (posting.job_type) setJobType(posting.job_type)
-		if (posting.salary_min) setSalaryMin(String(posting.salary_min))
-		if (posting.salary_max) setSalaryMax(String(posting.salary_max))
-		setShowPreviousPostings(false)
-		flashSuccess('Form populated from previous posting — edit as needed')
-		trackEvent('job_form_apply_template', { title: posting.title })
-	}
-
-	function handleCountryChange(code: string) {
-		setCountryCode(code)
-		const country = countries.find((c) => c.country_code === code)
-		if (country) {
-			setCurrencyCode(country.currency_code)
-			setCurrencySymbol(country.currency_symbol)
-		}
-	}
-
-	async function loadJob() {
+	const loadJob = useCallback(async () => {
 		try {
 			const data = await apiCall<{
 				job: {
@@ -275,7 +223,60 @@ export function RecruiterJobFormPage() {
 		} finally {
 			setLoading(false)
 		}
+	}, [id, navigate])
+
+	const loadCountries = useCallback(async () => {
+		try {
+			const data = await apiCall<{ countries: any[] }>('/countries')
+			setCountries(data.countries)
+		} catch {
+			/* fallback to US only */
+		}
+	}, [])
+	useEffect(() => {
+		loadCountries()
+		if (isEdit) loadJob()
+	}, [loadJob, loadCountries, isEdit])
+
+
+	async function loadPreviousPostings() {
+		setLoadingPostings(true)
+		try {
+			const data = await apiCall<{ success: boolean; autofill: { recent_postings: any[] } }>(
+				'/memory/autofill/recruiter',
+			)
+			setPreviousPostings(data.autofill?.recent_postings || [])
+			setShowPreviousPostings(true)
+		} catch {
+		} finally {
+			setLoadingPostings(false)
+		}
 	}
+
+	function applyTemplate(posting: any) {
+		if (posting.title) setTitle(posting.title)
+		if (posting.company) setCompany(posting.company)
+		if (posting.description) setDescription(posting.description)
+		if (posting.requirements) setRequirements(posting.requirements)
+		if (posting.location) setLocation(posting.location)
+		if (posting.salary_range) setSalaryRange(posting.salary_range)
+		if (posting.job_type) setJobType(posting.job_type)
+		if (posting.salary_min) setSalaryMin(String(posting.salary_min))
+		if (posting.salary_max) setSalaryMax(String(posting.salary_max))
+		setShowPreviousPostings(false)
+		flashSuccess('Form populated from previous posting — edit as needed')
+		trackEvent('job_form_apply_template', { title: posting.title })
+	}
+
+	function handleCountryChange(code: string) {
+		setCountryCode(code)
+		const country = countries.find((c) => c.country_code === code)
+		if (country) {
+			setCurrencyCode(country.currency_code)
+			setCurrencySymbol(country.currency_symbol)
+		}
+	}
+
 
 	function flashSuccess(msg: string) {
 		setAiSuccess(msg)

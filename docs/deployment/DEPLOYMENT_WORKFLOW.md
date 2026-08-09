@@ -62,6 +62,101 @@ dev → staging → main (production)
 - Force redeploy on Render dashboard
 - Notify team in group chat
 
+## Dev → Staging → Production Promotion Path
+
+### Overview
+The promotion path ensures code moves through validated environments before reaching production. Each promotion requires verification and sign-off.
+
+```
+origin/dev ──merge──> origin/staging ──merge──> origin/main (production)
+     │                      │                      │
+  dev tests              QA retest            prod health check
+  build + lint           E2E suite            monitoring alerts
+```
+
+### Step-by-Step Promotion (Dev → Staging)
+
+1. **Fetch all branches**
+   ```bash
+   git fetch --all
+   ```
+
+2. **Verify commit delta**
+   ```bash
+   git rev-list --count origin/staging..origin/dev
+   # Expected: >0 (dev is ahead of staging)
+   ```
+
+3. **Checkout and update staging**
+   ```bash
+   git checkout staging
+   git pull origin staging
+   ```
+
+4. **Merge dev into staging**
+   ```bash
+   git merge origin/dev --no-edit
+   ```
+   If merge conflicts occur, resolve them locally or create a PR via `gh pr create`.
+
+5. **Push staging**
+   ```bash
+   git push origin staging
+   ```
+
+6. **Trigger staging deploy**
+   - Render auto-deploy is enabled for staging
+   - Verify at: https://rekrutai-staging.onrender.com
+
+7. **Health check**
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}" https://rekrutai-staging.onrender.com
+   # Expected: 200
+   ```
+
+8. **Confirm delta is zero**
+   ```bash
+   git rev-list --count origin/staging..origin/dev
+   # Expected: 0
+   ```
+
+### Step-by-Step Promotion (Staging → Main/Production)
+
+1. **Ensure staging QA has passed**
+   - All E2E tests green (or ≥80% with 0 critical failures)
+   - Manual QA sign-off
+   - No console errors in staging
+
+2. **Checkout and update main**
+   ```bash
+   git checkout main
+   git pull origin main
+   ```
+
+3. **Merge staging into main**
+   ```bash
+   git merge origin/staging --no-edit
+   ```
+
+4. **Push main**
+   ```bash
+   git push origin main
+   ```
+
+5. **Verify production health**
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}" https://rekrutai.co
+   # Expected: 200
+   ```
+
+### Promotion History
+
+| Date | Promotion | Merge Commit | Health Status |
+|------|-----------|--------------|---------------|
+| 2026-08-10 | dev → staging | c67fdecda98e03684dc6bdbc068b9f5ef2dce8c1 | ✅ 200 OK |
+
+---
+
 ## Current Status
 - **Dev branch:** Clean (build passes, TypeScript 0 errors, Biome ~500 errors being cleaned)
 - **Staging branch:** Synced with dev at e5be6f6

@@ -14,11 +14,27 @@ interface SheetProps {
 const SheetContext = React.createContext<{ onClose: () => void }>({ onClose: () => {} })
 
 function Sheet({ open, onOpenChange, children, side = 'right', className }: SheetProps) {
+	const scrollPosRef = React.useRef(0)
+
 	React.useEffect(() => {
-		if (open) document.body.style.overflow = 'hidden'
-		else document.body.style.overflow = ''
+		if (open) {
+			scrollPosRef.current = window.scrollY
+			document.body.style.overflow = 'hidden'
+			document.body.style.top = `-${scrollPosRef.current}px`
+			document.body.style.position = 'fixed'
+			document.body.style.width = '100%'
+		} else {
+			document.body.style.overflow = ''
+			document.body.style.top = ''
+			document.body.style.position = ''
+			document.body.style.width = ''
+			window.scrollTo(0, scrollPosRef.current)
+		}
 		return () => {
 			document.body.style.overflow = ''
+			document.body.style.top = ''
+			document.body.style.position = ''
+			document.body.style.width = ''
 		}
 	}, [open])
 

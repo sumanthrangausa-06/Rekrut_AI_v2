@@ -7,7 +7,7 @@ test.use({ storageState: RECRUITER_STORAGE })
 test.describe('Recruiter Candidates Management', () => {
   test('candidates page loads with header, stats, and pipeline tabs', async ({ page }) => {
     await page.goto('/recruiter/candidates')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Verify header
     await expect(page.getByRole('heading', { name: 'Candidates', exact: true })).toBeVisible({ timeout: 15000 })
@@ -27,7 +27,7 @@ test.describe('Recruiter Candidates Management', () => {
 
   test('pipeline tabs filter candidates by status', async ({ page }) => {
     await page.goto('/recruiter/candidates')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Verify all status tabs exist (tabs include count numbers in accessible name)
     await expect(page.getByRole('button', { name: /^All/i }).first()).toBeVisible({ timeout: 15000 })
@@ -56,7 +56,7 @@ test.describe('Recruiter Candidates Management', () => {
 
   test('search and filter bar are present', async ({ page }) => {
     await page.goto('/recruiter/candidates')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Verify search input exists
     const searchInput = page.getByPlaceholder(/Search by name, skill, or location/i)
@@ -78,7 +78,7 @@ test.describe('Recruiter Candidates Management', () => {
 
   test('list/kanban view toggle works', async ({ page }) => {
     await page.goto('/recruiter/candidates')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Verify toggle button exists (use exact match to avoid "Shortlist" buttons)
     const viewToggle = page.getByRole('button', { name: /^Kanban$/i }).first()
@@ -94,7 +94,7 @@ test.describe('Recruiter Candidates Management', () => {
 
   test('save search button and pro tip visible', async ({ page }) => {
     await page.goto('/recruiter/candidates')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Verify "Save Search" button exists
     await expect(page.getByRole('button', { name: /Save Search/i }).first()).toBeVisible({ timeout: 10000 })
@@ -105,7 +105,7 @@ test.describe('Recruiter Candidates Management', () => {
 
   test('empty state or candidate list renders without error', async ({ page }) => {
     await page.goto('/recruiter/candidates')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Wait for loading to finish
     await page.waitForTimeout(1000)
@@ -121,7 +121,7 @@ test.describe('Recruiter Candidates Management', () => {
 
   test('pagination controls appear when multiple pages exist', async ({ page }) => {
     await page.goto('/recruiter/candidates')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Check if pagination is present
     const paginationText = page.getByText(/Page \d+ of \d+/i).first()

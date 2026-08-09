@@ -7,6 +7,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const helmet = require('helmet');
 const crypto = require('node:crypto');
+const { cspMiddleware } = require('./server/middleware/csp');
 
 // Load environment variables from .env file
 require('dotenv').config();
@@ -60,6 +61,16 @@ if (missingStripe.length > 0) {
 	console.warn(`  Missing: ${missingStripe.join(', ')}`);
 }
 
+// Fatal guard: prevent non-production environments from booting with live Stripe keys
+const nodeEnv = process.env.NODE_ENV || 'development';
+const stripeSecret = process.env.STRIPE_SECRET_KEY || '';
+if (nodeEnv !== 'production' && stripeSecret.startsWith('sk_live_')) {
+	console.error('[FATAL] Non-production environment detected with live Stripe key. Refusing to start.');
+	console.error(`  NODE_ENV: ${nodeEnv}`);
+	console.error(`  STRIPE_SECRET_KEY prefix: sk_live_*`);
+	process.exit(1);
+}
+
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
@@ -86,6 +97,8 @@ const billingRoutes = require('./routes/billing');
 const voiceNotificationsRoutes = require('./routes/voice-notifications');
 const screeningRoutes = require('./routes/screening');
 const settingsRoutes = require('./routes/settings');
+const signatureRoutes = require('./routes/signature');
+const verificationRoutes = require('./routes/verification');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -99,22 +112,7 @@ app.set('trust proxy', 1);
 // Security headers — MUST be first, before all middleware and routes
 app.use(
 	helmet({
-		contentSecurityPolicy: {
-			directives: {
-				defaultSrc: ["'self'"],
-				styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-				fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-				scriptSrc: ["'self'"],
-				imgSrc: ["'self'", 'data:', 'https:'],
-				connectSrc: [
-					"'self'",
-					...(process.env.NODE_ENV === 'development' ? ['https://rekrutai-dev.onrender.com'] : []),
-					'https://api.rekrutai.co',
-				],
-				frameAncestors: ["'none'"],
-				upgradeInsecureRequests: [],
-			},
-		},
+		contentSecurityPolicy: false, // Handled by dedicated cspMiddleware below
 		crossOriginEmbedderPolicy: false, // Allow embedded resources
 		hsts: {
 			maxAge: 31536000,
@@ -123,6 +121,7 @@ app.use(
 		},
 	}),
 );
+app.use(cspMiddleware);
 
 // Deploy verification endpoint — dynamically reads actual git commit
 app.get('/deploy-check', (_req, res) => {
@@ -413,7 +412,10 @@ app.use(
 		resave: false,
 		saveUninitialized: false,
 		cookie: {
-			secure: true,
+			// Browsers drop a Secure cookie over plain HTTP, so hardcoding this
+			// breaks every session outside production — including E2E, which runs
+			// against http://localhost. Matches the CSRF cookie above.
+			secure: process.env.NODE_ENV === 'production',
 			httpOnly: true,
 			maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 			sameSite: 'strict',
@@ -541,6 +543,12 @@ app.use('/api/screening', screeningRoutes);
 
 // API Routes - Settings (profile, notifications, privacy, avatar)
 app.use('/api/settings', settingsRoutes);
+
+// API Routes - E-Signature Engine
+app.use('/api/signatures', signatureRoutes);
+
+// API Routes - Identity Verification
+app.use('/api/candidates', verificationRoutes);
 
 const voiceRoutes = require('./routes/voice');
 const ttsRoutes = require('./routes/tts');
@@ -1676,6 +1684,54 @@ app.get('/api/admin/routes', requireAdmin, (_req, res) => {
 	} catch (_err) {
 		res.status(500).json({ error: 'Failed to get route metrics' });
 	}
+});
+
+// ─── SEO Routes ─────────────────────────────────────────────────────────
+app.get('/robots.txt', (_req, res) => {
+	res.type('text/plain');
+	res.send(
+		`User-agent: *\n` +
+		`Allow: /\n` +
+		`Disallow: /admin\n` +
+		`Disallow: /api\n` +
+		`Disallow: /debug\n` +
+		`Disallow: /settings\n` +
+		`Disallow: /recruiter/\n` +
+		`Sitemap: https://rekrutai.co/sitemap.xml\n`,
+	);
+});
+
+app.get('/sitemap.xml', (_req, res) => {
+	const today = new Date().toISOString().split('T')[0];
+	const urls = [
+		{ loc: 'https://rekrutai.co/', lastmod: today, changefreq: 'weekly', priority: '1.0' },
+		{ loc: 'https://rekrutai.co/jobs', lastmod: today, changefreq: 'daily', priority: '0.9' },
+		{ loc: 'https://rekrutai.co/pricing', lastmod: today, changefreq: 'weekly', priority: '0.8' },
+		{ loc: 'https://rekrutai.co/about', lastmod: today, changefreq: 'monthly', priority: '0.7' },
+		{ loc: 'https://rekrutai.co/contact', lastmod: today, changefreq: 'monthly', priority: '0.7' },
+		{ loc: 'https://rekrutai.co/blog', lastmod: today, changefreq: 'weekly', priority: '0.8' },
+		{ loc: 'https://rekrutai.co/privacy', lastmod: today, changefreq: 'yearly', priority: '0.3' },
+		{ loc: 'https://rekrutai.co/terms', lastmod: today, changefreq: 'yearly', priority: '0.3' },
+	];
+
+	const xml =
+		`<?xml version="1.0" encoding="UTF-8"?>\n` +
+		`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+		urls
+			.map(
+				(u) =>
+					`  <url>\n` +
+					`    <loc>${u.loc}</loc>\n` +
+					`    <lastmod>${u.lastmod}</lastmod>\n` +
+					`    <changefreq>${u.changefreq}</changefreq>\n` +
+					`    <priority>${u.priority}</priority>\n` +
+					`  </url>\n`,
+			)
+			.join('') +
+		`</urlset>\n`;
+
+	res.type('application/xml');
+	res.send(xml);
 });
 
 // Serve React SPA — this is the only frontend

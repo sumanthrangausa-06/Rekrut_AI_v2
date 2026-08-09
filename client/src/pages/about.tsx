@@ -1,3 +1,4 @@
+import { SEO } from '@/components/SEO'
 import {
 	ArrowLeft,
 	ArrowRight,
@@ -138,6 +139,11 @@ export function AboutPage() {
 
 	return (
 		<div className='min-h-dvh-safe bg-background'>
+			<SEO
+				title='About Us — Building the Future of Hiring'
+				description='Rekrut AI (formerly HireLoop) was founded in 2026 to make hiring transparent, intelligent, and fair for everyone. Meet our founders and learn our mission.'
+				canonical='/about'
+			/>
 			<Header />
 
 			<main>

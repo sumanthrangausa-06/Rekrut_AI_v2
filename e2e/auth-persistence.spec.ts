@@ -9,7 +9,7 @@ test.describe('Auth Persistence & Token Tests — Candidate', () => {
   test('candidate token persists across page reloads', async ({ page }) => {
     // Navigate to candidate dashboard (already authenticated via storageState)
     await page.goto('/candidate')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await expect(page.locator('text=Dashboard').first()).toBeVisible()
     await expect(page).toHaveURL(/.*\/candidate/)
 
@@ -22,7 +22,7 @@ test.describe('Auth Persistence & Token Tests — Candidate', () => {
   test('candidate can navigate directly to /candidate/jobs when authenticated', async ({ page }) => {
     // Navigate directly to protected route (already authenticated via storageState)
     await page.goto('/candidate/jobs')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await expect(page).toHaveURL(/.*\/candidate\/jobs/)
     await expect(page.locator('text=Job Board').first()).toBeVisible()
   })
@@ -30,7 +30,7 @@ test.describe('Auth Persistence & Token Tests — Candidate', () => {
   test('logout clears auth and redirects to login', async ({ page }) => {
     // Navigate to candidate dashboard (already authenticated via storageState)
     await page.goto('/candidate')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await expect(page).toHaveURL(/.*\/(candidate|recruiter)/)
 
     // Try to open user menu and click logout if visible
@@ -79,7 +79,7 @@ test.describe('Auth Persistence & Token Tests — Recruiter', () => {
   test('recruiter token persists across page reloads', async ({ page }) => {
     // Navigate to recruiter dashboard (already authenticated via storageState)
     await page.goto('/recruiter')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await expect(page.locator('text=Dashboard').first()).toBeVisible()
     await expect(page).toHaveURL(/.*\/recruiter/)
 
@@ -92,9 +92,9 @@ test.describe('Auth Persistence & Token Tests — Recruiter', () => {
   test('recruiter can navigate directly to /recruiter/jobs when authenticated', async ({ page }) => {
     // Navigate directly to protected route (already authenticated via storageState)
     await page.goto('/recruiter/jobs')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await expect(page).toHaveURL(/.*\/recruiter\/jobs/)
-    await expect(page.locator('text=Job Board').first()).toBeVisible()
+    await expect(page.locator('text=Job Postings').first()).toBeVisible()
   })
 })
 
@@ -103,7 +103,7 @@ test.describe('Candidate Jobs Page - Full Flow', () => {
 
   test('candidate can browse jobs, search, and view job details', async ({ page }) => {
     await page.goto('/candidate/jobs')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Verify jobs page loads
     await expect(page).toHaveURL(/.*\/candidate\/jobs/)
@@ -146,7 +146,7 @@ test.describe('Candidate Jobs Page - Full Flow', () => {
     // Set mobile viewport
     await page.setViewportSize({ width: 375, height: 667 })
     await page.goto('/candidate/jobs')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Verify page loads without layout errors
     await expect(page.locator('text=Job Board').first()).toBeVisible()
@@ -168,7 +168,7 @@ test.describe('Settings Page Auth', () => {
 
   test('candidate can access settings page when authenticated', async ({ page }) => {
     await page.goto('/settings')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await expect(page).toHaveURL(/.*\/settings/)
     await expect(page.locator('text=Settings').first()).toBeVisible()

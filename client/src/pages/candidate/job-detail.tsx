@@ -1,3 +1,4 @@
+import { SEO } from '@/components/SEO'
 import {
 	AlertCircle,
 	ArrowLeft,
@@ -29,7 +30,7 @@ import {
 	Zap,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Skeleton } from '@/components/domain/skeleton'
 import { JobDetailContent } from '@/components/domain/job-detail-drawer'
 import { Avatar } from '@/components/ui/avatar'
@@ -94,6 +95,7 @@ interface TailoredDocument {
 export function CandidateJobDetailPage() {
 	const { id } = useParams()
 	const navigate = useNavigate()
+	const [searchParams] = useSearchParams()
 	const { user } = useAuth()
 	const [job, setJob] = useState<Job | null>(null)
 	const [loading, setLoading] = useState(true)
@@ -201,6 +203,12 @@ export function CandidateJobDetailPage() {
 		loadJobAssessment,
 		checkIfApplied,
 	])
+
+	useEffect(() => {
+		if (searchParams.get('apply') === 'true') {
+			setShowApplyForm(true)
+		}
+	}, [searchParams])
 
 	async function handleListen() {
 		if (!job) return
@@ -445,7 +453,7 @@ export function CandidateJobDetailPage() {
 							variant={value === 'Yes' ? 'default' : 'outline'}
 							size='sm'
 							onClick={() => updateAnswer(key, 'Yes')}
-							className='flex-1'
+							className='flex-1 min-h-[44px]'
 						>
 							Yes
 						</Button>
@@ -454,7 +462,7 @@ export function CandidateJobDetailPage() {
 							variant={value === 'No' ? 'default' : 'outline'}
 							size='sm'
 							onClick={() => updateAnswer(key, 'No')}
-							className='flex-1'
+							className='flex-1 min-h-[44px]'
 						>
 							No
 						</Button>
@@ -529,6 +537,56 @@ export function CandidateJobDetailPage() {
 
 	return (
 		<div className='space-y-6 max-w-3xl mx-auto px-2 sm:px-0'>
+			{job && (
+				<SEO
+					title={`${job.title} at ${job.company || job.poster_company || 'Company'} — Apply Now`}
+					description={`${job.title} at ${job.company || job.poster_company || 'Company'}. ${job.job_type} position in ${job.location || 'various locations'}. ${job.salary_range ? `Salary: ${job.salary_range}. ` : ''}Apply on Rekrut AI.`}
+					canonical={`/candidate/jobs/${job.id}`}
+					ogType='job posting'
+					jsonLd={{
+						'@context': 'https://schema.org',
+						'@type': 'JobPosting',
+						title: job.title,
+						description: job.description.replace(/<[^>]*>/g, '').slice(0, 200) + (job.description.length > 200 ? '...' : ''),
+						datePosted: job.created_at,
+						validThrough: job.created_at ? new Date(new Date(job.created_at).getTime() + 90 * 24 * 60 * 60 * 1000).toISOString() : undefined,
+						hiringOrganization: {
+							'@type': 'Organization',
+							name: job.company || job.poster_company || 'Company',
+						},
+						jobLocation: job.location
+							? {
+									'@type': 'Place',
+									address: {
+										'@type': 'PostalAddress',
+										addressLocality: job.location.split(',')[0]?.trim() || job.location,
+										addressRegion: job.location.split(',')[1]?.trim() || undefined,
+									},
+								}
+							: undefined,
+						employmentType: job.job_type === 'full-time' ? 'FULL_TIME' : job.job_type === 'part-time' ? 'PART_TIME' : job.job_type === 'contract' ? 'CONTRACTOR' : job.job_type === 'internship' ? 'INTERN' : 'FULL_TIME',
+						baseSalary: job.salary_range
+							? {
+									'@type': 'MonetaryAmount',
+									currency: 'USD',
+									value: {
+										'@type': 'QuantitativeValue',
+										minValue: job.salary_min,
+										maxValue: job.salary_max,
+										unitText: 'YEAR',
+									},
+								}
+							: undefined,
+						applicantLocationRequirements: job.remote_type === 'remote'
+							? {
+									'@type': 'Country',
+									name: 'Remote',
+								}
+							: undefined,
+						jobLocationType: job.remote_type === 'remote' ? 'TELECOMMUTE' : undefined,
+					}}
+				/>
+			)}
 			{audioUrl && (
 				<audio
 					ref={audioRef}
@@ -658,7 +716,7 @@ export function CandidateJobDetailPage() {
 					<CardContent className='p-4'>
 						<div className='flex items-start gap-3'>
 							<AlertCircle className='h-5 w-5 text-amber-600 mt-0.5 shrink-0' />
-							<div className='flex-1'>
+							<div className='flex-1 min-h-[44px]'>
 								<p className='font-semibold text-sm text-amber-900'>
 									Complete your profile for better matches
 								</p>

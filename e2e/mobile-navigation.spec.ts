@@ -11,7 +11,7 @@ test.describe('Mobile Navigation — Landing Page', () => {
 
   test('hamburger menu opens and shows navigation links', async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Hamburger button should be visible on mobile
     const openMenuBtn = page.getByRole('button', { name: 'Open menu' })
@@ -36,7 +36,7 @@ test.describe('Mobile Navigation — Landing Page', () => {
 
   test('mobile menu navigation to pricing works', async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Open menu' }).click()
     await page.getByRole('link', { name: 'Pricing' }).first().click()
@@ -54,7 +54,7 @@ test.describe('Mobile Navigation — Landing Page', () => {
 
   test('mobile menu close button works', async ({ page }) => {
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Open menu' }).click()
     await expect(page.getByRole('button', { name: 'Close menu' })).toBeVisible()
@@ -75,7 +75,7 @@ test.describe('Mobile Navigation — Recruiter Dashboard', () => {
 
   test('sidebar toggle opens and shows navigation items', async ({ page }) => {
     await page.goto('/recruiter')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Sidebar toggle should be visible on mobile
     const sidebarToggle = page.getByRole('button', { name: 'Open navigation menu' })
@@ -94,7 +94,7 @@ test.describe('Mobile Navigation — Recruiter Dashboard', () => {
 
   test('sidebar navigation to analytics works on mobile', async ({ page }) => {
     await page.goto('/recruiter')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Open navigation menu' }).click()
     await page.getByRole('navigation').getByRole('link', { name: 'Analytics' }).click()
@@ -105,7 +105,7 @@ test.describe('Mobile Navigation — Recruiter Dashboard', () => {
 
   test('sidebar closes when navigating to another page', async ({ page }) => {
     await page.goto('/recruiter')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Open navigation menu' }).click()
     await page.getByRole('navigation').getByRole('link', { name: 'Jobs' }).click()
@@ -124,7 +124,7 @@ test.describe('Mobile Navigation — Recruiter Dashboard', () => {
 
   test('Escape key closes sidebar on mobile', async ({ page }) => {
     await page.goto('/recruiter')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Open navigation menu' }).click()
     await expect(page.getByRole('navigation').getByRole('link', { name: 'Dashboard' })).toBeVisible()
@@ -149,7 +149,7 @@ test.describe('Mobile Navigation — Candidate Dashboard', () => {
 
   test('candidate sidebar shows correct nav items on mobile', async ({ page }) => {
     await page.goto('/candidate')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     const sidebarToggle = page.getByRole('button', { name: 'Open navigation menu' })
     await expect(sidebarToggle).toBeVisible({ timeout: 10000 })
@@ -167,7 +167,7 @@ test.describe('Mobile Navigation — Candidate Dashboard', () => {
 
   test('candidate mobile navigation to job board works', async ({ page }) => {
     await page.goto('/candidate')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await page.getByRole('button', { name: 'Open navigation menu' }).click()
     await page.getByRole('navigation').getByRole('link', { name: 'Job Board' }).click()

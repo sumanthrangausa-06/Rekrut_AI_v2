@@ -1,3 +1,4 @@
+import { SEO } from '@/components/SEO'
 import {
 	ArrowLeft,
 	Bell,
@@ -207,6 +208,12 @@ export function PrivacyPage() {
 
 	return (
 		<div className='min-h-dvh-safe bg-background'>
+			<SEO
+				title='Privacy Policy — How We Protect Your Data'
+				description='Rekrut AI is committed to protecting your privacy. Learn how we collect, use, disclose, and safeguard your information.'
+				canonical='/privacy'
+				noindex={true}
+			/>
 			<Header />
 
 			<main>

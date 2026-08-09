@@ -1,0 +1,473 @@
+{
+  "meta": {
+    "repo": "sumanthrangausa-06/Rekrut_AI_v2",
+    "generated": "2026-08-08",
+    "source": "docs/reports/CEO_REVIEW_SUMMARY.md + docs/reports/STRATEGIC_MARKET_ANALYSIS.md",
+    "note": "Vision issue first, then one epic per phase, then task issues. Task bodies reference their epic by title so the script can link them after creation."
+  },
+
+  "labels": [
+    { "name": "vision",        "color": "5319E7", "description": "Product vision and strategy" },
+    { "name": "epic",          "color": "3E4B9E", "description": "Phase-level epic tracking multiple tasks" },
+    { "name": "phase-0",       "color": "B60205", "description": "Phase 0 - Critical bug fixes" },
+    { "name": "phase-1",       "color": "D93F0B", "description": "Phase 1 - MVP launch" },
+    { "name": "phase-2",       "color": "FBCA04", "description": "Phase 2 - Structured screening" },
+    { "name": "phase-3",       "color": "0E8A16", "description": "Phase 3 - Technical assessment" },
+    { "name": "phase-4",       "color": "1D76DB", "description": "Phase 4 - Interview excellence" },
+    { "name": "phase-5",       "color": "5319E7", "description": "Phase 5 - Secure hiring" },
+    { "name": "phase-6",       "color": "0052CC", "description": "Phase 6 - Enterprise" },
+    { "name": "P0",            "color": "B60205", "description": "Blocks launch" },
+    { "name": "P1",            "color": "D93F0B", "description": "High priority" },
+    { "name": "P2",            "color": "FBCA04", "description": "Medium priority" },
+    { "name": "P3",            "color": "C2E0C6", "description": "Low priority" },
+    { "name": "bug",           "color": "D73A4A", "description": "Something is broken" },
+    { "name": "backend",       "color": "1D76DB", "description": "Express routes, services, DB" },
+    { "name": "frontend",      "color": "BFD4F2", "description": "React client" },
+    { "name": "infrastructure","color": "5319E7", "description": "Deploy, monitoring, data stores" },
+    { "name": "security",      "color": "B60205", "description": "Security and compliance" },
+    { "name": "ai",            "color": "0E8A16", "description": "AI/ML features" },
+    { "name": "candidate",     "color": "C5DEF5", "description": "Candidate-side feature" },
+    { "name": "recruiter",     "color": "F9D0C4", "description": "Recruiter-side feature" },
+    { "name": "testing",       "color": "C2E0C6", "description": "QA and automated tests" }
+  ],
+
+  "milestones": [
+    { "title": "Phase 0 - Critical Bug Fixes",   "description": "Stabilise the platform. 40h. Blocks all launch activity.", "due_on": "2026-08-15T23:59:59Z" },
+    { "title": "Phase 1 - MVP Launch",           "description": "Basic hiring loop usable by real customers. 80h.",         "due_on": "2026-08-29T23:59:59Z" },
+    { "title": "Phase 2 - Structured Screening", "description": "Screening, aptitude, AI screener, OmniScore v2. 230h.",    "due_on": "2026-09-26T23:59:59Z" },
+    { "title": "Phase 3 - Technical Assessment", "description": "Code sandbox, proctoring, AI career coach, TrustScore v2. 280h.", "due_on": "2026-10-31T23:59:59Z" },
+    { "title": "Phase 4 - Interview Excellence", "description": "LiveKit video, panel interviews, calendar, analytics. 240h.", "due_on": "2026-12-05T23:59:59Z" },
+    { "title": "Phase 5 - Secure Hiring",        "description": "In-house e-signature and background verification. 200h.",  "due_on": "2027-01-16T23:59:59Z" },
+    { "title": "Phase 6 - Enterprise Complete",  "description": "Permissions, hierarchy, public API, compliance. 265h.",    "due_on": "2027-02-27T23:59:59Z" }
+  ],
+
+  "issues": [
+    {
+      "key": "vision",
+      "title": "Rekrut AI - Product Vision and Master Roadmap",
+      "labels": ["vision", "epic"],
+      "milestone": null,
+      "body": "## What we are building\n\nRekrut AI is an **all-in-one, end-to-end hiring platform** with a transparent credit-score-style rating for **both sides** of the market:\n\n- **OmniScore** rates candidates across 8 factors, and the candidate can see it, understand it, and improve it.\n- **TrustScore** rates companies on how they actually behave when hiring, so candidates know who to trust before they apply.\n\nEverything is built in-house. No Checkr, no DocuSign, no HackerRank, no HireVue. One platform, one data model, no per-transaction fees.\n\n## Why this matters\n\nThe hiring market is broken and AI made it worse:\n\n| Finding | Source |\n|---|---|\n| Only 11% of candidates rate their experience as very positive, down from 18% in 2023 | PeopleScout 2026 |\n| 42% of ghosted candidates were ghosted 3+ times | Lever 2026 |\n| 60% do not know whether a human ever read their resume | Monster 2026 |\n| 70% were never told AI would evaluate them | Greenhouse 2026 |\n| 26% of Black applicants applied to roles where the AI adversely impacted their group | Stanford HAI 2026 |\n\nStanford found that a single vendor's score follows a candidate across 156+ employers for up to 330 days. One low score means rejection everywhere, and the candidate can neither see it nor dispute it.\n\nThat is a credit score with none of the consumer protections. Rekrut AI makes the score visible, explainable, improvable, and owned by the candidate.\n\n## The full pipeline\n\n**Candidate:** create profile -> match jobs -> apply -> screening -> aptitude test -> technical test -> interview scheduling -> manager interview -> offer letter -> accept -> document verification (BGC) -> onboarding -> payroll\n\n**Recruiter:** create company profile (company email only) -> get approved by the company account owner -> post jobs -> review candidates -> run screening -> assign assessments -> schedule interviews -> send offers -> verify documents -> manage onboarding -> run payroll\n\n## Roadmap\n\n| Phase | Name | Effort | Milestone |\n|---|---|---|---|\n| 0 | Critical Bug Fixes | 40h | Stabilise |\n| 1 | MVP Launch | 80h | First real users |\n| 2 | Structured Screening | 230h | Screening + OmniScore v2 |\n| 3 | Technical Assessment | 280h | Code sandbox (the moat) |\n| 4 | Interview Excellence | 240h | Panel video + analytics |\n| 5 | Secure Hiring | 200h | BGC + e-signature |\n| 6 | Enterprise Complete | 265h | Permissions + API |\n\nTotal: ~1335 hours, ~33 weeks.\n\n## Architecture decisions (locked)\n\n| Area | Choice |\n|---|---|\n| Code sandbox | Docker + Judge0, full language support |\n| Video | LiveKit, self-hosted |\n| E-signature | In-house PKCS#7 + timestamp authority |\n| Analytics store | PostgreSQL for operations, ClickHouse for analytics |\n| Monitoring | Prometheus + Grafana + Loki, self-hosted |\n| Test coverage target | 95% E2E |\n\n## Explicitly out of scope\n\nWhite-label, regional languages, native mobile apps, and every third-party integration (ATS, job boards, payroll partners, BGC vendors, e-signature vendors).\n\n## Reference documents\n\n- `docs/reports/STRATEGIC_MARKET_ANALYSIS.md`\n- `docs/reports/CEO_REVIEW_SUMMARY.md`\n- `docs/qa/live-qa-2026-08-08/REPORT.md`\n"
+    },
+
+    {
+      "key": "epic-p0",
+      "title": "EPIC Phase 0 - Critical Bug Fixes",
+      "labels": ["epic", "phase-0", "P0"],
+      "milestone": "Phase 0 - Critical Bug Fixes",
+      "body": "Stabilise the platform before any launch activity. Nothing else ships until this epic closes.\n\nEvidence: `docs/qa/live-qa-2026-08-08/REPORT.md`\n\n**Exit criteria**\n- No page fires more than 20 API requests on load\n- A candidate can apply from the job board drawer\n- Staging uses Stripe test keys\n- Password reset email is delivered, not console-logged\n- No fabricated data rendered anywhere in the UI\n\nEffort: ~40h"
+    },
+    {
+      "key": "p0-render-loops",
+      "title": "Fix infinite render loops firing up to 1,255 API calls per page view",
+      "labels": ["phase-0", "P0", "bug", "frontend"],
+      "milestone": "Phase 0 - Critical Bug Fixes",
+      "epic": "epic-p0",
+      "body": "## Problem\n\n14 pages re-render without bound and hammer the API for as long as the tab stays open. Measured on a fresh account with no data over a single ~32 second visit.\n\n**Recruiter**\n\n| Page | API calls | Worst endpoint |\n|---|---|---|\n| `/recruiter/candidates` | 1,255 | `saved-searches` x483 |\n| `/recruiter/jobs/new` | 653 | `GET /api/countries` x644 |\n| `/recruiter/job-create` | 648 | `GET /api/countries` x640 |\n| `/recruiter/offers` | 548 | `candidates` x180 |\n| `/recruiter/assessments` | 447 | `recruiter/catalog` x108 |\n| `/recruiter/applications` | 366 | `recruiter/jobs` x178 |\n| `/recruiter/company` | 366 | `company/team/members` x179 |\n| `/recruiter/onboarding-docs` | 343 | `onboarding/recruiter/summary` x335 |\n| `/recruiter/jobs` | 177 | `recruiter/jobs` x169 |\n| `/recruiter/omniscore` | 71 | `omniscore/company-dashboard` x63 |\n\n**Candidate**\n\n| Page | API calls | Worst endpoint |\n|---|---|---|\n| `/candidate/omniscore` | 286 | `POST omniscore/checkin` x70 |\n| `/candidate/onboarding` | 188 | `onboarding/wizard/progress` x180 |\n| `/candidate/offers` | 185 | `onboarding/offers/me` x177 |\n| `/candidate/profile` | 81 | `candidate/profile` x73 |\n\n`/recruiter/candidates` sustains roughly 39 requests per second per open tab. `/candidate/omniscore` issues 70 POST writes per visit to a non-idempotent endpoint.\n\n## Root cause\n\nThe loader is declared as a plain `async function` in the component body, so it gets a new reference on every render, and it is listed as a `useEffect` dependency. The effect re-runs after every render, sets state, triggers another render, recreates the function, re-runs the effect.\n\nConfirmed instances:\n\n| File | Effect dependency |\n|---|---|\n| `client/src/pages/candidate/omniscore.tsx:266` | `loadMyScore` |\n| `client/src/pages/candidate/profile.tsx:224` | `loadProfile` |\n| `client/src/pages/candidate/offers.tsx:81` | `loadOffers` |\n| `client/src/pages/candidate/onboarding.tsx:1368` | `loadProgress` |\n| `client/src/pages/candidate/screening.tsx:70` | `loadScreening` |\n\nThe recruiter pages show identical behaviour and need the same audit.\n\n## Fix\n\nWrap each loader in `useCallback` with a stable dependency array, matching what `jobs.tsx`, `applications.tsx` and `ai-coaching.tsx` already do correctly. Alternatively drop the function from the dependency array and run on mount only.\n\n## Prevention\n\n- Enable the `react-hooks/exhaustive-deps` lint rule\n- Add a CI test asserting a bounded request count per page, using the counter in `docs/qa/live-qa-2026-08-08/qa_lib.py`\n\n## Acceptance criteria\n\n- [ ] Every page in both tables above fires fewer than 20 requests on load\n- [ ] Zero repeated POST writes on `/candidate/omniscore`\n- [ ] `/api/countries` fetched at most once per page\n- [ ] Lint rule enabled and CI regression test added\n\nEffort: ~4h"
+    },
+    {
+      "key": "p0-apply-drawer",
+      "title": "Candidates cannot apply from the job board drawer - the default path is a dead end",
+      "labels": ["phase-0", "P0", "bug", "frontend", "candidate"],
+      "milestone": "Phase 0 - Critical Bug Fixes",
+      "epic": "epic-p0",
+      "body": "## Reproduction\n\n1. Sign in as a candidate, open `/candidate/jobs`\n2. Click any job card, the slide-out drawer opens\n3. Click **Apply Now** in the drawer\n\n**Expected:** the application form opens.\n\n**Actual:** the browser navigates to `/candidate/jobs/174?apply=true` and the form stays closed. No error, no form, no network request. The candidate gets no indication anything failed.\n\nApplying from the standalone page does work, so the feature is functional but the entry point users actually take is broken. This is the default interaction path.\n\n## Root cause\n\nThe drawer navigates with a query parameter:\n\n```\nclient/src/pages/candidate/jobs.tsx:1091\nonApply={() => {\n  if (selectedJob) navigate(`/candidate/jobs/${selectedJob.id}?apply=true`)\n}}\n```\n\n`client/src/pages/candidate/job-detail.tsx` never reads it. The file contains no `useSearchParams`, no `location.search`, no `URLSearchParams`. The form is gated purely on local state at line 984.\n\nRegression introduced with the job detail drawer, commit `c33bbb9`, issue #31 / PR #73.\n\n## Fix\n\nIn `job-detail.tsx`, read the query parameter on mount and call `setShowApplyForm(true)` when `apply=true` is present.\n\n## Acceptance criteria\n\n- [ ] Clicking Apply Now in the drawer opens the application form\n- [ ] Submitting produces `POST /api/candidate/jobs/:id/apply -> 200`\n- [ ] The application appears in the candidate's Applications list and the recruiter's view\n- [ ] E2E test covers the drawer path, not just the standalone page\n\nEffort: ~1h"
+    },
+    {
+      "key": "p0-stripe-keys",
+      "title": "Staging is wired to LIVE Stripe keys - real charges are possible",
+      "labels": ["phase-0", "P0", "bug", "security", "infrastructure"],
+      "milestone": "Phase 0 - Critical Bug Fixes",
+      "epic": "epic-p0",
+      "body": "## Problem\n\nClicking **Start checkout** on `/pricing` while signed in on staging produced a live-mode Stripe session:\n\n```\nPOST https://rekrutai-staging.onrender.com/api/billing/checkout-session -> 200\n-> https://checkout.stripe.com/c/pay/cs_live_b1ikxByCEsCMPaq4NyZKoElmJ6pXJwjDrhRGvh8G5qG0IPfijTUM9xqxwz...\n```\n\nThe `cs_live_` prefix confirms live mode. The hosted page read \"Subscribe to Starter - Rekrut AI, $29.00 per month\".\n\n## Impact\n\n- Anyone testing billing on staging with a real card is charged real money\n- Stripe test cards are rejected, so the billing path cannot be QA'd at all\n\n## Fix\n\nPoint the staging Render service at `sk_test_` / `pk_test_` keys and a test-mode price ID. Add a startup assertion that refuses to boot a non-production environment holding a live key.\n\n## Acceptance criteria\n\n- [ ] Staging checkout produces a `cs_test_` session\n- [ ] Stripe test cards complete checkout end to end on staging\n- [ ] Server refuses to start if `NODE_ENV != production` and the Stripe key starts with `sk_live_`\n- [ ] Production separately confirmed to hold live keys\n\nRelates to #6.\n\nEffort: ~30m"
+    },
+    {
+      "key": "p0-email-provider",
+      "title": "No email provider on staging - password reset links only reach the server console",
+      "labels": ["phase-0", "P0", "backend", "infrastructure"],
+      "milestone": "Phase 0 - Critical Bug Fixes",
+      "epic": "epic-p0",
+      "body": "## Problem\n\n`POST /api/auth/forgot-password` returns 200 but the confirmation screen reads:\n\n> **Check your console** - For testing purposes (no email API key configured), the password reset link has been logged to the server console.\n\nNo transactional email can leave staging, so reset, invites, offer letters and notifications cannot be verified before release.\n\n## Scope\n\n- Configure a transactional provider (Postmark or Resend) on staging and production\n- Verify the 6 existing templates render and deliver\n- Add delivery logging so failures are visible rather than silent\n- Confirm production delivery separately, it was not exercised in the read-only pass\n\n## Acceptance criteria\n\n- [ ] Password reset email is delivered to a real inbox from staging\n- [ ] Application received, interview scheduled, offer sent, and status change emails deliver\n- [ ] Send failures are logged and surfaced, never swallowed\n- [ ] Email delivery covered by an E2E test using a catch-all inbox\n\nEffort: ~5h"
+    },
+    {
+      "key": "p0-analytics-csrf",
+      "title": "Analytics events fail sitewide with 403 CSRF_INVALID",
+      "labels": ["phase-0", "P1", "bug", "backend"],
+      "milestone": "Phase 0 - Critical Bug Fixes",
+      "epic": "epic-p0",
+      "body": "## Problem\n\n`POST /api/analytics/events` returns `403 CSRF_INVALID` on every page across the whole site. No product analytics are being recorded, so we are flying blind on funnel, activation and retention.\n\nConfirmed still reproducible in the 2026-08-08 sweep. Previously filed as #49.\n\n## Fix\n\nEnsure the analytics client attaches the CSRF token the same way the rest of the authenticated API client does, or exempt the analytics endpoint if it carries no state-changing risk and is otherwise authenticated.\n\n## Acceptance criteria\n\n- [ ] `POST /api/analytics/events` returns 200 for authenticated and anonymous visitors\n- [ ] Signup, login, job apply, checkout and assessment start events are recorded\n- [ ] A dashboard query confirms events land in the database\n\nEffort: ~3h"
+    },
+    {
+      "key": "p0-mock-data",
+      "title": "Remove fabricated recruiter data - fake saved searches and invented trend percentages",
+      "labels": ["phase-0", "P1", "bug", "frontend", "recruiter"],
+      "milestone": "Phase 0 - Critical Bug Fixes",
+      "epic": "epic-p0",
+      "body": "## Problem\n\nOn a brand-new recruiter account with exactly one applicant, `/recruiter/candidates` renders data that does not exist:\n\n- **Fabricated saved searches.** Chips labelled \"Senior Engineers - Remote\" and \"High Match - Frontend\" are hardcoded, despite the account never creating a search and `GET /api/recruiter/saved-searches` returning 404.\n- **Fabricated trend deltas.** \"+12%\", \"+8%\", \"-0%\", \"+15%\", \"+5%\" on an account with no history.\n- **List never renders.** Summary cards correctly read \"Total Candidates 1\", but the list below stays as skeleton loaders forever, a direct consequence of the render loop.\n\nThe applicant who applied to this recruiter's own job never appears, even though the same application shows on `/recruiter/applications`.\n\nThis is a trust problem. A platform whose entire pitch is transparent scoring cannot ship invented numbers.\n\nConfirms #15 and #69 are still open, and extends them with the saved-searches fabrication.\n\n## Scope\n\nAudit Dashboard, Candidates and Analytics on the recruiter side. Replace every hardcoded value with either real data or a proper empty state.\n\n## Acceptance criteria\n\n- [ ] No hardcoded saved searches, trends, or counts anywhere in the recruiter UI\n- [ ] Empty states shown when there is genuinely no data\n- [ ] The candidate list renders real applicants\n- [ ] A grep for placeholder percentage strings returns nothing in `client/src/pages/recruiter/`\n\nEffort: ~3h"
+    },
+
+    {
+      "key": "epic-p1",
+      "title": "EPIC Phase 1 - MVP Launch",
+      "labels": ["epic", "phase-1", "P0"],
+      "milestone": "Phase 1 - MVP Launch",
+      "body": "Make the basic hiring loop safe and credible enough for real customers.\n\n**Exit criteria**\n- A recruiter can only register with a company email address\n- New recruiters joining an existing company require approval from the account owner\n- Transactional email works in production\n- Stripe live mode verified on production only\n- Post-auth redirect under 2 seconds\n\nEffort: ~80h"
+    },
+    {
+      "key": "p1-email-domain",
+      "title": "Enforce company email domain on recruiter registration",
+      "labels": ["phase-1", "P0", "backend", "security", "recruiter"],
+      "milestone": "Phase 1 - MVP Launch",
+      "epic": "epic-p1",
+      "body": "## Problem\n\nAnyone can register as a recruiter with any email address and claim to represent any company. There is nothing stopping someone signing up as `recruiter@google.com` with a Gmail account, or creating a duplicate \"Acme Inc\" that competes with the real one.\n\n## Requirement\n\nA recruiter may only create or join a company profile using an email address on that company's verified domain.\n\n## Scope\n\n- Block free/disposable email providers (gmail, yahoo, outlook, mailinator, and similar) on recruiter registration\n- Derive the company domain from the recruiter's email address\n- Verify domain ownership for the first recruiter of a company, via a DNS TXT record or an email challenge to a role address\n- If the domain already maps to an existing company, route the new recruiter into the approval workflow rather than creating a duplicate company\n- Store the verified domain on the company record and enforce it on every subsequent join\n\n## Edge cases to handle\n\n- Company uses multiple domains (allow the owner to add verified aliases)\n- Recruitment agencies hiring on behalf of others (flag for manual review, do not silently allow)\n- Subdomain addresses such as `@careers.acme.com`\n- Email address changes after verification\n\n## Acceptance criteria\n\n- [ ] Registration with a free email provider is rejected with a clear message\n- [ ] First recruiter on a domain must complete domain verification before posting a job\n- [ ] Second recruiter on the same domain is routed to approval, not to a new company\n- [ ] Verified domain is stored and enforced\n- [ ] Tests cover each edge case above\n\nDepends on nothing. Blocks recruiter approval workflow.\n\nEffort: ~8h"
+    },
+    {
+      "key": "p1-recruiter-approval",
+      "title": "Recruiter approval workflow - company owner approves new team members",
+      "labels": ["phase-1", "P0", "backend", "frontend", "recruiter"],
+      "milestone": "Phase 1 - MVP Launch",
+      "epic": "epic-p1",
+      "body": "## Requirement\n\nWhen a new recruiter registers on a domain that already has a company account, they land in a pending state. The company account owner approves or rejects them. Only approved recruiters can post jobs, view candidates, or act on applications.\n\n## Scope\n\n**States:** `pending` -> `approved` | `rejected` | `suspended`\n\n- Pending recruiters see a holding screen explaining they are awaiting approval\n- Owner receives an email and an in-app notification for each pending request\n- Owner sees a pending-requests queue with the requester's name, email, and signup time\n- Owner can approve, reject with a reason, or suspend an existing member\n- Every pending recruiter is blocked from all write operations and all candidate data\n- Audit log records who approved or rejected whom and when\n- The first recruiter on a verified domain automatically becomes the owner\n\n## Authorization\n\nThis is a security boundary, not a UX nicety. Enforcement must live in middleware on the server, not in the client. Every recruiter route must check approval state.\n\n## Acceptance criteria\n\n- [ ] Pending recruiter cannot reach any recruiter API endpoint, verified by test\n- [ ] Owner receives email and in-app notification on new request\n- [ ] Approve, reject and suspend all work and are audit logged\n- [ ] Rejected recruiter sees the reason\n- [ ] Ownership transfer is possible so a company is never orphaned\n- [ ] Tests cover privilege escalation attempts from a pending account\n\nDepends on company email domain enforcement.\n\nEffort: ~16h"
+    },
+    {
+      "key": "p1-auth-redirect",
+      "title": "Post-auth redirect takes 6.1 seconds on every login and signup",
+      "labels": ["phase-1", "P1", "bug", "frontend", "backend"],
+      "milestone": "Phase 1 - MVP Launch",
+      "epic": "epic-p1",
+      "body": "## Problem\n\nAfter a successful login or signup the redirect to the dashboard consistently takes 6.1 seconds. Measured repeatedly in the 2026-08-08 sweep, it is not variance.\n\nSix seconds of dead time on the very first interaction is the worst possible place to be slow. Previously filed as #70.\n\n## Investigation needed\n\n- Is the delay server-side (token issue, session write, migration check) or client-side (bundle parse, blocking fetch waterfall)?\n- The main bundle is 1.55MB, which is a likely contributor on first load\n- Check whether the dashboard blocks on several sequential API calls before painting\n\n## Acceptance criteria\n\n- [ ] Post-auth redirect completes in under 2 seconds at p95\n- [ ] Root cause documented in the issue before the fix lands\n- [ ] A performance regression test asserts the budget\n\nEffort: ~4h"
+    },
+    {
+      "key": "p1-404-status",
+      "title": "Unknown routes return HTTP 200 instead of 404",
+      "labels": ["phase-1", "P2", "bug", "backend"],
+      "milestone": "Phase 1 - MVP Launch",
+      "epic": "epic-p1",
+      "body": "## Problem\n\n`https://rekrutai.co/this-route-does-not-exist` returns HTTP 200 with the SPA shell. Confirmed on production.\n\n## Impact\n\n- Search engines index nonexistent pages\n- Monitoring cannot distinguish a broken link from a working page\n- Job posting structured data will be polluted with dead URLs\n\n## Fix\n\nThe SPA fallback should return 404 for paths the client router does not recognise. Maintain a known-route list on the server, or have the client signal not-found and set the status via a prerender layer.\n\n## Acceptance criteria\n\n- [ ] Unknown paths return HTTP 404 with the branded not-found page\n- [ ] Known SPA routes still return 200\n- [ ] Test covers both cases\n\nPreviously filed as #48.\n\nEffort: ~2h"
+    },
+    {
+      "key": "p1-video-empty-state",
+      "title": "Video interview page shows a raw error card when opened directly",
+      "labels": ["phase-1", "P3", "bug", "frontend", "candidate"],
+      "milestone": "Phase 1 - MVP Launch",
+      "epic": "epic-p1",
+      "body": "## Problem\n\nNavigating directly to `/candidate/video-interview` renders a bare **\"Error - No interview ID provided\"** card. The route is registered in `App.tsx` and therefore reachable, but has no graceful empty state.\n\n## Fix\n\nShow an empty state that explains there is no interview selected and links to the candidate's scheduled interviews.\n\n## Acceptance criteria\n\n- [ ] Direct visit shows a helpful empty state, not an error card\n- [ ] The empty state links to `/candidate/interviews`\n\nEffort: ~1h"
+    },
+
+    {
+      "key": "epic-p2",
+      "title": "EPIC Phase 2 - Structured Screening",
+      "labels": ["epic", "phase-2", "P1"],
+      "milestone": "Phase 2 - Structured Screening",
+      "body": "Turn Rekrut AI from a job board into a structured hiring pipeline. This is the first phase that delivers real differentiation.\n\n**Delivers**\n- Screening questions per job\n- Timed aptitude tests\n- AI Recruiter Screener\n- OmniScore v2 deep scoring\n- Working chat on both sides\n\n**Announcement:** \"Now with AI-powered screening\"\n\nEffort: ~230h"
+    },
+    {
+      "key": "p2-missing-endpoints",
+      "title": "Implement 10 API endpoints the frontend calls but which do not exist",
+      "labels": ["phase-2", "P1", "backend"],
+      "milestone": "Phase 2 - Structured Screening",
+      "epic": "epic-p2",
+      "body": "## Problem\n\nTen endpoints referenced by the client return `404 {\"error\":\"API endpoint not found\"}` and have no handler anywhere in `routes/`. Every call site swallows the error in an empty `catch {}`, so each one silently disables a feature with no visible failure.\n\n| Endpoint | Called from | Feature disabled |\n|---|---|---|\n| `GET /api/recruiter/saved-searches` | `/recruiter/candidates` | Saved searches, called 483x per visit |\n| `GET /api/recruiter/screenings` | `/recruiter/screening` | Recruiter screening |\n| `GET /api/recruiter/conversations` | `/recruiter/chat` | Recruiter messaging |\n| `GET /api/candidate/conversations` | `/candidate/chat` | Candidate messaging |\n| `GET /api/conversations/:id/messages` | both chat pages | Message threads |\n| `GET /api/careers/default` | `/recruiter/career-page` | Public careers page |\n| `GET /api/candidate/list` | `/recruiter/onboarding-ai` | AI onboarding |\n| `GET /api/candidate/documents` | `/candidate/documents` | Document management |\n| `GET /api/onboarding/feedback/completed` | `/candidate/feedback` | Post-hire feedback |\n| `GET /api/omniscore/explainer` | `/candidate/omniscore` | \"Why this score?\" |\n\nBoth sides of chat are entirely non-functional, and the explainability endpoint is missing on the feature that is supposed to be our core differentiator.\n\n## Scope\n\nFor each endpoint, either implement it or remove the UI that depends on it. Do not leave dead call sites.\n\nSeparately, replace the empty `catch {}` blocks with real error surfacing so the next missing endpoint is visible immediately.\n\n## Acceptance criteria\n\n- [ ] All ten endpoints return 200 with correct data, or their UI is removed\n- [ ] No empty `catch {}` around API calls in the client\n- [ ] Failed API calls surface a toast or inline error\n- [ ] A CI check fails the build if the client references an unrouted API path\n\nEffort: ~40h"
+    },
+    {
+      "key": "p2-screening-questions",
+      "title": "Screening questions - custom per-job questionnaire with AI evaluation",
+      "labels": ["phase-2", "P0", "backend", "frontend", "ai", "recruiter"],
+      "milestone": "Phase 2 - Structured Screening",
+      "epic": "epic-p2",
+      "body": "## Requirement\n\nStep 4 of the candidate pipeline. After applying, a candidate answers a short set of screening questions defined by the recruiter for that job. This is the Crossover \"Basic Fit Check\" equivalent.\n\n## Recruiter side\n\n- Define screening questions when creating or editing a job\n- Question types: single choice, multiple choice, short text, yes/no, numeric\n- Mark questions as knockout (a wrong answer auto-rejects with a clear reason)\n- AI suggests questions based on the job description\n- Set a pass threshold\n\n## Candidate side\n\n- Screening opens immediately after applying\n- Progress is saved, the candidate can pause and resume\n- Clear disclosure that AI evaluates the answers, per our transparency principle\n- Result and reason are shown to the candidate, whether pass or fail\n\n## AI evaluation\n\n- Free-text answers scored against the job requirements\n- Every score carries a written explanation\n- Recruiter can override any AI decision, and the override is audit logged\n\n## Acceptance criteria\n\n- [ ] Recruiter can attach questions to a job and set knockouts\n- [ ] Candidate completes screening, can pause and resume\n- [ ] AI scores free text and explains each score\n- [ ] Knockout answers auto-reject with a reason shown to the candidate\n- [ ] Recruiter override is possible and audit logged\n- [ ] Candidate is told AI is evaluating before they start\n\nBuilds on `routes/screening.js` and migration 022/051. Depends on the missing endpoints issue.\n\nEffort: ~24h"
+    },
+    {
+      "key": "p2-aptitude-tests",
+      "title": "Aptitude test engine - timed cognitive assessment",
+      "labels": ["phase-2", "P0", "backend", "frontend", "candidate"],
+      "milestone": "Phase 2 - Structured Screening",
+      "epic": "epic-p2",
+      "body": "## Requirement\n\nStep 5 of the pipeline. A timed, standardised cognitive aptitude test, equivalent to Crossover's CCAT. Fifteen minutes, randomised questions, covering logic, verbal reasoning and numerical problem solving.\n\nCrossover uses this because cognitive aptitude predicts real-world performance better than a resume does, and it lets a global pool be shortlisted fairly.\n\n## Scope\n\n- Question bank across logic, verbal and numerical categories, with difficulty ratings\n- Randomised selection so no two candidates get an identical paper\n- Hard countdown timer with auto-submit, resilient to refresh and disconnect\n- Per-role target score ranges set by the recruiter\n- Retake policy, configurable, defaulting to six months\n- Immediate scoring and percentile against the candidate pool\n- Result feeds the OmniScore \"verified skills\" factor\n\n## Anti-cheat, basic tier\n\nFull proctoring is a separate Phase 3 issue. Here we need only tab-switch detection, copy-paste tracking, and timing anomaly flags.\n\n## Fairness\n\nThis is a high-risk AI use under the EU AI Act. Score distributions must be monitored per demographic group and reported in the compliance dashboard.\n\n## Acceptance criteria\n\n- [ ] Timer cannot be defeated by refresh, disconnect, or clock manipulation\n- [ ] Auto-submit on expiry preserves answers already given\n- [ ] Randomised papers, no duplicate question sets\n- [ ] Percentile calculated against the real pool\n- [ ] Retake lockout enforced server-side\n- [ ] Score distribution by group visible in the compliance dashboard\n\nBuilds on `routes/assessments.js` and migration 031 question bank.\n\nEffort: ~24h"
+    },
+    {
+      "key": "p2-ai-recruiter-screener",
+      "title": "AI Recruiter Screener - evaluate candidates against the job with full explanation",
+      "labels": ["phase-2", "P0", "backend", "frontend", "ai", "recruiter"],
+      "milestone": "Phase 2 - Structured Screening",
+      "epic": "epic-p2",
+      "body": "## Requirement\n\nThe recruiter-side counterpart to the candidate AI coach, and one of the two headline features of Phase 2. Approved in the CEO review as a scope expansion.\n\n## What it does\n\n- Analyses the candidate profile against the job requirements\n- Produces a fit score with a written explanation of every component\n- Breaks the score into skills, experience and culture fit\n- Generates screening and interview questions tailored to that specific candidate's background\n- Flags red flags: employment gaps, timeline inconsistencies, claims unsupported by evidence\n- Recommends **Interview**, **Reject**, or **More Info**, always with reasons\n- Supplies talking points for the hiring manager\n\n## Non-negotiable constraints\n\nThis is exactly the kind of tool that Stanford found producing systemic rejection at other vendors. Ours must not repeat that:\n\n- The recommendation is advisory. A human makes the decision, and the UI must make that obvious.\n- Every score component carries an explanation the recruiter can read.\n- The candidate can see that AI screening occurred and can request human review.\n- Recommendations are logged with inputs and outputs for audit.\n- Adverse impact is measured per job posting, not aggregated across the platform. Aggregated audits are precisely how bias gets hidden.\n\n## Acceptance criteria\n\n- [ ] Fit score with per-component explanation\n- [ ] Generated questions are specific to the candidate, not generic\n- [ ] Red flags cite the evidence that triggered them\n- [ ] Recommendation is clearly advisory, human decision required\n- [ ] Every recommendation logged with inputs and outputs\n- [ ] Per-posting adverse impact reporting available\n- [ ] Candidate can request human review\n\nBuilds on `lib/recruiter-screener.js`.\n\nEffort: ~50h"
+    },
+    {
+      "key": "p2-omniscore-v2",
+      "title": "OmniScore v2 - deep multi-factor scoring with explainability",
+      "labels": ["phase-2", "P0", "backend", "frontend", "ai", "candidate"],
+      "milestone": "Phase 2 - Structured Screening",
+      "epic": "epic-p2",
+      "body": "## Why this is the most important issue in the roadmap\n\nOmniScore is the product. Everything else is a hiring platform that many companies already sell. The transparent, portable, explainable score is the thing no competitor offers.\n\nStanford's 2026 study of 4 million applications found that a hidden vendor score follows a candidate across 156+ employers for up to 330 days, and that 10% of candidates applying to four or more roles were rejected from every single one. Candidates cannot see those scores or dispute them. That is a credit score with none of the consumer protections that credit scores gained through regulation.\n\nOmniScore v2 is our answer. v1 is 160 lines of basic calculation and is not defensible.\n\n## The 8 factors\n\n| Factor | Weight | Sources |\n|---|---|---|\n| Verified skills | 25% | Assessments, certifications, work samples |\n| Interview performance | 20% | Mock and real interviews, communication |\n| Experience quality | 15% | Tenure, company tier, role progression |\n| Education and credentials | 10% | Degrees, courses, verified credentials |\n| Reliability signals | 10% | Response time, attendance, follow-through |\n| Soft skills | 10% | Collaboration, leadership, adaptability |\n| Market demand | 5% | Skills matched against current market needs |\n| Growth trajectory | 5% | Learning velocity, skill acquisition rate |\n\n## Required capabilities\n\n- **Explainability.** \"Why is my score 650?\" answered per factor, in plain language.\n- **Historical trend.** Is the candidate improving? Weekly and monthly snapshots.\n- **Role-specific scores.** 700 for frontend, 550 for backend, not a single number.\n- **Company-specific fit.** How well this candidate fits this specific company.\n- **Peer comparison.** \"Top 20% for your role\", anonymised.\n- **Improvement roadmap.** \"Do X to gain roughly 50 points\", with difficulty and time estimates.\n- **Fraud detection.** Fake credentials and resume inflation.\n- **Portability.** The candidate owns the score. It is not locked inside an employer's view.\n\n## Fix the write loop first\n\n`/candidate/omniscore` currently issues 70 POST writes to `omniscore/checkin` per page visit. That must be fixed before any of this ships. See the Phase 0 render loop issue.\n\n## Data model\n\nStore factor scores, historical snapshots, per-role and per-company variants. Analytics queries go to ClickHouse, operational reads stay in PostgreSQL. See the analytics store issue.\n\n## Acceptance criteria\n\n- [ ] All 8 factors calculated with documented weights\n- [ ] Every factor has a plain-language explanation visible to the candidate\n- [ ] Historical trend chart with at least weekly granularity\n- [ ] Role-specific and company-specific scores\n- [ ] Peer percentile computed against the real pool\n- [ ] Improvement roadmap with concrete actions and point estimates\n- [ ] Fraud signals surfaced to recruiters and appealable by candidates\n- [ ] Score calculation is deterministic and reproducible for audit\n- [ ] Bias audit per factor, reported per job posting\n\nBuilds on `routes/omniscore.js`, `services/scoreExplainer.js`, migration 030.\n\nEffort: ~60h"
+    },
+    {
+      "key": "p2-chat",
+      "title": "Chat and messaging between recruiters and candidates",
+      "labels": ["phase-2", "P1", "backend", "frontend"],
+      "milestone": "Phase 2 - Structured Screening",
+      "epic": "epic-p2",
+      "body": "## Problem\n\nBoth `/candidate/chat` and `/recruiter/chat` render a full chat UI, but every backing endpoint returns 404. Messaging is completely non-functional on both sides.\n\nGiven that ghosting is the single most cited candidate complaint in 2026 research, a working communication channel is not optional.\n\n## Scope\n\n- Conversation list per user\n- Message threads with history and pagination\n- Read receipts and typing indicators, the UI already expects these\n- File attachments\n- Unread counts and notifications\n- Conversations scoped to a real application, so a recruiter cannot cold-message arbitrary candidates\n\n## Authorization\n\nA recruiter may only message candidates who applied to one of their company's jobs. A candidate may only message companies they applied to. Enforce server-side.\n\n## Acceptance criteria\n\n- [ ] Conversation list loads for both roles\n- [ ] Messages send, persist and deliver\n- [ ] Read receipts work\n- [ ] Attachments upload and download\n- [ ] Unread badge accurate\n- [ ] Authorization prevents messaging outside an application relationship\n\nBuilds on `routes/communications.js` and migration 040.\n\nEffort: ~20h"
+    },
+    {
+      "key": "p2-documents",
+      "title": "Candidate document management - upload, storage and verification status",
+      "labels": ["phase-2", "P1", "backend", "frontend", "candidate"],
+      "milestone": "Phase 2 - Structured Screening",
+      "epic": "epic-p2",
+      "body": "## Problem\n\n`/candidate/documents` renders but `GET /api/candidate/documents` returns 404, so document management does not work. This blocks the BGC flow in Phase 5.\n\n## Scope\n\n- Upload resume, certificates, ID documents, education records\n- File type and size validation\n- Virus scanning before storage\n- Encrypted at rest, this is sensitive PII\n- Verification status per document: pending, verified, rejected, expired\n- Recruiter view of verification status, never raw ID images unless verification requires it\n- Candidate can delete a document, subject to retention rules\n\n## Acceptance criteria\n\n- [ ] Upload, list, download and delete all work\n- [ ] Files encrypted at rest with AES-256\n- [ ] Access to every document is logged\n- [ ] Type and size validation enforced server-side\n- [ ] Verification status visible to both sides\n\nBuilds on `routes/documents.js` and migration 009.\n\nEffort: ~16h"
+    },
+
+    {
+      "key": "epic-p3",
+      "title": "EPIC Phase 3 - Technical Assessment",
+      "labels": ["epic", "phase-3", "P1"],
+      "milestone": "Phase 3 - Technical Assessment",
+      "body": "Build the moat. A self-hosted code sandbox with auto-grading and proctoring is the hardest thing in this roadmap and the hardest for a competitor to copy.\n\n**Delivers**\n- Docker + Judge0 code execution, full language support\n- Technical test templates and auto-grading\n- Proctored assessment with identity verification\n- AI Career Coach\n- TrustScore v2\n\n**Announcement:** \"Live coding assessments, no HackerRank needed\"\n\nEffort: ~280h"
+    },
+    {
+      "key": "p3-code-sandbox",
+      "title": "Code sandbox - self-hosted Docker + Judge0 execution engine",
+      "labels": ["phase-3", "P0", "backend", "infrastructure", "security"],
+      "milestone": "Phase 3 - Technical Assessment",
+      "epic": "epic-p3",
+      "body": "## Requirement\n\nStep 6 of the pipeline. A browser-based coding environment where candidates solve real problems, with server-side execution against test cases. Built in-house, no HackerRank or CodeSignal.\n\nArchitecture decided in the CEO review: **Docker + Judge0**, full language support from day one.\n\n## Components\n\n| Layer | Technology |\n|---|---|\n| Editor | Monaco, the VS Code editor, free and familiar |\n| Execution | Judge0 on self-hosted Docker |\n| Languages | JavaScript, TypeScript, Python, Java, C++, Go, SQL |\n| Grading | Hidden test cases plus AI code review |\n\n## Security requirements, non-negotiable\n\nRunning untrusted code is the most dangerous thing in this codebase. Every one of these is mandatory:\n\n- Network isolation, no outbound requests from the execution container\n- Filesystem isolation, container-only, no host mounts\n- Memory limit per execution\n- CPU limit per execution\n- Wall-clock timeout with hard kill\n- No privileged operations, no root\n- A fresh container per execution, zero state leakage between candidates\n- Rate limiting per user to prevent the sandbox being used as free compute\n\nA dedicated security audit must pass before this is exposed publicly. Tracked as a separate issue.\n\n## Candidate experience\n\n- Syntax highlighting, autocomplete, and a familiar keybinding set\n- Run against sample test cases as often as they like\n- Submit once, graded against hidden test cases\n- Draft autosaved continuously, survives a disconnect\n- Countdown timer with auto-submit\n\n## Acceptance criteria\n\n- [ ] All seven languages execute correctly\n- [ ] Every security control above verified by a test that attempts to break it\n- [ ] A fork bomb, an infinite loop, and an outbound network call are all contained\n- [ ] Execution completes within the time limit or is killed cleanly\n- [ ] Candidate draft survives refresh and disconnect\n- [ ] Load test: 50 concurrent executions without degradation\n\nBlocks the technical test templates and auto-grading issues.\n\nEffort: ~60h"
+    },
+    {
+      "key": "p3-sandbox-security-audit",
+      "title": "Security audit of the code sandbox before public exposure",
+      "labels": ["phase-3", "P0", "security", "testing"],
+      "milestone": "Phase 3 - Technical Assessment",
+      "epic": "epic-p3",
+      "body": "## Why\n\nAgreed in the CEO review: the code sandbox does not go live until a dedicated security audit passes. Arbitrary code execution is the highest-risk surface we will ever ship.\n\n## Scope\n\nAttempt to break every control, and document the result of each attempt:\n\n- Container escape\n- Host filesystem access\n- Outbound network access from inside the sandbox\n- Resource exhaustion: fork bomb, memory bomb, infinite loop, disk fill\n- State leakage between two candidates' executions\n- Using the sandbox as free compute, for example crypto mining\n- Reading another candidate's submission or test cases\n- Privilege escalation inside the container\n- Judge0 API abuse from an authenticated candidate account\n\n## Deliverable\n\nA written report listing each attack attempted, the outcome, and any remediation applied. Filed in `docs/security/`.\n\n## Acceptance criteria\n\n- [ ] Every attack above attempted and documented\n- [ ] No critical or high finding left open\n- [ ] Report committed to `docs/security/`\n- [ ] Sign-off recorded before the sandbox is enabled in production\n\nDepends on the code sandbox issue.\n\nEffort: ~16h"
+    },
+    {
+      "key": "p3-technical-tests",
+      "title": "Technical test templates and auto-grading",
+      "labels": ["phase-3", "P0", "backend", "ai", "recruiter"],
+      "milestone": "Phase 3 - Technical Assessment",
+      "epic": "epic-p3",
+      "body": "## Requirement\n\nA library of role-specific coding challenges plus the grading engine that scores them. Crossover calls the equivalent \"Real Work Assessments\", and grades them against a detailed rubric.\n\n## Scope\n\n**Templates**\n- Predefined challenges per role: frontend, backend, data, SQL, algorithms\n- Difficulty tiers\n- Recruiters can author custom challenges\n- Each challenge carries visible sample cases and hidden grading cases\n\n**Auto-grading**\n- Hidden test case execution with partial credit, not pass/fail only\n- AI review of code quality: readability, structure, edge case handling\n- Combined score with a written breakdown\n- Plagiarism check against previous submissions\n\n**Explainability**\n- The candidate sees why they scored what they scored\n- Which test cases passed and which failed, without leaking the hidden cases themselves\n\n## Acceptance criteria\n\n- [ ] Template library covers at least five role types\n- [ ] Recruiters can author and preview a custom challenge\n- [ ] Partial credit computed correctly across test cases\n- [ ] AI code review produces a written, specific critique\n- [ ] Plagiarism detection flags near-identical submissions\n- [ ] Candidate receives an explanation of their score\n\nDepends on the code sandbox.\n\nEffort: ~36h"
+    },
+    {
+      "key": "p3-proctoring",
+      "title": "Proctored assessment system - identity verification and anti-cheat",
+      "labels": ["phase-3", "P1", "backend", "frontend", "ai", "security"],
+      "milestone": "Phase 3 - Technical Assessment",
+      "epic": "epic-p3",
+      "body": "## Requirement\n\nApproved as a scope expansion in the CEO review. This is Crossover's PCCAT equivalent, the final integrity check before an offer.\n\n## Scope\n\n**Identity verification**\n- Photo ID capture and face match against the live webcam feed\n- 360-degree room scan before the test starts\n\n**Live monitoring**\n- Webcam and screen recording for the duration\n- Optional second camera via phone for a wider view\n- Recording retained under the data retention policy, then purged\n\n**Automated cheat detection**\n- Tab and window switching\n- Copy and paste events\n- Multiple faces or no face in frame\n- Audio anomalies suggesting a second person\n- Timing anomalies against the candidate's own earlier unproctored result\n\n**Review**\n- Flagged sessions queued for human review, never auto-rejected by the AI alone\n- The candidate is told they were flagged and why, and can respond\n\n## Privacy and consent\n\nBiometric data and recordings are the most sensitive data on the platform.\n\n- Explicit, specific consent before recording starts, with a clear explanation of what is captured and how long it is kept\n- Encrypted at rest\n- Retention limit enforced automatically\n- Right to deletion honoured\n- GDPR and India DPDP compliance\n- An accessible alternative path for candidates who cannot use proctoring, so we do not exclude people with disabilities or without suitable hardware\n\n## Acceptance criteria\n\n- [ ] Face match against ID works and is measured for accuracy across skin tones\n- [ ] All cheat signals above detected and logged\n- [ ] Flagged sessions go to human review, never auto-reject\n- [ ] Consent captured before any recording begins\n- [ ] Recordings encrypted and auto-purged on schedule\n- [ ] Accessible alternative path documented and available\n\nEffort: ~60h"
+    },
+    {
+      "key": "p3-ai-career-coach",
+      "title": "AI Career Coach for candidates",
+      "labels": ["phase-3", "P1", "backend", "frontend", "ai", "candidate"],
+      "milestone": "Phase 3 - Technical Assessment",
+      "epic": "epic-p3",
+      "body": "## Requirement\n\nApproved as a scope expansion in the CEO review. This is the paid tier for candidates, and the reason someone pays $19 or $49 a month.\n\n## Features\n\n| Feature | What it does |\n|---|---|\n| Career path recommendations | Where this candidate could go next, based on their profile and market data |\n| Skill gap analysis | \"Learn X to qualify for Y jobs\", grounded in real postings on the platform |\n| Learning resource suggestions | What to study, in what order |\n| Company research assistant | Briefs the candidate on a company before they apply or interview |\n| Application optimizer | Improves cover letters and application answers |\n| Salary negotiation practice | Conversational practice with feedback |\n\n## Grounding requirement\n\nEvery recommendation must be grounded in real data from the platform: actual job postings, actual skill demand, the candidate's own OmniScore factors. Generic LLM career advice is worthless and will not retain a subscriber.\n\n## Acceptance criteria\n\n- [ ] Skill gap analysis cites specific open jobs the candidate would qualify for\n- [ ] Career path suggestions reference real progression data\n- [ ] Company research pulls from the company's TrustScore and profile\n- [ ] Application optimizer produces a concrete diff, not vague advice\n- [ ] Salary practice gives specific, actionable feedback\n- [ ] Free tier limits enforced, paid tier unlocks unlimited use\n\nBuilds on the existing AI coaching module.\n\nEffort: ~40h"
+    },
+    {
+      "key": "p3-trustscore-v2",
+      "title": "TrustScore v2 - deep company scoring and accountability",
+      "labels": ["phase-3", "P1", "backend", "frontend", "recruiter"],
+      "milestone": "Phase 3 - Technical Assessment",
+      "epic": "epic-p3",
+      "body": "## Why this matters\n\nThis is the half of the two-sided promise that no competitor delivers. Candidates are scored constantly. Companies are not. Glassdoor is gameable and stale. TrustScore is computed from behaviour we can observe directly on the platform.\n\nApproved as a scope expansion in the CEO review.\n\n## Factors\n\n| Factor | Measured from |\n|---|---|\n| Employee satisfaction | Ratings and post-hire feedback |\n| Interview experience | Candidate reviews of the process |\n| Offer acceptance rate | Do candidates actually say yes |\n| Time to hire | Speed from application to decision |\n| Response rate | Do they reply, or do they ghost |\n| Salary competitiveness | Offers against market rate for the role and location |\n| Diversity metrics | Representation across the pipeline |\n| Career growth | Progression of people they hired |\n\nResponse rate deserves emphasis. Ghosting is the top candidate complaint in every 2026 survey, and it is directly measurable on our platform. Making it public creates real pressure to fix it.\n\n## Features\n\n- Public company leaderboard\n- Company-to-company comparison\n- AI-generated \"what it is like to work here\" summary, grounded in the factor data\n- Candidate reviews of the interview process, collected after a decision\n- Companies can see their own breakdown and what to improve\n\n## Fairness\n\n- A company with too little data shows \"not enough data\", never a misleadingly precise number\n- Review brigading detection\n- Companies can respond publicly to a review\n- The scoring methodology is published\n\n## Acceptance criteria\n\n- [ ] All eight factors computed from real platform data\n- [ ] Ghosting and response rate visible to candidates before they apply\n- [ ] Leaderboard and comparison views work\n- [ ] Low-data companies show an honest \"insufficient data\" state\n- [ ] Companies see their own breakdown and improvement guidance\n- [ ] Methodology documented publicly\n\nBuilds on `routes/trustscore.js` and migration 002.\n\nEffort: ~45h"
+    },
+
+    {
+      "key": "epic-p4",
+      "title": "EPIC Phase 4 - Interview Excellence",
+      "labels": ["epic", "phase-4", "P1"],
+      "milestone": "Phase 4 - Interview Excellence",
+      "body": "Complete the interview stage of the pipeline, self-hosted end to end.\n\n**Delivers**\n- LiveKit video infrastructure\n- Multi-interviewer panel with shared notes\n- Recording, playback and AI transcript\n- Google and Outlook calendar integration\n- Real-time hiring team collaboration\n- Advanced analytics dashboard\n\n**Announcement:** \"Complete interview suite, scheduling to playback\"\n\nEffort: ~240h"
+    },
+    {
+      "key": "p4-livekit",
+      "title": "Self-hosted video infrastructure on LiveKit",
+      "labels": ["phase-4", "P0", "backend", "infrastructure"],
+      "milestone": "Phase 4 - Interview Excellence",
+      "epic": "epic-p4",
+      "body": "## Requirement\n\nReplace the current ad-hoc video handling with a proper self-hosted WebRTC stack. Architecture decided in the CEO review: **LiveKit**, self-hosted, open source.\n\n## Scope\n\n- Deploy LiveKit server on our own infrastructure\n- Room lifecycle tied to scheduled interviews\n- Token-based join authorization, scoped per interview and per participant\n- Multi-party audio and video\n- Screen sharing\n- Adaptive bitrate for poor connections, which matters a lot for the India market\n- TURN server for restrictive networks\n- Graceful reconnect after a dropout\n\n## Acceptance criteria\n\n- [ ] Four participants in one room with stable audio and video\n- [ ] Screen sharing works both directions\n- [ ] A participant who drops reconnects into the same room automatically\n- [ ] Video degrades gracefully on a throttled connection rather than dropping\n- [ ] Join tokens cannot be reused by an unauthorised party\n- [ ] Load test: 20 concurrent interview rooms\n\nBlocks the panel interview and recording issues.\n\nEffort: ~40h"
+    },
+    {
+      "key": "p4-panel-interviews",
+      "title": "Multi-interviewer panel with scorecards and shared notes",
+      "labels": ["phase-4", "P0", "backend", "frontend", "recruiter"],
+      "milestone": "Phase 4 - Interview Excellence",
+      "epic": "epic-p4",
+      "body": "## Requirement\n\nSteps 7 and 8 of the pipeline. Multiple interviewers, including the hiring manager, in one session with structured evaluation.\n\n## Scope\n\n- Multiple interviewers in a single interview room\n- Participant tiles with role labels\n- Shared notes visible to the panel during the interview\n- Private notes visible only to their author\n- Structured scorecard per interviewer, defined by the job\n- Scores hidden from other interviewers until everyone submits, to prevent anchoring\n- Aggregate panel recommendation after all scorecards are in\n- Candidate never sees interviewer notes or scores\n\n## Why hide scores until submission\n\nAnchoring is a well-documented failure mode in panel interviews. If the first interviewer posts a 4, the rest converge on it. Independent submission then reveal is the standard fix.\n\n## Acceptance criteria\n\n- [ ] Multiple interviewers join and are labelled correctly\n- [ ] Shared and private notes both work and are correctly scoped\n- [ ] Scorecards are hidden until all are submitted\n- [ ] Aggregate recommendation computed after reveal\n- [ ] Candidate has no access to notes or scores, verified by test\n\nDepends on LiveKit.\n\nEffort: ~24h"
+    },
+    {
+      "key": "p4-recording-transcript",
+      "title": "Interview recording, playback and AI transcript",
+      "labels": ["phase-4", "P1", "backend", "frontend", "ai"],
+      "milestone": "Phase 4 - Interview Excellence",
+      "epic": "epic-p4",
+      "body": "## Scope\n\n- Record interview audio and video\n- Store encrypted, with a retention policy\n- Playback with a seekable timeline\n- AI transcript with speaker attribution\n- Searchable transcript, jump to the moment from a search hit\n- Highlights and timestamped comments\n\n## Consent\n\nAll participants must consent before recording begins. Recording state must be visibly indicated for the whole session. A candidate who declines must still be able to interview.\n\n## Acceptance criteria\n\n- [ ] Recording captures all participants\n- [ ] Playback is seekable and synced with the transcript\n- [ ] Transcript attributes speakers correctly\n- [ ] Transcript search jumps to the right timestamp\n- [ ] Consent captured from every participant before recording starts\n- [ ] Recording indicator visible throughout\n- [ ] Retention policy enforced automatically\n\nDepends on LiveKit.\n\nEffort: ~36h"
+    },
+    {
+      "key": "p4-calendar",
+      "title": "Calendar integration and automated interview scheduling",
+      "labels": ["phase-4", "P0", "backend", "frontend"],
+      "milestone": "Phase 4 - Interview Excellence",
+      "epic": "epic-p4",
+      "body": "## Requirement\n\nStep 7 of the pipeline. Manual scheduling is the biggest source of friction and dropout in the middle of the funnel.\n\nNote: Google and Outlook OAuth are calendar protocol integrations, not a third-party hiring service, so they are in scope under the all-in-one principle.\n\n## Scope\n\n- Google Calendar OAuth and two-way sync\n- Microsoft Outlook OAuth and two-way sync\n- Read availability across all panel members\n- Propose mutually available slots automatically\n- Candidate self-selects from offered slots\n- Create the calendar event with the LiveKit join link\n- Timezone handling, correct across DST boundaries\n- Reschedule and cancel flows\n- Email and in-app reminders at 24 hours and 1 hour\n\n## Token security\n\nOAuth refresh tokens must be encrypted at rest using `lib/crypto-utils.js`. Note that `routes/auth.js` currently stores OAuth tokens in plaintext at lines 479 and 629, which must be fixed as part of this work.\n\n## Acceptance criteria\n\n- [ ] Google and Outlook OAuth both connect and sync\n- [ ] Mutual availability computed across a multi-person panel\n- [ ] Candidate booking creates events on every attendee's calendar\n- [ ] Timezones correct across DST boundaries, covered by test\n- [ ] Reschedule and cancel propagate to all calendars\n- [ ] Reminders delivered at 24h and 1h\n- [ ] OAuth tokens encrypted at rest, plaintext storage removed\n\nBuilds on `routes/calendar.js`.\n\nEffort: ~40h"
+    },
+    {
+      "key": "p4-collaboration",
+      "title": "Real-time collaboration for hiring teams",
+      "labels": ["phase-4", "P2", "backend", "frontend", "recruiter"],
+      "milestone": "Phase 4 - Interview Excellence",
+      "epic": "epic-p4",
+      "body": "## Requirement\n\nApproved as a scope expansion in the CEO review.\n\n## Scope\n\n- Comment threads on a candidate or application\n- @mentions with notification\n- Shared notes and ratings visible to the hiring team\n- Activity feed per job showing who did what and when\n- In-app notification centre\n\n## Authorization\n\nComments and notes are internal. A candidate must never see them. Enforce server-side and cover with a test.\n\n## Acceptance criteria\n\n- [ ] Comment threads work on candidates and applications\n- [ ] @mention notifies the mentioned user by email and in-app\n- [ ] Activity feed accurate and ordered\n- [ ] Candidate cannot access internal notes, verified by test\n\nEffort: ~35h"
+    },
+    {
+      "key": "p4-analytics",
+      "title": "Advanced analytics dashboard",
+      "labels": ["phase-4", "P1", "backend", "frontend", "recruiter"],
+      "milestone": "Phase 4 - Interview Excellence",
+      "epic": "epic-p4",
+      "body": "## Requirement\n\nApproved as a scope expansion in the CEO review. Every enterprise RFP asks for this, and it justifies the top pricing tier.\n\n## Metrics\n\n- Hiring funnel: applied, screened, assessed, interviewed, offered, hired, with conversion at each step\n- Time to hire, broken down by role, source and recruiter\n- Cost per hire\n- Source effectiveness, which channels produce actual hires\n- Diversity metrics across the pipeline, with drop-off by stage\n- Offer acceptance prediction\n- Export to CSV and PDF\n\n## Data source\n\nQueries run against ClickHouse, not the operational PostgreSQL database. See the analytics store issue.\n\n## Honesty requirement\n\nAfter the fabricated-data problem in Phase 0, this dashboard must never invent a number. Insufficient data shows an explicit empty state.\n\n## Acceptance criteria\n\n- [ ] Every metric traceable to real underlying records\n- [ ] Funnel conversion rates correct, verified against a hand-computed sample\n- [ ] Diversity metrics show pipeline drop-off by stage\n- [ ] Export produces correct CSV and PDF\n- [ ] Empty states where data is insufficient, never a fabricated figure\n- [ ] Dashboard loads in under 2 seconds on a large dataset\n\nDepends on the ClickHouse analytics store.\n\nEffort: ~45h"
+    },
+
+    {
+      "key": "epic-p5",
+      "title": "EPIC Phase 5 - Secure Hiring",
+      "labels": ["epic", "phase-5", "P1"],
+      "milestone": "Phase 5 - Secure Hiring",
+      "body": "Build background verification and e-signature entirely in-house. No Checkr, no Sterling, no DocuSign.\n\n**Delivers**\n- E-signature with PKCS#7 cryptographic sealing\n- Self-hosted background check system\n- Document OCR and fraud detection\n- Aadhaar verification for India\n- Full audit trail\n\n**Announcement:** \"Built-in verification and e-signatures\"\n\nEffort: ~200h"
+    },
+    {
+      "key": "p5-esignature",
+      "title": "In-house e-signature engine with PKCS#7 cryptographic sealing",
+      "labels": ["phase-5", "P0", "backend", "frontend", "security"],
+      "milestone": "Phase 5 - Secure Hiring",
+      "epic": "epic-p5",
+      "body": "## Requirement\n\nStep 10 of the pipeline. Legally binding electronic signatures, built in-house. Confirmed in the CEO review.\n\nLegal validity comes from the process and the evidence trail, not from the vendor brand. We need to get the process right.\n\n## Document preparation\n\n- Templates for offer letter, contract, NDA, I-9, W-4\n- Auto-fill from the candidate profile\n- Drag and drop placement of signature and initial fields\n- Multi-party signing with a defined order\n\n## Signing ceremony\n\n- Draw a signature with touch or mouse\n- Type a signature with font choices\n- Upload a signature image\n- Initials per page where required\n- Explicit intent-to-sign confirmation\n\n## Cryptographic sealing\n\n- PKCS#7 detached signature over the document hash\n- Timestamp authority for a provable signing time\n- Document hash stored so tampering is detectable afterwards\n- Certificate of completion generated on finalisation\n\n## Evidence trail\n\nEvery event recorded: sent, viewed, signed, declined, with timestamp, IP address, user agent and authenticated identity. This is what makes the signature defensible.\n\n## Acceptance criteria\n\n- [ ] All three signature capture methods work\n- [ ] Multi-party sequential signing works\n- [ ] PKCS#7 signature verifies against the document\n- [ ] Timestamp authority applied\n- [ ] Any post-signature modification is detectable\n- [ ] Certificate of completion generated and downloadable\n- [ ] Full evidence trail recorded and exportable\n- [ ] Signed documents encrypted at rest\n\nBuilds on migration 024 offer letter generation.\n\nEffort: ~40h"
+    },
+    {
+      "key": "p5-bgc-identity",
+      "title": "Background check - identity verification",
+      "labels": ["phase-5", "P0", "backend", "frontend", "ai", "security"],
+      "milestone": "Phase 5 - Secure Hiring",
+      "epic": "epic-p5",
+      "body": "## Requirement\n\nStep 11 of the pipeline, identity component. Self-hosted, no Checkr or Sterling.\n\n## Scope\n\n- Government ID upload: passport, driver licence, national ID\n- OCR extraction of name, date of birth, document number, expiry\n- Face match between the ID photo and a live selfie\n- Liveness detection to defeat a photo held up to the camera\n- Expiry and validity checks\n- Cross-check extracted details against the candidate's profile\n\n## Accuracy and fairness\n\nFace matching has a well-documented accuracy gap across skin tones and genders. We must measure our own false-reject rate across demographic groups and publish it internally. A failed automated match must route to human review, never to automatic rejection.\n\n## Data handling\n\nGovernment ID images are the most sensitive data we will hold.\n\n- Encrypted at rest with AES-256\n- Access logged, every view attributed\n- Retention limit, auto-purge after the configured window\n- Right to deletion honoured\n- Recruiters see verification status, not the raw ID image\n\n## Acceptance criteria\n\n- [ ] OCR extracts fields correctly across at least three ID types\n- [ ] Face match works, with false-reject rate measured across demographic groups\n- [ ] Liveness detection defeats a printed photo and a screen replay\n- [ ] Failed matches go to human review, never auto-reject\n- [ ] Images encrypted, access logged, retention enforced\n- [ ] Recruiter view shows status only, never the raw image\n\nEffort: ~40h"
+    },
+    {
+      "key": "p5-bgc-history",
+      "title": "Background check - employment and education verification",
+      "labels": ["phase-5", "P1", "backend", "frontend"],
+      "milestone": "Phase 5 - Secure Hiring",
+      "epic": "epic-p5",
+      "body": "## Requirement\n\nStep 11 of the pipeline, history component.\n\n## Employment verification\n\n- Candidate declares employment history with contactable references\n- Automated verification request sent to the former employer\n- Structured response form for the employer: dates, title, eligibility for rehire\n- Manual fallback when the employer does not respond\n- Discrepancy detection against the resume and profile\n\n## Education verification\n\n- Degree and certificate upload\n- OCR extraction of institution, qualification, dates\n- Verification request to the institution where a contact exists\n- Manual review fallback\n\n## Reference checks\n\n- Structured reference questionnaire\n- Reference responses collected and summarised\n\n## Fairness\n\nA discrepancy is not automatically fraud. Job titles change, companies get acquired, records are imperfect. Every discrepancy must be shown to the candidate with an opportunity to explain before it reaches the recruiter as a negative signal.\n\n## Acceptance criteria\n\n- [ ] Verification requests sent and responses recorded\n- [ ] Manual fallback path works when there is no response\n- [ ] Discrepancies detected and surfaced to the candidate first\n- [ ] Candidate can respond to a discrepancy before the recruiter sees a conclusion\n- [ ] Reference questionnaire collected and summarised\n- [ ] Full audit trail\n\nEffort: ~40h"
+    },
+    {
+      "key": "p5-ocr-fraud",
+      "title": "Document OCR and fraud detection",
+      "labels": ["phase-5", "P1", "backend", "ai"],
+      "milestone": "Phase 5 - Secure Hiring",
+      "epic": "epic-p5",
+      "body": "## Scope\n\n- OCR across document types: IDs, degrees, certificates, payslips\n- Structured field extraction\n- Tamper detection: inconsistent fonts, misaligned text, digital editing artefacts, metadata anomalies\n- Template matching against known genuine document layouts\n- Cross-document consistency, for example the same name and date of birth everywhere\n- Confidence score per document\n\n## Fairness\n\nA fraud flag is an accusation. It must be reviewable, explainable and appealable:\n\n- Every flag states exactly what triggered it\n- Flags go to human review, never to automatic rejection\n- The candidate is told a document was flagged and can respond or resubmit\n- False positive rate tracked\n\n## Acceptance criteria\n\n- [ ] OCR accurate across at least five document types\n- [ ] Tamper detection catches a deliberately edited test document\n- [ ] Cross-document inconsistency detected\n- [ ] Every flag carries a specific stated reason\n- [ ] Human review required before any adverse action\n- [ ] Candidate can appeal and resubmit\n- [ ] False positive rate measured\n\nBuilds on `services/document-verification.js`.\n\nEffort: ~36h"
+    },
+    {
+      "key": "p5-aadhaar",
+      "title": "Aadhaar verification for the India market",
+      "labels": ["phase-5", "P1", "backend", "frontend", "security"],
+      "milestone": "Phase 5 - Secure Hiring",
+      "epic": "epic-p5",
+      "body": "## Requirement\n\nIndia-specific identity verification. India is our first market, so this matters more than the generic ID flow.\n\n## Scope\n\n- Aadhaar number entry with checksum validation\n- OTP verification flow to the registered mobile number\n- Masked Aadhaar display, never show or store the full number in plain form\n- Offline Aadhaar XML verification as an alternative path\n- PAN card verification\n\n## Legal and privacy constraints\n\nAadhaar handling is tightly regulated in India. Get this wrong and it is a legal problem, not just a security one.\n\n- Never store the full Aadhaar number, store only a masked form and a hash\n- Explicit purpose-limited consent before collection\n- Comply with the Aadhaar Act and the DPDP Act\n- Access logged and auditable\n- Retention limits enforced\n- The candidate must have a non-Aadhaar alternative, since Aadhaar cannot be made mandatory for private employment\n\n## Acceptance criteria\n\n- [ ] Checksum validation rejects malformed numbers\n- [ ] OTP flow completes end to end\n- [ ] Full Aadhaar number never stored or displayed\n- [ ] Offline XML path works as an alternative\n- [ ] Explicit consent captured before collection\n- [ ] Non-Aadhaar alternative available and documented\n- [ ] Legal review completed before this ships\n\nEffort: ~24h"
+    },
+    {
+      "key": "p5-audit-trail",
+      "title": "Compliance audit trail across verification and AI decisions",
+      "labels": ["phase-5", "P0", "backend", "security"],
+      "milestone": "Phase 5 - Secure Hiring",
+      "epic": "epic-p5",
+      "body": "## Requirement\n\nA single, tamper-evident audit trail covering every consequential action, needed for EU AI Act compliance and for defending any hiring decision that is later challenged.\n\n## What must be logged\n\n- Every AI decision: inputs, outputs, model version, timestamp\n- Every human override of an AI decision, with the reason\n- Every access to sensitive candidate data, attributed to a user\n- Every verification step and its outcome\n- Every signature event\n- Every status change in the hiring pipeline\n\n## Properties\n\n- Append-only, no updates or deletes\n- Tamper-evident via hash chaining\n- Exportable for regulators\n- Queryable by candidate, by job, by recruiter, by date range\n- Retained beyond the operational data retention window, since audit records outlive the data they describe\n\n## Acceptance criteria\n\n- [ ] All six event categories logged\n- [ ] Log is append-only, verified by test\n- [ ] Hash chain detects tampering\n- [ ] Export produces a regulator-ready report\n- [ ] Queryable across all four dimensions\n- [ ] A candidate can request the full record of decisions about them\n\nBuilds on `routes/compliance.js` and migration 013.\n\nEffort: ~20h"
+    },
+
+    {
+      "key": "epic-p6",
+      "title": "EPIC Phase 6 - Enterprise Complete",
+      "labels": ["epic", "phase-6", "P2"],
+      "milestone": "Phase 6 - Enterprise Complete",
+      "body": "Everything needed to sell into larger organisations.\n\n**Delivers**\n- Role-based permissions\n- Team and department hierarchy\n- Public API\n- Bulk import\n- Compliance reporting\n\n**Announcement:** \"Enterprise-grade, teams, permissions, analytics\"\n\nEffort: ~265h"
+    },
+    {
+      "key": "p6-rbac",
+      "title": "Role-based access control",
+      "labels": ["phase-6", "P0", "backend", "security"],
+      "milestone": "Phase 6 - Enterprise Complete",
+      "epic": "epic-p6",
+      "body": "## Requirement\n\nProper permission model for company accounts. Today the model is effectively binary, which does not survive contact with a real hiring team.\n\n## Roles\n\n| Role | Can do |\n|---|---|\n| Owner | Everything, including billing and ownership transfer |\n| Admin | Manage members, jobs and settings, no billing |\n| Recruiter | Manage own jobs and candidates |\n| Hiring manager | View and score assigned candidates only |\n| Interviewer | Access only their own scheduled interviews |\n| Viewer | Read-only analytics |\n\n## Requirements\n\n- Enforced in server middleware, never in the client alone\n- Every existing recruiter route audited and assigned a required permission\n- Permission changes take effect immediately, including on active sessions\n- All permission changes audit logged\n\n## Acceptance criteria\n\n- [ ] All six roles implemented\n- [ ] Every recruiter endpoint has an explicit permission requirement\n- [ ] Privilege escalation attempts covered by tests for each role\n- [ ] Permission revocation invalidates active sessions\n- [ ] Changes audit logged\n\nDepends on the recruiter approval workflow.\n\nEffort: ~24h"
+    },
+    {
+      "key": "p6-team-hierarchy",
+      "title": "Team and department hierarchy",
+      "labels": ["phase-6", "P2", "backend", "frontend", "recruiter"],
+      "milestone": "Phase 6 - Enterprise Complete",
+      "epic": "epic-p6",
+      "body": "## Scope\n\n- Departments within a company\n- Team membership and reporting lines\n- Jobs scoped to a department\n- Department-level analytics\n- Department-scoped permissions, so a recruiter sees only their department's candidates\n- Parent company and subsidiary structure\n\n## Acceptance criteria\n\n- [ ] Departments can be created and members assigned\n- [ ] Jobs scope correctly to a department\n- [ ] Department-scoped permissions enforced server-side\n- [ ] Analytics can be filtered by department\n- [ ] Subsidiary structure supported\n\nDepends on RBAC.\n\nEffort: ~20h"
+    },
+    {
+      "key": "p6-public-api",
+      "title": "Public API with authentication and rate limiting",
+      "labels": ["phase-6", "P2", "backend"],
+      "milestone": "Phase 6 - Enterprise Complete",
+      "epic": "epic-p6",
+      "body": "## Requirement\n\nA documented public API. This is how enterprises integrate us into their existing stack, and it is what stops \"no integrations\" from becoming a dealbreaker.\n\n## Scope\n\n- API key management with scoped permissions\n- Versioned endpoints for jobs, candidates, applications, interviews, offers\n- Webhooks for pipeline events\n- Per-key rate limiting\n- OpenAPI specification covering all 351 existing endpoints\n- Interactive documentation\n- Sandbox environment for integration development\n\n## Acceptance criteria\n\n- [ ] API keys issued, scoped and revocable\n- [ ] Core resources exposed with stable versioned contracts\n- [ ] Webhooks deliver reliably with retry and signature verification\n- [ ] Rate limiting enforced per key\n- [ ] OpenAPI spec published and accurate\n- [ ] Sandbox environment available\n\nEffort: ~40h"
+    },
+    {
+      "key": "p6-bulk-import",
+      "title": "Bulk candidate and job import",
+      "labels": ["phase-6", "P2", "backend", "frontend", "recruiter"],
+      "milestone": "Phase 6 - Enterprise Complete",
+      "epic": "epic-p6",
+      "body": "## Requirement\n\nCompanies migrating from another ATS need to bring their data with them. Without this, switching cost blocks every enterprise deal.\n\n## Scope\n\n- CSV and Excel upload for candidates and jobs\n- Column mapping interface\n- Validation with a per-row error report before anything is committed\n- Duplicate detection and merge\n- Dry-run preview\n- Rollback of a completed import\n- Progress indication for large files\n\n## Acceptance criteria\n\n- [ ] CSV and Excel both import correctly\n- [ ] Column mapping handles arbitrary source formats\n- [ ] Validation errors reported per row before commit\n- [ ] Duplicates detected and mergeable\n- [ ] Dry run shows exactly what will happen\n- [ ] Completed import can be rolled back\n- [ ] A 10,000 row import completes without timeout\n\nEffort: ~16h"
+    },
+    {
+      "key": "p6-compliance-reports",
+      "title": "EU AI Act compliance dashboard and regulatory reporting",
+      "labels": ["phase-6", "P0", "backend", "frontend", "security"],
+      "milestone": "Phase 6 - Enterprise Complete",
+      "epic": "epic-p6",
+      "body": "## Requirement\n\nHiring AI is classified as high-risk under the EU AI Act. Completing this properly is both a legal requirement for the EU market and a genuine competitive advantage, since most competitors are still scrambling.\n\nCurrent state is roughly 50%. The framework exists in `routes/compliance.js`, `services/biasDetection.js` and `admin/compliance.tsx`, but needs completion and legal validation.\n\n## Scope\n\n- Risk classification self-assessment\n- Bias detection reporting **per job posting**, not aggregated. The Stanford research showed aggregated audits are exactly how vendors hide adverse impact.\n- Four-fifths rule calculation per posting\n- Explainability panel: why the AI scored a given candidate the way it did\n- Human oversight controls with override capability and audit trail\n- Data retention policy display\n- Candidate consent management for AI processing\n- Exportable transparency reports for regulators\n- Legal review before the EU market opens\n\n## Acceptance criteria\n\n- [ ] Bias reporting is per posting, with four-fifths rule applied\n- [ ] Explainability panel covers every AI decision type on the platform\n- [ ] Human override available and audit logged everywhere AI makes a recommendation\n- [ ] Candidate consent captured and revocable\n- [ ] Transparency report exportable in a regulator-ready format\n- [ ] Legal review completed and signed off\n\nEffort: ~24h"
+    },
+
+    {
+      "key": "infra-clickhouse",
+      "title": "ClickHouse analytics store alongside operational PostgreSQL",
+      "labels": ["infrastructure", "backend", "P1", "phase-2"],
+      "milestone": "Phase 2 - Structured Screening",
+      "body": "## Requirement\n\nDecided in the CEO review: PostgreSQL remains the operational database, ClickHouse handles analytics.\n\n## Why\n\nOmniScore v2 stores factor scores, historical snapshots, per-role and per-company variants for every candidate. Peer percentile calculations are aggregate queries across the whole pool. Running those against the operational database will degrade the transactional path as the pool grows.\n\n## Scope\n\n- Deploy ClickHouse\n- Replication pipeline from PostgreSQL, CDC or scheduled batch\n- Move OmniScore historical and percentile queries to ClickHouse\n- Move the analytics dashboard queries to ClickHouse\n- Retention and partitioning strategy\n- Backup and restore\n\n## Rollback plan\n\nClickHouse adds real operational overhead. Keep the PostgreSQL query paths intact behind a feature flag so we can fall back if the ops burden outweighs the benefit at current scale.\n\n## Acceptance criteria\n\n- [ ] ClickHouse deployed with backups configured\n- [ ] Replication lag under one minute\n- [ ] Percentile queries return in under 500ms at 100k candidate scale\n- [ ] Analytics dashboard reads from ClickHouse\n- [ ] Feature flag allows fallback to PostgreSQL\n- [ ] Restore from backup tested\n\nBlocks OmniScore v2 percentiles and the advanced analytics dashboard.\n\nEffort: ~24h"
+    },
+    {
+      "key": "infra-monitoring",
+      "title": "Self-hosted observability - Prometheus, Grafana and Loki",
+      "labels": ["infrastructure", "P0", "phase-1"],
+      "milestone": "Phase 1 - MVP Launch",
+      "body": "## Requirement\n\nDecided in the CEO review: fully self-hosted monitoring, consistent with the all-in-one principle.\n\nWe currently have no production error monitoring at all. We are blind.\n\n## Scope\n\n- Prometheus for metrics\n- Grafana for dashboards\n- Loki for log aggregation\n- Alertmanager for alerting\n\n## Metrics needed\n\n- Error rate by endpoint and by user\n- API latency p50, p95, p99\n- Request volume per page, which is how we catch the next render loop automatically\n- Code sandbox execution time and failure rate\n- Video call quality\n- OmniScore calculation latency\n- Database query performance\n- AI provider latency, cost and failure rate\n\n## Alerts\n\n- 5xx rate above 1%\n- p95 latency above 1 second\n- Any endpoint receiving an anomalous request volume, which would have caught the 1,255-call loop on day one\n- AI provider failures exhausting the fallback chain\n- Disk, memory and connection pool saturation\n\n## Acceptance criteria\n\n- [ ] All four components deployed\n- [ ] Every metric above collected\n- [ ] Every alert above configured and tested by deliberately triggering it\n- [ ] Dashboards for API health, AI health and business funnel\n- [ ] Alerts route to a channel that a human actually reads\n\nEffort: ~24h"
+    },
+    {
+      "key": "infra-e2e-coverage",
+      "title": "Raise E2E test coverage to 95%",
+      "labels": ["testing", "P1", "phase-2"],
+      "milestone": "Phase 2 - Structured Screening",
+      "body": "## Target\n\n95% E2E coverage, agreed in the CEO review. Current coverage is roughly 55%.\n\n## Gaps to close\n\n- Code sandbox execution across all languages\n- Multi-party video interview flow\n- E-signature ceremony end to end\n- BGC verification workflow\n- Proctored assessment flow\n- OmniScore calculation accuracy against known fixtures\n- TrustScore aggregation\n- Screening and aptitude flows\n- Recruiter approval workflow, including privilege escalation attempts\n- Per-page API request count budget, which is the regression guard for the render loop bug\n\n## Infrastructure work\n\nThe full Playwright suite currently cannot run in one pass due to browser resource limits, and is worked around by running per file. Fix this so CI runs the whole suite.\n\n## Acceptance criteria\n\n- [ ] 95% coverage measured and reported in CI\n- [ ] Full suite runs in a single CI job without resource failures\n- [ ] Request count budget test in place for every page\n- [ ] Suite runs on every pull request\n- [ ] Flaky tests quarantined rather than retried blindly\n\nEffort: ~40h"
+    },
+    {
+      "key": "infra-bundle-size",
+      "title": "Code split the 1.55MB main bundle",
+      "labels": ["frontend", "P1", "phase-1"],
+      "milestone": "Phase 1 - MVP Launch",
+      "body": "## Problem\n\nThe main client chunk is 1.55MB across 1719 modules. On a mid-range Android phone on Indian mobile data, that is a multi-second parse before anything renders. India is our first market and it is mobile-first.\n\nThis is also a likely contributor to the 6.1 second post-auth redirect.\n\n## Scope\n\n- Route-level code splitting\n- Dynamic import for heavy pages: interviews, analytics, admin, onboarding\n- Tree-shake unused dependencies, check whether `nodemailer` is genuinely needed in client deps\n- Verify gzip or Brotli compression is active\n\n## Target\n\n- No chunk above 500KB\n- First contentful paint under 1.5 seconds on a throttled 4G connection\n- Time to interactive under 3 seconds\n\n## Acceptance criteria\n\n- [ ] Largest chunk under 500KB\n- [ ] FCP under 1.5s on throttled 4G\n- [ ] TTI under 3s\n- [ ] Bundle size budget enforced in CI\n\nEffort: ~12h"
+    },
+    {
+      "key": "sec-xss-hardening",
+      "title": "Sanitise AI-generated HTML before storage and rendering",
+      "labels": ["security", "P0", "backend", "frontend", "phase-1"],
+      "milestone": "Phase 1 - MVP Launch",
+      "body": "## Problem\n\nAI-generated HTML is stored unsanitised and later rendered with `dangerouslySetInnerHTML`. That is a stored XSS path.\n\n| Location | Issue |\n|---|---|\n| `routes/onboarding.js:105` | AI HTML stored unsanitised |\n| `routes/recruiter.js:2122` | AI HTML stored unsanitised |\n| `client/src/pages/blog.tsx:356` | `dangerouslySetInnerHTML` |\n| `client/src/pages/recruiter/onboarding-docs.tsx:383` | `dangerouslySetInnerHTML` |\n\nAlso outstanding: OAuth tokens are stored in plaintext at `routes/auth.js:479` and `routes/auth.js:629`, despite `lib/crypto-utils.js` existing for exactly this purpose.\n\n## Scope\n\n- Sanitise with DOMPurify before database storage, defence in depth\n- Sanitise again before render\n- Apply `lib/crypto-utils.js` encryption to OAuth token storage\n- Add a Content Security Policy\n\n## Acceptance criteria\n\n- [ ] All four HTML locations sanitised on both write and render\n- [ ] A stored XSS payload in an AI-generated document does not execute\n- [ ] OAuth tokens encrypted at rest\n- [ ] CSP header present and tested\n- [ ] Lint rule flags any new `dangerouslySetInnerHTML`\n\nEffort: ~8h"
+    }
+  ]
+}

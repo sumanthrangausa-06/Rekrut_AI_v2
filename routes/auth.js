@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const pool = require('../lib/db');
+const { encrypt } = require('../lib/crypto-utils');
 const {
 	generateToken,
 	generateRefreshToken,
@@ -79,6 +80,19 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 			});
 		}
 
+		// --- Issue #103: Enforce company email domain for recruiter roles ---
+		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
+		if (recruiterRoles.includes(role)) {
+			const { validateRecruiterEmail, getBlockedDomainExamples } = require('../services/email-domain-validator');
+			const emailValidation = validateRecruiterEmail(email);
+			if (!emailValidation.valid) {
+				return res.status(400).json({
+					error: `${emailValidation.error} Free/disposable email providers (${getBlockedDomainExamples()}) are not allowed for recruiter registration. Please use your company email address.`,
+					code: 'BLOCKED_EMAIL_DOMAIN',
+				});
+			}
+		}
+
 		// Check if user exists
 		const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
 		if (existing.rows.length > 0) {
@@ -102,20 +116,51 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 		const user = result.rows[0];
 
 		// Auto-create company for recruiter/employer roles
-		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
 		if (recruiterRoles.includes(role) && company_name) {
 			try {
+				const { findCompanyByDomain, createJoinRequest } = require('../services/company-domain-service');
+				const { extractDomain } = require('../services/email-domain-validator');
+
+				const email_domain = extractDomain(email);
+
+				// Check if a company with this domain already exists
+				const existingCompany = await findCompanyByDomain(email_domain);
+				if (existingCompany) {
+					// Route to approval workflow instead of creating duplicate company
+					await createJoinRequest(user.id, existingCompany.id, email, email_domain);
+
+					const accessToken = generateToken(user);
+					const { token: refreshToken } = await generateRefreshToken(user.id);
+
+					return res.status(202).json({
+						success: true,
+						pending_approval: true,
+						user: {
+							id: user.id,
+							email: user.email,
+							name: user.name,
+							role: user.role,
+							company_id: null,
+						},
+						token: accessToken,
+						accessToken,
+						refreshToken,
+						message: `A company with domain "${email_domain}" already exists. Your registration is pending approval from the company administrator.`,
+					});
+				}
+
+				// No existing company — create new one
 				const slug = company_name
 					.toLowerCase()
 					.replace(/[^a-z0-9]+/g, '-')
 					.replace(/^-|-$/g, '')
 					.substring(0, 50);
 				const companyResult = await pool.query(
-					`INSERT INTO companies (owner_id, name, slug)
-           VALUES ($1, $2, $3)
+					`INSERT INTO companies (owner_id, name, slug, email_domain, verified_domain, is_verified, domain_enforced_at)
+           VALUES ($1, $2, $3, $4, $5, true, NOW())
            ON CONFLICT DO NOTHING
            RETURNING id`,
-					[user.id, company_name, `${slug}-${user.id}`],
+					[user.id, company_name, `${slug}-${user.id}`, email_domain, email_domain],
 				);
 
 				if (companyResult.rows.length > 0) {
@@ -517,21 +562,22 @@ router.get('/google/callback', async (req, res) => {
 			user = result.rows[0];
 		}
 
-		// Store OAuth connection
+		// Store OAuth connection — encrypt tokens at rest (AES-256-GCM)
+		const encAccessToken = tokens.access_token ? encrypt(tokens.access_token) : null;
+		const encRefreshToken = tokens.refresh_token ? encrypt(tokens.refresh_token) : null;
+
 		await pool.query(
 			`
-      INSERT INTO oauth_connections (user_id, provider, provider_user_id, access_token, refresh_token, profile_data)
-      VALUES ($1, 'google', $2, $3, $4, $5)
+      INSERT INTO oauth_connections (user_id, provider, provider_user_id, access_token, refresh_token, profile_data, encryption_version)
+      VALUES ($1, 'google', $2, $3, $4, $5, 'v1')
       ON CONFLICT (provider, provider_user_id) DO UPDATE SET
-        access_token = $3, refresh_token = $4, profile_data = $5, updated_at = NOW()
+        access_token = EXCLUDED.access_token,
+        refresh_token = EXCLUDED.refresh_token,
+        profile_data = EXCLUDED.profile_data,
+        updated_at = NOW(),
+        encryption_version = 'v1'
     `,
-			[
-				user.id,
-				googleUser.id,
-				tokens.access_token,
-				tokens.refresh_token,
-				JSON.stringify(googleUser),
-			],
+			[user.id, googleUser.id, encAccessToken, encRefreshToken, JSON.stringify(googleUser)],
 		);
 
 		// Generate tokens
@@ -663,15 +709,20 @@ router.get('/linkedin/callback', async (req, res) => {
 			user = result.rows[0];
 		}
 
-		// Store OAuth connection
+		// Store OAuth connection — encrypt token at rest (AES-256-GCM)
+		const encAccessToken = tokens.access_token ? encrypt(tokens.access_token) : null;
+
 		await pool.query(
 			`
-      INSERT INTO oauth_connections (user_id, provider, provider_user_id, access_token, profile_data)
-      VALUES ($1, 'linkedin', $2, $3, $4)
+      INSERT INTO oauth_connections (user_id, provider, provider_user_id, access_token, profile_data, encryption_version)
+      VALUES ($1, 'linkedin', $2, $3, $4, 'v1')
       ON CONFLICT (provider, provider_user_id) DO UPDATE SET
-        access_token = $3, profile_data = $4, updated_at = NOW()
+        access_token = EXCLUDED.access_token,
+        profile_data = EXCLUDED.profile_data,
+        updated_at = NOW(),
+        encryption_version = 'v1'
     `,
-			[user.id, linkedinUser.sub, tokens.access_token, JSON.stringify(linkedinUser)],
+			[user.id, linkedinUser.sub, encAccessToken, JSON.stringify(linkedinUser)],
 		);
 
 		// Generate tokens

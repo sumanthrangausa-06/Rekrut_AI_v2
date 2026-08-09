@@ -14,7 +14,7 @@ import {
 	Star,
 	X,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -104,11 +104,7 @@ export function RecruiterApplicationsPage() {
 
 	const jobFilter = searchParams.get('job') || ''
 
-	useEffect(() => {
-		loadData()
-	}, [loadData])
-
-	async function loadData() {
+	const loadData = useCallback(async () => {
 		try {
 			const [appsPromise, jobsPromise] = await Promise.allSettled([
 				(async () => {
@@ -130,7 +126,12 @@ export function RecruiterApplicationsPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [jobFilter])
+
+	useEffect(() => {
+		loadData()
+	}, [loadData])
+
 
 	async function updateStatus(appId: number, newStatus: string) {
 		setUpdating(true)

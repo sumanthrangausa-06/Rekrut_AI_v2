@@ -56,7 +56,7 @@ test.describe('Recruiter Applicant Review Flow', () => {
 
     // ─── 3. Navigate to job applicants page ───
     await page.goto(`/recruiter/jobs/${jobId}/applicants`)
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await page.waitForTimeout(1000)
 
     // Verify pipeline heading and applicant count

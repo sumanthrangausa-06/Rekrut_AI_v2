@@ -1,3 +1,4 @@
+import { SEO } from '@/components/SEO'
 import {
 	ArrowRight,
 	ArrowUpRight,
@@ -1402,6 +1403,25 @@ export function LandingPage() {
 
 	return (
 		<div className='min-h-dvh-safe bg-background'>
+			<SEO
+				title='AI-Powered Career Companion — Find Your Next Job Faster'
+				description='Rekrut AI matches you with jobs that fit your skills. Practice interviews with AI, get coaching, and get hired faster — no spam, no noise.'
+				canonical='/'
+				jsonLd={{
+					'@context': 'https://schema.org',
+					'@type': 'WebSite',
+					name: 'Rekrut AI',
+					url: 'https://rekrutai.co',
+					potentialAction: {
+						'@type': 'SearchAction',
+						target: {
+							'@type': 'EntryPoint',
+							urlTemplate: 'https://rekrutai.co/candidate/jobs?q={search_term_string}',
+						},
+						'query-input': 'required name=search_term_string',
+					},
+				}}
+			/>
 			<Header />
 			<main>
 				<HeroSection />

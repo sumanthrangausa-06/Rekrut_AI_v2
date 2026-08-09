@@ -1,4 +1,4 @@
-import DOMPurify from 'dompurify'
+import { SafeHtml } from '@/components/SafeHtml'
 import {
 	AlertCircle,
 	Ban,
@@ -18,7 +18,7 @@ import {
 	User,
 	XCircle,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { EmptyState } from '@/components/domain/empty-state'
 import { Skeleton } from '@/components/domain/skeleton'
@@ -119,6 +119,24 @@ export function RecruiterOffersPage() {
 	const [location, setLocation] = useState('')
 	const [employmentType, setEmploymentType] = useState('full-time')
 
+	const loadData = useCallback(async () => {
+		try {
+			const [offersRes, candidatesRes, jobsRes] = await Promise.allSettled([
+				apiCall<Offer[]>('/onboarding/offers'),
+				apiCall<{ candidates: Candidate[] }>('/recruiter/candidates'),
+				apiCall<{ jobs: Job[] }>('/recruiter/jobs'),
+			])
+			if (offersRes.status === 'fulfilled')
+				setOffers(Array.isArray(offersRes.value) ? offersRes.value : [])
+			if (candidatesRes.status === 'fulfilled') setCandidates(candidatesRes.value.candidates || [])
+			if (jobsRes.status === 'fulfilled') setJobs(jobsRes.value.jobs || [])
+		} catch {
+			// silent
+		} finally {
+			setLoading(false)
+		}
+	}, [])
+
 	useEffect(() => {
 		loadData()
 	}, [loadData])
@@ -144,23 +162,6 @@ export function RecruiterOffersPage() {
 		}
 	}, [message])
 
-	async function loadData() {
-		try {
-			const [offersRes, candidatesRes, jobsRes] = await Promise.allSettled([
-				apiCall<Offer[]>('/onboarding/offers'),
-				apiCall<{ candidates: Candidate[] }>('/recruiter/candidates'),
-				apiCall<{ jobs: Job[] }>('/recruiter/jobs'),
-			])
-			if (offersRes.status === 'fulfilled')
-				setOffers(Array.isArray(offersRes.value) ? offersRes.value : [])
-			if (candidatesRes.status === 'fulfilled') setCandidates(candidatesRes.value.candidates || [])
-			if (jobsRes.status === 'fulfilled') setJobs(jobsRes.value.jobs || [])
-		} catch {
-			// silent
-		} finally {
-			setLoading(false)
-		}
-	}
 
 	async function createOffer() {
 		if (!candidateId || !jobId || !salary) {
@@ -732,11 +733,7 @@ export function RecruiterOffersPage() {
 					<div className='space-y-4'>
 						{/* Letter preview in a document-style container */}
 						<div className='bg-white rounded-lg border shadow-inner overflow-auto max-h-[70vh]'>
-							<div
-								className='p-8'
-								// biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized with DOMPurify
-								dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewHtml) }}
-							/>
+							<SafeHtml html={previewHtml} className='p-8' />
 						</div>
 						<div className='flex gap-2 justify-end'>
 							<Button

@@ -278,6 +278,10 @@ const AdminEmailQueuePage = lazy(() =>
 	})),
 )
 
+const SignDocumentPage = lazy(() =>
+	import('@/pages/signature/SignDocument').then((m) => ({ default: m.SignDocumentPage })),
+)
+
 // Debug pages
 const MockInterviewDebugPage = lazy(() =>
 	import('@/pages/debug/mock-interview').then((m) => ({ default: m.MockInterviewDebugPage })),
@@ -915,6 +919,16 @@ function AppRoutes() {
 					}
 				/>
 			</Route>
+
+			{/* E-signature signing ceremony */}
+			<Route
+				path='/signature/:documentId/:requestId'
+				element={
+					<Protected>
+						<SignDocumentPage />
+					</Protected>
+				}
+			/>
 
 			{/* Debug routes */}
 			<Route

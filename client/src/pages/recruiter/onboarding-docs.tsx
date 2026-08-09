@@ -1,6 +1,6 @@
-import DOMPurify from 'dompurify'
+import { SafeHtml } from '@/components/SafeHtml'
 import { Download, Eye, Loader2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -52,11 +52,7 @@ export function RecruiterOnboardingDocsPage() {
 	const [loadingDocs, setLoadingDocs] = useState(false)
 	const [previewDoc, setPreviewDoc] = useState<CandidateDocument | null>(null)
 
-	useEffect(() => {
-		loadCandidates()
-	}, [loadCandidates])
-
-	async function loadCandidates() {
+	const loadCandidates = useCallback(async () => {
 		try {
 			setLoading(true)
 			const data = await apiCall<OnboardingCandidate[]>('/onboarding/recruiter/summary')
@@ -66,7 +62,12 @@ export function RecruiterOnboardingDocsPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
+
+	useEffect(() => {
+		loadCandidates()
+	}, [loadCandidates])
+
 
 	async function viewCandidateDetails(candidate: OnboardingCandidate) {
 		setSelectedCandidate(candidate)
@@ -362,13 +363,7 @@ export function RecruiterOnboardingDocsPage() {
 									bodyHtml = `<pre class="text-xs whitespace-pre-wrap">${JSON.stringify(content, null, 2)}</pre>`
 								}
 
-								return (
-									<div
-										className='text-sm space-y-2 leading-relaxed'
-										// biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized with DOMPurify
-										dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(bodyHtml) }}
-									/>
-								)
+								return <SafeHtml html={bodyHtml} className='text-sm space-y-2 leading-relaxed' />
 							} catch {
 								return (
 									<pre className='text-xs whitespace-pre-wrap'>{previewDoc.document_content}</pre>

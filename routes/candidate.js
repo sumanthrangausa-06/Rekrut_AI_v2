@@ -1485,7 +1485,7 @@ router.get('/jobs', authMiddleware, async (req, res) => {
 
 		// Extended filters (graceful — if column missing, query will fail gracefully in catch)
 		if (remoteType) {
-			whereClause += ` AND (j.remote_type = $${paramIndex} OR j.location ILIKE $${paramIndex})`;
+			whereClause += ` AND (j.remote_type = $${paramIndex} OR j.location ILIKE $${paramIndex + 1})`;
 			params.push(remoteType, `%${remoteType}%`);
 			paramIndex += 2;
 		}

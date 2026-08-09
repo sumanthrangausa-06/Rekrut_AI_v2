@@ -5,7 +5,7 @@ test.use({ storageState: 'e2e/.auth/candidate.json' })
 test.describe('Job Search and Filtering', () => {
   test('search jobs by keyword and verify results update', async ({ page }) => {
     await page.goto('/candidate/jobs')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Wait for jobs to load
     await expect(page.getByText(/active jobs|results/).first()).toBeVisible({ timeout: 15000 })
@@ -39,7 +39,7 @@ test.describe('Job Search and Filtering', () => {
 
   test('filter jobs by job type and remote type', async ({ page }) => {
     await page.goto('/candidate/jobs')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await expect(page.getByText(/active jobs|results/).first()).toBeVisible({ timeout: 15000 })
 
@@ -93,7 +93,7 @@ test.describe('Job Search and Filtering', () => {
 
   test('sort jobs by newest and salary high-low', async ({ page }) => {
     await page.goto('/candidate/jobs')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await expect(page.getByText(/active jobs|results/).first()).toBeVisible({ timeout: 15000 })
 
@@ -129,7 +129,7 @@ test.describe('Job Search and Filtering', () => {
 
   test('filter by experience level and company size', async ({ page }) => {
     await page.goto('/candidate/jobs')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     await expect(page.getByText(/active jobs|results/).first()).toBeVisible({ timeout: 15000 })
 

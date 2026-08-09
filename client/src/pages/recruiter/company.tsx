@@ -19,7 +19,7 @@ import {
 	Users,
 	X,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Skeleton } from '@/components/domain/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -77,18 +77,7 @@ export function RecruiterCompanyPage() {
 	const [saving, setSaving] = useState(false)
 	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-	useEffect(() => {
-		loadData()
-	}, [loadData])
-
-	useEffect(() => {
-		if (message) {
-			const t = setTimeout(() => setMessage(null), 3000)
-			return () => clearTimeout(t)
-		}
-	}, [message])
-
-	async function loadData() {
+	const loadData = useCallback(async () => {
 		try {
 			const [companyData, teamData] = await Promise.all([
 				apiCall<{ company: Company }>('/company/profile'),
@@ -101,7 +90,19 @@ export function RecruiterCompanyPage() {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [])
+
+	useEffect(() => {
+		loadData()
+	}, [loadData])
+
+	useEffect(() => {
+		if (message) {
+			const t = setTimeout(() => setMessage(null), 3000)
+			return () => clearTimeout(t)
+		}
+	}, [message])
+
 
 	function showMessage(type: 'success' | 'error', text: string) {
 		setMessage({ type, text })

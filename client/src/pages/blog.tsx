@@ -1,4 +1,5 @@
-import DOMPurify from 'dompurify'
+import { SEO } from '@/components/SEO'
+import { SafeHtml } from '@/components/SafeHtml'
 import { ArrowLeft, Calendar, Clock, Tag, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -76,6 +77,11 @@ export function BlogPage() {
 
 	return (
 		<div className='min-h-screen bg-background'>
+			<SEO
+				title='Blog — Insights on AI Recruitment & Career Growth'
+				description='Read the latest insights from the Rekrut AI team. AI trends, career tips, hiring strategies, and product updates.'
+				canonical='/blog'
+			/>
 			{/* Header */}
 			<div className='border-b bg-muted/50'>
 				<div className='max-w-5xl mx-auto px-6 py-8'>
@@ -297,6 +303,37 @@ export function BlogPostPage() {
 
 	return (
 		<div className='min-h-screen bg-background'>
+			<SEO
+				title={`${post.title} — Rekrut AI Blog`}
+				description={post.excerpt}
+				canonical={`/blog/${post.slug}`}
+				ogType='article'
+				jsonLd={{
+					'@context': 'https://schema.org',
+					'@type': 'BlogPosting',
+					headline: post.title,
+					description: post.excerpt,
+					author: {
+						'@type': 'Person',
+						name: post.author,
+					},
+					datePublished: post.publishedAt,
+					dateModified: post.publishedAt,
+					publisher: {
+						'@type': 'Organization',
+						name: 'Rekrut AI',
+						logo: {
+							'@type': 'ImageObject',
+							url: 'https://rekrutai.co/og-image.png',
+						},
+					},
+					mainEntityOfPage: {
+						'@type': 'WebPage',
+						'@id': `https://rekrutai.co/blog/${post.slug}`,
+					},
+					keywords: post.tags.join(', '),
+				}}
+			/>
 			{/* Header */}
 			<div className='border-b bg-muted/50'>
 				<div className='max-w-3xl mx-auto px-6 py-8'>
@@ -351,10 +388,7 @@ export function BlogPostPage() {
 			{/* Content */}
 			<div className='max-w-3xl mx-auto px-6 py-8'>
 				<div className='prose prose-slate dark:prose-invert max-w-none'>
-					<div
-						// biome-ignore lint/security/noDangerouslySetInnerHtml: blog content is sanitized with DOMPurify
-						dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
-					/>
+					<SafeHtml html={post.content} />
 				</div>
 			</div>
 

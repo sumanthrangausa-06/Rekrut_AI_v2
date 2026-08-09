@@ -1,4 +1,4 @@
-import DOMPurify from 'dompurify'
+import { SafeHtml } from '@/components/SafeHtml'
 import {
 	AlertCircle,
 	Building2,
@@ -13,7 +13,7 @@ import {
 	Shield,
 	XCircle,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { EmptyState } from '@/components/domain/empty-state'
 import { Skeleton } from '@/components/domain/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -76,6 +76,17 @@ export function CandidateOffersPage() {
 	const [signing, setSigning] = useState(false)
 	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+	const loadOffers = useCallback(async () => {
+		try {
+			const data = await apiCall<Offer[]>('/onboarding/offers/me')
+			setOffers(Array.isArray(data) ? data : [])
+		} catch {
+			// silent
+		} finally {
+			setLoading(false)
+		}
+	}, [])
+
 	useEffect(() => {
 		loadOffers()
 	}, [loadOffers])
@@ -87,16 +98,6 @@ export function CandidateOffersPage() {
 		}
 	}, [message])
 
-	async function loadOffers() {
-		try {
-			const data = await apiCall<Offer[]>('/onboarding/offers/me')
-			setOffers(Array.isArray(data) ? data : [])
-		} catch {
-			// silent
-		} finally {
-			setLoading(false)
-		}
-	}
 
 	async function markViewed(offer: Offer) {
 		if (!offer.viewed_at) {
@@ -377,10 +378,7 @@ export function CandidateOffersPage() {
 					</DialogHeader>
 					<div className='space-y-4'>
 						<div className='bg-white rounded-lg border shadow-inner overflow-auto max-h-[70vh]'>
-							<div
-								className='p-8'
-								dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(letterHtml) }}
-							/>
+							<SafeHtml html={letterHtml} className='p-8' />
 						</div>
 						<div className='flex gap-2 justify-end'>
 							<Button

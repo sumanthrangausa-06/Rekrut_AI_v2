@@ -256,6 +256,41 @@ export function RecruiterCandidatesPage() {
 		}
 	}, [page, searchQuery, activeFilters, selectedTab])
 
+	const loadJobs = useCallback(async () => {
+		try {
+			const data = await apiCall<{ jobs: Array<{ id: number; title: string }> }>('/recruiter/jobs')
+			setJobs((data.jobs || []).map((j) => ({ id: String(j.id), title: j.title })))
+		} catch {
+			setJobs([])
+		}
+	}, [])
+
+	const loadSavedSearches = useCallback(async () => {
+		try {
+			const data = await apiCall<{ searches: SavedSearch[] }>('/recruiter/saved-searches')
+			if (data.searches) setSavedSearches(data.searches)
+		} catch {
+			// Use mock data if API not available
+			setSavedSearches([
+				{
+					id: '1',
+					name: 'Senior Engineers - Remote',
+					filters: { experience: '6-10', location: 'remote' },
+					searchQuery: 'engineer',
+					alertEnabled: true,
+					createdAt: '2026-06-01',
+				},
+				{
+					id: '2',
+					name: 'High Match - Frontend',
+					filters: { matchScore: '80-89' },
+					searchQuery: 'frontend',
+					alertEnabled: false,
+					createdAt: '2026-05-28',
+				},
+			])
+		}
+	}, [])
 	useEffect(() => {
 		loadCandidates()
 		loadSavedSearches()
@@ -290,41 +325,7 @@ export function RecruiterCandidatesPage() {
 		setPage(1)
 	}, [])
 
-	async function loadSavedSearches() {
-		try {
-			const data = await apiCall<{ searches: SavedSearch[] }>('/recruiter/saved-searches')
-			if (data.searches) setSavedSearches(data.searches)
-		} catch {
-			// Use mock data if API not available
-			setSavedSearches([
-				{
-					id: '1',
-					name: 'Senior Engineers - Remote',
-					filters: { experience: '6-10', location: 'remote' },
-					searchQuery: 'engineer',
-					alertEnabled: true,
-					createdAt: '2026-06-01',
-				},
-				{
-					id: '2',
-					name: 'High Match - Frontend',
-					filters: { matchScore: '80-89' },
-					searchQuery: 'frontend',
-					alertEnabled: false,
-					createdAt: '2026-05-28',
-				},
-			])
-		}
-	}
 
-	async function loadJobs() {
-		try {
-			const data = await apiCall<{ jobs: Array<{ id: number; title: string }> }>('/recruiter/jobs')
-			setJobs((data.jobs || []).map((j) => ({ id: String(j.id), title: j.title })))
-		} catch {
-			setJobs([])
-		}
-	}
 
 	const handleFilterChange = (id: string, value: string | string[]) => {
 		setActiveFilters((prev) => ({ ...prev, [id]: value as string }))
