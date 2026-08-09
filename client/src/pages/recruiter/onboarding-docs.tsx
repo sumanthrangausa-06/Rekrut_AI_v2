@@ -1,4 +1,4 @@
-import DOMPurify from 'dompurify'
+import { SafeHtml } from '@/components/SafeHtml'
 import { Download, Eye, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
@@ -363,13 +363,7 @@ export function RecruiterOnboardingDocsPage() {
 									bodyHtml = `<pre class="text-xs whitespace-pre-wrap">${JSON.stringify(content, null, 2)}</pre>`
 								}
 
-								return (
-									<div
-										className='text-sm space-y-2 leading-relaxed'
-										// biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized with DOMPurify
-										dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(bodyHtml) }}
-									/>
-								)
+								return <SafeHtml html={bodyHtml} className='text-sm space-y-2 leading-relaxed' />
 							} catch {
 								return (
 									<pre className='text-xs whitespace-pre-wrap'>{previewDoc.document_content}</pre>
