@@ -422,7 +422,7 @@ export function SigningCeremony({ documentId, requestId }: SigningCeremonyProps)
 							onChange={(e) => setDeclineReason(e.target.value)}
 							placeholder="e.g. I need more time to review, or I disagree with the terms..."
 							className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-						/ />
+						/>
 						<div className="flex gap-2">
 							<Button
 								variant="default"

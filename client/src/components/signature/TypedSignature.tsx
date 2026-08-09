@@ -113,7 +113,7 @@ export function TypedSignature({ onChange, className }: TypedSignatureProps) {
 					placeholder="e.g. John A. Smith"
 					className="text-base"
 					autoComplete="name"
-				/ />
+				/>
 			</div>
 
 			<div className="flex items-center gap-2">
