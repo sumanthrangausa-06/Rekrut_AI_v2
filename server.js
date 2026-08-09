@@ -362,6 +362,11 @@ function csrfProtection(req, res, next) {
 	if (req.path.startsWith('/api/auth/login') || req.path.startsWith('/api/auth/register')) {
 		return next();
 	}
+	// Exempt analytics events from CSRF — write-only logging with no state-changing
+	// side effects; endpoint uses optionalAuth and is designed for anonymous visitors
+	if (req.path === '/api/analytics/events') {
+		return next();
+	}
 	// Skip CSRF for API clients using Bearer token authentication
 	// (Bearer tokens are not vulnerable to CSRF since they aren't auto-sent by browsers)
 	const authHeader = req.headers.authorization || req.headers.Authorization;
