@@ -71,6 +71,16 @@ if (nodeEnv !== 'production' && stripeSecret.startsWith('sk_live_')) {
 	process.exit(1);
 }
 
+// Fatal guard: prevent non-production environments from booting with production DB endpoint
+const dbUrl = process.env.DATABASE_URL || '';
+const PROD_DB_HOSTNAME = 'ep-calm-field-aipg6g97-pooler.c-4.us-east-1.aws.neon.tech';
+if (nodeEnv !== 'production' && dbUrl.includes(PROD_DB_HOSTNAME)) {
+	console.error('[FATAL] Non-production environment detected with production database endpoint. Refusing to start.');
+	console.error(`  NODE_ENV: ${nodeEnv}`);
+	console.error(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
+	process.exit(1);
+}
+
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
