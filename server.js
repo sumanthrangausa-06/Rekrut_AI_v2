@@ -412,7 +412,10 @@ app.use(
 		resave: false,
 		saveUninitialized: false,
 		cookie: {
-			secure: true,
+			// Browsers drop a Secure cookie over plain HTTP, so hardcoding this
+			// breaks every session outside production — including E2E, which runs
+			// against http://localhost. Matches the CSRF cookie above.
+			secure: process.env.NODE_ENV === 'production',
 			httpOnly: true,
 			maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 			sameSite: 'strict',

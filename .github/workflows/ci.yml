@@ -27,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install root dependencies
@@ -49,7 +49,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -89,7 +89,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install root dependencies
@@ -212,6 +212,12 @@ jobs:
           ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
           ADMIN_USERNAME: admin
 
+      # The server writes to /tmp, which the upload step below can't reach.
+      # Its stack traces are the only explanation for API 500s.
+      - name: Collect server log
+        if: failure()
+        run: cp /tmp/server.log server.log || true
+
       - name: Upload test results
         if: failure()
         uses: actions/upload-artifact@v4
@@ -220,6 +226,7 @@ jobs:
           path: |
             test-results/
             playwright-report/
+            server.log
           if-no-files-found: warn
           retention-days: 7
 
