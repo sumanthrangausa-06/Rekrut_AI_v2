@@ -11,11 +11,11 @@ test.describe('recruiter job posting flow', () => {
     // Navigate to jobs page and create new job
     await page.goto('/recruiter/jobs')
     await page.waitForURL('/recruiter/jobs')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await page.waitForTimeout(500)
     await page.getByRole('button', { name: 'Post New Job' }).first().click()
     await page.waitForURL('/recruiter/jobs/new')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Step 1: Job Details — wait for form to be ready
     await page.waitForSelector('input[placeholder*="Senior"], input[placeholder*="Engineer"], input[name="title"]', { timeout: 15000 })
@@ -59,7 +59,7 @@ test.describe('recruiter job posting flow', () => {
     }
 
     await page.goto(`/recruiter/jobs/${jobId}/edit`)
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await page.waitForTimeout(800)
 
     // Step 1: Edit the title directly (we are already on the job details step)

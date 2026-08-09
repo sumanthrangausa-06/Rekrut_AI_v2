@@ -41,7 +41,7 @@ test.describe('Candidate Apply Flow', () => {
 
     // ─── 1. Browse Jobs ───
     await page.goto('/candidate/jobs');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     await expect(page.getByText(/active jobs|results/).first()).toBeVisible({ timeout: 15000 });
 
@@ -80,7 +80,7 @@ test.describe('Candidate Apply Flow', () => {
 
     // Verify we're on the job detail page
     await expect(page).toHaveURL(/.*\/candidate\/jobs\/\d+/, { timeout: 10000 });
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(800);
 
     // Click Apply Now on the job detail page to open the form
@@ -112,7 +112,7 @@ test.describe('Candidate Apply Flow', () => {
 
     // ─── 4. Verify on Dashboard ───
     await page.goto('/candidate');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(800);
 
     await expect(page.getByText('Welcome back').first()).toBeVisible({ timeout: 10000 });
@@ -120,7 +120,7 @@ test.describe('Candidate Apply Flow', () => {
 
     // ─── 5. Verify on My Applications ───
     await page.goto('/candidate/applications');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(800);
 
     await expect(page.getByRole('heading', { name: 'My Applications' }).first()).toBeVisible({ timeout: 10000 });

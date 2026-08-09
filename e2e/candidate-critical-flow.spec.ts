@@ -54,7 +54,7 @@ test.describe('Candidate Critical Flow — Desktop', () => {
 
     // ─── 3. Search Jobs ───
     await page.goto('/candidate/jobs');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await expect(page.getByText(/Find Your Next Opportunity|Job Board|Jobs/i).first()).toBeVisible({ timeout: 10000 });
 
     // Search for jobs
@@ -93,7 +93,7 @@ test.describe('Candidate Critical Flow — Mobile', () => {
     // ─── 1. Signup ───
     await page.setExtraHTTPHeaders({ 'X-Forwarded-For': '5.6.7.8' });
     await page.goto('/register');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await expect(page.getByText(/Create an account|Sign up|Register/i).first()).toBeVisible({ timeout: 10000 });
 
     await page.getByRole('combobox').selectOption('candidate');

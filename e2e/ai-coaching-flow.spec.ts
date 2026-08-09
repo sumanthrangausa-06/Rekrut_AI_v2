@@ -7,7 +7,7 @@ test.describe('AI Interview Coaching Flow', () => {
 
   test('AI Coaching page loads with all tabs', async ({ page }) => {
     await page.goto('/candidate/ai-coaching')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Wait for page to finish loading (spinner or content)
     await expect(
@@ -32,7 +32,7 @@ test.describe('AI Interview Coaching Flow', () => {
 
   test('can switch to Mock Interview tab', async ({ page }) => {
     await page.goto('/candidate/ai-coaching')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Wait for heading to confirm page loaded
     await expect(
@@ -53,7 +53,7 @@ test.describe('AI Interview Coaching Flow', () => {
 
   test('can switch to Quick Practice tab and see questions', async ({ page }) => {
     await page.goto('/candidate/ai-coaching')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Wait for heading to confirm page loaded
     await expect(

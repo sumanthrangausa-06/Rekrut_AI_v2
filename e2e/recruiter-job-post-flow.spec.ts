@@ -86,7 +86,7 @@ test.describe('Recruiter Job Post and Pipeline Flow', () => {
 
     // ─── 3. View Applicants ───
     await page.goto(`/recruiter/jobs/${job.id}/applicants`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(800);
 
     await expect(page.getByRole('heading', { name: 'Pipeline' }).first()).toBeVisible({ timeout: 10000 });
@@ -113,7 +113,7 @@ test.describe('Recruiter Job Post and Pipeline Flow', () => {
 
     // ─── 5. Verify Job Still Listed on Recruiter Jobs Page ───
     await page.goto('/recruiter/jobs');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(800);
 
     // Jobs page shows 'Job Postings' heading — verify the page loaded

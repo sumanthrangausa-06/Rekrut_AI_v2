@@ -5,7 +5,7 @@ test.use({ storageState: 'e2e/.auth/admin.json' });
 test.describe('Admin Analytics Flow', () => {
   test('admin analytics dashboard loads and shows all key sections', async ({ page }) => {
     await page.goto('/admin/analytics');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(1200);
 
     // Verify main heading

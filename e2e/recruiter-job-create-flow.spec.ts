@@ -23,12 +23,12 @@ test.describe('Recruiter Job Creation + Candidate View Flow', () => {
     // ─── 1. Recruiter: Navigate to Jobs and Create New Job ───
     await page.goto('/recruiter/jobs');
     await page.waitForURL('/recruiter/jobs');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(500);
 
     await page.getByRole('button', { name: 'Post New Job' }).first().click();
     await page.waitForURL('/recruiter/jobs/new');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     // Step 1: Job Details
     await page.waitForSelector(
@@ -88,7 +88,7 @@ test.describe('Recruiter Job Creation + Candidate View Flow', () => {
     // ─── 4. Candidate: Log in and verify job appears in search ───
     // Use candidate storage state to navigate directly
     await page.goto('/candidate/jobs');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     await expect(page.getByText(/active jobs|results/).first()).toBeVisible({ timeout: 15000 });
 
@@ -128,7 +128,7 @@ test.describe('Recruiter Job Creation + Candidate View Flow', () => {
 
     // ─── 6. Recruiter: Verify job still visible on dashboard ───
     await page.goto('/recruiter');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await page.waitForTimeout(800);
 
     await expect(
@@ -143,7 +143,7 @@ test.describe('Recruiter Job Creation + Candidate View Flow', () => {
 
     // ─── 1. Recruiter: Create a job ───
     await page.goto('/recruiter/jobs/new');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     await page.waitForSelector(
       'input[placeholder*="Senior"], input[placeholder*="Engineer"], input[name="title"]',
@@ -183,7 +183,7 @@ test.describe('Recruiter Job Creation + Candidate View Flow', () => {
     }
 
     await page.waitForURL(/.*\/recruiter\/jobs\/\d+\/edit/);
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     const editTitleInput = page.locator('input[placeholder*="Senior"], input[placeholder*="Engineer"], input[name="title"]').first();
     if (await editTitleInput.isVisible().catch(() => false)) {

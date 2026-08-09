@@ -5,7 +5,7 @@ test.use({ storageState: 'e2e/.auth/candidate.json' })
 test.describe('Application Submission Flow', () => {
   test('apply to a job and verify in applications list', async ({ page }) => {
     await page.goto('/candidate/jobs')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await page.waitForTimeout(1500)
 
     // Verify jobs page loaded with flexible heading/text check
@@ -52,7 +52,7 @@ test.describe('Application Submission Flow', () => {
     await expect(page).toHaveURL(/.*\/candidate\/jobs\/\d+/, { timeout: 10000 })
 
     // Wait for job detail page to load
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await page.waitForTimeout(800)
 
     // Verify we are on the job detail page
@@ -106,7 +106,7 @@ test.describe('Application Submission Flow', () => {
 
     // Navigate to applications page to verify the application is listed
     await page.goto('/candidate/applications')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await page.waitForTimeout(800)
 
     // Verify the applications page loads and shows our application
@@ -121,7 +121,7 @@ test.describe('Application Submission Flow', () => {
 
   test('one-click apply is available for profiles with high completeness', async ({ page }) => {
     await page.goto('/candidate/jobs')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await page.waitForTimeout(1500)
 
     await expect(page.getByText(/Find Your Next Opportunity|active jobs|results/i).first()).toBeVisible({ timeout: 15000 })
@@ -158,7 +158,7 @@ test.describe('Application Submission Flow', () => {
     }
 
     await expect(page).toHaveURL(/.*\/candidate\/jobs\/\d+/, { timeout: 10000 })
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await page.waitForTimeout(800)
 
     // Click Apply Now to open the form

@@ -175,7 +175,7 @@ test.describe('End-to-End Integration Flow', () => {
 
     // 2. Candidate finds and applies to the job via UI
     await page.goto('/candidate/jobs');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     const searchInput = page.getByPlaceholder(/Search/i).first();
     if (await searchInput.isVisible().catch(() => false)) {

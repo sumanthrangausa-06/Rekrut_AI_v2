@@ -7,7 +7,7 @@ test.use({ storageState: CANDIDATE_STORAGE })
 test.describe('Candidate Documents Flow', () => {
   test('documents page loads with header, stats, and upload button', async ({ page }) => {
     await page.goto('/candidate/documents')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Verify header
     await expect(page.getByRole('heading', { name: 'Documents', exact: true })).toBeVisible({ timeout: 15000 })
@@ -25,7 +25,7 @@ test.describe('Candidate Documents Flow', () => {
 
   test('document tabs filter by status', async ({ page }) => {
     await page.goto('/candidate/documents')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Verify all status tabs exist (shadcn TabsTrigger renders as buttons)
     await expect(page.getByRole('button', { name: /^All/i }).first()).toBeVisible({ timeout: 15000 })
@@ -54,7 +54,7 @@ test.describe('Candidate Documents Flow', () => {
 
   test('upload button triggers file input', async ({ page }) => {
     await page.goto('/candidate/documents')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Verify the hidden file input exists
     const fileInput = page.locator('input[type="file"]#doc-upload')
@@ -68,7 +68,7 @@ test.describe('Candidate Documents Flow', () => {
 
   test('empty state renders when no documents exist', async ({ page }) => {
     await page.goto('/candidate/documents')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Wait for loading to finish
     await page.waitForTimeout(1200)
@@ -92,7 +92,7 @@ test.describe('Candidate Documents Flow', () => {
 
   test('document cards display actions: preview, download, delete', async ({ page }) => {
     await page.goto('/candidate/documents')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
     await page.waitForTimeout(1500)
 
     // Check if any documents exist
@@ -114,7 +114,7 @@ test.describe('Candidate Documents Flow', () => {
 
   test('page remains stable after tab switching and scrolling', async ({ page }) => {
     await page.goto('/candidate/documents')
-    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
     // Switch tabs rapidly
     const tabs = ['All', 'Verified', 'Pending', 'All']

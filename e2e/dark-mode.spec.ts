@@ -37,7 +37,7 @@ test.describe('Dark Mode', () => {
 
   test('dark mode toggles and persists across client-side navigation', async ({ page }) => {
     await page.goto('/candidate');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     // Ensure starting from light mode
     const html = page.locator('html');
@@ -49,20 +49,20 @@ test.describe('Dark Mode', () => {
 
     // Navigate to jobs page (client-side routing)
     await page.goto('/candidate/jobs');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     // Dark mode should persist across SPA navigation
     await expectDarkMode(page, true);
 
     // Navigate back to dashboard
     await page.goto('/candidate');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
     await expectDarkMode(page, true);
   });
 
   test('dark mode persists after page reload (documents app bug)', async ({ page }) => {
     await page.goto('/candidate');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     // Toggle dark mode on
     await toggleDarkModeOn(page);
@@ -70,7 +70,7 @@ test.describe('Dark Mode', () => {
 
     // Reload the page
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     // BUG: The ThemeToggle uses localStorage key "theme" while ThemeProvider reads "rekrut-theme".
     // On reload, ThemeProvider defaults to light mode and removes the "dark" class.
@@ -96,7 +96,7 @@ test.describe('Dark Mode', () => {
 test.describe('Dark Mode on Landing Page', () => {
   test('visitor can toggle dark mode on landing page', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
 
     // Open mobile menu if needed so the toggle might be visible
     await openMobileMenuIfNeeded(page);
