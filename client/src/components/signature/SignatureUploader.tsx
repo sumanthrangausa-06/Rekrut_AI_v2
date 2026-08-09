@@ -231,7 +231,7 @@ export function SignatureUploader({ onChange, className }: SignatureUploaderProp
 							alt="Signature preview"
 							className="w-full h-auto max-h-64 object-contain"
 							draggable={false}
-						/ />
+						/>
 						{isCropping && crop.width > 0 && crop.height > 0 && (
 							<div
 								className="absolute border-2 border-primary bg-primary/10"
@@ -241,7 +241,7 @@ export function SignatureUploader({ onChange, className }: SignatureUploaderProp
 									width: crop.width,
 									height: crop.height,
 								}}
-							/ />
+							/>
 						)}
 					</div>
 
