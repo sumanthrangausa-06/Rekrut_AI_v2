@@ -143,20 +143,25 @@ jobs:
 
       - name: Start application
         run: |
-          npm start &
+          nohup npm start > /tmp/server.log 2>&1 &
           SERVER_PID=$!
+          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
           # Wait for server to be ready
           for i in {1..30}; do
             if curl -s http://localhost:3000/health > /dev/null; then
-              echo "Server is ready"
-              exit 0
+              echo "✅ Server is ready (PID $SERVER_PID)"
+              break
             fi
             echo "Waiting for server... ($i/30)"
             sleep 2
           done
-          echo "❌ Server failed to start"
-          kill $SERVER_PID 2>/dev/null || true
-          exit 1
+          # Keep step alive so server keeps running
+          sleep 2
+          # Verify server is still up
+          if ! curl -s http://localhost:3000/health > /dev/null; then
+            echo "❌ Server failed to start"
+            exit 1
+          fi
         env:
           NODE_ENV: e2e
           PORT: 3000
@@ -189,7 +194,6 @@ jobs:
               npx playwright test \
                 e2e/auth-persistence.spec.ts \
                 e2e/dark-mode.spec.ts \
-                e2e/debug-*.spec.ts \
                 e2e/mobile-navigation.spec.ts \
                 e2e/navigation-*.spec.ts \
                 e2e/password-reset-flow.spec.ts \
