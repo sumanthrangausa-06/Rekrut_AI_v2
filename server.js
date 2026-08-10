@@ -89,6 +89,7 @@ const interviewRoutes = require('./routes/interviews');
 const quickPracticeRoutes = require('./routes/quick-practice'); // ISOLATED from Mock Interview (#32717)
 const omniscoreRoutes = require('./routes/omniscore');
 const companyRoutes = require('./routes/company');
+const { router: auditRoutes } = require('./routes/audit');
 const trustscoreRoutes = require('./routes/trustscore');
 const recruiterRoutes = require('./routes/recruiter');
 const candidateRoutes = require('./routes/candidate');
@@ -531,6 +532,7 @@ app.use('/api/assessments', assessmentRoutes);
 
 // API Routes - Recruiter/Company side
 app.use('/api/company', companyRoutes);
+app.use('/api/company', auditRoutes);
 app.use('/api/trustscore', trustscoreRoutes);
 app.use('/api/recruiter', recruiterRoutes);
 

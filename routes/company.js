@@ -25,6 +25,7 @@ const {
 	listPendingJoinRequests,
 	getJoinRequestById,
 } = require('../services/company-domain-service');
+const { insertAuditLog } = require('../routes/audit');
 
 const router = express.Router();
 
@@ -93,6 +94,19 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 
 			// Create join request for approval
 			await createJoinRequest(user.id, existingCompany.id, email, email_domain);
+
+			// ─── Issue #156: Audit log — join request created ───
+			try {
+				await insertAuditLog({
+					company_id: existingCompany.id,
+					actor_id: user.id,
+					target_id: user.id,
+					action: 'join_request_created',
+					metadata: { email, domain: email_domain },
+				});
+			} catch (auditErr) {
+				console.error('[company/register] Audit log error:', auditErr.message);
+			}
 
 			// ─── Issue #155: Create in-app notification for company owner ───
 			try {
@@ -805,6 +819,19 @@ router.post('/join-requests/:id/approve', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'Failed to approve join request' });
 		}
 
+		// ─── Issue #156: Audit log — join request approved ───
+		try {
+			await insertAuditLog({
+				company_id: req.user.company_id,
+				actor_id: req.user.id,
+				target_id: request.user_id,
+				action: 'join_request_approved',
+				metadata: { request_id: request.id },
+			});
+		} catch (auditErr) {
+			console.error('[company/approve] Audit log error:', auditErr.message);
+		}
+
 		res.json({
 			success: true,
 			message: 'Recruiter approved and added to company',
@@ -841,6 +868,20 @@ router.post('/join-requests/:id/reject', authMiddleware, async (req, res) => {
 		const rejected = await rejectJoinRequest(request.id, req.user.id, reason);
 		if (!rejected) {
 			return res.status(400).json({ error: 'Failed to reject join request' });
+		}
+
+		// ─── Issue #156: Audit log — join request rejected ───
+		try {
+			await insertAuditLog({
+				company_id: req.user.company_id,
+				actor_id: req.user.id,
+				target_id: request.user_id,
+				action: 'join_request_rejected',
+				reason: reason || null,
+				metadata: { request_id: request.id },
+			});
+		} catch (auditErr) {
+			console.error('[company/reject] Audit log error:', auditErr.message);
 		}
 
 		res.json({
@@ -880,6 +921,71 @@ router.get('/join-requests/me', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Get my join request error:', err);
 		res.status(500).json({ error: 'Failed to fetch join request status' });
+	}
+});
+
+// Suspend / remove a team member (owner only)
+router.post('/team/members/:id/suspend', authMiddleware, async (req, res) => {
+	try {
+		if (!req.user.company_id) {
+			return res.status(400).json({ error: 'No company associated with this account' });
+		}
+
+		// Verify the user is the company owner
+		const companyResult = await pool.query('SELECT owner_id FROM companies WHERE id = $1', [
+			req.user.company_id,
+		]);
+		if (companyResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Company not found' });
+		}
+		if (companyResult.rows[0].owner_id !== req.user.id) {
+			return res.status(403).json({ error: 'Only the company owner can suspend team members' });
+		}
+
+		// Prevent self-suspension
+		if (parseInt(req.params.id, 10) === req.user.id) {
+			return res.status(400).json({ error: 'Cannot suspend yourself' });
+		}
+
+		// Verify target user exists and belongs to this company
+		const targetResult = await pool.query(
+			'SELECT id, name, email, company_id FROM users WHERE id = $1',
+			[req.params.id],
+		);
+		if (targetResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Team member not found' });
+		}
+		const target = targetResult.rows[0];
+		if (target.company_id !== req.user.company_id) {
+			return res.status(403).json({ error: 'Team member does not belong to your company' });
+		}
+
+		// Remove from company (set company_id to NULL)
+		await pool.query('UPDATE users SET company_id = NULL, updated_at = NOW() WHERE id = $1', [
+			target.id,
+		]);
+
+		// ─── Issue #156: Audit log — recruiter suspended ───
+		try {
+			await insertAuditLog({
+				company_id: req.user.company_id,
+				actor_id: req.user.id,
+				target_id: target.id,
+				action: 'recruiter_suspended',
+				reason: req.body.reason || null,
+				metadata: { target_email: target.email, target_name: target.name },
+			});
+		} catch (auditErr) {
+			console.error('[company/suspend] Audit log error:', auditErr.message);
+		}
+
+		res.json({
+			success: true,
+			message: 'Team member suspended and removed from company',
+		});
+	} catch (err) {
+		console.error('Suspend team member error:', err);
+		res.status(500).json({ error: 'Failed to suspend team member' });
 	}
 });
 
