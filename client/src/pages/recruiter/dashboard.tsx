@@ -80,9 +80,9 @@ interface DashboardActivity {
 interface QuickStat {
 	label: string
 	value: string | number
-	change: number
+	change?: number
 	icon: React.ReactNode
-	trend: 'up' | 'down' | 'neutral'
+	trend?: 'up' | 'down' | 'neutral'
 	color: string
 	bgColor: string
 }
@@ -200,6 +200,20 @@ const statusToStage: Record<string, string> = {
 	rejected: 'rejected',
 }
 
+function buildMonthlyAppData(
+	apps: RecruiterDashboardData['recent_applications'],
+): { month: string; value: number }[] {
+	if (!apps || apps.length === 0) return []
+	const counts: Record<string, number> = {}
+	const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+	apps.forEach((app) => {
+		const d = new Date(app.applied_at)
+		const key = months[d.getMonth()]
+		counts[key] = (counts[key] || 0) + 1
+	})
+	return Object.entries(counts).map(([month, value]) => ({ month, value }))
+}
+
 function timeAgo(dateStr: string): string {
 	const diff = Date.now() - new Date(dateStr).getTime()
 	const mins = Math.floor(diff / 60000)
@@ -273,23 +287,19 @@ export function RecruiterDashboard() {
 		}
 	})
 
-	// Quick stats with real data
+	// Quick stats with real data (no fabricated trends)
 	const quickStats: QuickStat[] = [
 		{
 			label: 'Active Jobs',
 			value: stats.activeJobs,
-			change: 2,
 			icon: <Briefcase className='h-5 w-5' />,
-			trend: 'up',
 			color: 'text-blue-600',
 			bgColor: 'bg-blue-100',
 		},
 		{
 			label: 'New Applicants',
 			value: stats.newApplications,
-			change: 12,
 			icon: <Users className='h-5 w-5' />,
-			trend: 'up',
 			color: 'text-purple-600',
 			bgColor: 'bg-purple-100',
 		},
@@ -300,27 +310,21 @@ export function RecruiterDashboard() {
 					const d = new Date(i.scheduled_at)
 					return d.toDateString() === new Date().toDateString()
 				}).length || 0,
-			change: -1,
 			icon: <Calendar className='h-5 w-5' />,
-			trend: 'neutral',
 			color: 'text-amber-600',
 			bgColor: 'bg-amber-100',
 		},
 		{
 			label: 'Offers Pending',
 			value: stats.offers,
-			change: 1,
 			icon: <FileText className='h-5 w-5' />,
-			trend: 'up',
 			color: 'text-emerald-600',
 			bgColor: 'bg-emerald-100',
 		},
 		{
 			label: 'Time to Fill',
-			value: '18 days',
-			change: -3,
+			value: '—',
 			icon: <Clock className='h-5 w-5' />,
-			trend: 'up',
 			color: 'text-indigo-600',
 			bgColor: 'bg-indigo-100',
 		},
@@ -373,103 +377,20 @@ export function RecruiterDashboard() {
 		},
 	]
 
-	// Recent activity (derived from applications + mock data)
-	const recentActivity: DashboardActivity[] = data?.recent_applications?.slice(0, 6).map((app) => ({
-		id: String(app.id),
-		type: 'applied' as const,
-		actorName: app.candidate_name || 'Anonymous',
-		description: `Applied for ${app.job_title}`,
-		timestamp: app.applied_at,
-		jobTitle: app.job_title,
-		meta: app.status,
-	})) || [
-		{
-			id: '1',
-			type: 'applied',
-			actorName: 'Sarah Chen',
-			description: 'Applied for Senior Frontend Engineer',
-			timestamp: '2026-06-05T14:30:00Z',
-			jobTitle: 'Senior Frontend Engineer',
-			meta: 'applied',
-		},
-		{
-			id: '2',
-			type: 'status_change',
-			actorName: 'Michael Park',
-			description: 'Moved to Interview stage',
-			timestamp: '2026-06-05T11:20:00Z',
-			jobTitle: 'Product Manager',
-			meta: 'interview',
-		},
-		{
-			id: '3',
-			type: 'message',
-			actorName: 'Emma Wilson',
-			description: 'Replied to your message',
-			timestamp: '2026-06-05T09:15:00Z',
-			jobTitle: 'Data Scientist',
-			meta: 'screening',
-		},
-		{
-			id: '4',
-			type: 'interview_scheduled',
-			actorName: 'James Liu',
-			description: 'Interview scheduled for tomorrow',
-			timestamp: '2026-06-04T16:00:00Z',
-			jobTitle: 'DevOps Engineer',
-			meta: 'interview',
-		},
-		{
-			id: '5',
-			type: 'offer_sent',
-			actorName: 'Amanda Rodriguez',
-			description: 'Offer sent, awaiting response',
-			timestamp: '2026-06-04T10:30:00Z',
-			jobTitle: 'UX Designer',
-			meta: 'offer',
-		},
-		{
-			id: '6',
-			type: 'hired',
-			actorName: 'David Kim',
-			description: 'Accepted offer and joined!',
-			timestamp: '2026-06-03T14:00:00Z',
-			jobTitle: 'Backend Engineer',
-			meta: 'hired',
-		},
-	]
+	// Recent activity (derived from real data only)
+	const recentActivity: DashboardActivity[] =
+		data?.recent_applications?.slice(0, 6).map((app) => ({
+			id: String(app.id),
+			type: 'applied' as const,
+			actorName: app.candidate_name || 'Anonymous',
+			description: `Applied for ${app.job_title}`,
+			timestamp: app.applied_at,
+			jobTitle: app.job_title,
+			meta: app.status,
+		})) || []
 
-	// Performance metrics
-	const performanceMetrics: PerformanceMetric[] = [
-		{
-			label: 'Hiring Velocity',
-			value: '8.5',
-			target: '10',
-			progress: 85,
-			description: 'Avg. days to hire',
-		},
-		{
-			label: 'Source Quality',
-			value: '72%',
-			target: '80%',
-			progress: 72,
-			description: 'Top performers from referrals',
-		},
-		{
-			label: 'Candidate Quality',
-			value: '4.2/5',
-			target: '4.5',
-			progress: 84,
-			description: 'Avg interview score',
-		},
-		{
-			label: 'Offer Acceptance',
-			value: '68%',
-			target: '75%',
-			progress: 68,
-			description: 'Candidates who accept',
-		},
-	]
+	// Performance metrics (only if real data available)
+	const performanceMetrics: PerformanceMetric[] = []
 
 	const getActivityIcon = (type: string) => {
 		switch (type) {
@@ -738,7 +659,7 @@ export function RecruiterDashboard() {
 			{/* Quick stats row */}
 			<div className='grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5'>
 				{quickStats.map((stat) => {
-					const isZero = stat.value === 0 || stat.value === '0' || stat.value === '18 days'
+					const isZero = stat.value === 0 || stat.value === '0' || stat.value === '—'
 					const ctaLink =
 						stat.label === 'Active Jobs'
 							? '/recruiter/jobs/new'
@@ -761,16 +682,18 @@ export function RecruiterDashboard() {
 									>
 										{stat.icon}
 									</div>
-									<Badge variant='outline' className='text-xs gap-1'>
-										{stat.trend === 'up' ? (
-											<ArrowUpRight className='h-3 w-3 text-green-500' />
-										) : stat.trend === 'down' ? (
-											<ArrowDownRight className='h-3 w-3 text-red-500' />
-										) : (
-											<Minus className='h-3 w-3 text-slate-400' />
-										)}
-										{Math.abs(stat.change)}%
-									</Badge>
+							{stat.change !== undefined && stat.trend && (
+								<Badge variant='outline' className='text-xs gap-1'>
+									{stat.trend === 'up' ? (
+										<ArrowUpRight className='h-3 w-3 text-green-500' />
+									) : stat.trend === 'down' ? (
+										<ArrowDownRight className='h-3 w-3 text-red-500' />
+									) : (
+										<Minus className='h-3 w-3 text-slate-400' />
+									)}
+									{Math.abs(stat.change)}%
+								</Badge>
+							)}
 								</div>
 								<p className='text-2xl font-bold tracking-tight'>{stat.value}</p>
 								<p className='text-xs text-muted-foreground'>{stat.label}</p>
@@ -1041,26 +964,32 @@ export function RecruiterDashboard() {
 						</CardHeader>
 						<CardContent className='pt-0'>
 							<div className='space-y-3'>
-								{recentActivity.map((activity) => (
-									<div
-										key={activity.id}
-										className='flex items-start gap-3 rounded-md p-2 hover:bg-muted/50 transition-colors cursor-pointer'
-										onClick={() => navigate(`/recruiter/candidates?status=${activity.meta}`)}
-									>
-										<div className='flex h-8 w-8 items-center justify-center rounded-md bg-muted shrink-0'>
-											{getActivityIcon(activity.type)}
+								{recentActivity.length > 0 ? (
+									recentActivity.map((activity) => (
+										<div
+											key={activity.id}
+											className='flex items-start gap-3 rounded-md p-2 hover:bg-muted/50 transition-colors cursor-pointer'
+											onClick={() => navigate(`/recruiter/candidates?status=${activity.meta}`)}
+										>
+											<div className='flex h-8 w-8 items-center justify-center rounded-md bg-muted shrink-0'>
+												{getActivityIcon(activity.type)}
+											</div>
+											<div className='min-w-0 flex-1'>
+												<p className='text-sm font-medium truncate'>{activity.actorName}</p>
+												<p className='text-xs text-muted-foreground truncate'>
+													{activity.description}
+												</p>
+												<p className='text-xs text-muted-foreground/60'>
+													{timeAgo(activity.timestamp)}
+												</p>
+											</div>
 										</div>
-										<div className='min-w-0 flex-1'>
-											<p className='text-sm font-medium truncate'>{activity.actorName}</p>
-											<p className='text-xs text-muted-foreground truncate'>
-												{activity.description}
-											</p>
-											<p className='text-xs text-muted-foreground/60'>
-												{timeAgo(activity.timestamp)}
-											</p>
-										</div>
+									))
+								) : (
+									<div className='text-center py-6 text-sm text-muted-foreground'>
+										No recent activity
 									</div>
-								))}
+								)}
 							</div>
 							<Link to='/recruiter/candidates'>
 								<Button variant='ghost' size='sm' className='w-full mt-3 gap-1 min-h-[44px]'>
@@ -1080,18 +1009,24 @@ export function RecruiterDashboard() {
 							</CardTitle>
 						</CardHeader>
 						<CardContent className='pt-0 space-y-4'>
-							{performanceMetrics.map((metric) => (
-								<div key={metric.label}>
-									<div className='flex items-center justify-between mb-1'>
-										<span className='text-sm font-medium'>{metric.label}</span>
-										<span className='text-sm text-muted-foreground'>
-											{metric.value} / {metric.target}
-										</span>
+							{performanceMetrics.length > 0 ? (
+								performanceMetrics.map((metric) => (
+									<div key={metric.label}>
+										<div className='flex items-center justify-between mb-1'>
+											<span className='text-sm font-medium'>{metric.label}</span>
+											<span className='text-sm text-muted-foreground'>
+												{metric.value} / {metric.target}
+											</span>
+										</div>
+										<Progress value={metric.progress} className='h-2' />
+										<p className='text-xs text-muted-foreground mt-1'>{metric.description}</p>
 									</div>
-									<Progress value={metric.progress} className='h-2' />
-									<p className='text-xs text-muted-foreground mt-1'>{metric.description}</p>
+								))
+							) : (
+								<div className='text-center py-4 text-sm text-muted-foreground'>
+									Performance data will appear here once available
 								</div>
-							))}
+							)}
 							<Link to='/recruiter/analytics'>
 								<Button variant='ghost' size='sm' className='w-full gap-1 min-h-[44px]'>
 									Full Analytics
