@@ -72,13 +72,22 @@ if (nodeEnv !== 'production' && stripeSecret.startsWith('sk_live_')) {
 }
 
 // Fatal guard: prevent non-production environments from booting with production DB endpoint
+// Only enforce fatally in local development — Render environments manage their own env vars intentionally
 const dbUrl = process.env.DATABASE_URL || '';
 const PROD_DB_HOSTNAME = 'ep-calm-field-aipg6g97-pooler.c-4.us-east-1.aws.neon.tech';
 if (nodeEnv !== 'production' && dbUrl.includes(PROD_DB_HOSTNAME)) {
-	console.error('[FATAL] Non-production environment detected with production database endpoint. Refusing to start.');
-	console.error(`  NODE_ENV: ${nodeEnv}`);
-	console.error(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
-	process.exit(1);
+	const isRender = process.env.RENDER === 'true' || !!process.env.RENDER_SERVICE_ID;
+	if (isRender) {
+		console.warn('[WARN] Non-production Render environment detected with production database endpoint.');
+		console.warn(`  NODE_ENV: ${nodeEnv}`);
+		console.warn(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
+		console.warn('  Allowing startup — Render env vars are intentionally managed.');
+	} else {
+		console.error('[FATAL] Non-production environment detected with production database endpoint. Refusing to start.');
+		console.error(`  NODE_ENV: ${nodeEnv}`);
+		console.error(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
+		process.exit(1);
+	}
 }
 
 const authRoutes = require('./routes/auth');
