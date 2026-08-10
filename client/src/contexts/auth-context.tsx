@@ -16,10 +16,12 @@ interface AuthContextType {
 	loading: boolean
 	isAuthenticated: boolean
 	isRecruiter: boolean
+	isPendingApproval: boolean
 	login: (email: string, password: string) => Promise<void>
 	register: (data: RegisterData) => Promise<void>
 	logout: () => void
 	refreshSubscription: () => Promise<void>
+	refreshUser: () => Promise<void>
 }
 
 interface RegisterData {
@@ -73,6 +75,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				setLoading(false)
 			})
 	}, [])
+
+	const isPendingApproval = (u: User | null): boolean => {
+		return u ? isRecruiterRole(u.role) && !u.company_id : false
+	}
+
+	const refreshUser = async () => {
+		try {
+			const data = await apiCall<{ user: User }>('/auth/me', { skipAuthCheck: false })
+			const refreshedUser = data.user
+			refreshedUser.subscriptionTier = user?.subscriptionTier || 'free'
+			setUser(refreshedUser)
+		} catch {
+			// Silently ignore — user may have been logged out
+		}
+	}
 
 	const login = async (email: string, password: string) => {
 		const data = await apiCall<{
@@ -182,10 +199,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				loading,
 				isAuthenticated: !!user,
 				isRecruiter: user ? isRecruiterRole(user.role) : false,
+				isPendingApproval: isPendingApproval(user),
 				login,
 				register,
 				logout,
 				refreshSubscription,
+				refreshUser,
 			}}
 		>
 			{children}
