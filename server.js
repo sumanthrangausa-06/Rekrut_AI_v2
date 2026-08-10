@@ -71,13 +71,16 @@ if (nodeEnv !== 'production' && stripeSecret.startsWith('sk_live_')) {
 	process.exit(1);
 }
 
-// Warn if non-production environment connects to production DB
+// Fatal guard: prevent non-production environments from booting against the production
+// database. Staging and dev each have their own Neon branch, so a match here is always a
+// misconfiguration rather than a deliberate setup. Reuses the dbUrl read above — a second
+// `const dbUrl` here is a SyntaxError that takes the whole process down at startup.
 const PROD_DB_HOSTNAME = 'ep-calm-field-aipg6g97-pooler.c-4.us-east-1.aws.neon.tech';
 if (nodeEnv !== 'production' && dbUrl.includes(PROD_DB_HOSTNAME)) {
-	console.warn('[WARN] Non-production environment using production database endpoint.');
-	console.warn(`  NODE_ENV: ${nodeEnv}`);
-	console.warn(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
-	console.warn('  Please verify this is intentional for this environment.');
+	console.error('[FATAL] Non-production environment detected with production database endpoint. Refusing to start.');
+	console.error(`  NODE_ENV: ${nodeEnv}`);
+	console.error(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
+	process.exit(1);
 }
 
 const authRoutes = require('./routes/auth');
