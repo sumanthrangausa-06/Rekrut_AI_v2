@@ -16,10 +16,12 @@ interface AuthContextType {
 	loading: boolean
 	isAuthenticated: boolean
 	isRecruiter: boolean
+	isPendingApproval: boolean
 	login: (email: string, password: string) => Promise<void>
 	register: (data: RegisterData) => Promise<void>
 	logout: () => void
 	refreshSubscription: () => Promise<void>
+	refreshUser: () => Promise<void>
 }
 
 interface RegisterData {
@@ -46,18 +48,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 		// Verify token by fetching current user
 		apiCall<{ user: User }>('/auth/me', { skipAuthCheck: false })
-			.then(async (data) => {
+			.then((data) => {
 				const user = data.user
-				// Fetch subscription tier
-				try {
-					const tierData = await apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', { skipAuthCheck: false })
-					user.subscriptionTier = tierData.tier
-				} catch {
-					// Tier endpoint may fail if billing is not configured — default to free
-					user.subscriptionTier = 'free'
-				}
+				// Set user immediately with default tier so auth state resolves fast.
+				// Billing tier is fetched in the background and patched in when ready.
+				// Root cause (#105): awaiting /billing/tier sequentially before setUser blocked
+				// the redirect by 500-2000ms on every login and app load.
+				user.subscriptionTier = 'free'
 				setUser(user)
-				startAuthRefresh() // belt-and-suspenders: ensure timer is running
+				startAuthRefresh()
+
+				// Fetch subscription tier in the background — non-blocking
+				apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', { skipAuthCheck: false })
+					.then((tierData) => {
+						setUser((prev) => (prev ? { ...prev, subscriptionTier: tierData.tier } : prev))
+					})
+					.catch(() => {
+						// Tier endpoint may fail if billing is not configured — default already set
+					})
 			})
 			.catch(() => {
 				// Token invalid or expired — clear it
@@ -67,6 +75,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				setLoading(false)
 			})
 	}, [])
+
+	const isPendingApproval = (u: User | null): boolean => {
+		return u ? isRecruiterRole(u.role) && !u.company_id : false
+	}
+
+	const refreshUser = async () => {
+		try {
+			const data = await apiCall<{ user: User }>('/auth/me', { skipAuthCheck: false })
+			const refreshedUser = data.user
+			refreshedUser.subscriptionTier = user?.subscriptionTier || 'free'
+			setUser(refreshedUser)
+		} catch {
+			// Silently ignore — user may have been logged out
+		}
+	}
 
 	const login = async (email: string, password: string) => {
 		const data = await apiCall<{
@@ -82,15 +105,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		})
 
 		const user = data.user
-		// Fetch subscription tier after login
-		try {
-			const tierData = await apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', { skipAuthCheck: false })
-			user.subscriptionTier = tierData.tier
-		} catch {
-			user.subscriptionTier = 'free'
-		}
+		// Set tokens and user immediately so the redirect is not blocked by
+		// a secondary API call. Default tier to 'free'; background fetch
+		// patches the real tier when it arrives.
+		// Root cause (#105): awaiting /billing/tier before setTokens/setUser
+		// added 500-2000ms of blocking latency to every login.
+		user.subscriptionTier = 'free'
 		setTokens(data.accessToken || data.token, data.refreshToken)
 		setUser(user)
+
+		// Fetch subscription tier in the background — non-blocking
+		apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', { skipAuthCheck: false })
+			.then((tierData) => {
+				setUser((prev) => (prev ? { ...prev, subscriptionTier: tierData.tier } : prev))
+			})
+			.catch(() => {
+				// Tier endpoint may fail if billing is not configured — default already set
+			})
 	}
 
 	const register = async (registerData: RegisterData) => {
@@ -126,15 +157,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		}
 
 		const user = data.user
-		// Fetch subscription tier after register
-		try {
-			const tierData = await apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', { skipAuthCheck: false })
-			user.subscriptionTier = tierData.tier
-		} catch {
-			user.subscriptionTier = 'free'
-		}
+		// Set tokens and user immediately so the redirect is not blocked by
+		// a secondary API call. Default tier to 'free'; background fetch
+		// patches the real tier when it arrives.
+		// Root cause (#105): awaiting /billing/tier before setTokens/setUser
+		// added 500-2000ms of blocking latency to every signup.
+		user.subscriptionTier = 'free'
 		setTokens(data.accessToken || data.token, data.refreshToken)
 		setUser(user)
+
+		// Fetch subscription tier in the background — non-blocking
+		apiCall<{ tier: 'free' | 'pro' }>('/billing/tier', { skipAuthCheck: false })
+			.then((tierData) => {
+				setUser((prev) => (prev ? { ...prev, subscriptionTier: tierData.tier } : prev))
+			})
+			.catch(() => {
+				// Tier endpoint may fail if billing is not configured — default already set
+			})
 	}
 
 	const logout = () => {
@@ -160,10 +199,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				loading,
 				isAuthenticated: !!user,
 				isRecruiter: user ? isRecruiterRole(user.role) : false,
+				isPendingApproval: isPendingApproval(user),
 				login,
 				register,
 				logout,
 				refreshSubscription,
+				refreshUser,
 			}}
 		>
 			{children}

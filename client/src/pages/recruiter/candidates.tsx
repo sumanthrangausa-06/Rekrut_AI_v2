@@ -237,9 +237,12 @@ export function RecruiterCandidatesPage() {
 				apiCall<{ stats: PipelineStats }>('/recruiter/pipeline-stats'),
 			])
 
-			if (candidatesData.candidates) {
+			if (candidatesData) {
+				const raw =
+					candidatesData.candidates ??
+					(Array.isArray(candidatesData) ? candidatesData : [])
 				setCandidates(
-					candidatesData.candidates.map((c) => ({
+					raw.map((c: any) => ({
 						...c,
 						skills: c.skills?.map((s: any) => (typeof s === 'string' ? s : s.name)) || [],
 					})),
@@ -270,25 +273,7 @@ export function RecruiterCandidatesPage() {
 			const data = await apiCall<{ searches: SavedSearch[] }>('/recruiter/saved-searches')
 			if (data.searches) setSavedSearches(data.searches)
 		} catch {
-			// Use mock data if API not available
-			setSavedSearches([
-				{
-					id: '1',
-					name: 'Senior Engineers - Remote',
-					filters: { experience: '6-10', location: 'remote' },
-					searchQuery: 'engineer',
-					alertEnabled: true,
-					createdAt: '2026-06-01',
-				},
-				{
-					id: '2',
-					name: 'High Match - Frontend',
-					filters: { matchScore: '80-89' },
-					searchQuery: 'frontend',
-					alertEnabled: false,
-					createdAt: '2026-05-28',
-				},
-			])
+			setSavedSearches([])
 		}
 	}, [])
 	useEffect(() => {
@@ -561,36 +546,26 @@ export function RecruiterCandidatesPage() {
 						title='Total Candidates'
 						value={stats.total}
 						icon={<Users className='h-4 w-4' />}
-						trend='up'
-						trendValue='12%'
 					/>
 					<ChartCard
 						title='New Applications'
 						value={stats.new}
 						icon={<Search className='h-4 w-4' />}
-						trend='up'
-						trendValue='8%'
 					/>
 					<ChartCard
 						title='In Screening'
 						value={stats.screening}
 						icon={<SlidersHorizontal className='h-4 w-4' />}
-						trend='neutral'
-						trendValue='0%'
 					/>
 					<ChartCard
 						title='Interviews'
 						value={stats.interview}
 						icon={<Calendar className='h-4 w-4' />}
-						trend='up'
-						trendValue='15%'
 					/>
 					<ChartCard
 						title='Hired'
 						value={stats.hired}
 						icon={<UserCheck className='h-4 w-4' />}
-						trend='up'
-						trendValue='5%'
 					/>
 				</div>
 			)}
@@ -1020,7 +995,7 @@ export function RecruiterCandidatesPage() {
 							<Input
 								value={saveSearchName}
 								onChange={(e) => setSaveSearchName(e.target.value)}
-								placeholder='e.g. Senior Engineers - Remote'
+								placeholder='e.g. Remote Frontend Developers'
 								className='mt-1'
 							/>
 						</div>

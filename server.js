@@ -71,6 +71,26 @@ if (nodeEnv !== 'production' && stripeSecret.startsWith('sk_live_')) {
 	process.exit(1);
 }
 
+// Guard against a non-production environment booting against the production database.
+// Fatal locally, where it is always a mistake; Render manages its env vars deliberately,
+// so warn there instead. Reuses the dbUrl read above — a second `const dbUrl` here is a
+// SyntaxError that takes the whole process down at startup.
+const PROD_DB_HOSTNAME = 'ep-calm-field-aipg6g97-pooler.c-4.us-east-1.aws.neon.tech';
+if (nodeEnv !== 'production' && dbUrl.includes(PROD_DB_HOSTNAME)) {
+	const isRender = process.env.RENDER === 'true' || !!process.env.RENDER_SERVICE_ID;
+	if (isRender) {
+		console.warn('[WARN] Non-production Render environment detected with production database endpoint.');
+		console.warn(`  NODE_ENV: ${nodeEnv}`);
+		console.warn(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
+		console.warn('  Allowing startup — Render env vars are intentionally managed.');
+	} else {
+		console.error('[FATAL] Non-production environment detected with production database endpoint. Refusing to start.');
+		console.error(`  NODE_ENV: ${nodeEnv}`);
+		console.error(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
+		process.exit(1);
+	}
+}
+
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
@@ -297,6 +317,9 @@ const ALLOWED_ORIGINS = [
 	'https://hireloop-vzvw.polsia.app',
 	'https://rekrutai-dev.onrender.com',
 	'https://rekrutai-staging.onrender.com',
+	// Production's Render URL. Vite tags its bundles crossorigin, so a host that
+	// is missing here cannot load its own assets and renders a blank page.
+	'https://rekrut-ai.onrender.com',
 	'https://rekrutai.co',
 	'http://localhost:5173',
 	'http://localhost:3000',
@@ -360,6 +383,11 @@ function csrfProtection(req, res, next) {
 	// Exempt auth endpoints from CSRF — these don't have a session yet
 	// and the login/register forms are protected by other means (rate limits, CORS)
 	if (req.path.startsWith('/api/auth/login') || req.path.startsWith('/api/auth/register')) {
+		return next();
+	}
+	// Exempt analytics events from CSRF — write-only logging with no state-changing
+	// side effects; endpoint uses optionalAuth and is designed for anonymous visitors
+	if (req.path === '/api/analytics/events') {
 		return next();
 	}
 	// Skip CSRF for API clients using Bearer token authentication
@@ -1855,3 +1883,4 @@ if (server) {
 module.exports = app;
 // Deploy trigger: 2026-06-12T18:36:42Z
 // Deploy trigger: 2026-06-12T20:55:29Z
+// Deploy test marker: 2026-08-10T01:31:22Z

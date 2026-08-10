@@ -37,12 +37,20 @@ export function trackEvent(event_type: string, metadata: AnalyticsMetadata = {})
 		metadata: buildMetadata(metadata),
 	}
 
+	const headers: Record<string, string> = {
+		'Content-Type': 'application/json',
+		'x-session-id': getSessionId(),
+	}
+
+	// Defense in depth: send CSRF token when available
+	const match = document.cookie.match(/(^| )_csrf=([^;]+)/)
+	if (match) {
+		headers['X-CSRF-Token'] = decodeURIComponent(match[2])
+	}
+
 	void fetch('/api/analytics/events', {
 		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			'x-session-id': getSessionId(),
-		},
+		headers,
 		body: JSON.stringify(payload),
 		keepalive: true,
 		credentials: 'include',

@@ -73,7 +73,7 @@ export function PricingPage() {
 	const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
 	const [syncingSession, setSyncingSession] = useState(false)
 
-	const dashboardPath = user ? getDashboardPath(user.role) : '/login'
+	const dashboardPath = user ? getDashboardPath(user) : '/login'
 	const search = useMemo(() => new URLSearchParams(location.search), [location.search])
 
 	useEffect(() => {

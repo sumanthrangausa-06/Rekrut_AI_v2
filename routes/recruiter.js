@@ -3468,40 +3468,20 @@ router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
 		// Top skills in demand (from job requirements)
 		let topSkills = [];
 		try {
-			// Try skills array column (PostgreSQL array)
 			const skillsResult = await pool.query(
 				`
-        SELECT UNNEST(skills_required) as skill, COUNT(*) as count
-        FROM jobs
-        WHERE company_id = $1 AND skills_required IS NOT NULL
-        GROUP BY skill
-        ORDER BY count DESC
-        LIMIT 10
-      `,
+				SELECT jsonb_array_elements_text(skills_required) as skill, COUNT(*) as count
+				FROM jobs
+				WHERE company_id = $1 AND skills_required IS NOT NULL
+				GROUP BY skill
+				ORDER BY count DESC
+				LIMIT 10
+				`,
 				[companyId],
 			);
 			topSkills = skillsResult.rows.map((r) => ({ skill: r.skill, count: parseInt(r.count, 10) }));
-		} catch (_skillsErr) {
-			try {
-				// Fallback: try skills as JSONB column
-				const skillsJsonResult = await pool.query(
-					`
-          SELECT jsonb_array_elements_text(skills) as skill, COUNT(*) as count
-          FROM jobs
-          WHERE company_id = $1 AND skills IS NOT NULL
-          GROUP BY skill
-          ORDER BY count DESC
-          LIMIT 10
-        `,
-					[companyId],
-				);
-				topSkills = skillsJsonResult.rows.map((r) => ({
-					skill: r.skill,
-					count: parseInt(r.count, 10),
-				}));
-			} catch (_skillsJsonErr) {
-				console.log('[analytics] skills columns not available, top_skills empty');
-			}
+		} catch (err) {
+			console.error('[analytics] Failed to fetch top skills:', err.message);
 		}
 
 		// Recent applications (top 10)

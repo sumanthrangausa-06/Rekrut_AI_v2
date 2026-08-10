@@ -63,10 +63,12 @@
 
   body {
     @apply bg-background text-foreground;
-    /* Prevent iOS rubber-banding on body */
-    overscroll-behavior-y: none;
-    /* Prevent horizontal scroll at all viewport widths */
-    overflow-x: hidden;
+    /* Horizontal overflow is clipped by `html` above, which propagates to the
+       viewport. Setting overflow on `body` as well would stop that propagation
+       and turn `body` into its own scroll container — one that never scrolls,
+       and which `overscroll-behavior: none` then prevents from chaining wheel
+       deltas up to the viewport. Result: the scrollbar works but the wheel and
+       touchpad do nothing. Keep `body` free of overflow declarations. */
     /* Ensure text wraps properly even at high zoom levels */
     word-break: break-word;
     overflow-wrap: anywhere;
