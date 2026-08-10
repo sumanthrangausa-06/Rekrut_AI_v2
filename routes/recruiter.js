@@ -2,7 +2,7 @@
 const express = require('express');
 const crypto = require('node:crypto');
 const pool = require('../lib/db');
-const { authMiddleware } = require('../lib/auth');
+const { authMiddleware, requireApprovedRecruiter } = require('../lib/auth');
 const trustscoreService = require('../services/trustscore');
 const jobOptimizer = require('../services/job-optimizer');
 const calendarService = require('../server/services/calendar-service');
@@ -80,7 +80,7 @@ async function requireRecruiter(req, res, next) {
 }
 
 // Dashboard overview
-router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/dashboard', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const companyId = req.user.company_id;
 		const days = parseInt(req.query.days, 10) || 30;
@@ -411,7 +411,7 @@ router.get('/dashboard', authMiddleware, requireRecruiter, async (req, res) => {
 });
 
 // Get all jobs for company
-router.get('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/jobs', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { status, limit = 50, offset = 0 } = req.query;
 
@@ -444,7 +444,7 @@ router.get('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
 });
 
 // Create job with optional AI optimization
-router.post('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/jobs', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const {
 			title,
@@ -574,7 +574,7 @@ router.post('/jobs', authMiddleware, requireRecruiter, async (req, res) => {
 });
 
 // Analyze job posting
-router.post('/jobs/analyze', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/jobs/analyze', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const analysis = await jobOptimizer.analyzeJobPosting(req.body);
 		res.json({ success: true, analysis });
@@ -585,7 +585,7 @@ router.post('/jobs/analyze', authMiddleware, requireRecruiter, async (req, res) 
 });
 
 // Optimize job description with AI
-router.post('/jobs/optimize', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/jobs/optimize', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const optimized = await jobOptimizer.optimizeJobDescription(req.body);
 		res.json({ success: true, optimized });
@@ -596,7 +596,7 @@ router.post('/jobs/optimize', authMiddleware, requireRecruiter, async (req, res)
 });
 
 // Get salary insights
-router.get('/salary-insights', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/salary-insights', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { title, location, experience_level } = req.query;
 
@@ -613,7 +613,7 @@ router.get('/salary-insights', authMiddleware, requireRecruiter, async (req, res
 });
 
 // Generate complete job description from title + optional notes
-router.post('/jobs/generate', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/jobs/generate', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { title, brief_notes, location, job_type } = req.body;
 
@@ -634,7 +634,7 @@ router.post('/jobs/generate', authMiddleware, requireRecruiter, async (req, res)
 });
 
 // Suggest skills and requirements for a role
-router.post('/jobs/suggest-skills', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/jobs/suggest-skills', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { title, description, current_skills } = req.body;
 
@@ -655,7 +655,7 @@ router.post('/jobs/suggest-skills', authMiddleware, requireRecruiter, async (req
 });
 
 // Suggest optimized job titles
-router.post('/jobs/suggest-title', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/jobs/suggest-title', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { title, description } = req.body;
 
@@ -672,7 +672,7 @@ router.post('/jobs/suggest-title', authMiddleware, requireRecruiter, async (req,
 });
 
 // Update job
-router.put('/jobs/:id', authMiddleware, requireRecruiter, async (req, res) => {
+router.put('/jobs/:id', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const {
 			title,
@@ -772,7 +772,7 @@ router.put('/jobs/:id', authMiddleware, requireRecruiter, async (req, res) => {
 });
 
 // Get ALL applications for the company
-router.get('/applications', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/applications', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { status, job_id, limit = 100, offset = 0 } = req.query;
 
@@ -816,7 +816,7 @@ router.get('/applications', authMiddleware, requireRecruiter, async (req, res) =
 });
 
 // Update application status (alternative route)
-router.put('/applications/:id/status', authMiddleware, requireRecruiter, async (req, res) => {
+router.put('/applications/:id/status', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { status } = req.body;
 
@@ -912,7 +912,7 @@ router.put('/applications/:id/status', authMiddleware, requireRecruiter, async (
 });
 
 // Create interview (POST to /interviews)
-router.post('/interviews', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/interviews', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const {
 			application_id,
@@ -980,7 +980,7 @@ router.post('/interviews', authMiddleware, requireRecruiter, async (req, res) =>
 });
 
 // Delete/cancel interview
-router.delete('/interviews/:id', authMiddleware, requireRecruiter, async (req, res) => {
+router.delete('/interviews/:id', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const result = await pool.query(
 			'DELETE FROM scheduled_interviews WHERE id = $1 AND company_id = $2 RETURNING id, calendar_event_id, calendar_provider, recruiter_id',
@@ -1013,7 +1013,7 @@ router.delete('/interviews/:id', authMiddleware, requireRecruiter, async (req, r
 });
 
 // Get all candidates who have applied (for offer creation dropdown)
-router.get('/candidates', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/candidates', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const result = await pool.query(
 			`
@@ -1035,7 +1035,7 @@ router.get('/candidates', authMiddleware, requireRecruiter, async (req, res) => 
 });
 
 // Get full candidate profiles with pipeline data (B-001)
-router.get('/candidates/full', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/candidates/full', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const {
 			search,
@@ -1226,7 +1226,7 @@ router.get('/candidates/full', authMiddleware, requireRecruiter, async (req, res
 	}
 });
 
-router.post('/candidates/bulk-status', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/candidates/bulk-status', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { candidateIds, status } = req.body;
 		const VALID = ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'];
@@ -1254,7 +1254,7 @@ router.post('/candidates/bulk-status', authMiddleware, requireRecruiter, async (
 });
 
 // Get pipeline stats (B-001)
-router.get('/pipeline-stats', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/pipeline-stats', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const companyId = req.user.company_id;
 
@@ -1326,7 +1326,7 @@ router.get('/pipeline-stats', authMiddleware, requireRecruiter, async (req, res)
 });
 
 // Get applications for a job
-router.get('/jobs/:id/applications', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/jobs/:id/applications', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		// Verify job belongs to company or user
 		const job = await pool.query(
@@ -1363,7 +1363,7 @@ router.get('/jobs/:id/applications', authMiddleware, requireRecruiter, async (re
 });
 
 // Update application status
-router.put('/applications/:id', authMiddleware, requireRecruiter, async (req, res) => {
+router.put('/applications/:id', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { status, recruiter_notes } = req.body;
 
@@ -1538,7 +1538,7 @@ router.put('/applications/:id', authMiddleware, requireRecruiter, async (req, re
 });
 
 // Schedule interview
-router.post('/interviews/schedule', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/interviews/schedule', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		let {
 			job_id,
@@ -1612,7 +1612,7 @@ router.post('/interviews/schedule', authMiddleware, requireRecruiter, async (req
 });
 
 // Get scheduled interviews
-router.get('/interviews', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/interviews', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { upcoming_only = 'false', status, limit = 50 } = req.query;
 
@@ -1649,7 +1649,7 @@ router.get('/interviews', authMiddleware, requireRecruiter, async (req, res) => 
 });
 
 // Update interview outcome
-router.put('/interviews/:id', authMiddleware, requireRecruiter, async (req, res) => {
+router.put('/interviews/:id', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { status, outcome, feedback, meeting_link } = req.body;
 
@@ -1695,7 +1695,7 @@ router.put('/interviews/:id', authMiddleware, requireRecruiter, async (req, res)
 });
 
 // Generate interview questions for a job
-router.post('/jobs/:id/questions', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/jobs/:id/questions', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const job = await pool.query(
 			'SELECT title, description, requirements FROM jobs WHERE id = $1 AND company_id = $2',
@@ -1717,7 +1717,7 @@ router.post('/jobs/:id/questions', authMiddleware, requireRecruiter, async (req,
 });
 
 // Analyze candidate fit for a job
-router.post('/jobs/:id/analyze-candidate', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/jobs/:id/analyze-candidate', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { candidate_id } = req.body;
 
@@ -1766,7 +1766,7 @@ router.post('/jobs/:id/analyze-candidate', authMiddleware, requireRecruiter, asy
 });
 
 // Get candidate coaching/practice history (for recruiter review)
-router.get('/candidates/:id/coaching', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/candidates/:id/coaching', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const candidateId = req.params.id;
 
@@ -1887,7 +1887,7 @@ const PIPELINE_STAGES = [
 ];
 
 // GET pipeline stages (so frontend stays in sync)
-router.get('/pipeline-stages', authMiddleware, requireRecruiter, (_req, res) => {
+router.get('/pipeline-stages', authMiddleware, requireApprovedRecruiter, requireRecruiter, (_req, res) => {
 	const active = PIPELINE_STAGES.filter((s) => !['rejected', 'withdrawn'].includes(s));
 	const terminal = ['rejected', 'withdrawn'];
 	res.json({
@@ -1908,7 +1908,7 @@ router.get('/pipeline-stages', authMiddleware, requireRecruiter, (_req, res) => 
 });
 
 // Batch update application status (for bulk actions)
-router.put('/applications/batch-status', authMiddleware, requireRecruiter, async (req, res) => {
+router.put('/applications/batch-status', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { application_ids, status } = req.body;
 
@@ -2054,7 +2054,7 @@ router.put('/applications/batch-status', authMiddleware, requireRecruiter, async
 });
 
 // Get applications grouped by pipeline stage (for kanban view)
-router.get('/pipeline/:jobId', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/pipeline/:jobId', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const jobId = req.params.jobId;
 
@@ -2117,7 +2117,7 @@ router.get('/pipeline/:jobId', authMiddleware, requireRecruiter, async (req, res
 });
 
 // Get ranked candidates for a job (by match score)
-router.get('/jobs/:id/ranked-candidates', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/jobs/:id/ranked-candidates', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const jobId = req.params.id;
 		const { min_score = 0 } = req.query;
@@ -2170,7 +2170,7 @@ router.get('/jobs/:id/ranked-candidates', authMiddleware, requireRecruiter, asyn
 // ============= AI FEATURES =============
 
 // AI Candidate Summary — one-click strengths/concerns/fit assessment
-router.post('/ai/candidate-summary', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/ai/candidate-summary', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { application_id } = req.body;
 		if (!application_id) return res.status(400).json({ error: 'application_id required' });
@@ -2259,7 +2259,7 @@ Only return JSON.`;
 });
 
 // AI Screening Questions Suggestions — based on job + recruiter's past bank
-router.post('/ai/suggest-questions', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/ai/suggest-questions', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { job_title, job_description, existing_questions = [] } = req.body;
 		if (!job_title) return res.status(400).json({ error: 'job_title required' });
@@ -2322,7 +2322,7 @@ Only return JSON array.`;
 });
 
 // Save questions to recruiter's question bank
-router.post('/question-bank', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/question-bank', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { questions } = req.body;
 		if (!questions || !Array.isArray(questions))
@@ -2357,7 +2357,7 @@ router.post('/question-bank', authMiddleware, requireRecruiter, async (req, res)
 });
 
 // Get recruiter's question bank
-router.get('/question-bank', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/question-bank', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const questions = await pool.query(
 			`
@@ -2375,7 +2375,7 @@ router.get('/question-bank', authMiddleware, requireRecruiter, async (req, res) 
 // ============= OFFER MANAGEMENT =============
 
 // Create an offer
-router.post('/offers', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/offers', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const {
 			candidate_id,
@@ -2479,7 +2479,7 @@ router.post('/offers', authMiddleware, requireRecruiter, async (req, res) => {
 });
 
 // List offers for company
-router.get('/offers', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/offers', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { status, job_id, limit = 50, offset = 0 } = req.query;
 
@@ -2515,7 +2515,7 @@ router.get('/offers', authMiddleware, requireRecruiter, async (req, res) => {
 });
 
 // Get single offer
-router.get('/offers/:id', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/offers/:id', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const result = await pool.query(
 			`
@@ -2542,7 +2542,7 @@ router.get('/offers/:id', authMiddleware, requireRecruiter, async (req, res) => 
 });
 
 // Update offer (edit draft or add details)
-router.put('/offers/:id', authMiddleware, requireRecruiter, async (req, res) => {
+router.put('/offers/:id', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const {
 			title,
@@ -2619,7 +2619,7 @@ router.put('/offers/:id', authMiddleware, requireRecruiter, async (req, res) => 
 });
 
 // Send offer to candidate (changes status from draft to sent)
-router.put('/offers/:id/send', authMiddleware, requireRecruiter, async (req, res) => {
+router.put('/offers/:id/send', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const existing = await pool.query(
 			'SELECT id, status, candidate_id, job_id FROM offers WHERE id = $1 AND company_id = $2',
@@ -2714,7 +2714,7 @@ router.put('/offers/:id/send', authMiddleware, requireRecruiter, async (req, res
 });
 
 // Withdraw/cancel offer (recruiter action)
-router.put('/offers/:id/withdraw', authMiddleware, requireRecruiter, async (req, res) => {
+router.put('/offers/:id/withdraw', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { reason } = req.body;
 
@@ -2745,7 +2745,7 @@ router.put('/offers/:id/withdraw', authMiddleware, requireRecruiter, async (req,
 // ============= AI AGENT ENDPOINTS (Phase 4) =============
 
 // AI Candidate Comparison — side-by-side analysis of 2+ candidates
-router.post('/ai/compare-candidates', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/ai/compare-candidates', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { candidate_ids, job_id } = req.body;
 		if (!candidate_ids || !Array.isArray(candidate_ids) || candidate_ids.length < 2) {
@@ -2844,7 +2844,7 @@ Only return JSON.`;
 });
 
 // AI Bulk Rank — rank all candidates for a job by OmniScore (uses existing scores, no recalculation)
-router.get('/ai/rank-all/:jobId', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/ai/rank-all/:jobId', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const jobId = req.params.jobId;
 
@@ -2904,7 +2904,7 @@ router.get('/ai/rank-all/:jobId', authMiddleware, requireRecruiter, async (req, 
 });
 
 // Pipeline Automation Settings — get/set auto-advance rules per job
-router.get('/pipeline/automation/:jobId', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/pipeline/automation/:jobId', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const jobId = req.params.jobId;
 
@@ -2957,7 +2957,7 @@ router.get('/pipeline/automation/:jobId', authMiddleware, requireRecruiter, asyn
 });
 
 // Save pipeline automation rules
-router.put('/pipeline/automation/:jobId', authMiddleware, requireRecruiter, async (req, res) => {
+router.put('/pipeline/automation/:jobId', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const jobId = req.params.jobId;
 		const { rules } = req.body;
@@ -3007,7 +3007,7 @@ router.put('/pipeline/automation/:jobId', authMiddleware, requireRecruiter, asyn
 });
 
 // Recruiter Feedback on candidate — feeds into OmniScore calibration
-router.post('/ai/feedback', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/ai/feedback', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { candidate_id, job_id, feedback_type, notes } = req.body;
 		if (!candidate_id || !feedback_type)
@@ -3062,7 +3062,7 @@ router.post('/ai/feedback', authMiddleware, requireRecruiter, async (req, res) =
 });
 
 // Trigger pipeline auto-advance check for a job (event-driven: call after application status change)
-router.post('/pipeline/auto-check/:jobId', authMiddleware, requireRecruiter, async (req, res) => {
+router.post('/pipeline/auto-check/:jobId', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const jobId = req.params.jobId;
 
@@ -3150,7 +3150,7 @@ router.post('/pipeline/auto-check/:jobId', authMiddleware, requireRecruiter, asy
 });
 
 // Get recruiter analytics dashboard data
-router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/analytics', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const companyId = req.user.company_id;
 		const days = parseInt(req.query.days, 10) || 30;
