@@ -112,6 +112,9 @@ const settingsRoutes = require('./routes/settings');
 const signatureRoutes = require('./routes/signature');
 const verificationRoutes = require('./routes/verification');
 
+// ─── Prometheus metrics (Phase 1 observability — Issue #144) ─────────────
+const prometheus = require('./server/middleware/prometheus');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -330,6 +333,10 @@ app.use(
 	}),
 );
 
+// Prometheus metrics middleware — measures request duration & counts
+// Placed after CORS so timing covers the full request lifecycle.
+app.use(prometheus.middleware);
+
 // Permissions-Policy: deny-by-default, allow only camera and microphone for same-origin
 app.use((_req, res, next) => {
 	res.setHeader(
@@ -409,6 +416,9 @@ app.use(generateCsrfToken);
 app.get('/csrf-token', (req, res) => {
 	res.json({ csrfToken: req.csrfToken });
 });
+
+// GET /metrics — Prometheus scrape endpoint (no auth required)
+app.get('/metrics', prometheus.metricsHandler);
 
 // Apply CSRF protection to all subsequent state-changing routes
 app.use(csrfProtection);
