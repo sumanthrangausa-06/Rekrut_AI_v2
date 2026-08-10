@@ -340,7 +340,7 @@ function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
 
 function Header() {
 	const { isAuthenticated, user } = useAuth()
-	const dashboardPath = user ? getDashboardPath(user.role) : '/login'
+	const dashboardPath = user ? getDashboardPath(user) : '/login'
 	const [mobileOpen, setMobileOpen] = useState(false)
 
 	return (
@@ -424,7 +424,7 @@ function Header() {
 
 function HeroSection() {
 	const { isAuthenticated, user } = useAuth()
-	const dashboardPath = user ? getDashboardPath(user.role) : '/login'
+	const dashboardPath = user ? getDashboardPath(user) : '/login'
 
 	return (
 		<section className='relative overflow-hidden'>
@@ -1042,7 +1042,7 @@ function FAQSection() {
 
 function CTABannerSection() {
 	const { isAuthenticated, user } = useAuth()
-	const dashboardPath = user ? getDashboardPath(user.role) : '/login'
+	const dashboardPath = user ? getDashboardPath(user) : '/login'
 
 	return (
 		<section className='py-20 sm:py-24'>

@@ -71,9 +71,10 @@ if (nodeEnv !== 'production' && stripeSecret.startsWith('sk_live_')) {
 	process.exit(1);
 }
 
-// Fatal guard: prevent non-production environments from booting with production DB endpoint
-// Only enforce fatally in local development — Render environments manage their own env vars intentionally
-const dbUrl = process.env.DATABASE_URL || '';
+// Guard against a non-production environment booting against the production database.
+// Fatal locally, where it is always a mistake; Render manages its env vars deliberately,
+// so warn there instead. Reuses the dbUrl read above — a second `const dbUrl` here is a
+// SyntaxError that takes the whole process down at startup.
 const PROD_DB_HOSTNAME = 'ep-calm-field-aipg6g97-pooler.c-4.us-east-1.aws.neon.tech';
 if (nodeEnv !== 'production' && dbUrl.includes(PROD_DB_HOSTNAME)) {
 	const isRender = process.env.RENDER === 'true' || !!process.env.RENDER_SERVICE_ID;
@@ -1882,3 +1883,4 @@ if (server) {
 module.exports = app;
 // Deploy trigger: 2026-06-12T18:36:42Z
 // Deploy trigger: 2026-06-12T20:55:29Z
+// Deploy test marker: 2026-08-10T01:31:22Z

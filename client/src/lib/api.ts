@@ -299,6 +299,7 @@ export interface User {
 	name: string
 	role: UserRole
 	company_name?: string
+	company_id?: number | null
 	avatar_url?: string
 	subscriptionTier?: 'free' | 'pro'
 }
@@ -307,8 +308,11 @@ export function isRecruiterRole(role: UserRole): boolean {
 	return ['employer', 'recruiter', 'hiring_manager', 'admin'].includes(role)
 }
 
-export function getDashboardPath(role: UserRole): string {
-	return isRecruiterRole(role) ? '/recruiter' : '/candidate'
+export function getDashboardPath(user: User): string {
+	if (isRecruiterRole(user.role) && !user.company_id) {
+		return '/recruiter/pending-approval'
+	}
+	return isRecruiterRole(user.role) ? '/recruiter' : '/candidate'
 }
 
 // ── Cross-tab token sync + proactive refresh on page load ──

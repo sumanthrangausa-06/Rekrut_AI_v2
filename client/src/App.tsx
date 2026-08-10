@@ -242,7 +242,9 @@ const RecruiterCompliancePage = lazy(() =>
 	import('@/pages/recruiter/compliance').then((m) => ({ default: m.RecruiterCompliancePage })),
 )
 
-// Admin pages
+const RecruiterPendingApprovalPage = lazy(() =>
+	import('@/pages/recruiter/pending-approval').then((m) => ({ default: m.RecruiterPendingApprovalPage })),
+)
 const AdminLoginPage = lazy(() =>
 	import('@/pages/admin/login').then((m) => ({ default: m.AdminLoginPage })),
 )
@@ -327,6 +329,32 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 	return <>{children}</>
 }
 
+// Recruiter route guard: redirects pending-approval recruiters to the holding screen
+function RecruiterGuard({ children }: { children: React.ReactNode }) {
+	const { user, isPendingApproval, loading } = useAuth()
+
+	if (loading) {
+		return (
+			<div className='flex min-h-dvh-safe items-center justify-center bg-background'>
+				<div className='animate-pulse flex flex-col items-center gap-3'>
+					<div className='h-8 w-8 rounded-full bg-primary/20' />
+					<p className='text-sm text-muted-foreground'>Loading...</p>
+				</div>
+			</div>
+		)
+	}
+
+	if (!user) {
+		return <Navigate to='/login' replace />
+	}
+
+	if (isPendingApproval) {
+		return <Navigate to='/recruiter/pending-approval' replace />
+	}
+
+	return <>{children}</>
+}
+
 // Combined wrapper: error boundary + auth guard for protected routes
 function Protected({ children }: { children: React.ReactNode }) {
 	return (
@@ -341,7 +369,7 @@ function RoleRedirect() {
 
 	if (loading) return null
 	if (!user) return <Navigate to='/login' replace />
-	return <Navigate to={getDashboardPath(user.role)} replace />
+	return <Navigate to={getDashboardPath(user)} replace />
 }
 
 function AppRoutes() {
@@ -664,13 +692,27 @@ function AppRoutes() {
 				/>
 			</Route>
 
+			{/* Recruiter pending approval — standalone route (no DashboardLayout sidebar) */}
+			<Route
+				path='/recruiter/pending-approval'
+				element={
+					<Safe>
+						<RequireAuth>
+							<RecruiterPendingApprovalPage />
+						</RequireAuth>
+					</Safe>
+				}
+			/>
+
 			{/* Recruiter routes */}
 			<Route path='/recruiter' element={<DashboardLayout />}>
 				<Route
 					index
 					element={
 						<Protected>
-							<RecruiterDashboard />
+							<RecruiterGuard>
+								<RecruiterDashboard />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -678,7 +720,9 @@ function AppRoutes() {
 					path='jobs'
 					element={
 						<Protected>
-							<RecruiterJobsPage />
+							<RecruiterGuard>
+								<RecruiterJobsPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -686,7 +730,9 @@ function AppRoutes() {
 					path='jobs/new'
 					element={
 						<Protected>
-							<RecruiterJobFormPage />
+							<RecruiterGuard>
+								<RecruiterJobFormPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -694,7 +740,9 @@ function AppRoutes() {
 					path='jobs/:id/applicants'
 					element={
 						<Protected>
-							<RecruiterJobApplicantsPage />
+							<RecruiterGuard>
+								<RecruiterJobApplicantsPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -702,7 +750,9 @@ function AppRoutes() {
 					path='jobs/:id/edit'
 					element={
 						<Protected>
-							<RecruiterJobFormPage />
+							<RecruiterGuard>
+								<RecruiterJobFormPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -710,7 +760,9 @@ function AppRoutes() {
 					path='jobs/:id'
 					element={
 						<Protected>
-							<RecruiterJobApplicantsPage />
+							<RecruiterGuard>
+								<RecruiterJobApplicantsPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -718,7 +770,9 @@ function AppRoutes() {
 					path='jobs/:id/assessment'
 					element={
 						<Protected>
-							<RecruiterJobAssessmentPage />
+							<RecruiterGuard>
+								<RecruiterJobAssessmentPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -726,7 +780,9 @@ function AppRoutes() {
 					path='applications'
 					element={
 						<Protected>
-							<RecruiterApplicationsPage />
+							<RecruiterGuard>
+								<RecruiterApplicationsPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -734,7 +790,9 @@ function AppRoutes() {
 					path='assessments'
 					element={
 						<Protected>
-							<RecruiterAssessmentsPage />
+							<RecruiterGuard>
+								<RecruiterAssessmentsPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -742,7 +800,9 @@ function AppRoutes() {
 					path='candidates'
 					element={
 						<Protected>
-							<RecruiterCandidatesPage />
+							<RecruiterGuard>
+								<RecruiterCandidatesPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -750,7 +810,9 @@ function AppRoutes() {
 					path='screening'
 					element={
 						<Protected>
-							<RecruiterScreeningPage />
+							<RecruiterGuard>
+								<RecruiterScreeningPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -758,7 +820,9 @@ function AppRoutes() {
 					path='chat'
 					element={
 						<Protected>
-							<RecruiterChatPage />
+							<RecruiterGuard>
+								<RecruiterChatPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -766,7 +830,9 @@ function AppRoutes() {
 					path='career-page'
 					element={
 						<Protected>
-							<RecruiterCareerPage />
+							<RecruiterGuard>
+								<RecruiterCareerPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -774,7 +840,9 @@ function AppRoutes() {
 					path='interviews'
 					element={
 						<Protected>
-							<RecruiterInterviewsPage />
+							<RecruiterGuard>
+								<RecruiterInterviewsPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -782,7 +850,9 @@ function AppRoutes() {
 					path='offers'
 					element={
 						<Protected>
-							<RecruiterOffersPage />
+							<RecruiterGuard>
+								<RecruiterOffersPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -790,7 +860,9 @@ function AppRoutes() {
 					path='onboarding'
 					element={
 						<Protected>
-							<RecruiterOnboardingPage />
+							<RecruiterGuard>
+								<RecruiterOnboardingPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -798,7 +870,9 @@ function AppRoutes() {
 					path='analytics'
 					element={
 						<Protected>
-							<RecruiterAnalyticsPage />
+							<RecruiterGuard>
+								<RecruiterAnalyticsPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -806,7 +880,9 @@ function AppRoutes() {
 					path='communications'
 					element={
 						<Protected>
-							<RecruiterCommunicationsPage />
+							<RecruiterGuard>
+								<RecruiterCommunicationsPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -814,7 +890,9 @@ function AppRoutes() {
 					path='trustscore'
 					element={
 						<Protected>
-							<RecruiterTrustscorePage />
+							<RecruiterGuard>
+								<RecruiterTrustscorePage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -822,7 +900,9 @@ function AppRoutes() {
 					path='onboarding-ai'
 					element={
 						<Protected>
-							<RecruiterOnboardingAiPage />
+							<RecruiterGuard>
+								<RecruiterOnboardingAiPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -830,7 +910,9 @@ function AppRoutes() {
 					path='onboarding-docs'
 					element={
 						<Protected>
-							<RecruiterOnboardingDocsPage />
+							<RecruiterGuard>
+								<RecruiterOnboardingDocsPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -838,7 +920,9 @@ function AppRoutes() {
 					path='company'
 					element={
 						<Protected>
-							<RecruiterCompanyPage />
+							<RecruiterGuard>
+								<RecruiterCompanyPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -846,7 +930,9 @@ function AppRoutes() {
 					path='profile'
 					element={
 						<Protected>
-							<RecruiterProfilePage />
+							<RecruiterGuard>
+								<RecruiterProfilePage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -854,7 +940,9 @@ function AppRoutes() {
 					path='payroll'
 					element={
 						<Protected>
-							<RecruiterPayrollPage />
+							<RecruiterGuard>
+								<RecruiterPayrollPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -862,7 +950,9 @@ function AppRoutes() {
 					path='payroll-dashboard'
 					element={
 						<Protected>
-							<RecruiterPayrollDashboardPage />
+							<RecruiterGuard>
+								<RecruiterPayrollDashboardPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -870,7 +960,9 @@ function AppRoutes() {
 					path='payroll-run/:id'
 					element={
 						<Protected>
-							<RecruiterPayrollRunPage />
+							<RecruiterGuard>
+								<RecruiterPayrollRunPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -878,7 +970,9 @@ function AppRoutes() {
 					path='job-create'
 					element={
 						<Protected>
-							<RecruiterJobCreatePage />
+							<RecruiterGuard>
+								<RecruiterJobCreatePage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -886,7 +980,9 @@ function AppRoutes() {
 					path='omniscore'
 					element={
 						<Protected>
-							<RecruiterOmniScorePage />
+							<RecruiterGuard>
+								<RecruiterOmniScorePage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -894,7 +990,9 @@ function AppRoutes() {
 					path='post-hire-feedback'
 					element={
 						<Protected>
-							<RecruiterPostHireFeedbackPage />
+							<RecruiterGuard>
+								<RecruiterPostHireFeedbackPage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>
@@ -902,7 +1000,9 @@ function AppRoutes() {
 					path='compliance'
 					element={
 						<Protected>
-							<RecruiterCompliancePage />
+							<RecruiterGuard>
+								<RecruiterCompliancePage />
+							</RecruiterGuard>
 						</Protected>
 					}
 				/>

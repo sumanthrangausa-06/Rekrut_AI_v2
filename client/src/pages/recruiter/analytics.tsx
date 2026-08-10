@@ -362,10 +362,6 @@ export function RecruiterAnalyticsPage() {
 							<div className='flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100'>
 								<Eye className='h-5 w-5 text-blue-600' />
 							</div>
-							<Badge variant='outline' className='text-xs gap-1'>
-								<ArrowUpRight className='h-3 w-3 text-green-500' />
-								8.2%
-							</Badge>
 						</div>
 						<p className='text-2xl font-bold'>{stats.jobViews.toLocaleString()}</p>
 						<p className='text-xs text-muted-foreground'>Job Views</p>
@@ -377,10 +373,6 @@ export function RecruiterAnalyticsPage() {
 							<div className='flex h-10 w-10 items-center justify-center rounded-lg bg-green-100'>
 								<FileText className='h-5 w-5 text-green-600' />
 							</div>
-							<Badge variant='outline' className='text-xs gap-1'>
-								<ArrowUpRight className='h-3 w-3 text-green-500' />
-								12.1%
-							</Badge>
 						</div>
 						<p className='text-2xl font-bold'>{stats.applications.toLocaleString()}</p>
 						<p className='text-xs text-muted-foreground'>Applications</p>
@@ -392,10 +384,6 @@ export function RecruiterAnalyticsPage() {
 							<div className='flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100'>
 								<Target className='h-5 w-5 text-purple-600' />
 							</div>
-							<Badge variant='outline' className='text-xs gap-1'>
-								<ArrowDownRight className='h-3 w-3 text-red-500' />
-								1.3%
-							</Badge>
 						</div>
 						<p className='text-2xl font-bold'>{stats.conversionRate.toFixed(1)}%</p>
 						<p className='text-xs text-muted-foreground'>Conversion Rate</p>
@@ -407,10 +395,6 @@ export function RecruiterAnalyticsPage() {
 							<div className='flex h-10 w-10 items-center justify-center rounded-lg bg-purple-200'>
 								<Clock className='h-5 w-5 text-purple-700' />
 							</div>
-							<Badge variant='outline' className='text-xs gap-1'>
-								<ArrowDownRight className='h-3 w-3 text-green-500' />
-								2.5 days
-							</Badge>
 						</div>
 						<p className='text-2xl font-bold'>{stats.timeToHire || '—'}</p>
 						<p className='text-xs text-muted-foreground'>Avg Days to Hire</p>
@@ -467,48 +451,56 @@ export function RecruiterAnalyticsPage() {
 						</CardTitle>
 					</CardHeader>
 					<CardContent className='space-y-3'>
-						{velocityData.map((month) => (
-							<div key={month.month} className='space-y-1'>
-								<div className='flex items-center justify-between text-sm'>
-									<span className='text-muted-foreground w-10'>{month.month}</span>
-									<div className='flex-1 mx-3'>
-										<div className='relative h-6 rounded-md bg-muted overflow-hidden'>
-											<div
-												className='absolute h-full bg-indigo-500 rounded-md transition-all duration-500 flex items-center px-2'
-												style={{
-													width: `${Math.max((month.applications / maxVelocity) * 100, 5)}%`,
-												}}
-											>
-												<span className='text-[10px] font-semibold text-white'>
-													{month.applications}
-												</span>
+						{velocityData.length > 0 ? (
+							<>
+								{velocityData.map((month) => (
+									<div key={month.month} className='space-y-1'>
+										<div className='flex items-center justify-between text-sm'>
+											<span className='text-muted-foreground w-10'>{month.month}</span>
+											<div className='flex-1 mx-3'>
+												<div className='relative h-6 rounded-md bg-muted overflow-hidden'>
+													<div
+														className='absolute h-full bg-indigo-500 rounded-md transition-all duration-500 flex items-center px-2'
+														style={{
+															width: `${Math.max((month.applications / maxVelocity) * 100, 5)}%`,
+														}}
+													>
+														<span className='text-[10px] font-semibold text-white'>
+															{month.applications}
+														</span>
+													</div>
+													<div
+														className='absolute h-full bg-emerald-500 rounded-md transition-all duration-500 flex items-center justify-end px-2'
+														style={{
+															width: `${Math.max((month.hired / maxVelocity) * 100, 3)}%`,
+															opacity: 0.8,
+														}}
+													>
+														<span className='text-[10px] font-semibold text-white'>{month.hired}</span>
+													</div>
+												</div>
 											</div>
-											<div
-												className='absolute h-full bg-emerald-500 rounded-md transition-all duration-500 flex items-center justify-end px-2'
-												style={{
-													width: `${Math.max((month.hired / maxVelocity) * 100, 3)}%`,
-													opacity: 0.8,
-												}}
-											>
-												<span className='text-[10px] font-semibold text-white'>{month.hired}</span>
-											</div>
+											<span className='text-xs text-muted-foreground w-16 text-right'>
+												{month.interviews} interviews
+											</span>
 										</div>
 									</div>
-									<span className='text-xs text-muted-foreground w-16 text-right'>
-										{month.interviews} interviews
-									</span>
+								))}
+									<div className='flex items-center gap-4 pt-2 text-xs text-muted-foreground'>
+										<span className='flex items-center gap-1'>
+											<div className='h-2 w-2 rounded bg-indigo-500' /> Applications
+										</span>
+										<span className='flex items-center gap-1'>
+											<div className='h-2 w-2 rounded bg-emerald-500' /> Hired
+										</span>
+									</div>
+								</>
+							) : (
+								<div className='text-center py-6 text-sm text-muted-foreground'>
+									No velocity data available
 								</div>
-							</div>
-						))}
-						<div className='flex items-center gap-4 pt-2 text-xs text-muted-foreground'>
-							<span className='flex items-center gap-1'>
-								<div className='h-2 w-2 rounded bg-indigo-500' /> Applications
-							</span>
-							<span className='flex items-center gap-1'>
-								<div className='h-2 w-2 rounded bg-emerald-500' /> Hired
-							</span>
-						</div>
-					</CardContent>
+							)}
+						</CardContent>
 				</Card>
 
 				{/* Application Sources */}
@@ -520,24 +512,30 @@ export function RecruiterAnalyticsPage() {
 						</CardTitle>
 					</CardHeader>
 					<CardContent className='space-y-4'>
-						{sourceBreakdown.map((source) => (
-							<div key={source.name} className='space-y-1'>
-								<div className='flex items-center justify-between text-sm'>
-									<span className='text-muted-foreground'>{source.name}</span>
-									<span className='text-sm font-medium'>
-										{source.count} ({source.percentage}%)
-									</span>
-								</div>
-								<div className='flex items-center gap-3'>
-									<div className='flex-1 h-2 rounded-full bg-muted overflow-hidden'>
-										<div
-											className='h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500'
-											style={{ width: `${source.percentage}%` }}
-										/>
+						{sourceBreakdown.length > 0 ? (
+							sourceBreakdown.map((source) => (
+								<div key={source.name} className='space-y-1'>
+									<div className='flex items-center justify-between text-sm'>
+										<span className='text-muted-foreground'>{source.name}</span>
+										<span className='text-sm font-medium'>
+											{source.count} ({source.percentage}%)
+										</span>
+									</div>
+									<div className='flex items-center gap-3'>
+										<div className='flex-1 h-2 rounded-full bg-muted overflow-hidden'>
+											<div
+												className='h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500'
+												style={{ width: `${source.percentage}%` }}
+											/>
+										</div>
 									</div>
 								</div>
+							))
+						) : (
+							<div className='text-center py-6 text-sm text-muted-foreground'>
+								No source data available
 							</div>
-						))}
+							)}
 					</CardContent>
 				</Card>
 			</div>
@@ -553,25 +551,31 @@ export function RecruiterAnalyticsPage() {
 						</CardTitle>
 					</CardHeader>
 					<CardContent className='space-y-3'>
-						{timeByStage.map((stage) => (
-							<div key={stage.stage}>
-								<div className='flex items-center justify-between text-sm mb-1'>
-									<span className='text-muted-foreground'>{stage.stage}</span>
-									<span className='font-medium'>{stage.avg_days} days avg</span>
-								</div>
-								<div className='flex items-center gap-3'>
-									<div className='flex-1 h-2 rounded-full bg-muted overflow-hidden'>
-										<div
-											className='h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-500'
-											style={{ width: `${Math.min((stage.avg_days / 14) * 100, 100)}%` }}
-										/>
+						{timeByStage.length > 0 ? (
+							timeByStage.map((stage) => (
+								<div key={stage.stage}>
+									<div className='flex items-center justify-between text-sm mb-1'>
+										<span className='text-muted-foreground'>{stage.stage}</span>
+										<span className='font-medium'>{stage.avg_days} days avg</span>
 									</div>
-									<span className='text-xs text-muted-foreground w-10 text-right'>
-										{stage.count}
-									</span>
+									<div className='flex items-center gap-3'>
+										<div className='flex-1 h-2 rounded-full bg-muted overflow-hidden'>
+											<div
+												className='h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-500'
+												style={{ width: `${Math.min((stage.avg_days / 14) * 100, 100)}%` }}
+											/>
+										</div>
+										<span className='text-xs text-muted-foreground w-10 text-right'>
+											{stage.count}
+										</span>
+									</div>
 								</div>
+							))
+						) : (
+							<div className='text-center py-6 text-sm text-muted-foreground'>
+								No time-to-hire data available
 							</div>
-						))}
+							)}
 					</CardContent>
 				</Card>
 
@@ -709,48 +713,56 @@ export function RecruiterAnalyticsPage() {
 						</CardTitle>
 					</CardHeader>
 					<CardContent className='space-y-5'>
-						{/* Gender */}
-						<div className='space-y-2'>
-							<p className='text-sm font-medium text-muted-foreground'>Gender</p>
-							<div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
-								{diversityMetrics.gender_distribution.map((item) => (
-									<div key={item.label} className='rounded-lg border p-3'>
-										<div className='flex items-center justify-between mb-1'>
-											<span className='text-xs text-muted-foreground'>{item.label}</span>
-											<span className='text-sm font-bold'>{item.percentage}%</span>
-										</div>
-										<div className='h-2 rounded-full bg-muted overflow-hidden'>
-											<div
-												className='h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500'
-												style={{ width: `${item.percentage}%` }}
-											/>
-										</div>
+						{diversityMetrics ? (
+							<>
+								{/* Gender */}
+								<div className='space-y-2'>
+									<p className='text-sm font-medium text-muted-foreground'>Gender</p>
+									<div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+										{diversityMetrics.gender_distribution.map((item) => (
+											<div key={item.label} className='rounded-lg border p-3'>
+												<div className='flex items-center justify-between mb-1'>
+													<span className='text-xs text-muted-foreground'>{item.label}</span>
+													<span className='text-sm font-bold'>{item.percentage}%</span>
+												</div>
+												<div className='h-2 rounded-full bg-muted overflow-hidden'>
+													<div
+														className='h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500'
+														style={{ width: `${item.percentage}%` }}
+													/>
+												</div>
+											</div>
+										))}
 									</div>
-								))}
-							</div>
-						</div>
-						{/* Ethnicity */}
-						<div className='space-y-2'>
-							<p className='text-sm font-medium text-muted-foreground'>Ethnicity</p>
-							<div className='space-y-2'>
-								{diversityMetrics.ethnicity_distribution.map((item) => (
-									<div key={item.label} className='flex items-center gap-3'>
-										<span className='w-24 shrink-0 text-xs text-muted-foreground'>
-											{item.label}
-										</span>
-										<div className='flex-1 h-2 rounded-full bg-muted overflow-hidden'>
-											<div
-												className='h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all duration-500'
-												style={{ width: `${item.percentage}%` }}
-											/>
-										</div>
-										<span className='text-xs font-semibold w-10 text-right'>
-											{item.percentage}%
-										</span>
+								</div>
+								{/* Ethnicity */}
+								<div className='space-y-2'>
+									<p className='text-sm font-medium text-muted-foreground'>Ethnicity</p>
+									<div className='space-y-2'>
+										{diversityMetrics.ethnicity_distribution.map((item) => (
+											<div key={item.label} className='flex items-center gap-3'>
+												<span className='w-24 shrink-0 text-xs text-muted-foreground'>
+													{item.label}
+												</span>
+												<div className='flex-1 h-2 rounded-full bg-muted overflow-hidden'>
+													<div
+														className='h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all duration-500'
+														style={{ width: `${item.percentage}%` }}
+													/>
+												</div>
+												<span className='text-xs font-semibold w-10 text-right'>
+													{item.percentage}%
+												</span>
+											</div>
+										))}
 									</div>
-								))}
+								</div>
+							</>
+						) : (
+							<div className='text-center py-6 text-sm text-muted-foreground'>
+								No diversity data available
 							</div>
-						</div>
+							)}
 					</CardContent>
 				</Card>
 
@@ -763,42 +775,52 @@ export function RecruiterAnalyticsPage() {
 						</CardTitle>
 					</CardHeader>
 					<CardContent className='space-y-3'>
-						{rejectionReasons.map((item) => {
-							const width = Math.max((item.count / maxRejectionCount) * 100, 5)
-							return (
-								<div key={item.reason}>
-									<div className='flex items-center justify-between text-sm mb-1'>
-										<span className='text-muted-foreground'>{item.reason}</span>
-										<div className='flex items-center gap-2'>
-											<span className='text-xs font-medium'>{item.count}</span>
-											<span className='text-xs text-muted-foreground'>({item.percentage}%)</span>
-											<Badge variant='outline' className='text-[10px] gap-0.5'>
-												{item.trend > 0 ? (
-													<ArrowUpRight className='h-3 w-3 text-red-500' />
-												) : item.trend < 0 ? (
-													<ArrowDownRight className='h-3 w-3 text-green-500' />
-												) : (
-													<Minus className='h-3 w-3 text-slate-400' />
-												)}
-												{Math.abs(item.trend)}%
-											</Badge>
+						{rejectionReasons.length > 0 ? (
+							<>
+								{rejectionReasons.map((item) => {
+									const width = Math.max((item.count / maxRejectionCount) * 100, 5)
+									return (
+										<div key={item.reason}>
+											<div className='flex items-center justify-between text-sm mb-1'>
+												<span className='text-muted-foreground'>{item.reason}</span>
+												<div className='flex items-center gap-2'>
+													<span className='text-xs font-medium'>{item.count}</span>
+													<span className='text-xs text-muted-foreground'>({item.percentage}%)</span>
+													{item.trend !== undefined && (
+														<Badge variant='outline' className='text-[10px] gap-0.5'>
+															{item.trend > 0 ? (
+																<ArrowUpRight className='h-3 w-3 text-red-500' />
+															) : item.trend < 0 ? (
+																<ArrowDownRight className='h-3 w-3 text-green-500' />
+															) : (
+																<Minus className='h-3 w-3 text-slate-400' />
+															)}
+															{Math.abs(item.trend)}%
+														</Badge>
+													)}
+												</div>
+											</div>
+											<div className='flex items-center gap-3'>
+												<div className='flex-1 h-2 rounded-full bg-muted overflow-hidden'>
+													<div
+														className='h-full bg-gradient-to-r from-red-400 to-red-500 rounded-full transition-all duration-500'
+														style={{ width: `${width}%` }}
+													/>
+												</div>
+											</div>
 										</div>
-									</div>
-									<div className='flex items-center gap-3'>
-										<div className='flex-1 h-2 rounded-full bg-muted overflow-hidden'>
-											<div
-												className='h-full bg-gradient-to-r from-red-400 to-red-500 rounded-full transition-all duration-500'
-												style={{ width: `${width}%` }}
-											/>
-										</div>
-									</div>
+									)
+								})}
+									<p className='text-xs text-muted-foreground pt-1'>
+										Trend compares to previous period. ↓ = fewer rejections (good), ↑ = more rejections
+										(investigate).
+									</p>
+								</>
+							) : (
+								<div className='text-center py-6 text-sm text-muted-foreground'>
+									No rejection data available
 								</div>
-							)
-						})}
-						<p className='text-xs text-muted-foreground pt-1'>
-							Trend compares to previous period. ↓ = fewer rejections (good), ↑ = more rejections
-							(investigate).
-						</p>
+								)}
 					</CardContent>
 				</Card>
 			</div>

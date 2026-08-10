@@ -68,7 +68,7 @@ export function LoginPage() {
 	}, [])
 
 	if (isAuthenticated && user) {
-		return <Navigate to={getDashboardPath(user.role)} replace />
+		return <Navigate to={getDashboardPath(user)} replace />
 	}
 
 	const hasOAuth = oauthChecked && (oauthStatus.google || oauthStatus.linkedin)
