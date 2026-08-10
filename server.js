@@ -72,7 +72,6 @@ if (nodeEnv !== 'production' && stripeSecret.startsWith('sk_live_')) {
 }
 
 // Warn if non-production environment connects to production DB
-const dbUrl = process.env.DATABASE_URL || '';
 const PROD_DB_HOSTNAME = 'ep-calm-field-aipg6g97-pooler.c-4.us-east-1.aws.neon.tech';
 if (nodeEnv !== 'production' && dbUrl.includes(PROD_DB_HOSTNAME)) {
 	console.warn('[WARN] Non-production environment using production database endpoint.');
