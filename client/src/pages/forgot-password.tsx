@@ -58,15 +58,16 @@ export function ForgotPasswordPage() {
 							<div className='mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100'>
 								<CheckCircle className='h-6 w-6 text-green-600' />
 							</div>
-							<CardTitle className='text-xl'>Check your console</CardTitle>
+							<CardTitle className='text-xl'>Check your email</CardTitle>
 							<CardDescription>
-								For testing purposes (no email API key configured), the password reset link has been
-								logged to the server console.
+								If an account with that email exists, we've sent a password reset link.
+								Please check your inbox and spam folder.
 							</CardDescription>
 						</CardHeader>
 						<CardContent className='text-center text-sm text-muted-foreground'>
 							<p>
-								The link will expire in 15 minutes. Check your server console for the reset URL.
+								The link will expire in 15 minutes. If you don't see the email, check
+								your spam folder or try again.
 							</p>
 						</CardContent>
 						<CardFooter className='flex flex-col gap-4'>
