@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowLeft, CheckCircle, Mail } from 'lucide-react'
+import { AlertCircle, ArrowLeft, CheckCircle, Mail, Shield, Users } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -88,6 +88,20 @@ export function ForgotPasswordPage() {
 							</p>
 						</CardFooter>
 					</Card>
+
+					{/* Trust indicators */}
+					<div className='mt-6 text-center'>
+						<div className='flex items-center justify-center gap-4 text-xs text-muted-foreground'>
+							<div className='flex items-center gap-1.5'>
+								<Shield className='h-3.5 w-3.5 text-emerald-500' />
+								<span>SSL Secured</span>
+							</div>
+							<div className='flex items-center gap-1.5'>
+								<Users className='h-3.5 w-3.5 text-emerald-500' />
+								<span>Trusted by 2,000+ companies</span>
+							</div>
+						</div>
+					</div>
 				</div>
 			</div>
 		)
@@ -152,6 +166,20 @@ export function ForgotPasswordPage() {
 						</CardFooter>
 					</form>
 				</Card>
+
+				{/* Trust indicators */}
+				<div className='mt-6 text-center'>
+					<div className='flex items-center justify-center gap-4 text-xs text-muted-foreground'>
+						<div className='flex items-center gap-1.5'>
+							<Shield className='h-3.5 w-3.5 text-emerald-500' />
+							<span>SSL Secured</span>
+						</div>
+						<div className='flex items-center gap-1.5'>
+							<Users className='h-3.5 w-3.5 text-emerald-500' />
+							<span>Trusted by 2,000+ companies</span>
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
 	)
