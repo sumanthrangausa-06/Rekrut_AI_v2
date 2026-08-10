@@ -94,6 +94,36 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 			// Create join request for approval
 			await createJoinRequest(user.id, existingCompany.id, email, email_domain);
 
+			// ─── Issue #155: Create in-app notification for company owner ───
+			try {
+				const ownerResult = await pool.query(
+					`SELECT id FROM users WHERE company_id = $1 AND role = 'employer' ORDER BY created_at ASC LIMIT 1`,
+					[existingCompany.id],
+				);
+				if (ownerResult.rows.length > 0) {
+					await pool.query(
+						`INSERT INTO user_notifications
+               (user_id, type, title, message, metadata)
+             VALUES ($1, $2, $3, $4, $5)`,
+						[
+							ownerResult.rows[0].id,
+							'join_request',
+							'New Join Request',
+							`${name} (${email}) requested to join ${existingCompany.name}`,
+							JSON.stringify({
+								requester_id: user.id,
+								requester_name: name,
+								requester_email: email,
+								company_id: existingCompany.id,
+							}),
+						],
+					);
+				}
+			} catch (notifyErr) {
+				// Notification failure must NOT break the join request flow
+				console.error('[company/register] In-app notification error:', notifyErr.message);
+			}
+
 			// Generate tokens so they can log in and see pending status
 			const token = generateToken({
 				...user,
@@ -730,6 +760,17 @@ router.get('/join-requests', authMiddleware, async (req, res) => {
 		}
 
 		const requests = await listPendingJoinRequests(req.user.company_id);
+
+		// ─── Issue #155: Auto-mark join_request notifications as read (fire-and-forget) ───
+		pool.query(
+			`UPDATE user_notifications
+       SET read = true, read_at = NOW()
+       WHERE user_id = $1 AND type = 'join_request' AND read = false`,
+			[req.user.id],
+		).catch((err) => {
+			console.error('[company/join-requests] Auto-mark read error:', err.message);
+		});
+
 		res.json({ success: true, requests });
 	} catch (err) {
 		console.error('List join requests error:', err);
