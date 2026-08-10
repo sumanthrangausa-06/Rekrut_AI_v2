@@ -224,6 +224,9 @@ const RecruiterPayrollRunPage = lazy(() =>
 const RecruiterCompanyPage = lazy(() =>
 	import('@/pages/recruiter/company').then((m) => ({ default: m.RecruiterCompanyPage })),
 )
+const RecruiterJoinRequestsPage = lazy(() =>
+	import('@/pages/recruiter/join-requests').then((m) => ({ default: m.RecruiterJoinRequestsPage })),
+)
 const RecruiterOnboardingAiPage = lazy(() =>
 	import('@/pages/recruiter/onboarding-ai').then((m) => ({ default: m.RecruiterOnboardingAiPage })),
 )
@@ -922,6 +925,16 @@ function AppRoutes() {
 						<Protected>
 							<RecruiterGuard>
 								<RecruiterCompanyPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path='team/join-requests'
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<RecruiterJoinRequestsPage />
 							</RecruiterGuard>
 						</Protected>
 					}

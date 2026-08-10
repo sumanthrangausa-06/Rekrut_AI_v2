@@ -55,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				// Root cause (#105): awaiting /billing/tier sequentially before setUser blocked
 				// the redirect by 500-2000ms on every login and app load.
 				user.subscriptionTier = 'free'
+				user.is_company_owner = false
 				setUser(user)
 				startAuthRefresh()
 
@@ -65,6 +66,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 					})
 					.catch(() => {
 						// Tier endpoint may fail if billing is not configured — default already set
+					})
+
+				// Fetch company profile to determine ownership — non-blocking
+				apiCall<{ company: { owner_id: number } }>('/company/profile', { skipAuthCheck: false })
+					.then((companyData) => {
+						setUser((prev) =>
+							prev
+								? {
+										...prev,
+										is_company_owner: companyData.company?.owner_id === prev.id,
+									}
+								: prev,
+						)
+					})
+					.catch(() => {
+						// Company endpoint may fail if user has no company — default already set
 					})
 			})
 			.catch(() => {
@@ -111,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		// Root cause (#105): awaiting /billing/tier before setTokens/setUser
 		// added 500-2000ms of blocking latency to every login.
 		user.subscriptionTier = 'free'
+		user.is_company_owner = false
 		setTokens(data.accessToken || data.token, data.refreshToken)
 		setUser(user)
 
@@ -121,6 +139,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			})
 			.catch(() => {
 				// Tier endpoint may fail if billing is not configured — default already set
+			})
+
+		// Fetch company profile to determine ownership — non-blocking
+		apiCall<{ company: { owner_id: number } }>('/company/profile', { skipAuthCheck: false })
+			.then((companyData) => {
+				setUser((prev) =>
+					prev
+						? {
+								...prev,
+								is_company_owner: companyData.company?.owner_id === prev.id,
+							}
+						: prev,
+				)
+			})
+			.catch(() => {
+				// Company endpoint may fail if user has no company — default already set
 			})
 	}
 
@@ -146,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			setTokens(data.accessToken || data.token, data.refreshToken)
 			const user = data.user
 			user.subscriptionTier = 'free'
+			user.is_company_owner = false
 			setUser(user)
 			// Throw with a clear message so UI can show pending approval state
 			const err = new Error(
@@ -163,6 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		// Root cause (#105): awaiting /billing/tier before setTokens/setUser
 		// added 500-2000ms of blocking latency to every signup.
 		user.subscriptionTier = 'free'
+		user.is_company_owner = false
 		setTokens(data.accessToken || data.token, data.refreshToken)
 		setUser(user)
 
@@ -173,6 +209,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			})
 			.catch(() => {
 				// Tier endpoint may fail if billing is not configured — default already set
+			})
+
+		// Fetch company profile to determine ownership — non-blocking
+		apiCall<{ company: { owner_id: number } }>('/company/profile', { skipAuthCheck: false })
+			.then((companyData) => {
+				setUser((prev) =>
+					prev
+						? {
+								...prev,
+								is_company_owner: companyData.company?.owner_id === prev.id,
+							}
+						: prev,
+				)
+			})
+			.catch(() => {
+				// Company endpoint may fail if user has no company — default already set
 			})
 	}
 

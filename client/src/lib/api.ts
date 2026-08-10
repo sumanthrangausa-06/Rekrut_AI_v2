@@ -302,6 +302,7 @@ export interface User {
 	company_id?: number | null
 	avatar_url?: string
 	subscriptionTier?: 'free' | 'pro'
+	is_company_owner?: boolean
 }
 
 export function isRecruiterRole(role: UserRole): boolean {
