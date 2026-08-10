@@ -71,6 +71,16 @@ if (nodeEnv !== 'production' && stripeSecret.startsWith('sk_live_')) {
 	process.exit(1);
 }
 
+// Warn if non-production environment connects to production DB
+const dbUrl = process.env.DATABASE_URL || '';
+const PROD_DB_HOSTNAME = 'ep-calm-field-aipg6g97-pooler.c-4.us-east-1.aws.neon.tech';
+if (nodeEnv !== 'production' && dbUrl.includes(PROD_DB_HOSTNAME)) {
+	console.warn('[WARN] Non-production environment using production database endpoint.');
+	console.warn(`  NODE_ENV: ${nodeEnv}`);
+	console.warn(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
+	console.warn('  Please verify this is intentional for this environment.');
+}
+
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
