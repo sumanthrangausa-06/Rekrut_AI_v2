@@ -37,6 +37,7 @@ interface AnalyticsData {
 	application_stats: {
 		total_applications: number
 		new_applications: number
+		screening: number
 		reviewed: number
 		interviewed: number
 		offered: number
@@ -51,6 +52,7 @@ interface AnalyticsData {
 		application_count: number
 		views: number
 	}>
+	trust_score?: number
 	score_distribution?: {
 		'900': number
 		'800': number
@@ -100,14 +102,16 @@ export function RecruiterAnalyticsPage() {
 		async function loadAnalytics() {
 			setLoading(true)
 			try {
-				const [dashboardData, jobsData] = await Promise.all([
-					apiCall<AnalyticsData>(`/recruiter/analytics?days=${timeRange}`),
-					apiCall<{ jobs: AnalyticsData['jobs'] }>(`/recruiter/jobs?days=${timeRange}`),
+				const [dashboardResponse, jobsResponse] = await Promise.all([
+					apiCall<{ success: boolean } & AnalyticsData>(`/recruiter/dashboard?days=${timeRange}`),
+					apiCall<{ jobs: AnalyticsData['jobs'] }>(`/recruiter/jobs`),
 				])
+
+				const { success: _success, ...dashboardData } = dashboardResponse
 
 				setData({
 					...dashboardData,
-					jobs: jobsData.jobs || [],
+					jobs: jobsResponse.jobs || [],
 				})
 				trackEvent('analytics_view', { time_range: timeRange })
 			} catch (err) {
