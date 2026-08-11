@@ -688,6 +688,28 @@ router.get('/team/members', authMiddleware, async (req, res) => {
 	}
 });
 
+// Alias for GET /members (same as /team/members)
+router.get('/members', authMiddleware, async (req, res) => {
+	try {
+		if (!req.user.company_id) {
+			return res.status(400).json({ error: 'No company associated with this account' });
+		}
+
+		const result = await pool.query(
+			`SELECT id, email, name, role, created_at, suspended_at
+       FROM users
+       WHERE company_id = $1
+       ORDER BY created_at`,
+			[req.user.company_id],
+		);
+
+		res.json({ members: result.rows });
+	} catch (err) {
+		console.error('Get team members error:', err);
+		res.status(500).json({ error: 'Failed to fetch team members' });
+	}
+});
+
 // Invite team member
 router.post('/team/invite', authMiddleware, async (req, res) => {
 	try {
@@ -1066,6 +1088,137 @@ router.post('/team/members/:id/reinstate', authMiddleware, async (req, res) => {
 			success: true,
 			message: 'Team member reinstated',
 		});
+	} catch (err) {
+		console.error('Reinstate team member error:', err);
+		res.status(500).json({ error: 'Failed to reinstate team member' });
+	}
+});
+
+// Alias routes for /members/:id/suspend and /members/:id/reinstate (Issue #157)
+// These delegate to the same handlers as /team/members/:id/*
+router.post('/members/:id/suspend', authMiddleware, async (req, res) => {
+	try {
+		if (!req.user.company_id) {
+			return res.status(400).json({ error: 'No company associated with this account' });
+		}
+
+		const companyResult = await pool.query('SELECT owner_id, name FROM companies WHERE id = $1', [
+			req.user.company_id,
+		]);
+		if (companyResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Company not found' });
+		}
+		if (companyResult.rows[0].owner_id !== req.user.id) {
+			return res.status(403).json({ error: 'Only the company owner can suspend team members' });
+		}
+
+		if (parseInt(req.params.id, 10) === req.user.id) {
+			return res.status(400).json({ error: 'Cannot suspend yourself' });
+		}
+
+		const targetResult = await pool.query(
+			'SELECT id, name, email, company_id FROM users WHERE id = $1',
+			[req.params.id],
+		);
+		if (targetResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Team member not found' });
+		}
+		const target = targetResult.rows[0];
+		if (target.company_id !== req.user.company_id) {
+			return res.status(403).json({ error: 'Team member does not belong to your company' });
+		}
+
+		await pool.query(
+			'UPDATE users SET suspended_at = NOW(), updated_at = NOW() WHERE id = $1',
+			[target.id],
+		);
+
+		try {
+			await emailService.sendEmailAsync({
+				to: target.email,
+				templateName: 'account_suspended',
+				templateData: {
+					name: target.name || 'there',
+					suspension_reason: req.body.reason || 'Your account has been suspended by the company owner.',
+				},
+				userId: target.id,
+				metadata: {
+					company_id: req.user.company_id,
+					actor_id: req.user.id,
+					trigger: 'team_member_suspended',
+				},
+			});
+		} catch (emailErr) {
+			console.error('[company/suspend] Email notification error:', emailErr.message);
+		}
+
+		try {
+			await insertAuditLog({
+				company_id: req.user.company_id,
+				actor_id: req.user.id,
+				target_id: target.id,
+				action: 'recruiter_suspended',
+				reason: req.body.reason || null,
+				metadata: { target_email: target.email, target_name: target.name },
+			});
+		} catch (auditErr) {
+			console.error('[company/suspend] Audit log error:', auditErr.message);
+		}
+
+		res.json({ success: true, message: 'Team member suspended' });
+	} catch (err) {
+		console.error('Suspend team member error:', err);
+		res.status(500).json({ error: 'Failed to suspend team member' });
+	}
+});
+
+router.post('/members/:id/reinstate', authMiddleware, async (req, res) => {
+	try {
+		if (!req.user.company_id) {
+			return res.status(400).json({ error: 'No company associated with this account' });
+		}
+
+		const companyResult = await pool.query('SELECT owner_id FROM companies WHERE id = $1', [
+			req.user.company_id,
+		]);
+		if (companyResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Company not found' });
+		}
+		if (companyResult.rows[0].owner_id !== req.user.id) {
+			return res.status(403).json({ error: 'Only the company owner can reinstate team members' });
+		}
+
+		const targetResult = await pool.query(
+			'SELECT id, name, email, company_id, suspended_at FROM users WHERE id = $1',
+			[req.params.id],
+		);
+		if (targetResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Team member not found' });
+		}
+		const target = targetResult.rows[0];
+
+		if (!target.suspended_at) {
+			return res.status(400).json({ error: 'Team member is not suspended' });
+		}
+
+		await pool.query(
+			'UPDATE users SET suspended_at = NULL, updated_at = NOW() WHERE id = $1',
+			[target.id],
+		);
+
+		try {
+			await insertAuditLog({
+				company_id: req.user.company_id,
+				actor_id: req.user.id,
+				target_id: target.id,
+				action: 'recruiter_reinstated',
+				metadata: { target_email: target.email, target_name: target.name },
+			});
+		} catch (auditErr) {
+			console.error('[company/reinstate] Audit log error:', auditErr.message);
+		}
+
+		res.json({ success: true, message: 'Team member reinstated' });
 	} catch (err) {
 		console.error('Reinstate team member error:', err);
 		res.status(500).json({ error: 'Failed to reinstate team member' });

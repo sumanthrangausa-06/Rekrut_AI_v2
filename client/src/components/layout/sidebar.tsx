@@ -124,6 +124,7 @@ const recruiterNav: NavItem[] = [
 	{ label: 'Analytics', href: '/recruiter/analytics', icon: BarChart3 },
 	{ label: 'Compliance (EU AI Act)', href: '/recruiter/compliance', icon: Shield },
 	{ label: 'Company', href: '/recruiter/company', icon: Building2 },
+	{ label: 'Team', href: '/recruiter/team', icon: Users },
 	{ label: 'Payroll', href: '/recruiter/payroll', icon: Wallet },
 ]
 
