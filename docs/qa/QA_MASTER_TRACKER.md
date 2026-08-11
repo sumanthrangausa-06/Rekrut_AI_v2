@@ -3,7 +3,9 @@
 > **Environment:** Staging (`https://rekrutai-staging.onrender.com`) + **Production (`https://rekrutai.co`)** as of 2026-08-07  
 > **Started:** 2026-07-08  
 > **Schedule:** Every 2 hours via cron (`rekrut-qa-phase-batch`)  
-> **Status:** Phase 1 (auth) verified working on prod. Phase 2 (candidate) and Phase 3 (recruiter) run live against **production** on 2026-08-07 — see `live-qa-2026-08-06/REPORT.md` for full findings, screenshots, and raw API logs.
+> **Status:** Phase 1 (auth) verified working on prod. Phase 2 (candidate) and Phase 3 (recruiter) run live against **production** on 2026-08-07. Full staging QA run on **2026-08-11** against commit `8748bc7` — see [`docs/qa/QA_STAGING_2026-08-11.md`](QA_STAGING_2026-08-11.md) for full findings.
+
+> ⚠️ **2026-08-11 staging is NOT ready for production promotion.** Six blocking issues (#154, #155, #156, #157, #153, #162) must be resolved first. See QA report for details.
 
 ---
 
@@ -21,6 +23,34 @@
 | 8 | Security & Performance | ⏳ PENDING | — | — | — | — | — | — | — |
 
 **2026-08-07 production QA session — GitHub issues filed:** [#67](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/67) (P0, Job Board infinite spinner), [#68](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/68) (P1, OmniScore infinite spinner), [#69](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/69) (P1, recruiter mock data), [#70](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/70) (P2, slow auth redirect), [#71](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/71) (P3, leftover E2E test data), [#72](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/72) (P3, chart label truncation). Added fresh evidence to existing [#15](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/15), [#48](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/48), [#49](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/49).
+
+---
+
+## 2026-08-11 Staging QA Run (commit `8748bc7`)
+
+Full report: [`docs/qa/QA_STAGING_2026-08-11.md`](QA_STAGING_2026-08-11.md)
+
+| Area | Result |
+|---|---|
+| Infrastructure (health, metrics, security headers) | PASS |
+| Auth (register, login, rate limiting, CSRF) | PASS |
+| Public job board | PASS |
+| Candidate profile & applications | PASS |
+| Pending-recruiter holding + blocking | PASS |
+| Database isolation (staging vs prod) | PASS |
+| Owner join-requests queue (`/company/join-requests`) | **FAIL** — route shadowed by `/:slug` (#154) |
+| Team members list (`/company/team/members`) | **FAIL** — `suspended_at` column missing (#157, #162) |
+| Suspend / reinstate enforcement | **FAIL** — fails open, column absent (#157) |
+| In-app notifications (`user_notifications` table) | **FAIL** — table missing (#155, #162) |
+| Audit log writes | **FAIL** — `audit_logs` schema incompatible (#156) |
+| Email delivery (SMTP) | **FAIL** — Connection timeout (#153) |
+| Interview reminder cron | **FAIL** — wrong table queried (#163) |
+| Admin dashboard stats | **FAIL** — `/admin/analytics` missing, `/admin/ai-health` wrong path (#164) |
+| Admin agents page | **FAIL** — agents/runs, agents/stats missing (#164) |
+
+**Issues filed in this session:**
+- Reopened: [#104](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/104), [#153](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/153), [#154](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/154), [#155](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/155), [#156](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/156), [#157](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/157)
+- New: [#162](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/162) (migrate.js skips .sql), [#163](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/163) (reminder cron wrong table), [#164](https://github.com/sumanthrangausa-06/Rekrut_AI_v2/issues/164) (admin dashboard zeros)
 
 ---
 
