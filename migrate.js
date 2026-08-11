@@ -132,18 +132,41 @@ async function migrate() {
     // Run migration files from migrations folder
     const migrationsDir = path.join(__dirname, 'migrations');
     if (fs.existsSync(migrationsDir)) {
-      const files = fs.readdirSync(migrationsDir)
-        .filter(f => f.endsWith('.js'))
-        .sort();
+      const allFiles = fs.readdirSync(migrationsDir).filter(f => !f.startsWith('.'));
+
+      // Fail loudly on unrecognized migration file extensions
+      for (const f of allFiles) {
+        if (!f.endsWith('.js') && !f.endsWith('.sql')) {
+          throw new Error(
+            `Unrecognized migration file: ${f}. Only .js and .sql files are supported.`
+          );
+        }
+      }
+
+      const files = allFiles.sort();
 
       for (const file of files) {
-        const migration = require(path.join(migrationsDir, file));
-        // Derive name from module export or fallback to filename
-        const migrationName = migration.name || file.replace('.js', '');
-        if (!migrationName) {
-          console.warn(`Skipping migration file with no name: ${file}`);
-          continue;
+        let migrationName;
+        let upFn;
+
+        if (file.endsWith('.js')) {
+          const migration = require(path.join(migrationsDir, file));
+          migrationName = migration.name || file.replace('.js', '');
+          if (!migrationName) {
+            console.warn(`Skipping migration file with no name: ${file}`);
+            continue;
+          }
+          if (typeof migration.up !== 'function') {
+            throw new Error(`Migration ${file} does not export an 'up' function`);
+          }
+          upFn = () => migration.up(client);
+        } else {
+          // .sql file
+          migrationName = file;
+          const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+          upFn = () => client.query(sql);
         }
+
         const existing = await client.query(
           'SELECT id FROM _migrations WHERE name = $1',
           [migrationName]
@@ -153,7 +176,7 @@ async function migrate() {
           console.log(`Running migration: ${migrationName}`);
           await client.query('BEGIN');
           try {
-            await migration.up(client);
+            await upFn();
             await client.query(
               'INSERT INTO _migrations (name) VALUES ($1)',
               [migrationName]

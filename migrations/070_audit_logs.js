@@ -1,17 +1,23 @@
-// Migration: Add audit_logs table for recruiter approvals and rejections (Issue #156)
+// Migration: Add audit_logs columns for recruiter approvals and rejections (Issue #156)
+// Table may already exist with old schema; add missing columns without touching existing ones.
 
 async function up(client) {
+	// Add missing columns to existing audit_logs table
 	await client.query(`
-    CREATE TABLE IF NOT EXISTS audit_logs (
-      id SERIAL PRIMARY KEY,
-      company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-      actor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      target_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      action VARCHAR(50) NOT NULL,
-      reason TEXT,
-      metadata JSONB NOT NULL DEFAULT '{}',
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
+    ALTER TABLE audit_logs
+    ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE
+  `);
+	await client.query(`
+    ALTER TABLE audit_logs
+    ADD COLUMN IF NOT EXISTS actor_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+  `);
+	await client.query(`
+    ALTER TABLE audit_logs
+    ADD COLUMN IF NOT EXISTS action VARCHAR(50)
+  `);
+	await client.query(`
+    ALTER TABLE audit_logs
+    ADD COLUMN IF NOT EXISTS reason TEXT
   `);
 
 	// Indexes for common query patterns
@@ -28,7 +34,7 @@ async function up(client) {
       ON audit_logs(actor_id, created_at DESC)
   `);
 
-	console.log('[migration 070] audit_logs table created');
+	console.log('[migration 070] audit_logs columns added');
 }
 
 async function down(client) {
