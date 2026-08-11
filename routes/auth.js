@@ -146,7 +146,7 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 									recruiter_email: user.email,
 									company_name: existingCompany.name,
 									dashboard_link:
-										`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/recruiter-dashboard.html`,
+										`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/recruiter/dashboard`,
 									request_time: new Date().toLocaleString('en-US', {
 										weekday: 'long',
 										year: 'numeric',
@@ -534,15 +534,15 @@ router.get('/google/callback', async (req, res) => {
 		const { code, state, error } = req.query;
 
 		if (error) {
-			return res.redirect(`/login.html?error=${encodeURIComponent(error)}`);
+			return res.redirect(`/login?error=${encodeURIComponent(error)}`);
 		}
 
 		if (!code) {
-			return res.redirect('/login.html?error=No authorization code received');
+			return res.redirect('/login?error=No authorization code received');
 		}
 
 		if (!verifyOauthState(req, state)) {
-			return res.redirect('/login.html?error=Invalid OAuth state');
+			return res.redirect('/login?error=Invalid OAuth state');
 		}
 
 		// Exchange code for tokens
@@ -564,7 +564,7 @@ router.get('/google/callback', async (req, res) => {
 
 		if (tokens.error) {
 			console.error('Google token error:', tokens);
-			return res.redirect('/login.html?error=Failed to authenticate with Google');
+			return res.redirect('/login?error=Failed to authenticate with Google');
 		}
 
 		// Get user info
@@ -575,7 +575,7 @@ router.get('/google/callback', async (req, res) => {
 		const googleUser = await userInfoResponse.json();
 
 		if (!googleUser.email) {
-			return res.redirect('/login.html?error=Could not retrieve email from Google');
+			return res.redirect('/login?error=Could not retrieve email from Google');
 		}
 
 		// Find or create user
@@ -632,11 +632,11 @@ router.get('/google/callback', async (req, res) => {
 		req.session.refreshToken = refreshToken;
 
 		const redirectUrl =
-			user.role === 'recruiter' ? '/recruiter-dashboard.html' : '/candidate-dashboard.html';
+			user.role === 'recruiter' ? '/recruiter/dashboard' : '/candidate/dashboard';
 		res.redirect(redirectUrl);
 	} catch (err) {
 		console.error('Google OAuth error:', err.message, err.code, err.stack);
-		res.redirect('/login.html?error=Authentication failed');
+		res.redirect('/login?error=Authentication failed');
 	}
 });
 
@@ -678,15 +678,15 @@ router.get('/linkedin/callback', async (req, res) => {
 		const { code, state, error, error_description } = req.query;
 
 		if (error) {
-			return res.redirect(`/login.html?error=${encodeURIComponent(error_description || error)}`);
+			return res.redirect(`/login?error=${encodeURIComponent(error_description || error)}`);
 		}
 
 		if (!code) {
-			return res.redirect('/login.html?error=No authorization code received');
+			return res.redirect('/login?error=No authorization code received');
 		}
 
 		if (!verifyOauthState(req, state)) {
-			return res.redirect('/login.html?error=Invalid OAuth state');
+			return res.redirect('/login?error=Invalid OAuth state');
 		}
 
 		// Exchange code for tokens
@@ -708,7 +708,7 @@ router.get('/linkedin/callback', async (req, res) => {
 
 		if (tokens.error) {
 			console.error('LinkedIn token error:', tokens);
-			return res.redirect('/login.html?error=Failed to authenticate with LinkedIn');
+			return res.redirect('/login?error=Failed to authenticate with LinkedIn');
 		}
 
 		// Get user info using OpenID Connect userinfo endpoint
@@ -719,7 +719,7 @@ router.get('/linkedin/callback', async (req, res) => {
 		const linkedinUser = await userInfoResponse.json();
 
 		if (!linkedinUser.email) {
-			return res.redirect('/login.html?error=Could not retrieve email from LinkedIn');
+			return res.redirect('/login?error=Could not retrieve email from LinkedIn');
 		}
 
 		// Find or create user
@@ -777,11 +777,11 @@ router.get('/linkedin/callback', async (req, res) => {
 		req.session.refreshToken = refreshToken;
 
 		const redirectUrl =
-			user.role === 'recruiter' ? '/recruiter-dashboard.html' : '/candidate-dashboard.html';
+			user.role === 'recruiter' ? '/recruiter/dashboard' : '/candidate/dashboard';
 		res.redirect(redirectUrl);
 	} catch (err) {
 		console.error('LinkedIn OAuth error:', err.message, err.code, err.stack);
-		res.redirect('/login.html?error=Authentication failed');
+		res.redirect('/login?error=Authentication failed');
 	}
 });
 
