@@ -1936,5 +1936,269 @@ router.put('/compliance/retention-policies/:id', requireAdmin, async (req, res) 
 	}
 });
 
+// ─── Helper: safeQuery ──────────────────────────────────────────────────────
+async function safeQuery(queryText, params, fallback) {
+	try {
+		return await pool.query(queryText, params);
+	} catch (_error) {
+		return fallback;
+	}
+}
+
+// GET /api/admin/analytics — platform analytics for admin dashboard
+router.get('/analytics', requireAdmin, async (_req, res) => {
+	try {
+		// User counts with safe fallbacks for missing tables
+		const totalUsersResult = await safeQuery(
+			'SELECT COUNT(*) as count FROM users',
+			[],
+			{ rows: [{ count: 0 }] },
+		);
+		const candidateSignupsResult = await safeQuery(
+			"SELECT COUNT(*) as count FROM users WHERE role = 'candidate'",
+			[],
+			{ rows: [{ count: 0 }] },
+		);
+		const recruiterSignupsResult = await safeQuery(
+			"SELECT COUNT(*) as count FROM users WHERE role = 'recruiter'",
+			[],
+			{ rows: [{ count: 0 }] },
+		);
+
+		const totalUsers = parseInt(totalUsersResult.rows[0]?.count, 10) || 0;
+		const candidateSignups = parseInt(candidateSignupsResult.rows[0]?.count, 10) || 0;
+		const recruiterSignups = parseInt(recruiterSignupsResult.rows[0]?.count, 10) || 0;
+		const totalSignups = candidateSignups + recruiterSignups;
+
+		// Revenue — try subscriptions first, then payments, fallback to 0
+		let totalRevenue = 0;
+		const subscriptionsRevenueResult = await safeQuery(
+			'SELECT SUM(amount) as total FROM subscriptions',
+			[],
+			{ rows: [{ total: null }] },
+		);
+		if (subscriptionsRevenueResult.rows[0]?.total !== null && subscriptionsRevenueResult.rows[0]?.total !== undefined) {
+			totalRevenue = parseFloat(subscriptionsRevenueResult.rows[0].total) || 0;
+		} else {
+			const paymentsRevenueResult = await safeQuery(
+				'SELECT SUM(amount) as total FROM payments',
+				[],
+				{ rows: [{ total: null }] },
+			);
+			if (paymentsRevenueResult.rows[0]?.total !== null && paymentsRevenueResult.rows[0]?.total !== undefined) {
+				totalRevenue = parseFloat(paymentsRevenueResult.rows[0].total) || 0;
+			}
+		}
+
+		// MRR — current month revenue from subscriptions or payments
+		let mrr = 0;
+		const now = new Date();
+		const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+		const mrrSubscriptionsResult = await safeQuery(
+			'SELECT SUM(amount) as total FROM subscriptions WHERE created_at >= $1',
+			[monthStart],
+			{ rows: [{ total: null }] },
+		);
+		if (mrrSubscriptionsResult.rows[0]?.total !== null && mrrSubscriptionsResult.rows[0]?.total !== undefined) {
+			mrr = parseFloat(mrrSubscriptionsResult.rows[0].total) || 0;
+		} else {
+			const mrrPaymentsResult = await safeQuery(
+				'SELECT SUM(amount) as total FROM payments WHERE created_at >= $1',
+				[monthStart],
+				{ rows: [{ total: null }] },
+			);
+			if (mrrPaymentsResult.rows[0]?.total !== null && mrrPaymentsResult.rows[0]?.total !== undefined) {
+				mrr = parseFloat(mrrPaymentsResult.rows[0].total) || 0;
+			}
+		}
+
+		// Landing views for conversion rate calculation
+		const landingViewsResult = await safeQuery(
+			"SELECT COUNT(DISTINCT session_id) as count FROM events WHERE event_type = 'page_view_landing'",
+			[],
+			{ rows: [{ count: 0 }] },
+		);
+		const landingViews = parseInt(landingViewsResult.rows[0]?.count, 10) || 0;
+		const conversionRate =
+			landingViews > 0 ? ((totalSignups / landingViews) * 100).toFixed(2) : '0.00';
+
+		res.json({
+			success: true,
+			data: {
+				total_users: totalUsers,
+				candidate_signups: candidateSignups,
+				recruiter_signups: recruiterSignups,
+				total_revenue: totalRevenue,
+				mrr: mrr,
+				signup_funnel: {
+					total_signups: totalSignups,
+					conversion_rate: conversionRate,
+				},
+			},
+		});
+	} catch (error) {
+		const ref = require('node:crypto').randomUUID();
+		console.error(`[ERROR ref=${ref}] [admin/analytics] Error:`, error);
+		if (process.env.NODE_ENV === 'production') {
+			res.status(500).json({ error: 'Internal server error', ref });
+		} else {
+			res.status(500).json({ error: 'Failed to load analytics', ref });
+		}
+	}
+});
+
+// GET /api/admin/agents/runs — agent run history
+router.get('/agents/runs', requireAdmin, async (_req, res) => {
+	try {
+		const result = await safeQuery(
+			`
+			SELECT
+				id,
+				agent_id as "agentId",
+				agent_name as "agentName",
+				status,
+				started_at as "startedAt",
+				ended_at as "endedAt",
+				COALESCE(EXTRACT(EPOCH FROM (ended_at - started_at))::int, 0) as duration,
+				output,
+				error,
+				trigger
+			FROM agent_data
+			ORDER BY started_at DESC
+			LIMIT 100
+			`,
+			[],
+			{ rows: [] },
+		);
+
+		const runs = result.rows.map((row) => ({
+			id: row.id?.toString() || '',
+			agentId: row.agentId?.toString() || '',
+			agentName: row.agentName || 'Unknown',
+			status: row.status || 'unknown',
+			startedAt: row.startedAt,
+			endedAt: row.endedAt,
+			duration: row.duration || 0,
+			output: row.output || '',
+			error: row.error || '',
+			trigger: row.trigger || 'manual',
+		}));
+
+		res.json({
+			success: true,
+			data: { runs },
+		});
+	} catch (error) {
+		const ref = require('node:crypto').randomUUID();
+		console.error(`[ERROR ref=${ref}] [admin/agents/runs] Error:`, error);
+		if (process.env.NODE_ENV === 'production') {
+			res.status(500).json({ error: 'Internal server error', ref });
+		} else {
+			res.status(500).json({ error: 'Failed to load agent runs', ref });
+		}
+	}
+});
+
+// GET /api/admin/agents/stats — agent statistics
+router.get('/agents/stats', requireAdmin, async (_req, res) => {
+	try {
+		const now = new Date();
+		const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+		const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
+		const totalAgentsResult = await safeQuery(
+			'SELECT COUNT(DISTINCT agent_id) as count FROM agent_data',
+			[],
+			{ rows: [{ count: 0 }] },
+		);
+		const totalAgents = parseInt(totalAgentsResult.rows[0]?.count, 10) || 0;
+
+		const activeNowResult = await safeQuery(
+			"SELECT COUNT(*) as count FROM agent_data WHERE status = 'running' AND ended_at IS NULL",
+			[],
+			{ rows: [{ count: 0 }] },
+		);
+		const activeNow = parseInt(activeNowResult.rows[0]?.count, 10) || 0;
+
+		const failedLast24hResult = await safeQuery(
+			"SELECT COUNT(*) as count FROM agent_data WHERE status = 'failed' AND updated_at >= $1",
+			[oneDayAgo],
+			{ rows: [{ count: 0 }] },
+		);
+		const failedLast24h = parseInt(failedLast24hResult.rows[0]?.count, 10) || 0;
+
+		const completedLast24hResult = await safeQuery(
+			"SELECT COUNT(*) as count FROM agent_data WHERE status = 'completed' AND updated_at >= $1",
+			[oneDayAgo],
+			{ rows: [{ count: 0 }] },
+		);
+		const completedLast24h = parseInt(completedLast24hResult.rows[0]?.count, 10) || 0;
+
+		const totalRunsTodayResult = await safeQuery(
+			'SELECT COUNT(*) as count FROM agent_data WHERE started_at >= $1',
+			[todayStart],
+			{ rows: [{ count: 0 }] },
+		);
+		const totalRunsToday = parseInt(totalRunsTodayResult.rows[0]?.count, 10) || 0;
+
+		const successRateResult = await safeQuery(
+			`
+			SELECT
+				COUNT(*) FILTER (WHERE status = 'completed') as completed,
+				COUNT(*) as total
+			FROM agent_data
+			WHERE started_at >= $1
+			`,
+			[oneDayAgo],
+			{ rows: [{ completed: 0, total: 0 }] },
+		);
+		const completed = parseInt(successRateResult.rows[0]?.completed, 10) || 0;
+		const total = parseInt(successRateResult.rows[0]?.total, 10) || 0;
+		const avgSuccessRate = total > 0 ? ((completed / total) * 100).toFixed(2) : '0.00';
+
+		const avgDurationResult = await safeQuery(
+			`
+			SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (ended_at - started_at)))::int, 0) as avg_duration
+			FROM agent_data
+			WHERE ended_at IS NOT NULL AND started_at >= $1
+			`,
+			[oneDayAgo],
+			{ rows: [{ avg_duration: 0 }] },
+		);
+		const avgDuration = parseInt(avgDurationResult.rows[0]?.avg_duration, 10) || 0;
+
+		const queueDepthResult = await safeQuery(
+			"SELECT COUNT(*) as count FROM agent_data WHERE status = 'queued'",
+			[],
+			{ rows: [{ count: 0 }] },
+		);
+		const queueDepth = parseInt(queueDepthResult.rows[0]?.count, 10) || 0;
+
+		res.json({
+			success: true,
+			data: {
+				stats: {
+					totalAgents,
+					activeNow,
+					failedLast24h,
+					completedLast24h,
+					avgSuccessRate,
+					totalRunsToday,
+					avgDuration,
+					queueDepth,
+				},
+			},
+		});
+	} catch (error) {
+		const ref = require('node:crypto').randomUUID();
+		console.error(`[ERROR ref=${ref}] [admin/agents/stats] Error:`, error);
+		if (process.env.NODE_ENV === 'production') {
+			res.status(500).json({ error: 'Internal server error', ref });
+		} else {
+			res.status(500).json({ error: 'Failed to load agent stats', ref });
+		}
+	}
+});
+
 module.exports = router;
 module.exports.requireAdmin = requireAdmin;
