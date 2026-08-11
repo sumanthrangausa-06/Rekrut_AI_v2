@@ -2,24 +2,11 @@
 // Sub-components: QuickPractice, MockInterview, ProgressTab, HistoryTab
 // Types in coaching-types.ts, utilities in coaching-utils.tsx
 
-import {
-	BarChart3,
-	BookOpen,
-	Camera,
-	Eye,
-	Flame,
-	History,
-	Star,
-	Target,
-	TrendingUp,
-	Video,
-	Volume2,
-} from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { BarChart3, BookOpen, Camera, Eye, Flame, History, Star, Target, TrendingUp, Video, Volume2 } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { apiCall } from '@/lib/api'
-import { HistoryTab, ProgressTab } from './ai-coaching-progress'
 import type {
 	CategoryProgress,
 	HistorySession,
@@ -28,8 +15,12 @@ import type {
 	PracticeStats,
 	RecentSession,
 } from './coaching-types'
-import { MockInterview } from './mock-interview'
-import { QuickPractice } from './quick-practice'
+
+// ─── Lazy tab contents ───────────────────────────────────────────────────
+const MockInterview = lazy(() => import('./mock-interview').then((m) => ({ default: m.MockInterview })))
+const QuickPractice = lazy(() => import('./quick-practice').then((m) => ({ default: m.QuickPractice })))
+const ProgressTab = lazy(() => import('./ai-coaching-progress').then((m) => ({ default: m.ProgressTab })))
+const HistoryTab = lazy(() => import('./ai-coaching-progress').then((m) => ({ default: m.HistoryTab })))
 
 export function AiCoachingPage() {
 	const [tab, setTab] = useState('practice')
@@ -288,38 +279,54 @@ export function AiCoachingPage() {
 
 				{/* Mock Interview Tab */}
 				<TabsContent value='mock'>
-					<MockInterview mockPastSessions={mockPastSessions} onSessionComplete={refreshAfterMock} />
+					<Suspense fallback={<TabLoading />}>
+						<MockInterview mockPastSessions={mockPastSessions} onSessionComplete={refreshAfterMock} />
+					</Suspense>
 				</TabsContent>
 
 				{/* Quick Practice Tab */}
 				<TabsContent value='practice'>
-					<QuickPractice
-						questions={questions}
-						categoryFilter={categoryFilter}
-						setCategoryFilter={setCategoryFilter}
-						onSessionComplete={refreshAfterPractice}
-					/>
+					<Suspense fallback={<TabLoading />}>
+						<QuickPractice
+							questions={questions}
+							categoryFilter={categoryFilter}
+							setCategoryFilter={setCategoryFilter}
+							onSessionComplete={refreshAfterPractice}
+						/>
+					</Suspense>
 				</TabsContent>
 
 				{/* Progress Tab */}
 				<TabsContent value='progress'>
-					<ProgressTab categoryProgress={categoryProgress} recentSessions={recentSessions} />
+					<Suspense fallback={<TabLoading />}>
+						<ProgressTab categoryProgress={categoryProgress} recentSessions={recentSessions} />
+					</Suspense>
 				</TabsContent>
 
 				{/* History Tab */}
 				<TabsContent value='history'>
-					<HistoryTab
-						historySessions={historySessions}
-						historyTotal={historyTotal}
-						historyLoading={historyLoading}
-						historyFilter={historyFilter}
-						onFilterChange={(filter) => {
-							setHistoryFilter(filter)
-							loadHistory(filter)
-						}}
-					/>
+					<Suspense fallback={<TabLoading />}>
+						<HistoryTab
+							historySessions={historySessions}
+							historyTotal={historyTotal}
+							historyLoading={historyLoading}
+							historyFilter={historyFilter}
+							onFilterChange={(filter) => {
+								setHistoryFilter(filter)
+								loadHistory(filter)
+							}}
+						/>
+					</Suspense>
 				</TabsContent>
 			</Tabs>
+		</div>
+	)
+}
+
+function TabLoading() {
+	return (
+		<div className='flex items-center justify-center py-12'>
+			<div className='animate-spin rounded-full h-6 w-6 border-b-2 border-primary' />
 		</div>
 	)
 }

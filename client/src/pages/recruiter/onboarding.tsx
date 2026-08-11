@@ -15,8 +15,12 @@ import {
 	User,
 	Users,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { AiOnboardingRecruiter } from '@/components/ai-onboarding-recruiter'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+
+// ─── Lazy tab content ────────────────────────────────────────────────
+const AiOnboardingRecruiter = lazy(() =>
+	import('@/components/ai-onboarding-recruiter').then((m) => ({ default: m.AiOnboardingRecruiter })),
+)
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -24,7 +28,7 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { apiCall } from '@/lib/api'
 
-// ─── Types ───────────────────────────────────────────────────────────
+
 interface OnboardingCandidate {
 	candidate_id: number
 	candidate_name: string
@@ -390,7 +394,9 @@ export function RecruiterOnboardingPage() {
 				</TabsList>
 
 				<TabsContent value='ai-plans'>
-					<AiOnboardingRecruiter />
+					<Suspense fallback={<div className='flex items-center justify-center py-12'><Loader2 className='h-6 w-6 animate-spin text-primary' /></div>}>
+						<AiOnboardingRecruiter />
+					</Suspense>
 				</TabsContent>
 
 				<TabsContent value='employees'>

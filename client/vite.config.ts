@@ -1,9 +1,26 @@
 import path from 'node:path'
 import react from '@vitejs/plugin-react'
+import compression from 'vite-plugin-compression'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-	plugins: [react()],
+	plugins: [
+		react(),
+		// Generate .gz files for all assets
+		compression({
+			algorithm: 'gzip',
+			ext: '.gz',
+			threshold: 1024,
+			deleteOriginFile: false,
+		}),
+		// Generate .br files for all assets
+		compression({
+			algorithm: 'brotliCompress',
+			ext: '.br',
+			threshold: 1024,
+			deleteOriginFile: false,
+		}),
+	],
 	test: {
 		environment: 'jsdom',
 		globals: true,
@@ -16,18 +33,33 @@ export default defineConfig({
 	build: {
 		outDir: 'dist',
 		emptyOutDir: true,
-		chunkSizeWarningLimit: 1200,
+		chunkSizeWarningLimit: 500,
 		rollupOptions: {
 			output: {
-				// Keep every dependency in one chunk. Splitting react/react-dom/router
-				// apart strands `scheduler` in the catch-all chunk, which makes the
-				// vendor chunks import each other; under a circular chunk graph the
-				// scheduler module body evaluates before its exports object exists and
-				// throws "Cannot set properties of undefined (setting 'unstable_now')",
-				// so React never mounts. These chunks all load eagerly on first paint
-				// anyway, so merging them costs no extra bytes.
 				manualChunks(id: string) {
-					if (id.includes('node_modules')) return 'vendor'
+					if (id.includes('node_modules')) {
+						// React ecosystem must stay together to avoid circular chunk issues
+						// (scheduler needs to load before react-dom, etc.)
+						if (
+							id.includes('node_modules/react') ||
+							id.includes('node_modules/react-dom') ||
+							id.includes('node_modules/react-router') ||
+							id.includes('node_modules/scheduler') ||
+							id.includes('node_modules/@remix-run')
+						) {
+							return 'vendor-react'
+						}
+						// Lucide icons are large — split them out to keep vendor-react small
+						if (id.includes('node_modules/lucide-react')) {
+							return 'vendor-icons'
+						}
+						// DnD kit is only used in one feature area
+						if (id.includes('node_modules/@dnd-kit')) {
+							return 'vendor-dnd'
+						}
+						// Remaining node_modules
+						return 'vendor'
+					}
 				},
 				entryFileNames: 'assets/[name]-[hash].js',
 				chunkFileNames: 'assets/[name]-[hash].js',
