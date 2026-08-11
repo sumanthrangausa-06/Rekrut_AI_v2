@@ -18,7 +18,7 @@ import {
 	XCircle,
 	Zap,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { EmptyState } from '@/components/domain/empty-state'
 import { Skeleton } from '@/components/domain/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -37,7 +37,6 @@ interface AnalyticsData {
 	application_stats: {
 		total_applications: number
 		new_applications: number
-		screening: number
 		reviewed: number
 		interviewed: number
 		offered: number
@@ -52,7 +51,6 @@ interface AnalyticsData {
 		application_count: number
 		views: number
 	}>
-	trust_score?: number
 	score_distribution?: {
 		'900': number
 		'800': number
@@ -95,33 +93,37 @@ interface AnalyticsData {
 export function RecruiterAnalyticsPage() {
 	const [data, setData] = useState<AnalyticsData | null>(null)
 	const [loading, setLoading] = useState(true)
+	const [error, setError] = useState<string | null>(null)
 	const [timeRange, setTimeRange] = useState('30')
 	const [_activeSection, _setActiveSection] = useState('overview')
 
-	useEffect(() => {
-		async function loadAnalytics() {
-			setLoading(true)
-			try {
-				const [dashboardResponse, jobsResponse] = await Promise.all([
-					apiCall<{ success: boolean } & AnalyticsData>(`/recruiter/dashboard?days=${timeRange}`),
-					apiCall<{ jobs: AnalyticsData['jobs'] }>(`/recruiter/jobs`),
-				])
+	const loadAnalytics = useCallback(async () => {
+		setLoading(true)
+		setError(null)
+		try {
+			const [dashboardResponse, jobsResponse] = await Promise.all([
+				apiCall<Omit<AnalyticsData, 'jobs'> & { success: boolean }>(`/recruiter/dashboard?days=${timeRange}`),
+				apiCall<{ jobs: AnalyticsData['jobs'] }>(`/recruiter/jobs?limit=5`),
+			])
 
-				const { success: _success, ...dashboardData } = dashboardResponse
+			const { success: _success, ...dashboardData } = dashboardResponse
 
-				setData({
-					...dashboardData,
-					jobs: jobsResponse.jobs || [],
-				})
-				trackEvent('analytics_view', { time_range: timeRange })
-			} catch (err) {
-				console.error('Failed to load analytics:', err)
-			} finally {
-				setLoading(false)
-			}
+			setData({
+				...dashboardData,
+				jobs: jobsResponse.jobs || [],
+			})
+			trackEvent('analytics_view', { time_range: timeRange })
+		} catch (err) {
+			console.error('Failed to load analytics:', err)
+			setError(err instanceof Error ? err.message : 'Failed to load analytics')
+		} finally {
+			setLoading(false)
 		}
-		loadAnalytics()
 	}, [timeRange])
+
+	useEffect(() => {
+		loadAnalytics()
+	}, [loadAnalytics])
 
 	const stats = data
 		? {
@@ -203,12 +205,7 @@ export function RecruiterAnalyticsPage() {
 		return ((stage.value / funnelData[i - 1].value) * 100).toFixed(1)
 	})
 
-	const sourceBreakdown = data?.source_breakdown || [
-		{ name: 'Direct', count: 45, percentage: 45 },
-		{ name: 'LinkedIn', count: 30, percentage: 30 },
-		{ name: 'Indeed', count: 15, percentage: 15 },
-		{ name: 'Referral', count: 10, percentage: 10 },
-	]
+	const sourceBreakdown = data?.source_breakdown || []
 
 	const scoreDist = data?.score_distribution || {
 		'900': 0,
@@ -219,51 +216,18 @@ export function RecruiterAnalyticsPage() {
 	}
 	const totalScores = Object.values(scoreDist).reduce((a, b) => a + b, 0) || 1
 
-	// Velocity data (mock or real)
-	const velocityData = data?.hiring_velocity || [
-		{ month: 'Jan', applications: 45, hired: 3, interviews: 12 },
-		{ month: 'Feb', applications: 52, hired: 4, interviews: 15 },
-		{ month: 'Mar', applications: 38, hired: 2, interviews: 10 },
-		{ month: 'Apr', applications: 61, hired: 5, interviews: 18 },
-		{ month: 'May', applications: 55, hired: 4, interviews: 16 },
-		{ month: 'Jun', applications: 48, hired: 3, interviews: 14 },
-	]
+	// Velocity data
+	const velocityData = data?.hiring_velocity || []
 	const maxVelocity = Math.max(...velocityData.map((d) => d.applications), 1)
 
 	// Time to hire by stage
-	const timeByStage = data?.time_to_hire_by_stage || [
-		{ stage: 'Applied → Screened', avg_days: 4, count: 45 },
-		{ stage: 'Screened → Interview', avg_days: 7, count: 32 },
-		{ stage: 'Interview → Offer', avg_days: 5, count: 18 },
-		{ stage: 'Offer → Hired', avg_days: 3, count: 12 },
-	]
+	const timeByStage = data?.time_to_hire_by_stage || []
 
-	// Diversity metrics (real or mock)
-	const diversityMetrics = data?.diversity_metrics || {
-		gender_distribution: [
-			{ label: 'Male', percentage: 52 },
-			{ label: 'Female', percentage: 44 },
-			{ label: 'Non-binary', percentage: 3 },
-			{ label: 'Prefer not to say', percentage: 1 },
-		],
-		ethnicity_distribution: [
-			{ label: 'Asian', percentage: 38 },
-			{ label: 'White', percentage: 28 },
-			{ label: 'Black', percentage: 15 },
-			{ label: 'Hispanic', percentage: 12 },
-			{ label: 'Other', percentage: 7 },
-		],
-	}
+	// Diversity metrics
+	const diversityMetrics = data?.diversity_metrics || null
 
-	// Rejection reasons (real or mock)
-	const rejectionReasons = data?.rejection_reasons || [
-		{ reason: 'Skills gap', count: 42, percentage: 35, trend: -2 },
-		{ reason: 'Not enough experience', count: 31, percentage: 26, trend: 4 },
-		{ reason: 'Culture fit', count: 18, percentage: 15, trend: -5 },
-		{ reason: 'Compensation mismatch', count: 14, percentage: 12, trend: 8 },
-		{ reason: 'Accepted another offer', count: 9, percentage: 8, trend: 3 },
-		{ reason: 'Other', count: 5, percentage: 4, trend: 0 },
-	]
+	// Rejection reasons
+	const rejectionReasons = data?.rejection_reasons || []
 	const maxRejectionCount = Math.max(...rejectionReasons.map((r) => r.count), 1)
 
 	if (loading) {
@@ -357,6 +321,25 @@ export function RecruiterAnalyticsPage() {
 					</Button>
 				</div>
 			</div>
+
+			{/* Error Banner */}
+			{error && (
+				<div className='rounded-lg border border-red-200 bg-red-50 p-4 flex items-start gap-3'>
+					<XCircle className='h-5 w-5 text-red-600 shrink-0 mt-0.5' />
+					<div className='flex-1'>
+						<p className='text-sm font-medium text-red-800'>Failed to load analytics</p>
+						<p className='text-sm text-red-600 mt-0.5'>{error}</p>
+					</div>
+					<Button
+						variant='outline'
+						size='sm'
+						className='shrink-0'
+						onClick={() => loadAnalytics()}
+					>
+						Retry
+					</Button>
+				</div>
+			)}
 
 			{/* Key Metrics Row */}
 			<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>

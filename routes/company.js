@@ -1123,6 +1123,167 @@ router.post('/members/:id/suspend', authMiddleware, async (req, res) => {
 	}
 });
 
+// ============= COMPANY OWNERSHIP TRANSFER (Issue #104) =============
+
+// Transfer company ownership (owner only)
+router.post('/transfer-ownership', authMiddleware, rateLimits.strict, async (req, res) => {
+	try {
+		if (!req.user.company_id) {
+			return res.status(400).json({ error: 'No company associated with this account' });
+		}
+
+		// Verify the user is the company owner
+		const companyResult = await pool.query(
+			'SELECT id, owner_id, name FROM companies WHERE id = $1',
+			[req.user.company_id],
+		);
+		if (companyResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Company not found' });
+		}
+		const company = companyResult.rows[0];
+		if (company.owner_id !== req.user.id) {
+			return res.status(403).json({ error: 'Only the company owner can transfer ownership' });
+		}
+
+		const { newOwnerId } = req.body;
+
+		// Validate newOwnerId is a positive integer
+		if (!newOwnerId || !Number.isInteger(newOwnerId) || newOwnerId <= 0) {
+			return res.status(400).json({ error: 'newOwnerId must be a positive integer' });
+		}
+
+		// Cannot transfer to yourself
+		if (newOwnerId === req.user.id) {
+			return res.status(400).json({ error: 'Cannot transfer ownership to yourself' });
+		}
+
+		// Verify target user exists and belongs to the same company
+		const targetResult = await pool.query(
+			'SELECT id, name, email, company_id, role, suspended_at FROM users WHERE id = $1',
+			[newOwnerId],
+		);
+		if (targetResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Target user not found' });
+		}
+		const target = targetResult.rows[0];
+
+		// Must belong to the same company
+		if (target.company_id !== req.user.company_id) {
+			return res.status(403).json({
+				error: 'Target user does not belong to your company',
+				code: 'USER_NOT_IN_COMPANY',
+			});
+		}
+
+		// Cannot transfer to suspended users
+		if (target.suspended_at) {
+			return res.status(400).json({
+				error: 'Cannot transfer ownership to a suspended user',
+				code: 'TARGET_USER_SUSPENDED',
+			});
+		}
+
+		// Cannot transfer to pending users (users without a company_id are pending)
+		// This is redundant with the company_id check above, but kept for explicitness
+		if (!target.company_id) {
+			return res.status(400).json({
+				error: 'Cannot transfer ownership to a pending user',
+				code: 'TARGET_USER_PENDING',
+			});
+		}
+
+		// Execute transfer in a transaction
+		const client = await pool.connect();
+		try {
+			await client.query('BEGIN');
+
+			// Update company owner
+			await client.query('UPDATE companies SET owner_id = $1, updated_at = NOW() WHERE id = $2', [
+				newOwnerId,
+				company.id,
+			]);
+
+			// Update old owner's role to admin
+			await client.query(
+				"UPDATE users SET role = 'admin', updated_at = NOW() WHERE id = $1",
+				[req.user.id],
+			);
+
+			// Update new owner's role to owner
+			await client.query(
+				"UPDATE users SET role = 'owner', updated_at = NOW() WHERE id = $1",
+				[newOwnerId],
+			);
+
+			await client.query('COMMIT');
+		} catch (err) {
+			await client.query('ROLLBACK');
+			throw err;
+		} finally {
+			client.release();
+		}
+
+		// ─── Audit log — ownership transferred ───
+		try {
+			await insertAuditLog({
+				company_id: company.id,
+				actor_id: req.user.id,
+				target_id: newOwnerId,
+				action: 'ownership_transferred',
+				metadata: {
+					previous_owner_id: req.user.id,
+					new_owner_id: newOwnerId,
+					new_owner_email: target.email,
+					new_owner_name: target.name,
+				},
+			});
+		} catch (auditErr) {
+			console.error('[company/transfer-ownership] Audit log error:', auditErr.message);
+		}
+
+		// ─── Email notification to new owner ───
+		try {
+			await emailService.sendOwnershipTransferEmail({
+				to: target.email,
+				name: target.name,
+				companyName: company.name,
+				userId: target.id,
+				metadata: {
+					company_id: company.id,
+					actor_id: req.user.id,
+					trigger: 'ownership_transferred',
+				},
+			});
+		} catch (emailErr) {
+			console.error('[company/transfer-ownership] Email notification error:', emailErr.message);
+		}
+
+		// Fetch updated company info
+		const updatedCompany = await pool.query(
+			`SELECT c.*, ts.total_score as trust_score, ts.score_tier
+			 FROM companies c
+			 LEFT JOIN trust_scores ts ON c.id = ts.company_id
+			 WHERE c.id = $1`,
+			[company.id],
+		);
+
+		res.json({
+			success: true,
+			message: 'Company ownership transferred successfully',
+			company: updatedCompany.rows[0],
+			new_owner: {
+				id: target.id,
+				name: target.name,
+				email: target.email,
+				role: 'owner',
+			},
+		});
+	} catch (err) {
+		console.error('Transfer ownership error:', err);
+		res.status(500).json({ error: 'Failed to transfer company ownership' });
+	}
+});
+
 router.post('/members/:id/reinstate', authMiddleware, async (req, res) => {
 	try {
 		if (!req.user.company_id) {

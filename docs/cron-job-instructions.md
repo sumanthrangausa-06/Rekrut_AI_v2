@@ -31,7 +31,7 @@ DISCOVER → PLAN → BUILD → REVIEW → TEST → SHIP → QA_REVIEW → REFLE
                                     Hand off to Cursor
 ```
 
-### SHIP Phase (Updated)
+### SHIP Phase (Async — Don't Wait)
 
 1. Push to dev: `git push origin dev`
 2. Merge dev→staging:
@@ -47,14 +47,14 @@ DISCOVER → PLAN → BUILD → REVIEW → TEST → SHIP → QA_REVIEW → REFLE
    Must return 200.
 4. Add label: `gh issue edit <number> --add-label ready-for-qa`
 5. Comment on issue with QA checklist
-6. Update state: `phase="QA_REVIEW"`
+6. **Move directly to REFLECT** — do NOT wait for Cursor response
 
-### QA_REVIEW Phase (New)
+### QA_REVIEW Phase (Async — Cursor Tests Later)
 
-1. Check if Cursor responded (labels/comments)
-2. If `qa-passed` label added → move to REFLECT
-3. If `qa-failed` label added → return to BUILD
-4. If no response → wait for next run
+- Cursor tests `ready-for-qa` issues asynchronously
+- If `qa-passed` → Cursor marks it, Ranga closes
+- If `qa-failed` → Cursor reopens, Suga picks up in future run
+- Suga does NOT block on this — keeps working on next issue
 
 ---
 
