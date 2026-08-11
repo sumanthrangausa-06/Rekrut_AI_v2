@@ -82,7 +82,6 @@ if (nodeEnv !== 'production' && dbUrl.includes(PROD_DB_HOSTNAME)) {
 	console.error(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
 	process.exit(1);
 }
-}
 
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
