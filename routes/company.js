@@ -581,55 +581,6 @@ router.get('/:slug/team', optionalAuth, async (req, res) => {
 		res.status(500).json({ error: 'Failed to fetch team' });
 	}
 });
-
-// Get public company profile (legacy — keep for backward compat)
-router.get('/:slug', optionalAuth, async (req, res) => {
-	try {
-		const result = await pool.query(
-			`SELECT c.id, c.name, c.slug, c.logo_url, c.description, c.industry,
-              c.company_size, c.headquarters, c.website, c.is_verified,
-              ts.total_score as trust_score, ts.score_tier
-       FROM companies c
-       LEFT JOIN trust_scores ts ON c.id = ts.company_id
-       WHERE c.slug = $1`,
-			[req.params.slug],
-		);
-
-		if (result.rows.length === 0) {
-			return res.status(404).json({ error: 'Company not found' });
-		}
-
-		const company = result.rows[0];
-
-		// Get active jobs count
-		const jobsCount = await pool.query(
-			`SELECT COUNT(*) as count FROM jobs WHERE company_id = $1 AND status = 'active'`,
-			[company.id],
-		);
-
-		// Get average feedback rating
-		const avgRating = await pool.query(
-			`SELECT AVG(rating) as avg_rating, COUNT(*) as review_count
-       FROM candidate_feedback WHERE company_id = $1`,
-			[company.id],
-		);
-
-		res.json({
-			company: {
-				...company,
-				active_jobs: parseInt(jobsCount.rows[0].count, 10),
-				avg_rating: avgRating.rows[0].avg_rating
-					? parseFloat(avgRating.rows[0].avg_rating).toFixed(1)
-					: null,
-				review_count: parseInt(avgRating.rows[0].review_count, 10),
-			},
-		});
-	} catch (err) {
-		console.error('Get public company profile error:', err);
-		res.status(500).json({ error: 'Failed to fetch company' });
-	}
-});
-
 // Verify company (manual verification request)
 router.post('/verify', authMiddleware, async (req, res) => {
 	try {
@@ -1222,6 +1173,55 @@ router.post('/members/:id/reinstate', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Reinstate team member error:', err);
 		res.status(500).json({ error: 'Failed to reinstate team member' });
+	}
+});
+
+
+// Get public company profile (legacy — keep for backward compat)
+router.get('/:slug', optionalAuth, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`SELECT c.id, c.name, c.slug, c.logo_url, c.description, c.industry,
+              c.company_size, c.headquarters, c.website, c.is_verified,
+              ts.total_score as trust_score, ts.score_tier
+       FROM companies c
+       LEFT JOIN trust_scores ts ON c.id = ts.company_id
+       WHERE c.slug = $1`,
+			[req.params.slug],
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Company not found' });
+		}
+
+		const company = result.rows[0];
+
+		// Get active jobs count
+		const jobsCount = await pool.query(
+			`SELECT COUNT(*) as count FROM jobs WHERE company_id = $1 AND status = 'active'`,
+			[company.id],
+		);
+
+		// Get average feedback rating
+		const avgRating = await pool.query(
+			`SELECT AVG(rating) as avg_rating, COUNT(*) as review_count
+       FROM candidate_feedback WHERE company_id = $1`,
+			[company.id],
+		);
+
+		res.json({
+			company: {
+				...company,
+				active_jobs: parseInt(jobsCount.rows[0].count, 10),
+				avg_rating: avgRating.rows[0].avg_rating
+					? parseFloat(avgRating.rows[0].avg_rating).toFixed(1)
+					: null,
+				review_count: parseInt(avgRating.rows[0].review_count, 10),
+			},
+		});
+	} catch (err) {
+		console.error('Get public company profile error:', err);
+		res.status(500).json({ error: 'Failed to fetch company' });
 	}
 });
 
