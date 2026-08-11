@@ -100,14 +100,16 @@ export function RecruiterAnalyticsPage() {
 		async function loadAnalytics() {
 			setLoading(true)
 			try {
-				const [dashboardData, jobsData] = await Promise.all([
-					apiCall<AnalyticsData>(`/recruiter/analytics?days=${timeRange}`),
-					apiCall<{ jobs: AnalyticsData['jobs'] }>(`/recruiter/jobs?days=${timeRange}`),
+				const [dashboardResponse, jobsResponse] = await Promise.all([
+					apiCall<Omit<AnalyticsData, 'jobs'> & { success: boolean }>(`/recruiter/dashboard?days=${timeRange}`),
+					apiCall<{ jobs: AnalyticsData['jobs'] }>(`/recruiter/jobs?limit=5`),
 				])
+
+				const { success: _success, ...dashboardData } = dashboardResponse
 
 				setData({
 					...dashboardData,
-					jobs: jobsData.jobs || [],
+					jobs: jobsResponse.jobs || [],
 				})
 				trackEvent('analytics_view', { time_range: timeRange })
 			} catch (err) {
