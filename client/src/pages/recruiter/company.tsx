@@ -67,6 +67,7 @@ interface TeamMember {
 	email: string
 	role: string
 	created_at: string
+	suspended_at?: string | null
 }
 
 // ============= Main Component =============
@@ -739,17 +740,33 @@ function TeamTab({
 	const [inviteRole, setInviteRole] = useState('recruiter')
 	const [inviting, setInviting] = useState(false)
 	const [suspendingId, setSuspendingId] = useState<number | null>(null)
+	const [reinstatingId, setReinstatingId] = useState<number | null>(null)
 
 	async function handleSuspend(memberId: number) {
 		setSuspendingId(memberId)
 		try {
 			await apiCall(`/company/team/members/${memberId}/suspend`, { method: 'POST' })
-			setMembers((prev) => prev.filter((m) => m.id !== memberId))
+			setMembers((prev) =>
+				prev.map((m) => (m.id === memberId ? { ...m, suspended_at: new Date().toISOString() } : m)),
+			)
 			showMessage('success', 'Team member suspended')
 		} catch (err: unknown) {
 			showMessage('error', err instanceof Error ? err.message : 'Failed to suspend')
 		} finally {
 			setSuspendingId(null)
+		}
+	}
+
+	async function handleReinstate(memberId: number) {
+		setReinstatingId(memberId)
+		try {
+			await apiCall(`/company/team/members/${memberId}/reinstate`, { method: 'POST' })
+			setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, suspended_at: null } : m)))
+			showMessage('success', 'Team member reinstated')
+		} catch (err: unknown) {
+			showMessage('error', err instanceof Error ? err.message : 'Failed to reinstate')
+		} finally {
+			setReinstatingId(null)
 		}
 	}
 
