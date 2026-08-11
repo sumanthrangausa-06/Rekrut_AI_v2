@@ -1,22 +1,31 @@
 /**
  * Email Notification Service — Rekrut AI
  *
- * Nodemailer-based transactional email service with in-memory queue
- * for non-blocking API sending. Handles 4 core notification types:
+ * Brevo HTTP API (primary) + SMTP fallback transactional email service
+ * with in-memory queue for non-blocking API sending. Handles 4 core
+ * notification types:
  *   1. New job application received (to recruiter)
  *   2. Interview scheduled (to candidate)
  *   3. Application status updated (to candidate)
  *   4. New recruiter message (to candidate)
  *
  * Environment variables required:
- *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, FROM_EMAIL
+ *   BREVO_API_KEY  (preferred — bypasses Render SMTP block)
+ *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, FROM_EMAIL  (fallback)
  */
 
 const nodemailer = require('nodemailer');
+const fetch = require('node-fetch');
 
 // ─── Configuration ─────────────────────────────────────────────────────────
 
 const CONFIG = {
+	// Brevo HTTP API (primary)
+	brevo: {
+		apiKey: process.env.BREVO_API_KEY || '',
+		apiUrl: 'https://api.brevo.com/v3/smtp/email',
+	},
+	// SMTP configuration (fallback)
 	smtp: {
 		host: process.env.SMTP_HOST || 'smtp.gmail.com',
 		port: parseInt(process.env.SMTP_PORT || '587', 10),
@@ -29,6 +38,12 @@ const CONFIG = {
 	from: {
 		name: process.env.EMAIL_FROM_NAME || 'Rekrut AI',
 		address: process.env.FROM_EMAIL || process.env.SMTP_USER || 'noreply@rekrut.ai',
+	},
+	// Retry configuration
+	retry: {
+		maxAttempts: 3,
+		baseDelayMs: 5000,
+		backoffMultiplier: 2,
 	},
 	// In-memory queue settings
 	queue: {
@@ -44,17 +59,23 @@ const CONFIG = {
 	},
 };
 
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+function sleep(ms) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // ─── Transporter ───────────────────────────────────────────────────────────
 
 let transporter = null;
-let isConfigured = false;
+let isSmtpConfigured = false;
 
 function getTransporter() {
 	if (transporter) return transporter;
 
 	if (!CONFIG.smtp.auth.user || !CONFIG.smtp.auth.pass) {
 		console.warn('[email-service] SMTP credentials not configured. Set SMTP_USER and SMTP_PASS.');
-		isConfigured = false;
+		isSmtpConfigured = false;
 		return null;
 	}
 
@@ -69,9 +90,13 @@ function getTransporter() {
 		logger: process.env.NODE_ENV !== 'production',
 	});
 
-	isConfigured = true;
-	console.log(`[email-service] SMTP ready: ${CONFIG.smtp.host}:${CONFIG.smtp.port}`);
+	isSmtpConfigured = true;
+	console.log(`[email-service] SMTP fallback ready: ${CONFIG.smtp.host}:${CONFIG.smtp.port}`);
 	return transporter;
+}
+
+function isBrevoConfigured() {
+	return !!CONFIG.brevo.apiKey;
 }
 
 // ─── Rate Limiter (in-memory) ──────────────────────────────────────────────
@@ -163,7 +188,7 @@ async function processQueue(batchSize = CONFIG.queue.batchSize) {
 				subject: job.subject,
 				html: job.html,
 				text: job.text,
-				});
+			});
 
 			if (result.success) {
 				job.status = 'sent';
@@ -211,38 +236,126 @@ function stopQueueProcessor() {
 // Auto-start processor on module load
 startQueueProcessor();
 
-// ─── Core Send ───────────────────────────────────────────────────────────────
+// ─── Core Send ─────────────────────────────────────────────────────────────
 
-async function sendMail({ to, subject, html, text }) {
+/**
+ * Send email via Brevo HTTP API (primary)
+ */
+async function sendViaBrevoApi({ to, subject, html, text }) {
+	const body = {
+		sender: {
+			name: CONFIG.from.name,
+			email: CONFIG.from.address,
+		},
+		to: [{ email: to }],
+		subject,
+		htmlContent: html,
+		textContent: text || '',
+	};
+
+	const response = await fetch(CONFIG.brevo.apiUrl, {
+		method: 'POST',
+		headers: {
+			'api-key': CONFIG.brevo.apiKey,
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify(body),
+	});
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`Brevo API error ${response.status}: ${errorText}`);
+	}
+
+	const result = await response.json();
+	// Brevo returns { messageId: '...' }
+	return {
+		success: true,
+		messageId: result.messageId || result.message_id || `brevo-${Date.now()}`,
+		provider: 'brevo-api',
+	};
+}
+
+/**
+ * Send email via SMTP (fallback)
+ */
+async function sendViaSmtp({ to, subject, html, text }) {
 	const tp = getTransporter();
 	if (!tp) {
-		return { success: false, error: 'email_not_configured' };
+		throw new Error('SMTP not configured');
 	}
 
 	const rateCheck = rateLimiter.check();
 	if (!rateCheck.allowed) {
-		return { success: false, error: 'rate_limit_exceeded', reason: rateCheck.reason };
+		throw new Error(`Rate limit exceeded: ${rateCheck.reason}`);
 	}
 
-	try {
-		const info = await tp.sendMail({
-			from: `"${CONFIG.from.name}" <${CONFIG.from.address}>`,
-			to,
-			subject,
-			text,
-			html,
-			headers: {
-				'X-Mailer': 'Rekrut AI Email Service',
-				'X-Priority': '3',
-			},
-		});
+	const info = await tp.sendMail({
+		from: `"${CONFIG.from.name}" <${CONFIG.from.address}>`,
+		to,
+		subject,
+		text,
+		html,
+		headers: {
+			'X-Mailer': 'Rekrut AI Email Service',
+			'X-Priority': '3',
+		},
+	});
 
-		console.log(`[email-service] Sent to ${to}: ${info.messageId}`);
-		return { success: true, messageId: info.messageId };
-	} catch (err) {
-		console.error(`[email-service] Send failed to ${to}:`, err.message);
-		return { success: false, error: 'send_failed', message: err.message };
+	return {
+		success: true,
+		messageId: info.messageId,
+		provider: 'smtp',
+	};
+}
+
+/**
+ * Send email with retry logic:
+ * 1. Try Brevo HTTP API first (up to 3 attempts, 5s base exponential backoff)
+ * 2. Fall back to SMTP if API unavailable / not configured
+ */
+async function sendMail({ to, subject, html, text }) {
+	let lastError = null;
+
+	// ─── Primary: Brevo HTTP API with retry ────────────────────────────
+	if (isBrevoConfigured()) {
+		for (let attempt = 1; attempt <= CONFIG.retry.maxAttempts; attempt++) {
+			try {
+				const result = await sendViaBrevoApi({ to, subject, html, text });
+				console.log(`[email-service] Sent to ${to} via Brevo API: ${result.messageId}`);
+				return result;
+			} catch (err) {
+				lastError = err;
+				console.error(
+					`[email-service] Brevo API send attempt ${attempt}/${CONFIG.retry.maxAttempts} failed for ${to}:`,
+					err.message,
+				);
+
+				if (attempt < CONFIG.retry.maxAttempts) {
+					const delay = CONFIG.retry.baseDelayMs * Math.pow(CONFIG.retry.backoffMultiplier, attempt - 1);
+					console.log(`[email-service] Retrying in ${delay}ms...`);
+					await sleep(delay);
+				}
+			}
+		}
 	}
+
+	// ─── Fallback: SMTP ────────────────────────────────────────────────
+	if (isSmtpConfigured || getTransporter()) {
+		try {
+			const result = await sendViaSmtp({ to, subject, html, text });
+			console.log(`[email-service] Sent to ${to} via SMTP fallback: ${result.messageId}`);
+			return result;
+		} catch (err) {
+			lastError = err;
+			console.error(`[email-service] SMTP fallback failed for ${to}:`, err.message);
+		}
+	}
+
+	// ─── Neither transport succeeded ───────────────────────────────────
+	const errorMsg = lastError ? lastError.message : 'No email transport configured';
+	console.error(`[email-service] All transports failed for ${to}: ${errorMsg}`);
+	return { success: false, error: 'send_failed', message: errorMsg };
 }
 
 // ─── Templates ─────────────────────────────────────────────────────────────
@@ -461,32 +574,56 @@ function queueNewRecruiterMessage(to, data) {
 	return enqueue({ to, subject, text, html, type: 'recruiter_message' });
 }
 
-// Verify SMTP connection
+// Verify connections
 async function verifyConnection() {
-	const tp = getTransporter();
-	if (!tp) return { success: false, error: 'not_configured' };
-	try {
-		await tp.verify();
-		return { success: true, message: 'SMTP connection verified' };
-	} catch (err) {
-		return { success: false, error: err.message };
+	const results = { brevoApi: null, smtp: null };
+
+	if (isBrevoConfigured()) {
+		try {
+			const response = await fetch('https://api.brevo.com/v3/account', {
+				headers: { 'api-key': CONFIG.brevo.apiKey },
+			});
+			results.brevoApi = response.ok
+				? { success: true, message: 'Brevo API key valid' }
+				: { success: false, error: `HTTP ${response.status}` };
+		} catch (err) {
+			results.brevoApi = { success: false, error: err.message };
+		}
 	}
+
+	const tp = getTransporter();
+	if (tp) {
+		try {
+			await tp.verify();
+			results.smtp = { success: true, message: 'SMTP connection verified' };
+		} catch (err) {
+			results.smtp = { success: false, error: err.message };
+		}
+	}
+
+	return results;
 }
 
 // Get service status
 function getStatus() {
 	return {
-		configured: isConfigured,
-		host: CONFIG.smtp.host,
-		port: CONFIG.smtp.port,
+		configured: isBrevoConfigured() || !!(CONFIG.smtp.auth.user && CONFIG.smtp.auth.pass),
+		brevoApi: {
+			configured: isBrevoConfigured(),
+		},
+		smtp: {
+			configured: isSmtpConfigured,
+			host: CONFIG.smtp.host,
+			port: CONFIG.smtp.port,
+		},
 		from: CONFIG.from.address,
-		hasCredentials: !!(CONFIG.smtp.auth.user && CONFIG.smtp.auth.pass),
 		queue: getQueueStatus(),
 		rateLimit: {
 			...CONFIG.rateLimit,
 			currentMinute: rateLimiter.minuteCount,
 			currentHour: rateLimiter.hourCount,
 		},
+		retry: CONFIG.retry,
 	};
 }
 
