@@ -22,15 +22,17 @@ import {
 	Target,
 	User,
 	UserCheck,
+	UserPlus,
 	Users,
 	Video,
 	Wallet,
 	X,
 } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { Logo } from '@/components/ui/logo'
 import { useAuth } from '@/contexts/auth-context'
+import { apiCall } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 interface SidebarProps {
@@ -130,6 +132,25 @@ const recruiterNav: NavItem[] = [
 export function Sidebar({ open, onClose }: SidebarProps) {
 	const { isRecruiter, user, logout } = useAuth()
 	const _location = useLocation()
+	const [joinRequestCount, setJoinRequestCount] = useState(0)
+
+	// Fetch pending join request count for company owners
+	useEffect(() => {
+		if (!user?.is_company_owner) return
+		async function loadCount() {
+			try {
+				const data = await apiCall<{ success: boolean; requests: Array<{ id: number }> }>(
+					'/company/join-requests',
+				)
+				setJoinRequestCount(data.requests?.length || 0)
+			} catch {
+				setJoinRequestCount(0)
+			}
+		}
+		loadCount()
+		const interval = setInterval(loadCount, 60000) // Refresh every 60s
+		return () => clearInterval(interval)
+	}, [user])
 
 	// Close mobile sidebar on route change
 	useEffect(() => {
@@ -139,6 +160,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
 	const isProUser = (user as any)?.subscription_tier === 'pro' || (user as any)?.plan === 'pro'
 	const showUpgradeCta = !isRecruiter && !isProUser
+	const showJoinRequests = isRecruiter && user?.is_company_owner
 
 	return (
 		<>
@@ -202,6 +224,28 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 									{item.label}
 								</NavLink>
 							))}
+							{showJoinRequests && (
+								<NavLink
+									to='/recruiter/team/join-requests'
+									onClick={onClose}
+									className={({ isActive }) =>
+										cn(
+											'flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+											isActive
+												? 'bg-primary/10 text-primary'
+												: 'text-muted-foreground hover:bg-muted hover:text-foreground',
+										)
+									}
+								>
+									<UserPlus className='h-4 w-4 shrink-0' />
+									<span className='flex-1'>Join Requests</span>
+									{joinRequestCount > 0 && (
+										<span className='rounded bg-destructive px-1.5 py-0.5 text-[10px] font-medium text-destructive-foreground'>
+											{joinRequestCount > 9 ? '9+' : joinRequestCount}
+										</span>
+									)}
+								</NavLink>
+							)}
 						</div>
 					) : (
 						/* Candidate: grouped sections */

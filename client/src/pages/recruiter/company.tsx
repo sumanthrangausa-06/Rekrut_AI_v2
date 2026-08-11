@@ -5,6 +5,8 @@ import {
 	Building2,
 	Calendar,
 	CheckCircle,
+	ClipboardList,
+	Clock,
 	Crown,
 	Globe,
 	Heart,
@@ -29,6 +31,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { EmptyState } from '@/components/domain/empty-state'
 import { useAuth } from '@/contexts/auth-context'
 import { apiCall } from '@/lib/api'
 
@@ -64,12 +67,13 @@ interface TeamMember {
 	email: string
 	role: string
 	created_at: string
+	suspended_at?: string | null
 }
 
 // ============= Main Component =============
 
 export function RecruiterCompanyPage() {
-	const { user: _user } = useAuth()
+	const { user } = useAuth()
 	const [tab, setTab] = useState('overview')
 	const [company, setCompany] = useState<Company>({})
 	const [members, setMembers] = useState<TeamMember[]>([])
@@ -266,6 +270,11 @@ export function RecruiterCompanyPage() {
 					<TabsTrigger value='team' className='gap-1.5'>
 						<Users className='h-3.5 w-3.5' /> Team ({members.length})
 					</TabsTrigger>
+					{user?.is_company_owner && (
+						<TabsTrigger value='audit' className='gap-1.5'>
+							<ClipboardList className='h-3.5 w-3.5' /> Audit Log
+						</TabsTrigger>
+					)}
 				</TabsList>
 
 				<TabsContent value='overview'>
@@ -291,6 +300,11 @@ export function RecruiterCompanyPage() {
 				<TabsContent value='team'>
 					<TeamTab members={members} setMembers={setMembers} showMessage={showMessage} />
 				</TabsContent>
+				{user?.is_company_owner && (
+					<TabsContent value='audit'>
+						<AuditLogTab />
+					</TabsContent>
+				)}
 			</Tabs>
 		</div>
 	)
@@ -725,6 +739,36 @@ function TeamTab({
 	const [inviteName, setInviteName] = useState('')
 	const [inviteRole, setInviteRole] = useState('recruiter')
 	const [inviting, setInviting] = useState(false)
+	const [suspendingId, setSuspendingId] = useState<number | null>(null)
+	const [reinstatingId, setReinstatingId] = useState<number | null>(null)
+
+	async function handleSuspend(memberId: number) {
+		setSuspendingId(memberId)
+		try {
+			await apiCall(`/company/team/members/${memberId}/suspend`, { method: 'POST' })
+			setMembers((prev) =>
+				prev.map((m) => (m.id === memberId ? { ...m, suspended_at: new Date().toISOString() } : m)),
+			)
+			showMessage('success', 'Team member suspended')
+		} catch (err: unknown) {
+			showMessage('error', err instanceof Error ? err.message : 'Failed to suspend')
+		} finally {
+			setSuspendingId(null)
+		}
+	}
+
+	async function handleReinstate(memberId: number) {
+		setReinstatingId(memberId)
+		try {
+			await apiCall(`/company/team/members/${memberId}/reinstate`, { method: 'POST' })
+			setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, suspended_at: null } : m)))
+			showMessage('success', 'Team member reinstated')
+		} catch (err: unknown) {
+			showMessage('error', err instanceof Error ? err.message : 'Failed to reinstate')
+		} finally {
+			setReinstatingId(null)
+		}
+	}
 
 	async function handleInvite() {
 		if (!inviteEmail.trim()) return
@@ -805,6 +849,21 @@ function TeamTab({
 									<p className='text-xs text-muted-foreground hidden sm:block'>
 										Joined {new Date(member.created_at).toLocaleDateString()}
 									</p>
+									{user?.is_company_owner && member.id !== user?.id && (
+										<Button
+											variant='ghost'
+											size='sm'
+											className='text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0'
+											onClick={() => handleSuspend(member.id)}
+											disabled={suspendingId === member.id}
+										>
+											{suspendingId === member.id ? (
+												<div className='h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-600 border-t-transparent' />
+											) : (
+												'Remove'
+											)}
+										</Button>
+									)}
 								</div>
 							</CardContent>
 						</Card>
@@ -871,5 +930,147 @@ function TeamTab({
 				</Dialog>
 			)}
 		</div>
+	)
+}
+
+// ============= Audit Log Tab (Issue #156) =============
+
+interface AuditLogEntry {
+	id: number
+	actor_name: string
+	actor_email: string
+	target_name: string | null
+	target_email: string | null
+	action: string
+	reason: string | null
+	created_at: string
+}
+
+const actionLabels: Record<string, string> = {
+	join_request_created: 'Join Request Created',
+	join_request_approved: 'Join Request Approved',
+	join_request_rejected: 'Join Request Rejected',
+	recruiter_suspended: 'Recruiter Suspended',
+}
+
+const actionColors: Record<string, string> = {
+	join_request_created: 'bg-blue-50 text-blue-700 border-blue-200',
+	join_request_approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+	join_request_rejected: 'bg-red-50 text-red-700 border-red-200',
+	recruiter_suspended: 'bg-amber-50 text-amber-700 border-amber-200',
+}
+
+function AuditLogTab() {
+	const [logs, setLogs] = useState<AuditLogEntry[]>([])
+	const [loading, setLoading] = useState(true)
+	const [error, setError] = useState<string | null>(null)
+
+	const loadLogs = useCallback(async () => {
+		try {
+			setError(null)
+			const data = await apiCall<{ success: boolean; logs: AuditLogEntry[]; total: number }>(
+				'/company/audit-log',
+			)
+			setLogs(data.logs || [])
+		} catch (err: any) {
+			setError(err.message || 'Failed to load audit log')
+		} finally {
+			setLoading(false)
+		}
+	}, [])
+
+	useEffect(() => {
+		loadLogs()
+	}, [loadLogs])
+
+	if (loading) {
+		return (
+			<div className='space-y-3'>
+				<Skeleton variant='card' />
+				<Skeleton variant='card' />
+				<Skeleton variant='card' />
+			</div>
+		)
+	}
+
+	if (error) {
+		return (
+			<Card>
+				<CardContent className='p-6 text-center'>
+					<AlertCircle className='mx-auto mb-2 h-8 w-8 text-red-500' />
+					<p className='text-sm text-muted-foreground'>{error}</p>
+					<Button variant='outline' size='sm' onClick={loadLogs} className='mt-3'>
+						Retry
+					</Button>
+				</CardContent>
+			</Card>
+		)
+	}
+
+	if (logs.length === 0) {
+		return (
+			<EmptyState
+				icon={ClipboardList}
+				title='No audit events yet'
+				description='When team members join, get approved, rejected, or suspended, those events will appear here.'
+			/>
+		)
+	}
+
+	return (
+		<Card>
+			<CardContent className='p-0'>
+				<div className='overflow-x-auto'>
+					<table className='w-full text-sm'>
+						<thead>
+							<tr className='border-b bg-muted/50'>
+								<th className='px-4 py-3 text-left font-medium text-muted-foreground'>Action</th>
+								<th className='px-4 py-3 text-left font-medium text-muted-foreground'>Actor</th>
+								<th className='px-4 py-3 text-left font-medium text-muted-foreground'>Target</th>
+								<th className='px-4 py-3 text-left font-medium text-muted-foreground'>Reason</th>
+								<th className='px-4 py-3 text-left font-medium text-muted-foreground'>Time</th>
+							</tr>
+						</thead>
+						<tbody>
+							{logs.map((log) => (
+								<tr key={log.id} className='border-b last:border-0 hover:bg-muted/30'>
+									<td className='px-4 py-3'>
+										<Badge
+											variant='outline'
+											className={actionColors[log.action] || 'bg-gray-50 text-gray-700'}
+										>
+											{actionLabels[log.action] || log.action}
+										</Badge>
+									</td>
+									<td className='px-4 py-3'>
+										<div className='font-medium'>{log.actor_name || 'Unknown'}</div>
+										<div className='text-xs text-muted-foreground'>{log.actor_email}</div>
+									</td>
+									<td className='px-4 py-3'>
+										{log.target_name ? (
+											<>
+												<div className='font-medium'>{log.target_name}</div>
+												<div className='text-xs text-muted-foreground'>{log.target_email}</div>
+											</>
+										) : (
+											<span className='text-muted-foreground'>—</span>
+										)}
+									</td>
+									<td className='px-4 py-3 text-muted-foreground'>
+										{log.reason || '—'}
+									</td>
+									<td className='px-4 py-3 whitespace-nowrap'>
+										<div className='flex items-center gap-1.5 text-muted-foreground'>
+											<Clock className='h-3.5 w-3.5' />
+											{new Date(log.created_at).toLocaleString()}
+										</div>
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+			</CardContent>
+		</Card>
 	)
 }

@@ -129,6 +129,49 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 					// Route to approval workflow instead of creating duplicate company
 					await createJoinRequest(user.id, existingCompany.id, email, email_domain);
 
+					// ── Notify company owner (non-blocking) ──
+					try {
+						const ownerResult = await pool.query(
+							'SELECT id, email, name FROM users WHERE id = $1',
+							[existingCompany.owner_id],
+						);
+						const owner = ownerResult.rows[0];
+						if (owner) {
+							await emailService.sendEmailAsync({
+								to: owner.email,
+								templateName: 'recruiter_join_request',
+								templateData: {
+									owner_name: owner.name || 'there',
+									recruiter_name: user.name || 'A new recruiter',
+									recruiter_email: user.email,
+									company_name: existingCompany.name,
+									dashboard_link:
+										`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/recruiter-dashboard.html`,
+									request_time: new Date().toLocaleString('en-US', {
+										weekday: 'long',
+										year: 'numeric',
+										month: 'long',
+										day: 'numeric',
+										hour: '2-digit',
+										minute: '2-digit',
+										timeZoneName: 'short',
+									}),
+								},
+								userId: owner.id,
+								metadata: {
+									company_id: existingCompany.id,
+									requester_id: user.id,
+									trigger: 'join_request_created',
+								},
+							});
+						}
+					} catch (emailErr) {
+						console.error(
+							'[auth] Failed to send recruiter join request email (non-blocking):',
+							emailErr.message,
+						);
+					}
+
 					const accessToken = generateToken(user);
 					const { token: refreshToken } = await generateRefreshToken(user.id);
 

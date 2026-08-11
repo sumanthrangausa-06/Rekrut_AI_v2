@@ -71,24 +71,17 @@ if (nodeEnv !== 'production' && stripeSecret.startsWith('sk_live_')) {
 	process.exit(1);
 }
 
-// Guard against a non-production environment booting against the production database.
-// Fatal locally, where it is always a mistake; Render manages its env vars deliberately,
-// so warn there instead. Reuses the dbUrl read above — a second `const dbUrl` here is a
-// SyntaxError that takes the whole process down at startup.
+// Fatal guard: prevent non-production environments from booting against the production
+// database. Staging and dev each have their own Neon branch, so a match here is always a
+// misconfiguration rather than a deliberate setup. Reuses the dbUrl read above — a second
+// `const dbUrl` here is a SyntaxError that takes the whole process down at startup.
 const PROD_DB_HOSTNAME = 'ep-calm-field-aipg6g97-pooler.c-4.us-east-1.aws.neon.tech';
 if (nodeEnv !== 'production' && dbUrl.includes(PROD_DB_HOSTNAME)) {
-	const isRender = process.env.RENDER === 'true' || !!process.env.RENDER_SERVICE_ID;
-	if (isRender) {
-		console.warn('[WARN] Non-production Render environment detected with production database endpoint.');
-		console.warn(`  NODE_ENV: ${nodeEnv}`);
-		console.warn(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
-		console.warn('  Allowing startup — Render env vars are intentionally managed.');
-	} else {
-		console.error('[FATAL] Non-production environment detected with production database endpoint. Refusing to start.');
-		console.error(`  NODE_ENV: ${nodeEnv}`);
-		console.error(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
-		process.exit(1);
-	}
+	console.error('[FATAL] Non-production environment detected with production database endpoint. Refusing to start.');
+	console.error(`  NODE_ENV: ${nodeEnv}`);
+	console.error(`  DATABASE_URL contains: ${PROD_DB_HOSTNAME}`);
+	process.exit(1);
+}
 }
 
 const authRoutes = require('./routes/auth');
@@ -97,6 +90,7 @@ const interviewRoutes = require('./routes/interviews');
 const quickPracticeRoutes = require('./routes/quick-practice'); // ISOLATED from Mock Interview (#32717)
 const omniscoreRoutes = require('./routes/omniscore');
 const companyRoutes = require('./routes/company');
+const { router: auditRoutes } = require('./routes/audit');
 const trustscoreRoutes = require('./routes/trustscore');
 const recruiterRoutes = require('./routes/recruiter');
 const candidateRoutes = require('./routes/candidate');
@@ -119,6 +113,9 @@ const screeningRoutes = require('./routes/screening');
 const settingsRoutes = require('./routes/settings');
 const signatureRoutes = require('./routes/signature');
 const verificationRoutes = require('./routes/verification');
+
+// ─── Prometheus metrics (Phase 1 observability — Issue #144) ─────────────
+const prometheus = require('./server/middleware/prometheus');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -338,6 +335,10 @@ app.use(
 	}),
 );
 
+// Prometheus metrics middleware — measures request duration & counts
+// Placed after CORS so timing covers the full request lifecycle.
+app.use(prometheus.middleware);
+
 // Permissions-Policy: deny-by-default, allow only camera and microphone for same-origin
 app.use((_req, res, next) => {
 	res.setHeader(
@@ -417,6 +418,9 @@ app.use(generateCsrfToken);
 app.get('/csrf-token', (req, res) => {
 	res.json({ csrfToken: req.csrfToken });
 });
+
+// GET /metrics — Prometheus scrape endpoint (no auth required)
+app.get('/metrics', prometheus.metricsHandler);
 
 // Apply CSRF protection to all subsequent state-changing routes
 app.use(csrfProtection);
@@ -529,6 +533,7 @@ app.use('/api/assessments', assessmentRoutes);
 
 // API Routes - Recruiter/Company side
 app.use('/api/company', companyRoutes);
+app.use('/api/company', auditRoutes);
 app.use('/api/trustscore', trustscoreRoutes);
 app.use('/api/recruiter', recruiterRoutes);
 

@@ -1,6 +1,6 @@
 // TrustScore API Routes
 const express = require('express');
-const { authMiddleware } = require('../lib/auth');
+const { authMiddleware, requireApprovedRecruiter } = require('../lib/auth');
 const trustscoreService = require('../services/trustscore');
 const pool = require('../lib/db');
 
@@ -15,7 +15,7 @@ function requireRecruiter(req, res, next) {
 }
 
 // Get current TrustScore
-router.get('/', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const _score = await trustscoreService.getOrCreateTrustScore(req.user.company_id);
 		const currentScores = await trustscoreService.calculateTrustScore(req.user.company_id);
@@ -31,7 +31,7 @@ router.get('/', authMiddleware, requireRecruiter, async (req, res) => {
 });
 
 // Get detailed score breakdown
-router.get('/breakdown', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/breakdown', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const breakdown = await trustscoreService.getTrustScoreBreakdown(req.user.company_id);
 
@@ -46,7 +46,7 @@ router.get('/breakdown', authMiddleware, requireRecruiter, async (req, res) => {
 });
 
 // Get score history
-router.get('/history', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/history', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const { limit = 30 } = req.query;
 
@@ -72,7 +72,7 @@ router.get('/history', authMiddleware, requireRecruiter, async (req, res) => {
 });
 
 // Get recommendations
-router.get('/recommendations', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/recommendations', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const currentScores = await trustscoreService.calculateTrustScore(req.user.company_id);
 		const recommendations = trustscoreService.generateTrustRecommendations(currentScores);
@@ -90,7 +90,7 @@ router.get('/recommendations', authMiddleware, requireRecruiter, async (req, res
 });
 
 // Get hiring analytics (for TrustScore dashboard)
-router.get('/analytics', authMiddleware, requireRecruiter, async (req, res) => {
+router.get('/analytics', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
 	try {
 		const companyId = req.user.company_id;
 

@@ -1,4 +1,4 @@
-import { AlertCircle, Eye, EyeOff, LogIn, Moon, Sun } from 'lucide-react'
+import { AlertCircle, Briefcase, Eye, EyeOff, LogIn, Moon, Shield, Sun, User, Users } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -123,6 +123,9 @@ export function LoginPage() {
 					<div className='w-full max-w-sm'>
 						<div className='mb-8'>
 							<h2 className='font-heading text-2xl font-bold'>Sign in</h2>
+							<p className='mt-1 text-sm text-muted-foreground'>
+								Welcome back — pick up where you left off
+							</p>
 						</div>
 
 						<form onSubmit={handleSubmit} className='space-y-5'>
@@ -138,7 +141,7 @@ export function LoginPage() {
 								<Input
 									id='email'
 									type='email'
-									placeholder='example.email@gmail.com'
+									placeholder='you@company.com'
 									value={email}
 									onChange={(e) => setEmail(e.target.value)}
 									required
@@ -223,10 +226,14 @@ export function LoginPage() {
 												type='button'
 												variant='outline'
 												className='w-full h-11 gap-2'
-												onClick={() => {
-													trackEvent('login_social_click', { provider: 'google' })
-													window.location.href = '/api/auth/google/url'
-												}}
+												onClick={async () => {
+																		trackEvent('login_social_click', { provider: 'google' })
+																		try {
+																			const res = await fetch('/api/auth/google/url')
+																			const data = await res.json()
+																			if (data.url) window.location.href = data.url
+																		} catch { window.location.href = '/api/auth/google/url' }
+																	}}
 											>
 												<svg className='h-4 w-4' viewBox='0 0 24 24'>
 													<path
@@ -254,10 +261,14 @@ export function LoginPage() {
 												type='button'
 												variant='outline'
 												className='w-full h-11 gap-2'
-												onClick={() => {
-													trackEvent('login_social_click', { provider: 'linkedin' })
-													window.location.href = '/api/auth/linkedin/url'
-												}}
+												onClick={async () => {
+																		trackEvent('login_social_click', { provider: 'linkedin' })
+																		try {
+																			const res = await fetch('/api/auth/linkedin/url')
+																			const data = await res.json()
+																			if (data.url) window.location.href = data.url
+																		} catch { window.location.href = '/api/auth/linkedin/url' }
+																	}}
 											>
 												<svg className='h-4 w-4' fill='#0A66C2' viewBox='0 0 24 24'>
 													<path d='M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z' />
@@ -268,6 +279,24 @@ export function LoginPage() {
 									</div>
 								</>
 							)}
+
+							{/* Trust indicators */}
+							<div className='pt-4 border-t'>
+								<div className='flex items-center justify-center gap-4 text-xs text-muted-foreground'>
+									<div className='flex items-center gap-1.5'>
+										<Shield className='h-3.5 w-3.5 text-emerald-500' />
+										<span>SSL Secured</span>
+									</div>
+									<div className='flex items-center gap-1.5'>
+										<Users className='h-3.5 w-3.5 text-emerald-500' />
+										<span>Trusted by 2,000+ companies</span>
+									</div>
+								</div>
+								{/* TODO(copy): Replace with actual partner logos or testimonials */}
+								<p className='mt-2 text-center text-[10px] text-muted-foreground/60'>
+									SOC 2 Type II compliant &middot; GDPR ready &middot; AES-256 encryption
+								</p>
+							</div>
 
 							{/* Mobile footer link */}
 							<p className='sm:hidden text-center text-sm text-muted-foreground'>
@@ -281,15 +310,18 @@ export function LoginPage() {
 				</div>
 			</div>
 
-			{/* Right panel — Decorative */}
+			{/* Right panel — Decorative / Branding */}
 			<div className='hidden lg:flex lg:w-1/2 relative items-center justify-center overflow-hidden bg-[#4F46E5]'>
+				{/* Abstract background shapes */}
 				<div className='absolute inset-0 pointer-events-none'>
 					<div className='absolute top-10 right-10 h-20 w-20 rounded-full bg-white/10' />
 					<div className='absolute bottom-20 left-10 h-32 w-32 rounded-full bg-white/10' />
 					<div className='absolute top-1/2 right-1/4 h-16 w-16 rounded-full bg-white/10' />
 					<div className='absolute bottom-10 right-20 h-24 w-24 rounded-full bg-white/10' />
+					<div className='absolute top-1/3 left-1/4 h-40 w-40 rounded-full bg-white/5' />
+					<div className='absolute -bottom-8 -left-8 h-48 w-48 rounded-full bg-white/5' />
 				</div>
-				<div className='relative z-10 text-center text-white px-12'>
+				<div className='relative z-10 text-center text-white px-12 max-w-lg'>
 					<div className='inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 mb-6'>
 						<svg
 							className='h-8 w-8 text-white'
@@ -306,10 +338,38 @@ export function LoginPage() {
 						</svg>
 					</div>
 					<h3 className='font-heading text-2xl sm:text-3xl font-bold mb-4'>Welcome back!</h3>
-					<p className='text-white/80 text-lg max-w-sm mx-auto'>
+					<p className='text-white/80 text-lg max-w-sm mx-auto leading-relaxed'>
 						Sign in to access your dashboard, track applications, and continue your interview
 						practice.
 					</p>
+
+					{/* Role quick links */}
+					<div className='mt-10 grid grid-cols-2 gap-4'>
+						<Link
+							to='/register'
+							className='flex items-center gap-3 rounded-xl bg-white/10 hover:bg-white/20 transition-colors p-4 text-left'
+						>
+							<div className='flex h-10 w-10 items-center justify-center rounded-lg bg-white/20 shrink-0'>
+								<User className='h-5 w-5' />
+							</div>
+							<div>
+								<p className='font-medium text-sm'>Job Seeker</p>
+								<p className='text-xs text-white/70'>Find your next role</p>
+							</div>
+						</Link>
+						<Link
+							to='/register?role=recruiter'
+							className='flex items-center gap-3 rounded-xl bg-white/10 hover:bg-white/20 transition-colors p-4 text-left'
+						>
+							<div className='flex h-10 w-10 items-center justify-center rounded-lg bg-white/20 shrink-0'>
+								<Briefcase className='h-5 w-5' />
+							</div>
+							<div>
+								<p className='font-medium text-sm'>Employer</p>
+								<p className='text-xs text-white/70'>Hire top talent</p>
+							</div>
+						</Link>
+					</div>
 				</div>
 			</div>
 		</div>
