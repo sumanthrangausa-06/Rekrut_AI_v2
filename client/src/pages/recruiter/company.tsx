@@ -13,6 +13,8 @@ import {
 	Linkedin,
 	Mail,
 	MapPin,
+	PauseCircle,
+	PlayCircle,
 	Plus,
 	Save,
 	Shield,
@@ -823,52 +825,86 @@ function TeamTab({
 				</Card>
 			) : (
 				<div className='space-y-2'>
-					{members.map((member) => (
-						<Card key={member.id}>
-							<CardContent className='p-4'>
-								<div className='flex items-center gap-3'>
-									<div className='h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0'>
-										<span className='text-sm font-bold text-primary'>
-											{(member.name || member.email)[0]?.toUpperCase()}
-										</span>
-									</div>
-									<div className='flex-1 min-w-0'>
-										<div className='flex items-center gap-2'>
-											<p className='font-medium truncate'>{member.name || 'Unnamed'}</p>
-											{member.id === user?.id && (
-												<Badge variant='secondary' className='gap-0.5 text-[10px]'>
-													<Crown className='h-2.5 w-2.5' /> You
-												</Badge>
-											)}
+					{members.map((member) => {
+						const isSuspended = !!member.suspended_at
+						return (
+							<Card key={member.id} className={isSuspended ? 'border-red-200 bg-red-50/30' : undefined}>
+								<CardContent className='p-4'>
+									<div className='flex items-center gap-3'>
+										<div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${isSuspended ? 'bg-red-100' : 'bg-primary/10'}`}>
+											<span className={`text-sm font-bold ${isSuspended ? 'text-red-600' : 'text-primary'}`}>
+												{(member.name || member.email)[0]?.toUpperCase()}
+											</span>
 										</div>
+										<div className='flex-1 min-w-0'>
+											<div className='flex items-center gap-2 flex-wrap'>
+												<p className={`font-medium truncate ${isSuspended ? 'text-muted-foreground' : ''}`}>
+													{member.name || 'Unnamed'}
+												</p>
+												{member.id === user?.id && (
+													<Badge variant='secondary' className='gap-0.5 text-[10px]'>
+														<Crown className='h-2.5 w-2.5' /> You
+													</Badge>
+												)}
+												{isSuspended && (
+													<Badge variant='outline' className='text-[10px] gap-0.5 border-red-200 text-red-700 bg-red-50'>
+														<PauseCircle className='h-2.5 w-2.5' /> Suspended
+													</Badge>
+												)}
+											</div>
 										<p className='text-sm text-muted-foreground flex items-center gap-1'>
 											<Mail className='h-3 w-3' /> {member.email}
 										</p>
 									</div>
-									<Badge variant='outline'>{roleLabels[member.role] || member.role}</Badge>
+									<Badge variant='outline' className={isSuspended ? 'text-muted-foreground' : ''}>
+										{roleLabels[member.role] || member.role}
+									</Badge>
 									<p className='text-xs text-muted-foreground hidden sm:block'>
 										Joined {new Date(member.created_at).toLocaleDateString()}
 									</p>
 									{user?.is_company_owner && member.id !== user?.id && (
-										<Button
-											variant='ghost'
-											size='sm'
-											className='text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0'
-											onClick={() => handleSuspend(member.id)}
-											disabled={suspendingId === member.id}
-										>
-											{suspendingId === member.id ? (
-												<div className='h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-600 border-t-transparent' />
-											) : (
-												'Remove'
-											)}
-										</Button>
+										isSuspended ? (
+											<Button
+												variant='ghost'
+												size='sm'
+												className='text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 shrink-0 gap-1'
+												onClick={() => handleReinstate(member.id)}
+												disabled={reinstatingId === member.id}
+											>
+												{reinstatingId === member.id ? (
+													<div className='h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent' />
+												) : (
+													<>
+														<PlayCircle className='h-3.5 w-3.5' />
+														<span className='hidden sm:inline'>Reinstate</span>
+													</>
+												)}
+											</Button>
+										) : (
+											<Button
+												variant='ghost'
+												size='sm'
+												className='text-amber-600 hover:text-amber-700 hover:bg-amber-50 shrink-0 gap-1'
+												onClick={() => handleSuspend(member.id)}
+												disabled={suspendingId === member.id}
+											>
+												{suspendingId === member.id ? (
+													<div className='h-3.5 w-3.5 animate-spin rounded-full border-2 border-amber-600 border-t-transparent' />
+												) : (
+													<>
+														<PauseCircle className='h-3.5 w-3.5' />
+														<span className='hidden sm:inline'>Suspend</span>
+													</>
+												)}
+											</Button>
+										)
 									)}
 								</div>
 							</CardContent>
 						</Card>
-					))}
-				</div>
+					)}
+				)}
+			</div>
 			)}
 
 			{/* Invite dialog */}

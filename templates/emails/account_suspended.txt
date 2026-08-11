@@ -1,0 +1,17 @@
+Your Rekrut AI account has been suspended
+
+Hi {{name}},
+
+Your Rekrut AI account has been suspended by your company owner. You will no longer be able to access company data or perform recruiting actions.
+
+---
+Suspension Details
+---
+{{suspension_reason}}
+
+If you believe this was done in error, please contact your company owner or reach out to support@rekrutai.co.
+
+---
+Rekrut AI — The candidate credit score platform
+rekrutai.co
+Need help? support@rekrutai.co
