@@ -1,0 +1,314 @@
+{
+  "log": [
+    {
+      "step": "Staging wake-up",
+      "ok": true,
+      "detail": "1613ms response time",
+      "severity": "none"
+    },
+    {
+      "step": "US-P01 Home page",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/ body_len=7466",
+      "severity": "none"
+    },
+    {
+      "step": "US-P02 Public /jobs page",
+      "ok": false,
+      "detail": "body_len=99 stuck_spinner=False",
+      "severity": "none"
+    },
+    {
+      "step": "US-P03 Login form fields",
+      "ok": true,
+      "detail": "email_field=True pw_field=True",
+      "severity": "none"
+    },
+    {
+      "step": "US-P04 Register form + role buttons",
+      "ok": true,
+      "detail": "name_field=True role_buttons=True",
+      "severity": "none"
+    },
+    {
+      "step": "US-P05 Forgot-password page",
+      "ok": true,
+      "detail": "https://rekrutai-staging.onrender.com/forgot-password",
+      "severity": "none"
+    },
+    {
+      "step": "US-P06 404 page shows not-found UI",
+      "ok": true,
+      "detail": "!\n404\nPage Not Found\n\nThe page you're looking for doesn't exist or has been moved.\n\nGo Home\nGo Back",
+      "severity": "none"
+    },
+    {
+      "step": "US-C01 Candidate registration",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/candidate vis_errors=[]",
+      "severity": "none"
+    },
+    {
+      "step": "US-C02 Candidate login",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/candidate",
+      "severity": "none"
+    },
+    {
+      "step": "US-C03 Candidate dashboard",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/candidate body=1203 spinner=False vis_err=[]",
+      "severity": "none"
+    },
+    {
+      "step": "US-C04 Candidate job board",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/candidate/jobs body=1603 spinner=False vis_err=[]",
+      "severity": "none"
+    },
+    {
+      "step": "US-C07 Candidate profile",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/candidate/profile body=1177 spinner=False vis_err=[]",
+      "severity": "none"
+    },
+    {
+      "step": "US-C08 OmniScore",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/candidate/omniscore body=1272 spinner=False vis_err=[]",
+      "severity": "none"
+    },
+    {
+      "step": "US-C09 My applications",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/candidate/applications body=599 spinner=False vis_err=[]",
+      "severity": "none"
+    },
+    {
+      "step": "US-C09b Interviews",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/candidate/interviews body=614 spinner=False vis_err=[]",
+      "severity": "none"
+    },
+    {
+      "step": "US-C09c Assessments",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/candidate/assessments body=1916 spinner=False vis_err=[]",
+      "severity": "none"
+    },
+    {
+      "step": "US-C10 Settings",
+      "ok": true,
+      "detail": "url=https://rekrutai-staging.onrender.com/settings body=706 spinner=False vis_err=[]",
+      "severity": "none"
+    },
+    {
+      "step": "US-C05a Job board has clickable jobs",
+      "ok": false,
+      "detail": "job_links_found=0",
+      "severity": "medium"
+    },
+    {
+      "step": "Console errors (whole session)",
+      "ok": false,
+      "detail": "count=39 sample=['Failed to load resource: the server responded with a status of 400 ()', 'Failed to load resource: the server responded with a status of 400 ()', 'Failed to load resource: the server responded with a status of 400 ()', 'Failed to load resource: the server responded with a status of 400 ()', 'Failed to load resource: the server responded with a status of 400 ()']",
+      "severity": "none"
+    },
+    {
+      "step": "API 4xx/5xx (whole session)",
+      "ok": false,
+      "detail": "count=39 failures=[{'url': 'https://rekrutai-staging.onrender.com/api/company/profile', 'status': 400}, {'url': 'https://rekrutai-staging.onrender.com/api/company/profile', 'status': 400}, {'url': 'https://rekrutai-staging.onrender.com/api/company/profile', 'status': 400}, {'url': 'https://rekrutai-staging.onrender.com/api/company/profile', 'status': 400}, {'url': 'https://rekrutai-staging.onrender.com/api/company/profile', 'status': 400}, {'url': 'https://rekrutai-staging.onrender.com/api/company/profile', 'status': 400}, {'url': 'https://rekrutai-staging.onrender.com/api/company/profile', 'status': 400}, {'url': 'https://rekrutai-staging.onrender.com/api/company/profile', 'status': 400}]",
+      "severity": "none"
+    }
+  ],
+  "api_failures": [
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/omniscore/explainer",
+      "status": 404
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    },
+    {
+      "url": "https://rekrutai-staging.onrender.com/api/company/profile",
+      "status": 400
+    }
+  ],
+  "console_errors": [
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "Failed to load resource: the server responded with a status of 400 ()"
+  ]
+}
