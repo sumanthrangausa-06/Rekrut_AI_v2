@@ -4,15 +4,11 @@ import {
 	BookmarkPlus,
 	Brain,
 	Briefcase,
-	Building2,
 	CheckCircle2,
-	ChevronDown,
-	ChevronUp,
 	Clock,
-	DollarSign,
 	Filter,
-	Flame,
 	Globe,
+	Heart,
 	History,
 	Loader2,
 	MapPin,
@@ -27,17 +23,14 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { ScoreRing } from '@/components/domain/score-ring'
 import { JobDetailDrawer } from '@/components/domain/job-detail-drawer'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Slider } from '@/components/ui/slider'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/contexts/auth-context'
 import {
@@ -50,6 +43,8 @@ import {
 	unlikeJob,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { JobCard, JobFilterBar } from '@/components/candidate'
+import type { JobFilterValues } from '@/components/candidate'
 
 interface Job {
 	id: number
@@ -91,11 +86,13 @@ interface SavedJob {
 	job_id: number
 	saved_at: string
 }
+
 interface RecentSearch {
 	query: string
 	filters: FilterState
 	timestamp: number
 }
+
 interface FilterState {
 	search: string
 	type: string
@@ -107,6 +104,7 @@ interface FilterState {
 	skills: string[]
 	companySize: string
 	sortBy: 'match' | 'newest' | 'salary_high' | 'salary_low'
+	remoteOnly: boolean
 }
 
 const DEFAULT_FILTERS: FilterState = {
@@ -120,24 +118,7 @@ const DEFAULT_FILTERS: FilterState = {
 	skills: [],
 	companySize: '',
 	sortBy: 'match',
-}
-
-function _matchColor(score: number): string {
-	if (score >= 80) return 'text-green-600'
-	if (score >= 60) return 'text-amber-600'
-	return 'text-red-500'
-}
-
-function matchBg(score: number): string {
-	if (score >= 80) return 'bg-green-100 text-green-700 border-green-200'
-	if (score >= 60) return 'bg-amber-100 text-amber-700 border-amber-200'
-	return 'bg-red-100 text-red-600 border-red-200'
-}
-
-function matchBadgeColor(score: number): string {
-	if (score >= 80) return 'bg-green-500'
-	if (score >= 60) return 'bg-amber-500'
-	return 'bg-red-400'
+	remoteOnly: false,
 }
 
 function matchLevelLabel(level: string): string {
@@ -467,6 +448,7 @@ export function CandidateJobsPage() {
 		if (filters.skills.length) count++
 		if (filters.companySize) count++
 		if (filters.sortBy !== 'match') count++
+		if (filters.remoteOnly) count++
 		setActiveFilterCount(count)
 	}, [filters])
 
@@ -482,8 +464,6 @@ export function CandidateJobsPage() {
 				.filter(Boolean),
 		),
 	]
-	const allLocations = [...new Set(jobs.map((j) => j.location).filter(Boolean))]
-	const _allCompanies = [...new Set(jobs.map((j) => j.company || j.poster_company).filter(Boolean))]
 
 	const filtered = jobs
 		.filter((j) => {
@@ -499,6 +479,7 @@ export function CandidateJobsPage() {
 				!filters.remoteType ||
 				j.remote_type === filters.remoteType ||
 				j.location?.toLowerCase().includes(filters.remoteType.toLowerCase())
+			const matchRemoteOnly = !filters.remoteOnly || j.remote_type === 'remote'
 			const matchExp =
 				!filters.experienceLevel ||
 				(j.experience_level || '').toLowerCase().includes(filters.experienceLevel.toLowerCase())
@@ -513,6 +494,7 @@ export function CandidateJobsPage() {
 				matchType &&
 				matchLocation &&
 				matchRemote &&
+				matchRemoteOnly &&
 				matchExp &&
 				matchSalary &&
 				matchSkills
@@ -551,6 +533,7 @@ export function CandidateJobsPage() {
 				description='Browse thousands of AI-matched jobs on Rekrut AI. Filter by location, salary, remote work, and more. Get personalized job recommendations based on your skills.'
 				canonical='/candidate/jobs'
 			/>
+
 			{/* === HERO SEARCH BAR === */}
 			<div className='shrink-0 bg-gradient-to-br from-indigo-600 via-indigo-500 to-purple-600 px-4 py-6 sm:py-8'>
 				<div className='max-w-4xl mx-auto'>
@@ -603,7 +586,7 @@ export function CandidateJobsPage() {
 										value={aiSearchQuery}
 										onChange={(e) => setAiSearchQuery(e.target.value)}
 										onKeyDown={(e) => e.key === 'Enter' && handleAiSearch()}
-										className='pl-10 bg-white/95 border-0 text-foreground h-11 shadow-lg'
+										className='pl-10 bg-white/95 border-0 text-foreground h-11 shadow-lg text-base sm:text-sm'
 										autoFocus
 									/>
 								</div>
@@ -642,7 +625,7 @@ export function CandidateJobsPage() {
 									placeholder='Search by title, company, or keywords...'
 									value={filters.search}
 									onChange={(e) => setSearch('search', e.target.value)}
-									className='pl-10 bg-white/95 border-0 text-foreground h-11 shadow-lg'
+									className='pl-10 bg-white/95 border-0 text-foreground h-11 shadow-lg text-base sm:text-sm'
 								/>
 							</div>
 							<div className='relative sm:w-48'>
@@ -651,11 +634,11 @@ export function CandidateJobsPage() {
 									placeholder='Location...'
 									value={filters.location}
 									onChange={(e) => setSearch('location', e.target.value)}
-									className='pl-10 bg-white/95 border-0 text-foreground h-11 shadow-lg'
+									className='pl-10 bg-white/95 border-0 text-foreground h-11 shadow-lg text-base sm:text-sm'
 								/>
 							</div>
 							<Button
-								className='bg-white text-indigo-600 hover:bg-white/90 h-11 px-6 font-semibold shadow-lg gap-2 min-h-[44px]'
+								className='bg-white text-indigo-600 hover:bg-white/90 h-11 px-6 font-semibold shadow-lg gap-2 min-h-[44px] hidden sm:flex'
 								onClick={() => setShowFiltersMobile(true)}
 							>
 								<Filter className='h-4 w-4' />
@@ -689,7 +672,7 @@ export function CandidateJobsPage() {
 				</div>
 			</div>
 
-			{/* === MAIN CONTENT: Split View === */}
+			{/* === MAIN CONTENT === */}
 			<div className='flex-1 flex overflow-hidden'>
 				{/* Left: Job List */}
 				<div className='flex-1 flex flex-col overflow-hidden min-w-0'>
@@ -769,96 +752,51 @@ export function CandidateJobsPage() {
 					</div>
 
 					{/* Desktop Filter Bar (horizontal) */}
-					<div className='shrink-0 hidden sm:flex items-center gap-2 px-4 py-2 border-b bg-background/50 overflow-x-auto'>
-						{jobTypes.length > 0 && (
-							<select
-								value={filters.type}
-								onChange={(e) => setSearch('type', e.target.value)}
-								className='text-xs bg-transparent border rounded px-2 py-1 min-w-[100px]'
-							>
-								<option value=''>All Types</option>
-								{jobTypes.map((t) => (
-									<option key={t} value={t}>
-										{t}
-									</option>
-								))}
-							</select>
-						)}
-						<select
-							value={filters.remoteType}
-							onChange={(e) => setSearch('remoteType', e.target.value)}
-							className='text-xs bg-transparent border rounded px-2 py-1 min-w-[100px]'
-						>
-							<option value=''>All Work Modes</option>
-							<option value='remote'>Remote</option>
-							<option value='hybrid'>Hybrid</option>
-							<option value='onsite'>On-site</option>
-							<option value='flexible'>Flexible</option>
-						</select>
-						<select
-							value={filters.experienceLevel}
-							onChange={(e) => setSearch('experienceLevel', e.target.value)}
-							className='text-xs bg-transparent border rounded px-2 py-1 min-w-[100px]'
-						>
-							<option value=''>All Levels</option>
-							<option value='entry'>Entry Level</option>
-							<option value='mid'>Mid Level</option>
-							<option value='senior'>Senior</option>
-							<option value='lead'>Lead / Staff</option>
-							<option value='executive'>Executive</option>
-						</select>
-						<select
-							value={filters.companySize}
-							onChange={(e) => setSearch('companySize', e.target.value)}
-							className='text-xs bg-transparent border rounded px-2 py-1 min-w-[100px]'
-						>
-							<option value=''>All Sizes</option>
-							<option value='startup'>Startup (1-50)</option>
-							<option value='small'>Small (51-200)</option>
-							<option value='medium'>Medium (201-1000)</option>
-							<option value='large'>Large (1000+)</option>
-						</select>
-					</div>
+					<JobFilterBar
+						filters={filters}
+						jobTypes={jobTypes}
+						allSkills={allSkills}
+						activeFilterCount={activeFilterCount}
+						onFilterChange={setSearch}
+						onToggleSkill={toggleSkill}
+						onClearAll={clearAllFilters}
+					/>
 
 					{/* Job List */}
-					<div ref={jobListRef} data-job-list className='flex-1 overflow-y-auto px-4 py-3 space-y-3'>
+					<div ref={jobListRef} data-job-list className='flex-1 overflow-y-auto px-3 sm:px-4 py-3 space-y-3'>
 						{loading ? (
 							<div className='flex items-center justify-center py-16'>
 								<div className='h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent' />
 							</div>
 						) : displayed.length === 0 ? (
-							<div className='py-16 text-center'>
+							<div className='py-16 text-center px-4'>
 								{activeTab === 'liked' ? (
-									<>
-										<ThumbsUp className='mx-auto mb-3 h-12 w-12 opacity-20' />
-										<p className='text-muted-foreground font-medium'>No liked jobs yet</p>
-										<p className='text-sm text-muted-foreground mt-1'>
-											Like jobs to save them here for quick access
-										</p>
-									</>
+									<EmptyState
+										icon={<ThumbsUp className='h-12 w-12 text-indigo-300' />}
+										title='No liked jobs yet'
+										description='Like jobs to save them here for quick access'
+									/>
 								) : activeTab === 'dismissed' ? (
-									<>
-										<X className='mx-auto mb-3 h-12 w-12 opacity-20' />
-										<p className='text-muted-foreground font-medium'>Trash is empty</p>
-										<p className='text-sm text-muted-foreground mt-1'>
-											Dismissed jobs will appear here. You can restore them anytime.
-										</p>
-									</>
+									<EmptyState
+										icon={<X className='h-12 w-12 text-indigo-300' />}
+										title='Trash is empty'
+										description='Dismissed jobs will appear here. You can restore them anytime.'
+									/>
 								) : (
-									<>
-										<Briefcase className='mx-auto mb-3 h-12 w-12 opacity-20' />
-										<p className='text-muted-foreground font-medium'>
-											No jobs found matching your criteria
-										</p>
-										<p className='text-sm text-muted-foreground mt-1'>
-											Try adjusting your filters or search terms
-										</p>
-									</>
-								)}
-								{activeTab !== 'liked' && activeTab !== 'dismissed' && (
-									<Button variant='outline' className='mt-4 gap-1 min-h-[44px]' onClick={clearAllFilters}>
-										<RotateCcw className='h-4 w-4' /> Reset Filters
-									</Button>
+									<EmptyState
+										icon={<Search className='h-12 w-12 text-indigo-300' />}
+										title='No jobs match your filters'
+										description='Try adjusting your filters or search terms to find more opportunities'
+										action={
+											<Button
+												variant='outline'
+												className='mt-4 gap-2 min-h-[44px]'
+												onClick={clearAllFilters}
+											>
+												<RotateCcw className='h-4 w-4' /> Clear Filters
+											</Button>
+										}
+									/>
 								)}
 							</div>
 						) : (
@@ -877,459 +815,87 @@ export function CandidateJobsPage() {
 										</div>
 									)}
 
-								{displayed.map((job) => {
-									const score = job.weighted_score ? Math.round(job.weighted_score) : null
-									const isSaved = savedJobIds.has(job.id)
-									const isSelected = selectedJob?.id === job.id
-									return (
-										<Card
-											key={job.id}
-											className={cn(
-												'transition-all cursor-pointer hover:shadow-md',
-												isSelected
-													? 'ring-2 ring-indigo-500 shadow-md border-indigo-200'
-													: 'border',
-											)}
-											onClick={() => {
-												setSelectedJob(job)
-												setShowDetailPanel(true)
-											}}
+								{displayed.map((job) => (
+									<JobCard
+										key={job.id}
+										job={job}
+										isSelected={selectedJob?.id === job.id}
+										isSaved={savedJobIds.has(job.id)}
+										isLiked={likedJobIds.has(job.id)}
+										isDismissed={dismissedJobIds.has(job.id)}
+										activeTab={activeTab}
+										onSelect={(j) => {
+											setSelectedJob(j)
+											setShowDetailPanel(true)
+										}}
+										onToggleSave={toggleSaveJob}
+										onToggleLike={toggleLikeJob}
+										onToggleDismiss={toggleDismissJob}
+									/>
+								))}
+
+								{/* Load more / Pagination */}
+								{hasMoreResults && (
+									<div className='flex justify-center py-4'>
+										<Button
+											variant='outline'
+											onClick={() => setPage((p) => p + 1)}
+											className='gap-2 min-h-[44px]'
 										>
-											<CardContent className='p-4'>
-												<div className='flex items-start gap-3'>
-													{/* Company Logo placeholder */}
-													<Avatar
-														src={job.company_logo}
-														fallback={(job.company || job.poster_company || 'C').charAt(0)}
-														size='lg'
-														className='h-12 w-12 shrink-0'
-													/>
-
-													<div className='flex-1 min-w-0'>
-														{/* Title row */}
-														<div className='flex items-start justify-between gap-2'>
-															<div className='min-w-0'>
-																<h3 className='font-semibold text-sm truncate leading-tight'>
-																	{job.title}
-																</h3>
-																<p className='text-xs text-muted-foreground flex items-center gap-1 mt-0.5'>
-																	<Building2 className='h-3 w-3 shrink-0' />
-																	<span className='break-words'>
-																		{job.company || job.poster_company || 'Company'}
-																	</span>
-																	{job.company_size && (
-																		<span className='text-[10px] bg-muted rounded px-1'>
-																			{job.company_size}
-																		</span>
-																	)}
-															</p>
-														</div>
-															<div className='flex items-center gap-1 shrink-0'>
-																{job.has_applied && (
-																	<Badge className='bg-green-500 text-white text-[10px] px-1.5 py-0'>
-																		Applied
-																	</Badge>
-																)}
-																{score != null && (
-																	<Tooltip
-																		content={`${matchLevelLabel(job.match_level || '')} - ${score}% match`}
-																	>
-																		<ScoreRing score={score} size='sm' />
-																	</Tooltip>
-																)}
-																<button
-																		onClick={(e) => toggleLikeJob(job.id, e)}
-																		className={cn(
-																			'rounded transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center',
-																			likedJobIds.has(job.id)
-																				? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
-																				: 'text-muted-foreground hover:bg-muted hover:text-emerald-600',
-																		)}
-																		aria-label={likedJobIds.has(job.id) ? 'Unlike job' : 'Like job'}
-																	>
-																		<ThumbsUp className='h-4 w-4' />
-																	</button>
-																	<button
-																			onClick={(e) => toggleDismissJob(job.id, e)}
-																			className={cn(
-																				'rounded transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center',
-																				dismissedJobIds.has(job.id)
-																					? 'text-red-600 bg-red-50 hover:bg-red-100'
-																					: activeTab === 'dismissed'
-																						? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
-																						: 'text-muted-foreground hover:bg-muted hover:text-red-600',
-																			)}
-																		aria-label={
-																			dismissedJobIds.has(job.id) ? 'Restore job' : 'Dismiss job'
-																		}
-																	>
-																		{activeTab === 'dismissed' ? (
-																			<RotateCcw className='h-4 w-4' />
-																		) : (
-																			<X className='h-4 w-4' />
-																		)}
-																	</button>
-																	<button
-																			onClick={(e) => toggleSaveJob(job.id, e)}
-																			className='rounded transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center hover:bg-muted'
-																			aria-label={isSaved ? 'Unsave job' : 'Save job'}
-																		>
-																		{isSaved ? (
-																			<Bookmark className='h-4 w-4 text-amber-500 fill-amber-500' />
-																		) : (
-																			<BookmarkPlus className='h-4 w-4 text-muted-foreground hover:text-amber-500' />
-																		)}
-																	</button>
-															</div>
-														</div>
-
-														{/* Meta row */}
-														<div className='flex flex-wrap items-center gap-2 mt-2 text-xs text-muted-foreground'>
-															{job.location && (
-																<span className='flex items-center gap-0.5 min-w-0'>
-																	<MapPin className='h-3 w-3 shrink-0' />
-																	<span className='break-words'>{job.location}</span>
-																</span>
-															)}
-															{job.salary_range && (
-																<span className='flex items-center gap-0.5 min-w-0'>
-																	<DollarSign className='h-3 w-3 shrink-0' />
-																	<span className='break-words'>{job.salary_range}</span>
-																</span>
-															)}
-															{job.job_type && (
-																<Badge variant='secondary' className='text-[10px] h-5'>
-																	{job.job_type}
-																</Badge>
-															)}
-															{job.remote_type && (
-																<Badge variant='outline' className='text-[10px] h-5'>
-																	{job.remote_type === 'remote' && (
-																		<Globe className='h-2.5 w-2.5 mr-0.5' />
-																	)}
-																	{job.remote_type}
-																</Badge>
-															)}
-															<span className='flex items-center gap-0.5 min-w-0'>
-																<Clock className='h-3 w-3 shrink-0' />
-																<span className='break-words'>{timeAgo(job.created_at)}</span>
-															</span>
-															{job.applicants_count != null && (
-																<span className='flex items-center gap-0.5 min-w-0'>
-																	<Flame className='h-3 w-3 shrink-0' />
-																	<span className='break-words'>{job.applicants_count} applicants</span>
-																</span>
-															)}
-														</div>
-
-														{/* Skills match */}
-														{job.matching_skills && job.matching_skills.length > 0 && (
-															<div className='flex flex-wrap items-center gap-1 mt-2'>
-																<Target className='h-3 w-3 text-green-500 shrink-0' />
-																{job.matching_skills.slice(0, 3).map((s) => (
-																	<Badge
-																		key={s}
-																		variant='outline'
-																		className='text-[10px] bg-green-50 text-green-700 border-green-200 h-5'
-																	>
-																		{s}
-																	</Badge>
-																))}
-																{job.matching_skills.length > 3 && (
-																	<span className='text-[10px] text-green-600'>
-																		+{job.matching_skills.length - 3} more
-																	</span>
-																)}
-															</div>
-														)}
-
-														{/* Missing skills hint */}
-														{job.missing_skills &&
-															job.missing_skills.length > 0 &&
-															score != null &&
-															score < 80 && (
-																<div className='flex flex-wrap items-center gap-1 mt-1'>
-																	<span className='text-[10px] text-amber-500 shrink-0'>To improve:</span>
-																	{job.missing_skills.slice(0, 2).map((s) => (
-																		<span
-																			key={s}
-																			className='text-[10px] bg-amber-50 text-amber-700 rounded px-1.5 py-0.5 border border-amber-100'
-																		>
-																			{s}
-																		</span>
-																	))}
-																	{job.missing_skills.length > 2 && (
-																		<span className='text-[10px] text-amber-600'>
-																			+{job.missing_skills.length - 2}
-																		</span>
-																	)}
-															</div>
-														)}
-													</div>
-												</div>
-											</CardContent>
-										</Card>
-									)
-								})}
-
-									{/* Load more / Pagination */}
-									{hasMoreResults && (
-										<div className='flex justify-center py-4'>
-											<Button
-												variant='outline'
-												onClick={() => setPage((p) => p + 1)}
-												className='gap-2 min-h-[44px]'
-											>
-												<TrendingUp className='h-4 w-4' />
-												Load More ({(aiResults || filtered).length - page * PAGE_SIZE} remaining)
-											</Button>
-										</div>
-									)}
-								</>
-							)}
-						</div>
+											<TrendingUp className='h-4 w-4' />
+											Load More ({(aiResults || filtered).length - page * PAGE_SIZE} remaining)
+										</Button>
+									</div>
+								)}
+							</>
+						)}
 					</div>
-
-					{/* Job Detail Drawer (all viewports) */}
-					<JobDetailDrawer
-						job={selectedJob}
-						open={showDetailPanel && selectedJob != null}
-						onOpenChange={(open) => {
-							setShowDetailPanel(open)
-							if (!open) setSelectedJob(null)
-						}}
-						isSaved={selectedJob ? savedJobIds.has(selectedJob.id) : false}
-						onToggleSave={(e) => {
-							if (selectedJob) toggleSaveJob(selectedJob.id, e)
-						}}
-						onApply={() => {
-							if (selectedJob) navigate(`/candidate/jobs/${selectedJob.id}?apply=true`)
-						}}
-						onViewFullPage={() => {
-							if (selectedJob) navigate(`/candidate/jobs/${selectedJob.id}`)
-						}}
-					/>
 				</div>
 
-				{/* === MOBILE FILTERS SHEET === */}
-				<Sheet open={showFiltersMobile} onOpenChange={setShowFiltersMobile} side='left'>
-					<SheetHeader>
-						<SheetTitle className='flex items-center gap-2'>
-							<SlidersHorizontal className='h-5 w-5' /> Filters
-						</SheetTitle>
-						<SheetClose />
-					</SheetHeader>
-					<SheetContent>
-						<FilterSidebar
-							filters={filters}
-							setSearch={setSearch}
-							toggleSkill={toggleSkill}
-							clearAllFilters={clearAllFilters}
-							jobTypes={jobTypes}
-							allSkills={allSkills}
-							allLocations={allLocations}
-						/>
-					</SheetContent>
-				</Sheet>
+				{/* Job Detail Drawer (all viewports) */}
+				<JobDetailDrawer
+					job={selectedJob}
+					open={showDetailPanel && selectedJob != null}
+					onOpenChange={(open) => {
+						setShowDetailPanel(open)
+						if (!open) setSelectedJob(null)
+					}}
+					isSaved={selectedJob ? savedJobIds.has(selectedJob.id) : false}
+					onToggleSave={(e) => {
+						if (selectedJob) toggleSaveJob(selectedJob.id, e)
+					}}
+					onApply={() => {
+						if (selectedJob) navigate(`/candidate/jobs/${selectedJob.id}?apply=true`)
+					}}
+					onViewFullPage={() => {
+						if (selectedJob) navigate(`/candidate/jobs/${selectedJob.id}`)
+					}}
+				/>
 			</div>
+		</div>
 	)
 }
 
-// === FILTER SIDEBAR COMPONENT ===
-function FilterSidebar({
-	filters,
-	setSearch,
-	toggleSkill,
-	clearAllFilters,
-	jobTypes,
-	allSkills,
-	allLocations: _allLocations,
+// === Empty State Component ===
+function EmptyState({
+	icon,
+	title,
+	description,
+	action,
 }: {
-	filters: FilterState
-	setSearch: (key: keyof FilterState, value: any) => void
-	toggleSkill: (skill: string) => void
-	clearAllFilters: () => void
-	jobTypes: string[]
-	allSkills: string[]
-	allLocations: string[]
+	icon: React.ReactNode
+	title: string
+	description: string
+	action?: React.ReactNode
 }) {
-	const [showSalary, setShowSalary] = useState(true)
-	const [showSkills, setShowSkills] = useState(true)
-	const [showExperience, setShowExperience] = useState(true)
-	const [showRemote, setShowRemote] = useState(true)
-
 	return (
-		<div className='space-y-5'>
-			<div className='flex items-center justify-between'>
-				<span className='text-sm font-medium text-muted-foreground'>
-					{allSkills.length} skills available
-				</span>
-				<button
-					onClick={clearAllFilters}
-					className='text-xs text-primary hover:underline flex items-center gap-1 min-h-[44px] px-2'
-				>
-					<RotateCcw className='h-3 w-3' /> Reset all
-				</button>
+		<div className='flex flex-col items-center justify-center py-12'>
+			<div className='rounded-full bg-indigo-50 dark:bg-indigo-900/20 p-4 mb-4'>
+				{icon}
 			</div>
-
-			{/* Job Type */}
-			<div>
-				<p className='text-sm font-semibold mb-2'>Job Type</p>
-				<div className='space-y-1.5'>
-					<label className='flex items-center gap-2 cursor-pointer min-h-[44px]'>
-						<input
-							type='radio'
-							name='jobType'
-							checked={filters.type === ''}
-							onChange={() => setSearch('type', '')}
-							className='h-4 w-4 text-primary'
-						/>
-						<span className='text-sm'>All Types</span>
-					</label>
-					{jobTypes.map((t) => (
-						<label key={t} className='flex items-center gap-2 cursor-pointer min-h-[44px]'>
-							<input
-								type='radio'
-								name='jobType'
-								checked={filters.type === t}
-								onChange={() => setSearch('type', t)}
-								className='h-4 w-4 text-primary'
-							/>
-							<span className='text-sm'>{t}</span>
-						</label>
-					))}
-				</div>
-			</div>
-
-			<Separator />
-
-			{/* Remote / Work Mode */}
-			<div>
-				<button
-					onClick={() => setShowRemote(!showRemote)}
-					className='flex items-center justify-between w-full mb-2 min-h-[44px]'
-				>
-					<p className='text-sm font-semibold'>Work Mode</p>
-					{showRemote ? <ChevronUp className='h-4 w-4' /> : <ChevronDown className='h-4 w-4' />}
-				</button>
-				{showRemote && (
-					<div className='space-y-1.5'>
-						{['', 'remote', 'hybrid', 'onsite', 'flexible'].map((val) => (
-							<label key={val} className='flex items-center gap-2 cursor-pointer min-h-[44px]'>
-								<input
-									type='radio'
-									name='remoteType'
-									checked={filters.remoteType === val}
-									onChange={() => setSearch('remoteType', val)}
-									className='h-4 w-4 text-primary'
-								/>
-								<span className='text-sm'>
-									{val === '' ? 'All' : val.charAt(0).toUpperCase() + val.slice(1)}
-								</span>
-							</label>
-						))}
-					</div>
-				)}
-			</div>
-
-			<Separator />
-
-			{/* Experience Level */}
-			<div>
-				<button
-					onClick={() => setShowExperience(!showExperience)}
-					className='flex items-center justify-between w-full mb-2 min-h-[44px]'
-				>
-					<p className='text-sm font-semibold'>Experience Level</p>
-					{showExperience ? <ChevronUp className='h-4 w-4' /> : <ChevronDown className='h-4 w-4' />}
-				</button>
-				{showExperience && (
-					<div className='space-y-1.5'>
-						{['', 'entry', 'mid', 'senior', 'lead', 'executive'].map((val) => (
-							<label key={val} className='flex items-center gap-2 cursor-pointer min-h-[44px]'>
-								<input
-									type='radio'
-									name='expLevel'
-									checked={filters.experienceLevel === val}
-									onChange={() => setSearch('experienceLevel', val)}
-									className='h-4 w-4 text-primary'
-								/>
-								<span className='text-sm'>
-									{val === ''
-										? 'All Levels'
-										: val === 'entry'
-											? 'Entry Level'
-											: val === 'mid'
-												? 'Mid Level'
-												: val === 'lead'
-													? 'Lead / Staff'
-													: val.charAt(0).toUpperCase() + val.slice(1)}
-									</span>
-								</label>
-							))}
-						</div>
-					)}
-				</div>
-
-				<Separator />
-
-				{/* Salary Range */}
-				<div>
-					<button
-						onClick={() => setShowSalary(!showSalary)}
-						className='flex items-center justify-between w-full mb-2 min-h-[44px]'
-					>
-						<p className='text-sm font-semibold'>Salary Range</p>
-						{showSalary ? <ChevronUp className='h-4 w-4' /> : <ChevronDown className='h-4 w-4' />}
-					</button>
-					{showSalary && (
-						<div className='space-y-3'>
-							<Slider
-								value={[filters.salaryMin]}
-								onValueChange={(v) => setSearch('salaryMin', v[0])}
-								min={0}
-								max={300000}
-								step={5000}
-								label='Minimum Salary'
-								formatLabel={(v) => `$${(v / 1000).toFixed(0)}k`}
-							/>
-							<Slider
-								value={[filters.salaryMax]}
-								onValueChange={(v) => setSearch('salaryMax', v[0])}
-								min={0}
-								max={300000}
-								step={5000}
-								label='Maximum Salary'
-								formatLabel={(v) => `$${(v / 1000).toFixed(0)}k`}
-							/>
-						</div>
-					)}
-				</div>
-
-				<Separator />
-
-				{/* Skills */}
-				<div>
-					<button
-						onClick={() => setShowSkills(!showSkills)}
-						className='flex items-center justify-between w-full mb-2 min-h-[44px]'
-					>
-						<p className='text-sm font-semibold'>Skills ({allSkills.length})</p>
-						{showSkills ? <ChevronUp className='h-4 w-4' /> : <ChevronDown className='h-4 w-4' />}
-					</button>
-					{showSkills && (
-						<div className='max-h-48 overflow-y-auto space-y-1.5'>
-							{allSkills.map((skill) => (
-								<Checkbox
-									key={skill}
-									checked={filters.skills.includes(skill)}
-									onCheckedChange={() => toggleSkill(skill)}
-									label={skill}
-								/>
-							))}
-						</div>
-					)}
-				</div>
-			</div>
-		)
-	}
+			<p className='text-foreground font-semibold text-base'>{title}</p>
+			<p className='text-sm text-muted-foreground mt-1 max-w-xs text-center'>{description}</p>
+			{action}
+		</div>
+	)
+}

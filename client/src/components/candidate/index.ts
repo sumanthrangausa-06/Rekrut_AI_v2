@@ -8,3 +8,9 @@ export type {
 
 export { KanbanColumn, KANBAN_COLUMNS } from './kanban-column'
 export type { KanbanColumnDef } from './kanban-column'
+
+export { JobCard } from './JobCard'
+export type { JobCardData } from './JobCard'
+
+export { JobFilterBar } from './JobFilterBar'
+export type { JobFilterValues } from './JobFilterBar'
