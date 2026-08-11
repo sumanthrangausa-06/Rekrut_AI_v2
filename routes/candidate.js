@@ -5,7 +5,7 @@ const FormData = require('form-data');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
-const { authMiddleware } = require('../lib/auth');
+const { authMiddleware, requireRole } = require('../lib/auth');
 const pool = require('../lib/db');
 const {
 	parseResume,
@@ -16,6 +16,7 @@ const {
 } = require('../lib/polsia-ai');
 
 const omniscoreService = require('../services/omniscore');
+const { decrypt } = require('../lib/crypto-utils');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const emailService = require('../lib/email-service');
 const calendarService = require('../server/services/calendar-service');
@@ -3338,6 +3339,140 @@ Only return JSON.`;
 	} catch (err) {
 		console.error('AI resume score error:', err);
 		res.status(500).json({ error: 'Failed to score resume' });
+	}
+});
+
+// ============= LINKEDIN IMPORT =============
+
+// POST /linkedin/import — Import LinkedIn profile data for candidate
+router.post('/linkedin/import', authMiddleware, requireRole('candidate'), rateLimits.standard, async (req, res) => {
+	try {
+		// 1. Find the user's LinkedIn OAuth connection
+		const connectionResult = await pool.query(
+			`SELECT access_token, profile_data
+			 FROM oauth_connections
+			 WHERE user_id = $1 AND provider = 'linkedin'
+			 ORDER BY updated_at DESC
+			 LIMIT 1`,
+			[req.user.id],
+		);
+
+		if (connectionResult.rows.length === 0) {
+			return res.status(404).json({
+				error: 'LinkedIn account not connected',
+				code: 'LINKEDIN_NOT_CONNECTED',
+			});
+		}
+
+		const { access_token: encryptedToken, profile_data: storedProfileData } = connectionResult.rows[0];
+
+		if (!encryptedToken) {
+			return res.status(404).json({
+				error: 'LinkedIn token not found',
+				code: 'LINKEDIN_TOKEN_MISSING',
+			});
+		}
+
+		// 2. Decrypt the access token
+		let accessToken;
+		try {
+			accessToken = decrypt(encryptedToken);
+		} catch (decryptErr) {
+			console.error('[linkedin/import] Token decryption failed:', decryptErr.message);
+			return res.status(500).json({
+				error: 'Failed to decrypt LinkedIn token',
+				code: 'TOKEN_DECRYPTION_FAILED',
+			});
+		}
+
+		if (!accessToken) {
+			return res.status(404).json({
+				error: 'LinkedIn token not found',
+				code: 'LINKEDIN_TOKEN_MISSING',
+			});
+		}
+
+		// 3. Call LinkedIn /v2/userinfo
+		const userInfoResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
+			headers: { Authorization: `Bearer ${accessToken}` },
+		});
+
+		// Handle token expiration (401 from LinkedIn)
+		if (userInfoResponse.status === 401) {
+			return res.status(401).json({
+				error: 'LinkedIn token expired. Please reconnect your account.',
+				code: 'LINKEDIN_TOKEN_EXPIRED',
+			});
+		}
+
+		if (!userInfoResponse.ok) {
+			const errorBody = await userInfoResponse.text();
+			console.error(`[linkedin/import] LinkedIn API error ${userInfoResponse.status}:`, errorBody);
+			return res.status(502).json({
+				error: 'LinkedIn API request failed',
+				code: 'LINKEDIN_API_ERROR',
+				status: userInfoResponse.status,
+			});
+		}
+
+		const linkedinUser = await userInfoResponse.json();
+
+		if (!linkedinUser.email) {
+			return res.status(502).json({
+				error: 'Could not retrieve email from LinkedIn',
+				code: 'LINKEDIN_EMAIL_MISSING',
+			});
+		}
+
+		// 4. Construct linkedin_url if possible
+		let linkedinUrl = null;
+		// Try to extract vanity name from stored profile_data if available
+		if (storedProfileData) {
+			try {
+				const parsed = typeof storedProfileData === 'string' ? JSON.parse(storedProfileData) : storedProfileData;
+				if (parsed.vanityName) {
+					linkedinUrl = `https://www.linkedin.com/in/${parsed.vanityName}`;
+				}
+			} catch (_e) {
+				// ignore parse errors
+			}
+		}
+		// Fallback: try to construct from name (best effort)
+		if (!linkedinUrl && linkedinUser.name) {
+			const vanity = linkedinUser.name
+				.toLowerCase()
+				.replace(/[^a-z0-9]+/g, '-')
+				.replace(/^-|-$/g, '');
+			if (vanity) {
+				linkedinUrl = `https://www.linkedin.com/in/${vanity}`;
+			}
+		}
+
+		const photo = linkedinUser.picture || null;
+		const name = linkedinUser.name || `${linkedinUser.given_name || ''} ${linkedinUser.family_name || ''}`.trim() || null;
+
+		// 5. Update users.avatar_url if photo changed
+		if (photo && photo !== req.user.avatar_url) {
+			try {
+				await pool.query('UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2', [
+					photo,
+					req.user.id,
+				]);
+			} catch (avatarErr) {
+				console.error('[linkedin/import] Failed to update avatar_url (non-blocking):', avatarErr.message);
+			}
+		}
+
+		res.json({
+			success: true,
+			name,
+			email: linkedinUser.email,
+			photo,
+			linkedin_url: linkedinUrl,
+		});
+	} catch (err) {
+		console.error('[linkedin/import] Error:', err.message, err.code, err.stack);
+		res.status(500).json({ error: 'Failed to import LinkedIn profile' });
 	}
 });
 
