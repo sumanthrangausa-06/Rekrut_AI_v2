@@ -241,7 +241,7 @@ export function QuickPractice({
 					console.warn('[camera] play() failed, retrying:', e?.message)
 					try {
 						await v.play()
-					} catch (_) {}
+					} catch (err) { console.error("[quick-practice] Operation failed:", err); }
 				}
 			}
 
@@ -336,7 +336,7 @@ export function QuickPractice({
 			if (event.error === 'no-speech') {
 				try {
 					recognition.start()
-				} catch (_) {}
+				} catch (err) { console.error("[quick-practice] Operation failed:", err); }
 			}
 		}
 
@@ -345,7 +345,7 @@ export function QuickPractice({
 			if (isRecording) {
 				try {
 					recognition.start()
-				} catch (_) {}
+				} catch (err) { console.error("[quick-practice] Operation failed:", err); }
 			}
 		}
 
@@ -358,7 +358,7 @@ export function QuickPractice({
 		if (recognitionRef.current) {
 			try {
 				recognitionRef.current.stop()
-			} catch (_) {}
+			} catch (err) { console.error("[quick-practice] Operation failed:", err); }
 			recognitionRef.current = null
 		}
 		setIsTranscribing(false)

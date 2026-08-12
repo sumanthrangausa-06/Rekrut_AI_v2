@@ -664,6 +664,33 @@ router.post('/feedback/schedule', authMiddleware, async (req, res) => {
 	}
 });
 
+// Get employee's completed feedback
+router.get('/feedback/completed', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`SELECT id, day_mark, completed_at as submitted_at, satisfaction_score, would_recommend, comments
+			 FROM post_hire_feedback
+			 WHERE employee_id = $1 AND status = 'completed'
+			 ORDER BY completed_at DESC`,
+			[req.user.id],
+		);
+
+		const feedback = result.rows.map((row) => ({
+			id: row.id,
+			day_mark: row.day_mark,
+			submitted_at: row.submitted_at ? new Date(row.submitted_at).toISOString() : '',
+			satisfaction_score: row.satisfaction_score || 0,
+			would_recommend: row.would_recommend || false,
+			comments: row.comments || '',
+		}));
+
+		res.json({ feedback });
+	} catch (err) {
+		console.error('Error fetching completed feedback:', err);
+		res.status(500).json({ error: 'Failed to fetch completed feedback' });
+	}
+});
+
 // Get employee's pending feedback
 router.get('/feedback/pending', authMiddleware, async (req, res) => {
 	try {

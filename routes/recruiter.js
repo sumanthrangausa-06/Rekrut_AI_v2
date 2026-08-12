@@ -3623,8 +3623,102 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, requireRecrui
 		});
 	} catch (err) {
 		console.error('Recruiter analytics error:', err);
-		res.status(500).json({ error: 'Failed to fetch analytics' });
 	}
+});
+
+// Saved searches (Issue #109)
+router.get('/saved-searches', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+	try {
+		// Graceful: create table if it doesn't exist
+		await pool.query(`
+			CREATE TABLE IF NOT EXISTS saved_searches (
+				id SERIAL PRIMARY KEY,
+				recruiter_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+				name VARCHAR(255) NOT NULL,
+				filters JSONB DEFAULT '{}',
+				search_query TEXT,
+				alert_enabled BOOLEAN DEFAULT false,
+				created_at TIMESTAMP DEFAULT NOW(),
+				updated_at TIMESTAMP DEFAULT NOW()
+			)
+		`);
+
+		const result = await pool.query(
+			`SELECT id, name, filters, search_query, alert_enabled, created_at
+			 FROM saved_searches WHERE recruiter_id = $1 ORDER BY created_at DESC`,
+			[req.user.id],
+		);
+
+		const searches = result.rows.map((s) => ({
+			id: String(s.id),
+			name: s.name,
+			filters: s.filters || {},
+			searchQuery: s.search_query || '',
+			alertEnabled: s.alert_enabled || false,
+			createdAt: s.created_at ? new Date(s.created_at).toISOString() : new Date().toISOString(),
+		}));
+
+		res.json({ searches });
+	} catch (err) {
+		console.error('Get saved searches error:', err);
+		res.status(500).json({ error: 'Failed to fetch saved searches' });
+	}
+});
+
+router.post('/saved-searches', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+	try {
+		const { name, filters, searchQuery, alertEnabled } = req.body;
+		if (!name) return res.status(400).json({ error: 'Name is required' });
+
+		await pool.query(`
+			CREATE TABLE IF NOT EXISTS saved_searches (
+				id SERIAL PRIMARY KEY,
+				recruiter_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+				name VARCHAR(255) NOT NULL,
+				filters JSONB DEFAULT '{}',
+				search_query TEXT,
+				alert_enabled BOOLEAN DEFAULT false,
+				created_at TIMESTAMP DEFAULT NOW(),
+				updated_at TIMESTAMP DEFAULT NOW()
+			)
+		`);
+
+		const result = await pool.query(
+			`INSERT INTO saved_searches (recruiter_id, name, filters, search_query, alert_enabled)
+			 VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+			[req.user.id, name, JSON.stringify(filters || {}), searchQuery || '', alertEnabled || false],
+		);
+
+		res.json({ success: true, search: result.rows[0] });
+	} catch (err) {
+		console.error('Create saved search error:', err);
+		res.status(500).json({ error: 'Failed to create saved search' });
+	}
+});
+
+router.delete('/saved-searches/:id', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+	try {
+		const result = await pool.query(
+			'DELETE FROM saved_searches WHERE id = $1 AND recruiter_id = $2 RETURNING id',
+			[req.params.id, req.user.id],
+		);
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Saved search not found' });
+		}
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Delete saved search error:', err);
+		res.status(500).json({ error: 'Failed to delete saved search' });
+	}
+});
+
+// Stubs for chat (#114) and screening endpoints
+router.get('/conversations', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (_req, res) => {
+	res.json({ conversations: [] });
+});
+
+router.get('/screenings', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (_req, res) => {
+	res.json({ screenings: [] });
 });
 
 module.exports = router;

@@ -306,7 +306,7 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 		try {
 			await apiCall(`/conversations/${convId}/read`, { method: 'POST' })
 			setConversations((prev) => prev.map((c) => (c.id === convId ? { ...c, unread_count: 0 } : c)))
-		} catch {}
+		} catch (err) { console.error("[chat] Operation failed:", err); }
 	}
 
 	const filteredConversations = conversations.filter((c) => {

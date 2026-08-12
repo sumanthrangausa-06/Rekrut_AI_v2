@@ -344,7 +344,7 @@ export function RecruiterJobApplicantsPage() {
 			if (data.actions?.length) {
 				loadApplicants() // Refresh to show changes
 			}
-		} catch {}
+		} catch (err) { console.error("[job-applicants] Operation failed:", err); }
 	}
 
 	function toggleSelect(appId: number) {

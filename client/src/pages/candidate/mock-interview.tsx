@@ -223,7 +223,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 			if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
 				try {
 					audioCtxRef.current.close()
-				} catch (_) {}
+				} catch (err) { console.error("[mock-interview] Operation failed:", err); }
 			}
 		}
 	}, [stopMockFrameCapture, stopMockSpeechRecognition, stopVoiceMode, stopMockCamera])
@@ -270,7 +270,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 				} catch {
 					try {
 						await v.play()
-					} catch {}
+					} catch (err) { console.error("[mock-interview] Camera play failed:", err); }
 				}
 			}
 			setMockCameraReady(true)
@@ -369,7 +369,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 			if (event.error === 'no-speech') {
 				try {
 					recognition.start()
-				} catch (_) {}
+				} catch (err) { console.error("[mock-interview] Operation failed:", err); }
 			}
 		}
 
@@ -377,21 +377,21 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 			if (candidateRecordingRef.current) {
 				try {
 					recognition.start()
-				} catch (_) {}
+				} catch (err) { console.error("[mock-interview] Operation failed:", err); }
 			}
 		}
 
 		try {
 			recognition.start()
 			mockRecognitionRef.current = recognition
-		} catch (_) {}
+		} catch (err) { console.error("[mock-interview] Operation failed:", err); }
 	}
 
 	function stopMockSpeechRecognition() {
 		if (mockRecognitionRef.current) {
 			try {
 				mockRecognitionRef.current.stop()
-			} catch (_) {}
+			} catch (err) { console.error("[mock-interview] Operation failed:", err); }
 			mockRecognitionRef.current = null
 		}
 	}
@@ -525,7 +525,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 				if (mockAudioSourceRef.current) {
 					try {
 						mockAudioSourceRef.current.stop()
-					} catch (_) {}
+					} catch (err) { console.error("[mock-interview] Operation failed:", err); }
 				}
 				const source = ctx.createBufferSource()
 				source.buffer = audioBuffer
@@ -570,7 +570,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 			console.error('[tts-client] TTS playback error:', err)
 			try {
 				await speakWithBrowserTTS(text)
-			} catch (_) {}
+			} catch (err) { console.error("[mock-interview] Operation failed:", err); }
 			setAiSpeaking(false)
 			if (voiceModeRef.current && !candidateRecordingRef.current)
 				setTimeout(() => startVoiceRecording(), 500)
@@ -623,7 +623,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 			if (analyserRef.current) {
 				try {
 					analyserRef.current.disconnect()
-				} catch (_) {}
+				} catch (err) { console.error("[mock-interview] Operation failed:", err); }
 				analyserRef.current = null
 			}
 			const source = audioContext.createMediaStreamSource(voiceStreamRef.current)
@@ -807,7 +807,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 								if (mockAudioSourceRef.current) {
 									try {
 										mockAudioSourceRef.current.stop()
-									} catch (_) {}
+									} catch (err) { console.error("[mock-interview] Operation failed:", err); }
 								}
 								const srcNode = ctx.createBufferSource()
 								srcNode.buffer = audioBuffer
@@ -919,7 +919,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 		if (mockAudioSourceRef.current) {
 			try {
 				mockAudioSourceRef.current.stop()
-			} catch (_) {}
+			} catch (err) { console.error("[mock-interview] Operation failed:", err); }
 			mockAudioSourceRef.current = null
 		}
 		if (aiAudioRef.current) {

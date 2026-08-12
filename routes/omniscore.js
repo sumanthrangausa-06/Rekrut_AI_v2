@@ -648,7 +648,129 @@ router.get('/company-dashboard', authMiddleware, async (req, res) => {
 		});
 	} catch (err) {
 		console.error('Get company dashboard error:', err);
-		res.status(500).json({ error: 'Failed to get company dashboard' });
+	}
+});
+
+// OmniScore Explainer — return score breakdown for a candidate (Issue #109)
+router.get('/explainer', authMiddleware, async (req, res) => {
+	try {
+		const userId = req.user.id;
+
+		// Get latest omniscore data
+		const scoreResult = await pool.query(
+			`SELECT total_score, interview_score, technical_score, resume_score, behavior_score, score_tier
+			 FROM omni_scores WHERE user_id = $1`,
+			[userId],
+		);
+
+		const score = scoreResult.rows[0] || {
+			total_score: 300,
+			interview_score: 0,
+			technical_score: 0,
+			resume_score: 0,
+			behavior_score: 0,
+			score_tier: 'new',
+		};
+
+		// Get score components (individual factors)
+		const componentsResult = await pool.query(
+			`SELECT component_type, points, max_points, weight, created_at
+			 FROM score_components WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20`,
+			[userId],
+		);
+
+		// Build factors array
+		const factorMap = {
+			interview: { name: 'Interview Performance', impact: score.interview_score || 0, description: 'Based on mock interviews and practice sessions' },
+			technical: { name: 'Technical Skills', impact: score.technical_score || 0, description: 'Verified through assessments and projects' },
+			resume: { name: 'Resume Quality', impact: score.resume_score || 0, description: 'Completeness, relevance, and presentation' },
+			behavior: { name: 'Platform Activity', impact: score.behavior_score || 0, description: 'Engagement, consistency, and professionalism' },
+		};
+
+		const factors = componentsResult.rows.map((c) => {
+			const base = factorMap[c.component_type] || {
+				name: c.component_type,
+				impact: c.points,
+				description: 'Score component',
+			};
+			return {
+				name: base.name,
+				impact: Math.round((c.points / Math.max(c.max_points, 1)) * 100),
+				description: base.description,
+				details: `Score: ${c.points}/${c.max_points} (weight: ${c.weight})`,
+			};
+		});
+
+		// Ensure core factors are always present
+		for (const [key, base] of Object.entries(factorMap)) {
+			if (!factors.some((f) => f.name === base.name)) {
+				factors.push({
+					name: base.name,
+					impact: Math.min(100, Math.round((base.impact / 250) * 100)),
+					description: base.description,
+					details: 'Base score factor',
+				});
+			}
+		}
+
+		// Get peer comparison (percentile)
+		const percentileResult = await pool.query(
+			`SELECT
+				PERCENT_RANK() WITHIN GROUP (ORDER BY total_score) * 100 as percentile,
+				AVG(total_score) as avg_score,
+				MAX(total_score) as top_score,
+				PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total_score) as median_score
+			 FROM omni_scores`,
+		);
+
+		const peerStats = percentileResult.rows[0] || {};
+
+		res.json({
+			factors,
+			peerComparison: {
+				percentile: Math.round(parseFloat(peerStats.percentile || '50')),
+				avgScore: Math.round(parseFloat(peerStats.avg_score || '500')),
+				topScore: Math.round(parseFloat(peerStats.top_score || '1000')),
+				medianScore: Math.round(parseFloat(peerStats.median_score || '500')),
+			},
+			improvementRoadmap: [
+				{
+					step: 1,
+					title: 'Complete Your Profile',
+					description: 'Add work experience, education, and skills to boost your resume score.',
+					estimatedPoints: 50,
+					difficulty: 'easy',
+					timeEstimate: '15 min',
+				},
+				{
+					step: 2,
+					title: 'Take a Skill Assessment',
+					description: 'Pass verified assessments to increase your technical score.',
+					estimatedPoints: 75,
+					difficulty: 'medium',
+					timeEstimate: '30 min',
+				},
+				{
+					step: 3,
+					title: 'Practice Mock Interviews',
+					description: 'Complete AI-powered practice sessions to improve interview performance.',
+					estimatedPoints: 100,
+					difficulty: 'medium',
+					timeEstimate: '45 min',
+				},
+				{
+					step: 4,
+					title: 'Build a Portfolio Project',
+					description: 'Showcase your abilities with a published project.',
+					estimatedPoints: 150,
+					difficulty: 'hard',
+					timeEstimate: '2-4 hours',
+				},
+			],
+		});
+	} catch (err) {
+		console.error('OmniScore explainer error:', err);
+		res.status(500).json({ error: 'Failed to load score explainer' });
 	}
 });
 

@@ -182,7 +182,7 @@ export function CandidateJobsPage() {
 		try {
 			const saved = localStorage.getItem('rekrut_recent_searches')
 			if (saved) setRecentSearches(JSON.parse(saved))
-		} catch {}
+		} catch (err) { console.error("[jobs] Operation failed:", err); }
 	}, [])
 
 	const saveRecentSearch = useCallback((f: FilterState) => {
@@ -266,7 +266,7 @@ export function CandidateJobsPage() {
 			if (data.saved_jobs) {
 				setSavedJobIds(new Set(data.saved_jobs.map((sj) => sj.job_id)))
 			}
-		} catch {}
+		} catch (err) { console.error("[jobs] Operation failed:", err); }
 	}, [])
 
 	const loadLikedJobs = useCallback(async () => {
@@ -276,7 +276,7 @@ export function CandidateJobsPage() {
 				new Set(liked.map((j) => j.id ?? j.job_id).filter((id): id is number => id !== undefined)),
 			)
 			setLikedJobsData(liked)
-		} catch {}
+		} catch (err) { console.error("[jobs] Operation failed:", err); }
 	}, [])
 
 	const loadDismissedJobs = useCallback(async () => {
@@ -288,7 +288,7 @@ export function CandidateJobsPage() {
 				),
 			)
 			setDismissedJobsData(dismissed)
-		} catch {}
+		} catch (err) { console.error("[jobs] Operation failed:", err); }
 	}, [])
 
 	useEffect(() => {
@@ -315,7 +315,7 @@ export function CandidateJobsPage() {
 				await apiCall('/candidate/saved-jobs', { method: 'POST', body: { job_id: jobId } })
 				setSavedJobIds((prev) => new Set(prev).add(jobId))
 			}
-		} catch {}
+		} catch (err) { console.error("[jobs] Operation failed:", err); }
 	}
 
 	async function toggleLikeJob(jobId: number, e: React.MouseEvent) {
@@ -344,7 +344,7 @@ export function CandidateJobsPage() {
 					setDismissedJobsData((prev) => prev.filter((j) => j.id !== jobId))
 				}
 			}
-		} catch {}
+		} catch (err) { console.error("[jobs] Operation failed:", err); }
 	}
 
 	async function toggleDismissJob(jobId: number, e: React.MouseEvent) {
@@ -380,7 +380,7 @@ export function CandidateJobsPage() {
 					})
 				}
 			}
-		} catch {}
+		} catch (err) { console.error("[jobs] Operation failed:", err); }
 	}
 
 	async function handleAiSearch() {

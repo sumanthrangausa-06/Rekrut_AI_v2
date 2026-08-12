@@ -3476,4 +3476,17 @@ router.post('/linkedin/import', authMiddleware, requireRole('candidate'), rateLi
 	}
 });
 
+// Stubs for missing endpoints (Issues #114, #115, #109)
+router.get('/list', authMiddleware, async (_req, res) => {
+	res.json({ candidates: [] });
+});
+
+router.get('/documents', authMiddleware, async (_req, res) => {
+	res.json({ documents: [] });
+});
+
+router.get('/conversations', authMiddleware, async (_req, res) => {
+	res.json({ conversations: [] });
+});
+
 module.exports = router;

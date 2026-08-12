@@ -145,21 +145,21 @@ export function CandidateJobDetailPage() {
 		try {
 			const data = await apiCall<{ saved_jobs: { job_id: number }[] }>('/candidate/saved-jobs')
 			if (data.saved_jobs?.some((sj) => sj.job_id === Number(id))) setSaved(true)
-		} catch {}
+		} catch (err) { console.error("[job-detail] Operation failed:", err); }
 	}, [id])
 
 	const loadProfileCompleteness = useCallback(async () => {
 		try {
 			const data = await apiCall<{ profile: { completeness: number } }>('/candidate/profile')
 			setProfileCompleteness(data.profile?.completeness || 0)
-		} catch {}
+		} catch (err) { console.error("[job-detail] Operation failed:", err); }
 	}, [])
 
 	const loadJobAssessment = useCallback(async () => {
 		try {
 			const data = await apiCall<{ assessment: any }>(`/assessments/job/${id}`)
 			if (data.assessment?.status === 'published') setJobAssessment(data.assessment)
-		} catch {}
+		} catch (err) { console.error("[job-detail] Operation failed:", err); }
 	}, [id])
 
 	const checkIfApplied = useCallback(async () => {
@@ -168,7 +168,7 @@ export function CandidateJobDetailPage() {
 				'/candidate/applications',
 			)
 			if (data.applications?.some((a) => a.job_id === Number(id))) setApplied(true)
-		} catch {}
+		} catch (err) { console.error("[job-detail] Operation failed:", err); }
 	}, [id])
 
 	const loadMatchBreakdown = useCallback(async () => {
@@ -255,7 +255,7 @@ export function CandidateJobDetailPage() {
 				await apiCall('/candidate/saved-jobs', { method: 'POST', body: { job_id: Number(id) } })
 				setSaved(true)
 			}
-		} catch {}
+		} catch (err) { console.error("[job-detail] Operation failed:", err); }
 	}
 
 	const loadAutoFill = useCallback(async () => {
@@ -278,7 +278,7 @@ export function CandidateJobDetailPage() {
 				setScreeningAnswers(newAnswers)
 				setAutoFillSources(sources)
 			}
-		} catch {}
+		} catch (err) { console.error("[job-detail] Operation failed:", err); }
 	}, [user, id, coverLetter, screeningAnswers])
 
 	useEffect(() => {
