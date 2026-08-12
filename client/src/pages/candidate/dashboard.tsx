@@ -10,7 +10,8 @@ import {
 	User,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { LinkedInImportModal } from '@/components/candidate/linkedin-import-modal'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,6 +32,8 @@ interface DashboardStats {
 
 export function CandidateDashboard() {
 	const { user } = useAuth()
+	const navigate = useNavigate()
+	const [searchParams, setSearchParams] = useSearchParams()
 	const [stats, setStats] = useState<DashboardStats | null>(null)
 	const [recentJobs, setRecentJobs] = useState<
 		Array<{
@@ -42,6 +45,7 @@ export function CandidateDashboard() {
 		}>
 	>([])
 	const [loading, setLoading] = useState(true)
+	const [showLinkedInModal, setShowLinkedInModal] = useState(false)
 
 	useEffect(() => {
 		async function loadDashboard() {
@@ -74,6 +78,26 @@ export function CandidateDashboard() {
 
 		loadDashboard()
 	}, [])
+
+	useEffect(() => {
+		if (searchParams.get('linkedin_connected') === 'true') {
+			setShowLinkedInModal(true)
+		}
+	}, [searchParams])
+
+	function handleModalClose(open: boolean) {
+		setShowLinkedInModal(open)
+		if (!open) {
+			// Remove linkedin_connected param from URL without adding history entry
+			const nextParams = new URLSearchParams(searchParams)
+			nextParams.delete('linkedin_connected')
+			setSearchParams(nextParams, { replace: true })
+		}
+	}
+
+	function handleNavigateToSection(section: string) {
+		navigate(`/candidate/profile?section=${section}`)
+	}
 
 	const quickActions = [
 		{
@@ -111,6 +135,12 @@ export function CandidateDashboard() {
 
 	return (
 		<div className='space-y-6'>
+			<LinkedInImportModal
+				open={showLinkedInModal}
+				onOpenChange={handleModalClose}
+				onNavigateToSection={handleNavigateToSection}
+			/>
+
 			{/* Welcome header */}
 			<div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
 				<div>

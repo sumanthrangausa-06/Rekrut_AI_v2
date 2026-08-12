@@ -30,6 +30,7 @@ import {
 	Pencil,
 	Phone,
 	Plus,
+	RefreshCw,
 	Save,
 	Send,
 	Settings,
@@ -46,7 +47,7 @@ import {
 	Zap,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Skeleton } from '@/components/domain/skeleton'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -203,6 +204,7 @@ const availabilityLabels: Record<string, string> = {
 export function CandidateProfilePage() {
 	const { user } = useAuth()
 	const _navigate = useNavigate()
+	const [searchParams, setSearchParams] = useSearchParams()
 	const [tab, setTab] = useState('overview')
 	const [profile, setProfile] = useState<Profile>({})
 	const [experience, setExperience] = useState<Experience[]>([])
@@ -215,7 +217,7 @@ export function CandidateProfilePage() {
 	const [jobAlerts, setJobAlerts] = useState<JobAlert[]>([])
 	const [loading, setLoading] = useState(true)
 	const [saving, setSaving] = useState(false)
-	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: React.ReactNode } | null>(null)
 	const [aiOptimizing, setAiOptimizing] = useState(false)
 	const [aiTips, setAiTips] = useState<string[] | null>(null)
 
@@ -255,6 +257,17 @@ export function CandidateProfilePage() {
 	useEffect(() => {
 		loadProfile()
 	}, [loadProfile])
+
+	useEffect(() => {
+		const section = searchParams.get('section')
+		if (section && ['personal', 'experience', 'education', 'skills'].includes(section)) {
+			setTab(section)
+			const nextParams = new URLSearchParams(searchParams)
+			nextParams.delete('section')
+			setSearchParams(nextParams, { replace: true })
+		}
+	}, [searchParams, setSearchParams])
+
 	useEffect(() => {
 		if (message) {
 			const t = setTimeout(() => setMessage(null), 3000)
@@ -262,8 +275,7 @@ export function CandidateProfilePage() {
 		}
 	}, [message])
 
-
-	function showMessage(type: 'success' | 'error', text: string) {
+	function showMessage(type: 'success' | 'error', text: React.ReactNode) {
 		setMessage({ type, text })
 	}
 
@@ -1150,7 +1162,7 @@ function AvatarUpload({
 }: {
 	profile: Profile
 	onUploaded: (url: string) => void
-	showMessage: (type: 'success' | 'error', text: string) => void
+	showMessage: (type: 'success' | 'error', text: React.ReactNode) => void
 }) {
 	const fileRef = useRef<HTMLInputElement>(null)
 	const [uploading, setUploading] = useState(false)
@@ -1222,13 +1234,93 @@ function PersonalInfoTab({
 	setProfile: React.Dispatch<React.SetStateAction<Profile>>
 	saving: boolean
 	setSaving: React.Dispatch<React.SetStateAction<boolean>>
-	showMessage: (type: 'success' | 'error', text: string) => void
+	showMessage: (type: 'success' | 'error', text: React.ReactNode) => void
 }) {
+	const [linkedinSyncing, setLinkedinSyncing] = useState(false)
+	const [lastSynced, setLastSynced] = useState<number | null>(() => {
+		const raw = localStorage.getItem('linkedin_last_synced')
+		return raw ? parseInt(raw, 10) : null
+	})
+	const [linkedinUrlError, setLinkedinUrlError] = useState('')
+
+	function isValidLinkedInUrl(url: string): boolean {
+		if (!url) return true
+		return /^https:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+\/?$/.test(url)
+	}
+
 	function updateField(key: string, value: string | number) {
 		setProfile((p) => ({ ...p, [key]: value }))
+		if (key === 'linkedin_url') {
+			const url = String(value)
+			if (url && !isValidLinkedInUrl(url)) {
+				setLinkedinUrlError('URL must be https://linkedin.com/in/{name} or https://www.linkedin.com/in/{name}')
+			} else {
+				setLinkedinUrlError('')
+			}
+		}
+	}
+
+	async function handleLinkedInSync() {
+		setLinkedinSyncing(true)
+		try {
+			const result = await apiCall<{
+				name?: string
+				photo?: string
+				linkedin_url?: string
+				error?: string
+				code?: string
+			}>('/candidate/linkedin/import', { method: 'POST' })
+
+			if (result.error) {
+				if (result.code === 'TOKEN_EXPIRED') {
+					showMessage(
+						'error',
+						<span>
+							LinkedIn token expired.{' '}
+							<a
+								href='/api/auth/linkedin/url'
+								className='underline font-semibold'
+								onClick={(e) => {
+									e.preventDefault()
+									window.location.href = '/api/auth/linkedin/url'
+								}}
+							>
+								Please reconnect.
+							</a>
+						</span>,
+					)
+				} else {
+					showMessage('error', result.error)
+				}
+				return
+			}
+
+			if (result.name || result.photo) {
+				setProfile((p) => ({
+					...p,
+					name: result.name || p.name,
+					avatar_url: result.photo || p.avatar_url,
+				}))
+			}
+
+			const now = Date.now()
+			localStorage.setItem('linkedin_last_synced', String(now))
+			setLastSynced(now)
+			showMessage('success', 'LinkedIn profile refreshed')
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : 'Failed to refresh LinkedIn profile'
+			showMessage('error', msg)
+		} finally {
+			setLinkedinSyncing(false)
+		}
 	}
 
 	async function handleSave() {
+		if (profile.linkedin_url && !isValidLinkedInUrl(profile.linkedin_url)) {
+			setLinkedinUrlError('URL must be https://linkedin.com/in/{name} or https://www.linkedin.com/in/{name}')
+			showMessage('error', 'Please fix the LinkedIn URL')
+			return
+		}
 		setSaving(true)
 		try {
 			await apiCall('/candidate/profile', { method: 'PUT', body: profile })
@@ -1300,15 +1392,40 @@ function PersonalInfoTab({
 							<Link2 className='h-4 w-4' /> Social Links
 						</h3>
 						<div className='grid gap-4 sm:grid-cols-2'>
-							<div>
+							<div className='sm:col-span-2'>
 								<Label className='flex items-center gap-1'>
 									<Linkedin className='h-3 w-3' /> LinkedIn
 								</Label>
-								<Input
-									value={profile.linkedin_url || ''}
-									onChange={(e) => updateField('linkedin_url', e.target.value)}
-									placeholder='https://linkedin.com/in/...'
-								/>
+								<div className='flex gap-2'>
+									<Input
+										value={profile.linkedin_url || ''}
+										onChange={(e) => updateField('linkedin_url', e.target.value)}
+										placeholder='https://linkedin.com/in/...'
+										className={linkedinUrlError ? 'border-red-500 focus-visible:ring-red-500' : ''}
+									/>
+									<Button
+										variant='outline'
+										size='sm'
+										onClick={handleLinkedInSync}
+										disabled={linkedinSyncing || !profile.linkedin_url}
+										className='shrink-0 gap-1 min-h-[40px]'
+									>
+										{linkedinSyncing ? (
+											<Loader2 className='h-4 w-4 animate-spin' />
+										) : (
+											<RefreshCw className='h-4 w-4' />
+										)}
+										Refresh
+									</Button>
+								</div>
+								{linkedinUrlError && (
+									<p className='text-xs text-red-500 mt-1'>{linkedinUrlError}</p>
+								)}
+								{lastSynced && (
+									<p className='text-xs text-muted-foreground mt-1'>
+										Last synced: {new Date(lastSynced).toLocaleString()}
+									</p>
+								)}
 							</div>
 							<div>
 								<Label className='flex items-center gap-1'>
@@ -1455,7 +1572,7 @@ function ExperienceTab({
 }: {
 	experience: Experience[]
 	setExperience: React.Dispatch<React.SetStateAction<Experience[]>>
-	showMessage: (type: 'success' | 'error', text: string) => void
+	showMessage: (type: 'success' | 'error', text: React.ReactNode) => void
 }) {
 	const [editing, setEditing] = useState<Experience | null>(null)
 	const [isNew, setIsNew] = useState(false)
@@ -1746,7 +1863,7 @@ function EducationTab({
 }: {
 	education: Education[]
 	setEducation: React.Dispatch<React.SetStateAction<Education[]>>
-	showMessage: (type: 'success' | 'error', text: string) => void
+	showMessage: (type: 'success' | 'error', text: React.ReactNode) => void
 }) {
 	const [editing, setEditing] = useState<Education | null>(null)
 	const [isNew, setIsNew] = useState(false)
@@ -1972,7 +2089,7 @@ function SkillsTab({
 }: {
 	skills: Skill[]
 	setSkills: React.Dispatch<React.SetStateAction<Skill[]>>
-	showMessage: (type: 'success' | 'error', text: string) => void
+	showMessage: (type: 'success' | 'error', text: React.ReactNode) => void
 }) {
 	const [newSkill, setNewSkill] = useState('')
 	const [newCategory, setNewCategory] = useState('technical')
@@ -2212,7 +2329,7 @@ function PortfolioTab({
 	setCertifications: React.Dispatch<React.SetStateAction<Certification[]>>
 	projects: Project[]
 	setProjects: React.Dispatch<React.SetStateAction<Project[]>>
-	showMessage: (type: 'success' | 'error', text: string) => void
+	showMessage: (type: 'success' | 'error', text: React.ReactNode) => void
 }) {
 	const [newCert, setNewCert] = useState<Partial<Certification>>({})
 	const [newProj, setNewProj] = useState<Partial<Project>>({})
@@ -2555,7 +2672,7 @@ function JobAlertsTab({
 }: {
 	jobAlerts: JobAlert[]
 	setJobAlerts: React.Dispatch<React.SetStateAction<JobAlert[]>>
-	showMessage: (type: 'success' | 'error', text: string) => void
+	showMessage: (type: 'success' | 'error', text: React.ReactNode) => void
 }) {
 	const [newAlert, setNewAlert] = useState<Partial<JobAlert>>({
 		keywords: '',
