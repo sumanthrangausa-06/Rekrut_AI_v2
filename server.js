@@ -531,8 +531,8 @@ app.use('/api/candidate', candidateRoutes);
 app.use('/api/assessments', assessmentRoutes);
 
 // API Routes - Recruiter/Company side
-app.use('/api/company', companyRoutes);
 app.use('/api/company', auditRoutes);
+app.use('/api/company', companyRoutes);
 app.use('/api/trustscore', trustscoreRoutes);
 app.use('/api/recruiter', recruiterRoutes);
 
