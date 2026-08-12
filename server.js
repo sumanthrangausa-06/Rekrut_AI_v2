@@ -109,6 +109,7 @@ const notificationsRoutes = require('./routes/notifications');
 const billingRoutes = require('./routes/billing');
 const voiceNotificationsRoutes = require('./routes/voice-notifications');
 const screeningRoutes = require('./routes/screening');
+const questionnaireRoutes = require('./routes/questionnaire');
 const settingsRoutes = require('./routes/settings');
 const signatureRoutes = require('./routes/signature');
 const verificationRoutes = require('./routes/verification');
@@ -574,6 +575,9 @@ app.use('/api/billing', billingRoutes);
 
 // API Routes - AI Screening (Recruiter AI Coach)
 app.use('/api/screening', screeningRoutes);
+
+// API Routes - Screening Questionnaire (Issue #110)
+app.use('/api/questionnaire', questionnaireRoutes);
 
 // API Routes - Settings (profile, notifications, privacy, avatar)
 app.use('/api/settings', settingsRoutes);
