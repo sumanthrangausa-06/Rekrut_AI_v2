@@ -500,7 +500,7 @@ router.get('/google/url', (req, res) => {
 	const clientId = process.env.GOOGLE_CLIENT_ID;
 	const redirectUri =
 		process.env.GOOGLE_REDIRECT_URI ||
-		`${req.protocol}://${req.get('host')}/api/auth/google/callback`;
+		`${process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`}/api/auth/google/callback`;
 
 	if (!clientId) {
 		return res.status(503).json({
@@ -556,7 +556,7 @@ router.get('/google/callback', async (req, res) => {
 				grant_type: 'authorization_code',
 				redirect_uri:
 					process.env.GOOGLE_REDIRECT_URI ||
-					`${req.protocol}://${req.get('host')}/api/auth/google/callback`,
+					`${process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`}/api/auth/google/callback`,
 			}),
 		});
 
@@ -647,7 +647,7 @@ router.get('/linkedin/url', (req, res) => {
 	const clientId = process.env.LINKEDIN_CLIENT_ID;
 	const redirectUri =
 		process.env.LINKEDIN_REDIRECT_URI ||
-		`${req.protocol}://${req.get('host')}/api/auth/linkedin/callback`;
+		`${process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`}/api/auth/linkedin/callback`;
 
 	if (!clientId) {
 		return res.status(503).json({
@@ -700,7 +700,7 @@ router.get('/linkedin/callback', async (req, res) => {
 				client_secret: process.env.LINKEDIN_CLIENT_SECRET,
 				redirect_uri:
 					process.env.LINKEDIN_REDIRECT_URI ||
-					`${req.protocol}://${req.get('host')}/api/auth/linkedin/callback`,
+					`${process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`}/api/auth/linkedin/callback`,
 			}),
 		});
 

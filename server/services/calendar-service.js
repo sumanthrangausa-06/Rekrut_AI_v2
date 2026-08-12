@@ -9,7 +9,9 @@ const { encrypt, decrypt } = require('../../lib/crypto-utils');
 // ─────────────────────────────────────────────────────────────────────────────
 
 const GOOGLE_REDIRECT_URI =
-	process.env.GOOGLE_REDIRECT_URI || `${process.env.FRONTEND_URL || 'https://rekrut.ai'}/api/calendar/oauth/callback`;
+	process.env.GOOGLE_CALENDAR_REDIRECT_URI ||
+	process.env.GOOGLE_REDIRECT_URI ||
+	`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/api/calendar/oauth/callback`;
 const OUTLOOK_REDIRECT_URI =
 	process.env.OUTLOOK_REDIRECT_URI || `${process.env.FRONTEND_URL || 'https://rekrut.ai'}/api/calendar/oauth/callback`;
 
