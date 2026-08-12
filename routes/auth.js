@@ -777,7 +777,7 @@ router.get('/linkedin/callback', async (req, res) => {
 		req.session.refreshToken = refreshToken;
 
 		const redirectUrl =
-			user.role === 'recruiter' ? '/recruiter/dashboard' : '/candidate/dashboard';
+			user.role === 'recruiter' ? '/recruiter/dashboard' : '/candidate/dashboard?linkedin_connected=true';
 		res.redirect(redirectUrl);
 	} catch (err) {
 		console.error('LinkedIn OAuth error:', err.message, err.code, err.stack);
