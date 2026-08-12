@@ -83,20 +83,6 @@ if (nodeEnv !== 'production' && dbUrl.includes(PROD_DB_HOSTNAME)) {
 	process.exit(1);
 }
 
-// ClickHouse Analytics Sync (Issue #143)
-// Only starts if USE_CLICKHOUSE_ANALYTICS=true and CLICKHOUSE_URL is set.
-(function startAnalyticsSync() {
-	try {
-		const { startScheduledSync } = require('./server/services/analyticsSync');
-		const syncHandle = startScheduledSync();
-		if (syncHandle) {
-			console.log('[analytics-sync] Scheduled sync started');
-		}
-	} catch (err) {
-		console.warn('[server] Could not start analytics sync:', err.message);
-	}
-})();
-
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
@@ -260,7 +246,6 @@ app.get('/health', async (_req, res) => {
 			branch,
 			deployed_at: process.env.RENDER_DEPLOYED_AT || new Date().toISOString(),
 			db: health.connection,
-			clickhouse: health.clickhouse,
 			tables: health.tables,
 			pool: health.pool,
 			env: health.env,
@@ -308,7 +293,6 @@ app.get('/api/health', async (_req, res) => {
 			status: health.healthy ? 'ok' : 'degraded',
 			timestamp: new Date().toISOString(),
 			db: health.connection,
-			clickhouse: health.clickhouse,
 			tables: health.tables,
 			pool: health.pool,
 			env: health.env,

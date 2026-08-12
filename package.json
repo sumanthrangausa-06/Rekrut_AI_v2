@@ -17,7 +17,6 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
-    "@clickhouse/client": "^1.23.1",
     "bcryptjs": "^2.4.3",
     "connect-pg-simple": "^10.0.0",
     "cookie-parser": "^1.4.6",
