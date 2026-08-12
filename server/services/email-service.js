@@ -332,7 +332,7 @@ async function sendMail({ to, subject, html, text }) {
 				);
 
 				if (attempt < CONFIG.retry.maxAttempts) {
-					const delay = CONFIG.retry.baseDelayMs * Math.pow(CONFIG.retry.backoffMultiplier, attempt - 1);
+					const delay = CONFIG.retry.baseDelayMs * CONFIG.retry.backoffMultiplier ** (attempt - 1);
 					console.log(`[email-service] Retrying in ${delay}ms...`);
 					await sleep(delay);
 				}
@@ -392,7 +392,15 @@ function baseTemplate({ title, bodyHtml, actionText, actionUrl, footerText }) {
 }
 
 // 1. New job application received → Recruiter
-function buildNewApplicationEmail({ recruiter_name, candidate_name, job_title, company_name, application_id, candidate_link, dashboard_url }) {
+function buildNewApplicationEmail({
+	recruiter_name,
+	candidate_name,
+	job_title,
+	company_name,
+	application_id,
+	candidate_link,
+	dashboard_url,
+}) {
 	const subject = `New Application: ${candidate_name} applied for ${job_title}`;
 	const text = `Hi ${recruiter_name || 'Recruiter'},
 
@@ -427,7 +435,17 @@ Rekrut AI Team`;
 }
 
 // 2. Interview scheduled → Candidate
-function buildInterviewScheduledEmail({ candidate_name, job_title, company_name, interview_date, interview_time, interview_location, interviewer_name, meeting_link, confirmation_link }) {
+function buildInterviewScheduledEmail({
+	candidate_name,
+	job_title,
+	company_name,
+	interview_date,
+	interview_time,
+	interview_location,
+	interviewer_name,
+	meeting_link,
+	confirmation_link,
+}) {
 	const subject = `Interview Scheduled: ${job_title} at ${company_name || 'Rekrut AI'}`;
 	const text = `Hi ${candidate_name},
 
@@ -469,7 +487,15 @@ Rekrut AI Team`;
 }
 
 // 3. Application status updated → Candidate
-function buildStatusUpdateEmail({ candidate_name, job_title, company_name, old_status, new_status, feedback, dashboard_url }) {
+function buildStatusUpdateEmail({
+	candidate_name,
+	job_title,
+	company_name,
+	old_status,
+	new_status,
+	feedback,
+	dashboard_url,
+}) {
 	const subject = `Application Update: ${job_title}`;
 	const text = `Hi ${candidate_name},
 
@@ -504,7 +530,14 @@ Rekrut AI Team`;
 }
 
 // 4. New recruiter message → Candidate
-function buildNewMessageEmail({ candidate_name, recruiter_name, job_title, message_preview, message_url, company_name }) {
+function buildNewMessageEmail({
+	candidate_name,
+	recruiter_name,
+	job_title,
+	message_preview,
+	message_url,
+	company_name,
+}) {
 	const subject = `New Message from ${recruiter_name || 'Recruiter'}${company_name ? ` at ${company_name}` : ''}`;
 	const text = `Hi ${candidate_name},
 
