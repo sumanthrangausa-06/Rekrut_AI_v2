@@ -3476,17 +3476,262 @@ router.post('/linkedin/import', authMiddleware, requireRole('candidate'), rateLi
 	}
 });
 
-// Stubs for missing endpoints (Issues #114, #115, #109)
-router.get('/list', authMiddleware, async (_req, res) => {
-	res.json({ candidates: [] });
+// GET /api/candidate/list — returns candidates for the recruiter's company (Issue #109)
+router.get('/list', authMiddleware, async (req, res) => {
+	try {
+		// Only recruiters/hiring managers can access this
+		const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
+		if (!recruiterRoles.includes(req.user.role)) {
+			return res.status(403).json({ error: 'Recruiter access required' });
+		}
+
+		const companyId = req.user.company_id;
+		if (!companyId) {
+			return res.status(403).json({ error: 'No company associated' });
+		}
+
+		const result = await pool.query(
+			`SELECT DISTINCT ON (u.id)
+				u.id,
+				u.name,
+				u.email
+			FROM job_applications ja
+			JOIN users u ON ja.candidate_id = u.id
+			WHERE ja.company_id = $1
+			ORDER BY u.id, ja.applied_at DESC
+			LIMIT 200`,
+			[companyId],
+		);
+
+		res.json(result.rows);
+	} catch (err) {
+		console.error('Get candidate list error:', err);
+		res.status(500).json({ error: 'Failed to fetch candidates' });
+	}
 });
 
-router.get('/documents', authMiddleware, async (_req, res) => {
-	res.json({ documents: [] });
+// GET /api/candidate/documents — returns documents for the authenticated candidate (Issue #109)
+router.get('/documents', authMiddleware, async (req, res) => {
+	try {
+		const userId = req.user.id;
+
+		// Graceful: create table if it doesn't exist
+		await pool.query(`
+			CREATE TABLE IF NOT EXISTS documents (
+				id SERIAL PRIMARY KEY,
+				user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+				name VARCHAR(500) NOT NULL,
+				type VARCHAR(50) DEFAULT 'other',
+				url TEXT,
+				size INTEGER DEFAULT 0,
+				status VARCHAR(50) DEFAULT 'pending',
+				fraud_score NUMERIC(3,2),
+				oer_text TEXT,
+				oer_confidence NUMERIC(4,3),
+				document_score INTEGER,
+				verification_details JSONB DEFAULT '{}',
+				created_at TIMESTAMP DEFAULT NOW()
+			)
+		`);
+
+		const result = await pool.query(
+			`SELECT
+				id,
+				name,
+				type,
+				url,
+				size,
+				status,
+				fraud_score as fraudScore,
+				oer_text as ocrText,
+				oer_confidence as ocrConfidence,
+				document_score as documentScore,
+				verification_details as verificationDetails,
+				created_at as uploadedAt
+			FROM documents
+			WHERE user_id = $1
+			ORDER BY created_at DESC`,
+			[userId],
+		);
+
+		const documents = result.rows.map((d) => ({
+			id: String(d.id),
+			name: d.name,
+			type: d.type || 'other',
+			url: d.url || '',
+			size: parseInt(d.size, 10) || 0,
+			uploadedAt: d.uploadedat ? new Date(d.uploadedat).toISOString() : new Date().toISOString(),
+			status: d.status || 'pending',
+			fraudScore: d.fraudscore ? parseFloat(d.fraudscore) : undefined,
+			ocrText: d.ocrtext || undefined,
+			ocrConfidence: d.ocrconfidence ? parseFloat(d.ocrconfidence) : undefined,
+			documentScore: d.documentscore ? parseInt(d.documentscore, 10) : undefined,
+			verificationDetails: d.verificationdetails || undefined,
+		}));
+
+		res.json({ documents });
+	} catch (err) {
+		console.error('Get candidate documents error:', err);
+		res.status(500).json({ error: 'Failed to fetch documents' });
+	}
 });
 
-router.get('/conversations', authMiddleware, async (_req, res) => {
-	res.json({ conversations: [] });
+// POST /api/candidate/documents/upload — upload a document for the authenticated candidate (Issue #109)
+router.post('/documents/upload', authMiddleware, async (req, res) => {
+	try {
+		const userId = req.user.id;
+		const { name, type, url, size } = req.body;
+
+		if (!name || !url) {
+			return res.status(400).json({ error: 'Name and URL are required' });
+		}
+
+		await pool.query(`
+			CREATE TABLE IF NOT EXISTS documents (
+				id SERIAL PRIMARY KEY,
+				user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+				name VARCHAR(500) NOT NULL,
+				type VARCHAR(50) DEFAULT 'other',
+				url TEXT,
+				size INTEGER DEFAULT 0,
+				status VARCHAR(50) DEFAULT 'pending',
+				fraud_score NUMERIC(3,2),
+				oer_text TEXT,
+				oer_confidence NUMERIC(4,3),
+				document_score INTEGER,
+				verification_details JSONB DEFAULT '{}',
+				created_at TIMESTAMP DEFAULT NOW()
+			)
+		`);
+
+		const result = await pool.query(
+			`INSERT INTO documents (user_id, name, type, url, size, status)
+			 VALUES ($1, $2, $3, $4, $5, 'pending')
+			 RETURNING *`,
+			[userId, name, type || 'other', url, size || 0],
+		);
+
+		const d = result.rows[0];
+		res.json({
+			document: {
+				id: String(d.id),
+				name: d.name,
+				type: d.type || 'other',
+				url: d.url || '',
+				size: parseInt(d.size, 10) || 0,
+				uploadedAt: d.created_at ? new Date(d.created_at).toISOString() : new Date().toISOString(),
+				status: 'pending',
+			},
+		});
+	} catch (err) {
+		console.error('Upload document error:', err);
+		res.status(500).json({ error: 'Failed to upload document' });
+	}
+});
+
+// DELETE /api/candidate/documents/:id — delete a document (Issue #109)
+router.delete('/documents/:id', authMiddleware, async (req, res) => {
+	try {
+		const userId = req.user.id;
+		const result = await pool.query(
+			'DELETE FROM documents WHERE id = $1 AND user_id = $2 RETURNING id',
+			[req.params.id, userId],
+		);
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Document not found' });
+		}
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Delete document error:', err);
+		res.status(500).json({ error: 'Failed to delete document' });
+	}
+});
+
+// GET /api/candidate/conversations — real implementation (Issue #109)
+router.get('/conversations', authMiddleware, async (req, res) => {
+	try {
+		const userId = req.user.id;
+
+		// Graceful: create table if it doesn't exist
+		await pool.query(`
+			CREATE TABLE IF NOT EXISTS conversations (
+				id SERIAL PRIMARY KEY,
+				job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+				candidate_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+				recruiter_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+				last_message TEXT,
+				last_message_at TIMESTAMP,
+				unread_count_candidate INTEGER DEFAULT 0,
+				is_active BOOLEAN DEFAULT true,
+				created_at TIMESTAMP DEFAULT NOW(),
+				updated_at TIMESTAMP DEFAULT NOW()
+			)
+		`);
+		await pool.query(`
+			CREATE TABLE IF NOT EXISTS messages (
+				id SERIAL PRIMARY KEY,
+				conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+				sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+				content TEXT NOT NULL,
+				type VARCHAR(50) DEFAULT 'text',
+				file_url TEXT,
+				file_name TEXT,
+				is_read BOOLEAN DEFAULT false,
+				read_at TIMESTAMP,
+				created_at TIMESTAMP DEFAULT NOW()
+			)
+		`);
+
+		const result = await pool.query(
+			`SELECT
+				c.id,
+				c.job_id,
+				j.title as job_title,
+				c.candidate_id,
+				u.name as candidate_name,
+				c.recruiter_id,
+				r.name as recruiter_name,
+				c.last_message,
+				c.last_message_at,
+				c.unread_count_candidate as unread_count,
+				c.is_active,
+				c.created_at,
+				c.updated_at
+			FROM conversations c
+			LEFT JOIN jobs j ON c.job_id = j.id
+			LEFT JOIN users u ON c.candidate_id = u.id
+			LEFT JOIN users r ON c.recruiter_id = r.id
+			WHERE c.candidate_id = $1
+			ORDER BY c.last_message_at DESC NULLS LAST, c.updated_at DESC
+			LIMIT 50`,
+			[userId],
+		);
+
+		const conversations = result.rows.map((c) => ({
+			id: String(c.id),
+			job_id: c.job_id ? String(c.job_id) : null,
+			job_title: c.job_title || null,
+			candidate_id: c.candidate_id ? String(c.candidate_id) : null,
+			candidate_name: c.candidate_name || 'Unknown',
+			recruiter_id: c.recruiter_id ? String(c.recruiter_id) : null,
+			recruiter_name: c.recruiter_name || null,
+			company_name: null,
+			last_message: c.last_message || null,
+			unread_count: parseInt(c.unread_count, 10) || 0,
+			is_active: c.is_active,
+			created_at: c.created_at ? new Date(c.created_at).toISOString() : null,
+			updated_at: c.updated_at ? new Date(c.updated_at).toISOString() : null,
+			other_user: {
+				id: c.recruiter_id ? String(c.recruiter_id) : null,
+				name: c.recruiter_name || 'Unknown',
+			},
+		}));
+
+		res.json({ conversations });
+	} catch (err) {
+		console.error('Get candidate conversations error:', err);
+		res.status(500).json({ error: 'Failed to fetch conversations' });
+	}
 });
 
 module.exports = router;

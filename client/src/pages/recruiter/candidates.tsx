@@ -263,7 +263,8 @@ export function RecruiterCandidatesPage() {
 		try {
 			const data = await apiCall<{ jobs: Array<{ id: number; title: string }> }>('/recruiter/jobs')
 			setJobs((data.jobs || []).map((j) => ({ id: String(j.id), title: j.title })))
-		} catch {
+		} catch (err) {
+			console.error('[candidates] Failed to load jobs:', err)
 			setJobs([])
 		}
 	}, [])
@@ -272,7 +273,8 @@ export function RecruiterCandidatesPage() {
 		try {
 			const data = await apiCall<{ searches: SavedSearch[] }>('/recruiter/saved-searches')
 			if (data.searches) setSavedSearches(data.searches)
-		} catch {
+		} catch (err) {
+			console.error('[candidates] Failed to load saved searches:', err)
 			setSavedSearches([])
 		}
 	}, [])

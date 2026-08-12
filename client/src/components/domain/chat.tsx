@@ -133,8 +133,9 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 			if (convs.length > 0 && !activeConv) {
 				setActiveConv(convs[0].id)
 			}
-		} catch {
-			// Mock data for demo
+		} catch (err) {
+			console.error('[chat] Failed to load conversations:', err)
+			// Fallback to mock data for demo
 			setConversations(getMockConversations(mode))
 			if (!activeConv) setActiveConv(1)
 		} finally {
@@ -146,7 +147,8 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 		try {
 			const data = await apiCall<any>(`/conversations/${convId}/messages`)
 			setMessages(data.messages || data || [])
-		} catch {
+		} catch (err) {
+			console.error('[chat] Failed to load messages:', err)
 			setMessages(getMockMessages(convId, mode))
 		}
 	}, [mode])
@@ -160,8 +162,9 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 			if (newMessages.length > 0) {
 				setMessages((prev) => [...prev, ...newMessages])
 			}
-		} catch {
-			// silent fail on polling
+		} catch (err) {
+			// silent fail on polling — log for debugging
+			console.error('[chat] Poll failed:', err)
 		}
 	}, [messages])
 
@@ -237,7 +240,8 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 			})
 			// Refresh to get real message
 			await loadMessages(activeConv)
-		} catch {
+		} catch (err) {
+			console.error('[chat] Failed to send message:', err)
 			// Keep optimistic message if API fails
 		} finally {
 			setSending(false)
@@ -280,7 +284,8 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 				method: 'POST',
 				body: formData,
 			})
-		} catch {
+		} catch (err) {
+			console.error('[chat] Failed to send file:', err)
 			// Keep optimistic message
 		} finally {
 			setSending(false)

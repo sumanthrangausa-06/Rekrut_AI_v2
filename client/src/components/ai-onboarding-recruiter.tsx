@@ -147,8 +147,14 @@ export function AiOnboardingRecruiter() {
 	const loadCandidatesAndJobs = useCallback(async () => {
 		try {
 			const [cands, jobsList] = await Promise.all([
-				apiCall<Candidate[]>('/candidate/list').catch(() => []),
-				apiCall<Job[]>('/jobs').catch(() => []),
+				apiCall<Candidate[]>('/candidate/list').catch((err) => {
+					console.error('[onboarding-ai] Failed to load candidates:', err)
+					return []
+				}),
+				apiCall<Job[]>('/jobs').catch((err) => {
+					console.error('[onboarding-ai] Failed to load jobs:', err)
+					return []
+				}),
 			])
 			setCandidates(Array.isArray(cands) ? cands : [])
 			setJobs(Array.isArray(jobsList) ? (jobsList as any).jobs || jobsList : [])

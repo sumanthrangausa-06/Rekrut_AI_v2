@@ -3712,13 +3712,153 @@ router.delete('/saved-searches/:id', authMiddleware, requireApprovedRecruiter, r
 	}
 });
 
-// Stubs for chat (#114) and screening endpoints
-router.get('/conversations', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (_req, res) => {
-	res.json({ conversations: [] });
+// GET /api/recruiter/conversations — real implementation (Issue #109)
+router.get('/conversations', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+	try {
+		// Graceful: create table if it doesn't exist
+		await pool.query(`
+			CREATE TABLE IF NOT EXISTS conversations (
+				id SERIAL PRIMARY KEY,
+				job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
+				candidate_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+				recruiter_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+				last_message TEXT,
+				last_message_at TIMESTAMP,
+				unread_count_recruiter INTEGER DEFAULT 0,
+				is_active BOOLEAN DEFAULT true,
+				created_at TIMESTAMP DEFAULT NOW(),
+				updated_at TIMESTAMP DEFAULT NOW()
+			)
+		`);
+		await pool.query(`
+			CREATE TABLE IF NOT EXISTS messages (
+				id SERIAL PRIMARY KEY,
+				conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+				sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+				content TEXT NOT NULL,
+				type VARCHAR(50) DEFAULT 'text',
+				file_url TEXT,
+				file_name TEXT,
+				is_read BOOLEAN DEFAULT false,
+				read_at TIMESTAMP,
+				created_at TIMESTAMP DEFAULT NOW()
+			)
+		`);
+
+		const result = await pool.query(
+			`SELECT
+				c.id,
+				c.job_id,
+				j.title as job_title,
+				c.candidate_id,
+				u.name as candidate_name,
+				c.recruiter_id,
+				r.name as recruiter_name,
+				c.last_message,
+				c.last_message_at,
+				c.unread_count_recruiter as unread_count,
+				c.is_active,
+				c.created_at,
+				c.updated_at
+			FROM conversations c
+			LEFT JOIN jobs j ON c.job_id = j.id
+			LEFT JOIN users u ON c.candidate_id = u.id
+			LEFT JOIN users r ON c.recruiter_id = r.id
+			WHERE c.recruiter_id = $1
+			ORDER BY c.last_message_at DESC NULLS LAST, c.updated_at DESC
+			LIMIT 50`,
+			[req.user.id],
+		);
+
+		const conversations = result.rows.map((c) => ({
+			id: String(c.id),
+			job_id: c.job_id ? String(c.job_id) : null,
+			job_title: c.job_title || null,
+			candidate_id: c.candidate_id ? String(c.candidate_id) : null,
+			candidate_name: c.candidate_name || 'Unknown',
+			recruiter_id: c.recruiter_id ? String(c.recruiter_id) : null,
+			recruiter_name: c.recruiter_name || null,
+			company_name: req.user.company_name || null,
+			last_message: c.last_message || null,
+			unread_count: parseInt(c.unread_count, 10) || 0,
+			is_active: c.is_active,
+			created_at: c.created_at ? new Date(c.created_at).toISOString() : null,
+			updated_at: c.updated_at ? new Date(c.updated_at).toISOString() : null,
+			other_user: {
+				id: c.candidate_id ? String(c.candidate_id) : null,
+				name: c.candidate_name || 'Unknown',
+			},
+		}));
+
+		res.json({ conversations });
+	} catch (err) {
+		console.error('Get recruiter conversations error:', err);
+		res.status(500).json({ error: 'Failed to fetch conversations' });
+	}
 });
 
-router.get('/screenings', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (_req, res) => {
-	res.json({ screenings: [] });
+// GET /api/recruiter/screenings — real implementation (Issue #109)
+router.get('/screenings', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`SELECT
+				js.id,
+				js.job_id,
+				j.title as job_title,
+				js.candidate_id,
+				u.name as candidate_name,
+				u.avatar_url as candidate_avatar,
+				js.fit_score as overall_score,
+				js.screening_status as status,
+				js.ai_explanation as ai_explanation,
+				js.generated_at,
+				js.skill_match,
+				js.experience_match,
+				js.culture_fit,
+				js.red_flags,
+				js.scorecard,
+				js.ai_notes,
+				js.strengths,
+				js.concerns,
+				js.auto_questions
+			FROM job_application_screenings js
+			JOIN jobs j ON js.job_id = j.id
+			JOIN users u ON js.candidate_id = u.id
+			WHERE j.company_id = $1
+			ORDER BY js.generated_at DESC NULLS LAST
+			LIMIT 50`,
+			[req.user.company_id],
+		);
+
+		const screenings = result.rows.map((s) => ({
+			id: String(s.id),
+			candidateId: s.candidate_id ? String(s.candidate_id) : null,
+			candidateName: s.candidate_name || 'Unknown',
+			candidateAvatar: s.candidate_avatar || null,
+			candidateHeadline: null,
+			jobId: s.job_id ? String(s.job_id) : null,
+			jobTitle: s.job_title || 'Unknown Job',
+			overallScore: parseInt(s.overall_score, 10) || 0,
+			recommendation: s.status === 'approved' ? 'strong_hire' : s.status === 'rejected' ? 'reject' : 'pending',
+			skillMatch: s.skill_match || null,
+			experienceMatch: s.experience_match || null,
+			cultureFit: s.culture_fit || null,
+			strengths: Array.isArray(s.strengths) ? s.strengths : [],
+			concerns: Array.isArray(s.concerns) ? s.concerns : [],
+			autoQuestions: Array.isArray(s.auto_questions) ? s.auto_questions : [],
+			aiExplanation: s.ai_explanation || '',
+			generatedAt: s.generated_at ? new Date(s.generated_at).toISOString() : null,
+			status: s.status || 'pending',
+			redFlags: s.red_flags || null,
+			scorecard: s.scorecard || null,
+			aiNotes: s.ai_notes || null,
+		}));
+
+		res.json({ screenings });
+	} catch (err) {
+		console.error('Get screenings error:', err);
+		res.status(500).json({ error: 'Failed to fetch screenings' });
+	}
 });
 
 module.exports = router;
