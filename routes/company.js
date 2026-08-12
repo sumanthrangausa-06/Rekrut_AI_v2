@@ -18,12 +18,12 @@ const {
 } = require('../services/email-domain-validator');
 const {
 	findCompanyByDomain,
-	storeVerifiedDomain,
 	createJoinRequest,
 	approveJoinRequest,
 	rejectJoinRequest,
 	listPendingJoinRequests,
 	getJoinRequestById,
+	findLatestJoinRequestForUser,
 } = require('../services/company-domain-service');
 const { insertAuditLog } = require('../routes/audit');
 const emailService = require('../lib/email-service');
@@ -31,7 +31,7 @@ const emailService = require('../lib/email-service');
 const router = express.Router();
 
 // Re-export for backward compatibility
-function isCompanyEmailCompat(email) {
+function _isCompanyEmailCompat(email) {
 	return isCompanyEmail(email);
 }
 
@@ -137,6 +137,36 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 			} catch (notifyErr) {
 				// Notification failure must NOT break the join request flow
 				console.error('[company/register] In-app notification error:', notifyErr.message);
+			}
+
+			// ─── Issue #104: Email notification to company owner ───
+			try {
+				const ownerEmailResult = await pool.query(
+					`SELECT email, name FROM users WHERE company_id = $1 AND role = 'employer' ORDER BY created_at ASC LIMIT 1`,
+					[existingCompany.id],
+				);
+				if (ownerEmailResult.rows.length > 0) {
+					await emailService.sendEmailAsync({
+						to: ownerEmailResult.rows[0].email,
+						templateName: 'recruiter_join_request',
+						templateData: {
+							owner_name: ownerEmailResult.rows[0].name || 'there',
+							company_name: existingCompany.name,
+							recruiter_name: name || 'A recruiter',
+							recruiter_email: email,
+							request_time: new Date().toISOString(),
+							dashboard_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/dashboard/recruiters`,
+						},
+						userId: ownerEmailResult.rows[0].id,
+						metadata: {
+							company_id: existingCompany.id,
+							requester_id: user.id,
+							trigger: 'recruiter_join_request',
+						},
+					});
+				}
+			} catch (emailErr) {
+				console.error('[company/register] Owner email notification error:', emailErr.message);
 			}
 
 			// Generate tokens so they can log in and see pending status
@@ -750,14 +780,16 @@ router.get('/join-requests', authMiddleware, async (req, res) => {
 		const requests = await listPendingJoinRequests(req.user.company_id);
 
 		// ─── Issue #155: Auto-mark join_request notifications as read (fire-and-forget) ───
-		pool.query(
-			`UPDATE user_notifications
+		pool
+			.query(
+				`UPDATE user_notifications
        SET read = true, read_at = NOW()
        WHERE user_id = $1 AND type = 'join_request' AND read = false`,
-			[req.user.id],
-		).catch((err) => {
-			console.error('[company/join-requests] Auto-mark read error:', err.message);
-		});
+				[req.user.id],
+			)
+			.catch((err) => {
+				console.error('[company/join-requests] Auto-mark read error:', err.message);
+			});
 
 		res.json({ success: true, requests });
 	} catch (err) {
@@ -872,8 +904,7 @@ router.post('/join-requests/:id/reject', authMiddleware, async (req, res) => {
 // Check if current user has a pending join request
 router.get('/join-requests/me', authMiddleware, async (req, res) => {
 	try {
-		const { findPendingJoinRequest } = require('../services/company-domain-service');
-		const request = await findPendingJoinRequest(req.user.id);
+		const request = await findLatestJoinRequestForUser(req.user.id);
 
 		if (!request) {
 			return res.json({ success: true, hasPendingRequest: false });
@@ -935,10 +966,9 @@ router.post('/team/members/:id/suspend', authMiddleware, async (req, res) => {
 		}
 
 		// Suspend: set suspended_at to NOW() (keep company_id for team list display)
-		await pool.query(
-			'UPDATE users SET suspended_at = NOW(), updated_at = NOW() WHERE id = $1',
-			[target.id],
-		);
+		await pool.query('UPDATE users SET suspended_at = NOW(), updated_at = NOW() WHERE id = $1', [
+			target.id,
+		]);
 
 		// ─── Issue #157: Email notification to suspended user ───
 		try {
@@ -947,7 +977,8 @@ router.post('/team/members/:id/suspend', authMiddleware, async (req, res) => {
 				templateName: 'account_suspended',
 				templateData: {
 					name: target.name || 'there',
-					suspension_reason: req.body.reason || 'Your account has been suspended by the company owner.',
+					suspension_reason:
+						req.body.reason || 'Your account has been suspended by the company owner.',
 				},
 				userId: target.id,
 				metadata: {
@@ -1017,10 +1048,9 @@ router.post('/team/members/:id/reinstate', authMiddleware, async (req, res) => {
 		}
 
 		// Reinstate: clear suspended_at
-		await pool.query(
-			'UPDATE users SET suspended_at = NULL, updated_at = NOW() WHERE id = $1',
-			[target.id],
-		);
+		await pool.query('UPDATE users SET suspended_at = NULL, updated_at = NOW() WHERE id = $1', [
+			target.id,
+		]);
 
 		// ─── Issue #156: Audit log — recruiter reinstated ───
 		try {
@@ -1079,10 +1109,9 @@ router.post('/members/:id/suspend', authMiddleware, async (req, res) => {
 			return res.status(403).json({ error: 'Team member does not belong to your company' });
 		}
 
-		await pool.query(
-			'UPDATE users SET suspended_at = NOW(), updated_at = NOW() WHERE id = $1',
-			[target.id],
-		);
+		await pool.query('UPDATE users SET suspended_at = NOW(), updated_at = NOW() WHERE id = $1', [
+			target.id,
+		]);
 
 		try {
 			await emailService.sendEmailAsync({
@@ -1090,7 +1119,8 @@ router.post('/members/:id/suspend', authMiddleware, async (req, res) => {
 				templateName: 'account_suspended',
 				templateData: {
 					name: target.name || 'there',
-					suspension_reason: req.body.reason || 'Your account has been suspended by the company owner.',
+					suspension_reason:
+						req.body.reason || 'Your account has been suspended by the company owner.',
 				},
 				userId: target.id,
 				metadata: {
@@ -1204,16 +1234,14 @@ router.post('/transfer-ownership', authMiddleware, rateLimits.strict, async (req
 			]);
 
 			// Update old owner's role to admin
-			await client.query(
-				"UPDATE users SET role = 'admin', updated_at = NOW() WHERE id = $1",
-				[req.user.id],
-			);
+			await client.query("UPDATE users SET role = 'admin', updated_at = NOW() WHERE id = $1", [
+				req.user.id,
+			]);
 
 			// Update new owner's role to owner
-			await client.query(
-				"UPDATE users SET role = 'owner', updated_at = NOW() WHERE id = $1",
-				[newOwnerId],
-			);
+			await client.query("UPDATE users SET role = 'owner', updated_at = NOW() WHERE id = $1", [
+				newOwnerId,
+			]);
 
 			await client.query('COMMIT');
 		} catch (err) {
@@ -1313,10 +1341,9 @@ router.post('/members/:id/reinstate', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'Team member is not suspended' });
 		}
 
-		await pool.query(
-			'UPDATE users SET suspended_at = NULL, updated_at = NOW() WHERE id = $1',
-			[target.id],
-		);
+		await pool.query('UPDATE users SET suspended_at = NULL, updated_at = NOW() WHERE id = $1', [
+			target.id,
+		]);
 
 		try {
 			await insertAuditLog({
@@ -1336,7 +1363,6 @@ router.post('/members/:id/reinstate', authMiddleware, async (req, res) => {
 		res.status(500).json({ error: 'Failed to reinstate team member' });
 	}
 });
-
 
 // Get public company profile (legacy — keep for backward compat)
 router.get('/:slug', optionalAuth, async (req, res) => {
