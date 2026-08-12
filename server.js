@@ -449,7 +449,7 @@ app.use(
 			secure: process.env.NODE_ENV === 'production',
 			httpOnly: true,
 			maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-			sameSite: 'strict',
+			sameSite: 'lax', // 'lax' required for OAuth callbacks (Google redirects back cross-site)
 		},
 	}),
 );
@@ -533,6 +533,7 @@ app.use('/api/assessments', assessmentRoutes);
 // API Routes - Recruiter/Company side
 app.use('/api/company', auditRoutes);
 app.use('/api/company', companyRoutes);
+app.use('/api/careers', require('./routes/careers'));
 app.use('/api/trustscore', trustscoreRoutes);
 app.use('/api/recruiter', recruiterRoutes);
 
@@ -541,6 +542,7 @@ app.use('/api/matching', matchingRoutes);
 
 // API Routes - Document Verification
 app.use('/api/documents', documentRoutes);
+app.use('/api/conversations', require('./routes/conversations'));
 
 // API Routes - Payroll
 app.use('/api/payroll', payrollRoutes);
