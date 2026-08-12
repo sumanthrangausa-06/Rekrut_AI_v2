@@ -2,6 +2,7 @@ import {
 	AlertCircle,
 	ArrowLeft,
 	BarChart3,
+	Brain,
 	Briefcase,
 	CheckCircle,
 	ChevronRight,
@@ -19,6 +20,7 @@ import {
 	MessageSquare,
 	Search,
 	Settings2,
+	Shield,
 	Sliders,
 	Sparkles,
 	Star,
@@ -37,6 +39,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { apiCall } from '@/lib/api'
@@ -75,6 +78,36 @@ interface Applicant {
 	missing_skills?: string[] | string
 	similarity_score?: number
 	match_explanation?: string | Record<string, string>
+}
+
+interface ScreeningEvaluation {
+	question_id: number
+	question_text: string
+	question_type: string
+	score: number
+	explanation: string
+}
+
+interface ScreeningResponseData {
+	response: {
+		id: number
+		application_id: number
+		status: string
+		overall_score: number | null
+		ai_explanation: string | null
+		knockout_triggered: boolean
+		knockout_reason: string | null
+		answers: Record<string, string | string[] | number>
+		started_at: string
+		completed_at: string | null
+	}
+	evaluations: ScreeningEvaluation[]
+	override: {
+		recruiter_name: string
+		override_decision: string
+		reason: string
+		created_at: string
+	} | null
 }
 
 // Aligned with backend PIPELINE_STAGES
@@ -161,6 +194,14 @@ export function RecruiterJobApplicantsPage() {
 	const [automationLoading, setAutomationLoading] = useState(false)
 	const [automationSaving, setAutomationSaving] = useState(false)
 
+	// Screening questionnaire states
+	const [screeningData, setScreeningData] = useState<ScreeningResponseData | null>(null)
+	const [screeningLoading, setScreeningLoading] = useState(false)
+	const [showScreeningModal, setShowScreeningModal] = useState(false)
+	const [overrideDecision, setOverrideDecision] = useState<'evaluated' | 'rejected'>('evaluated')
+	const [overrideReason, setOverrideReason] = useState('')
+	const [overrideSubmitting, setOverrideSubmitting] = useState(false)
+
 	useEffect(() => {
 		loadApplicants()
 	}, [loadApplicants])
@@ -176,6 +217,46 @@ export function RecruiterJobApplicantsPage() {
 			setMatchBreakdown(null)
 		} finally {
 			setMatchBreakdownLoading(false)
+		}
+	}
+
+	async function loadScreeningData(applicationId: number) {
+		setScreeningLoading(true)
+		setScreeningData(null)
+		try {
+			const data = await apiCall<ScreeningResponseData>(
+				`/api/questionnaire/response-by-application/${applicationId}`,
+			)
+			setScreeningData(data)
+			if (data.override) {
+				setOverrideDecision(data.override.override_decision as 'evaluated' | 'rejected')
+				setOverrideReason(data.override.reason || '')
+			} else {
+				setOverrideDecision('evaluated')
+				setOverrideReason('')
+			}
+		} catch {
+			setScreeningData(null)
+		} finally {
+			setScreeningLoading(false)
+		}
+	}
+
+	async function submitOverride(responseId: number) {
+		setOverrideSubmitting(true)
+		try {
+			await apiCall(`/api/questionnaire/${responseId}/override`, {
+				method: 'POST',
+				body: { override_decision: overrideDecision, reason: overrideReason },
+			})
+			// Refresh screening data
+			if (screeningData?.response.application_id) {
+				await loadScreeningData(screeningData.response.application_id)
+			}
+		} catch (err: unknown) {
+			alert(err instanceof Error ? err.message : 'Failed to override')
+		} finally {
+			setOverrideSubmitting(false)
 		}
 	}
 
@@ -621,6 +702,17 @@ export function RecruiterJobApplicantsPage() {
 														)}
 														<span>{timeAgo(app.applied_at)}</span>
 														{app.cover_letter && <FileText className='h-2.5 w-2.5' />}
+													<button
+														className='text-[10px] text-indigo-600 hover:underline'
+														onClick={(e) => {
+															e.stopPropagation()
+															loadScreeningData(app.id)
+															setShowScreeningModal(true)
+														}}
+													>
+														<Shield className='h-2.5 w-2.5 inline mr-0.5' />
+														Screening
+													</button>
 													</div>
 													{/* Quick advance button */}
 													{stage !== 'hired' && (
@@ -762,7 +854,17 @@ export function RecruiterJobApplicantsPage() {
 																<span className='flex items-center gap-1'>
 																	<FileText className='h-3 w-3' /> Cover letter
 																</span>
-															)}
+																)}
+															<button
+																className='flex items-center gap-1 text-xs text-indigo-600 hover:underline'
+																onClick={(e) => {
+																	e.stopPropagation()
+																	loadScreeningData(app.id)
+																	setShowScreeningModal(true)
+																}}
+															>
+																<Shield className='h-3 w-3' /> Screening
+															</button>
 														</div>
 													</div>
 												</div>
@@ -1360,6 +1462,203 @@ export function RecruiterJobApplicantsPage() {
 					</div>
 				</Dialog>
 			)}
+		{/* Screening Questionnaire Modal */}
+		{showScreeningModal && (
+			<Dialog
+				open={true}
+				onClose={() => setShowScreeningModal(false)}
+				className='w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-2xl'
+			>
+				<DialogHeader>
+					<DialogTitle className='flex items-center gap-2'>
+						<Shield className='h-5 w-5 text-primary' /> Screening Questionnaire Results
+					</DialogTitle>
+				</DialogHeader>
+				<div className='space-y-4'>
+					{screeningLoading ? (
+						<div className='flex items-center gap-2 justify-center py-8'>
+							<Loader2 className='h-5 w-5 animate-spin' /> Loading screening results...
+						</div>
+					) : !screeningData ? (
+						<div className='text-center py-8 text-muted-foreground'>
+							<p>No screening questionnaire data found for this candidate.</p>
+						</div>
+					) : (
+						<>
+							{/* Overall Status */}
+							<div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
+								<div className='rounded-lg bg-muted/50 p-3 text-center'>
+									<p className='text-xs text-muted-foreground'>Status</p>
+									<Badge
+										variant={
+											screeningData.response.status === 'evaluated'
+												? 'success'
+												: screeningData.response.status === 'rejected'
+													? 'destructive'
+													: 'secondary'
+										}
+										className='mt-1'
+									>
+										{screeningData.response.status}
+									</Badge>
+								</div>
+								<div className='rounded-lg bg-muted/50 p-3 text-center'>
+									<p className='text-xs text-muted-foreground'>Overall Score</p>
+									<p
+										className={`text-lg font-bold ${
+											screeningData.response.overall_score != null
+											? screeningData.response.overall_score >= 70
+												? 'text-green-600'
+												: 'text-amber-600'
+											: ''
+										}`}
+									>
+										{screeningData.response.overall_score ?? 'N/A'}
+										{screeningData.response.overall_score != null && (
+											<span className='text-xs text-muted-foreground'>/100</span>
+										)}
+									</p>
+								</div>
+								<div className='rounded-lg bg-muted/50 p-3 text-center'>
+									<p className='text-xs text-muted-foreground'>Completed</p>
+									<p className='text-sm font-medium'>
+										{screeningData.response.completed_at
+											? new Date(screeningData.response.completed_at).toLocaleDateString()
+											: 'In Progress'}
+									</p>
+								</div>
+							</div>
+
+							{/* Knockout */}
+							{screeningData.response.knockout_triggered && (
+								<div className='rounded-lg bg-red-50 border border-red-100 p-3'>
+									<p className='text-sm font-medium text-red-800 flex items-center gap-1.5'>
+										<AlertCircle className='h-4 w-4' /> Knockout Triggered
+									</p>
+									<p className='text-sm text-red-700 mt-1'>
+										{screeningData.response.knockout_reason}
+									</p>
+								</div>
+							)}
+
+							{/* AI Explanation */}
+							{screeningData.response.ai_explanation && (
+								<div className='rounded-lg bg-blue-50 border border-blue-100 p-3'>
+									<p className='text-sm font-medium text-blue-900 flex items-center gap-1.5'>
+										<Brain className='h-4 w-4' /> AI Evaluation
+									</p>
+									<p className='text-sm text-blue-800 mt-1'>
+										{screeningData.response.ai_explanation}
+									</p>
+								</div>
+							)}
+
+							{/* Override info */}
+							{screeningData.override && (
+								<div className='rounded-lg bg-amber-50 border border-amber-100 p-3'>
+									<p className='text-sm font-medium text-amber-900 flex items-center gap-1.5'>
+										<Sparkles className='h-4 w-4' /> Recruiter Override
+									</p>
+									<p className='text-sm text-amber-800 mt-1'>
+										Overridden to <strong>{screeningData.override.override_decision}</strong> by{' '}
+										{screeningData.override.recruiter_name}
+										{screeningData.override.reason && ` — "${screeningData.override.reason}"`}
+									</p>
+								</div>
+							)}
+
+							{/* Per-question evaluations */}
+							{screeningData.evaluations.length > 0 && (
+								<div className='space-y-2'>
+									<h4 className='text-sm font-medium'>Question Evaluations</h4>
+									{screeningData.evaluations.map((ev) => (
+										<div
+											key={ev.question_id}
+											className='rounded-lg bg-muted/50 p-3 space-y-1'
+										>
+											<div className='flex items-center justify-between'>
+												<span className='text-sm font-medium'>{ev.question_text}</span>
+												<Badge
+													variant={
+														ev.score >= 70
+															? 'success'
+															: ev.score >= 50
+																? 'secondary'
+																: 'destructive'
+													}
+													className='text-xs'
+												>
+													{ev.score}/100
+												</Badge>
+											</div>
+											<p className='text-xs text-muted-foreground'>{ev.explanation}</p>
+										</div>
+									))}
+								</div>
+							)}
+
+							{/* Candidate Answers */}
+							{screeningData.response.answers &&
+								Object.keys(screeningData.response.answers).length > 0 && (
+									<div className='space-y-2'>
+										<h4 className='text-sm font-medium'>Candidate Answers</h4>
+										{Object.entries(screeningData.response.answers).map(([qid, ans]) => (
+											<div
+												key={qid}
+												className='rounded-lg bg-muted/50 p-3'
+											>
+												<p className='text-xs text-muted-foreground mb-1'>
+													Question {qid}
+												</p>
+												<p className='text-sm'>
+													{Array.isArray(ans) ? ans.join(', ') : String(ans)}
+												</p>
+											</div>
+										))}
+									</div>
+								)}
+
+							{/* Override UI */}
+							<div className='border-t pt-4 space-y-3'>
+								<h4 className='text-sm font-medium'>Override AI Decision</h4>
+								<div className='flex flex-col sm:flex-row gap-3'>
+									<Select
+										value={overrideDecision}
+										onChange={(e) =>
+											setOverrideDecision(e.target.value as 'evaluated' | 'rejected')
+										}
+										className='w-full sm:w-40 min-h-[44px]'
+									>
+										<option value='evaluated'>Evaluated (Pass)</option>
+										<option value='rejected'>Rejected</option>
+									</Select>
+									<Textarea
+										value={overrideReason}
+										onChange={(e) => setOverrideReason(e.target.value)}
+										placeholder='Reason for override (optional)...'
+										rows={2}
+										className='flex-1 min-h-[44px]'
+									/>
+								</div>
+								<Button
+									onClick={() => submitOverride(screeningData.response.id)}
+									disabled={overrideSubmitting}
+									size='sm'
+									className='gap-1.5 min-h-[44px]'
+								>
+									{overrideSubmitting ? (
+										<Loader2 className='h-4 w-4 animate-spin' />
+									) : (
+										<Sparkles className='h-4 w-4' />
+									)}
+									Submit Override
+								</Button>
+							</div>
+						</>
+					)}
+				</div>
+			</Dialog>
+		)}
 		</div>
 	)
 }

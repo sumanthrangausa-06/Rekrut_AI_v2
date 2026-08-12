@@ -125,9 +125,12 @@ const CandidateOmniScorePage = lazy(() =>
 const CandidateDocumentsPage = lazy(() =>
 	import('@/pages/candidate/documents').then((m) => ({ default: m.CandidateDocumentsPage })),
 )
-const CandidateScreeningPage = lazy(() =>
-	import('@/pages/candidate/screening').then((m) => ({ default: m.CandidateScreeningPage })),
+const CandidateScreeningQuestionnairePage = lazy(() =>
+	import('@/pages/candidate/screening-questionnaire').then((m) => ({
+		default: m.ScreeningQuestionnairePage,
+	})),
 )
+
 const CandidateChatPage = lazy(() =>
 	import('@/pages/candidate/chat').then((m) => ({ default: m.CandidateChatPage })),
 )
@@ -653,6 +656,14 @@ function AppRoutes() {
 					element={
 						<Protected>
 							<InterviewPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path='screening/:jobId'
+					element={
+						<Protected>
+							<CandidateScreeningQuestionnairePage />
 						</Protected>
 					}
 				/>

@@ -873,4 +873,101 @@ router.get('/result/:response_id', authMiddleware, async (req, res) => {
 	}
 });
 
+/**
+ * GET /api/questionnaire/response-by-application/:application_id
+ * Get screening response for a specific application (recruiter only)
+ */
+router.get('/response-by-application/:application_id', authMiddleware, requireRole('recruiter', 'hiring_manager', 'admin', 'employer'), async (req, res) => {
+	try {
+		const { application_id } = req.params;
+
+		// Verify recruiter has access to the job this application belongs to
+		const appCheck = await pool.query(
+			`
+			SELECT ja.*, j.company_id
+			FROM job_applications ja
+			JOIN jobs j ON j.id = ja.job_id
+			WHERE ja.id = $1
+			`,
+			[application_id],
+		);
+
+		if (appCheck.rows.length === 0) {
+			return res.status(404).json({ error: 'Application not found' });
+		}
+
+		const app = appCheck.rows[0];
+		const userResult = await pool.query('SELECT company_id FROM users WHERE id = $1', [req.user.id]);
+		const userCompanyId = userResult.rows[0]?.company_id;
+
+		if (app.company_id !== userCompanyId && app.user_id !== req.user.id) {
+			return res.status(403).json({ error: 'Access denied' });
+		}
+
+		const respResult = await pool.query(
+			`
+			SELECT sr.*, sq.job_id, sq.pass_threshold
+			FROM screening_responses sr
+			JOIN screening_questionnaires sq ON sq.id = sr.questionnaire_id
+			WHERE sr.application_id = $1
+			`,
+			[application_id],
+		);
+
+		if (respResult.rows.length === 0) {
+			return res.status(404).json({ error: 'No screening response found for this application' });
+		}
+
+		const response = respResult.rows[0];
+
+		// Get evaluations
+		const evalResult = await pool.query(
+			`
+			SELECT sqe.*, sq.question_text, sq.question_type
+			FROM screening_question_evaluations sqe
+			JOIN screening_questions sq ON sq.id = sqe.question_id
+			WHERE sqe.response_id = $1
+			`,
+			[response.id],
+		);
+
+		// Get override info
+		const overrideResult = await pool.query(
+			`
+			SELECT so.*, u.name as recruiter_name
+			FROM screening_overrides so
+			JOIN users u ON u.id = so.recruiter_id
+			WHERE so.response_id = $1
+			ORDER BY so.created_at DESC
+			LIMIT 1
+			`,
+			[response.id],
+		);
+
+		res.json({
+			success: true,
+			response: {
+				id: response.id,
+				application_id: response.application_id,
+				candidate_id: response.candidate_id,
+				questionnaire_id: response.questionnaire_id,
+				answers: response.answers,
+				status: response.status,
+				started_at: response.started_at,
+				completed_at: response.completed_at,
+				overall_score: response.overall_score,
+				ai_explanation: response.ai_explanation,
+				knockout_triggered: response.knockout_triggered,
+				knockout_reason: response.knockout_reason,
+			},
+			evaluations: evalResult.rows,
+			override: overrideResult.rows[0] || null,
+		});
+	} catch (err) {
+		const ref = require('node:crypto').randomUUID();
+		console.error(`[ERROR ref=${ref}] [questionnaire/response-by-application] Error:`, err);
+		res.status(500).json({ error: 'Failed to get screening response', ref });
+	}
+});
+
 module.exports = router;

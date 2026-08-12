@@ -32,6 +32,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { Slider } from '@/components/ui/slider'
+import { Switch } from '@/components/ui/switch'
 import { apiCall } from '@/lib/api'
 
 interface TitleSuggestion {
@@ -55,6 +57,8 @@ interface ScreeningQuestion {
 	options?: string[]
 	placeholder?: string
 	category?: string
+	isKnockout?: boolean
+	knockoutAnswer?: string
 }
 
 const defaultQuestionTemplates: ScreeningQuestion[] = [
@@ -144,6 +148,7 @@ export function RecruiterJobFormPage() {
 	const [experienceLevel, setExperienceLevel] = useState('')
 	const [educationLevel, setEducationLevel] = useState('')
 	const [screeningQuestions, setScreeningQuestions] = useState<ScreeningQuestion[]>([])
+	const [passThreshold, setPassThreshold] = useState(70)
 	const [showTemplates, setShowTemplates] = useState(false)
 	const [titleError, setTitleError] = useState('')
 	const [aiSuggestingQuestions, setAiSuggestingQuestions] = useState(false)
@@ -217,6 +222,52 @@ export function RecruiterJobFormPage() {
 						})),
 					)
 				}
+			}
+
+			// Load questionnaire from dedicated API
+			try {
+				const qData = await apiCall<{
+					success: boolean
+					questionnaire: {
+						pass_threshold: number
+						questions: Array<{
+							id: number
+							question_text: string
+							question_type: string
+							options: string[] | null
+							is_knockout: boolean
+							knockout_answer: string | null
+							order_index: number
+							required: boolean
+						}>
+					}
+				}>(`/api/questionnaire/${id}`)
+				if (qData.questionnaire) {
+					setPassThreshold(qData.questionnaire.pass_threshold || 70)
+					// Merge with existing screening questions if any
+					if (qData.questionnaire.questions?.length > 0) {
+						const mapped = qData.questionnaire.questions.map((q) => ({
+							id: `sq_${q.id}`,
+							question: q.question_text,
+							type: (
+								q.question_type === 'yes_no'
+									? 'yes_no'
+									: q.question_type === 'single_choice'
+										? 'select'
+										: q.question_type === 'multiple_choice'
+											? 'select'
+											: 'text'
+							) as ScreeningQuestion['type'],
+							required: q.required,
+							options: q.options || [],
+							isKnockout: q.is_knockout,
+							knockoutAnswer: q.knockout_answer || undefined,
+						}))
+						setScreeningQuestions(mapped)
+					}
+				}
+			} catch {
+				// No questionnaire yet — that's fine for new jobs
 			}
 		} catch {
 			navigate('/recruiter/jobs')
@@ -425,17 +476,53 @@ export function RecruiterJobFormPage() {
 				salary_min: salaryMin ? parseFloat(salaryMin) : undefined,
 				salary_max: salaryMax ? parseFloat(salaryMax) : undefined,
 			}
+			let savedJobId: number | undefined
 			if (isEdit) {
 				await apiCall(`/recruiter/jobs/${id}`, {
 					method: 'PUT',
 					body: { ...payload, screening_questions: JSON.stringify(payload.screening_questions) },
 				})
+				savedJobId = Number(id)
 			} else {
-				await apiCall('/recruiter/jobs', {
+				const result = await apiCall<{ success: boolean; job?: { id: number }; id?: number }>(
+					'/recruiter/jobs',
+					{
+						method: 'POST',
+						body: payload,
+					},
+				)
+				savedJobId = result.job?.id || result.id
+			}
+
+			// Save questionnaire to dedicated API
+			if (savedJobId && screeningQuestions.filter((q) => q.question.trim()).length > 0) {
+				const apiQuestions = screeningQuestions
+					.filter((q) => q.question.trim())
+					.map((q, i) => ({
+						question_text: q.question,
+						question_type: (
+							q.type === 'text'
+								? 'short_text'
+								: q.type === 'yes_no'
+									? 'yes_no'
+									: 'single_choice'
+							) as 'short_text' | 'yes_no' | 'single_choice',
+						options: q.options || [],
+						is_knockout: q.isKnockout || false,
+						knockout_answer: q.knockoutAnswer || undefined,
+						order_index: i,
+						required: q.required,
+					}))
+				await apiCall('/api/questionnaire', {
 					method: 'POST',
-					body: payload,
+					body: {
+						job_id: savedJobId,
+						pass_threshold: passThreshold,
+						questions: apiQuestions,
+					},
 				})
 			}
+
 			trackEvent('job_form_save_success', { isEdit, title })
 			navigate('/recruiter/jobs')
 		} catch (err: unknown) {
@@ -1182,6 +1269,25 @@ export function RecruiterJobFormPage() {
 								</div>
 							</div>
 
+							{/* Pass Threshold */}
+							{screeningQuestions.length > 0 && (
+								<div className='mb-4 rounded-lg border bg-indigo-50/30 p-4'>
+									<Slider
+										label='Pass Threshold'
+										value={[passThreshold]}
+										onValueChange={(v) => setPassThreshold(v[0])}
+										min={0}
+										max={100}
+										step={5}
+										formatLabel={(v) => `${v}%`}
+									/>
+									<p className='text-xs text-muted-foreground mt-2'>
+										Candidates must score at least {passThreshold}% on AI-evaluated questions
+										to pass the screening.
+									</p>
+								</div>
+							)}
+
 							{/* Templates dropdown */}
 							{showTemplates && (
 								<div className='mb-4 rounded-lg border bg-muted/30 p-3 space-y-2'>
@@ -1333,6 +1439,11 @@ export function RecruiterJobFormPage() {
 																if (newType !== 'select') {
 																	updates.options = undefined
 																}
+																// Reset knockout for text questions
+																if (newType === 'text') {
+																	updates.isKnockout = false
+																	updates.knockoutAnswer = undefined
+																}
 																updateQuestion(i, updates)
 															}}
 															className='w-32 text-xs min-h-[44px]'
@@ -1352,50 +1463,88 @@ export function RecruiterJobFormPage() {
 															Required
 														</label>
 
-														{q.type === 'text' && (
-															<Input
-																value={q.placeholder || ''}
-																onChange={(e) => updateQuestion(i, { placeholder: e.target.value })}
-																placeholder='Placeholder text...'
-																className='flex-1 text-xs h-8 min-h-[44px]'
-															/>
+														{q.type !== 'text' && (
+															<div className='flex items-center gap-2'>
+																<Switch
+																	checked={q.isKnockout || false}
+																	onCheckedChange={() =>
+																		updateQuestion(i, { isKnockout: !q.isKnockout })
+																	}
+																/>
+																<span className='text-xs text-muted-foreground'>
+																	Knockout
+																</span>
+															</div>
 														)}
 													</div>
-													{q.type === 'select' && (
-														<div className='space-y-2 pl-2 border-l-2 border-muted'>
-															<p className='text-xs text-muted-foreground font-medium'>
-																Dropdown Options
+
+													{/* Knockout answer selector */}
+													{q.isKnockout && q.type !== 'text' && (
+														<div className='rounded-lg bg-red-50/50 border border-red-100 p-3 space-y-2'>
+															<p className='text-xs font-medium text-red-800'>
+																Knockout Answer — selecting this will auto-reject the
+																candidate
 															</p>
-															{(q.options || []).map((opt, oi) => (
-																<div key={oi} className='flex items-center gap-2'>
-																	<span className='text-xs text-muted-foreground w-4'>
-																		{oi + 1}.
-																	</span>
-																	<Input
-																		value={opt}
-																		onChange={(e) => updateOption(i, oi, e.target.value)}
-																		placeholder={`Option ${oi + 1}`}
-																		className='flex-1 text-sm h-8 min-h-[44px]'
-																	/>
-																	<Button
-																		variant='ghost'
-																		size='icon'
-																		className='h-8 w-8 shrink-0 min-h-[44px]'
-																		onClick={() => removeOption(i, oi)}
-																	>
-																		<X className='h-3 w-3' />
-																	</Button>
+															{q.type === 'yes_no' ? (
+																<div className='flex gap-2'>
+																	{['Yes', 'No'].map((opt) => (
+																		<Button
+																			key={opt}
+																			type='button'
+																			variant={
+																				q.knockoutAnswer === opt
+																					? 'default'
+																					: 'outline'
+																			}
+																			size='sm'
+																			onClick={() =>
+																				updateQuestion(i, { knockoutAnswer: opt })
+																			}
+																			className='flex-1 min-h-[44px]'
+																		>
+																			{opt}
+																		</Button>
+																	))}
 																</div>
-															))}
-															<Button
-																variant='ghost'
-																size='sm'
-																onClick={() => addOption(i)}
-																className='text-xs gap-1 min-h-[44px]'
-															>
-																<Plus className='h-3 w-3' /> Add Option
-															</Button>
+															) : q.type === 'select' && q.options && q.options.length > 0 ? (
+																<Select
+																	value={q.knockoutAnswer || ''}
+																	onChange={(e) =>
+																		updateQuestion(i, {
+																			knockoutAnswer: e.target.value,
+																		})
+																	}
+																	className='min-h-[44px]'
+																>
+																	<option value=''>Select knockout answer...</option>
+																	{q.options.map((opt) => (
+																		<option key={opt} value={opt}>
+																			{opt}
+																		</option>
+																	))}
+																</Select>
+															) : (
+																<Input
+																	value={q.knockoutAnswer || ''}
+																	onChange={(e) =>
+																		updateQuestion(i, {
+																			knockoutAnswer: e.target.value,
+																		})
+																	}
+																	placeholder='Enter answer that triggers rejection...'
+																	className='min-h-[44px]'
+															/>
+															)}
 														</div>
+													)}
+
+													{q.type === 'text' && (
+														<Input
+															value={q.placeholder || ''}
+															onChange={(e) => updateQuestion(i, { placeholder: e.target.value })}
+															placeholder='Placeholder text...'
+															className='flex-1 text-xs h-8 min-h-[44px]'
+														/>
 													)}
 												</div>
 												<Button
@@ -1407,6 +1556,42 @@ export function RecruiterJobFormPage() {
 													<X className='h-4 w-4' />
 												</Button>
 											</div>
+											{q.type === 'select' && (
+												<div className='space-y-2 pl-2 border-l-2 border-muted ml-6'>
+													<p className='text-xs text-muted-foreground font-medium'>
+														Dropdown Options
+													</p>
+													{(q.options || []).map((opt, oi) => (
+														<div key={oi} className='flex items-center gap-2'>
+															<span className='text-xs text-muted-foreground w-4'>
+																{oi + 1}.
+															</span>
+															<Input
+																value={opt}
+																onChange={(e) => updateOption(i, oi, e.target.value)}
+																placeholder={`Option ${oi + 1}`}
+																className='flex-1 text-sm h-8 min-h-[44px]'
+															/>
+															<Button
+																variant='ghost'
+																size='icon'
+																className='h-8 w-8 shrink-0 min-h-[44px]'
+																onClick={() => removeOption(i, oi)}
+															>
+																<X className='h-3 w-3' />
+															</Button>
+														</div>
+													))}
+													<Button
+														variant='ghost'
+														size='sm'
+														onClick={() => addOption(i)}
+														className='text-xs gap-1 min-h-[44px]'
+													>
+														<Plus className='h-3 w-3' /> Add Option
+													</Button>
+												</div>
+											)}
 										</div>
 									))}
 								</div>
