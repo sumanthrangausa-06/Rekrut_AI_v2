@@ -1823,6 +1823,91 @@ app.use(
 	}),
 );
 
+// ─── Known SPA routes (Issue #106) ─────────────────────────────────────────
+// Pre-compiled regex patterns for all valid SPA routes (extracted from client/src/App.tsx)
+const KNOWN_ROUTES = [
+	// Public routes
+	'^/$',
+	'^/(login|register|forgot-password|reset-password)$',
+	'^/(test-camera|pricing|payment-success)$',
+	'^/screening/[^/]+$',
+	'^/blog(/[^/]+)?$',
+	'^/(about|contact|privacy|terms)$',
+	'^/company/[^/]+$',
+	'^/careers/[^/]+$',
+	'^/(recruiter-register|employee-payroll)$',
+	'^/dashboard$',
+
+	// Candidate routes
+	'^/candidate$',
+	'^/candidate/jobs$',
+	'^/candidate/jobs/[^/]+$',
+	'^/candidate/(applications|profile)$',
+	'^/candidate/assessments$',
+	'^/candidate/assessments/[^/]+/take$',
+	'^/candidate/assessments/[^/]+/results$',
+	'^/candidate/assessment-results$',
+	'^/candidate/job-assessment/[^/]+$',
+	'^/candidate/(interviews|ai-coaching|omniscore)$',
+	'^/candidate/(documents|interview-practice)$',
+	'^/candidate/(video-interview|interview-analysis|history)$',
+	'^/candidate/(feedback|saved-jobs|top-matches)$',
+	'^/candidate/(company-matches|ai-search|cv-review)$',
+	'^/candidate/(linkedin-optimizer|career-diagnosis)$',
+	'^/candidate/offers/manage$',
+	'^/candidate/company-profile$',
+	'^/candidate/interview$',
+	'^/candidate/(chat|offers|onboarding)$',
+	'^/candidate/(payroll|settings)$',
+
+	// Recruiter pending approval
+	'^/recruiter/pending-approval$',
+
+	// Recruiter routes
+	'^/recruiter$',
+	'^/recruiter/jobs$',
+	'^/recruiter/jobs/new$',
+	'^/recruiter/jobs/[^/]+/applicants$',
+	'^/recruiter/jobs/[^/]+/edit$',
+	'^/recruiter/jobs/[^/]+$',
+	'^/recruiter/jobs/[^/]+/assessment$',
+	'^/recruiter/(applications|assessments|candidates)$',
+	'^/recruiter/(screening|chat|career-page)$',
+	'^/recruiter/(interviews|offers|onboarding)$',
+	'^/recruiter/(analytics|communications|trustscore)$',
+	'^/recruiter/(onboarding-ai|onboarding-docs|company)$',
+	'^/recruiter/team$',
+	'^/recruiter/team/join-requests$',
+	'^/recruiter/profile$',
+	'^/recruiter/payroll$',
+	'^/recruiter/payroll-dashboard$',
+	'^/recruiter/payroll-run/[^/]+$',
+	'^/recruiter/job-create$',
+	'^/recruiter/omniscore$',
+	'^/recruiter/post-hire-feedback$',
+	'^/recruiter/compliance$',
+
+	// Settings
+	'^/settings$',
+
+	// Signature
+	'^/signature/[^/]+/[^/]+$',
+
+	// Debug
+	'^/debug/mock-interview$',
+
+	// Admin routes
+	'^/(admin/login|admin-login)$',
+	'^/admin$',
+	'^/admin/(dashboard|revenue|ai-health)$',
+	'^/admin/(agents|compliance|eu-ai-act)$',
+	'^/admin/(agent-dashboard|analytics|email-queue)$',
+].map((pattern) => new RegExp(pattern));
+
+function isKnownSpaRoute(routePath) {
+	return KNOWN_ROUTES.some((regex) => regex.test(routePath));
+}
+
 // SPA fallback — serve React index.html for all non-API routes that don't match a file
 app.get('*', (req, res) => {
 	if (!req.path.startsWith('/api/') && req.path !== '/api') {
@@ -1840,7 +1925,8 @@ app.get('*', (req, res) => {
 		}
 
 		if (indexHtml) {
-			res.send(indexHtml);
+			const statusCode = isKnownSpaRoute(req.path) ? 200 : 404;
+			res.status(statusCode).send(indexHtml);
 		} else {
 			// Fallback message if React build doesn't exist
 			res.status(503).json({

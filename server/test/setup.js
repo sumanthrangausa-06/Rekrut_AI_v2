@@ -203,6 +203,11 @@ jest.mock('../../lib/metrics-collector', () => {
   };
 });
 
+// Mock isomorphic-dompurify to avoid ESM parsing issues in Jest
+jest.mock('isomorphic-dompurify', () => {
+  return jest.fn((html) => html);
+});
+
 // ─── Environment ────────────────────────────────────────────────────────────
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = require('crypto').randomBytes(64).toString('hex');
