@@ -576,6 +576,9 @@ app.use('/api/billing', billingRoutes);
 // API Routes - AI Screening (Recruiter AI Coach)
 app.use('/api/screening', screeningRoutes);
 
+// API Routes - Aptitude Test Engine (Issue #111)
+app.use('/api/aptitude', aptitudeRoutes);
+
 // API Routes - Screening Questionnaire (Issue #110)
 app.use('/api/questionnaire', questionnaireRoutes);
 
@@ -590,6 +593,7 @@ app.use('/api/candidates', verificationRoutes);
 
 const voiceRoutes = require('./routes/voice');
 const ttsRoutes = require('./routes/tts');
+const aptitudeRoutes = require('./routes/aptitude');
 app.use('/api/voice', voiceRoutes);
 app.use('/api/tts', ttsRoutes);
 
