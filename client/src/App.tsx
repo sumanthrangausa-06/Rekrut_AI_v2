@@ -163,7 +163,26 @@ const InterviewPage = lazy(() =>
 	import('@/pages/candidate/interview').then((m) => ({ default: m.InterviewPage })),
 )
 
+const CandidateAptitudeTestsPage = lazy(() =>
+	import('@/pages/candidate/aptitude-tests').then((m) => ({ default: m.CandidateAptitudeTestsPage })),
+)
+const CandidateAptitudeTestTakePage = lazy(() =>
+	import('@/pages/candidate/aptitude-test-take').then((m) => ({ default: m.CandidateAptitudeTestTakePage })),
+)
+const CandidateAptitudeTestResultsPage = lazy(() =>
+	import('@/pages/candidate/aptitude-test-results').then((m) => ({ default: m.CandidateAptitudeTestResultsPage })),
+)
+
 // Recruiter pages
+const RecruiterAptitudeTestsPage = lazy(() =>
+	import('@/pages/recruiter/aptitude-tests').then((m) => ({ default: m.RecruiterAptitudeTestsPage })),
+)
+const RecruiterAptitudeTestCreatePage = lazy(() =>
+	import('@/pages/recruiter/aptitude-test-create').then((m) => ({ default: m.RecruiterAptitudeTestCreatePage })),
+)
+const RecruiterAptitudeTestResultsPage = lazy(() =>
+	import('@/pages/recruiter/aptitude-test-results').then((m) => ({ default: m.RecruiterAptitudeTestResultsPage })),
+)
 const RecruiterDashboard = lazy(() =>
 	import('@/pages/recruiter/dashboard').then((m) => ({ default: m.RecruiterDashboard })),
 )
@@ -709,6 +728,32 @@ function AppRoutes() {
 				/>
 			</Route>
 
+			{/* Aptitude Tests — candidate (standalone routes, outside /candidate prefix) */}
+			<Route
+				path='/aptitude-tests'
+				element={
+					<Protected>
+						<CandidateAptitudeTestsPage />
+					</Protected>
+				}
+			/>
+			<Route
+				path='/aptitude-tests/:id/take'
+				element={
+					<Protected>
+						<CandidateAptitudeTestTakePage />
+					</Protected>
+				}
+			/>
+			<Route
+				path='/aptitude-test-results/:id'
+				element={
+					<Protected>
+						<CandidateAptitudeTestResultsPage />
+					</Protected>
+				}
+			/>
+
 			{/* Recruiter pending approval — standalone route (no DashboardLayout sidebar) */}
 			<Route
 				path='/recruiter/pending-approval'
@@ -799,6 +844,46 @@ function AppRoutes() {
 						<Protected>
 							<RecruiterGuard>
 								<RecruiterApplicationsPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path='aptitude-tests'
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<RecruiterAptitudeTestsPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path='aptitude-tests/create'
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<RecruiterAptitudeTestCreatePage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path='aptitude-tests/:id/edit'
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<RecruiterAptitudeTestCreatePage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path='aptitude-tests/:id/results'
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<RecruiterAptitudeTestResultsPage />
 							</RecruiterGuard>
 						</Protected>
 					}
