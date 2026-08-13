@@ -500,8 +500,8 @@ router.get('/stats/summary', authMiddleware, async (req, res) => {
 			`
       SELECT
         COUNT(DISTINCT vd.id) as total_documents,
-        COUNT(DISTINCT CASE WHEN vd.status = 'processed' THEN vd.id END) as verified_documents,
-        COUNT(DISTINCT CASE WHEN vd.status = 'flagged' THEN vd.id END) as flagged_documents,
+        COUNT(DISTINCT CASE WHEN vd.status = 'verified' THEN vd.id END) as verified_documents,
+        COUNT(DISTINCT CASE WHEN vd.status = 'rejected' THEN vd.id END) as flagged_documents,
         COUNT(DISTINCT vc.id) as verified_credentials,
         COALESCE(SUM(dsi.score_impact), 0) as total_score_impact,
         COALESCE(AVG(dv.authenticity_score), 0) as avg_authenticity_score

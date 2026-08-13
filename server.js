@@ -96,6 +96,8 @@ const candidateRoutes = require('./routes/candidate');
 const assessmentRoutes = require('./routes/assessments');
 const matchingRoutes = require('./routes/matching');
 const documentRoutes = require('./routes/documents');
+const candidateDocumentRoutes = require('./routes/candidate-documents');
+const recruiterDocumentRoutes = require('./routes/recruiter-documents');
 const payrollRoutes = require('./routes/payroll');
 const complianceRoutes = require('./routes/compliance');
 const onboardingRoutes = require('./routes/onboarding');
@@ -556,8 +558,9 @@ app.use('/api/recruiter', recruiterRoutes);
 // API Routes - Matching Engine
 app.use('/api/matching', matchingRoutes);
 
-// API Routes - Document Verification
-app.use('/api/documents', documentRoutes);
+// Issue #115: Candidate document management — mounted BEFORE /api/documents so /candidate/documents takes priority
+app.use('/api/candidate/documents', candidateDocumentRoutes);
+app.use('/api/recruiter/candidates', recruiterDocumentRoutes);
 
 // API Routes - Payroll
 app.use('/api/payroll', payrollRoutes);

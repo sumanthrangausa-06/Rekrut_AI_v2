@@ -350,6 +350,9 @@ async function verifyDocument(documentId, userId) {
 		}
 
 		// Update document with OCR results
+		// Status mapping: pending → stays, processed → verified, flagged → rejected
+		const documentStatus = fraudRisk === 'high' ? 'rejected' : 'verified';
+
 		await client.query(
 			`
       UPDATE verification_documents
@@ -367,7 +370,7 @@ async function verifyDocument(documentId, userId) {
 				JSON.stringify(ocrResult.extracted_data),
 				authenticityResult.authenticity_score,
 				JSON.stringify(authenticityResult.fraud_flags),
-				fraudRisk === 'high' ? 'flagged' : 'processed',
+				documentStatus,
 				documentId,
 			],
 		);
@@ -427,7 +430,7 @@ async function verifyDocument(documentId, userId) {
 				document.document_type,
 				scoreImpact,
 				authenticityResult.authenticity_score,
-				fraudRisk === 'high' ? 'flagged' : 'verified',
+				fraudRisk === 'high' ? 'rejected' : 'verified',
 			],
 		);
 
