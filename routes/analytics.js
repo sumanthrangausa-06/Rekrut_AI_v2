@@ -2,8 +2,29 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../lib/db');
 const { optionalAuth, authMiddleware } = require('../lib/auth');
+const { analyticsCache } = require('../lib/analytics-cache');
+
+// ── Helpers ─────────────────────────────────────────────────────
+
+function parseDateRange(query) {
+	// Support both old param names (start_date/end_date) and new ISO 8601 (from/to)
+	const from = query.from || query.start_date;
+	const to = query.to || query.end_date;
+	return {
+		startDate: from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+		endDate: to || new Date().toISOString(),
+	};
+}
+
+function parsePagination(query, defaults = { page: 1, limit: 50 }) {
+	const page = Math.max(1, parseInt(query.page, 10) || defaults.page);
+	const limit = Math.min(500, Math.max(1, parseInt(query.limit, 10) || defaults.limit));
+	return { page, limit, offset: (page - 1) * limit };
+}
+
 
 // Log an event (client-side tracking)
+// Cache invalidation: any event mutation flushes analytics cache
 router.post('/events', optionalAuth, async (req, res) => {
 	try {
 		const { event_type, metadata = {} } = req.body;
@@ -19,6 +40,9 @@ router.post('/events', optionalAuth, async (req, res) => {
 			[event_type, user_id, session_id, JSON.stringify(metadata)],
 		);
 
+		// Invalidate analytics cache on new event
+		analyticsCache.invalidate('/api/analytics');
+
 		res.json({ success: true });
 	} catch (error) {
 		console.error('Error logging event:', error);
@@ -29,11 +53,20 @@ router.post('/events', optionalAuth, async (req, res) => {
 // Get analytics dashboard data (authenticated recruiters only)
 router.get('/dashboard', authMiddleware, async (req, res) => {
 	try {
-		const { start_date, end_date } = req.query;
+		const { startDate, endDate } = parseDateRange(req.query);
+		const { page, limit, offset } = parsePagination(req.query);
 
-		// Default to last 30 days if no dates provided
-		const startDate = start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-		const endDate = end_date || new Date().toISOString();
+		// Build cache key from endpoint + effective query params
+		const cacheKey = analyticsCache.key('/api/analytics/dashboard', {
+			start: startDate,
+			end: endDate,
+			page,
+			limit,
+		});
+		const cached = analyticsCache.get(cacheKey);
+		if (cached) {
+			return res.json({ success: true, cached: true, data: cached });
+		}
 
 		// Page views by type
 		const pageViewsResult = await pool.query(
@@ -104,8 +137,9 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
         AND created_at <= $2
       GROUP BY event_type
       ORDER BY count DESC
+      LIMIT $3 OFFSET $4
     `,
-			[startDate, endDate],
+			[startDate, endDate, limit, offset],
 		);
 
 		// Daily visitors (last 30 days)
@@ -120,8 +154,9 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
         AND created_at <= $2
       GROUP BY DATE(created_at)
       ORDER BY date ASC
+      LIMIT $3 OFFSET $4
     `,
-			[startDate, endDate],
+			[startDate, endDate, limit, offset],
 		);
 
 		// Conversion rates
@@ -158,41 +193,42 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
 			revenueFunnelResult.rows.find((r) => r.event_type === 'pricing_contact_sales_click')
 				?.sessions || 0;
 
-		res.json({
-			success: true,
-			data: {
-				page_views: pageViewsResult.rows,
-				signup_funnel: {
-					landing_views: landingViews,
-					signup_page_views: signupPageViews,
-					signup_clicks: signupClicks,
-					candidate_signups: candidateSignups,
-					recruiter_signups: recruiterSignups,
-					total_signups: totalSignups,
-					conversion_rate:
-						landingViews > 0 ? ((totalSignups / landingViews) * 100).toFixed(2) : '0.00',
-					click_through_rate:
-						landingViews > 0 ? ((signupClicks / landingViews) * 100).toFixed(2) : '0.00',
-				},
-				revenue_funnel: {
-					pricing_views: pricingViews,
-					billing_cycle_toggles: billingCycleToggles,
-					checkout_clicks: checkoutClicks,
-					checkout_confirmed: checkoutConfirmed,
-					checkout_canceled: checkoutCanceled,
-					contact_sales_clicks: contactSalesClicks,
-					pricing_to_checkout_rate:
-						pricingViews > 0 ? ((checkoutClicks / pricingViews) * 100).toFixed(2) : '0.00',
-					checkout_completion_rate:
-						checkoutClicks > 0 ? ((checkoutConfirmed / checkoutClicks) * 100).toFixed(2) : '0.00',
-					enterprise_contact_rate:
-						pricingViews > 0 ? ((contactSalesClicks / pricingViews) * 100).toFixed(2) : '0.00',
-				},
-				feature_engagement: featureEngagementResult.rows,
-				daily_visitors: dailyVisitorsResult.rows,
-				date_range: { start: startDate, end: endDate },
+		const data = {
+			page_views: pageViewsResult.rows,
+			signup_funnel: {
+				landing_views: landingViews,
+				signup_page_views: signupPageViews,
+				signup_clicks: signupClicks,
+				candidate_signups: candidateSignups,
+				recruiter_signups: recruiterSignups,
+				total_signups: totalSignups,
+				conversion_rate:
+					landingViews > 0 ? ((totalSignups / landingViews) * 100).toFixed(2) : '0.00',
+				click_through_rate:
+					landingViews > 0 ? ((signupClicks / landingViews) * 100).toFixed(2) : '0.00',
 			},
-		});
+			revenue_funnel: {
+				pricing_views: pricingViews,
+				billing_cycle_toggles: billingCycleToggles,
+				checkout_clicks: checkoutClicks,
+				checkout_confirmed: checkoutConfirmed,
+				checkout_canceled: checkoutCanceled,
+				contact_sales_clicks: contactSalesClicks,
+				pricing_to_checkout_rate:
+					pricingViews > 0 ? ((checkoutClicks / pricingViews) * 100).toFixed(2) : '0.00',
+				checkout_completion_rate:
+					checkoutClicks > 0 ? ((checkoutConfirmed / checkoutClicks) * 100).toFixed(2) : '0.00',
+				enterprise_contact_rate:
+					pricingViews > 0 ? ((contactSalesClicks / pricingViews) * 100).toFixed(2) : '0.00',
+			},
+			feature_engagement: featureEngagementResult.rows,
+			daily_visitors: dailyVisitorsResult.rows,
+			date_range: { start: startDate, end: endDate },
+			pagination: { page, limit, offset },
+		};
+
+		analyticsCache.set(cacheKey, data);
+		res.json({ success: true, cached: false, data });
 	} catch (error) {
 		console.error('Error fetching analytics:', error);
 		res.status(500).json({ error: 'Failed to fetch analytics data' });

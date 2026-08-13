@@ -100,6 +100,8 @@ const payrollRoutes = require('./routes/payroll');
 const complianceRoutes = require('./routes/compliance');
 const onboardingRoutes = require('./routes/onboarding');
 const analyticsRoutes = require('./routes/analytics');
+const { queryProfiler } = require('./lib/query-profiler');
+const { analyticsCache } = require('./lib/analytics-cache');
 const countryRoutes = require('./routes/countries');
 const adminRoutes = require('./routes/admin');
 const { requireAdmin } = require('./routes/admin');
@@ -308,6 +310,15 @@ app.get('/api/health', async (_req, res) => {
 			issues: { healthCheckError: true },
 		});
 	}
+});
+
+// Issue #143: Analytics performance health endpoint
+app.get('/health/analytics', (_req, res) => {
+	res.json({
+		timestamp: new Date().toISOString(),
+		cache: analyticsCache.stats(),
+		queries: queryProfiler.stats(),
+	});
 });
 
 // CORS — restricted to known origins only
@@ -1965,6 +1976,10 @@ const server =
 	process.env.NODE_ENV !== 'test'
 		? app.listen(PORT, () => {
 				console.log(`Rekrut AI running on port ${PORT}`);
+
+				// Issue #143: Install query profiler for slow query logging
+				queryProfiler.install();
+				console.log('[analytics] Query profiler installed (threshold: 2000ms)');
 
 				// Start distributed rate limiter cleanup
 				try {

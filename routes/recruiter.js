@@ -11,6 +11,39 @@ const emailService = require('../lib/email-service');
 const DOMPurify = require('isomorphic-dompurify');
 
 const router = express.Router();
+const { analyticsCache } = require('../lib/analytics-cache');
+
+// ── Analytics helpers (Issue #143) ──────────────────────────────
+
+function parseDateRange(query, defaultDays = 30) {
+	const from = query.from || query.start_date;
+	const to = query.to || query.end_date;
+	return {
+		startDate: from || new Date(Date.now() - defaultDays * 24 * 60 * 60 * 1000).toISOString(),
+		endDate: to || new Date().toISOString(),
+	};
+}
+
+function parsePagination(query, defaults = { page: 1, limit: 50 }) {
+	const page = Math.max(1, parseInt(query.page, 10) || defaults.page);
+	const limit = Math.min(500, Math.max(1, parseInt(query.limit, 10) || defaults.limit));
+	return { page, limit, offset: (page - 1) * limit };
+}
+
+function buildDateFilterSql(startDate, endDate, paramIndexStart = 2) {
+	const conditions = [];
+	let idx = paramIndexStart;
+	if (startDate) {
+		conditions.push(`created_at >= $${idx}`);
+		idx++;
+	}
+	if (endDate) {
+		conditions.push(`created_at <= $${idx}`);
+		idx++;
+	}
+	return { sql: conditions.length ? ' AND ' + conditions.join(' AND ') : '', nextIndex: idx };
+}
+
 
 function badRequest(message) {
 	const err = new Error(message);
@@ -85,6 +118,13 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, requireRecrui
 		const companyId = req.user.company_id;
 		const days = parseInt(req.query.days, 10) || 30;
 		const dateFilter = days > 0 ? `AND applied_at >= NOW() - INTERVAL '1 day' * $2` : '';
+
+		// Issue #143: Cache analytics dashboard by company + days
+		const cacheKey = analyticsCache.key('/api/recruiter/dashboard', { companyId, days });
+		const cached = analyticsCache.get(cacheKey);
+		if (cached) {
+			return res.json({ success: true, cached: true, ...cached });
+		}
 
 		// Get TrustScore
 		const trustScore = await trustscoreService.calculateTrustScore(companyId);
@@ -383,7 +423,7 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, requireRecrui
 			[companyId, days],
 		);
 
-		res.json({
+		const response = {
 			success: true,
 			trust_score: trustScore,
 			job_stats: {
@@ -403,7 +443,10 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, requireRecrui
 			quality_of_hire: qualityOfHire,
 			upcoming_interviews: upcomingInterviews.rows,
 			recent_applications: recentApps.rows,
-		});
+		};
+
+		analyticsCache.set(cacheKey, response);
+		res.json(response);
 	} catch (err) {
 		console.error('Dashboard error:', err);
 		res.status(500).json({ error: 'Failed to load dashboard' });
@@ -552,6 +595,14 @@ router.post('/jobs', authMiddleware, requireNotSuspended, requireApprovedRecruit
 				analysis.overall_score,
 			);
 
+			// Issue #143: Invalidate analytics cache on new job
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
+
 			res.json({
 				success: true,
 				job,
@@ -560,6 +611,13 @@ router.post('/jobs', authMiddleware, requireNotSuspended, requireApprovedRecruit
 				message: optimize ? 'Job created with AI optimization!' : 'Job created successfully',
 			});
 		} catch (_e) {
+			// Issue #143: Invalidate analytics cache on new job
+			analyticsCache.invalidatePatterns([
+				'/api/recruiter/dashboard',
+				'/api/recruiter/analytics',
+				'/api/recruiter/pipeline-stats',
+				'/api/analytics',
+			]);
 			res.json({ success: true, job });
 		}
 	} catch (err) {
@@ -903,6 +961,13 @@ router.put('/applications/:id/status', authMiddleware, requireNotSuspended, requ
 			},
 			req,
 		});
+
+		// Issue #143: Invalidate analytics cache on status change
+		analyticsCache.invalidatePatterns([
+			'/api/recruiter/dashboard',
+			'/api/recruiter/analytics',
+			'/api/recruiter/pipeline-stats',
+		]);
 
 		res.json({ success: true, application: result.rows[0] });
 	} catch (err) {
@@ -1258,6 +1323,13 @@ router.get('/pipeline-stats', authMiddleware, requireApprovedRecruiter, requireR
 	try {
 		const companyId = req.user.company_id;
 
+		// Issue #143: Cache pipeline stats
+		const cacheKey = analyticsCache.key('/api/recruiter/pipeline-stats', { companyId });
+		const cached = analyticsCache.get(cacheKey);
+		if (cached) {
+			return res.json({ success: true, cached: true, ...cached });
+		}
+
 		const stats = await pool.query(
 			`
       SELECT
@@ -1299,8 +1371,7 @@ router.get('/pipeline-stats', authMiddleware, requireApprovedRecruiter, requireR
 		const row = stats.rows[0];
 		const activity = recentActivity.rows[0];
 
-		res.json({
-			success: true,
+		const response = {
 			stats: {
 				total: parseInt(row.total, 10) || 0,
 				new: parseInt(row.new, 10) || 0,
@@ -1313,7 +1384,10 @@ router.get('/pipeline-stats', authMiddleware, requireApprovedRecruiter, requireR
 				last24h: parseInt(activity.last_24h, 10) || 0,
 				last7d: parseInt(activity.last_7d, 10) || 0,
 			},
-		});
+		};
+
+		analyticsCache.set(cacheKey, response);
+		res.json({ success: true, ...response });
 	} catch (err) {
 		const ref = require('node:crypto').randomUUID();
 		console.error(`[ERROR ref=${ref}] Get pipeline stats error:`, err);
@@ -3154,7 +3228,15 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, requireRecrui
 	try {
 		const companyId = req.user.company_id;
 		const days = parseInt(req.query.days, 10) || 30;
+		const { page, limit, offset } = parsePagination(req.query);
 		const dateFilter = days > 0 ? `AND applied_at >= NOW() - INTERVAL '1 day' * $2` : '';
+
+		// Issue #143: Cache analytics by company + days + pagination
+		const cacheKey = analyticsCache.key('/api/recruiter/analytics', { companyId, days, page, limit });
+		const cached = analyticsCache.get(cacheKey);
+		if (cached) {
+			return res.json({ success: true, cached: true, ...cached });
+		}
 
 		// ─── OVERVIEW ───
 
@@ -3501,7 +3583,7 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, requireRecrui
 			[companyId, days],
 		);
 
-		res.json({
+		const response = {
 			success: true,
 			// Frontend-compatible AnalyticsData shape
 			job_stats: {
@@ -3620,9 +3702,14 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, requireRecrui
 				top_skills_in_demand: topSkills,
 				recent_applications: recentAppsResult.rows,
 			},
-		});
+			pagination: { page, limit, offset },
+		};
+
+		analyticsCache.set(cacheKey, response);
+		res.json(response);
 	} catch (err) {
 		console.error('Recruiter analytics error:', err);
+		res.status(500).json({ error: 'Failed to fetch analytics data' });
 	}
 });
 
