@@ -165,6 +165,9 @@ const CompanyProfilePage = lazy(() =>
 const InterviewPage = lazy(() =>
 	import('@/pages/candidate/interview').then((m) => ({ default: m.InterviewPage })),
 )
+const BookInterviewPage = lazy(() =>
+	import('@/pages/candidate/book-interview').then((m) => ({ default: m.BookInterviewPage })),
+)
 
 const CandidateAiScreeningPage = lazy(() =>
 	import('@/pages/candidate/ai-screening').then((m) => ({ default: m.CandidateAiScreeningPage })),
@@ -228,6 +231,9 @@ const RecruiterPanelRoomPage = lazy(() =>
 )
 const RecruiterPanelScorecardCriteriaPage = lazy(() =>
 	import('@/pages/recruiter/panel-scorecard-criteria').then((m) => ({ default: m.RecruiterPanelScorecardCriteriaPage })),
+)
+const CalendarSettingsPage = lazy(() =>
+	import('@/pages/recruiter/calendar-settings').then((m) => ({ default: m.CalendarSettingsPage })),
 )
 const RecruiterOnboardingPage = lazy(() =>
 	import('@/pages/recruiter/onboarding').then((m) => ({ default: m.RecruiterOnboardingPage })),
@@ -538,6 +544,14 @@ function AppRoutes() {
 					element={
 						<Protected>
 							<CandidateInterviewsPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path='interviews/:id/book'
+					element={
+						<Protected>
+							<BookInterviewPage />
 						</Protected>
 					}
 				/>
@@ -967,6 +981,16 @@ function AppRoutes() {
 						<Protected>
 							<RecruiterGuard>
 								<RecruiterInterviewsPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path='calendar'
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<CalendarSettingsPage />
 							</RecruiterGuard>
 						</Protected>
 					}
