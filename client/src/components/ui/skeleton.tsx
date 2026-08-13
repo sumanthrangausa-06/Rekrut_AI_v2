@@ -135,30 +135,152 @@ export function RecruiterDashboardSkeleton() {
 				</CardContent>
 			</Card>
 
-			{/* Quick stats */}
-			<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-5'>
-				{Array.from({ length: 5 }).map((_, i) => (
+			{/* KPI stats — 4 cards */}
+			<div className='grid gap-4 grid-cols-2 lg:grid-cols-4'>
+				{Array.from({ length: 4 }).map((_, i) => (
 					// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
 					<Card key={i}>
-						<CardContent className='p-4 space-y-3'>
+						<CardContent className='p-5 space-y-3'>
 							<div className='flex items-center justify-between'>
-								<Skeleton className='h-10 w-10 rounded-lg' />
-								<Skeleton className='h-5 w-16' />
+								<Skeleton className='h-10 w-10 rounded-xl' />
+								<Skeleton className='h-5 w-14 rounded-full' />
 							</div>
-							<Skeleton className='h-7 w-16' />
+							<Skeleton className='h-8 w-16' />
 							<Skeleton className='h-3 w-24' />
 						</CardContent>
 					</Card>
 				))}
 			</div>
 
+			{/* Quick actions — 3 CTA cards */}
+			<div className='grid gap-3 grid-cols-1 sm:grid-cols-3'>
+				{Array.from({ length: 3 }).map((_, i) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
+					<Card key={i}>
+						<CardContent className='flex items-center gap-4 p-5'>
+							<Skeleton className='h-11 w-11 rounded-xl shrink-0' />
+							<div className='min-w-0 flex-1 space-y-1'>
+								<Skeleton className='h-4 w-full' />
+								<Skeleton className='h-3 w-3/4' />
+							</div>
+							<Skeleton className='h-5 w-5 shrink-0' />
+						</CardContent>
+					</Card>
+				))}
+			</div>
+
+			{/* Main grid: Charts + Activity */}
+			<div className='grid gap-6 lg:grid-cols-3'>
+				<div className='lg:col-span-2 space-y-6'>
+					{/* AreaChart + FunnelChart */}
+					<div className='grid gap-6 sm:grid-cols-2'>
+						{Array.from({ length: 2 }).map((_, i) => (
+							// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
+							<Card key={i}>
+								<CardHeader className='pb-3'>
+									<Skeleton className='h-5 w-40' />
+								</CardHeader>
+								<CardContent className='pt-0'>
+									<Skeleton className='h-32 w-full' />
+									<div className='flex items-center justify-between mt-3 pt-3 border-t'>
+										<Skeleton className='h-3 w-20' />
+										<Skeleton className='h-5 w-16' />
+									</div>
+								</CardContent>
+							</Card>
+						))}
+					</div>
+
+					{/* Pipeline Overview */}
+					<Card>
+						<CardHeader className='pb-3 flex flex-row items-center justify-between'>
+							<Skeleton className='h-5 w-32' />
+							<Skeleton className='h-7 w-20' />
+						</CardHeader>
+						<CardContent className='pt-0'>
+							<div className='grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4'>
+								{Array.from({ length: 5 }).map((_, i) => (
+									// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
+									<Skeleton key={i} className='h-16 rounded-lg' />
+								))}
+							</div>
+							<div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+								{Array.from({ length: 3 }).map((_, i) => (
+									// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
+									<Card key={i}>
+										<CardHeader className='pb-2'>
+											<div className='flex items-center justify-between'>
+												<Skeleton className='h-4 w-20' />
+												<Skeleton className='h-5 w-8' />
+											</div>
+										</CardHeader>
+										<CardContent className='pt-0 space-y-2'>
+											{Array.from({ length: 3 }).map((_, j) => (
+												// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
+												<div key={j} className='flex items-center gap-2 rounded-md p-2'>
+													<Skeleton className='h-7 w-7 rounded-full shrink-0' />
+													<div className='min-w-0 flex-1 space-y-1'>
+														<Skeleton className='h-3 w-full' />
+														<Skeleton className='h-3 w-3/4' />
+													</div>
+													<Skeleton className='h-5 w-10 shrink-0' />
+												</div>
+											))}
+										</CardContent>
+									</Card>
+								))}
+							</div>
+						</CardContent>
+					</Card>
+				</div>
+
+				{/* Right sidebar: Activity + Map */}
+				<div className='space-y-6'>
+					{/* Recent Activity */}
+					<Card>
+						<CardHeader className='pb-3'>
+							<Skeleton className='h-5 w-32' />
+						</CardHeader>
+						<CardContent className='pt-0'>
+							<div className='space-y-1'>
+								{Array.from({ length: 5 }).map((_, i) => (
+									// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
+									<div key={i} className='flex items-start gap-3 rounded-lg p-2.5'>
+										<Skeleton className='h-9 w-9 rounded-lg shrink-0' />
+										<div className='min-w-0 flex-1 space-y-1'>
+											<Skeleton className='h-3 w-3/4' />
+											<Skeleton className='h-3 w-full' />
+										</div>
+									</div>
+								))}
+							</div>
+							<Skeleton className='h-9 w-full mt-3' />
+						</CardContent>
+					</Card>
+
+					{/* World Map */}
+					<Card>
+						<CardHeader className='pb-2'>
+							<Skeleton className='h-5 w-36' />
+						</CardHeader>
+						<CardContent className='pt-0'>
+							<Skeleton className='h-48 w-full' />
+							<div className='flex items-center justify-between mt-2 pt-2 border-t'>
+								<Skeleton className='h-3 w-28' />
+								<Skeleton className='h-3.5 w-3.5' />
+							</div>
+						</CardContent>
+					</Card>
+				</div>
+			</div>
+
 			{/* Action items */}
 			<Card>
 				<CardHeader className='pb-3'>
-					<Skeleton className='h-5 w-32' />
+					<Skeleton className='h-5 w-24' />
 				</CardHeader>
 				<CardContent className='pt-0'>
-					<div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+					<div className='grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'>
 						{Array.from({ length: 4 }).map((_, i) => (
 							// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
 							<div key={i} className='flex items-center gap-3 rounded-lg border p-3'>
@@ -173,121 +295,6 @@ export function RecruiterDashboardSkeleton() {
 					</div>
 				</CardContent>
 			</Card>
-
-			{/* Main grid: Pipeline + Activity */}
-			<div className='grid gap-6 lg:grid-cols-3'>
-				<div className='lg:col-span-2 space-y-4'>
-					{/* Pipeline header */}
-					<div className='flex items-center justify-between'>
-						<div className='space-y-2'>
-							<Skeleton className='h-6 w-40' />
-							<Skeleton className='h-3 w-48' />
-						</div>
-						<Skeleton className='h-9 w-28' />
-					</div>
-					{/* Horizontal pipeline bar */}
-					<div className='flex items-center gap-1 rounded-lg border bg-card p-4 overflow-x-auto'>
-						{Array.from({ length: 6 }).map((_, i) => (
-							// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
-							<div key={i} className='flex items-center gap-1 shrink-0'>
-								<Skeleton className='h-16 w-[72px] sm:w-[100px] rounded-lg' />
-								{i < 5 && <Skeleton className='h-4 w-4' />}
-							</div>
-						))}
-					</div>
-					{/* Pipeline cards */}
-					<div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
-						{Array.from({ length: 3 }).map((_, i) => (
-							// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
-							<Card key={i}>
-								<CardHeader className='pb-2'>
-									<div className='flex items-center justify-between'>
-										<Skeleton className='h-4 w-20' />
-										<Skeleton className='h-5 w-8' />
-									</div>
-								</CardHeader>
-								<CardContent className='pt-0 space-y-2'>
-									{Array.from({ length: 3 }).map((_, j) => (
-										// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
-										<div key={j} className='flex items-center gap-2 rounded-md p-2'>
-											<Skeleton className='h-7 w-7 rounded-full shrink-0' />
-											<div className='min-w-0 flex-1 space-y-1'>
-												<Skeleton className='h-3 w-full' />
-												<Skeleton className='h-3 w-3/4' />
-											</div>
-											<Skeleton className='h-5 w-10 shrink-0' />
-										</div>
-									))}
-								</CardContent>
-							</Card>
-						))}
-					</div>
-				</div>
-
-				{/* Right sidebar: Activity + Performance */}
-				<div className='space-y-6'>
-					{/* Recent Activity */}
-					<Card>
-						<CardHeader className='pb-3'>
-							<Skeleton className='h-5 w-32' />
-						</CardHeader>
-						<CardContent className='pt-0'>
-							<div className='space-y-3'>
-								{Array.from({ length: 5 }).map((_, i) => (
-									// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
-									<div key={i} className='flex items-start gap-3 rounded-md p-2'>
-										<Skeleton className='h-8 w-8 rounded-md shrink-0' />
-										<div className='min-w-0 flex-1 space-y-1'>
-											<Skeleton className='h-3 w-3/4' />
-											<Skeleton className='h-3 w-full' />
-											<Skeleton className='h-3 w-16' />
-										</div>
-									</div>
-								))}
-							</div>
-							<Skeleton className='h-9 w-full mt-3' />
-						</CardContent>
-					</Card>
-
-					{/* Performance */}
-					<Card>
-						<CardHeader className='pb-3'>
-							<Skeleton className='h-5 w-24' />
-						</CardHeader>
-						<CardContent className='pt-0 space-y-4'>
-							{Array.from({ length: 4 }).map((_, i) => (
-								// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
-								<div key={i}>
-									<div className='flex items-center justify-between mb-1'>
-										<Skeleton className='h-3 w-24' />
-										<Skeleton className='h-3 w-20' />
-									</div>
-									<Skeleton className='h-2 w-full' />
-									<Skeleton className='h-3 w-32 mt-1' />
-								</div>
-							))}
-							<Skeleton className='h-9 w-full' />
-						</CardContent>
-					</Card>
-				</div>
-			</div>
-
-			{/* Quick Actions Bar */}
-			<div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
-				{Array.from({ length: 4 }).map((_, i) => (
-					// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholder
-					<Card key={i}>
-						<CardContent className='flex items-center gap-3 p-4'>
-							<Skeleton className='h-10 w-10 rounded-lg shrink-0' />
-							<div className='min-w-0 flex-1 space-y-1'>
-								<Skeleton className='h-4 w-full' />
-								<Skeleton className='h-3 w-3/4' />
-							</div>
-							<Skeleton className='h-4 w-4 shrink-0' />
-						</CardContent>
-					</Card>
-				))}
-			</div>
 		</div>
 	)
 }
