@@ -1,4 +1,5 @@
-// OmniScore v2 API Routes - Two-Sided Scoring System
+// OmniScore v2 API Routes — 8-Factor Scoring with Explainability
+// Issue #113
 const express = require('express');
 const { authMiddleware } = require('../lib/auth');
 const omniscoreService = require('../services/omniscore');
@@ -28,7 +29,7 @@ router.get('/', authMiddleware, async (req, res) => {
 	}
 });
 
-// Get detailed score breakdown
+// Get detailed score breakdown (8 factors)
 router.get('/breakdown', authMiddleware, async (req, res) => {
 	try {
 		const breakdown = await omniscoreService.getScoreBreakdown(req.user.id);
@@ -50,22 +51,29 @@ router.get('/roles', authMiddleware, async (req, res) => {
 	}
 });
 
-// Get score history
+// Get score history — now returns weekly snapshots
 router.get('/history', authMiddleware, async (req, res) => {
 	try {
-		const { limit = 20 } = req.query;
-		const result = await pool.query(
-			`
-      SELECT previous_score, new_score, change_amount, change_reason, component_type, created_at
-      FROM score_history
-      WHERE user_id = $1
-      ORDER BY created_at DESC
-      LIMIT $2
-    `,
-			[req.user.id, limit],
+		const { limit = 12 } = req.query;
+
+		// Weekly snapshots for trend
+		const snapshots = await omniscoreService.getWeeklySnapshots(req.user.id, parseInt(limit, 10));
+
+		// Raw event history
+		const events = await pool.query(
+			`SELECT previous_score, new_score, change_amount, change_reason, component_type, created_at
+       FROM score_history
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+			[req.user.id, 50],
 		);
 
-		res.json({ success: true, history: result.rows });
+		res.json({
+			success: true,
+			snapshots,
+			history: events.rows,
+		});
 	} catch (err) {
 		console.error('Get score history error:', err);
 		res.status(500).json({ error: 'Failed to get score history' });
@@ -84,30 +92,28 @@ router.get('/recommendations', authMiddleware, async (req, res) => {
 	}
 });
 
-// Record daily login (behavior component)
+// Record daily login — idempotent, max once per day
 router.post('/checkin', authMiddleware, async (req, res) => {
 	try {
-		const today = await pool.query(
-			`
-      SELECT id FROM score_components
-      WHERE user_id = $1
-        AND component_type = 'behavior'
-        AND source_type = 'daily_login'
-        AND DATE(created_at) = CURRENT_DATE
-    `,
-			[req.user.id],
-		);
-
-		if (today.rows.length > 0) {
-			return res.json({ success: true, already_checked_in: true });
-		}
-
-		const newScore = await omniscoreService.addBehaviorComponent(req.user.id, 'daily_login', 5, 10);
-
-		res.json({ success: true, new_score: newScore.total_score, points_earned: 5 });
+		const result = await omniscoreService.recordCheckin(req.user.id);
+		res.json({ success: true, ...result });
 	} catch (err) {
 		console.error('Checkin error:', err);
 		res.status(500).json({ error: 'Failed to record check-in' });
+	}
+});
+
+// ============================================================
+// EXPLAINER — per-factor plain-language explanations (Issue #113)
+// ============================================================
+
+router.get('/explainer', authMiddleware, async (req, res) => {
+	try {
+		const explainer = await omniscoreService.getScoreExplainer(req.user.id);
+		res.json({ success: true, ...explainer });
+	} catch (err) {
+		console.error('OmniScore explainer error:', err);
+		res.status(500).json({ error: 'Failed to load score explainer' });
 	}
 });
 
@@ -126,11 +132,9 @@ router.get('/company-score/:companyId', authMiddleware, async (req, res) => {
 
 		// Get company info
 		const companyResult = await pool.query(
-			`
-      SELECT c.name, c.slug, c.logo_url, c.industry, c.company_size, c.is_verified,
-             c.website, c.headquarters, c.description
-      FROM companies c WHERE c.id = $1
-    `,
+			`SELECT c.name, c.slug, c.logo_url, c.industry, c.company_size, c.is_verified,
+        c.website, c.headquarters, c.description
+       FROM companies c WHERE c.id = $1`,
 			[companyId],
 		);
 
@@ -140,8 +144,7 @@ router.get('/company-score/:companyId', authMiddleware, async (req, res) => {
 
 		// Get aggregated candidate ratings
 		const ratingsResult = await pool.query(
-			`
-      SELECT
+			`SELECT
         COUNT(*) as total_ratings,
         ROUND(AVG(overall_rating)::numeric, 1) as avg_overall,
         ROUND(AVG(interview_experience)::numeric, 1) as avg_interview,
@@ -150,22 +153,19 @@ router.get('/company-score/:companyId', authMiddleware, async (req, res) => {
         ROUND(AVG(work_life_balance)::numeric, 1) as avg_work_life,
         ROUND(AVG(culture)::numeric, 1) as avg_culture,
         ROUND(AVG(growth_opportunity)::numeric, 1) as avg_growth
-      FROM company_ratings
-      WHERE company_id = $1 AND status = 'published'
-    `,
+       FROM company_ratings
+       WHERE company_id = $1 AND status = 'published'`,
 			[companyId],
 		);
 
 		// Get recent reviews (anonymous)
 		const reviewsResult = await pool.query(
-			`
-      SELECT overall_rating, interview_experience, communication, transparency,
-             review_text, pros, cons, created_at
-      FROM company_ratings
-      WHERE company_id = $1 AND status = 'published'
-      ORDER BY created_at DESC
-      LIMIT 10
-    `,
+			`SELECT overall_rating, interview_experience, communication, transparency,
+        review_text, pros, cons, created_at
+       FROM company_ratings
+       WHERE company_id = $1 AND status = 'published'
+       ORDER BY created_at DESC
+       LIMIT 10`,
 			[companyId],
 		);
 
@@ -191,11 +191,7 @@ router.get('/company-score/:companyId', authMiddleware, async (req, res) => {
 				tier_color: tierInfo?.color || '#94a3b8',
 				breakdown: {
 					verification: { score: calculated.verification, max: 200, label: 'Company Verification' },
-					job_authenticity: {
-						score: calculated.job_authenticity,
-						max: 250,
-						label: 'Job Authenticity',
-					},
+					job_authenticity: { score: calculated.job_authenticity, max: 250, label: 'Job Authenticity' },
 					hiring_ratio: { score: calculated.hiring_ratio, max: 250, label: 'Hiring Track Record' },
 					feedback: { score: calculated.feedback, max: 200, label: 'Candidate Feedback' },
 					behavior: { score: calculated.behavior, max: 100, label: 'Platform Activity' },
@@ -258,8 +254,7 @@ router.post('/rate-company', authMiddleware, async (req, res) => {
 
 		// Upsert rating
 		const result = await pool.query(
-			`
-      INSERT INTO company_ratings (
+			`INSERT INTO company_ratings (
         company_id, candidate_id, job_id,
         overall_rating, interview_experience, communication, transparency,
         work_life_balance, culture, growth_opportunity,
@@ -280,8 +275,7 @@ router.post('/rate-company', authMiddleware, async (req, res) => {
         cons = EXCLUDED.cons,
         is_anonymous = EXCLUDED.is_anonymous,
         updated_at = NOW()
-      RETURNING *
-    `,
+      RETURNING *`,
 			[
 				company_id,
 				req.user.id,
@@ -331,20 +325,18 @@ router.get('/ratable-companies', authMiddleware, async (req, res) => {
 		}
 
 		const result = await pool.query(
-			`
-      SELECT DISTINCT c.id as company_id, c.name, c.logo_url, c.industry, c.is_verified,
-             ja.status as application_status, j.title as job_title, j.id as job_id,
-             ts.total_score as trust_score, ts.score_tier,
-             cr.overall_rating as my_rating, ja.applied_at
-      FROM job_applications ja
-      JOIN jobs j ON ja.job_id = j.id
-      JOIN companies c ON ja.company_id = c.id
-      LEFT JOIN trust_scores ts ON c.id = ts.company_id
-      LEFT JOIN company_ratings cr ON c.id = cr.company_id AND cr.candidate_id = $1
-      WHERE ja.candidate_id = $1
-        AND ja.status IN ('applied', 'interviewed', 'offered', 'hired')
-      ORDER BY ja.applied_at DESC
-    `,
+			`SELECT DISTINCT c.id as company_id, c.name, c.logo_url, c.industry, c.is_verified,
+        ja.status as application_status, j.title as job_title, j.id as job_id,
+        ts.total_score as trust_score, ts.score_tier,
+        cr.overall_rating as my_rating, ja.applied_at
+       FROM job_applications ja
+       JOIN jobs j ON ja.job_id = j.id
+       JOIN companies c ON ja.company_id = c.id
+       LEFT JOIN trust_scores ts ON c.id = ts.company_id
+       LEFT JOIN company_ratings cr ON c.id = cr.company_id AND cr.candidate_id = $1
+       WHERE ja.candidate_id = $1
+         AND ja.status IN ('applied', 'interviewed', 'offered', 'hired')
+       ORDER BY ja.applied_at DESC`,
 			[req.user.id],
 		);
 
@@ -372,34 +364,28 @@ router.get('/mutual-matches', authMiddleware, async (req, res) => {
 
 		// Find jobs where the candidate applied or was matched AND the company has a decent score
 		const result = await pool.query(
-			`
-      SELECT
+			`SELECT
         j.id as job_id, j.title, j.location, j.salary_range, j.job_type,
         c.id as company_id, c.name as company_name, c.logo_url, c.industry, c.is_verified,
         ts.total_score as company_trust_score, ts.score_tier as company_tier,
         ja.status as application_status,
         mr.weighted_score as match_score, mr.match_level,
-        COALESCE(
-          ROUND(AVG(cr.overall_rating)::numeric, 1),
-          0
-        ) as avg_company_rating,
+        COALESCE(ROUND(AVG(cr.overall_rating)::numeric, 1), 0) as avg_company_rating,
         COUNT(cr.id) as rating_count
-      FROM jobs j
-      JOIN companies c ON j.company_id = c.id
-      LEFT JOIN trust_scores ts ON c.id = ts.company_id
-      LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.candidate_id = $1
-      LEFT JOIN match_results mr ON mr.job_id = j.id AND mr.candidate_id = $1
-      LEFT JOIN company_ratings cr ON cr.company_id = c.id AND cr.status = 'published'
-      WHERE j.status = 'active'
-        AND (ja.candidate_id = $1 OR mr.candidate_id = $1)
-      GROUP BY j.id, j.title, j.location, j.salary_range, j.job_type,
-               c.id, c.name, c.logo_url, c.industry, c.is_verified,
-               ts.total_score, ts.score_tier, ja.status,
-               mr.weighted_score, mr.match_level
-      ORDER BY
-        COALESCE(mr.weighted_score, 0) + COALESCE(ts.total_score, 0) / 20 DESC
-      LIMIT 20
-    `,
+       FROM jobs j
+       JOIN companies c ON j.company_id = c.id
+       LEFT JOIN trust_scores ts ON c.id = ts.company_id
+       LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.candidate_id = $1
+       LEFT JOIN match_results mr ON mr.job_id = j.id AND mr.candidate_id = $1
+       LEFT JOIN company_ratings cr ON cr.company_id = c.id AND cr.status = 'published'
+       WHERE j.status = 'active'
+         AND (ja.candidate_id = $1 OR mr.candidate_id = $1)
+       GROUP BY j.id, j.title, j.location, j.salary_range, j.job_type,
+                c.id, c.name, c.logo_url, c.industry, c.is_verified,
+                ts.total_score, ts.score_tier, ja.status,
+                mr.weighted_score, mr.match_level
+       ORDER BY COALESCE(mr.weighted_score, 0) + COALESCE(ts.total_score, 0) / 20 DESC
+       LIMIT 20`,
 			[req.user.id],
 		);
 
@@ -464,12 +450,10 @@ router.get('/candidate/:candidateId', authMiddleware, async (req, res) => {
 
 		// Get candidate info
 		const candidateResult = await pool.query(
-			`
-      SELECT u.name, u.email, u.avatar_url, cp.headline, cp.location, cp.years_experience
-      FROM users u
-      LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
-      WHERE u.id = $1
-    `,
+			`SELECT u.name, u.email, u.avatar_url, cp.headline, cp.location, cp.years_experience
+       FROM users u
+       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+       WHERE u.id = $1`,
 			[candidateId],
 		);
 
@@ -494,16 +478,14 @@ router.get('/leaderboard', authMiddleware, async (req, res) => {
 
 		const { limit = 50, min_score = 0, tier } = req.query;
 
-		let query = `
-      SELECT os.*, u.name, u.email, u.avatar_url,
+		let query = `SELECT os.*, u.name, u.email, u.avatar_url,
              cp.headline, cp.location, cp.years_experience,
              (SELECT COUNT(*) FROM job_applications ja WHERE ja.candidate_id = u.id AND ja.company_id = $1) as applications_count
       FROM omni_scores os
       JOIN users u ON os.user_id = u.id
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
       WHERE u.role = 'candidate'
-        AND os.total_score >= $2
-    `;
+        AND os.total_score >= $2`;
 		const params = [req.user.company_id || 0, parseInt(min_score, 10)];
 
 		if (tier) {
@@ -517,8 +499,7 @@ router.get('/leaderboard', authMiddleware, async (req, res) => {
 		const result = await pool.query(query, params);
 
 		// Get score tier distribution
-		const distribution = await pool.query(`
-      SELECT score_tier, COUNT(*) as count
+		const distribution = await pool.query(`SELECT score_tier, COUNT(*) as count
       FROM omni_scores os
       JOIN users u ON os.user_id = u.id
       WHERE u.role = 'candidate'
@@ -531,8 +512,7 @@ router.get('/leaderboard', authMiddleware, async (req, res) => {
           WHEN 'fair' THEN 4
           WHEN 'needs_work' THEN 5
           ELSE 6
-        END
-    `);
+        END`);
 
 		res.json({
 			success: true,
@@ -565,8 +545,7 @@ router.get('/company-dashboard', authMiddleware, async (req, res) => {
 
 		// Get candidate ratings
 		const ratingsResult = await pool.query(
-			`
-      SELECT
+			`SELECT
         COUNT(*) as total_ratings,
         ROUND(AVG(overall_rating)::numeric, 1) as avg_overall,
         ROUND(AVG(interview_experience)::numeric, 1) as avg_interview,
@@ -575,31 +554,27 @@ router.get('/company-dashboard', authMiddleware, async (req, res) => {
         ROUND(AVG(work_life_balance)::numeric, 1) as avg_work_life,
         ROUND(AVG(culture)::numeric, 1) as avg_culture,
         ROUND(AVG(growth_opportunity)::numeric, 1) as avg_growth
-      FROM company_ratings
-      WHERE company_id = $1 AND status = 'published'
-    `,
+       FROM company_ratings
+       WHERE company_id = $1 AND status = 'published'`,
 			[companyId],
 		);
 
 		// Get recent reviews
 		const reviewsResult = await pool.query(
-			`
-      SELECT cr.overall_rating, cr.interview_experience, cr.communication,
-             cr.review_text, cr.pros, cr.cons, cr.created_at,
-             CASE WHEN cr.is_anonymous THEN 'Anonymous' ELSE u.name END as reviewer_name
-      FROM company_ratings cr
-      LEFT JOIN users u ON cr.candidate_id = u.id
-      WHERE cr.company_id = $1 AND cr.status = 'published'
-      ORDER BY cr.created_at DESC
-      LIMIT 10
-    `,
+			`SELECT cr.overall_rating, cr.interview_experience, cr.communication,
+        cr.review_text, cr.pros, cr.cons, cr.created_at,
+        CASE WHEN cr.is_anonymous THEN 'Anonymous' ELSE u.name END as reviewer_name
+       FROM company_ratings cr
+       LEFT JOIN users u ON cr.candidate_id = u.id
+       WHERE cr.company_id = $1 AND cr.status = 'published'
+       ORDER BY cr.created_at DESC
+       LIMIT 10`,
 			[companyId],
 		);
 
 		// Get hiring funnel stats
 		const funnelResult = await pool.query(
-			`
-      SELECT
+			`SELECT
         COUNT(*) as total_applications,
         COUNT(*) FILTER (WHERE status = 'screening') as screening,
         COUNT(*) FILTER (WHERE status = 'interviewed') as interviewed,
@@ -607,9 +582,8 @@ router.get('/company-dashboard', authMiddleware, async (req, res) => {
         COUNT(*) FILTER (WHERE status = 'hired') as hired,
         COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
         ROUND(AVG(omniscore_at_apply)::numeric) as avg_applicant_omniscore
-      FROM job_applications
-      WHERE company_id = $1
-    `,
+       FROM job_applications
+       WHERE company_id = $1`,
 			[companyId],
 		);
 
@@ -624,16 +598,8 @@ router.get('/company-dashboard', authMiddleware, async (req, res) => {
 				tier_label: tierInfo?.label || 'New Employer',
 				tier_color: tierInfo?.color || '#94a3b8',
 				breakdown: {
-					verification: {
-						score: trustScores.verification,
-						max: 200,
-						label: 'Company Verification',
-					},
-					job_authenticity: {
-						score: trustScores.job_authenticity,
-						max: 250,
-						label: 'Job Authenticity',
-					},
+					verification: { score: trustScores.verification, max: 200, label: 'Company Verification' },
+					job_authenticity: { score: trustScores.job_authenticity, max: 250, label: 'Job Authenticity' },
 					hiring_ratio: { score: trustScores.hiring_ratio, max: 250, label: 'Hiring Track Record' },
 					feedback: { score: trustScores.feedback, max: 200, label: 'Candidate Feedback' },
 					behavior: { score: trustScores.behavior, max: 100, label: 'Platform Activity' },
@@ -648,129 +614,6 @@ router.get('/company-dashboard', authMiddleware, async (req, res) => {
 		});
 	} catch (err) {
 		console.error('Get company dashboard error:', err);
-	}
-});
-
-// OmniScore Explainer — return score breakdown for a candidate (Issue #109)
-router.get('/explainer', authMiddleware, async (req, res) => {
-	try {
-		const userId = req.user.id;
-
-		// Get latest omniscore data
-		const scoreResult = await pool.query(
-			`SELECT total_score, interview_score, technical_score, resume_score, behavior_score, score_tier
-			 FROM omni_scores WHERE user_id = $1`,
-			[userId],
-		);
-
-		const score = scoreResult.rows[0] || {
-			total_score: 300,
-			interview_score: 0,
-			technical_score: 0,
-			resume_score: 0,
-			behavior_score: 0,
-			score_tier: 'new',
-		};
-
-		// Get score components (individual factors)
-		const componentsResult = await pool.query(
-			`SELECT component_type, points, max_points, weight, created_at
-			 FROM score_components WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20`,
-			[userId],
-		);
-
-		// Build factors array
-		const factorMap = {
-			interview: { name: 'Interview Performance', impact: score.interview_score || 0, description: 'Based on mock interviews and practice sessions' },
-			technical: { name: 'Technical Skills', impact: score.technical_score || 0, description: 'Verified through assessments and projects' },
-			resume: { name: 'Resume Quality', impact: score.resume_score || 0, description: 'Completeness, relevance, and presentation' },
-			behavior: { name: 'Platform Activity', impact: score.behavior_score || 0, description: 'Engagement, consistency, and professionalism' },
-		};
-
-		const factors = componentsResult.rows.map((c) => {
-			const base = factorMap[c.component_type] || {
-				name: c.component_type,
-				impact: c.points,
-				description: 'Score component',
-			};
-			return {
-				name: base.name,
-				impact: Math.round((c.points / Math.max(c.max_points, 1)) * 100),
-				description: base.description,
-				details: `Score: ${c.points}/${c.max_points} (weight: ${c.weight})`,
-			};
-		});
-
-		// Ensure core factors are always present
-		for (const [key, base] of Object.entries(factorMap)) {
-			if (!factors.some((f) => f.name === base.name)) {
-				factors.push({
-					name: base.name,
-					impact: Math.min(100, Math.round((base.impact / 250) * 100)),
-					description: base.description,
-					details: 'Base score factor',
-				});
-			}
-		}
-
-		// Get peer comparison (percentile)
-		const percentileResult = await pool.query(
-			`SELECT
-				PERCENT_RANK() WITHIN GROUP (ORDER BY total_score) * 100 as percentile,
-				AVG(total_score) as avg_score,
-				MAX(total_score) as top_score,
-				PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total_score) as median_score
-			 FROM omni_scores`,
-		);
-
-		const peerStats = percentileResult.rows[0] || {};
-
-		res.json({
-			factors,
-			peerComparison: {
-				percentile: Math.round(parseFloat(peerStats.percentile || '50')),
-				avgScore: Math.round(parseFloat(peerStats.avg_score || '500')),
-				topScore: Math.round(parseFloat(peerStats.top_score || '1000')),
-				medianScore: Math.round(parseFloat(peerStats.median_score || '500')),
-			},
-			improvementRoadmap: [
-				{
-					step: 1,
-					title: 'Complete Your Profile',
-					description: 'Add work experience, education, and skills to boost your resume score.',
-					estimatedPoints: 50,
-					difficulty: 'easy',
-					timeEstimate: '15 min',
-				},
-				{
-					step: 2,
-					title: 'Take a Skill Assessment',
-					description: 'Pass verified assessments to increase your technical score.',
-					estimatedPoints: 75,
-					difficulty: 'medium',
-					timeEstimate: '30 min',
-				},
-				{
-					step: 3,
-					title: 'Practice Mock Interviews',
-					description: 'Complete AI-powered practice sessions to improve interview performance.',
-					estimatedPoints: 100,
-					difficulty: 'medium',
-					timeEstimate: '45 min',
-				},
-				{
-					step: 4,
-					title: 'Build a Portfolio Project',
-					description: 'Showcase your abilities with a published project.',
-					estimatedPoints: 150,
-					difficulty: 'hard',
-					timeEstimate: '2-4 hours',
-				},
-			],
-		});
-	} catch (err) {
-		console.error('OmniScore explainer error:', err);
-		res.status(500).json({ error: 'Failed to load score explainer' });
 	}
 });
 
