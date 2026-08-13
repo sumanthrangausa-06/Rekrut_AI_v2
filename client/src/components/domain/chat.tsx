@@ -283,6 +283,7 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 			await apiCall(`/conversations/${activeConv}/upload`, {
 				method: 'POST',
 				body: formData,
+				isFormData: true,
 			})
 		} catch (err) {
 			console.error('[chat] Failed to send file:', err)

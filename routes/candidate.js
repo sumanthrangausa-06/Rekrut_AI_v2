@@ -2039,6 +2039,19 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
 			}
 		}
 
+		// Auto-create conversation for recruiter-candidate chat (Issue #114 — non-blocking)
+		try {
+			const { getOrCreateConversation } = require('../routes/chat');
+			await getOrCreateConversation(
+				req.params.jobId,
+				req.user.id,
+				job.rows[0].user_id,
+				job.rows[0].company_id,
+			);
+		} catch (convErr) {
+			console.error('[apply] Auto-create conversation failed (non-blocking):', convErr.message);
+		}
+
 		res.json({ success: true, application: result.rows[0] });
 
 		// ── Send application submitted notification to candidate (non-blocking) ──
@@ -3647,91 +3660,4 @@ router.delete('/documents/:id', authMiddleware, async (req, res) => {
 	}
 });
 
-// GET /api/candidate/conversations — real implementation (Issue #109)
-router.get('/conversations', authMiddleware, async (req, res) => {
-	try {
-		const userId = req.user.id;
 
-		// Graceful: create table if it doesn't exist
-		await pool.query(`
-			CREATE TABLE IF NOT EXISTS conversations (
-				id SERIAL PRIMARY KEY,
-				job_id INTEGER REFERENCES jobs(id) ON DELETE SET NULL,
-				candidate_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-				recruiter_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-				last_message TEXT,
-				last_message_at TIMESTAMP,
-				unread_count_candidate INTEGER DEFAULT 0,
-				is_active BOOLEAN DEFAULT true,
-				created_at TIMESTAMP DEFAULT NOW(),
-				updated_at TIMESTAMP DEFAULT NOW()
-			)
-		`);
-		await pool.query(`
-			CREATE TABLE IF NOT EXISTS messages (
-				id SERIAL PRIMARY KEY,
-				conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
-				sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-				content TEXT NOT NULL,
-				type VARCHAR(50) DEFAULT 'text',
-				file_url TEXT,
-				file_name TEXT,
-				is_read BOOLEAN DEFAULT false,
-				read_at TIMESTAMP,
-				created_at TIMESTAMP DEFAULT NOW()
-			)
-		`);
-
-		const result = await pool.query(
-			`SELECT
-				c.id,
-				c.job_id,
-				j.title as job_title,
-				c.candidate_id,
-				u.name as candidate_name,
-				c.recruiter_id,
-				r.name as recruiter_name,
-				c.last_message,
-				c.last_message_at,
-				c.unread_count_candidate as unread_count,
-				c.is_active,
-				c.created_at,
-				c.updated_at
-			FROM conversations c
-			LEFT JOIN jobs j ON c.job_id = j.id
-			LEFT JOIN users u ON c.candidate_id = u.id
-			LEFT JOIN users r ON c.recruiter_id = r.id
-			WHERE c.candidate_id = $1
-			ORDER BY c.last_message_at DESC NULLS LAST, c.updated_at DESC
-			LIMIT 50`,
-			[userId],
-		);
-
-		const conversations = result.rows.map((c) => ({
-			id: String(c.id),
-			job_id: c.job_id ? String(c.job_id) : null,
-			job_title: c.job_title || null,
-			candidate_id: c.candidate_id ? String(c.candidate_id) : null,
-			candidate_name: c.candidate_name || 'Unknown',
-			recruiter_id: c.recruiter_id ? String(c.recruiter_id) : null,
-			recruiter_name: c.recruiter_name || null,
-			company_name: null,
-			last_message: c.last_message || null,
-			unread_count: parseInt(c.unread_count, 10) || 0,
-			is_active: c.is_active,
-			created_at: c.created_at ? new Date(c.created_at).toISOString() : null,
-			updated_at: c.updated_at ? new Date(c.updated_at).toISOString() : null,
-			other_user: {
-				id: c.recruiter_id ? String(c.recruiter_id) : null,
-				name: c.recruiter_name || 'Unknown',
-			},
-		}));
-
-		res.json({ conversations });
-	} catch (err) {
-		console.error('Get candidate conversations error:', err);
-		res.status(500).json({ error: 'Failed to fetch conversations' });
-	}
-});
-
-module.exports = router;

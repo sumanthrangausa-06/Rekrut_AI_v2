@@ -113,7 +113,7 @@ const aiScreenerRoutes = require('./routes/ai-screener');
 const questionnaireRoutes = require('./routes/questionnaire');
 const settingsRoutes = require('./routes/settings');
 const signatureRoutes = require('./routes/signature');
-const verificationRoutes = require('./routes/verification');
+const chatRoutes = require('./routes/chat');
 
 // ─── Prometheus metrics (Phase 1 observability — Issue #144) ─────────────
 const prometheus = require('./server/middleware/prometheus');
@@ -521,6 +521,9 @@ app.use('/api/admin', adminRoutes);
 // API Routes - Email Tracking (must be before auth to allow pixel tracking without auth)
 app.use('/api/email', require('./routes/email-tracking'));
 
+// API Routes - Chat (Issue #114 — mounted BEFORE candidate/recruiter to intercept /api/candidate/conversations, /api/recruiter/conversations)
+app.use('/api', chatRoutes.router);
+
 // API Routes - Candidate side
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
@@ -544,7 +547,6 @@ app.use('/api/matching', matchingRoutes);
 
 // API Routes - Document Verification
 app.use('/api/documents', documentRoutes);
-app.use('/api/conversations', require('./routes/conversations'));
 
 // API Routes - Payroll
 app.use('/api/payroll', payrollRoutes);
