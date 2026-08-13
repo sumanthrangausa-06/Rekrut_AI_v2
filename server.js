@@ -94,7 +94,7 @@ const trustscoreRoutes = require('./routes/trustscore');
 const recruiterRoutes = require('./routes/recruiter');
 const candidateRoutes = require('./routes/candidate');
 const assessmentRoutes = require('./routes/assessments');
-const matchingRoutes = require('./routes/matching');
+const panelRoutes = require('./routes/panels');
 const documentRoutes = require('./routes/documents');
 const candidateDocumentRoutes = require('./routes/candidate-documents');
 const recruiterDocumentRoutes = require('./routes/recruiter-documents');
@@ -545,6 +545,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/interviews', quickPracticeRoutes); // ISOLATED Quick Practice — must be BEFORE interview routes (#32717)
 app.use('/api/interviews', interviewRoutes); // Mock Interview + video analysis (no practice routes)
+
+// API Routes - Interview Panels (Issue #125 — Multi-interviewer panel with scorecards and shared notes)
+app.use('/api/panels', panelRoutes);
 app.use('/api/omniscore', omniscoreRoutes);
 app.use('/api/candidate/omniscore', omniscoreRoutes);
 app.use('/api/recruiter/omniscore', omniscoreRoutes);
