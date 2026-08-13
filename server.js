@@ -118,6 +118,7 @@ const questionnaireRoutes = require('./routes/questionnaire');
 const settingsRoutes = require('./routes/settings');
 const signatureRoutes = require('./routes/signature');
 const chatRoutes = require('./routes/chat');
+const sandboxRoutes = require('./routes/sandbox');
 
 // ─── Prometheus metrics (Phase 1 observability — Issue #144) ─────────────
 const prometheus = require('./server/middleware/prometheus');
@@ -620,6 +621,9 @@ app.use('/api/tts', ttsRoutes);
 // API Routes - Calendar Integration (Google + Outlook)
 const calendarRoutes = require('./routes/calendar');
 app.use('/api/calendar', calendarRoutes);
+
+// API Routes - Code Sandbox (Issue #117 — self-hosted Judge0 execution engine)
+app.use('/api/sandbox', sandboxRoutes);
 
 // Comprehensive Monitoring Metrics — protected by admin auth
 app.get('/api/admin/metrics', requireAdmin, async (_req, res) => {
