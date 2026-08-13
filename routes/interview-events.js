@@ -3,6 +3,7 @@ const pool = require('../lib/db');
 const { authMiddleware, requireRole } = require('../lib/auth');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const calendarService = require('../server/services/calendar-service');
+const livekitService = require('../server/services/livekit'); // Issue #124
 const { body, param, validationResult } = require('express-validator');
 
 const router = express.Router();
@@ -439,6 +440,13 @@ router.post(
 				}
 			} catch (calErr) {
 				console.error('[interview-events] Calendar sync failed (non-blocking):', calErr.message);
+			}
+
+			// Issue #124: Auto-create LiveKit room when interview is confirmed
+			try {
+				await livekitService.autoCreateRoomForInterview(eventId);
+			} catch (lkErr) {
+				console.error('[interview-events] LiveKit room auto-create failed (non-blocking):', lkErr.message);
 			}
 
 			res.json({
