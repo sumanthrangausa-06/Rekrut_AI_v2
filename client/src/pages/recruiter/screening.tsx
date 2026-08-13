@@ -1,7 +1,7 @@
 import {
 	AlertTriangle,
+	ArrowLeft,
 	ArrowRight,
-	Award,
 	Ban,
 	BarChart3,
 	BrainCircuit,
@@ -12,13 +12,16 @@ import {
 	ClipboardList,
 	Clock,
 	FileText,
+	Gavel,
 	Heart,
+	History,
 	Lightbulb,
 	Loader2,
 	Mail,
 	MessageSquare,
 	PenTool,
 	Phone,
+	Scale,
 	Send,
 	ShieldAlert,
 	Sparkles,
@@ -43,65 +46,88 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
+import { Select } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import { trackEvent } from '@/lib/analytics'
 import { apiCall } from '@/lib/api'
 
+/* ─── Types ─────────────────────────────────────────────────────────────── */
+
+export type FitBreakdown = {
+	skills_match: number
+	experience_match: number
+	education_match: number
+	location_match: number
+	salary_match: number
+	culture_fit_estimate: number
+}
+
+export type RedFlag = {
+	type: string
+	severity: 'high' | 'medium' | 'low'
+	description: string
+	follow_up?: string
+}
+
+export type AuditLogEntry = {
+	id: number
+	screening_id: number
+	action: string
+	actor_id: number | null
+	metadata: Record<string, unknown>
+	created_at: string
+}
+
+export type HumanReview = {
+	id: number
+	screening_id: number
+	reviewer_id: number
+	decision: 'interview' | 'reject' | 'more_info' | 'hold'
+	reason: string
+	created_at: string
+}
+
 export type ScreeningResult = {
-	id: string
-	candidateId: string
-	candidateName: string
-	candidateAvatar?: string
-	candidateHeadline?: string
-	jobId: string
-	jobTitle: string
-	overallScore: number
-	recommendation: 'strong_hire' | 'hire' | 'consider' | 'pass' | 'strong_pass'
-	skillMatch: {
-		required: string[]
-		matched: string[]
-		missing: string[]
-		partial?: string[]
-		score: number
-	}
-	experienceMatch: {
-		requiredYears: number
-		candidateYears: number
-		score: number
-		gap: string
-	}
-	cultureFit: {
-		score: number
-		alignment: string[]
-		concerns: string[]
-	}
+	screening_id: number
+	job_id: number
+	candidate_id: number
+	candidate_name: string
+	candidate_email?: string
+	candidate_avatar?: string
+	candidate_headline?: string
+	job_title?: string
+	job_company?: string
+	fit_score: number
+	fit_breakdown: FitBreakdown
+	recommendation: 'interview' | 'reject' | 'more_info' | 'hold'
+	recommendation_reason: string
+	matched_skills: string[]
+	missing_skills: string[]
 	strengths: string[]
 	concerns: string[]
-	autoQuestions: string[]
-	aiExplanation: string
-	generatedAt: string
-	status: 'pending' | 'completed' | 'reviewed'
-	redFlags?: {
-		employmentGaps?: string[]
-		frequentJobChanges?: boolean
-		missingCredentials?: string[]
-		notes?: string
-	}
-	scorecard?: {
-		technicalSkills: number
-		communication: number
-		problemSolving: number
-		culturalFit: number
-		experienceDepth: number
-		overallPotential: number
-		notes?: string
-	}
-	aiNotes?: string[]
+	red_flags: RedFlag[]
+	screening_questions: string[]
+	interview_focus_areas: string[]
+	estimated_success_probability: number | null
+	human_review_status: 'pending' | 'approved' | 'overridden' | 'requested'
+	created_at: string
+	updated_at: string
+	omni_score?: number | null
 }
 
 const recommendationConfig: Record<
-	string,
+	ScreeningResult['recommendation'],
 	{
 		color: string
 		icon: React.ReactNode
@@ -111,47 +137,41 @@ const recommendationConfig: Record<
 		actionLabel: string
 	}
 > = {
-	strong_hire: {
+	interview: {
 		color: 'text-emerald-600',
-		icon: <Star className='h-4 w-4' />,
-		label: 'Strong Hire',
+		icon: <UserCheck className='h-4 w-4' />,
+		label: 'Interview Recommended',
 		bg: 'bg-emerald-50 dark:bg-emerald-900/20',
 		border: 'border-emerald-200 dark:border-emerald-800',
-		actionLabel: 'Shortlist',
+		actionLabel: 'Schedule Interview',
 	},
-	hire: {
-		color: 'text-green-600',
-		icon: <UserCheck className='h-4 w-4' />,
-		label: 'Hire',
-		bg: 'bg-green-50 dark:bg-green-900/20',
-		border: 'border-green-200 dark:border-green-800',
-		actionLabel: 'Shortlist',
-	},
-	consider: {
+	more_info: {
 		color: 'text-amber-600',
 		icon: <AlertTriangle className='h-4 w-4' />,
-		label: 'Consider',
+		label: 'More Info Needed',
 		bg: 'bg-amber-50 dark:bg-amber-900/20',
 		border: 'border-amber-200 dark:border-amber-800',
-		actionLabel: 'Review',
+		actionLabel: 'Request Info',
 	},
-	pass: {
+	hold: {
 		color: 'text-orange-600',
-		icon: <Ban className='h-4 w-4' />,
-		label: 'Pass',
+		icon: <Clock className='h-4 w-4' />,
+		label: 'On Hold',
 		bg: 'bg-orange-50 dark:bg-orange-900/20',
 		border: 'border-orange-200 dark:border-orange-800',
-		actionLabel: 'Reject',
+		actionLabel: 'Hold',
 	},
-	strong_pass: {
+	reject: {
 		color: 'text-red-600',
-		icon: <XCircle className='h-4 w-4' />,
-		label: 'Strong Pass',
+		icon: <Ban className='h-4 w-4' />,
+		label: 'Not a Fit',
 		bg: 'bg-red-50 dark:bg-red-900/20',
 		border: 'border-red-200 dark:border-red-800',
 		actionLabel: 'Reject',
 	},
 }
+
+/* ─── Main Page ─────────────────────────────────────────────────────────── */
 
 export function RecruiterScreeningPage() {
 	const navigate = useNavigate()
@@ -169,12 +189,16 @@ export function RecruiterScreeningPage() {
 		async function loadScreenings() {
 			setLoading(true)
 			try {
-				const params = new URLSearchParams()
-				if (candidateId) params.append('candidateId', candidateId)
-				if (jobId) params.append('jobId', jobId)
-				const data = await apiCall<{ screenings: ScreeningResult[] }>(
-					`/recruiter/screenings?${params}`,
-				)
+				if (!jobId) {
+					setScreenings([])
+					setLoading(false)
+					return
+				}
+				const data = await apiCall<{
+					success: boolean
+					screenings: ScreeningResult[]
+					total: number
+				}>(`/jobs/${jobId}/screenings`)
 				setScreenings(data.screenings || [])
 			} catch (err) {
 				console.error('Failed to load screenings:', err)
@@ -183,24 +207,27 @@ export function RecruiterScreeningPage() {
 			}
 		}
 		loadScreenings()
-	}, [candidateId, jobId])
+	}, [jobId])
 
-	const runScreening = async (candidateId: string, jobId: string) => {
+	const runScreening = async (cId: string, jId: string) => {
 		setRunningScreening(true)
 		try {
-			const data = await apiCall<{ screening: ScreeningResult }>('/recruiter/screenings/run', {
+			const data = await apiCall<{
+				success: boolean
+				screening: ScreeningResult
+			}>(`/jobs/${jId}/screen/${cId}`, {
 				method: 'POST',
-				body: { candidateId, jobId },
 			})
 			setScreenings((prev) => [data.screening, ...prev])
 			setSelectedScreening(data.screening)
 			trackEvent('screening_run', {
-				candidate_id: candidateId,
-				job_id: jobId,
-				score: data.screening.overallScore,
+				candidate_id: cId,
+				job_id: jId,
+				score: data.screening.fit_score,
 			})
 		} catch (err) {
 			console.error('Screening failed:', err)
+			alert('Screening failed. Please try again.')
 		} finally {
 			setRunningScreening(false)
 		}
@@ -208,22 +235,31 @@ export function RecruiterScreeningPage() {
 
 	const filteredScreenings = screenings.filter((s) => {
 		if (selectedTab === 'all') return true
-		return s.recommendation === selectedTab || s.status === selectedTab
+		return s.recommendation === selectedTab
 	})
 
 	const tabCounts = {
 		all: screenings.length,
-		strong_hire: screenings.filter((s) => s.recommendation === 'strong_hire').length,
-		hire: screenings.filter((s) => s.recommendation === 'hire').length,
-		consider: screenings.filter((s) => s.recommendation === 'consider').length,
-		pass: screenings.filter(
-			(s) => s.recommendation === 'pass' || s.recommendation === 'strong_pass',
-		).length,
+		interview: screenings.filter((s) => s.recommendation === 'interview').length,
+		more_info: screenings.filter((s) => s.recommendation === 'more_info').length,
+		hold: screenings.filter((s) => s.recommendation === 'hold').length,
+		reject: screenings.filter((s) => s.recommendation === 'reject').length,
 	}
 
 	if (selectedScreening) {
 		return (
-			<ScreeningDetail screening={selectedScreening} onBack={() => setSelectedScreening(null)} />
+			<ScreeningDetail
+				screening={selectedScreening}
+				onBack={() => setSelectedScreening(null)}
+				onUpdate={(updated) => {
+					setScreenings((prev) =>
+						prev.map((s) =>
+							s.screening_id === updated.screening_id ? updated : s,
+						),
+					)
+					setSelectedScreening(updated)
+				}}
+			/>
 		)
 	}
 
@@ -242,8 +278,14 @@ export function RecruiterScreeningPage() {
 					<Button
 						size='sm'
 						className='gap-1'
-						onClick={() => runScreening(candidateId || '', jobId || '')}
-						disabled={runningScreening}
+						onClick={() => {
+							if (!candidateId || !jobId) {
+								alert('Please select a candidate and job first.')
+								return
+							}
+							runScreening(candidateId, jobId)
+						}}
+						disabled={runningScreening || !candidateId || !jobId}
 					>
 						{runningScreening ? (
 							<Loader2 className='h-4 w-4 animate-spin' />
@@ -254,6 +296,39 @@ export function RecruiterScreeningPage() {
 					</Button>
 				</div>
 			</div>
+
+			{/* Advisory Banner */}
+			<div className='rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 p-4 flex items-start gap-3'>
+				<Scale className='h-5 w-5 text-amber-600 shrink-0 mt-0.5' />
+				<div>
+					<p className='text-sm font-medium text-amber-800 dark:text-amber-300'>
+						This is an AI-generated recommendation. A human must make the final decision.
+					</p>
+					<p className='text-xs text-amber-700 dark:text-amber-400 mt-0.5'>
+						No candidate has been automatically rejected. All scores are advisory and require human
+						review.
+					</p>
+				</div>
+			</div>
+
+			{/* Job Selector Hint */}
+			{!jobId && (
+				<Card className='border-dashed'>
+					<CardContent className='p-6 text-center space-y-3'>
+						<Briefcase className='h-10 w-10 text-muted-foreground/40 mx-auto' />
+						<p className='text-sm font-medium text-muted-foreground'>
+							Select a job to view screenings
+						</p>
+						<Button
+							size='sm'
+							variant='outline'
+							onClick={() => navigate('/recruiter/jobs')}
+						>
+							Browse Jobs
+						</Button>
+					</CardContent>
+				</Card>
+			)}
 
 			{/* Stats */}
 			<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-5'>
@@ -272,10 +347,8 @@ export function RecruiterScreeningPage() {
 					<CardContent className='p-4'>
 						<div className='flex items-center justify-between'>
 							<div>
-								<p className='text-2xl font-bold text-emerald-600'>
-									{tabCounts.strong_hire + tabCounts.hire}
-								</p>
-								<p className='text-xs text-muted-foreground'>Recommended</p>
+								<p className='text-2xl font-bold text-emerald-600'>{tabCounts.interview}</p>
+								<p className='text-xs text-muted-foreground'>Interview</p>
 							</div>
 							<CheckCircle2 className='h-8 w-8 text-emerald-500/50' />
 						</div>
@@ -285,8 +358,8 @@ export function RecruiterScreeningPage() {
 					<CardContent className='p-4'>
 						<div className='flex items-center justify-between'>
 							<div>
-								<p className='text-2xl font-bold text-amber-600'>{tabCounts.consider}</p>
-								<p className='text-xs text-muted-foreground'>Consider</p>
+								<p className='text-2xl font-bold text-amber-600'>{tabCounts.more_info}</p>
+								<p className='text-xs text-muted-foreground'>More Info</p>
 							</div>
 							<AlertTriangle className='h-8 w-8 text-amber-500/50' />
 						</div>
@@ -296,8 +369,8 @@ export function RecruiterScreeningPage() {
 					<CardContent className='p-4'>
 						<div className='flex items-center justify-between'>
 							<div>
-								<p className='text-2xl font-bold text-red-600'>{tabCounts.pass}</p>
-								<p className='text-xs text-muted-foreground'>Not Fit</p>
+								<p className='text-2xl font-bold text-red-600'>{tabCounts.reject}</p>
+								<p className='text-xs text-muted-foreground'>Not a Fit</p>
 							</div>
 							<XCircle className='h-8 w-8 text-red-500/50' />
 						</div>
@@ -310,18 +383,35 @@ export function RecruiterScreeningPage() {
 								<p className='text-2xl font-bold'>
 									{screenings.length > 0
 										? Math.round(
-												screenings.reduce((s, c) => s + c.overallScore, 0) / screenings.length,
+												screenings.reduce((s, c) => s + c.fit_score, 0) /
+													screenings.length,
 											)
 										: 0}
 									%
 								</p>
-								<p className='text-xs text-muted-foreground'>Avg Score</p>
+								<p className='text-xs text-muted-foreground'>Avg Fit Score</p>
 							</div>
 							<Target className='h-8 w-8 text-muted-foreground/50' />
 						</div>
 					</CardContent>
 				</Card>
 			</div>
+
+			{/* Adverse Impact Placeholder */}
+			{jobId && (
+				<Card className='border-indigo-100 dark:border-indigo-800'>
+					<CardContent className='p-4 flex items-start gap-3'>
+						<Scale className='h-5 w-5 text-indigo-500 shrink-0 mt-0.5' />
+						<div>
+							<p className='text-sm font-medium'>Adverse Impact Tracking</p>
+							<p className='text-xs text-muted-foreground mt-0.5'>
+								Per-posting adverse impact reporting is monitored. Screening decisions are logged
+								for compliance review.
+							</p>
+						</div>
+					</CardContent>
+				</Card>
+			)}
 
 			{/* Tabs */}
 			<Tabs value={selectedTab} onValueChange={setSelectedTab}>
@@ -332,28 +422,28 @@ export function RecruiterScreeningPage() {
 							{tabCounts.all}
 						</Badge>
 					</TabsTrigger>
-					<TabsTrigger value='strong_hire'>
-						Strong Hire{' '}
+					<TabsTrigger value='interview'>
+						Interview{' '}
 						<Badge variant='secondary' className='ml-1 h-5 px-1.5 text-xs'>
-							{tabCounts.strong_hire}
+							{tabCounts.interview}
 						</Badge>
 					</TabsTrigger>
-					<TabsTrigger value='hire'>
-						Hire{' '}
+					<TabsTrigger value='more_info'>
+						More Info{' '}
 						<Badge variant='secondary' className='ml-1 h-5 px-1.5 text-xs'>
-							{tabCounts.hire}
+							{tabCounts.more_info}
 						</Badge>
 					</TabsTrigger>
-					<TabsTrigger value='consider'>
-						Consider{' '}
+					<TabsTrigger value='hold'>
+						On Hold{' '}
 						<Badge variant='secondary' className='ml-1 h-5 px-1.5 text-xs'>
-							{tabCounts.consider}
+							{tabCounts.hold}
 						</Badge>
 					</TabsTrigger>
-					<TabsTrigger value='pass'>
-						Pass{' '}
+					<TabsTrigger value='reject'>
+						Not a Fit{' '}
 						<Badge variant='secondary' className='ml-1 h-5 px-1.5 text-xs'>
-							{tabCounts.pass}
+							{tabCounts.reject}
 						</Badge>
 					</TabsTrigger>
 				</TabsList>
@@ -365,11 +455,19 @@ export function RecruiterScreeningPage() {
 						<EmptyState
 							icon={BrainCircuit}
 							title='No screenings yet'
-							description='Select a candidate and job to run AI screening'
-							action={{
-								label: 'Go to candidates',
-								onClick: () => navigate('/recruiter/candidates'),
-							}}
+							description={
+								jobId
+									? 'Run an AI screening to see results here'
+									: 'Select a job and candidate to run AI screening'
+							}
+							action={
+								!jobId
+									? {
+											label: 'Go to jobs',
+											onClick: () => navigate('/recruiter/jobs'),
+										}
+									: undefined
+							}
 						/>
 					) : (
 						<div className='grid gap-4'>
@@ -377,7 +475,7 @@ export function RecruiterScreeningPage() {
 								const rec = recommendationConfig[screening.recommendation]
 								return (
 									<Card
-										key={screening.id}
+										key={screening.screening_id}
 										className='overflow-hidden cursor-pointer hover:shadow-md transition-all'
 										onClick={() => setSelectedScreening(screening)}
 									>
@@ -385,19 +483,19 @@ export function RecruiterScreeningPage() {
 											<div className='flex items-start gap-4'>
 												<Avatar className='h-12 w-12 border'>
 													<AvatarImage
-														src={screening.candidateAvatar}
-														alt={screening.candidateName}
+														src={screening.candidate_avatar}
+														alt={screening.candidate_name}
 													/>
 													<AvatarFallback className='bg-primary/10 text-primary font-semibold'>
-														{screening.candidateName.slice(0, 2).toUpperCase()}
+														{screening.candidate_name.slice(0, 2).toUpperCase()}
 													</AvatarFallback>
 												</Avatar>
 												<div className='flex-1 min-w-0 space-y-2'>
 													<div className='flex items-center justify-between'>
 														<div>
-															<h3 className='font-semibold'>{screening.candidateName}</h3>
+															<h3 className='font-semibold'>{screening.candidate_name}</h3>
 															<p className='text-sm text-muted-foreground'>
-																{screening.candidateHeadline}
+																{screening.candidate_headline}
 															</p>
 														</div>
 														<Badge className={`${rec.bg} ${rec.color} border-0`}>
@@ -406,17 +504,39 @@ export function RecruiterScreeningPage() {
 														</Badge>
 													</div>
 													<div className='flex items-center gap-2 text-sm text-muted-foreground'>
-														<span>For: {screening.jobTitle}</span>
+														<span>For: {screening.job_title}</span>
 														<span>•</span>
-														<span>{new Date(screening.generatedAt).toLocaleDateString()}</span>
+														<span>
+															{new Date(screening.created_at).toLocaleDateString()}
+														</span>
+														{screening.human_review_status === 'overridden' && (
+															<Badge
+																variant='outline'
+																className='text-indigo-600 border-indigo-300'
+															>
+																<Gavel className='h-3 w-3 mr-1' />
+																Human Override
+															</Badge>
+														)}
+														{screening.human_review_status === 'requested' && (
+															<Badge
+																variant='outline'
+																className='text-amber-600 border-amber-300'
+															>
+																<History className='h-3 w-3 mr-1' />
+																Review Requested
+															</Badge>
+														)}
 													</div>
 													<div className='flex items-center gap-4'>
 														<div className='flex-1'>
 															<div className='flex items-center justify-between text-xs mb-1'>
 																<span>Overall Fit</span>
-																<span className='font-semibold'>{screening.overallScore}%</span>
+																<span className='font-semibold'>
+																	{screening.fit_score}%
+																</span>
 															</div>
-															<Progress value={screening.overallScore} className='h-2' />
+															<Progress value={screening.fit_score} className='h-2' />
 														</div>
 														<ChevronRight className='h-4 w-4 text-muted-foreground' />
 													</div>
@@ -526,7 +646,7 @@ function SkillBadge({
 	variant,
 }: {
 	skill: string
-	variant: 'match' | 'partial' | 'missing'
+	variant: 'match' | 'missing'
 }) {
 	const configs = {
 		match: {
@@ -534,12 +654,6 @@ function SkillBadge({
 			text: 'text-emerald-700 dark:text-emerald-400',
 			border: 'border-emerald-200',
 			icon: <CheckCircle2 className='h-3 w-3' />,
-		},
-		partial: {
-			bg: 'bg-amber-50 dark:bg-amber-900/20',
-			text: 'text-amber-700 dark:text-amber-400',
-			border: 'border-amber-200',
-			icon: <AlertTriangle className='h-3 w-3' />,
 		},
 		missing: {
 			bg: 'bg-red-50 dark:bg-red-900/20',
@@ -620,11 +734,13 @@ function RedFlagItem({
 	title,
 	description,
 	severity,
+	followUp,
 }: {
 	icon: React.ReactNode
 	title: string
 	description: string
 	severity: 'high' | 'medium' | 'low'
+	followUp?: string
 }) {
 	const severityConfig = {
 		high: {
@@ -654,6 +770,11 @@ function RedFlagItem({
 			<div className='flex-1 min-w-0'>
 				<p className={`text-sm font-medium ${s.text}`}>{title}</p>
 				<p className='text-xs text-muted-foreground mt-0.5'>{description}</p>
+				{followUp && (
+					<p className='text-xs text-muted-foreground/70 mt-1 italic'>
+						Follow-up: {followUp}
+					</p>
+				)}
 			</div>
 			<Badge variant='outline' className={`${s.text} ${s.border} text-[10px] shrink-0`}>
 				{severity}
@@ -663,89 +784,44 @@ function RedFlagItem({
 }
 
 /* ────────────────────────────
-   Interview Scorecard
+   Audit Log Entry
    ──────────────────────────── */
-function InterviewScorecard({ scorecard }: { scorecard?: ScreeningResult['scorecard'] }) {
-	const defaultScorecard = {
-		technicalSkills: 0,
-		communication: 0,
-		problemSolving: 0,
-		culturalFit: 0,
-		experienceDepth: 0,
-		overallPotential: 0,
+function AuditLogEntryCard({ entry }: { entry: AuditLogEntry }) {
+	const actionLabels: Record<string, string> = {
+		ai_screening: 'AI Screening Run',
+		ai_screening_batch: 'Batch AI Screening',
+		human_review: 'Human Review Override',
+		candidate_requested_human_review: 'Candidate Requested Review',
 	}
-	const sc = scorecard || defaultScorecard
 
-	const criteria = [
-		{
-			key: 'technicalSkills' as const,
-			label: 'Technical Skills',
-			icon: <Zap className='h-4 w-4' />,
-		},
-		{
-			key: 'communication' as const,
-			label: 'Communication',
-			icon: <MessageSquare className='h-4 w-4' />,
-		},
-		{
-			key: 'problemSolving' as const,
-			label: 'Problem Solving',
-			icon: <BrainCircuit className='h-4 w-4' />,
-		},
-		{ key: 'culturalFit' as const, label: 'Cultural Fit', icon: <Heart className='h-4 w-4' /> },
-		{
-			key: 'experienceDepth' as const,
-			label: 'Experience Depth',
-			icon: <Briefcase className='h-4 w-4' />,
-		},
-		{
-			key: 'overallPotential' as const,
-			label: 'Overall Potential',
-			icon: <TrendingUp className='h-4 w-4' />,
-		},
-	]
+	const actionColors: Record<string, string> = {
+		ai_screening: 'text-indigo-600 bg-indigo-50 border-indigo-200',
+		ai_screening_batch: 'text-indigo-600 bg-indigo-50 border-indigo-200',
+		human_review: 'text-emerald-600 bg-emerald-50 border-emerald-200',
+		candidate_requested_human_review: 'text-amber-600 bg-amber-50 border-amber-200',
+	}
+
+	const color = actionColors[entry.action] || 'text-muted-foreground bg-muted border-muted'
+	const label = actionLabels[entry.action] || entry.action
 
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle className='text-lg flex items-center gap-2'>
-					<ClipboardList className='h-5 w-5 text-indigo-500' />
-					Interview Scorecard
-				</CardTitle>
-			</CardHeader>
-			<CardContent className='space-y-4'>
-				{criteria.map((criterion) => {
-					const score = sc[criterion.key]
-					const color = score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444'
-					return (
-						<div key={criterion.key} className='space-y-2'>
-							<div className='flex items-center justify-between'>
-								<div className='flex items-center gap-2'>
-									<span className='text-muted-foreground'>{criterion.icon}</span>
-									<span className='text-sm font-medium'>{criterion.label}</span>
-								</div>
-								<div className='flex items-center gap-2'>
-									<span className='text-sm font-bold' style={{ color }}>
-										{score}/100
-									</span>
-									<Award
-										className='h-4 w-4'
-										style={{ color: score >= 80 ? '#fbbf24' : '#d1d5db' }}
-									/>
-								</div>
-							</div>
-							<Progress value={score} className='h-2' />
-						</div>
-					)
-				})}
-				{scorecard?.notes && (
-					<div className='mt-4 rounded-lg bg-muted/50 p-3'>
-						<p className='text-xs font-medium mb-1'>Interviewer Notes</p>
-						<p className='text-sm text-muted-foreground'>{scorecard.notes}</p>
-					</div>
+		<div className='flex items-start gap-3 py-3 border-b last:border-0'>
+			<div className='shrink-0 mt-0.5'>
+				<Badge variant='outline' className={`${color} text-[10px]`}>
+					{label}
+				</Badge>
+			</div>
+			<div className='flex-1 min-w-0'>
+				<p className='text-xs text-muted-foreground'>
+					{new Date(entry.created_at).toLocaleString()}
+				</p>
+				{entry.metadata && Object.keys(entry.metadata).length > 0 && (
+					<p className='text-xs text-muted-foreground/70 mt-0.5'>
+						{JSON.stringify(entry.metadata)}
+					</p>
 				)}
-			</CardContent>
-		</Card>
+			</div>
+		</div>
 	)
 }
 
@@ -755,82 +831,214 @@ function InterviewScorecard({ scorecard }: { scorecard?: ScreeningResult['scorec
 function ScreeningDetail({
 	screening,
 	onBack,
+	onUpdate,
 }: {
 	screening: ScreeningResult
 	onBack: () => void
+	onUpdate: (updated: ScreeningResult) => void
 }) {
-	const rec = recommendationConfig[screening.recommendation]
 	const navigate = useNavigate()
+	const rec = recommendationConfig[screening.recommendation]
 	const [activeTab, setActiveTab] = useState('overview')
+	const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([])
+	const [auditLoading, setAuditLoading] = useState(false)
+	const [showHumanReviewDialog, setShowHumanReviewDialog] = useState(false)
+	const [humanReviewDecision, setHumanReviewDecision] = useState('')
+	const [humanReviewReason, setHumanReviewReason] = useState('')
+	const [submittingReview, setSubmittingReview] = useState(false)
 
-	// Derived partial skills (not in matched or missing)
-	const partialSkills = screening.skillMatch.partial || []
+	const loadAuditLog = async () => {
+		setAuditLoading(true)
+		try {
+			const data = await apiCall<{
+				success: boolean
+				logs: AuditLogEntry[]
+			}>(`/screenings/${screening.screening_id}/audit-log`)
+			setAuditLogs(data.logs || [])
+		} catch (err) {
+			console.error('Failed to load audit log:', err)
+		} finally {
+			setAuditLoading(false)
+		}
+	}
 
-	// Derive red flags from available data if not explicitly provided
-	const redFlags = screening.redFlags || {
-		employmentGaps: screening.experienceMatch.gap?.toLowerCase().includes('gap')
-			? [screening.experienceMatch.gap]
-			: undefined,
-		frequentJobChanges: screening.concerns.some(
-			(c) => c.toLowerCase().includes('job change') || c.toLowerCase().includes('tenure'),
-		),
-		missingCredentials:
-			screening.skillMatch.missing.length > 0
-				? [`Missing ${screening.skillMatch.missing.length} required skills`]
-				: undefined,
-		notes: screening.concerns.length > 0 ? screening.concerns[0] : undefined,
+	useEffect(() => {
+		if (activeTab === 'audit') {
+			loadAuditLog()
+		}
+	}, [activeTab])
+
+	const handleHumanReview = async () => {
+		if (!humanReviewDecision || !humanReviewReason.trim()) return
+		setSubmittingReview(true)
+		try {
+			await apiCall(`/screenings/${screening.screening_id}/human-review`, {
+				method: 'POST',
+				body: {
+					decision: humanReviewDecision,
+					reason: humanReviewReason.trim(),
+				},
+			})
+			// Update local state
+			const updated: ScreeningResult = {
+				...screening,
+				human_review_status: 'overridden',
+			}
+			onUpdate(updated)
+			setShowHumanReviewDialog(false)
+			setHumanReviewDecision('')
+			setHumanReviewReason('')
+			trackEvent('screening_human_review', {
+				screening_id: screening.screening_id,
+				decision: humanReviewDecision,
+			})
+		} catch (err) {
+			console.error('Human review failed:', err)
+			alert('Failed to submit human review. Please try again.')
+		} finally {
+			setSubmittingReview(false)
+		}
 	}
 
 	const handleAction = (action: 'shortlist' | 'reject' | 'interview') => {
 		trackEvent('screening_action', {
-			screening_id: screening.id,
+			screening_id: screening.screening_id,
 			action,
-			candidate_id: screening.candidateId,
-			job_id: screening.jobId,
+			candidate_id: screening.candidate_id,
+			job_id: screening.job_id,
 		})
-		// In a real implementation, these would call API endpoints
 		if (action === 'interview') {
 			navigate(
-				`/recruiter/interviews/schedule?candidate=${screening.candidateId}&job=${screening.jobId}`,
+				`/recruiter/interviews/schedule?candidate=${screening.candidate_id}&job=${screening.job_id}`,
 			)
 		}
 	}
 
+	const breakdown = screening.fit_breakdown || {}
+
 	const scoreBreakdown = [
-		{ label: 'Skill Match', score: screening.skillMatch.score, color: '#6366f1' },
-		{ label: 'Experience', score: screening.experienceMatch.score, color: '#8b5cf6' },
-		{ label: 'Culture Fit', score: screening.cultureFit.score, color: '#ec4899' },
+		{ label: 'Skills Match', score: breakdown.skills_match ?? 0, color: '#6366f1' },
+		{ label: 'Experience', score: breakdown.experience_match ?? 0, color: '#8b5cf6' },
+		{ label: 'Education', score: breakdown.education_match ?? 0, color: '#06b6d4' },
+		{ label: 'Location', score: breakdown.location_match ?? 0, color: '#f59e0b' },
+		{ label: 'Salary', score: breakdown.salary_match ?? 0, color: '#10b981' },
+		{ label: 'Culture Fit', score: breakdown.culture_fit_estimate ?? 0, color: '#ec4899' },
 	]
 
 	return (
 		<div className='space-y-6'>
+			{/* Human Review Dialog */}
+			<Dialog open={showHumanReviewDialog} onOpenChange={setShowHumanReviewDialog}>
+				<DialogHeader>
+					<DialogTitle className='flex items-center gap-2'>
+						<Gavel className='h-5 w-5' />
+						Override AI Recommendation
+					</DialogTitle>
+					<DialogDescription>
+						Your decision will be logged in the audit trail. Please provide a reason.
+					</DialogDescription>
+				</DialogHeader>
+				<div className='space-y-4'>
+					<div>
+						<label className='text-sm font-medium mb-1.5 block'>Decision</label>
+						<Select
+							placeholder='Select a decision...'
+							value={humanReviewDecision}
+							onValueChange={setHumanReviewDecision}
+						>
+							<option value='interview'>Interview</option>
+							<option value='reject'>Reject</option>
+							<option value='more_info'>More Info Needed</option>
+							<option value='hold'>Hold</option>
+						</Select>
+					</div>
+					<div>
+						<label className='text-sm font-medium mb-1.5 block'>Reason</label>
+						<Textarea
+							value={humanReviewReason}
+							onChange={(e) => setHumanReviewReason(e.target.value)}
+							placeholder='Explain why you are overriding the AI recommendation...'
+							rows={4}
+						/>
+					</div>
+				</div>
+				<DialogFooter>
+					<Button
+						variant='outline'
+						onClick={() => setShowHumanReviewDialog(false)}
+						disabled={submittingReview}
+					>
+						Cancel
+					</Button>
+					<Button
+						onClick={handleHumanReview}
+						disabled={
+							!humanReviewDecision || !humanReviewReason.trim() || submittingReview
+						}
+					>
+						{submittingReview ? (
+							<Loader2 className='h-4 w-4 animate-spin mr-2' />
+						) : (
+							<Gavel className='h-4 w-4 mr-2' />
+						)}
+						Submit Override
+					</Button>
+				</DialogFooter>
+			</Dialog>
+
 			{/* Breadcrumb */}
 			<Button variant='ghost' size='sm' onClick={onBack} className='gap-1'>
-				<ArrowRight className='h-4 w-4 rotate-180' />
+				<ArrowLeft className='h-4 w-4' />
 				Back to screenings
 			</Button>
+
+			{/* Advisory Banner */}
+			<div className='rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 p-4 flex items-start gap-3'>
+				<Scale className='h-5 w-5 text-amber-600 shrink-0 mt-0.5' />
+				<div>
+					<p className='text-sm font-medium text-amber-800 dark:text-amber-300'>
+						This is an AI-generated recommendation. A human must make the final decision.
+					</p>
+					<p className='text-xs text-amber-700 dark:text-amber-400 mt-0.5'>
+						No candidate has been automatically rejected. All scores are advisory and require human
+						review.
+					</p>
+				</div>
+			</div>
 
 			{/* Header */}
 			<div className='flex flex-col gap-4 sm:flex-row sm:items-start'>
 				<Avatar className='h-16 w-16 border-2 border-primary/20'>
-					<AvatarImage src={screening.candidateAvatar} alt={screening.candidateName} />
+					<AvatarImage src={screening.candidate_avatar} alt={screening.candidate_name} />
 					<AvatarFallback className='bg-primary/10 text-primary text-lg font-semibold'>
-						{screening.candidateName.slice(0, 2).toUpperCase()}
+						{screening.candidate_name.slice(0, 2).toUpperCase()}
 					</AvatarFallback>
 				</Avatar>
 				<div className='flex-1 min-w-0'>
 					<div className='flex items-center gap-2 flex-wrap'>
-						<h1 className='font-heading text-2xl font-bold'>{screening.candidateName}</h1>
-						<Badge className={`${rec.bg} ${rec.color} ${rec.border} border text-sm px-3 py-1`}>
+						<h1 className='font-heading text-2xl font-bold'>{screening.candidate_name}</h1>
+						<Badge
+							className={`${rec.bg} ${rec.color} ${rec.border} border text-sm px-3 py-1`}
+						>
 							{rec.icon}
 							<span className='ml-1'>{rec.label}</span>
 						</Badge>
+						{screening.human_review_status === 'overridden' && (
+							<Badge
+								variant='outline'
+								className='text-indigo-600 border-indigo-300 text-sm px-3 py-1'
+							>
+								<Gavel className='h-3.5 w-3.5 mr-1' />
+								Human Override
+							</Badge>
+						)}
 					</div>
-					<p className='text-muted-foreground'>{screening.candidateHeadline}</p>
+					<p className='text-muted-foreground'>{screening.candidate_headline}</p>
 					<p className='text-sm text-muted-foreground mt-1'>
-						Screening for: <span className='font-medium text-foreground'>{screening.jobTitle}</span>
+						Screening for:{" "}
+						<span className='font-medium text-foreground'>{screening.job_title}</span>
 						<span className='mx-2'>•</span>
-						<span>{new Date(screening.generatedAt).toLocaleDateString()}</span>
+						<span>{new Date(screening.created_at).toLocaleDateString()}</span>
 					</p>
 				</div>
 				<div className='flex flex-wrap gap-2 shrink-0'>
@@ -879,6 +1087,15 @@ function ScreeningDetail({
 					Reject
 				</Button>
 				<div className='flex-1' />
+				<Button
+					size='sm'
+					variant='outline'
+					className='gap-1 text-indigo-600 border-indigo-300 hover:bg-indigo-50'
+					onClick={() => setShowHumanReviewDialog(true)}
+				>
+					<Gavel className='h-4 w-4' />
+					Override AI
+				</Button>
 				<Button size='sm' variant='ghost' className='gap-1 text-muted-foreground'>
 					<PenTool className='h-4 w-4' />
 					Add Notes
@@ -904,9 +1121,9 @@ function ScreeningDetail({
 						<MessageSquare className='h-3.5 w-3.5' />
 						Interview Prep
 					</TabsTrigger>
-					<TabsTrigger value='scorecard' className='gap-1'>
-						<ClipboardList className='h-3.5 w-3.5' />
-						Scorecard
+					<TabsTrigger value='audit' className='gap-1'>
+						<History className='h-3.5 w-3.5' />
+						Audit Log
 					</TabsTrigger>
 				</TabsList>
 
@@ -918,11 +1135,11 @@ function ScreeningDetail({
 						<Card className='lg:col-span-1'>
 							<CardContent className='p-6 flex flex-col items-center'>
 								<CircularScore
-									score={screening.overallScore}
+									score={screening.fit_score}
 									size={140}
 									strokeWidth={12}
 									label='Overall Fit'
-									sublabel={`${screening.aiExplanation?.slice(0, 60)}...`}
+									sublabel={screening.recommendation_reason?.slice(0, 60) + '...'}
 								/>
 								<div className='mt-4 w-full space-y-3'>
 									{scoreBreakdown.map((item) => (
@@ -941,31 +1158,49 @@ function ScreeningDetail({
 								</CardTitle>
 							</CardHeader>
 							<CardContent className='space-y-4'>
-								<p className='text-sm leading-relaxed'>{screening.aiExplanation}</p>
+								<p className='text-sm leading-relaxed'>
+									{screening.recommendation_reason}
+								</p>
 								<div className='grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2'>
 									<div className='rounded-lg bg-muted/50 p-3 text-center'>
 										<p className='text-lg font-bold text-indigo-600'>
-											{screening.skillMatch.score}%
+											{breakdown.skills_match ?? 0}%
 										</p>
 										<p className='text-xs text-muted-foreground'>Skills</p>
 									</div>
 									<div className='rounded-lg bg-muted/50 p-3 text-center'>
 										<p className='text-lg font-bold text-purple-600'>
-											{screening.experienceMatch.score}%
+											{breakdown.experience_match ?? 0}%
 										</p>
 										<p className='text-xs text-muted-foreground'>Experience</p>
 									</div>
 									<div className='rounded-lg bg-muted/50 p-3 text-center'>
-										<p className='text-lg font-bold text-pink-600'>{screening.cultureFit.score}%</p>
+										<p className='text-lg font-bold text-pink-600'>
+											{breakdown.culture_fit_estimate ?? 0}%
+										</p>
 										<p className='text-xs text-muted-foreground'>Culture</p>
 									</div>
 									<div className='rounded-lg bg-muted/50 p-3 text-center'>
 										<p className='text-lg font-bold text-emerald-600'>
-											{screening.skillMatch.matched.length}
+											{screening.matched_skills?.length || 0}
 										</p>
 										<p className='text-xs text-muted-foreground'>Matched Skills</p>
 									</div>
 								</div>
+								{screening.estimated_success_probability !== null && (
+									<div className='rounded-lg bg-indigo-50 dark:bg-indigo-900/20 p-3 flex items-center gap-3'>
+										<Target className='h-5 w-5 text-indigo-500' />
+										<div>
+											<p className='text-sm font-medium text-indigo-800 dark:text-indigo-300'>
+												Estimated Success Probability
+											</p>
+											<p className='text-xs text-indigo-600 dark:text-indigo-400'>
+												{screening.estimated_success_probability}% chance of success if
+												hired
+											</p>
+										</div>
+									</div>
+								)}
 							</CardContent>
 						</Card>
 					</div>
@@ -981,12 +1216,17 @@ function ScreeningDetail({
 							</CardHeader>
 							<CardContent>
 								<ul className='space-y-3'>
-									{screening.strengths.map((item, _i) => (
+									{screening.strengths?.map((item) => (
 										<li key={item} className='flex items-start gap-2 text-sm'>
 											<CheckCircle2 className='h-4 w-4 text-emerald-500 mt-0.5 shrink-0' />
 											<span>{item}</span>
 										</li>
 									))}
+									{(!screening.strengths || screening.strengths.length === 0) && (
+										<p className='text-sm text-muted-foreground italic'>
+											No strengths recorded.
+										</p>
+									)}
 								</ul>
 							</CardContent>
 						</Card>
@@ -1000,21 +1240,24 @@ function ScreeningDetail({
 							</CardHeader>
 							<CardContent>
 								<ul className='space-y-3'>
-									{screening.concerns.map((item, _i) => (
+									{screening.concerns?.map((item) => (
 										<li key={item} className='flex items-start gap-2 text-sm'>
 											<AlertTriangle className='h-4 w-4 text-amber-500 mt-0.5 shrink-0' />
 											<span>{item}</span>
 										</li>
 									))}
+									{(!screening.concerns || screening.concerns.length === 0) && (
+										<p className='text-sm text-muted-foreground italic'>
+											No concerns recorded.
+										</p>
+									)}
 								</ul>
 							</CardContent>
 						</Card>
 					</div>
 
 					{/* Red Flags */}
-					{(redFlags.employmentGaps ||
-						redFlags.frequentJobChanges ||
-						redFlags.missingCredentials) && (
+					{screening.red_flags && screening.red_flags.length > 0 && (
 						<Card className='border-red-200 dark:border-red-800'>
 							<CardHeader>
 								<CardTitle className='text-lg flex items-center gap-2 text-red-700 dark:text-red-400'>
@@ -1023,83 +1266,45 @@ function ScreeningDetail({
 								</CardTitle>
 							</CardHeader>
 							<CardContent className='space-y-3'>
-								{redFlags.employmentGaps?.map((gap, i) => (
+								{screening.red_flags.map((flag, i) => (
 									<RedFlagItem
-										key={`gap-${i}`}
-										icon={<Clock className='h-4 w-4' />}
-										title='Employment Gap Detected'
-										description={gap}
-										severity='medium'
-									/>
-								))}
-								{redFlags.frequentJobChanges && (
-									<RedFlagItem
-										icon={<Briefcase className='h-4 w-4' />}
-										title='Frequent Job Changes'
-										description='Candidate has changed jobs multiple times in recent years. Consider probing for stability during interview.'
-										severity='medium'
-									/>
-								)}
-								{redFlags.missingCredentials?.map((cred, i) => (
-									<RedFlagItem
-										key={`cred-${i}`}
-										icon={<FileText className='h-4 w-4' />}
-										title='Missing Credentials'
-										description={cred}
-										severity={screening.skillMatch.missing.length > 3 ? 'high' : 'medium'}
-									/>
-								))}
-								{redFlags.notes && (
-									<RedFlagItem
+										key={i}
 										icon={<AlertTriangle className='h-4 w-4' />}
-										title='Additional Concern'
-										description={redFlags.notes}
-										severity='low'
+										title={flag.type}
+										description={flag.description}
+										severity={flag.severity}
+										followUp={flag.follow_up}
 									/>
-								)}
+								))}
 							</CardContent>
 						</Card>
 					)}
 
-					{/* Experience Match */}
-					<Card>
-						<CardHeader>
-							<CardTitle className='text-lg flex items-center gap-2'>
-								<Briefcase className='h-5 w-5 text-indigo-500' />
-								Experience Analysis
-							</CardTitle>
-						</CardHeader>
-						<CardContent className='space-y-4'>
-							<div className='grid grid-cols-1 sm:grid-cols-3 gap-4'>
-								<div className='rounded-lg bg-muted/50 p-4 text-center'>
-									<p className='text-xs text-muted-foreground mb-1'>Required</p>
-									<p className='text-xl font-bold'>
-										{screening.experienceMatch.requiredYears} years
-									</p>
-								</div>
-								<div className='rounded-lg bg-muted/50 p-4 text-center'>
-									<p className='text-xs text-muted-foreground mb-1'>Candidate</p>
-									<p className='text-xl font-bold'>
-										{screening.experienceMatch.candidateYears} years
-									</p>
-								</div>
-								<div
-									className={`rounded-lg p-4 text-center ${screening.experienceMatch.score >= 80 ? 'bg-emerald-50' : screening.experienceMatch.score >= 60 ? 'bg-amber-50' : 'bg-red-50'}`}
-								>
-									<p className='text-xs text-muted-foreground mb-1'>Match Score</p>
-									<p
-										className={`text-xl font-bold ${screening.experienceMatch.score >= 80 ? 'text-emerald-600' : screening.experienceMatch.score >= 60 ? 'text-amber-600' : 'text-red-600'}`}
-									>
-										{screening.experienceMatch.score}%
-									</p>
-								</div>
-							</div>
-							<div className='rounded-lg bg-muted/30 p-3'>
-								<p className='text-xs font-medium mb-1'>Gap Analysis</p>
-								<p className='text-sm text-muted-foreground'>{screening.experienceMatch.gap}</p>
-							</div>
-						</CardContent>
-					</Card>
+					{/* Interview Focus Areas */}
+					{screening.interview_focus_areas &&
+						screening.interview_focus_areas.length > 0 && (
+							<Card>
+								<CardHeader>
+									<CardTitle className='text-lg flex items-center gap-2'>
+										<ClipboardList className='h-5 w-5 text-indigo-500' />
+										Interview Focus Areas
+									</CardTitle>
+								</CardHeader>
+								<CardContent>
+									<div className='flex flex-wrap gap-2'>
+										{screening.interview_focus_areas.map((area) => (
+											<Badge
+												key={area}
+												variant='outline'
+												className='bg-indigo-50 text-indigo-700 border-indigo-200'
+											>
+												{area}
+											</Badge>
+										))}
+									</div>
+								</CardContent>
+							</Card>
+						)}
 				</TabsContent>
 
 				{/* ── Skills Tab ── */}
@@ -1110,7 +1315,7 @@ function ScreeningDetail({
 								<Target className='h-5 w-5 text-indigo-500' />
 								Skill Match Analysis
 								<span className='ml-auto text-sm font-normal text-muted-foreground'>
-									{screening.skillMatch.score}%
+									{breakdown.skills_match ?? 0}%
 								</span>
 							</CardTitle>
 						</CardHeader>
@@ -1122,36 +1327,16 @@ function ScreeningDetail({
 									<p className='text-sm font-medium'>
 										Matched{' '}
 										<span className='text-muted-foreground font-normal'>
-											({screening.skillMatch.matched.length})
+											({screening.matched_skills?.length || 0})
 										</span>
 									</p>
 								</div>
 								<div className='flex flex-wrap gap-2'>
-									{screening.skillMatch.matched.map((skill) => (
+									{screening.matched_skills?.map((skill) => (
 										<SkillBadge key={skill} skill={skill} variant='match' />
 									))}
 								</div>
 							</div>
-
-							{/* Partial Skills */}
-							{partialSkills.length > 0 && (
-								<div>
-									<div className='flex items-center gap-2 mb-3'>
-										<AlertTriangle className='h-4 w-4 text-amber-500' />
-										<p className='text-sm font-medium'>
-											Partial Match{' '}
-											<span className='text-muted-foreground font-normal'>
-												({partialSkills.length})
-											</span>
-										</p>
-									</div>
-									<div className='flex flex-wrap gap-2'>
-										{partialSkills.map((skill) => (
-											<SkillBadge key={skill} skill={skill} variant='partial' />
-										))}
-									</div>
-								</div>
-							)}
 
 							{/* Missing Skills */}
 							<div>
@@ -1160,74 +1345,15 @@ function ScreeningDetail({
 									<p className='text-sm font-medium'>
 										Missing{' '}
 										<span className='text-muted-foreground font-normal'>
-											({screening.skillMatch.missing.length})
+											({screening.missing_skills?.length || 0})
 										</span>
 									</p>
 								</div>
 								<div className='flex flex-wrap gap-2'>
-									{screening.skillMatch.missing.map((skill) => (
+									{screening.missing_skills?.map((skill) => (
 										<SkillBadge key={skill} skill={skill} variant='missing' />
 									))}
 								</div>
-							</div>
-
-							{/* Required Skills List */}
-							<div className='pt-4 border-t'>
-								<p className='text-xs text-muted-foreground mb-2'>All Required Skills</p>
-								<div className='flex flex-wrap gap-1.5'>
-									{screening.skillMatch.required.map((skill) => {
-										const isMatched = screening.skillMatch.matched.includes(skill)
-										const isPartial = partialSkills.includes(skill)
-										const _isMissing = screening.skillMatch.missing.includes(skill)
-										let variant: 'match' | 'partial' | 'missing' = 'missing'
-										if (isMatched) variant = 'match'
-										else if (isPartial) variant = 'partial'
-										return <SkillBadge key={skill} skill={skill} variant={variant} />
-									})}
-								</div>
-							</div>
-						</CardContent>
-					</Card>
-
-					{/* Culture Fit */}
-					<Card>
-						<CardHeader>
-							<CardTitle className='text-lg flex items-center gap-2'>
-								<Heart className='h-5 w-5 text-pink-500' />
-								Culture Fit
-								<span className='ml-auto text-sm font-normal text-muted-foreground'>
-									{screening.cultureFit.score}%
-								</span>
-							</CardTitle>
-						</CardHeader>
-						<CardContent className='space-y-4'>
-							<div>
-								<p className='text-sm font-medium mb-2 flex items-center gap-1'>
-									<TrendingUp className='h-3.5 w-3.5 text-emerald-500' />
-									Alignment
-								</p>
-								<ul className='space-y-2'>
-									{screening.cultureFit.alignment.map((item, _i) => (
-										<li key={item} className='flex items-start gap-2 text-sm'>
-											<CheckCircle2 className='h-4 w-4 text-emerald-500 mt-0.5 shrink-0' />
-											{item}
-										</li>
-									))}
-								</ul>
-							</div>
-							<div>
-								<p className='text-sm font-medium mb-2 flex items-center gap-1'>
-									<TrendingDown className='h-3.5 w-3.5 text-amber-500' />
-									Concerns
-								</p>
-								<ul className='space-y-2'>
-									{screening.cultureFit.concerns.map((item, _i) => (
-										<li key={item} className='flex items-start gap-2 text-sm text-muted-foreground'>
-											<AlertTriangle className='h-4 w-4 text-amber-500 mt-0.5 shrink-0' />
-											{item}
-										</li>
-									))}
-								</ul>
 							</div>
 						</CardContent>
 					</Card>
@@ -1240,58 +1366,23 @@ function ScreeningDetail({
 						<CardHeader>
 							<CardTitle className='text-lg flex items-center gap-2'>
 								<MessageSquare className='h-5 w-5 text-indigo-500' />
-								AI-Generated Interview Questions
+								AI-Generated Screening Questions
 								<Badge variant='secondary' className='ml-auto text-xs'>
-									{screening.autoQuestions.length} questions
+									{screening.screening_questions?.length || 0} questions
 								</Badge>
 							</CardTitle>
 						</CardHeader>
 						<CardContent>
-							<div className='grid gap-3'>
-								{screening.autoQuestions.map((q, i) => (
-									<QuestionCard key={q} q={q} index={i} />
-								))}
-							</div>
-						</CardContent>
-					</Card>
-
-					{/* AI Interview Notes Placeholder */}
-					<Card>
-						<CardHeader>
-							<CardTitle className='text-lg flex items-center gap-2'>
-								<StickyNote className='h-5 w-5 text-amber-500' />
-								AI Interview Notes
-								<Badge variant='outline' className='ml-auto text-xs text-muted-foreground'>
-									Auto-generated
-								</Badge>
-							</CardTitle>
-						</CardHeader>
-						<CardContent>
-							{screening.aiNotes && screening.aiNotes.length > 0 ? (
-								<div className='space-y-3'>
-									{screening.aiNotes.map((note, _i) => (
-										<div key={note} className='flex items-start gap-3 p-3 rounded-lg bg-muted/50'>
-											<Sparkles className='h-4 w-4 text-indigo-500 mt-0.5 shrink-0' />
-											<p className='text-sm'>{note}</p>
-										</div>
+							{screening.screening_questions && screening.screening_questions.length > 0 ? (
+								<div className='grid gap-3'>
+									{screening.screening_questions.map((q, i) => (
+										<QuestionCard key={i} q={q} index={i} />
 									))}
 								</div>
 							) : (
 								<div className='text-center py-8 text-muted-foreground'>
 									<StickyNote className='h-12 w-12 mx-auto mb-3 opacity-30' />
-									<p className='text-sm font-medium'>No AI notes generated yet</p>
-									<p className='text-xs mt-1'>
-										Notes will appear here after video interviews are conducted
-									</p>
-									<Button
-										size='sm'
-										variant='outline'
-										className='mt-4 gap-1'
-										onClick={() => handleAction('interview')}
-									>
-										<Video className='h-4 w-4' />
-										Schedule Video Interview
-									</Button>
+									<p className='text-sm font-medium'>No screening questions generated</p>
 								</div>
 							)}
 						</CardContent>
@@ -1345,26 +1436,32 @@ function ScreeningDetail({
 					</Card>
 				</TabsContent>
 
-				{/* ── Scorecard Tab ── */}
-				<TabsContent value='scorecard' className='mt-6 space-y-6'>
-					<InterviewScorecard scorecard={screening.scorecard} />
-
-					{/* Additional Scorecard Notes */}
+				{/* ── Audit Log Tab ── */}
+				<TabsContent value='audit' className='mt-6 space-y-6'>
 					<Card>
 						<CardHeader>
 							<CardTitle className='text-lg flex items-center gap-2'>
-								<PenTool className='h-5 w-5 text-indigo-500' />
-								Interviewer Notes
+								<History className='h-5 w-5 text-indigo-500' />
+								Audit Trail
 							</CardTitle>
 						</CardHeader>
 						<CardContent>
-							<div className='rounded-lg border border-dashed border-muted-foreground/30 p-6 text-center'>
-								<PenTool className='h-10 w-10 mx-auto mb-3 text-muted-foreground/30' />
-								<p className='text-sm text-muted-foreground'>No interviewer notes yet</p>
-								<p className='text-xs text-muted-foreground mt-1'>
-									Notes will be added after interviews are completed
-								</p>
-							</div>
+							{auditLoading ? (
+								<div className='flex items-center justify-center py-8'>
+									<Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
+								</div>
+							) : auditLogs.length === 0 ? (
+								<div className='text-center py-8 text-muted-foreground'>
+									<History className='h-12 w-12 mx-auto mb-3 opacity-30' />
+									<p className='text-sm font-medium'>No audit entries yet</p>
+								</div>
+							) : (
+								<div className='divide-y'>
+									{auditLogs.map((entry) => (
+										<AuditLogEntryCard key={entry.id} entry={entry} />
+									))}
+								</div>
+							)}
 						</CardContent>
 					</Card>
 				</TabsContent>

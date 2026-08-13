@@ -163,6 +163,9 @@ const InterviewPage = lazy(() =>
 	import('@/pages/candidate/interview').then((m) => ({ default: m.InterviewPage })),
 )
 
+const CandidateAiScreeningPage = lazy(() =>
+	import('@/pages/candidate/ai-screening').then((m) => ({ default: m.CandidateAiScreeningPage })),
+)
 const CandidateAptitudeTestsPage = lazy(() =>
 	import('@/pages/candidate/aptitude-tests').then((m) => ({ default: m.CandidateAptitudeTestsPage })),
 )
@@ -675,6 +678,14 @@ function AppRoutes() {
 					element={
 						<Protected>
 							<InterviewPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path='ai-screening'
+					element={
+						<Protected>
+							<CandidateAiScreeningPage />
 						</Protected>
 					}
 				/>
