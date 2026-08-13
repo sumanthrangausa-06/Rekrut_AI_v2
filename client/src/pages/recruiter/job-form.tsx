@@ -17,6 +17,7 @@ import {
 	Loader2,
 	MapPin,
 	Plus,
+	RotateCcw,
 	Save,
 	Search,
 	Sparkles,
@@ -35,6 +36,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { apiCall } from '@/lib/api'
+import { useJobDraft } from '@/hooks/use-job-draft'
 
 interface TitleSuggestion {
 	title: string
@@ -170,6 +172,11 @@ export function RecruiterJobFormPage() {
 	const [showPreviousPostings, setShowPreviousPostings] = useState(false)
 	const [loadingPostings, setLoadingPostings] = useState(false)
 
+	// Auto-save draft
+	const { saveDraft, loadDraft, clearDraft, hasDraft, lastSavedAt } = useJobDraft()
+	const [showDraftBanner, setShowDraftBanner] = useState(false)
+	const [draftRestored, setDraftRestored] = useState(false)
+
 	// Multi-country fields
 	const [countryCode, setCountryCode] = useState('US')
 	const [currencyCode, setCurrencyCode] = useState('USD')
@@ -289,6 +296,60 @@ export function RecruiterJobFormPage() {
 		if (isEdit) loadJob()
 	}, [loadJob, loadCountries, isEdit])
 
+	// Check for existing draft on mount (new job only)
+	useEffect(() => {
+		if (!isEdit && hasDraft && !draftRestored) {
+			setShowDraftBanner(true)
+		}
+	}, [isEdit, hasDraft, draftRestored])
+
+	// Auto-save draft on any form change (new job only)
+	useEffect(() => {
+		if (isEdit) return
+		const draft = {
+			title,
+			company,
+			department,
+			description,
+			requirements,
+			location,
+			salaryRange,
+			jobType,
+			experienceLevel,
+			educationLevel,
+			screeningQuestions,
+			passThreshold,
+			countryCode,
+			currencyCode,
+			salaryMin,
+			salaryMax,
+			step,
+			visitedSteps: Array.from(visitedSteps),
+		}
+		saveDraft(draft)
+	}, [
+		isEdit,
+		saveDraft,
+		title,
+		company,
+		department,
+		description,
+		requirements,
+		location,
+		salaryRange,
+		jobType,
+		experienceLevel,
+		educationLevel,
+		screeningQuestions,
+		passThreshold,
+		countryCode,
+		currencyCode,
+		salaryMin,
+		salaryMax,
+		step,
+		visitedSteps,
+	])
+
 
 	async function loadPreviousPostings() {
 		setLoadingPostings(true)
@@ -317,6 +378,35 @@ export function RecruiterJobFormPage() {
 		setShowPreviousPostings(false)
 		flashSuccess('Form populated from previous posting — edit as needed')
 		trackEvent('job_form_apply_template', { title: posting.title })
+	}
+
+	function restoreDraft() {
+		const draft = loadDraft()
+		if (!draft) return
+		if (draft.title) setTitle(draft.title)
+		if (draft.company) setCompany(draft.company)
+		if (draft.department) setDepartment(draft.department)
+		if (draft.description) setDescription(draft.description)
+		if (draft.requirements) setRequirements(draft.requirements)
+		if (draft.location) setLocation(draft.location)
+		if (draft.salaryRange) setSalaryRange(draft.salaryRange)
+		if (draft.jobType) setJobType(draft.jobType)
+		if (draft.experienceLevel) setExperienceLevel(draft.experienceLevel)
+		if (draft.educationLevel) setEducationLevel(draft.educationLevel)
+		if (draft.screeningQuestions?.length) setScreeningQuestions(draft.screeningQuestions)
+		if (typeof draft.passThreshold === 'number') setPassThreshold(draft.passThreshold)
+		if (draft.countryCode) setCountryCode(draft.countryCode)
+		if (draft.currencyCode) setCurrencyCode(draft.currencyCode)
+		if (draft.salaryMin) setSalaryMin(draft.salaryMin)
+		if (draft.salaryMax) setSalaryMax(draft.salaryMax)
+		if (draft.step) {
+			setStep(draft.step)
+			setVisitedSteps(new Set(draft.visitedSteps || [1]))
+		}
+		setShowDraftBanner(false)
+		setDraftRestored(true)
+		flashSuccess('Draft restored — continue where you left off')
+		trackEvent('job_form_draft_restored')
 	}
 
 	function handleCountryChange(code: string) {
@@ -524,6 +614,7 @@ export function RecruiterJobFormPage() {
 			}
 
 			trackEvent('job_form_save_success', { isEdit, title })
+			clearDraft()
 			navigate('/recruiter/jobs')
 		} catch (err: unknown) {
 			alert(err instanceof Error ? err.message : 'Failed to save job')
@@ -730,8 +821,42 @@ export function RecruiterJobFormPage() {
 					<p className='text-muted-foreground text-sm'>
 						{isEdit ? 'Update your job listing' : 'Create a new job posting in 3 steps'}
 					</p>
+					{!isEdit && lastSavedAt && (
+						<p className='text-[11px] text-green-600 flex items-center gap-1 mt-0.5 animate-in fade-in'>
+							<CheckCircle2 className='h-3 w-3' />
+							Draft saved
+						</p>
+					)}
 				</div>
 			</div>
+
+			{/* Draft restore banner */}
+			{showDraftBanner && (
+				<div className='rounded-lg border bg-amber-50/60 p-3 flex flex-wrap items-center justify-between gap-2'>
+					<div className='flex items-center gap-2 text-sm text-amber-800'>
+						<Save className='h-4 w-4 text-amber-600' />
+						<span>You have an unsaved draft. Restore it to continue where you left off.</span>
+					</div>
+					<div className='flex items-center gap-2'>
+						<Button
+							variant='ghost'
+							size='sm'
+							onClick={() => setShowDraftBanner(false)}
+							className='text-xs text-muted-foreground min-h-[44px]'
+						>
+							Dismiss
+						</Button>
+						<Button
+							variant='outline'
+							size='sm'
+							onClick={restoreDraft}
+							className='text-xs gap-1 border-amber-300 text-amber-700 hover:bg-amber-100 min-h-[44px]'
+						>
+							<RotateCcw className='h-3.5 w-3.5' /> Restore Draft
+						</Button>
+					</div>
+				</div>
+			)}
 
 			{/* Step Indicator */}
 			<div className='w-full'>
