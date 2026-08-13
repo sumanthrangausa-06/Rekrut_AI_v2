@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "noEmit": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "resolveJsonModule": true,
+    "esModuleInterop": true
+  },
+  "include": [
+    "lib/**/*.js",
+    "routes/**/*.js",
+    "server/**/*.js",
+    "migrations/**/*.js",
+    "server.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "client"
+  ]
+}

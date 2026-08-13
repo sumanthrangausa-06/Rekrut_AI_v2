@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
+const { rateLimits } = require('../lib/distributed-rate-limiter');
 const calendarService = require('../server/services/calendar-service');
 
 const router = express.Router();
@@ -158,6 +159,93 @@ router.get('/status', authMiddleware, async (req, res) => {
 		res.status(500).json({ error: 'Failed to fetch calendar status' });
 	}
 });
+
+/**
+ * GET /api/calendar/connections
+ * List user's connected calendars with full metadata.
+ */
+router.get('/connections', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`SELECT
+				provider,
+				calendar_id,
+				calendar_email,
+				is_active,
+				expires_at,
+				created_at,
+				updated_at
+			 FROM calendar_connections
+			 WHERE user_id = $1 AND is_active = true
+			 ORDER BY provider`,
+			[req.user.id],
+		);
+
+		res.json({
+			success: true,
+			connections: result.rows,
+		});
+	} catch (err) {
+		console.error('[calendar] Connections error:', err.message);
+		res.status(500).json({ error: 'Failed to fetch calendar connections' });
+	}
+});
+
+/**
+ * POST /api/calendar/availability
+ * Check mutual availability across a set of users for a date range.
+ * Body: { user_ids: number[], time_min: ISO8601, time_max: ISO8601 }
+ */
+router.post(
+	'/availability',
+	authMiddleware,
+	rateLimits.strict,
+	async (req, res) => {
+		try {
+			const { user_ids, time_min, time_max } = req.body;
+
+			if (!Array.isArray(user_ids) || user_ids.length === 0 || user_ids.length > 20) {
+				return res.status(400).json({ error: 'user_ids must be an array of 1-20 user IDs' });
+			}
+			if (!time_min || !time_max) {
+				return res.status(400).json({ error: 'time_min and time_max are required' });
+			}
+
+			const tMin = new Date(time_min);
+			const tMax = new Date(time_max);
+			if (isNaN(tMin.getTime()) || isNaN(tMax.getTime())) {
+				return res.status(400).json({ error: 'Invalid date format' });
+			}
+			if (tMax <= tMin) {
+				return res.status(400).json({ error: 'time_max must be after time_min' });
+			}
+			if (tMax.getTime() - tMin.getTime() > 31 * 24 * 60 * 60 * 1000) {
+				return res.status(400).json({ error: 'Date range cannot exceed 31 days' });
+			}
+
+			// Authorization: users can check their own availability + panel members they work with
+			const requestingUserId = req.user.id;
+			const isRequestingUserIncluded = user_ids.includes(requestingUserId);
+			const isRec = ['recruiter', 'hiring_manager', 'employer', 'admin'].includes(req.user.role);
+
+			if (!isRequestingUserIncluded && !isRec) {
+				return res.status(403).json({ error: 'You can only check availability for yourself or your panel members' });
+			}
+
+			const availability = await calendarService.checkAvailability(user_ids, tMin, tMax);
+
+			res.json({
+				success: true,
+				time_min: tMin.toISOString(),
+				time_max: tMax.toISOString(),
+				availability,
+			});
+		} catch (err) {
+			console.error('[calendar] Availability error:', err.message);
+			res.status(500).json({ error: 'Failed to check availability' });
+		}
+	},
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Event management

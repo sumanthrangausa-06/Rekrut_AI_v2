@@ -190,10 +190,22 @@ async function ensureFreshToken(connection) {
 }
 
 /**
- * Build calendar event details from an interview record.
+ * Fetch user details (name, email) for a list of user IDs.
+ */
+async function getUserDetails(userIds) {
+	if (!userIds || userIds.length === 0) return [];
+	const result = await pool.query(
+		`SELECT id, name, email FROM users WHERE id = ANY($1)`,
+		[userIds],
+	);
+	return result.rows;
+}
+
+/**
+ * Build calendar event details from a scheduled_interview record.
+ * Kept for backward compatibility with existing event CRUD functions.
  */
 async function buildEventPayload(interview) {
-	// Fetch candidate and recruiter emails + job title
 	const [candidateRes, recruiterRes, jobRes] = await Promise.all([
 		pool.query('SELECT name, email FROM users WHERE id = $1', [interview.candidate_id]),
 		pool.query('SELECT name, email FROM users WHERE id = $1', [interview.recruiter_id]),
@@ -217,6 +229,414 @@ async function buildEventPayload(interview) {
 	return { title, description, startTime, endTime, attendees, candidate, recruiter };
 }
 
+/**
+ * Build calendar event payload from an interview_event record.
+ * Supports multi-attendee (recruiter, candidate, panel members).
+ */
+async function buildInterviewEventPayload(event) {
+	const userIds = [event.recruiter_id, event.candidate_id, ...(event.panel_member_ids || [])].filter(
+		(v, i, a) => a.indexOf(v) === i,
+	);
+	const users = await getUserDetails(userIds);
+	const userMap = new Map(users.map((u) => [u.id, u]));
+
+	// Fetch job title via job_application -> job
+	let jobTitle = 'Interview';
+	try {
+		const jobRes = await pool.query(
+			`SELECT j.title
+			 FROM job_applications ja
+			 JOIN jobs j ON ja.job_id = j.id
+			 WHERE ja.id = $1`,
+			[event.job_application_id],
+		);
+		if (jobRes.rows[0]?.title) jobTitle = jobRes.rows[0].title;
+	} catch (_e) {
+		// ignore
+	}
+
+	const startTime = new Date(event.scheduled_at);
+	const endTime = new Date(startTime.getTime() + (event.duration_minutes || 60) * 60000);
+
+	const title = `Rekrut AI Interview — ${jobTitle}`;
+	const description =
+		`Interview for ${jobTitle} via Rekrut AI.\n\n` +
+		`${event.meeting_link ? `Meeting Link: ${event.meeting_link}\n` : ''}` +
+		`${event.livekit_room_url ? `LiveKit Room: ${event.livekit_room_url}\n` : ''}` +
+		`${event.notes ? `Notes: ${event.notes}\n` : ''}`;
+
+	const attendees = users
+		.filter((u) => u.email)
+		.map((u) => ({ email: u.email, displayName: u.name || 'Attendee', userId: u.id }));
+
+	return { title, description, startTime, endTime, attendees, jobTitle };
+}
+
+/**
+ * Create calendar events on ALL attendees' connected calendars.
+ * Returns a JSONB-compatible object: { userId: externalEventId, ... }
+ */
+async function createMultiAttendeeEvents(event) {
+	const payload = await buildInterviewEventPayload(event);
+	const calendarEventIds = {};
+
+	for (const attendee of payload.attendees) {
+		if (!attendee.userId) continue;
+		// Try Google first, then Outlook
+		for (const provider of ['google', 'outlook']) {
+			try {
+				const conn = await getConnection(attendee.userId, provider);
+				if (!conn) continue;
+
+				let externalEventId;
+				if (provider === 'google') {
+					externalEventId = await _createGoogleEventForPayload(conn, payload);
+				} else {
+					externalEventId = await _createOutlookEventForPayload(conn, payload);
+				}
+				calendarEventIds[String(attendee.userId)] = externalEventId;
+				break; // created on this attendee's calendar, move to next attendee
+			} catch (err) {
+				console.error(
+					`[calendar-service] Failed to create ${provider} event for user ${attendee.userId}:`,
+					err.message,
+				);
+				// continue to next provider or attendee
+			}
+		}
+	}
+
+	return calendarEventIds;
+}
+
+/**
+ * Update calendar events on all attendees' connected calendars.
+ * Uses calendar_event_ids JSONB to locate existing events.
+ * Falls back to creating new events if an existing one can't be found.
+ */
+async function updateMultiAttendeeEvents(event) {
+	const payload = await buildInterviewEventPayload(event);
+	const existingIds = event.calendar_event_ids || {};
+	const updatedIds = {};
+
+	for (const attendee of payload.attendees) {
+		if (!attendee.userId) continue;
+		const userIdStr = String(attendee.userId);
+		const existingEventId = existingIds[userIdStr];
+
+		for (const provider of ['google', 'outlook']) {
+			try {
+				const conn = await getConnection(attendee.userId, provider);
+				if (!conn) continue;
+
+				let externalEventId;
+				if (existingEventId) {
+					// Try to update; if it fails (e.g. event deleted externally), create new
+					try {
+						if (provider === 'google') {
+							await _updateGoogleEventForPayload(conn, existingEventId, payload);
+						} else {
+							await _updateOutlookEventForPayload(conn, existingEventId, payload);
+						}
+						externalEventId = existingEventId;
+					} catch (updateErr) {
+						console.warn(
+							`[calendar-service] Update failed for user ${attendee.userId}, recreating:`,
+							updateErr.message,
+						);
+						if (provider === 'google') {
+							externalEventId = await _createGoogleEventForPayload(conn, payload);
+						} else {
+							externalEventId = await _createOutlookEventForPayload(conn, payload);
+						}
+					}
+				} else {
+					// No existing event for this attendee — create new
+					if (provider === 'google') {
+						externalEventId = await _createGoogleEventForPayload(conn, payload);
+					} else {
+						externalEventId = await _createOutlookEventForPayload(conn, payload);
+					}
+				}
+				updatedIds[userIdStr] = externalEventId;
+				break;
+			} catch (err) {
+				console.error(
+					`[calendar-service] Failed to update ${provider} event for user ${attendee.userId}:`,
+					err.message,
+				);
+			}
+		}
+	}
+
+	return updatedIds;
+}
+
+/**
+ * Delete calendar events from all attendees' connected calendars.
+ */
+async function deleteMultiAttendeeEvents(event) {
+	const existingIds = event.calendar_event_ids || {};
+
+	for (const [userIdStr, externalEventId] of Object.entries(existingIds)) {
+		const userId = parseInt(userIdStr, 10);
+		for (const provider of ['google', 'outlook']) {
+			try {
+				const conn = await getConnection(userId, provider);
+				if (!conn) continue;
+
+				if (provider === 'google') {
+					await deleteGoogleEvent(conn, externalEventId);
+				} else {
+					await deleteOutlookEvent(conn, externalEventId);
+				}
+				break;
+			} catch (err) {
+				console.error(
+					`[calendar-service] Failed to delete ${provider} event for user ${userId}:`,
+					err.message,
+				);
+			}
+		}
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Low-level payload-based calendar operations (internal)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function _createGoogleEventForPayload(connection, payload) {
+	const conn = await ensureFreshToken(connection);
+	const oauth2Client = getGoogleClient();
+	oauth2Client.setCredentials({ access_token: conn.access_token });
+
+	const calendar = /** @type {any} */ (google.calendar({ version: 'v3', auth: oauth2Client }));
+
+	const event = {
+		summary: payload.title,
+		description: payload.description,
+		start: { dateTime: payload.startTime.toISOString(), timeZone: 'UTC' },
+		end: { dateTime: payload.endTime.toISOString(), timeZone: 'UTC' },
+		attendees: payload.attendees.map((a) => ({ email: a.email, displayName: a.displayName })),
+		reminders: {
+			useDefault: false,
+			overrides: [
+				{ method: 'email', minutes: 60 },
+				{ method: 'popup', minutes: 15 },
+			],
+		},
+	};
+
+	if (payload.meetingLink) {
+		event.conferenceData = {
+			createRequest: {
+				requestId: `rekrut-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+				conferenceSolutionKey: { type: 'hangoutsMeet' },
+			},
+		};
+		event.location = payload.meetingLink;
+	}
+
+	const response = await calendar.events.insert({
+		calendarId: conn.calendar_id || 'primary',
+		resource: event,
+		conferenceDataVersion: payload.meetingLink ? 1 : 0,
+		sendUpdates: 'all',
+	});
+
+	return response.data.id;
+}
+
+async function _updateGoogleEventForPayload(connection, eventId, payload) {
+	const conn = await ensureFreshToken(connection);
+	const oauth2Client = getGoogleClient();
+	oauth2Client.setCredentials({ access_token: conn.access_token });
+
+	const calendar = /** @type {any} */ (google.calendar({ version: 'v3', auth: oauth2Client }));
+
+	const event = {
+		summary: payload.title,
+		description: payload.description,
+		start: { dateTime: payload.startTime.toISOString(), timeZone: 'UTC' },
+		end: { dateTime: payload.endTime.toISOString(), timeZone: 'UTC' },
+		attendees: payload.attendees.map((a) => ({ email: a.email, displayName: a.displayName })),
+	};
+
+	if (payload.meetingLink) {
+		event.location = payload.meetingLink;
+	}
+
+	const response = await calendar.events.patch({
+		calendarId: conn.calendar_id || 'primary',
+		eventId,
+		resource: event,
+		sendUpdates: 'all',
+	});
+
+	return response.data.id;
+}
+
+async function _createOutlookEventForPayload(connection, payload) {
+	const conn = await ensureFreshToken(connection);
+
+	const eventBody = {
+		subject: payload.title,
+		body: {
+			contentType: 'HTML',
+			content: payload.description.replace(/\n/g, '<br>'),
+		},
+		start: { dateTime: payload.startTime.toISOString(), timeZone: 'UTC' },
+		end: { dateTime: payload.endTime.toISOString(), timeZone: 'UTC' },
+		attendees: payload.attendees.map((a) => ({
+			emailAddress: { address: a.email, name: a.displayName },
+			type: 'required',
+		})),
+		isOnlineMeeting: !!payload.meetingLink,
+	};
+
+	if (payload.meetingLink) {
+		eventBody.location = { displayName: 'Virtual Interview', locationUri: payload.meetingLink };
+	}
+
+	const response = await fetch('https://graph.microsoft.com/v1.0/me/events', {
+		method: 'POST',
+		headers: {
+			Authorization: `Bearer ${conn.access_token}`,
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify(eventBody),
+	});
+
+	if (!response.ok) {
+		const errText = await response.text();
+		throw new Error(`Outlook event creation failed: ${response.status} ${errText}`);
+	}
+
+	const data = await response.json();
+	return data.id;
+}
+
+async function _updateOutlookEventForPayload(connection, eventId, payload) {
+	const conn = await ensureFreshToken(connection);
+
+	const eventBody = {
+		subject: payload.title,
+		body: {
+			contentType: 'HTML',
+			content: payload.description.replace(/\n/g, '<br>'),
+		},
+		start: { dateTime: payload.startTime.toISOString(), timeZone: 'UTC' },
+		end: { dateTime: payload.endTime.toISOString(), timeZone: 'UTC' },
+		attendees: payload.attendees.map((a) => ({
+			emailAddress: { address: a.email, name: a.displayName },
+			type: 'required',
+		})),
+	};
+
+	if (payload.meetingLink) {
+		eventBody.location = { displayName: 'Virtual Interview', locationUri: payload.meetingLink };
+	}
+
+	const response = await fetch(`https://graph.microsoft.com/v1.0/me/events/${eventId}`, {
+		method: 'PATCH',
+		headers: {
+			Authorization: `Bearer ${conn.access_token}`,
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify(eventBody),
+	});
+
+	if (!response.ok) {
+		const errText = await response.text();
+		throw new Error(`Outlook event update failed: ${response.status} ${errText}`);
+	}
+
+	const data = await response.json();
+	return data.id;
+}
+
+/**
+ * Check availability for a set of user IDs across a date range.
+ * Returns an array of busy intervals per user.
+ * Note: This is a best-effort check. Users without calendar connections
+ * are assumed to be free (no busy intervals returned).
+ */
+async function checkAvailability(userIds, timeMin, timeMax) {
+	const availability = {};
+
+	for (const userId of userIds) {
+		availability[String(userId)] = [];
+		for (const provider of ['google', 'outlook']) {
+			try {
+				const conn = await getConnection(userId, provider);
+				if (!conn) continue;
+
+				if (provider === 'google') {
+					const busy = await _getGoogleAvailability(conn, timeMin, timeMax);
+					availability[String(userId)].push(...busy);
+				} else {
+					const busy = await _getOutlookAvailability(conn, timeMin, timeMax);
+					availability[String(userId)].push(...busy);
+				}
+				break; // got availability from one provider, move to next user
+			} catch (err) {
+				console.error(
+					`[calendar-service] Availability check failed for user ${userId} / ${provider}:`,
+					err.message,
+				);
+			}
+		}
+	}
+
+	return availability;
+}
+
+async function _getGoogleAvailability(connection, timeMin, timeMax) {
+	const conn = await ensureFreshToken(connection);
+	const oauth2Client = getGoogleClient();
+	oauth2Client.setCredentials({ access_token: conn.access_token });
+
+	const calendar = /** @type {any} */ (google.calendar({ version: 'v3', auth: oauth2Client }));
+	const response = await calendar.freebusy.query({
+		requestBody: {
+			timeMin: new Date(timeMin).toISOString(),
+			timeMax: new Date(timeMax).toISOString(),
+			timeZone: 'UTC',
+			items: [{ id: conn.calendar_id || 'primary' }],
+		},
+	});
+
+	const busy = response.data.calendars[conn.calendar_id || 'primary']?.busy || [];
+	return busy.map((b) => ({ start: b.start, end: b.end }));
+}
+
+async function _getOutlookAvailability(connection, timeMin, timeMax) {
+	const conn = await ensureFreshToken(connection);
+	const startIso = new Date(timeMin).toISOString();
+	const endIso = new Date(timeMax).toISOString();
+
+	// Microsoft Graph calendarView endpoint
+	const url =
+		`https://graph.microsoft.com/v1.0/me/calendar/calendarView?` +
+		`startDateTime=${encodeURIComponent(startIso)}&` +
+		`endDateTime=${encodeURIComponent(endIso)}&` +
+		`$select=start,end,showAs`;
+
+	const response = await fetch(url, {
+		headers: { Authorization: `Bearer ${conn.access_token}` },
+	});
+
+	if (!response.ok) {
+		const errText = await response.text();
+		throw new Error(`Outlook availability failed: ${response.status} ${errText}`);
+	}
+
+	const data = await response.json();
+	return (data.value || [])
+		.filter((evt) => evt.showAs !== 'free')
+		.map((evt) => ({ start: evt.start.dateTime, end: evt.end.dateTime }));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Google Calendar Operations
 // ─────────────────────────────────────────────────────────────────────────────
@@ -226,7 +646,7 @@ async function createGoogleEvent(connection, interview) {
 	const oauth2Client = getGoogleClient();
 	oauth2Client.setCredentials({ access_token: conn.access_token });
 
-	const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+	const calendar = /** @type {any} */ (google.calendar({ version: 'v3', auth: oauth2Client }));
 	const payload = await buildEventPayload(interview);
 
 	const event = {
@@ -269,7 +689,7 @@ async function updateGoogleEvent(connection, eventId, interview) {
 	const oauth2Client = getGoogleClient();
 	oauth2Client.setCredentials({ access_token: conn.access_token });
 
-	const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+	const calendar = /** @type {any} */ (google.calendar({ version: 'v3', auth: oauth2Client }));
 	const payload = await buildEventPayload(interview);
 
 	const event = {
@@ -299,7 +719,7 @@ async function deleteGoogleEvent(connection, eventId) {
 	const oauth2Client = getGoogleClient();
 	oauth2Client.setCredentials({ access_token: conn.access_token });
 
-	const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+	const calendar = /** @type {any} */ (google.calendar({ version: 'v3', auth: oauth2Client }));
 	await calendar.events.delete({
 		calendarId: conn.calendar_id || 'primary',
 		eventId,
@@ -593,6 +1013,12 @@ module.exports = {
 	createCalendarEvent,
 	updateCalendarEvent,
 	deleteCalendarEvent,
+
+	// Multi-attendee event management (Issue #127)
+	createMultiAttendeeEvents,
+	updateMultiAttendeeEvents,
+	deleteMultiAttendeeEvents,
+	checkAvailability,
 
 	// Auto-sync
 	syncInterview,

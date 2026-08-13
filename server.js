@@ -86,6 +86,7 @@ if (nodeEnv !== 'production' && dbUrl.includes(PROD_DB_HOSTNAME)) {
 const authRoutes = require('./routes/auth');
 const jobRoutes = require('./routes/jobs');
 const interviewRoutes = require('./routes/interviews');
+const interviewEventsRoutes = require('./routes/interview-events'); // Issue #127 — Calendar scheduling
 const quickPracticeRoutes = require('./routes/quick-practice'); // ISOLATED from Mock Interview (#32717)
 const omniscoreRoutes = require('./routes/omniscore');
 const companyRoutes = require('./routes/company');
@@ -543,6 +544,7 @@ app.use('/api', chatRoutes.router);
 // API Routes - Candidate side
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
+app.use('/api/interviews', interviewEventsRoutes); // Issue #127 — Calendar interview scheduling (mounted BEFORE mock routes)
 app.use('/api/interviews', quickPracticeRoutes); // ISOLATED Quick Practice — must be BEFORE interview routes (#32717)
 app.use('/api/interviews', interviewRoutes); // Mock Interview + video analysis (no practice routes)
 
