@@ -220,6 +220,15 @@ const RecruiterOffersPage = lazy(() =>
 const RecruiterInterviewsPage = lazy(() =>
 	import('@/pages/recruiter/interviews').then((m) => ({ default: m.RecruiterInterviewsPage })),
 )
+const RecruiterPanelsPage = lazy(() =>
+	import('@/pages/recruiter/panels').then((m) => ({ default: m.RecruiterPanelsPage })),
+)
+const RecruiterPanelRoomPage = lazy(() =>
+	import('@/pages/recruiter/panel-room').then((m) => ({ default: m.RecruiterPanelRoomPage })),
+)
+const RecruiterPanelScorecardCriteriaPage = lazy(() =>
+	import('@/pages/recruiter/panel-scorecard-criteria').then((m) => ({ default: m.RecruiterPanelScorecardCriteriaPage })),
+)
 const RecruiterOnboardingPage = lazy(() =>
 	import('@/pages/recruiter/onboarding').then((m) => ({ default: m.RecruiterOnboardingPage })),
 )
@@ -963,6 +972,26 @@ function AppRoutes() {
 					}
 				/>
 				<Route
+					path='panels'
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<RecruiterPanelsPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path='panels/:id'
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<RecruiterPanelRoomPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
 					path='offers'
 					element={
 						<Protected>
@@ -1261,7 +1290,16 @@ function AppRoutes() {
 				}
 			/>
 
-			{/* Redirect /candidate/settings to /settings for backwards compatibility */}
+			<Route
+				path='/recruiter/jobs/:jobId/panel-criteria'
+				element={
+					<Protected>
+						<RecruiterGuard>
+							<RecruiterPanelScorecardCriteriaPage />
+						</RecruiterGuard>
+					</Protected>
+				}
+			/>
 			<Route path='/candidate/settings' element={<Navigate to='/settings' />} />
 
 			{/* 404 Not Found */}

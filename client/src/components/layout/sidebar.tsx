@@ -118,6 +118,7 @@ const recruiterNav: NavItem[] = [
 	{ label: 'Assessments', href: '/recruiter/assessments', icon: GraduationCap },
 	{ label: 'Candidates', href: '/recruiter/candidates', icon: Users },
 	{ label: 'Interviews', href: '/recruiter/interviews', icon: MessageSquare },
+	{ label: 'Panels', href: '/recruiter/panels', icon: Users },
 	{ label: 'Offers', href: '/recruiter/offers', icon: CreditCard },
 	{ label: 'Onboarding', href: '/recruiter/onboarding', icon: UserCheck },
 	{ label: 'OmniScore', href: '/recruiter/omniscore', icon: Star },
