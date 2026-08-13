@@ -48,6 +48,8 @@ interface Interview {
 	duration_minutes: number
 	interview_type: string
 	meeting_link: string | null
+	livekit_room_url?: string
+	livekit_room_id?: number
 	notes: string | null
 	status: string
 	outcome: string | null
@@ -1514,6 +1516,13 @@ function InterviewCard({
 							<a href={interview.meeting_link} target='_blank' rel='noopener noreferrer'>
 								<Button size='sm' className='w-full min-h-[44px]'>
 									<Video className='h-3.5 w-3.5 mr-1' /> Join
+								</Button>
+							</a>
+						)}
+						{interview.livekit_room_id && interview.livekit_room_url && isUpcoming && (
+							<a href={`/candidate/livekit-room?roomId=${interview.livekit_room_id}`}>
+								<Button size='sm' variant='outline' className='w-full min-h-[44px] border-indigo-500 text-indigo-700 hover:bg-indigo-50'>
+									<Video className='h-3.5 w-3.5 mr-1' /> Join Video Room
 								</Button>
 							</a>
 						)}
