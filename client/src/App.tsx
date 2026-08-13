@@ -664,7 +664,7 @@ function AppRoutes() {
 					path='offers/manage'
 					element={
 						<Protected>
-							<OfferManagementPage />
+							<CandidateOffersPage />
 						</Protected>
 					}
 				/>
