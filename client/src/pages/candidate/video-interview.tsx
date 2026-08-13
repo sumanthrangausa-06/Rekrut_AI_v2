@@ -51,6 +51,7 @@ export function VideoInterviewPage() {
 	const [submitting, setSubmitting] = useState(false)
 	const [cameraError, setCameraError] = useState<string | null>(null)
 	const [micError, setMicError] = useState<string | null>(null)
+	const [noInterviewSelected, setNoInterviewSelected] = useState(false)
 
 	const videoRef = useRef<HTMLVideoElement>(null)
 	const streamRef = useRef<MediaStream | null>(null)
@@ -62,7 +63,7 @@ export function VideoInterviewPage() {
 		async function loadInterview() {
 			try {
 				if (!interviewId) {
-					setError('No interview ID provided')
+					setNoInterviewSelected(true)
 					setLoading(false)
 					return
 				}
@@ -217,6 +218,37 @@ export function VideoInterviewPage() {
 					<Loader2 className='h-12 w-12 animate-spin text-primary mx-auto mb-4' />
 					<p className='text-muted-foreground'>Loading interview...</p>
 				</div>
+			</div>
+		)
+	}
+
+	if (noInterviewSelected) {
+		return (
+			<div className='space-y-6'>
+				<Button
+					variant='ghost'
+					onClick={() => navigate('/candidate')}
+					className='min-h-[44px] min-w-[44px]'
+				>
+					<ArrowLeft className='h-4 w-4 mr-2' />
+					Back to Dashboard
+				</Button>
+				<Card>
+					<CardContent className='flex flex-col items-center justify-center py-12 text-center'>
+						<Video className='h-12 w-12 text-muted-foreground mb-4' />
+						<h2 className='text-xl font-semibold mb-2'>No Interview Selected</h2>
+						<p className='text-muted-foreground mb-6 max-w-md'>
+							You haven't selected an interview to join. View your scheduled interviews to find one.
+						</p>
+						<Button
+							onClick={() => navigate('/candidate/interviews')}
+							className='min-h-[44px] min-w-[44px]'
+						>
+							<Video className='h-4 w-4 mr-2' />
+							View Scheduled Interviews
+						</Button>
+					</CardContent>
+				</Card>
 			</div>
 		)
 	}
