@@ -1,19 +1,22 @@
 import {
 	Bookmark,
-	BookmarkPlus,
+	BookmarkCheck,
 	Building2,
 	Clock,
 	DollarSign,
 	Globe,
-	Heart,
 	MapPin,
-	TrendingUp,
+	RotateCcw,
+	Star,
+	ThumbsUp,
 	X,
 } from 'lucide-react'
-import { Avatar } from '@/components/ui/avatar'
+import { ScoreRing } from '@/components/domain/score-ring'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Tooltip } from '@/components/ui/tooltip'
+import { trackEvent } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 
 // Inline the Job interface subset needed for the card to avoid import cycles
@@ -72,11 +75,45 @@ function timeAgo(dateStr: string) {
 	return `${Math.floor(days / 30)} months ago`
 }
 
-function matchLevelLabel(level: string): string {
-	if (level === 'excellent') return 'Excellent Match'
-	if (level === 'good') return 'Good Match'
-	if (level === 'fair') return 'Fair Match'
-	return ''
+function locationLabel(type: string): string {
+	switch (type) {
+		case 'remote':
+			return 'Remote'
+		case 'hybrid':
+			return 'Hybrid'
+		case 'onsite':
+			return 'On-site'
+		case 'flexible':
+			return 'Flexible'
+		default:
+			return type
+	}
+}
+
+function locationBadgeVariant(type: string): 'default' | 'secondary' | 'outline' | 'destructive' {
+	switch (type) {
+		case 'remote':
+			return 'default'
+		case 'hybrid':
+			return 'secondary'
+		case 'onsite':
+			return 'outline'
+		default:
+			return 'outline'
+	}
+}
+
+function formatSalary(min?: number, max?: number, range?: string): string {
+	if (range) return range
+	if (!min && !max) return 'Competitive'
+	const fmt = new Intl.NumberFormat('en-US', {
+		style: 'currency',
+		currency: 'USD',
+		maximumFractionDigits: 0,
+	})
+	if (min && max) return `${fmt.format(min)} – ${fmt.format(max)}`
+	if (min) return `${fmt.format(min)}+`
+	return `Up to ${fmt.format(max ?? 0)}`
 }
 
 export function JobCard({
@@ -92,175 +129,161 @@ export function JobCard({
 	onToggleDismiss,
 }: JobCardProps) {
 	const score = job.weighted_score ? Math.round(job.weighted_score) : null
+	const companyName = job.company || job.poster_company || 'Company'
+	const isTrashMode = activeTab === 'dismissed'
+
+	const allSkills = [
+		...(job.matching_skills || []),
+		...(job.skills_required || []),
+	]
+	const uniqueSkills = [...new Set(allSkills)]
+
+	const handleCardClick = () => {
+		onSelect?.(job)
+	}
+
+	const handleSave = (e: React.MouseEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		trackEvent('job_card_save_click', { job_id: job.id, saved: !isSaved })
+		onToggleSave?.(job.id, e)
+	}
+
+	const handleLike = (e: React.MouseEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		trackEvent('job_card_like_click', { job_id: job.id, liked: !isLiked })
+		onToggleLike?.(job.id, e)
+	}
+
+	const handleDismiss = (e: React.MouseEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		trackEvent('job_card_dismiss_click', { job_id: job.id, dismissed: !isTrashMode })
+		onToggleDismiss?.(job.id, e)
+	}
 
 	return (
 		<Card
 			className={cn(
-				'transition-all cursor-pointer hover:shadow-md',
+				'group relative overflow-hidden transition-all duration-200',
 				isSelected
-					? 'ring-2 ring-indigo-500 shadow-md border-indigo-200'
-					: 'border',
+					? 'ring-2 ring-indigo-500 shadow-md border-indigo-200 dark:border-indigo-700'
+					: 'border hover:shadow-lg hover:border-indigo-300/60 dark:hover:border-indigo-700/40',
 			)}
-			onClick={() => onSelect?.(job)}
+			onClick={handleCardClick}
 		>
-			<CardContent className='p-4 sm:p-5'>
-				<div className='flex items-start gap-3 sm:gap-4'>
-					{/* Company Logo */}
-					<Avatar
-						src={job.company_logo}
-						fallback={(job.company || job.poster_company || 'C').charAt(0)}
-						size='lg'
-						className='h-12 w-12 sm:h-14 sm:w-14 shrink-0 rounded-full'
-					/>
+			<CardContent className='relative z-10 p-4 sm:p-5'>
+				{/* F-pattern main row: logo (left) → content (center) → score + actions (right) */}
+				<div className='flex flex-col sm:flex-row gap-4 items-start'>
+					{/* Left: Company Logo */}
+					<div className='shrink-0'>
+						<Avatar className='h-14 w-14 sm:h-16 sm:w-16 border shadow-sm rounded-xl'>
+							<AvatarImage src={job.company_logo} alt={companyName} />
+							<AvatarFallback className='bg-indigo-50 text-indigo-600 text-base font-bold dark:bg-indigo-950/50 dark:text-indigo-300'>
+								{companyName.slice(0, 2).toUpperCase()}
+							</AvatarFallback>
+						</Avatar>
+					</div>
 
-					<div className='flex-1 min-w-0'>
-						{/* Title + Actions Row */}
-						<div className='flex items-start justify-between gap-2'>
-							<div className='min-w-0'>
-								<h3 className='font-semibold text-sm sm:text-base truncate leading-tight'>
+					{/* Center: Title, Company, Meta */}
+					<div className='flex-1 min-w-0 space-y-2.5'>
+						{/* Title + Company */}
+						<div>
+							<div className='flex items-start gap-2'>
+								<h3 className='font-semibold text-base sm:text-[17px] leading-tight truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-200'>
 									{job.title}
 								</h3>
-								<p className='text-xs sm:text-sm text-muted-foreground flex items-center gap-1 mt-0.5'>
-									<Building2 className='h-3 w-3 shrink-0' />
-									<span className='break-words'>
-										{job.company || job.poster_company || 'Company'}
-									</span>
-									{job.company_size && (
-										<span className='text-[10px] bg-muted rounded px-1'>
-											{job.company_size}
-										</span>
-									)}
-								</p>
-							</div>
-
-							<div className='flex items-center gap-0.5 shrink-0 -mr-1 sm:-mr-2'>
 								{job.has_applied && (
-									<Badge className='bg-emerald-500 text-white text-[10px] px-1.5 py-0 mr-1'>
+									<Badge className='bg-emerald-500 text-white text-[10px] px-1.5 py-0 shrink-0 h-5 mt-0.5'>
 										Applied
 									</Badge>
 								)}
-
-								{/* Save heart toggle */}
-								<button
-									onClick={(e) => onToggleSave?.(job.id, e)}
-									className={cn(
-										'rounded-full transition-colors h-9 w-9 sm:h-10 sm:w-10 inline-flex items-center justify-center',
-										isSaved
-											? 'text-red-500 bg-red-50 hover:bg-red-100'
-											: 'text-muted-foreground hover:bg-muted hover:text-red-400',
-									)}
-									aria-label={isSaved ? 'Unsave job' : 'Save job'}
-								>
-									{isSaved ? (
-										<Heart className='h-4 w-4 fill-red-500' />
-									) : (
-										<Heart className='h-4 w-4' />
-									)}
-								</button>
-
-								{/* Like / ThumbsUp */}
-								<button
-									onClick={(e) => onToggleLike?.(job.id, e)}
-									className={cn(
-										'rounded-full transition-colors h-9 w-9 sm:h-10 sm:w-10 inline-flex items-center justify-center',
-										isLiked
-											? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
-											: 'text-muted-foreground hover:bg-muted hover:text-emerald-600',
-									)}
-									aria-label={isLiked ? 'Unlike job' : 'Like job'}
-								>
-									<TrendingUp className='h-4 w-4' />
-								</button>
-
-								{/* Dismiss / Restore */}
-								<button
-									onClick={(e) => onToggleDismiss?.(job.id, e)}
-									className={cn(
-										'rounded-full transition-colors h-9 w-9 sm:h-10 sm:w-10 inline-flex items-center justify-center',
-										isDismissed
-											? 'text-red-600 bg-red-50 hover:bg-red-100'
-											: activeTab === 'dismissed'
-												? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
-												: 'text-muted-foreground hover:bg-muted hover:text-red-600',
-									)}
-									aria-label={isDismissed ? 'Restore job' : 'Dismiss job'}
-								>
-									{activeTab === 'dismissed' ? (
-										<BookmarkPlus className='h-4 w-4' />
-									) : (
-										<X className='h-4 w-4' />
-									)}
-								</button>
 							</div>
+							<p className='text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5'>
+								<Building2 className='h-3.5 w-3.5 shrink-0' />
+								<span className='break-words'>{companyName}</span>
+								{job.company_size && (
+									<span className='text-[10px] bg-muted rounded px-1.5 py-0.5'>
+										{job.company_size}
+									</span>
+								)}
+							</p>
 						</div>
 
-						{/* Meta row: location, salary, type, remote, posted */}
-						<div className='flex flex-wrap items-center gap-x-3 gap-y-1 mt-2.5 text-xs text-muted-foreground'>
+						{/* Meta row — cleaner with icons */}
+						<div className='flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground'>
 							{job.location && (
 								<span className='flex items-center gap-1 min-w-0'>
-									<MapPin className='h-3 w-3 shrink-0' />
+									<MapPin className='h-3.5 w-3.5 shrink-0' />
 									<span className='break-words'>{job.location}</span>
 								</span>
 							)}
-							{job.salary_range && (
+							{job.remote_type && (
+								<Badge
+									variant={locationBadgeVariant(job.remote_type)}
+									className='text-xs px-1.5 py-0 h-5 font-normal'
+								>
+									{job.remote_type === 'remote' && <Globe className='h-2.5 w-2.5 mr-0.5' />}
+									{locationLabel(job.remote_type)}
+								</Badge>
+							)}
+							{job.job_type && (
 								<span className='flex items-center gap-1 min-w-0'>
-									<DollarSign className='h-3 w-3 shrink-0' />
-									<span className='break-words font-medium text-foreground/80'>
-										{job.salary_range}
+									<Clock className='h-3.5 w-3.5 shrink-0' />
+									<span className='break-words capitalize'>
+										{job.job_type.replace('-', ' ')}
 									</span>
 								</span>
 							)}
-							{job.job_type && (
-								<Badge variant='secondary' className='text-[10px] h-5'>
-									{job.job_type}
-								</Badge>
-							)}
-							{job.remote_type && (
-								<Badge variant='outline' className='text-[10px] h-5'>
-									{job.remote_type === 'remote' && (
-										<Globe className='h-2.5 w-2.5 mr-0.5' />
-									)}
-									{job.remote_type}
-								</Badge>
+							{(job.salary_range || job.salary_min || job.salary_max) && (
+								<span className='flex items-center gap-1 min-w-0'>
+									<DollarSign className='h-3.5 w-3.5 shrink-0' />
+									<span className='break-words font-medium text-foreground/70'>
+										{formatSalary(job.salary_min, job.salary_max, job.salary_range)}
+									</span>
+								</span>
 							)}
 							<span className='flex items-center gap-1 min-w-0'>
-								<Clock className='h-3 w-3 shrink-0' />
+								<Clock className='h-3.5 w-3.5 shrink-0' />
 								<span className='break-words'>{timeAgo(job.created_at)}</span>
 							</span>
 						</div>
 
-						{/* Skills tags */}
-						{(job.matching_skills?.length || job.skills_required?.length) ? (
-							<div className='flex flex-wrap items-center gap-1.5 mt-2.5'>
-								{job.matching_skills?.slice(0, 4).map((s) => (
+						{/* Skills — prominent pill tags */}
+						{uniqueSkills.length > 0 && (
+							<div className='flex flex-wrap gap-1.5 pt-0.5'>
+								{uniqueSkills.slice(0, 5).map((s) => {
+									const isMatching = job.matching_skills?.includes(s)
+									return (
+										<Badge
+											key={s}
+											variant='secondary'
+											className={cn(
+												'text-xs font-normal px-2.5 py-0.5 rounded-full transition-colors',
+												isMatching
+													? 'bg-indigo-50/70 text-indigo-700 border-indigo-100 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-300 dark:border-indigo-800/40'
+													: 'bg-muted/60 text-muted-foreground',
+											)}
+										>
+											{s}
+										</Badge>
+									)
+								})}
+								{uniqueSkills.length > 5 && (
 									<Badge
-										key={`match-${s}`}
 										variant='outline'
-										className='text-[10px] sm:text-xs bg-indigo-50 text-indigo-700 border-indigo-200 h-5'
+										className='text-xs font-normal px-2 py-0.5 rounded-full'
 									>
-										{s}
+										+{uniqueSkills.length - 5}
 									</Badge>
-								))}
-								{job.skills_required?.slice(0, 4).map((s) => (
-									<Badge
-										key={`req-${s}`}
-										variant='outline'
-										className='text-[10px] sm:text-xs h-5'
-									>
-										{s}
-									</Badge>
-								))}
-								{(job.matching_skills?.length || 0) + (job.skills_required?.length || 0) > 4 && (
-									<span className='text-[10px] text-muted-foreground'>
-										+{(job.matching_skills?.length || 0) + (job.skills_required?.length || 0) - 4} more
-									</span>
 								)}
 							</div>
-						) : null}
+						)}
 
-						{/* Match score + missing skills */}
+						{/* Missing skills hint */}
 						{score != null && score < 80 && job.missing_skills && job.missing_skills.length > 0 && (
-							<div className='flex flex-wrap items-center gap-1 mt-1.5'>
+							<div className='flex flex-wrap items-center gap-1 pt-0.5'>
 								<span className='text-[10px] text-amber-500 shrink-0'>To improve match:</span>
 								{job.missing_skills.slice(0, 2).map((s) => (
 									<span
@@ -277,6 +300,91 @@ export function JobCard({
 								)}
 							</div>
 						)}
+					</div>
+
+					{/* Right: Score Ring + Action Rail */}
+					<div className='shrink-0 flex flex-row sm:flex-col items-center gap-3 sm:gap-2 w-full sm:w-auto justify-between sm:justify-start sm:pt-1'>
+						{/* Score Ring — prominently displayed */}
+						{score != null && (
+							<div className='flex flex-col items-center'>
+								<ScoreRing score={score} size='md' />
+								{score >= 80 && (
+									<Badge
+										variant='outline'
+										className='text-[10px] mt-1 border-green-200 text-green-700 dark:border-green-800 dark:text-green-400 px-1 py-0'
+									>
+										<Star className='h-2.5 w-2.5 mr-0.5' />
+										Top
+									</Badge>
+								)}
+							</div>
+						)}
+
+						{/* Action Rail — vertical on desktop, horizontal on mobile */}
+						<div className='flex sm:flex-col gap-1'>
+							<button
+								type='button'
+								onClick={handleLike}
+								className={cn(
+									'relative z-20 rounded-lg transition-all duration-150 min-h-[36px] min-w-[36px] inline-flex items-center justify-center',
+									isLiked
+										? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 shadow-sm'
+										: 'text-muted-foreground hover:bg-muted hover:text-emerald-600',
+								)}
+								aria-label={isLiked ? 'Unlike job' : 'Like job'}
+							>
+								<ThumbsUp className='h-4 w-4' />
+							</button>
+
+							<button
+								type='button'
+								onClick={handleSave}
+								className={cn(
+									'relative z-20 rounded-lg transition-all duration-150 min-h-[36px] min-w-[36px] inline-flex items-center justify-center',
+									isSaved
+										? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 shadow-sm'
+										: 'text-muted-foreground hover:bg-muted hover:text-indigo-600',
+								)}
+								aria-label={isSaved ? 'Remove bookmark' : 'Save job'}
+							>
+								{isSaved ? <BookmarkCheck className='h-4 w-4' /> : <Bookmark className='h-4 w-4' />}
+							</button>
+
+							<button
+								type='button'
+								onClick={handleDismiss}
+								className={cn(
+									'relative z-20 rounded-lg transition-all duration-150 min-h-[36px] min-w-[36px] inline-flex items-center justify-center',
+									isTrashMode
+										? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
+										: isDismissed
+											? 'text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 shadow-sm'
+											: 'text-muted-foreground hover:bg-muted hover:text-red-600',
+								)}
+								aria-label={isTrashMode ? 'Restore job' : 'Dismiss job'}
+							>
+								{isTrashMode ? (
+									<RotateCcw className='h-4 w-4' />
+								) : (
+									<X className='h-4 w-4' />
+								)}
+							</button>
+
+							{!isTrashMode && (
+								<Button
+									size='sm'
+									className='relative z-20 min-h-[36px] px-3.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+									onClick={(e) => {
+										e.preventDefault()
+										e.stopPropagation()
+										trackEvent('job_card_apply_click', { job_id: job.id })
+										onSelect?.(job)
+									}}
+								>
+									Apply
+								</Button>
+							)}
+						</div>
 					</div>
 				</div>
 			</CardContent>

@@ -2,7 +2,6 @@ import {
 	Bookmark,
 	BookmarkCheck,
 	Building2,
-	ChevronRight,
 	Clock,
 	DollarSign,
 	MapPin,
@@ -16,7 +15,7 @@ import { ScoreRing } from './score-ring'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { trackEvent } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 
@@ -146,18 +145,26 @@ export function JobCard({
 	return (
 		<Card
 			className={cn(
-				'group overflow-hidden transition-all duration-200 hover:shadow-lg hover:border-primary/20',
+				'group relative overflow-hidden transition-all duration-200',
+				'hover:shadow-lg hover:border-indigo-300/60 dark:hover:border-indigo-700/40',
+				'focus-within:ring-2 focus-within:ring-indigo-500/30',
 				className,
 			)}
 		>
-			<CardHeader className='pb-2 pt-5 px-5'>
+			<Link
+				to={`/candidate/jobs/${id}`}
+				className='absolute inset-0 z-0'
+				aria-label={`View details for ${title} at ${company}`}
+			/>
+
+			<CardContent className='relative z-10 p-4 sm:p-5'>
 				{/* F-pattern main row: logo (left) → content (center) → score + actions (right) */}
 				<div className='flex flex-col sm:flex-row gap-4 items-start'>
 					{/* Left: Company Logo */}
 					<div className='shrink-0'>
-						<Avatar className='h-14 w-14 border shadow-sm'>
+						<Avatar className='h-14 w-14 sm:h-16 sm:w-16 border shadow-sm rounded-xl'>
 							<AvatarImage src={companyLogo} alt={company} />
-							<AvatarFallback className='bg-primary/10 text-primary text-base font-bold'>
+							<AvatarFallback className='bg-indigo-50 text-indigo-600 text-base font-bold dark:bg-indigo-950/50 dark:text-indigo-300'>
 								{company.slice(0, 2).toUpperCase()}
 							</AvatarFallback>
 						</Avatar>
@@ -167,7 +174,7 @@ export function JobCard({
 					<div className='flex-1 min-w-0 space-y-2.5'>
 						{/* Title + Company */}
 						<div>
-							<h3 className='font-semibold text-base leading-tight truncate group-hover:text-primary transition-colors'>
+							<h3 className='font-semibold text-base sm:text-[17px] leading-tight truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-200'>
 								{title}
 							</h3>
 							<p className='text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5'>
@@ -177,29 +184,55 @@ export function JobCard({
 						</div>
 
 						{/* Meta row — cleaner with icons */}
-						<div className='flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground'>
+						<div className='flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground'>
 							<span className='flex items-center gap-1 min-w-0'>
 								<MapPin className='h-3.5 w-3.5 shrink-0' />
 								<span className='break-words'>{location}</span>
 							</span>
-							<Badge variant={locationBadgeVariant(locationType)} className='text-xs px-1.5 py-0'>
+							<Badge variant={locationBadgeVariant(locationType)} className='text-xs px-1.5 py-0 h-5 font-normal'>
 								{locationLabel(locationType)}
 							</Badge>
 							<span className='flex items-center gap-1 min-w-0'>
 								<Clock className='h-3.5 w-3.5 shrink-0' />
-								<span className='break-words'>{jobType}</span>
+								<span className='break-words capitalize'>{jobType.replace('-', ' ')}</span>
 							</span>
 							<span className='flex items-center gap-1 min-w-0'>
 								<DollarSign className='h-3.5 w-3.5 shrink-0' />
-								<span className='break-words'>
+								<span className='break-words font-medium text-foreground/70'>
 									{formatSalary(salaryMin, salaryMax, salaryCurrency, salaryPeriod)}
 								</span>
 							</span>
 						</div>
+
+						{/* Skills — prominent pill tags */}
+						{tags.length > 0 && (
+							<div className='flex flex-wrap gap-1.5 pt-0.5'>
+								{tags.slice(0, 5).map((tag) => (
+									<Badge
+										key={tag}
+										variant='secondary'
+										className='text-xs font-normal px-2.5 py-0.5 rounded-full bg-indigo-50/70 text-indigo-700 border-indigo-100 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-300 dark:border-indigo-800/40 transition-colors'
+									>
+										{tag}
+									</Badge>
+								))}
+								{tags.length > 5 && (
+									<Badge
+										variant='outline'
+										className='text-xs font-normal px-2 py-0.5 rounded-full'
+									>
+										+{tags.length - 5}
+									</Badge>
+								)}
+							</div>
+						)}
+
+						{/* Posted time */}
+						<p className='text-xs text-muted-foreground pt-0.5'>Posted {postedText}</p>
 					</div>
 
 					{/* Right: Score Ring + Action Rail */}
-					<div className='shrink-0 flex flex-row sm:flex-col items-center sm:items-center gap-3 sm:gap-2 w-full sm:w-auto justify-between sm:justify-start'>
+					<div className='shrink-0 flex flex-row sm:flex-col items-center gap-3 sm:gap-2 w-full sm:w-auto justify-between sm:justify-start sm:pt-1'>
 						{/* Score Ring — prominently displayed */}
 						{matchScore != null && (
 							<div className='flex flex-col items-center'>
@@ -222,9 +255,9 @@ export function JobCard({
 								type='button'
 								onClick={handleLike}
 								className={cn(
-									'rounded-lg transition-colors min-h-[36px] min-w-[36px] inline-flex items-center justify-center',
+									'relative z-20 rounded-lg transition-all duration-150 min-h-[36px] min-w-[36px] inline-flex items-center justify-center',
 									isLiked
-										? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400'
+										? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 shadow-sm'
 										: 'text-muted-foreground hover:bg-muted hover:text-emerald-600',
 								)}
 								aria-label={isLiked ? 'Unlike job' : 'Like job'}
@@ -236,15 +269,15 @@ export function JobCard({
 								type='button'
 								onClick={handleSave}
 								className={cn(
-									'rounded-lg transition-colors min-h-[36px] min-w-[36px] inline-flex items-center justify-center',
+									'relative z-20 rounded-lg transition-all duration-150 min-h-[36px] min-w-[36px] inline-flex items-center justify-center',
 									isSaved
-										? 'text-primary bg-primary/10 hover:bg-primary/20'
-										: 'text-muted-foreground hover:bg-muted hover:text-primary',
+										? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 shadow-sm'
+										: 'text-muted-foreground hover:bg-muted hover:text-indigo-600',
 								)}
 								aria-label={isSaved ? 'Remove bookmark' : 'Save job'}
 							>
 								{isSaved ? (
-									<BookmarkCheck className='h-4 w-4 text-primary' />
+									<BookmarkCheck className='h-4 w-4' />
 								) : (
 									<Bookmark className='h-4 w-4' />
 								)}
@@ -254,9 +287,9 @@ export function JobCard({
 								type='button'
 								onClick={handleDislike}
 								className={cn(
-									'rounded-lg transition-colors min-h-[36px] min-w-[36px] inline-flex items-center justify-center',
+									'relative z-20 rounded-lg transition-all duration-150 min-h-[36px] min-w-[36px] inline-flex items-center justify-center',
 									isDisliked
-										? 'text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400'
+										? 'text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 shadow-sm'
 										: mode === 'trash'
 											? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
 											: 'text-muted-foreground hover:bg-muted hover:text-red-600',
@@ -268,7 +301,7 @@ export function JobCard({
 
 							<Button
 								size='sm'
-								className='min-h-[36px] px-3 text-xs'
+								className='relative z-20 min-h-[36px] px-3.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
 								onClick={handleApply}
 							>
 								Apply
@@ -276,48 +309,7 @@ export function JobCard({
 						</div>
 					</div>
 				</div>
-			</CardHeader>
-
-			<CardContent className='pb-2 pt-0 px-5 space-y-3'>
-				{/* Tags — prominent pill tags */}
-				{tags.length > 0 && (
-					<div className='flex flex-wrap gap-1.5'>
-						{tags.slice(0, 5).map((tag) => (
-							<Badge
-								key={tag}
-								variant='secondary'
-								className='text-xs font-normal px-2.5 py-0.5 rounded-full'
-							>
-								{tag}
-							</Badge>
-						))}
-						{tags.length > 5 && (
-							<Badge
-								variant='secondary'
-								className='text-xs font-normal px-2.5 py-0.5 rounded-full'
-							>
-								+{tags.length - 5}
-							</Badge>
-						)}
-					</div>
-				)}
-
-				<p className='text-xs text-muted-foreground'>Posted {postedText}</p>
 			</CardContent>
-
-			<CardFooter className='px-5 pb-5 pt-0'>
-				<Button
-					size='sm'
-					className='w-full gap-1 min-h-[44px]'
-					onClick={handleApply}
-					asChild
-				>
-					<Link to={`/candidate/jobs/${id}`}>
-						View details
-						<ChevronRight className='h-3.5 w-3.5' />
-					</Link>
-				</Button>
-			</CardFooter>
 		</Card>
 	)
 }
