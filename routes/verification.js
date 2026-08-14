@@ -5,6 +5,8 @@ const pool = require('../lib/db');
 const { authMiddleware, requireRole } = require('../lib/auth');
 const { encryptToFile, deleteEncryptedFile } = require('../services/encryption');
 const { AuditLogger } = require('../services/auditLogger');
+const auditLogService = require('../services/auditLogService');
+const { dataAccessAudit } = require('../middleware/dataAccessAudit');
 const { VERIFICATION_CONFIG } = require('../lib/verification-config');
 const { distributedRateLimiter } = require('../lib/distributed-rate-limiter');
 
@@ -286,7 +288,7 @@ router.post(
 // Get current verification status — RECRUITER-SAFE (no raw images)
 // ════════════════════════════════════════════════════════════════════════
 
-router.get('/:id/verification/status', authMiddleware, async (req, res) => {
+router.get('/:id/verification/status', authMiddleware, dataAccessAudit('verification_status', (req) => parseInt(req.params.id, 10)), async (req, res) => {
   const candidateId = parseInt(req.params.id, 10);
 
   try {
@@ -503,6 +505,27 @@ router.post(
         { reason: reason || null, previous_status: currentStatus },
         req,
       );
+
+      // ─── Compliance audit trail (Issue #136) ───────────────────────
+      try {
+        await auditLogService.logEvent({
+          eventType: auditLogService.EVENT_TYPES.VERIFICATION,
+          entityType: auditLogService.ENTITY_TYPES.CANDIDATE,
+          entityId: candidateId,
+          actorId: req.user.id,
+          actorRole: req.user.role,
+          companyId: null,
+          payload: {
+            verification_id,
+            decision: newStatus,
+            previous_status: currentStatus,
+            reason: reason || null,
+          },
+          req,
+        });
+      } catch (e) {
+        console.error('[compliance-audit] Verification log failed (non-blocking):', e.message);
+      }
 
       res.json({
         success: true,

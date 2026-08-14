@@ -7,6 +7,8 @@ const trustscoreService = require('../services/trustscore');
 const jobOptimizer = require('../services/job-optimizer');
 const calendarService = require('../server/services/calendar-service');
 const { AuditLogger } = require('../services/auditLogger');
+const auditLogService = require('../services/auditLogService');
+const { dataAccessAudit } = require('../middleware/dataAccessAudit');
 const emailService = require('../lib/email-service');
 const DOMPurify = require('isomorphic-dompurify');
 
@@ -896,13 +898,15 @@ router.put('/applications/:id/status', authMiddleware, requireNotSuspended, requ
 
 		// Verify application belongs to company
 		const existing = await pool.query(
-			'SELECT id, job_id, candidate_id FROM job_applications WHERE id = $1 AND company_id = $2',
+			'SELECT id, job_id, candidate_id, status FROM job_applications WHERE id = $1 AND company_id = $2',
 			[req.params.id, req.user.company_id],
 		);
 
 		if (existing.rows.length === 0) {
 			return res.status(404).json({ error: 'Application not found' });
 		}
+
+		const previousStatus = existing.rows[0].status;
 
 		const result = await pool.query(
 			`UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
@@ -961,6 +965,27 @@ router.put('/applications/:id/status', authMiddleware, requireNotSuspended, requ
 			},
 			req,
 		});
+
+		// ─── Compliance audit trail (Issue #136) ───────────────────────
+		try {
+			await auditLogService.logEvent({
+				eventType: auditLogService.EVENT_TYPES.STATUS_CHANGE,
+				entityType: auditLogService.ENTITY_TYPES.CANDIDATE,
+				entityId: existing.rows[0].candidate_id,
+				actorId: req.user.id,
+				actorRole: req.user.role,
+				jobId: existing.rows[0].job_id,
+				companyId: req.user.company_id,
+				payload: {
+					application_id: parseInt(req.params.id, 10),
+					previous_status: previousStatus,
+					new_status: status,
+				},
+				req,
+			});
+		} catch (e) {
+			console.error('[compliance-audit] Status change log failed (non-blocking):', e.message);
+		}
 
 		// Issue #143: Invalidate analytics cache on status change
 		analyticsCache.invalidatePatterns([
@@ -1100,7 +1125,7 @@ router.get('/candidates', authMiddleware, requireApprovedRecruiter, requireRecru
 });
 
 // Get full candidate profiles with pipeline data (B-001)
-router.get('/candidates/full', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/candidates/full', authMiddleware, requireApprovedRecruiter, requireRecruiter, dataAccessAudit('candidate_profiles'), async (req, res) => {
 	try {
 		const {
 			search,
@@ -2066,6 +2091,30 @@ router.put('/applications/batch-status', authMiddleware, requireNotSuspended, re
 			},
 			req,
 		});
+
+		// ─── Compliance audit trail (Issue #136) ───────────────────────
+		try {
+			for (const app of result.rows) {
+				await auditLogService.logEvent({
+					eventType: auditLogService.EVENT_TYPES.STATUS_CHANGE,
+					entityType: auditLogService.ENTITY_TYPES.CANDIDATE,
+					entityId: app.candidate_id,
+					actorId: req.user.id,
+					actorRole: req.user.role,
+					jobId: app.job_id,
+					companyId: req.user.company_id,
+					payload: {
+						application_id: app.id,
+						new_status: status,
+						batch: true,
+						batch_size: validIds.length,
+					},
+					req,
+				});
+			}
+		} catch (e) {
+			console.error('[compliance-audit] Batch status change log failed (non-blocking):', e.message);
+		}
 
 		// Send email notifications for batch status changes (non-blocking)
 		if (['offered', 'hired', 'rejected'].includes(status)) {

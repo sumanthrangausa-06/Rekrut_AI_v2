@@ -23,6 +23,7 @@ const {
 	verifyPKCS7DetachedSignature,
 	generateTestKeyPair,
 } = require('../utils/pkcs7');
+const auditLogService = require('../../services/auditLogService');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
@@ -771,6 +772,28 @@ async function recordSignature(requestId, params) {
 			userAgent: signatureMetadata.user_agent,
 		});
 
+		// ─── Compliance audit trail (Issue #136) ───────────────────────
+		try {
+			await auditLogService.logEvent({
+				eventType: auditLogService.EVENT_TYPES.SIGNATURE,
+				entityType: auditLogService.ENTITY_TYPES.USER,
+				entityId: signatureMetadata.actor_id || request.party_id,
+				actorId: signatureMetadata.actor_id || null,
+				actorRole: 'signer',
+				companyId: null,
+				payload: {
+					document_id: request.document_id,
+					request_id: requestId,
+					signature_type: signatureType,
+					signature_hash: signatureHash,
+					tamper_detected: tamperResult ? !tamperResult.valid : null,
+				},
+				req: null,
+			});
+		} catch (e) {
+			console.error('[compliance-audit] Signature log failed (non-blocking):', e.message);
+		}
+
 		// Check if all signers have signed
 		await _checkDocumentCompletion(client, request.document_id);
 
@@ -832,6 +855,27 @@ async function recordDecline(requestId, reason, metadata = {}) {
 			ipAddress: metadata.ip_address,
 			userAgent: metadata.user_agent,
 		});
+
+		// ─── Compliance audit trail (Issue #136) ───────────────────────
+		try {
+			await auditLogService.logEvent({
+				eventType: auditLogService.EVENT_TYPES.SIGNATURE,
+				entityType: auditLogService.ENTITY_TYPES.USER,
+				entityId: metadata.actor_id || request.party_id,
+				actorId: metadata.actor_id || null,
+				actorRole: 'signer',
+				companyId: null,
+				payload: {
+					document_id: request.document_id,
+					request_id: requestId,
+					action: 'declined',
+					decline_reason: reason,
+				},
+				req: null,
+			});
+		} catch (e) {
+			console.error('[compliance-audit] Signature decline log failed (non-blocking):', e.message);
+		}
 
 		await client.query('COMMIT');
 		return request;

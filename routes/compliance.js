@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../lib/db');
-const { authMiddleware } = require('../lib/auth');
+const { authMiddleware, requireRole } = require('../lib/auth');
 const { AuditLogger } = require('../services/auditLogger');
+const auditLogService = require('../services/auditLogService');
 const BiasDetection = require('../services/biasDetection');
 const ScoreExplainer = require('../services/scoreExplainer');
 
@@ -595,6 +596,192 @@ router.get('/explain/decision/:applicationId', authMiddleware, async (req, res) 
 	} catch (error) {
 		console.error('Decision explanation failed:', error);
 		res.status(500).json({ error: 'Failed to explain decision' });
+	}
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPLIANCE AUDIT TRAIL — Issue #136 (EU AI Act, tamper-evident, hash-chained)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/compliance/audit-log
+ * Log an event to the compliance audit trail (internal/service-to-service use).
+ * Any authenticated user can call this; the service validates event data.
+ */
+router.post('/audit-log', authMiddleware, async (req, res) => {
+	try {
+		const {
+			eventType,
+			entityType,
+			entityId,
+			actorId,
+			actorRole,
+			jobId,
+			companyId,
+			payload,
+		} = req.body;
+
+		if (!eventType || !entityType || !entityId) {
+			return res.status(400).json({ error: 'eventType, entityType, and entityId are required' });
+		}
+
+		const record = await auditLogService.logEvent({
+			eventType,
+			entityType,
+			entityId: parseInt(entityId, 10),
+			actorId: actorId ? parseInt(actorId, 10) : req.user?.id || null,
+			actorRole: actorRole || req.user?.role || null,
+			jobId: jobId ? parseInt(jobId, 10) : null,
+			companyId: companyId ? parseInt(companyId, 10) : req.user?.company_id || null,
+			payload: payload || {},
+			req,
+		});
+
+		res.status(201).json({ success: true, record });
+	} catch (error) {
+		console.error('[compliance/audit-log] Failed to log event:', error.message);
+		res.status(500).json({ error: 'Failed to log audit event' });
+	}
+});
+
+/**
+ * GET /api/compliance/audit-trail
+ * Query the compliance audit trail. Admin or company owner only.
+ */
+router.get('/audit-trail', authMiddleware, async (req, res) => {
+	try {
+		// Access control: admin, employer (owner), or recruiter with company access
+		if (
+			!['admin', 'employer', 'recruiter', 'hiring_manager'].includes(req.user?.role)
+		) {
+			return res.status(403).json({ error: 'Admin or company access required' });
+		}
+
+		const {
+			candidateId,
+			jobId,
+			recruiterId,
+			startDate,
+			endDate,
+			eventType,
+			limit,
+			offset,
+		} = req.query;
+
+		const companyId = req.user.role === 'admin' ? undefined : req.user.company_id;
+
+		const result = await auditLogService.getAuditTrail({
+			candidateId: candidateId ? parseInt(candidateId, 10) : undefined,
+			jobId: jobId ? parseInt(jobId, 10) : undefined,
+			recruiterId: recruiterId ? parseInt(recruiterId, 10) : undefined,
+			startDate,
+			endDate,
+			eventType,
+			companyId,
+			limit: limit ? parseInt(limit, 10) : 100,
+			offset: offset ? parseInt(offset, 10) : 0,
+		});
+
+		res.json({ success: true, ...result });
+	} catch (error) {
+		console.error('[compliance/audit-trail] Query failed:', error.message);
+		res.status(500).json({ error: 'Failed to query audit trail' });
+	}
+});
+
+/**
+ * GET /api/compliance/audit-trail/candidate/:candidateId
+ * Full record of decisions about a candidate. GDPR / right-to-explanation.
+ * Candidate can view their own; admin can view any.
+ */
+router.get('/audit-trail/candidate/:candidateId', authMiddleware, async (req, res) => {
+	try {
+		const candidateId = parseInt(req.params.candidateId, 10);
+		if (!Number.isInteger(candidateId)) {
+			return res.status(400).json({ error: 'Valid candidate ID required' });
+		}
+
+		// Access control: candidate viewing own record, or admin/employer
+		const isOwn = req.user?.role === 'candidate' && req.user?.id === candidateId;
+		const isAdmin = req.user?.role === 'admin';
+		const isCompanyUser =
+			['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role) &&
+			req.user?.company_id;
+
+		if (!isOwn && !isAdmin && !isCompanyUser) {
+			return res.status(403).json({ error: 'Access denied' });
+		}
+
+		const { limit, offset } = req.query;
+		const result = await auditLogService.getCandidateDecisions(candidateId, {
+			limit: limit ? parseInt(limit, 10) : 500,
+			offset: offset ? parseInt(offset, 10) : 0,
+		});
+
+		res.json({ success: true, ...result });
+	} catch (error) {
+		console.error('[compliance/audit-trail/candidate] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to fetch candidate audit trail' });
+	}
+});
+
+/**
+ * GET /api/compliance/audit-trail/verify
+ * Verify hash chain integrity. Admin or company owner only.
+ */
+router.get('/audit-trail/verify', authMiddleware, async (req, res) => {
+	try {
+		if (!['admin', 'employer'].includes(req.user?.role)) {
+			return res.status(403).json({ error: 'Admin or owner access required' });
+		}
+
+		const companyId = req.user.role === 'admin' ? undefined : req.user.company_id;
+		const result = await auditLogService.verifyChain(companyId);
+
+		res.json({ success: true, ...result });
+	} catch (error) {
+		console.error('[compliance/audit-trail/verify] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to verify audit chain' });
+	}
+});
+
+/**
+ * GET /api/compliance/audit-trail/export
+ * Export regulator-ready report. Owner (employer) or admin only.
+ */
+router.get('/audit-trail/export', authMiddleware, async (req, res) => {
+	try {
+		if (!['admin', 'employer'].includes(req.user?.role)) {
+			return res.status(403).json({ error: 'Admin or owner access required' });
+		}
+
+		const { startDate, endDate, format } = req.query;
+
+		if (!startDate || !endDate) {
+			return res.status(400).json({ error: 'startDate and endDate are required' });
+		}
+
+		const companyId = req.user.role === 'admin' ? undefined : req.user.company_id;
+		const result = await auditLogService.exportForRegulator(
+			companyId,
+			startDate,
+			endDate,
+			format || 'json',
+		);
+
+		if (format === 'csv') {
+			res.setHeader('Content-Type', 'text/csv');
+			res.setHeader(
+				'Content-Disposition',
+				`attachment; filename=compliance-audit-${startDate}-to-${endDate}.csv`,
+			);
+			res.send(result);
+		} else {
+			res.json({ success: true, report: result });
+		}
+	} catch (error) {
+		console.error('[compliance/audit-trail/export] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to export audit trail' });
 	}
 });
 

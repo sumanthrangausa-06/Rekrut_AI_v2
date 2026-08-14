@@ -23,6 +23,7 @@ const { body, param, validationResult } = require('express-validator');
 const { authMiddleware } = require('../lib/auth');
 const screener = require('../lib/recruiter-screener');
 const pool = require('../lib/db');
+const auditLogService = require('../services/auditLogService');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 
 const router = express.Router();
@@ -241,6 +242,34 @@ router.post(
 				screeningResult,
 				{ fit_score: screeningResult.fit_score, recommendation: screeningResult.recommendation },
 			);
+
+			// ─── Compliance audit trail (Issue #136) ───────────────────────
+			try {
+				await auditLogService.logEvent({
+					eventType: auditLogService.EVENT_TYPES.AI_DECISION,
+					entityType: auditLogService.ENTITY_TYPES.CANDIDATE,
+					entityId: candidateId,
+					actorId: req.user.id,
+					actorRole: req.user.role,
+					jobId,
+					companyId: access.job?.company_id || req.user.company_id || null,
+					payload: {
+						screening_id: screeningId,
+						inputs: { candidate_id: candidateId, job_id: jobId },
+						outputs: {
+							fit_score: screeningResult.fit_score,
+							recommendation: screeningResult.recommendation,
+							recommendation_reason: screeningResult.recommendation_reason,
+							matched_skills: screeningResult.matched_skills,
+							missing_skills: screeningResult.missing_skills,
+						},
+						model_version: 'recruiter-screener-v1',
+					},
+					req,
+				});
+			} catch (e) {
+				console.error('[compliance-audit] AI decision log failed (non-blocking):', e.message);
+			}
 
 			// Also log to legacy screening_logs for backward compatibility
 			try {
@@ -491,6 +520,32 @@ router.post(
 					{ batch: true },
 				);
 
+				// ─── Compliance audit trail (Issue #136) ───────────────────
+				try {
+					await auditLogService.logEvent({
+						eventType: auditLogService.EVENT_TYPES.AI_DECISION,
+						entityType: auditLogService.ENTITY_TYPES.CANDIDATE,
+						entityId: candidate.id,
+						actorId: req.user.id,
+						actorRole: req.user.role,
+						jobId,
+						companyId: access.job?.company_id || req.user.company_id || null,
+						payload: {
+							screening_id: screeningId,
+							batch: true,
+							inputs: { candidate_id: candidate.id, job_id: jobId },
+							outputs: {
+								fit_score: result.fit_score,
+								recommendation: result.recommendation,
+							},
+							model_version: 'recruiter-screener-v1',
+						},
+						req,
+					});
+				} catch (e) {
+					console.error('[compliance-audit] Batch AI decision log failed (non-blocking):', e.message);
+				}
+
 				storedResults.push({
 					screening_id: screeningId,
 					candidate: {
@@ -589,6 +644,28 @@ router.post(
 				null,
 				{ decision, reason },
 			);
+
+			// ─── Compliance audit trail (Issue #136) ───────────────────────
+			try {
+				await auditLogService.logEvent({
+					eventType: auditLogService.EVENT_TYPES.HUMAN_OVERRIDE,
+					entityType: auditLogService.ENTITY_TYPES.CANDIDATE,
+					entityId: screeningResult.rows[0]?.candidate_id || null,
+					actorId: req.user.id,
+					actorRole: req.user.role,
+					jobId: screeningResult.rows[0]?.job_id || null,
+					companyId: req.user.company_id || null,
+					payload: {
+						screening_id: screeningId,
+						override_decision: decision,
+						reason,
+						original_ai_status: 'pending',
+					},
+					req,
+				});
+			} catch (e) {
+				console.error('[compliance-audit] Human override log failed (non-blocking):', e.message);
+			}
 
 			res.json({
 				success: true,
