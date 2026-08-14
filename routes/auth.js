@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const pool = require('../lib/db');
-const { encrypt } = require('../lib/crypto-utils');
+const { encrypt, decrypt } = require('../lib/crypto-utils');
 const {
 	generateToken,
 	generateRefreshToken,
@@ -674,23 +674,119 @@ router.get('/google/callback', async (req, res) => {
 
 		if (existingUser.rows.length > 0) {
 			user = existingUser.rows[0];
-			// Update Google ID if not set
+			// Profile sync on every login: update name, avatar, and ensure google_id / oauth_provider
+			const updateFields = [];
+			const updateValues = [];
+			let paramIdx = 1;
+
+			updateFields.push(`name = $${paramIdx++}`);
+			updateValues.push(googleUser.name);
+
+			updateFields.push(`avatar_url = $${paramIdx++}`);
+			updateValues.push(googleUser.picture);
+
 			if (!user.google_id) {
-				await pool.query(
-					'UPDATE users SET google_id = $1, avatar_url = COALESCE(avatar_url, $2) WHERE id = $3',
-					[googleUser.id, googleUser.picture, user.id],
-				);
+				updateFields.push(`google_id = $${paramIdx++}`);
+				updateValues.push(googleUser.id);
 			}
+			if (!user.oauth_provider) {
+				updateFields.push(`oauth_provider = $${paramIdx++}`);
+				updateValues.push('google');
+			}
+
+			updateValues.push(user.id);
+			await pool.query(
+				`UPDATE users SET ${updateFields.join(', ')}, updated_at = NOW() WHERE id = $${paramIdx}`,
+				updateValues,
+			);
+
+			// Refresh user object with synced values
+			user.name = googleUser.name;
+			user.avatar_url = googleUser.picture;
+			if (!user.google_id) user.google_id = googleUser.id;
+			if (!user.oauth_provider) user.oauth_provider = 'google';
 		} else {
-			// Create new user
+			// ── New user: determine role based on email domain ──
+			const { isBlockedEmailDomain, extractDomain } = require('../services/email-domain-validator');
+			const { findCompanyByDomain, createJoinRequest } = require('../services/company-domain-service');
+
+			const emailDomain = extractDomain(googleUser.email);
+			const domainCheck = isBlockedEmailDomain(googleUser.email);
+
+			let role = 'candidate';
+			let pendingApproval = false;
+			let existingCompany = null;
+
+			if (!domainCheck.blocked && emailDomain) {
+				existingCompany = await findCompanyByDomain(emailDomain);
+				if (existingCompany) {
+					role = 'recruiter';
+					pendingApproval = true;
+				}
+			}
+
 			const result = await pool.query(
 				`INSERT INTO users (email, name, google_id, avatar_url, oauth_provider, role)
-         VALUES ($1, $2, $3, $4, 'google', 'candidate')
-         RETURNING *`,
-				[googleUser.email, googleUser.name, googleUser.id, googleUser.picture],
+				 VALUES ($1, $2, $3, $4, 'google', $5)
+				 RETURNING *`,
+				[googleUser.email, googleUser.name, googleUser.id, googleUser.picture, role],
 			);
 			user = result.rows[0];
+
+			if (pendingApproval && existingCompany) {
+				await createJoinRequest(user.id, existingCompany.id, googleUser.email, emailDomain);
+
+				// ── Notify company owner (non-blocking) ──
+				try {
+					const ownerResult = await pool.query(
+						'SELECT id, email, name FROM users WHERE id = $1',
+						[existingCompany.owner_id],
+					);
+					const owner = ownerResult.rows[0];
+					if (owner) {
+						await emailService.sendEmailAsync({
+							to: owner.email,
+							templateName: 'recruiter_join_request',
+							templateData: {
+								owner_name: owner.name || 'there',
+								recruiter_name: user.name || 'A new recruiter',
+								recruiter_email: user.email,
+								company_name: existingCompany.name,
+								dashboard_link:
+									`${process.env.FRONTEND_URL || 'https://rekrut.ai'}/recruiter/dashboard`,
+								request_time: new Date().toLocaleString('en-US', {
+									weekday: 'long',
+									year: 'numeric',
+									month: 'long',
+									day: 'numeric',
+									hour: '2-digit',
+									minute: '2-digit',
+									timeZoneName: 'short',
+								}),
+							},
+							userId: owner.id,
+							metadata: {
+								company_id: existingCompany.id,
+								requester_id: user.id,
+								trigger: 'join_request_created',
+							},
+						});
+					}
+				} catch (emailErr) {
+					console.error(
+						'[auth] Failed to send recruiter join request email (non-blocking):',
+						emailErr.message,
+					);
+				}
+			}
 		}
+
+		// Build profile_data with extended fields
+		const profileData = {
+			...googleUser,
+			locale: googleUser.locale ?? null,
+			verified_email: googleUser.verified_email ?? null,
+		};
 
 		// Store OAuth connection — encrypt tokens at rest (AES-256-GCM)
 		const encAccessToken = tokens.access_token ? encrypt(tokens.access_token) : null;
@@ -698,16 +794,17 @@ router.get('/google/callback', async (req, res) => {
 
 		await pool.query(
 			`
-      INSERT INTO oauth_connections (user_id, provider, provider_user_id, access_token, refresh_token, profile_data, encryption_version)
-      VALUES ($1, 'google', $2, $3, $4, $5, 'v1')
-      ON CONFLICT (provider, provider_user_id) DO UPDATE SET
-        access_token = EXCLUDED.access_token,
-        refresh_token = EXCLUDED.refresh_token,
-        profile_data = EXCLUDED.profile_data,
-        updated_at = NOW(),
-        encryption_version = 'v1'
-    `,
-			[user.id, googleUser.id, encAccessToken, encRefreshToken, JSON.stringify(googleUser)],
+			INSERT INTO oauth_connections (user_id, provider, provider_user_id, access_token, refresh_token, profile_data, encryption_version)
+			VALUES ($1, 'google', $2, $3, $4, $5, 'v1')
+			ON CONFLICT (provider, provider_user_id) DO UPDATE SET
+				user_id = EXCLUDED.user_id,
+				access_token = EXCLUDED.access_token,
+				refresh_token = EXCLUDED.refresh_token,
+				profile_data = EXCLUDED.profile_data,
+				updated_at = NOW(),
+				encryption_version = 'v1'
+			`,
+			[user.id, googleUser.id, encAccessToken, encRefreshToken, JSON.stringify(profileData)],
 		);
 
 		// Generate tokens
@@ -718,8 +815,19 @@ router.get('/google/callback', async (req, res) => {
 		req.session.token = accessToken;
 		req.session.refreshToken = refreshToken;
 
-		const redirectUrl =
-			user.role === 'recruiter' ? '/recruiter/dashboard' : '/candidate/dashboard';
+		// Determine redirect based on role and approval status
+		let redirectUrl;
+		if (user.role === 'recruiter') {
+			const { findPendingJoinRequest } = require('../services/company-domain-service');
+			const pendingRequest = await findPendingJoinRequest(user.id);
+			if (pendingRequest) {
+				redirectUrl = `/recruiter/dashboard?pending_approval=true&message=${encodeURIComponent(`A company with domain "${pendingRequest.domain}" already exists. Your registration is pending approval from the company administrator.`)}`;
+			} else {
+				redirectUrl = '/recruiter/dashboard';
+			}
+		} else {
+			redirectUrl = '/candidate/dashboard';
+		}
 		res.redirect(redirectUrl);
 	} catch (err) {
 		console.error('Google OAuth error:', err.message, err.code, err.stack);
@@ -1127,6 +1235,94 @@ router.post('/oauth/disconnect', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('OAuth disconnect error:', err);
 		res.status(500).json({ error: 'Failed to disconnect OAuth provider' });
+	}
+});
+
+// Refresh OAuth access token using stored refresh token
+router.post('/oauth/refresh', authMiddleware, async (req, res) => {
+	try {
+		const { provider } = req.body;
+		if (!provider || !['google', 'linkedin'].includes(provider)) {
+			return res.status(400).json({ error: 'Valid provider required' });
+		}
+
+		// Find the user's OAuth connection for that provider
+		const connResult = await pool.query(
+			'SELECT * FROM oauth_connections WHERE user_id = $1 AND provider = $2',
+			[req.user.id, provider],
+		);
+
+		if (connResult.rows.length === 0) {
+			return res.status(404).json({ error: 'OAuth connection not found' });
+		}
+
+		const connection = connResult.rows[0];
+
+		if (!connection.refresh_token) {
+			return res.status(400).json({ error: 'No refresh token available for this connection' });
+		}
+
+		// Decrypt refresh token
+		let refreshToken;
+		try {
+			refreshToken = decrypt(connection.refresh_token);
+		} catch (err) {
+			console.error('[auth] Failed to decrypt refresh token:', err.message);
+			return res.status(500).json({ error: 'Failed to decrypt refresh token' });
+		}
+
+		if (provider === 'google') {
+			const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				body: new URLSearchParams({
+					client_id: process.env.GOOGLE_CLIENT_ID,
+					client_secret: process.env.GOOGLE_CLIENT_SECRET,
+					grant_type: 'refresh_token',
+					refresh_token: refreshToken,
+				}),
+			});
+
+			const tokens = await tokenResponse.json();
+
+			if (tokens.error) {
+				if (tokens.error === 'invalid_grant') {
+					return res.status(410).json({
+						success: false,
+						error: 'Refresh token expired. Please reconnect your account.',
+					});
+				}
+				return res.status(400).json({
+					success: false,
+					error: `Token refresh failed: ${tokens.error_description || tokens.error}`,
+				});
+			}
+
+			// Encrypt and store the new access_token (and new refresh_token if provided)
+			const encAccessToken = tokens.access_token ? encrypt(tokens.access_token) : null;
+			const encRefreshToken = tokens.refresh_token ? encrypt(tokens.refresh_token) : null;
+
+			await pool.query(
+				`UPDATE oauth_connections
+				 SET access_token = COALESCE($1, access_token),
+				     refresh_token = COALESCE($2, refresh_token),
+				     updated_at = NOW(),
+				     encryption_version = 'v1'
+				 WHERE id = $3`,
+				[encAccessToken, encRefreshToken, connection.id],
+			);
+
+			return res.json({
+				success: true,
+				access_token: tokens.access_token,
+			});
+		}
+
+		// LinkedIn token refresh can be added here in the future
+		return res.status(501).json({ error: 'Provider refresh not yet implemented' });
+	} catch (err) {
+		console.error('OAuth refresh error:', err.message, err.code, err.stack);
+		res.status(500).json({ error: 'Token refresh failed' });
 	}
 });
 
