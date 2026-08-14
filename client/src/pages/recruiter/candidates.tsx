@@ -11,14 +11,18 @@ import {
 	Kanban,
 	List,
 	Mail,
+	MapPin,
 	Save,
 	Search,
+	Send,
 	SlidersHorizontal,
 	Sparkles,
 	Square,
+	User,
 	UserCheck,
 	Users,
 	X,
+	Zap,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -38,6 +42,9 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { trackEvent } from '@/lib/analytics'
 import { apiCall } from '@/lib/api'
@@ -52,6 +59,7 @@ export type Candidate = {
 	education?: string
 	skills: string[]
 	matchScore?: number
+	omniScore?: number
 	omniscore?: number
 	trustscore?: number
 	isTopCandidate?: boolean
@@ -85,6 +93,37 @@ export type SavedSearch = {
 	searchQuery: string
 	alertEnabled: boolean
 	createdAt: string
+}
+
+export type ProfilePreviewData = {
+	id: string
+	name: string
+	avatar?: string
+	headline?: string
+	bio?: string
+	location?: string
+	experienceYears?: number
+	education?: string
+	skills: string[]
+	matchScore?: number
+	omniScore?: number
+	trustscore?: number
+	email?: string
+	phone?: string
+	website?: string
+	linkedin?: string
+	github?: string
+	salaryExpectation?: string
+	availability?: string
+	languages?: string[]
+	resumeUrl?: string
+	experience?: Array<{
+		company: string
+		title: string
+		duration: string
+		description?: string
+	}>
+	certifications?: string[]
 }
 
 const filterOptions = [
@@ -175,6 +214,15 @@ const statusLabels: Record<string, string> = {
 	rejected: 'Rejected',
 }
 
+function normalizeCandidate(raw: any): Candidate {
+	return {
+		...raw,
+		skills: raw.skills?.map((s: any) => (typeof s === 'string' ? s : s.name)) || [],
+		// Map omniScore (API) to omniscore (component prop) for display
+		omniscore: raw.omniScore ?? raw.omniscore ?? null,
+	}
+}
+
 export function RecruiterCandidatesPage() {
 	const navigate = useNavigate()
 	const [searchParams] = useSearchParams()
@@ -201,39 +249,59 @@ export function RecruiterCandidatesPage() {
 		'relevance' | 'newest' | 'experience' | 'matchScore' | 'name'
 	>('relevance')
 	const [recentSearches, setRecentSearches] = useState<string[]>([])
+
+	// ── New state for Issue #3 ──
+	const [semanticSearchEnabled, setSemanticSearchEnabled] = useState(false)
+	const [profilePreviewOpen, setProfilePreviewOpen] = useState(false)
+	const [profilePreviewCandidate, setProfilePreviewCandidate] = useState<Candidate | null>(null)
+	const [profilePreviewData, setProfilePreviewData] = useState<ProfilePreviewData | null>(null)
+	const [profilePreviewLoading, setProfilePreviewLoading] = useState(false)
+	const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
+	const [inviteCandidate, setInviteCandidate] = useState<Candidate | null>(null)
+	const [selectedJobForInvite, setSelectedJobForInvite] = useState('')
+	const [isInviting, setIsInviting] = useState(false)
+
 	const limit = 20
+
+	const buildSearchParams = useCallback(() => {
+		const params = new URLSearchParams()
+		params.set('page', String(page))
+		params.set('limit', String(limit))
+		if (searchQuery) params.set('search', searchQuery)
+		if (selectedTab !== 'all') params.set('status', selectedTab)
+		if (activeFilters.experience) params.set('experience', activeFilters.experience)
+		if (activeFilters.location) params.set('location', activeFilters.location)
+		if (activeFilters.matchScore) {
+			const score = activeFilters.matchScore
+			if (score === '90-100') {
+				params.set('minScore', '90')
+			} else if (score === '80-89') {
+				params.set('minScore', '80')
+				params.set('maxScore', '89')
+			} else if (score === '70-79') {
+				params.set('minScore', '70')
+				params.set('maxScore', '79')
+			} else if (score === 'below-70') {
+				params.set('maxScore', '69')
+			}
+		}
+		if (activeFilters.salary) params.set('salary', activeFilters.salary)
+		if (activeFilters.availability) params.set('availability', activeFilters.availability)
+		return params
+	}, [page, searchQuery, activeFilters, selectedTab])
 
 	const loadCandidates = useCallback(async () => {
 		setLoading(true)
 		try {
-			const params = new URLSearchParams()
-			params.set('page', String(page))
-			params.set('limit', String(limit))
-			if (searchQuery) params.set('search', searchQuery)
-			if (selectedTab !== 'all') params.set('status', selectedTab)
-			if (activeFilters.experience) params.set('experience', activeFilters.experience)
-			if (activeFilters.location) params.set('location', activeFilters.location)
-			if (activeFilters.matchScore) {
-				const score = activeFilters.matchScore
-				if (score === '90-100') {
-					params.set('minScore', '90')
-				} else if (score === '80-89') {
-					params.set('minScore', '80')
-					params.set('maxScore', '89')
-				} else if (score === '70-79') {
-					params.set('minScore', '70')
-					params.set('maxScore', '79')
-				} else if (score === 'below-70') {
-					params.set('maxScore', '69')
-				}
-			}
-			if (activeFilters.salary) params.set('salary', activeFilters.salary)
-			if (activeFilters.availability) params.set('availability', activeFilters.availability)
+			const params = buildSearchParams()
+
+			// Use semantic search endpoint when toggle is on
+			const searchEndpoint = semanticSearchEnabled
+				? `/candidates/search/semantic?${params.toString()}`
+				: `/candidates/search?${params.toString()}`
 
 			const [candidatesData, statsData] = await Promise.all([
-				apiCall<{ candidates: Array<any>; pagination: { totalPages: number } }>(
-					`/recruiter/candidates/full?${params.toString()}`,
-				),
+				apiCall<{ candidates: Array<any>; pagination: { totalPages: number } }>(searchEndpoint),
 				apiCall<{ stats: PipelineStats }>('/recruiter/pipeline-stats'),
 			])
 
@@ -241,12 +309,7 @@ export function RecruiterCandidatesPage() {
 				const raw =
 					candidatesData.candidates ??
 					(Array.isArray(candidatesData) ? candidatesData : [])
-				setCandidates(
-					raw.map((c: any) => ({
-						...c,
-						skills: c.skills?.map((s: any) => (typeof s === 'string' ? s : s.name)) || [],
-					})),
-				)
+				setCandidates(raw.map(normalizeCandidate))
 				setTotalPages(candidatesData.pagination?.totalPages || 1)
 			}
 			if (statsData.stats) {
@@ -257,7 +320,7 @@ export function RecruiterCandidatesPage() {
 		} finally {
 			setLoading(false)
 		}
-	}, [page, searchQuery, activeFilters, selectedTab])
+	}, [buildSearchParams, semanticSearchEnabled])
 
 	const loadJobs = useCallback(async () => {
 		try {
@@ -271,18 +334,22 @@ export function RecruiterCandidatesPage() {
 
 	const loadSavedSearches = useCallback(async () => {
 		try {
-			const data = await apiCall<{ searches: SavedSearch[] }>('/recruiter/saved-searches')
+			const data = await apiCall<{ searches: SavedSearch[] }>('/candidates/search/saved')
 			if (data.searches) setSavedSearches(data.searches)
 		} catch (err) {
 			console.error('[candidates] Failed to load saved searches:', err)
 			setSavedSearches([])
 		}
 	}, [])
+
 	useEffect(() => {
 		loadCandidates()
+	}, [loadCandidates])
+
+	useEffect(() => {
 		loadSavedSearches()
 		loadJobs()
-	}, [loadCandidates, loadJobs, loadSavedSearches])
+	}, [loadSavedSearches, loadJobs])
 
 	useEffect(() => {
 		const stored = localStorage.getItem('recruiter_recent_searches')
@@ -312,8 +379,6 @@ export function RecruiterCandidatesPage() {
 		setPage(1)
 	}, [])
 
-
-
 	const handleFilterChange = (id: string, value: string | string[]) => {
 		setActiveFilters((prev) => ({ ...prev, [id]: value as string }))
 		trackEvent('candidate_filter_change', { filter_id: id, value })
@@ -323,6 +388,7 @@ export function RecruiterCandidatesPage() {
 		setActiveFilters({})
 		setSearchQuery('')
 		setSelectedTab('all')
+		setSemanticSearchEnabled(false)
 		trackEvent('candidate_filters_clear')
 	}
 
@@ -388,7 +454,7 @@ export function RecruiterCandidatesPage() {
 	const handleSaveSearch = async () => {
 		if (!saveSearchName.trim()) return
 		try {
-			await apiCall('/recruiter/saved-searches', {
+			await apiCall('/candidates/search/save', {
 				method: 'POST',
 				body: {
 					name: saveSearchName,
@@ -423,7 +489,7 @@ export function RecruiterCandidatesPage() {
 
 	const handleDeleteSavedSearch = async (id: string) => {
 		try {
-			await apiCall(`/recruiter/saved-searches/${id}`, { method: 'DELETE' })
+			await apiCall(`/candidates/search/saved/${id}`, { method: 'DELETE' })
 			setSavedSearches((prev) => prev.filter((s) => s.id !== id))
 		} catch {
 			setSavedSearches((prev) => prev.filter((s) => s.id !== id))
@@ -450,6 +516,71 @@ export function RecruiterCandidatesPage() {
 			)
 		} catch {
 			setIsRunningScreening(false)
+		}
+	}
+
+	// ── Profile Preview ──
+	const handleOpenProfilePreview = async (candidate: Candidate) => {
+		setProfilePreviewCandidate(candidate)
+		setProfilePreviewOpen(true)
+		setProfilePreviewLoading(true)
+		try {
+			const data = await apiCall<ProfilePreviewData>(`/candidates/${candidate.id}/preview`)
+			setProfilePreviewData(data)
+		} catch (err) {
+			console.error('Failed to load profile preview:', err)
+			// Fallback: use candidate data from list
+			setProfilePreviewData({
+				id: candidate.id,
+				name: candidate.name,
+				avatar: candidate.avatar,
+				headline: candidate.headline,
+				location: candidate.location,
+				experienceYears: candidate.experienceYears,
+				education: candidate.education,
+				skills: candidate.skills,
+				matchScore: candidate.matchScore,
+				omniScore: candidate.omniScore ?? candidate.omniscore,
+				trustscore: candidate.trustscore,
+				email: candidate.email,
+				availability: candidate.availability,
+				languages: candidate.languages,
+			})
+		} finally {
+			setProfilePreviewLoading(false)
+		}
+	}
+
+	// ── Invite to Apply ──
+	const handleOpenInvite = (candidateId: string) => {
+		const candidate = candidates.find((c) => c.id === candidateId)
+		if (candidate) {
+			setInviteCandidate(candidate)
+			setInviteDialogOpen(true)
+			setSelectedJobForInvite('')
+		}
+	}
+
+	const handleSendInvite = async () => {
+		if (!inviteCandidate || !selectedJobForInvite) return
+		setIsInviting(true)
+		try {
+			await apiCall(`/candidates/${inviteCandidate.id}/invite`, {
+				method: 'POST',
+				body: { jobId: selectedJobForInvite },
+			})
+			setIsInviting(false)
+			setInviteDialogOpen(false)
+			setInviteCandidate(null)
+			setSelectedJobForInvite('')
+			trackEvent('candidate_invite_sent', {
+				candidate_id: inviteCandidate.id,
+				job_id: selectedJobForInvite,
+			})
+		} catch (err) {
+			console.error('Failed to send invite:', err)
+			setIsInviting(false)
+			alert('Failed to send invite. Please try again.')
 		}
 	}
 
@@ -612,7 +743,29 @@ export function RecruiterCandidatesPage() {
 						onClearFilters={handleClearFilters}
 						className='flex-1'
 					/>
-					<div className='flex gap-2 shrink-0'>
+					<div className='flex gap-2 shrink-0 flex-wrap'>
+						{/* Semantic Search Toggle */}
+						<div className='flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 min-h-[44px]'>
+							<Switch
+								checked={semanticSearchEnabled}
+								onCheckedChange={(checked) => {
+									setSemanticSearchEnabled(checked)
+									setPage(1)
+									trackEvent('candidate_semantic_search_toggle', { enabled: checked })
+								}}
+							/>
+							{semanticSearchEnabled ? (
+								<span className='flex items-center gap-1 text-sm font-medium text-indigo-600'>
+									<Sparkles className='h-3.5 w-3.5' />
+									AI Semantic
+								</span>
+							) : (
+								<span className='flex items-center gap-1 text-sm font-medium text-muted-foreground'>
+									<BrainCircuit className='h-3.5 w-3.5' />
+									AI Semantic
+								</span>
+							)}
+						</div>
 						<Button
 							variant='outline'
 							size='sm'
@@ -694,6 +847,12 @@ export function RecruiterCandidatesPage() {
 							<span className='ml-1 text-indigo-600 font-medium'>
 								· sorted by{' '}
 								{sortBy.replace('matchScore', 'match score').replace('name', 'name A-Z')}
+							</span>
+						)}
+						{semanticSearchEnabled && (
+							<span className='ml-1 text-indigo-600 font-medium flex items-center gap-0.5 inline-flex'>
+								<Sparkles className='h-3 w-3' />
+								AI Semantic Search
 							</span>
 						)}
 					</div>
@@ -806,12 +965,12 @@ export function RecruiterCandidatesPage() {
 							icon={Search}
 							title='No candidates found'
 							description={
-								searchQuery || Object.keys(activeFilters).length > 0
-									? 'Try adjusting your filters or search query'
+								searchQuery || Object.keys(activeFilters).length > 0 || semanticSearchEnabled
+									? 'Try adjusting your filters, search query, or turning off AI Semantic Search'
 									: 'Post a job to start receiving applications'
 							}
 							action={
-								searchQuery || Object.keys(activeFilters).length > 0
+								searchQuery || Object.keys(activeFilters).length > 0 || semanticSearchEnabled
 									? { label: 'Clear filters', onClick: handleClearFilters }
 									: { label: 'Post a job', href: '/recruiter/jobs' }
 							}
@@ -856,12 +1015,14 @@ export function RecruiterCandidatesPage() {
 											onMessage={handleMessage}
 											onSchedule={handleSchedule}
 											onShortlist={handleShortlist}
+											onInvite={handleOpenInvite}
+											onClick={() => handleOpenProfilePreview(candidate)}
 											className={
 												selectedCandidates.has(candidate.id) ? 'ring-2 ring-indigo-200' : ''
 											}
 										/>
 										{/* AI Screener button overlay */}
-										<div className='absolute bottom-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity'>
+										<div className='absolute bottom-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block'>
 											<Button
 												size='sm'
 												variant='outline'
@@ -927,7 +1088,7 @@ export function RecruiterCandidatesPage() {
 												<div
 													key={candidate.id}
 													className='rounded-lg border bg-white p-3 cursor-pointer hover:shadow-md transition-shadow'
-													onClick={() => navigate(`/recruiter/candidates?id=${candidate.id}`)}
+													onClick={() => handleOpenProfilePreview(candidate)}
 												>
 													<div className='flex items-center gap-2 mb-2'>
 														<Avatar className='h-8 w-8'>
@@ -942,6 +1103,14 @@ export function RecruiterCandidatesPage() {
 															</p>
 														</div>
 													</div>
+													{candidate.omniscore != null && (
+														<div className='flex items-center gap-2 mb-2'>
+															<Zap className='h-3 w-3 text-indigo-500' />
+															<span className='text-xs font-bold text-indigo-600'>
+																OmniScore {candidate.omniscore}
+															</span>
+														</div>
+													)}
 													{candidate.matchScore && candidate.matchScore > 0 && (
 														<div className='flex items-center gap-2 mb-2'>
 															<div className='flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden'>
@@ -993,7 +1162,7 @@ export function RecruiterCandidatesPage() {
 					</DialogHeader>
 					<div className='space-y-4 py-2'>
 						<div>
-							<label className='text-sm font-medium'>Search Name</label>
+							<Label className='text-sm font-medium'>Search Name</Label>
 							<Input
 								value={saveSearchName}
 								onChange={(e) => setSaveSearchName(e.target.value)}
@@ -1004,6 +1173,9 @@ export function RecruiterCandidatesPage() {
 						<div className='rounded-lg bg-muted p-3 text-xs text-muted-foreground'>
 							<p className='font-medium mb-1'>Current filters:</p>
 							{searchQuery && <p>Search: {searchQuery}</p>}
+							{semanticSearchEnabled && (
+								<p className='text-indigo-600 font-medium'>AI Semantic Search: On</p>
+							)}
 							{Object.entries(activeFilters).map(([k, v]) => (
 								<p key={k}>
 									{k}: {v}
@@ -1037,7 +1209,7 @@ export function RecruiterCandidatesPage() {
 							job to get fit score, skill analysis, and recommendations.
 						</p>
 						<div>
-							<label className='text-sm font-medium'>Select Job</label>
+							<Label className='text-sm font-medium'>Select Job</Label>
 							<select
 								className='mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
 								value={selectedJobForScreening}
@@ -1070,6 +1242,267 @@ export function RecruiterCandidatesPage() {
 								<>
 									<Sparkles className='h-4 w-4' />
 									Run AI Screening
+								</>
+							)}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Profile Preview Dialog */}
+			<Dialog open={profilePreviewOpen} onOpenChange={setProfilePreviewOpen}>
+				<DialogContent className='max-w-2xl'>
+					<DialogHeader>
+						<DialogTitle className='flex items-center gap-2'>
+							<User className='h-4 w-4' />
+							Profile Preview
+						</DialogTitle>
+					</DialogHeader>
+					{profilePreviewLoading ? (
+						<div className='py-8 space-y-4'>
+							<Skeleton count={3} variant='card' />
+						</div>
+					) : profilePreviewData ? (
+						<div className='space-y-4 py-2 max-h-[60vh] overflow-y-auto pr-2'>
+							{/* Header */}
+							<div className='flex items-start gap-4'>
+								<Avatar className='h-16 w-16 border'>
+									<AvatarFallback className='bg-indigo-100 text-indigo-600 text-lg font-semibold'>
+										{profilePreviewData.name
+											.split(' ')
+											.map((n) => n[0])
+											.join('')
+											.toUpperCase()
+											.slice(0, 2)}
+									</AvatarFallback>
+								</Avatar>
+								<div className='flex-1 min-w-0'>
+									<h3 className='text-lg font-semibold'>{profilePreviewData.name}</h3>
+									{profilePreviewData.headline && (
+										<p className='text-sm text-muted-foreground'>{profilePreviewData.headline}</p>
+									)}
+									<div className='flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-muted-foreground'>
+										{profilePreviewData.location && (
+											<span className='flex items-center gap-1'>
+												<MapPin className='h-3.5 w-3.5' />
+												{profilePreviewData.location}
+											</span>
+										)}
+										{profilePreviewData.email && (
+											<span className='flex items-center gap-1'>
+												<Mail className='h-3.5 w-3.5' />
+												{profilePreviewData.email}
+											</span>
+										)}
+									</div>
+								</div>
+								<div className='flex flex-col items-end gap-1 shrink-0'>
+									{profilePreviewData.omniScore != null && (
+										<div className='inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-sm'>
+											<Zap className='h-3 w-3' />
+											OmniScore {profilePreviewData.omniScore}
+										</div>
+									)}
+									{profilePreviewData.matchScore != null && (
+										<Badge
+											variant='secondary'
+											className={`text-xs ${
+												profilePreviewData.matchScore >= 80
+													? 'bg-green-100 text-green-700'
+													: profilePreviewData.matchScore >= 60
+														? 'bg-amber-100 text-amber-700'
+														: 'bg-red-100 text-red-700'
+											}`}
+										>
+											{profilePreviewData.matchScore}% match
+										</Badge>
+									)}
+								</div>
+							</div>
+
+							<Separator />
+
+							{/* Bio */}
+							{profilePreviewData.bio && (
+								<div>
+									<Label className='text-sm font-medium'>About</Label>
+									<p className='text-sm text-muted-foreground mt-1'>{profilePreviewData.bio}</p>
+								</div>
+							)}
+
+							{/* Details */}
+							<div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+								{profilePreviewData.experienceYears != null && (
+									<div>
+										<Label className='text-sm font-medium'>Experience</Label>
+										<p className='text-sm text-muted-foreground mt-0.5'>
+											{profilePreviewData.experienceYears} years
+										</p>
+									</div>
+								)}
+								{profilePreviewData.education && (
+									<div>
+										<Label className='text-sm font-medium'>Education</Label>
+										<p className='text-sm text-muted-foreground mt-0.5'>
+											{profilePreviewData.education}
+										</p>
+									</div>
+								)}
+								{profilePreviewData.salaryExpectation && (
+									<div>
+										<Label className='text-sm font-medium'>Salary Expectation</Label>
+										<p className='text-sm text-muted-foreground mt-0.5'>
+											{profilePreviewData.salaryExpectation}
+										</p>
+									</div>
+								)}
+								{profilePreviewData.availability && (
+									<div>
+										<Label className='text-sm font-medium'>Availability</Label>
+										<p className='text-sm text-muted-foreground mt-0.5'>
+											{profilePreviewData.availability}
+										</p>
+									</div>
+								)}
+							</div>
+
+							{/* Skills */}
+							{profilePreviewData.skills.length > 0 && (
+								<div>
+									<Label className='text-sm font-medium'>Skills</Label>
+									<div className='flex flex-wrap gap-1.5 mt-1'>
+										{profilePreviewData.skills.map((skill) => (
+											<Badge key={skill} variant='secondary' className='text-xs'>
+												{skill}
+											</Badge>
+										))}
+									</div>
+								</div>
+							)}
+
+							{/* Languages */}
+							{profilePreviewData.languages && profilePreviewData.languages.length > 0 && (
+								<div>
+									<Label className='text-sm font-medium'>Languages</Label>
+									<p className='text-sm text-muted-foreground mt-0.5'>
+										{profilePreviewData.languages.join(', ')}
+									</p>
+								</div>
+							)}
+
+							{/* Experience */}
+							{profilePreviewData.experience && profilePreviewData.experience.length > 0 && (
+								<div>
+									<Label className='text-sm font-medium'>Work Experience</Label>
+									<div className='space-y-2 mt-1'>
+										{profilePreviewData.experience.map((exp, i) => (
+											<div key={i} className='rounded-lg bg-muted p-3'>
+												<p className='text-sm font-medium'>{exp.title}</p>
+												<p className='text-xs text-muted-foreground'>
+													{exp.company} · {exp.duration}
+												</p>
+												{exp.description && (
+													<p className='text-xs text-muted-foreground mt-1'>
+														{exp.description}
+													</p>
+												)}
+											</div>
+										))}
+									</div>
+								</div>
+							)}
+
+							{/* Certifications */}
+							{profilePreviewData.certifications &&
+								profilePreviewData.certifications.length > 0 && (
+									<div>
+										<Label className='text-sm font-medium'>Certifications</Label>
+										<div className='flex flex-wrap gap-1.5 mt-1'>
+											{profilePreviewData.certifications.map((cert) => (
+												<Badge
+													key={cert}
+													variant='outline'
+													className='text-xs'
+												>
+													{cert}
+												</Badge>
+											))}
+										</div>
+									</div>
+								)}
+						</div>
+					) : (
+						<div className='py-8 text-center text-sm text-muted-foreground'>
+							Failed to load profile preview.
+						</div>
+					)}
+					<DialogFooter>
+						<Button variant='outline' onClick={() => setProfilePreviewOpen(false)}>
+							Close
+						</Button>
+						{profilePreviewCandidate && (
+							<Button
+								className='gap-1'
+								onClick={() => {
+									setProfilePreviewOpen(false)
+									handleOpenInvite(profilePreviewCandidate.id)
+								}}
+							>
+								<Send className='h-4 w-4' />
+								Invite to Apply
+							</Button>
+						)}
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Invite to Apply Dialog */}
+			<Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle className='flex items-center gap-2'>
+							<Send className='h-4 w-4 text-indigo-500' />
+							Invite to Apply
+						</DialogTitle>
+					</DialogHeader>
+					<div className='space-y-4 py-2'>
+						<p className='text-sm'>
+							Invite <strong>{inviteCandidate?.name}</strong> to apply for a specific job.
+						</p>
+						<div>
+							<Label className='text-sm font-medium'>Select Job</Label>
+							<select
+								className='mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
+								value={selectedJobForInvite}
+								onChange={(e) => setSelectedJobForInvite(e.target.value)}
+							>
+								<option value=''>Choose a job...</option>
+								{jobs.map((job) => (
+									<option key={job.id} value={job.id}>
+										{job.title}
+									</option>
+								))}
+							</select>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button variant='outline' onClick={() => setInviteDialogOpen(false)}>
+							Cancel
+						</Button>
+						<Button
+							onClick={handleSendInvite}
+							disabled={!selectedJobForInvite || isInviting}
+							className='gap-1'
+						>
+							{isInviting ? (
+								<>
+									<span className='h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent' />
+									Sending...
+								</>
+							) : (
+								<>
+									<Send className='h-4 w-4' />
+									Send Invite
 								</>
 							)}
 						</Button>

@@ -5,8 +5,10 @@ import {
 	Mail,
 	MapPin,
 	MessageSquare,
+	Send,
 	Star,
 	TrendingUp,
+	Zap,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -32,6 +34,8 @@ export type CandidateCardProps = {
 	onMessage?: (id: string) => void
 	onSchedule?: (id: string) => void
 	onShortlist?: (id: string) => void
+	onInvite?: (id: string) => void
+	onClick?: () => void
 	className?: string
 }
 
@@ -51,6 +55,8 @@ export function CandidateCard({
 	onMessage,
 	onSchedule,
 	onShortlist,
+	onInvite,
+	onClick,
 	className,
 }: CandidateCardProps) {
 	const initials = name
@@ -81,8 +87,30 @@ export function CandidateCard({
 		onShortlist?.(id)
 	}
 
+	const handleInvite = (e: React.MouseEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		trackEvent('candidate_card_invite_click', { candidate_id: id })
+		onInvite?.(id)
+	}
+
+	const handleCardClick = (e: React.MouseEvent) => {
+		// Only trigger onClick if the click target is not a button or interactive element
+		const target = e.target as HTMLElement
+		if (target.closest('button') || target.closest('a') || target.closest('select')) {
+			return
+		}
+		onClick?.()
+	}
+
 	return (
-		<Card className={cn('group overflow-hidden transition-all hover:shadow-md', className)}>
+		<Card
+			className={cn(
+				'group overflow-hidden transition-all hover:shadow-md cursor-pointer',
+				className,
+			)}
+			onClick={handleCardClick}
+		>
 			<CardHeader className='pb-2'>
 				<div className='flex items-start justify-between gap-3'>
 					<div className='flex items-center gap-3'>
@@ -110,6 +138,12 @@ export function CandidateCard({
 
 					{/* Score badges */}
 					<div className='flex flex-col items-end gap-1 shrink-0'>
+						{omniscore != null && (
+							<div className='inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-sm'>
+								<Zap className='h-3 w-3' />
+								OmniScore {omniscore}
+							</div>
+						)}
 						{matchScore != null && (
 							<div
 								className={cn(
@@ -123,11 +157,6 @@ export function CandidateCard({
 							>
 								<TrendingUp className='h-3 w-3' />
 								{matchScore}% match
-							</div>
-						)}
-						{omniscore != null && (
-							<div className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'>
-								OmniScore {omniscore}
 							</div>
 						)}
 						{trustscore != null && (
@@ -180,18 +209,29 @@ export function CandidateCard({
 			</CardContent>
 
 			<CardFooter className='pt-0'>
-				<div className='flex w-full gap-2'>
-					<Button size='sm' variant='outline' className='flex-1 gap-1' onClick={handleMessage}>
+				<div className='flex w-full gap-2 flex-wrap sm:flex-nowrap'>
+					<Button size='sm' variant='outline' className='flex-1 gap-1 min-h-[44px]' onClick={handleMessage}>
 						<MessageSquare className='h-3.5 w-3.5' />
-						Message
+						<span className='hidden sm:inline'>Message</span>
 					</Button>
-					<Button size='sm' variant='outline' className='flex-1 gap-1' onClick={handleSchedule}>
+					<Button size='sm' variant='outline' className='flex-1 gap-1 min-h-[44px]' onClick={handleSchedule}>
 						<Mail className='h-3.5 w-3.5' />
-						Schedule
+						<span className='hidden sm:inline'>Schedule</span>
 					</Button>
-					<Button size='sm' className='flex-1 gap-1' onClick={handleShortlist}>
+					{onInvite && (
+						<Button
+							size='sm'
+							variant='outline'
+							className='flex-1 gap-1 min-h-[44px] border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800 dark:hover:bg-indigo-950'
+							onClick={handleInvite}
+						>
+							<Send className='h-3.5 w-3.5' />
+							<span className='hidden sm:inline'>Invite</span>
+						</Button>
+					)}
+					<Button size='sm' className='flex-1 gap-1 min-h-[44px]' onClick={handleShortlist}>
 						<ChevronRight className='h-3.5 w-3.5' />
-						Shortlist
+						<span className='hidden sm:inline'>Shortlist</span>
 					</Button>
 				</div>
 			</CardFooter>
