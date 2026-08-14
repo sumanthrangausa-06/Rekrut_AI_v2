@@ -1755,7 +1755,7 @@ app.get('/api/admin/routes', requireAdmin, (_req, res) => {
 			{ file: 'routes/company.js', domain: 'Company', endpoints: 7 },
 			{ file: 'routes/jobs.js', domain: 'Jobs', endpoints: 6 },
 			{ file: 'routes/matching.js', domain: 'Matching', endpoints: 6 },
-			{ file: 'routes/trustscore.js', domain: 'TrustScore', endpoints: 6 },
+			{ file: 'routes/trustscore.js', domain: 'TrustScore', endpoints: 13 },
 			{ file: 'routes/admin.js', domain: 'Admin', endpoints: 3 },
 			{ file: 'routes/analytics.js', domain: 'Analytics', endpoints: 2 },
 			{ file: 'routes/countries.js', domain: 'Countries', endpoints: 4 },
