@@ -185,7 +185,29 @@ const CandidateAptitudeTestResultsPage = lazy(() =>
 	import('@/pages/candidate/aptitude-test-results').then((m) => ({ default: m.CandidateAptitudeTestResultsPage })),
 )
 
+const CandidateProctoringConsentPage = lazy(() =>
+	import('@/pages/candidate/proctoring-consent').then((m) => ({
+		default: m.CandidateProctoringConsentPage,
+	})),
+)
+const CandidateProctoringSessionPage = lazy(() =>
+	import('@/pages/candidate/proctoring-session').then((m) => ({
+		default: m.CandidateProctoringSessionPage,
+	})),
+)
+
 // Recruiter pages
+const RecruiterProctoringFlagsPage = lazy(() =>
+	import('@/pages/recruiter/proctoring-flags').then((m) => ({
+		default: m.RecruiterProctoringFlagsPage,
+	})),
+)
+const RecruiterProctoringFlagDetailPage = lazy(() =>
+	import('@/pages/recruiter/proctoring-flag-detail').then((m) => ({
+		default: m.RecruiterProctoringFlagDetailPage,
+	})),
+)
+
 const RecruiterAptitudeTestsPage = lazy(() =>
 	import('@/pages/recruiter/aptitude-tests').then((m) => ({ default: m.RecruiterAptitudeTestsPage })),
 )
@@ -735,6 +757,22 @@ function AppRoutes() {
 					}
 				/>
 				<Route
+					path='proctoring/:sessionId/consent'
+					element={
+						<Protected>
+							<CandidateProctoringConsentPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path='proctoring/:sessionId'
+					element={
+						<Protected>
+							<CandidateProctoringSessionPage />
+						</Protected>
+					}
+				/>
+				<Route
 					path='chat'
 					element={
 						<Protected>
@@ -1192,6 +1230,26 @@ function AppRoutes() {
 						<Protected>
 							<RecruiterGuard>
 								<RecruiterPostHireFeedbackPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path='proctoring'
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<RecruiterProctoringFlagsPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path='proctoring/:flagId'
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<RecruiterProctoringFlagDetailPage />
 							</RecruiterGuard>
 						</Protected>
 					}

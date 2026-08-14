@@ -305,6 +305,87 @@ export interface User {
 	is_company_owner?: boolean
 }
 
+// ── Proctoring API helpers ──
+
+export interface ProctoringSession {
+	id: number
+	application_id: number
+	candidate_id: number
+	status: string
+	consent_given: boolean
+	consent_timestamp: string | null
+	started_at: string | null
+	ended_at: string | null
+	created_at: string
+	updated_at: string
+}
+
+export interface ProctoringEvent {
+	id: number
+	event_type: string
+	severity: string
+	details: Record<string, unknown>
+	created_at: string
+}
+
+export interface ProctoringFlag {
+	id: number
+	flag_type: string
+	description: string
+	severity: string
+	review_decision: string
+	review_notes: string | null
+	reviewer_name: string | null
+	created_at: string
+}
+
+export async function createProctoringSession(applicationId: number): Promise<{ success: boolean; session: ProctoringSession }> {
+	return apiCall(`/proctoring/session`, {
+		method: 'POST',
+		body: { application_id: applicationId },
+	})
+}
+
+export async function getProctoringSession(sessionId: number): Promise<{
+	success: boolean
+	session: ProctoringSession & { candidate_name?: string; candidate_email?: string; job_title?: string | null }
+	events: ProctoringEvent[]
+	flags: ProctoringFlag[]
+}> {
+	return apiCall(`/proctoring/session/${sessionId}`)
+}
+
+export async function giveProctoringConsent(sessionId: number): Promise<{ success: boolean; session: ProctoringSession }> {
+	return apiCall(`/proctoring/session/${sessionId}/consent`, {
+		method: 'POST',
+		body: { consent_given: true },
+	})
+}
+
+export async function completeProctoringSession(sessionId: number): Promise<{ success: boolean; session: ProctoringSession }> {
+	return apiCall(`/proctoring/session/${sessionId}/complete`, { method: 'POST' })
+}
+
+export async function getProctoringFlags(status = 'pending', limit = 20, offset = 0): Promise<{
+	success: boolean
+	flags: Array<Record<string, unknown>>
+	total: number
+	limit: number
+	offset: number
+}> {
+	return apiCall(`/proctoring/flags?status=${status}&limit=${limit}&offset=${offset}`)
+}
+
+export async function reviewProctoringFlag(flagId: number, decision: 'approved' | 'rejected', notes = ''): Promise<{
+	success: boolean
+	flag: ProctoringFlag
+}> {
+	return apiCall(`/proctoring/flags/${flagId}/review`, {
+		method: 'POST',
+		body: { decision, notes },
+	})
+}
+
 export function isRecruiterRole(role: UserRole): boolean {
 	return ['employer', 'recruiter', 'hiring_manager', 'admin'].includes(role)
 }

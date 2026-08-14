@@ -115,6 +115,7 @@ const notificationsRoutes = require('./routes/notifications');
 const billingRoutes = require('./routes/billing');
 const voiceNotificationsRoutes = require('./routes/voice-notifications');
 const screeningRoutes = require('./routes/screening');
+const proctoringRoutes = require('./routes/proctoring');
 const aiScreenerRoutes = require('./routes/ai-screener');
 const questionnaireRoutes = require('./routes/questionnaire');
 const settingsRoutes = require('./routes/settings');
@@ -606,6 +607,7 @@ app.use('/api/notifications', voiceNotificationsRoutes);
 app.use('/api/billing', billingRoutes);
 
 // API Routes - AI Screening (Recruiter AI Coach)
+app.use('/api/proctoring', proctoringRoutes);
 app.use('/api/screening', screeningRoutes);
 
 // API Routes - AI Recruiter Screener (Issue #112)
@@ -1912,6 +1914,8 @@ const KNOWN_ROUTES = [
 	// Recruiter pending approval
 	'^/recruiter/pending-approval$',
 
+	'^/candidate/proctoring/[^/]+$',
+	'^/candidate/proctoring/[^/]+/consent$',
 	// Recruiter routes
 	'^/recruiter$',
 	'^/recruiter/jobs$',
@@ -1935,6 +1939,8 @@ const KNOWN_ROUTES = [
 	'^/recruiter/omniscore$',
 	'^/recruiter/post-hire-feedback$',
 	'^/recruiter/compliance$',
+	'^/recruiter/proctoring$',
+	'^/recruiter/proctoring/[^/]+$',
 
 	// Settings
 	'^/settings$',
