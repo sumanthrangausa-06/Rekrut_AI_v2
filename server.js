@@ -98,6 +98,7 @@ const assessmentRoutes = require('./routes/assessments');
 const panelRoutes = require('./routes/panels');
 const documentRoutes = require('./routes/documents');
 const candidateDocumentRoutes = require('./routes/candidate-documents');
+const fitScoreRoutes = require('./routes/fitScore'); // Issue #76 — Job Fit Score API
 const recruiterDocumentRoutes = require('./routes/recruiter-documents');
 const payrollRoutes = require('./routes/payroll');
 const complianceRoutes = require('./routes/compliance');
@@ -559,6 +560,7 @@ app.use('/api/omniscore', omniscoreRoutes);
 app.use('/api/candidate/omniscore', omniscoreRoutes);
 app.use('/api/recruiter/omniscore', omniscoreRoutes);
 app.use('/api/candidate', candidateRoutes);
+app.use('/api/candidate', fitScoreRoutes); // Issue #76 — Job Fit Score API
 app.use('/api/assessments', assessmentRoutes);
 
 // API Routes - Recruiter/Company side
