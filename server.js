@@ -119,6 +119,7 @@ const questionnaireRoutes = require('./routes/questionnaire');
 const settingsRoutes = require('./routes/settings');
 const signatureRoutes = require('./routes/signature');
 const chatRoutes = require('./routes/chat');
+const candidateSearchRoutes = require('./routes/candidateSearch'); // Issue #3 — Candidate Search API
 const sandboxRoutes = require('./routes/sandbox');
 const codingTemplateRoutes = require('./routes/coding-templates');
 const codingSubmissionRoutes = require('./routes/coding-submissions');
@@ -619,6 +620,9 @@ app.use('/api/settings', settingsRoutes);
 
 // API Routes - E-Signature Engine
 app.use('/api/signatures', signatureRoutes);
+
+// Issue #3 — Candidate Search API (mounted BEFORE verification to take priority for /search and /:id/preview)
+app.use('/api/candidates', candidateSearchRoutes);
 
 // API Routes - Identity Verification
 app.use('/api/candidates', verificationRoutes);
