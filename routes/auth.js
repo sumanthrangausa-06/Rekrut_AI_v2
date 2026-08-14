@@ -12,9 +12,8 @@ const {
 	authMiddleware,
 } = require('../lib/auth');
 
-const router = express.Router();
+const { AuditLogger } = require('../services/auditLogger');
 
-// Rate limiting (distributed via PostgreSQL)
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const emailService = require('../lib/email-service');
 
@@ -534,14 +533,26 @@ router.get('/google/callback', async (req, res) => {
 		const { code, state, error } = req.query;
 
 		if (error) {
+			if (req.session?.oauth_link_user_id) {
+				delete req.session.oauth_link_user_id;
+				return res.redirect(`/settings?oauth_error=${encodeURIComponent(error)}`);
+			}
 			return res.redirect(`/login?error=${encodeURIComponent(error)}`);
 		}
 
 		if (!code) {
+			if (req.session?.oauth_link_user_id) {
+				delete req.session.oauth_link_user_id;
+				return res.redirect('/settings?oauth_error=No authorization code received');
+			}
 			return res.redirect('/login?error=No authorization code received');
 		}
 
 		if (!verifyOauthState(req, state)) {
+			if (req.session?.oauth_link_user_id) {
+				delete req.session.oauth_link_user_id;
+				return res.redirect('/settings?oauth_error=Invalid OAuth state');
+			}
 			return res.redirect('/login?error=Invalid OAuth state');
 		}
 
@@ -564,6 +575,10 @@ router.get('/google/callback', async (req, res) => {
 
 		if (tokens.error) {
 			console.error('Google token error:', tokens);
+			if (req.session?.oauth_link_user_id) {
+				delete req.session.oauth_link_user_id;
+				return res.redirect('/settings?oauth_error=Failed to authenticate with Google');
+			}
 			return res.redirect('/login?error=Failed to authenticate with Google');
 		}
 
@@ -575,10 +590,82 @@ router.get('/google/callback', async (req, res) => {
 		const googleUser = await userInfoResponse.json();
 
 		if (!googleUser.email) {
+			if (req.session?.oauth_link_user_id) {
+				delete req.session.oauth_link_user_id;
+				return res.redirect('/settings?oauth_error=Could not retrieve email from Google');
+			}
 			return res.redirect('/login?error=Could not retrieve email from Google');
 		}
 
-		// Find or create user
+		// ── LINK MODE: connect to existing account ──
+		if (req.session?.oauth_link_user_id) {
+			const linkUserId = req.session.oauth_link_user_id;
+			delete req.session.oauth_link_user_id;
+
+			// Find the user requesting the link
+			const linkUserResult = await pool.query('SELECT * FROM users WHERE id = $1', [linkUserId]);
+			if (linkUserResult.rows.length === 0) {
+				return res.redirect('/settings?oauth_error=User not found');
+			}
+			const linkUser = linkUserResult.rows[0];
+
+			// Security: verify OAuth email matches logged-in user's email
+			if (googleUser.email.toLowerCase() !== linkUser.email.toLowerCase()) {
+				return res.redirect('/settings?oauth_error=email_mismatch');
+			}
+
+			// Check if another user already has this google_id
+			const existingGoogleUser = await pool.query(
+				'SELECT id FROM users WHERE google_id = $1 AND id != $2',
+				[googleUser.id, linkUserId],
+			);
+			if (existingGoogleUser.rows.length > 0) {
+				return res.redirect('/settings?oauth_error=google_account_already_linked');
+			}
+
+			// Update user's google_id
+			await pool.query(
+				'UPDATE users SET google_id = $1, avatar_url = COALESCE(avatar_url, $2) WHERE id = $3',
+				[googleUser.id, googleUser.picture, linkUserId],
+			);
+
+			// Store OAuth connection
+			const encAccessToken = tokens.access_token ? encrypt(tokens.access_token) : null;
+			const encRefreshToken = tokens.refresh_token ? encrypt(tokens.refresh_token) : null;
+
+			await pool.query(
+				`
+				INSERT INTO oauth_connections (user_id, provider, provider_user_id, access_token, refresh_token, profile_data, encryption_version)
+				VALUES ($1, 'google', $2, $3, $4, $5, 'v1')
+				ON CONFLICT (provider, provider_user_id) DO UPDATE SET
+					user_id = EXCLUDED.user_id,
+					access_token = EXCLUDED.access_token,
+					refresh_token = EXCLUDED.refresh_token,
+					profile_data = EXCLUDED.profile_data,
+					updated_at = NOW(),
+					encryption_version = 'v1'
+				`,
+				[linkUserId, googleUser.id, encAccessToken, encRefreshToken, JSON.stringify(googleUser)],
+			);
+
+			// Audit log
+			try {
+				await AuditLogger.log({
+					actionType: 'oauth_google_connected',
+					userId: linkUserId,
+					targetType: 'user',
+					targetId: linkUserId,
+					metadata: { provider: 'google', email: googleUser.email },
+					req,
+				});
+			} catch (auditErr) {
+				console.error('Audit log failed (non-blocking):', auditErr.message);
+			}
+
+			return res.redirect('/settings?oauth_connected=google');
+		}
+
+		// ── LOGIN MODE: find or create user ──
 		let user;
 		const existingUser = await pool.query(
 			'SELECT * FROM users WHERE google_id = $1 OR email = $2',
@@ -636,6 +723,10 @@ router.get('/google/callback', async (req, res) => {
 		res.redirect(redirectUrl);
 	} catch (err) {
 		console.error('Google OAuth error:', err.message, err.code, err.stack);
+		if (req.session?.oauth_link_user_id) {
+			delete req.session.oauth_link_user_id;
+			return res.redirect('/settings?oauth_error=Authentication failed');
+		}
 		res.redirect('/login?error=Authentication failed');
 	}
 });
@@ -678,14 +769,26 @@ router.get('/linkedin/callback', async (req, res) => {
 		const { code, state, error, error_description } = req.query;
 
 		if (error) {
+			if (req.session?.oauth_link_user_id) {
+				delete req.session.oauth_link_user_id;
+				return res.redirect(`/settings?oauth_error=${encodeURIComponent(error_description || error)}`);
+			}
 			return res.redirect(`/login?error=${encodeURIComponent(error_description || error)}`);
 		}
 
 		if (!code) {
+			if (req.session?.oauth_link_user_id) {
+				delete req.session.oauth_link_user_id;
+				return res.redirect('/settings?oauth_error=No authorization code received');
+			}
 			return res.redirect('/login?error=No authorization code received');
 		}
 
 		if (!verifyOauthState(req, state)) {
+			if (req.session?.oauth_link_user_id) {
+				delete req.session.oauth_link_user_id;
+				return res.redirect('/settings?oauth_error=Invalid OAuth state');
+			}
 			return res.redirect('/login?error=Invalid OAuth state');
 		}
 
@@ -708,6 +811,10 @@ router.get('/linkedin/callback', async (req, res) => {
 
 		if (tokens.error) {
 			console.error('LinkedIn token error:', tokens);
+			if (req.session?.oauth_link_user_id) {
+				delete req.session.oauth_link_user_id;
+				return res.redirect('/settings?oauth_error=Failed to authenticate with LinkedIn');
+			}
 			return res.redirect('/login?error=Failed to authenticate with LinkedIn');
 		}
 
@@ -719,10 +826,80 @@ router.get('/linkedin/callback', async (req, res) => {
 		const linkedinUser = await userInfoResponse.json();
 
 		if (!linkedinUser.email) {
+			if (req.session?.oauth_link_user_id) {
+				delete req.session.oauth_link_user_id;
+				return res.redirect('/settings?oauth_error=Could not retrieve email from LinkedIn');
+			}
 			return res.redirect('/login?error=Could not retrieve email from LinkedIn');
 		}
 
-		// Find or create user
+		// ── LINK MODE: connect to existing account ──
+		if (req.session?.oauth_link_user_id) {
+			const linkUserId = req.session.oauth_link_user_id;
+			delete req.session.oauth_link_user_id;
+
+			// Find the user requesting the link
+			const linkUserResult = await pool.query('SELECT * FROM users WHERE id = $1', [linkUserId]);
+			if (linkUserResult.rows.length === 0) {
+				return res.redirect('/settings?oauth_error=User not found');
+			}
+			const linkUser = linkUserResult.rows[0];
+
+			// Security: verify OAuth email matches logged-in user's email
+			if (linkedinUser.email.toLowerCase() !== linkUser.email.toLowerCase()) {
+				return res.redirect('/settings?oauth_error=email_mismatch');
+			}
+
+			// Check if another user already has this linkedin_id
+			const existingLinkedInUser = await pool.query(
+				'SELECT id FROM users WHERE linkedin_id = $1 AND id != $2',
+				[linkedinUser.sub, linkUserId],
+			);
+			if (existingLinkedInUser.rows.length > 0) {
+				return res.redirect('/settings?oauth_error=linkedin_account_already_linked');
+			}
+
+			// Update user's linkedin_id
+			await pool.query(
+				'UPDATE users SET linkedin_id = $1, avatar_url = COALESCE(avatar_url, $2) WHERE id = $3',
+				[linkedinUser.sub, linkedinUser.picture, linkUserId],
+			);
+
+			// Store OAuth connection
+			const encAccessToken = tokens.access_token ? encrypt(tokens.access_token) : null;
+
+			await pool.query(
+				`
+				INSERT INTO oauth_connections (user_id, provider, provider_user_id, access_token, profile_data, encryption_version)
+				VALUES ($1, 'linkedin', $2, $3, $4, 'v1')
+				ON CONFLICT (provider, provider_user_id) DO UPDATE SET
+					user_id = EXCLUDED.user_id,
+					access_token = EXCLUDED.access_token,
+					profile_data = EXCLUDED.profile_data,
+					updated_at = NOW(),
+					encryption_version = 'v1'
+				`,
+				[linkUserId, linkedinUser.sub, encAccessToken, JSON.stringify(linkedinUser)],
+			);
+
+			// Audit log
+			try {
+				await AuditLogger.log({
+					actionType: 'oauth_linkedin_connected',
+					userId: linkUserId,
+					targetType: 'user',
+					targetId: linkUserId,
+					metadata: { provider: 'linkedin', email: linkedinUser.email },
+					req,
+				});
+			} catch (auditErr) {
+				console.error('Audit log failed (non-blocking):', auditErr.message);
+			}
+
+			return res.redirect('/settings?oauth_connected=linkedin');
+		}
+
+		// ── LOGIN MODE: find or create user ──
 		let user;
 		const existingUser = await pool.query(
 			'SELECT * FROM users WHERE linkedin_id = $1 OR email = $2',
@@ -781,6 +958,10 @@ router.get('/linkedin/callback', async (req, res) => {
 		res.redirect(redirectUrl);
 	} catch (err) {
 		console.error('LinkedIn OAuth error:', err.message, err.code, err.stack);
+		if (req.session?.oauth_link_user_id) {
+			delete req.session.oauth_link_user_id;
+			return res.redirect('/settings?oauth_error=Authentication failed');
+		}
 		res.redirect('/login?error=Authentication failed');
 	}
 });
@@ -805,7 +986,12 @@ router.get('/oauth/status', (_req, res) => {
 router.get('/oauth/connections', authMiddleware, async (req, res) => {
 	try {
 		const connections = await pool.query(
-			'SELECT provider, created_at FROM oauth_connections WHERE user_id = $1',
+			`SELECT
+				provider,
+				created_at as connected_at,
+				profile_data->>'email' as email,
+				updated_at as last_sync
+			FROM oauth_connections WHERE user_id = $1`,
 			[req.user.id],
 		);
 
@@ -817,6 +1003,130 @@ router.get('/oauth/connections', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Get OAuth connections error:', err);
 		res.status(500).json({ error: 'Failed to get OAuth connections' });
+	}
+});
+
+// Initiate OAuth flow for linking to existing account
+router.get('/oauth/connect/:provider', authMiddleware, async (req, res) => {
+	try {
+		const provider = req.params.provider;
+		if (!['google', 'linkedin'].includes(provider)) {
+			return res.status(400).json({ error: 'Invalid provider' });
+		}
+
+		// Check if already connected
+		const existing = await pool.query(
+			'SELECT id FROM oauth_connections WHERE user_id = $1 AND provider = $2',
+			[req.user.id, provider],
+		);
+		if (existing.rows.length > 0) {
+			return res.status(409).json({ error: 'Account already connected for this provider' });
+		}
+
+		const state = crypto.randomBytes(16).toString('hex');
+		req.session.oauth_state = state;
+		req.session.oauth_link_user_id = req.user.id;
+
+		let url;
+		if (provider === 'google') {
+			const clientId = process.env.GOOGLE_CLIENT_ID;
+			const redirectUri =
+				process.env.GOOGLE_REDIRECT_URI ||
+				`${process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`}/api/auth/google/callback`;
+			if (!clientId) {
+				return res.status(503).json({ error: 'Google OAuth not configured' });
+			}
+			const scope = encodeURIComponent('openid email profile');
+			url =
+				`https://accounts.google.com/o/oauth2/v2/auth?` +
+				`client_id=${clientId}` +
+				`&redirect_uri=${encodeURIComponent(redirectUri)}` +
+				`&response_type=code` +
+				`&scope=${scope}` +
+				`&state=${state}` +
+				`&access_type=offline` +
+				`&prompt=consent`;
+		} else {
+			const clientId = process.env.LINKEDIN_CLIENT_ID;
+			const redirectUri =
+				process.env.LINKEDIN_REDIRECT_URI ||
+				`${process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`}/api/auth/linkedin/callback`;
+			if (!clientId) {
+				return res.status(503).json({ error: 'LinkedIn OAuth not configured' });
+			}
+			const scope = encodeURIComponent('openid profile email');
+			url =
+				`https://www.linkedin.com/oauth/v2/authorization?` +
+				`response_type=code` +
+				`&client_id=${clientId}` +
+				`&redirect_uri=${encodeURIComponent(redirectUri)}` +
+				`&state=${state}` +
+				`&scope=${scope}`;
+		}
+
+		res.json({ url, configured: true });
+	} catch (err) {
+		console.error('OAuth connect initiate error:', err);
+		res.status(500).json({ error: 'Failed to initiate OAuth connection' });
+	}
+});
+
+// Disconnect OAuth provider
+router.post('/oauth/disconnect', authMiddleware, async (req, res) => {
+	try {
+		const { provider } = req.body;
+		if (!['google', 'linkedin'].includes(provider)) {
+			return res.status(400).json({ error: 'Invalid provider' });
+		}
+
+		// Get all connections for the user
+		const connectionsResult = await pool.query(
+			'SELECT provider FROM oauth_connections WHERE user_id = $1',
+			[req.user.id],
+		);
+		const connections = connectionsResult.rows;
+		const hasPassword = !!req.user.password_hash;
+
+		// Check if this is the only auth method and user has no password
+		const isOnlyAuthMethod = connections.length === 1 && connections[0].provider === provider;
+		if (!hasPassword && isOnlyAuthMethod) {
+			return res.status(400).json({
+				error: 'Cannot disconnect your only sign-in method. Please set a password first.',
+				code: 'LAST_AUTH_METHOD',
+			});
+		}
+
+		// Delete the oauth connection
+		await pool.query(
+			'DELETE FROM oauth_connections WHERE user_id = $1 AND provider = $2',
+			[req.user.id, provider],
+		);
+
+		// Clear the provider ID from users table
+		if (provider === 'google') {
+			await pool.query('UPDATE users SET google_id = NULL WHERE id = $1', [req.user.id]);
+		} else if (provider === 'linkedin') {
+			await pool.query('UPDATE users SET linkedin_id = NULL WHERE id = $1', [req.user.id]);
+		}
+
+		// Audit log
+		try {
+			await AuditLogger.log({
+				actionType: `oauth_${provider}_disconnected`,
+				userId: req.user.id,
+				targetType: 'user',
+				targetId: req.user.id,
+				metadata: { provider },
+				req,
+			});
+		} catch (auditErr) {
+			console.error('Audit log failed (non-blocking):', auditErr.message);
+		}
+
+		res.json({ success: true, message: `${provider} disconnected successfully` });
+	} catch (err) {
+		console.error('OAuth disconnect error:', err);
+		res.status(500).json({ error: 'Failed to disconnect OAuth provider' });
 	}
 });
 

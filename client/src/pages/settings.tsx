@@ -6,6 +6,10 @@ import {
 	Download,
 	Eye,
 	EyeOff,
+	Globe,
+	Link,
+	Link2Off,
+	Linkedin,
 	Loader2,
 	Lock,
 	Monitor,
@@ -16,9 +20,19 @@ import {
 	Trash2,
 	Upload,
 	User,
+	X,
 } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -91,6 +105,128 @@ export function SettingsPage() {
 	// Delete account state
 	const [deleteConfirm, setDeleteConfirm] = useState('')
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+
+	// ── Account Connections (Issue #161) ──
+	const [searchParams, setSearchParams] = useSearchParams()
+	const [connections, setConnections] = useState<Array<{ provider: string; connected_at: string; email?: string; last_sync?: string }>>([])
+	const [connectionsLoading, setConnectionsLoading] = useState(false)
+	const [connectionsError, setConnectionsError] = useState<string | null>(null)
+	const [hasPassword, setHasPassword] = useState(true)
+	const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null)
+	const [confirmDisconnectProvider, setConfirmDisconnectProvider] = useState<string | null>(null)
+
+	type ToastType = 'success' | 'error' | 'info'
+	interface Toast {
+		id: string
+		message: string
+		type: ToastType
+	}
+	const [toasts, setToasts] = useState<Toast[]>([])
+
+	const showToast = useCallback((message: string, type: ToastType = 'info') => {
+		const id = `${Date.now()}-${Math.random()}`
+		setToasts((prev) => [...prev, { id, message, type }])
+		setTimeout(() => {
+			setToasts((prev) => prev.filter((t) => t.id !== id))
+		}, 5000)
+	}, [])
+
+	const dismissToast = useCallback((id: string) => {
+		setToasts((prev) => prev.filter((t) => t.id !== id))
+	}, [])
+
+	const loadConnections = useCallback(async () => {
+		setConnectionsLoading(true)
+		setConnectionsError(null)
+		try {
+			const data = await apiCall<{
+				success: boolean
+				connections: Array<{ provider: string; connected_at: string; email?: string; last_sync?: string }>
+				has_password: boolean
+			}>('/auth/oauth/connections')
+			setConnections(data.connections || [])
+			setHasPassword(data.has_password ?? true)
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : 'Failed to load connections'
+			setConnectionsError(msg)
+		} finally {
+			setConnectionsLoading(false)
+		}
+	}, [])
+
+	// Handle OAuth redirect params
+	useEffect(() => {
+		const connected = searchParams.get('oauth_connected')
+		const oauthError = searchParams.get('oauth_error')
+		if (connected) {
+			showToast(`${connected.charAt(0).toUpperCase() + connected.slice(1)} connected successfully`, 'success')
+			setSearchParams({}, { replace: true })
+			loadConnections()
+		}
+		if (oauthError) {
+			let message = 'Connection failed'
+			if (oauthError === 'email_mismatch') {
+				message = 'The OAuth account email does not match your account email.'
+			} else if (oauthError === 'google_account_already_linked') {
+				message = 'This Google account is already linked to another user.'
+			} else if (oauthError === 'linkedin_account_already_linked') {
+				message = 'This LinkedIn account is already linked to another user.'
+			} else {
+				message = `Connection failed: ${decodeURIComponent(oauthError)}`
+			}
+			showToast(message, 'error')
+			setSearchParams({}, { replace: true })
+		}
+	}, [searchParams, setSearchParams, showToast, loadConnections])
+
+	useEffect(() => {
+		if (activeTab === 'account') {
+			loadConnections()
+		}
+	}, [activeTab, loadConnections])
+
+	async function handleConnectProvider(provider: string) {
+		try {
+			const data = await apiCall<{ url: string; configured: boolean }>(`/auth/oauth/connect/${provider}`)
+			if (data.url) {
+				window.location.href = data.url
+			}
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : `Failed to connect ${provider}`
+			showToast(msg, 'error')
+		}
+	}
+
+	async function handleDisconnectProvider(provider: string) {
+		setDisconnectingProvider(provider)
+		try {
+			await apiCall('/auth/oauth/disconnect', {
+				method: 'POST',
+				body: { provider },
+			})
+			showToast(`${provider.charAt(0).toUpperCase() + provider.slice(1)} disconnected successfully`, 'success')
+			await loadConnections()
+		} catch (err: any) {
+			const msg = err?.message || `Failed to disconnect ${provider}`
+			if (err?.code === 'LAST_AUTH_METHOD') {
+				showToast('Cannot disconnect your only sign-in method. Please set a password first.', 'error')
+			} else {
+				showToast(msg, 'error')
+			}
+		} finally {
+			setDisconnectingProvider(null)
+			setConfirmDisconnectProvider(null)
+		}
+	}
+
+	function formatDate(dateStr?: string) {
+		if (!dateStr) return null
+		try {
+			return new Date(dateStr).toLocaleString()
+		} catch {
+			return dateStr
+		}
+	}
 
 	// Billing state
 	const [subscription, setSubscription] = useState<{
@@ -300,6 +436,37 @@ export function SettingsPage() {
 
 	return (
 		<div className='space-y-6'>
+			{/* Toast Container */}
+			<div className='fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm w-full px-4 sm:px-0'>
+				{toasts.map((toast) => (
+					<div
+						key={toast.id}
+						className={`flex items-start gap-3 rounded-lg border p-3 shadow-lg animate-in slide-in-from-right fade-in duration-200 ${
+							toast.type === 'success'
+								? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+								: toast.type === 'error'
+									? 'bg-red-50 border-red-200 text-red-800'
+									: 'bg-blue-50 border-blue-200 text-blue-800'
+						}`}
+					>
+						{toast.type === 'success' ? (
+							<CheckCircle className='h-5 w-5 shrink-0 mt-0.5 text-emerald-600' />
+						) : toast.type === 'error' ? (
+							<AlertTriangle className='h-5 w-5 shrink-0 mt-0.5 text-red-600' />
+						) : (
+							<Globe className='h-5 w-5 shrink-0 mt-0.5 text-blue-600' />
+						)}
+						<p className='text-sm flex-1'>{toast.message}</p>
+						<button
+							onClick={() => dismissToast(toast.id)}
+							className='shrink-0 text-muted-foreground hover:text-foreground min-h-[28px] min-w-[28px] flex items-center justify-center rounded'
+						>
+							<X className='h-4 w-4' />
+						</button>
+					</div>
+				))}
+			</div>
+
 			{/* Header */}
 			<div>
 				<h1 className='font-heading text-2xl font-bold'>Settings</h1>
@@ -498,6 +665,225 @@ export function SettingsPage() {
 									{saving ? 'Updating...' : 'Update Password'}
 								</Button>
 							</form>
+						</CardContent>
+					</Card>
+
+					{/* Account Connections */}
+					<Card>
+						<CardHeader>
+							<CardTitle className='flex items-center gap-2'>
+								<Link className='h-5 w-5' />
+								Account Connections
+							</CardTitle>
+							<CardDescription>
+								Connect or disconnect social accounts for sign-in
+							</CardDescription>
+						</CardHeader>
+						<CardContent className='space-y-4'>
+							{connectionsLoading ? (
+								<div className='flex items-center gap-2 text-muted-foreground'>
+									<Loader2 className='h-4 w-4 animate-spin' />
+									Loading connections...
+								</div>
+							) : connectionsError ? (
+								<div className='flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700'>
+									<AlertTriangle className='h-4 w-4 shrink-0' />
+									{connectionsError}
+									<Button variant='outline' size='sm' onClick={loadConnections} className='ml-auto'>
+										Retry
+									</Button>
+								</div>
+							) : (
+								<div className='space-y-3'>
+									{/* Google */}
+									<div className='flex items-center justify-between rounded-lg border p-4'>
+										<div className='flex items-center gap-3'>
+											<div className='h-10 w-10 rounded-lg bg-white border flex items-center justify-center shrink-0'>
+												<svg className='h-5 w-5' viewBox='0 0 24 24'>
+													<path
+														fill='#4285F4'
+														d='M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z'
+													/>
+													<path
+														fill='#34A853'
+														d='M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z'
+													/>
+													<path
+														fill='#FBBC05'
+														d='M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z'
+													/>
+													<path
+														fill='#EA4335'
+														d='M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z'
+													/>
+												</svg>
+											</div>
+											<div>
+												<p className='font-medium'>Google</p>
+												{connections.find((c) => c.provider === 'google') ? (
+													<div className='text-xs text-muted-foreground space-y-0.5'>
+														<p className='flex items-center gap-1 text-emerald-600'>
+															<CheckCircle className='h-3 w-3' />
+															Connected
+														</p>
+														{connections.find((c) => c.provider === 'google')?.email && (
+															<p>{connections.find((c) => c.provider === 'google')?.email}</p>
+														)}
+													</div>
+												) : (
+													<p className='text-xs text-muted-foreground'>Not connected</p>
+												)}
+											</div>
+										</div>
+										{connections.find((c) => c.provider === 'google') ? (
+											<Button
+												variant='outline'
+												size='sm'
+												onClick={() => setConfirmDisconnectProvider('google')}
+												disabled={disconnectingProvider === 'google'}
+												className='gap-1 shrink-0'
+											>
+												{disconnectingProvider === 'google' ? (
+													<Loader2 className='h-3.5 w-3.5 animate-spin' />
+												) : (
+													<Link2Off className='h-3.5 w-3.5' />
+												)}
+												Disconnect
+											</Button>
+										) : (
+											<Button
+												size='sm'
+												onClick={() => handleConnectProvider('google')}
+												className='gap-1 bg-indigo-600 hover:bg-indigo-700 shrink-0'
+											>
+												<Link className='h-3.5 w-3.5' />
+												Connect
+											</Button>
+										)}
+									</div>
+
+									{/* LinkedIn */}
+									<div className='flex items-center justify-between rounded-lg border p-4'>
+										<div className='flex items-center gap-3'>
+											<div className='h-10 w-10 rounded-lg bg-[#0A66C2] flex items-center justify-center shrink-0'>
+												<Linkedin className='h-5 w-5 text-white' />
+											</div>
+											<div>
+												<p className='font-medium'>LinkedIn</p>
+												{connections.find((c) => c.provider === 'linkedin') ? (
+													<div className='text-xs text-muted-foreground space-y-0.5'>
+														<p className='flex items-center gap-1 text-emerald-600'>
+															<CheckCircle className='h-3 w-3' />
+															Connected
+														</p>
+														{connections.find((c) => c.provider === 'linkedin')?.email && (
+															<p>{connections.find((c) => c.provider === 'linkedin')?.email}</p>
+														)}
+														{connections.find((c) => c.provider === 'linkedin')?.last_sync && (
+															<p>
+																Last sync:{' '}
+																{formatDate(connections.find((c) => c.provider === 'linkedin')?.last_sync)}
+															</p>
+														)}
+													</div>
+												) : (
+													<p className='text-xs text-muted-foreground'>Not connected</p>
+												)}
+											</div>
+										</div>
+										{connections.find((c) => c.provider === 'linkedin') ? (
+											<Button
+												variant='outline'
+												size='sm'
+												onClick={() => setConfirmDisconnectProvider('linkedin')}
+												disabled={disconnectingProvider === 'linkedin'}
+												className='gap-1 shrink-0'
+											>
+												{disconnectingProvider === 'linkedin' ? (
+													<Loader2 className='h-3.5 w-3.5 animate-spin' />
+												) : (
+													<Link2Off className='h-3.5 w-3.5' />
+												)}
+												Disconnect
+											</Button>
+										) : (
+											<Button
+												size='sm'
+												onClick={() => handleConnectProvider('linkedin')}
+												className='gap-1 bg-indigo-600 hover:bg-indigo-700 shrink-0'
+											>
+												<Link className='h-3.5 w-3.5' />
+												Connect
+											</Button>
+										)}
+									</div>
+
+									{!hasPassword && connections.length > 0 && (
+										<div className='rounded-lg bg-amber-50 border border-amber-200 p-3 flex items-start gap-2 text-sm text-amber-800'>
+											<AlertTriangle className='h-4 w-4 shrink-0 mt-0.5 text-amber-600' />
+											<p>
+												You have not set a password. If you disconnect all social accounts, you will
+												lose access to your account.
+											</p>
+										</div>
+									)}
+								</div>
+							)}
+
+							{/* Disconnect Confirmation Dialog */}
+							<Dialog
+								open={!!confirmDisconnectProvider}
+								onOpenChange={(open) => !open && setConfirmDisconnectProvider(null)}
+							>
+								<DialogContent>
+									<DialogHeader>
+										<DialogTitle className='flex items-center gap-2'>
+											<Link2Off className='h-5 w-5 text-red-600' />
+											Disconnect {confirmDisconnectProvider?.charAt(0).toUpperCase()}
+											{confirmDisconnectProvider?.slice(1)}
+										</DialogTitle>
+										<DialogDescription>
+											Are you sure you want to disconnect your{' '}
+											{confirmDisconnectProvider} account? You will no longer be able to sign in
+											with it.
+											{!hasPassword && connections.length === 1 && (
+												<span className='block mt-1 text-red-600 font-medium'>
+													Warning: This is your only sign-in method. Please set a password first
+													or you will be locked out.
+												</span>
+											)}
+										</DialogDescription>
+									</DialogHeader>
+									<DialogFooter>
+										<Button
+											variant='outline'
+											onClick={() => setConfirmDisconnectProvider(null)}
+											disabled={!!disconnectingProvider}
+										>
+											Cancel
+										</Button>
+										<Button
+											variant='destructive'
+											onClick={() =>
+												confirmDisconnectProvider && handleDisconnectProvider(confirmDisconnectProvider)
+											}
+											disabled={!!disconnectingProvider}
+										>
+											{disconnectingProvider === confirmDisconnectProvider ? (
+												<>
+													<Loader2 className='h-4 w-4 animate-spin' />
+													Disconnecting...
+												</>
+											) : (
+												<>
+													<Link2Off className='h-4 w-4' />
+													Disconnect
+												</>
+											)}
+										</Button>
+									</DialogFooter>
+								</DialogContent>
+							</Dialog>
 						</CardContent>
 					</Card>
 
