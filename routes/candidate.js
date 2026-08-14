@@ -372,6 +372,89 @@ router.post('/profile/photo', authMiddleware, upload.single('photo'), async (req
 	}
 });
 
+// Upload profile resume (simple — stores file, no AI parsing or auto-apply)
+router.post('/profile/resume', authMiddleware, upload.single('resume'), async (req, res) => {
+	try {
+		if (!req.file) {
+			return res.status(400).json({ error: 'No file uploaded' });
+		}
+
+		// Validate file type: PDF, DOC, DOCX only
+		const allowedTypes = [
+			'application/pdf',
+			'application/msword',
+			'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+		];
+		if (!allowedTypes.includes(req.file.mimetype)) {
+			return res.status(400).json({ error: 'Invalid file type. Only PDF, DOC, and DOCX are allowed.' });
+		}
+
+		// Upload to R2
+		const formData = new FormData();
+		formData.append('file', req.file.buffer, {
+			filename: req.file.originalname,
+			contentType: req.file.mimetype,
+		});
+
+		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
+				...formData.getHeaders(),
+			},
+			body: formData,
+		});
+
+		const uploadResult = await uploadRes.json();
+		if (!uploadResult.success) {
+			throw new Error(uploadResult.error?.message || 'Upload failed');
+		}
+
+		// Save parsed resume record (processing status — no AI parsing triggered)
+		await pool.query(
+			`
+			INSERT INTO parsed_resumes (user_id, original_filename, file_url, parsing_status)
+			VALUES ($1, $2, $3, 'processing')
+			RETURNING id
+			`,
+			[req.user.id, req.file.originalname, uploadResult.file.url],
+		);
+
+		// Update profile with resume URL
+		await pool.query(
+			`
+			INSERT INTO candidate_profiles (user_id, resume_url)
+			VALUES ($1, $2)
+			ON CONFLICT (user_id) DO UPDATE SET resume_url = $2, updated_at = NOW()
+			`,
+			[req.user.id, uploadResult.file.url],
+		);
+
+		res.json({ success: true, resume_url: uploadResult.file.url });
+	} catch (err) {
+		console.error('Profile resume upload error:', err);
+		res.status(500).json({ error: 'Failed to upload resume' });
+	}
+});
+
+// Remove profile resume
+router.delete('/profile/resume', authMiddleware, async (req, res) => {
+	try {
+		await pool.query(
+			`
+			UPDATE candidate_profiles
+			SET resume_url = NULL, updated_at = NOW()
+			WHERE user_id = $1
+			`,
+			[req.user.id],
+		);
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Profile resume delete error:', err);
+		res.status(500).json({ error: 'Failed to remove resume' });
+	}
+});
+
 // ============= RESUME PARSING =============
 
 // Upload and parse resume

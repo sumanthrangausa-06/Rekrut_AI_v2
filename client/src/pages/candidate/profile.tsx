@@ -1018,22 +1018,18 @@ function OverviewTab({
 					</CardContent>
 				</Card>
 
-				{/* Experience Preview */}
-				<Card>
-					<CardContent className='p-5'>
-						<div className='flex items-center justify-between mb-4'>
-							<h3 className='font-semibold text-sm flex items-center gap-2'>
-								<Briefcase className='h-4 w-4' /> Experience
-							</h3>
-							<Button
-								variant='ghost'
-								size='sm'
-								className='gap-1 text-xs'
-								onClick={() => setTab('experience')}
-							>
+				{/* Experience Preview — collapsible on mobile */}
+				<div className='sm:hidden'>
+					<CollapsibleSection
+						title='Experience'
+						icon={Briefcase}
+						count={experience.length}
+						action={
+							<Button variant='ghost' size='sm' className='gap-1 text-xs' onClick={() => setTab('experience')}>
 								View All <ChevronRight className='h-3 w-3' />
 							</Button>
-						</div>
+						}
+					>
 						{latestExperience.length === 0 ? (
 							<p className='text-sm text-muted-foreground'>No work experience added yet.</p>
 						) : (
@@ -1044,9 +1040,7 @@ function OverviewTab({
 											<div className='h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0'>
 												<Building2 className='h-4 w-4 text-primary' />
 											</div>
-											{latestExperience.length > 1 && (
-												<div className='w-px flex-1 bg-border mt-1' />
-											)}
+											{latestExperience.length > 1 && <div className='w-px flex-1 bg-border mt-1' />}
 										</div>
 										<div className='pb-4'>
 											<h4 className='font-semibold text-sm'>{exp.title}</h4>
@@ -1081,8 +1075,74 @@ function OverviewTab({
 								))}
 							</div>
 						)}
-					</CardContent>
-				</Card>
+					</CollapsibleSection>
+				</div>
+				<div className='hidden sm:block'>
+					<Card>
+						<CardContent className='p-5'>
+							<div className='flex items-center justify-between mb-4'>
+								<h3 className='font-semibold text-sm flex items-center gap-2'>
+									<Briefcase className='h-4 w-4' /> Experience
+								</h3>
+								<Button
+									variant='ghost'
+									size='sm'
+									className='gap-1 text-xs'
+									onClick={() => setTab('experience')}
+								>
+									View All <ChevronRight className='h-3 w-3' />
+								</Button>
+							</div>
+							{latestExperience.length === 0 ? (
+								<p className='text-sm text-muted-foreground'>No work experience added yet.</p>
+							) : (
+								<div className='space-y-4'>
+									{latestExperience.map((exp) => (
+										<div key={exp.id} className='flex gap-3'>
+											<div className='relative flex flex-col items-center'>
+												<div className='h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0'>
+													<Building2 className='h-4 w-4 text-primary' />
+												</div>
+												{latestExperience.length > 1 && (
+													<div className='w-px flex-1 bg-border mt-1' />
+												)}
+											</div>
+											<div className='pb-4'>
+												<h4 className='font-semibold text-sm'>{exp.title}</h4>
+												<p className='text-sm text-muted-foreground'>
+													{exp.company_name}
+													{exp.location && ` · ${exp.location}`}
+												</p>
+												<p className='text-xs text-muted-foreground mt-0.5'>
+													{exp.start_date
+														? new Date(exp.start_date).toLocaleDateString('en-US', {
+																month: 'short',
+																year: 'numeric',
+															})
+														: 'Start'}{' '}
+													—{' '}
+													{exp.is_current
+														? 'Present'
+														: exp.end_date
+															? new Date(exp.end_date).toLocaleDateString('en-US', {
+																	month: 'short',
+																	year: 'numeric',
+																})
+															: 'End'}
+												</p>
+												{exp.description && (
+													<p className='text-xs text-muted-foreground mt-1 line-clamp-2'>
+														{exp.description}
+													</p>
+												)}
+											</div>
+										</div>
+									))}
+								</div>
+							)}
+						</CardContent>
+					</Card>
+				</div>
 
 				{/* Education Preview — collapsible on mobile */}
 				<div className='sm:hidden'>
@@ -1686,7 +1746,7 @@ function PersonalInfoTab({
 							</h3>
 							<SaveStatus status={saveStatus} />
 						</div>
-						<div className='grid gap-4 sm:grid-cols-1'>
+						<div className='grid gap-4 sm:grid-cols-2'>
 							<div>
 								<Label>Full Name</Label>
 								<Input
@@ -1742,7 +1802,7 @@ function PersonalInfoTab({
 						<h3 className='font-semibold flex items-center gap-2'>
 							<Link2 className='h-4 w-4' /> Social Links
 						</h3>
-						<div className='grid gap-4 sm:grid-cols-1'>
+						<div className='grid gap-4 sm:grid-cols-2'>
 							<div>
 								<Label className='flex items-center gap-1'>
 									<Linkedin className='h-3 w-3' /> LinkedIn
@@ -1807,7 +1867,7 @@ function PersonalInfoTab({
 						<h3 className='font-semibold flex items-center gap-2'>
 							<Briefcase className='h-4 w-4' /> Preferences
 						</h3>
-						<div className='grid gap-4 sm:grid-cols-1'>
+						<div className='grid gap-4 sm:grid-cols-2'>
 							<div>
 								<Label>Years of Experience</Label>
 								<Input
