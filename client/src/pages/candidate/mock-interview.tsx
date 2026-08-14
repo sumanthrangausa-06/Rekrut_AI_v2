@@ -2,32 +2,14 @@
 // Extracted from ai-coaching.tsx for maintainability
 
 import {
-	AlertCircle,
 	Brain,
 	Briefcase,
 	Camera,
-	ChevronDown,
-	ChevronUp,
-	Eye,
-	FileText,
 	History,
 	Loader2,
-	MessageSquare,
 	Mic,
-	Monitor,
-	Plus,
-	Send,
-	Sparkles,
-	Square,
-	Star,
-	StopCircle,
-	TrendingUp,
-	Trophy,
-	User,
 	Video,
-	VideoOff,
 	Volume2,
-	Zap,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
@@ -50,6 +32,9 @@ import {
 	scoreColor,
 	scoreLabel,
 } from './coaching-utils'
+
+import { InterviewActiveLayout } from './interview-active-layout'
+import { InterviewResultsPage } from './interview-results-page'
 
 /** Remove duplicate question text from interviewer messages.
  *  The AI sometimes embeds the question in its reaction AND returns it separately,
@@ -133,6 +118,8 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 	const voiceRetryCountRef = useRef<number>(0)
 	const mockRecordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 	const [mockRecordingTime, setMockRecordingTime] = useState(0)
+
+	const [frameCount, setFrameCount] = useState(0)
 
 	// Real-time body language indicators
 	const [bodyLanguageIndicators, setBodyLanguageIndicators] = useState<{
@@ -308,19 +295,23 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 		mockFramesRef.current = []
 		mockPerQuestionFramesRef.current = []
 		mockQuestionStartTimeRef.current = Date.now()
+		setFrameCount(0)
 		setTimeout(() => {
 			const frame = captureMockFrame()
 			if (frame) {
 				mockFramesRef.current.push(frame)
 				mockPerQuestionFramesRef.current.push(frame)
+				setFrameCount(mockPerQuestionFramesRef.current.length)
 			}
 		}, 500)
 		mockFrameIntervalRef.current = setInterval(() => {
 			const frame = captureMockFrame()
 			if (frame) {
 				if (mockFramesRef.current.length < 20) mockFramesRef.current.push(frame)
-				if (mockPerQuestionFramesRef.current.length < 8)
+				if (mockPerQuestionFramesRef.current.length < 8) {
 					mockPerQuestionFramesRef.current.push(frame)
+					setFrameCount(mockPerQuestionFramesRef.current.length)
+				}
 			}
 		}, 4000)
 	}
@@ -1267,854 +1258,41 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 	return (
 		<>
 			{mockSession && mockSession.status === 'in_progress' ? (
-				/* Active interview */
-				<div className='space-y-4'>
-					{/* Video feed */}
-					<div className='relative bg-black aspect-video rounded-xl overflow-hidden isolate'>
-						<video
-							ref={mockVideoRef}
-							autoPlay
-							muted
-							playsInline
-							webkit-playsinline=''
-							className='absolute inset-0 w-full h-full object-cover'
-							style={{ transform: 'scaleX(-1)' }}
-						/>
-
-						{/* Body language indicators overlay */}
-						{bodyLanguageIndicators && (
-							<div className='absolute top-2 left-2 z-10 flex flex-wrap gap-1.5 max-w-[60%]'>
-								{[
-									{
-										emoji: '\uD83D\uDC41\uFE0F',
-										label: 'Eyes',
-										value: bodyLanguageIndicators.eye_contact,
-									},
-									{
-										emoji: '\uD83E\uDDCD',
-										label: 'Posture',
-										value: bodyLanguageIndicators.posture,
-									},
-									{
-										emoji: '\uD83D\uDCAA',
-										label: 'Confidence',
-										value: bodyLanguageIndicators.confidence,
-									},
-									{
-										emoji: '\uD83D\uDE0A',
-										label: 'Expression',
-										value: bodyLanguageIndicators.expression,
-									},
-								].map((item) => (
-									<div
-										key={item.label}
-										className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-											item.value === 'good' ||
-											item.value === 'confident' ||
-											item.value === 'engaged' ||
-											item.value === 'positive'
-												? 'bg-green-600/80 text-white'
-												: item.value === 'neutral' ||
-														item.value === 'moderate' ||
-														item.value === 'ok'
-													? 'bg-amber-600/80 text-white'
-													: 'bg-red-600/80 text-white'
-										}`}
-									>
-										{item.emoji} {item.value || '?'}
-									</div>
-								))}
-							</div>
-						)}
-
-						{/* Recording indicator — REC badge with timer (top-left) */}
-						{candidateRecording && (
-							<div className='absolute top-3 left-3 z-10 flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 rounded-full text-sm font-medium'>
-								<div className='h-2.5 w-2.5 rounded-full bg-white animate-pulse' />
-								REC {formatTime(mockRecordingTime)}
-							</div>
-						)}
-
-						{/* Recording stats — frames, word count, mic (top-right) */}
-						{candidateRecording && (
-							<div className='absolute top-3 right-3 z-10 flex flex-col gap-1.5 items-end'>
-								<div className='bg-black/60 text-white px-2 py-1 rounded text-xs'>
-									{mockPerQuestionFramesRef.current.length} frames
-								</div>
-								<div className='bg-black/60 text-white px-2 py-1 rounded text-xs'>
-									{mockLiveTranscript.split(/\s+/).filter((w) => w).length} words
-								</div>
-								<div className='bg-black/60 text-green-400 px-2 py-1 rounded text-xs flex items-center gap-1'>
-									<Mic className='h-3 w-3' /> Mic on
-								</div>
-							</div>
-						)}
-
-						{!mockCameraReady && (
-							<div className='absolute inset-0 flex items-center justify-center bg-gray-900'>
-								<div className='text-center text-white'>
-									<Camera className='h-8 w-8 mx-auto mb-2 opacity-50' />
-									<p className='text-sm opacity-70'>Camera loading...</p>
-								</div>
-							</div>
-						)}
-					</div>
-
-					{/* Conversation transcript */}
-					<div className='max-h-[40vh] overflow-y-auto space-y-3 p-3 rounded-lg bg-muted/30'>
-						{mockSession.conversation.map((turn, i) => (
-							<div key={turn.id || `turn-${i}`} className='flex gap-3'>
-								<div
-									className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${
-										turn.role === 'interviewer' ? 'bg-violet-100' : 'bg-green-100'
-									}`}
-								>
-									{turn.role === 'interviewer' ? (
-										<Brain className='h-3.5 w-3.5 text-violet-600' />
-									) : (
-										<User className='h-3.5 w-3.5 text-green-600' />
-									)}
-								</div>
-								<div className='flex-1'>
-									<p
-										className={`text-[10px] font-medium mb-0.5 ${
-											turn.role === 'interviewer' ? 'text-violet-600' : 'text-green-600'
-										}`}
-									>
-										{turn.role === 'interviewer' ? 'Alex (Interviewer)' : 'You'}
-									</p>
-									<p className='text-xs leading-relaxed whitespace-pre-wrap'>{turn.text}</p>
-								</div>
-							</div>
-						))}
-
-						{/* Live transcription while recording */}
-						{candidateRecording && mockLiveTranscript && (
-							<div className='flex gap-3 opacity-60'>
-								<div className='h-7 w-7 rounded-full flex items-center justify-center shrink-0 bg-green-100'>
-									<User className='h-3.5 w-3.5 text-green-600' />
-								</div>
-								<div className='flex-1'>
-									<p className='text-[10px] font-medium mb-0.5 text-green-600'>You (speaking...)</p>
-									<p className='text-xs leading-relaxed italic'>{mockLiveTranscript}</p>
-								</div>
-							</div>
-						)}
-
-						{/* Processing indicator */}
-						{voiceProcessing && (
-							<div className='flex gap-3 opacity-60'>
-								<div className='h-7 w-7 rounded-full flex items-center justify-center shrink-0 bg-amber-100'>
-									<Loader2 className='h-3.5 w-3.5 text-amber-600 animate-spin' />
-								</div>
-								<p className='text-xs text-amber-600 self-center'>Processing your answer...</p>
-							</div>
-						)}
-
-						<div ref={chatEndRef} />
-					</div>
-
-					{/* Controls */}
-					<div className='flex items-center justify-center gap-3 py-2'>
-						{/* Mic button */}
-						{!candidateRecording && !aiSpeaking && !voiceProcessing ? (
-							<Button
-								onClick={startVoiceRecording}
-								size='lg'
-								className='bg-green-600 hover:bg-green-700 rounded-full h-14 w-14 p-0'
-								title='Start speaking'
-							>
-								<Mic className='h-6 w-6' />
-							</Button>
-						) : candidateRecording ? (
-							<Button
-								onClick={stopVoiceRecording}
-								size='lg'
-								className='bg-red-600 hover:bg-red-700 rounded-full h-14 w-14 p-0 animate-pulse'
-								title='Stop recording'
-							>
-								<Square className='h-5 w-5' />
-							</Button>
-						) : aiSpeaking ? (
-							<div className='h-14 w-14 rounded-full bg-violet-600/20 border-2 border-violet-400/40 flex items-center justify-center'>
-								<Volume2 className='h-6 w-6 text-violet-400 animate-pulse' />
-							</div>
-						) : (
-							<div className='h-14 w-14 rounded-full bg-amber-600/20 border-2 border-amber-400/40 flex items-center justify-center'>
-								<Loader2 className='h-5 w-5 text-amber-400 animate-spin' />
-							</div>
-						)}
-
-						{/* Camera toggle */}
-						<Button
-							onClick={() => (mockCameraReady ? stopMockCamera() : startMockCamera())}
-							variant='outline'
-							className={`min-h-[44px] min-w-[44px] rounded-full h-11 w-11 p-0 ${!mockCameraReady ? 'bg-gray-200 text-gray-500' : ''}`}
-							title={mockCameraReady ? 'Turn off camera' : 'Turn on camera'}
-						>
-							{mockCameraReady ? <Video className='h-4 w-4' /> : <VideoOff className='h-4 w-4' />}
-						</Button>
-
-						{/* End call */}
-						<Button
-							onClick={() => endMockInterview()}
-							disabled={mockEnding}
-							className='min-h-[44px] min-w-[44px] bg-red-600 hover:bg-red-700 text-white rounded-full h-11 px-5'
-						>
-							{mockEnding ? (
-								<Loader2 className='h-4 w-4 animate-spin mr-1.5' />
-							) : (
-								<StopCircle className='h-4 w-4 mr-1.5' />
-							)}
-							End
-						</Button>
-					</div>
-
-					{/* Status text */}
-					<div className='text-center'>
-						{voiceError ? (
-							<div className='inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-900/50 border border-red-700/50 text-red-300 text-xs animate-in fade-in'>
-								<AlertCircle className='h-3.5 w-3.5' />
-								{voiceError}
-								<button
-									onClick={() => setVoiceError(null)}
-									className='min-h-[44px] min-w-[44px] text-red-400 hover:text-red-200 ml-1'
-								>
-									✕
-								</button>
-							</div>
-						) : (
-							<p className='text-xs text-muted-foreground'>
-								{aiSpeaking
-									? 'Listening to interviewer... mic will auto-activate when they finish'
-									: candidateRecording
-										? `Speaking... ${silenceTimer > 0 ? `paused ${silenceTimer}s (auto-sends at 3s)` : 'auto-sends when you stop talking'}`
-										: voiceProcessing
-											? 'Processing your answer...'
-											: 'Mic will activate automatically — or tap the green button to start'}
-							</p>
-						)}
-					</div>
-
-					{/* Hidden text fallback input */}
-					{!candidateRecording && !aiSpeaking && !voiceProcessing && (
-						<div className='flex gap-2 px-1'>
-							<Textarea
-								value={mockResponseText}
-								onChange={(e) => setMockResponseText(e.target.value)}
-								placeholder='Or type your answer here...'
-								rows={1}
-								className='resize-none text-xs text-muted-foreground'
-								onKeyDown={(e) => {
-									if (e.key === 'Enter' && !e.shiftKey) {
-										e.preventDefault()
-										sendMockResponse()
-									}
-								}}
-							/>
-							<Button
-								onClick={sendMockResponse}
-								disabled={mockSending || mockResponseText.trim().length < 10}
-								className='min-h-[44px] min-w-[44px] shrink-0 self-end'
-								size='sm'
-								variant='outline'
-							>
-								<Send className='h-3.5 w-3.5' />
-							</Button>
-						</div>
-					)}
-				</div>
+			<InterviewActiveLayout
+				mockSession={mockSession}
+				mockVideoRef={mockVideoRef}
+				mockCameraReady={mockCameraReady}
+				mockCameraError={_mockCameraError}
+				voiceMode={voiceMode}
+				aiSpeaking={aiSpeaking}
+				candidateRecording={candidateRecording}
+				voiceProcessing={voiceProcessing}
+				silenceTimer={silenceTimer}
+				voiceError={voiceError}
+				mockLiveTranscript={mockLiveTranscript}
+				mockRecordingTime={mockRecordingTime}
+				bodyLanguageIndicators={bodyLanguageIndicators}
+				frameCount={frameCount}
+				mockResponseText={mockResponseText}
+				setMockResponseText={setMockResponseText}
+				mockSending={mockSending}
+				startVoiceRecording={startVoiceRecording}
+				stopVoiceRecording={stopVoiceRecording}
+				startMockCamera={startMockCamera}
+				stopMockCamera={stopMockCamera}
+				endMockInterview={endMockInterview}
+				sendMockResponse={sendMockResponse}
+				setVoiceError={setVoiceError}
+				chatEndRef={chatEndRef}
+			/>
 			) : mockFeedback ? (
-				/* Session feedback display */
-				<div className='space-y-4'>
-					<div className='flex items-center justify-between'>
-						<h3 className='font-semibold flex items-center gap-2'>
-							<Trophy className='h-5 w-5 text-amber-500' />
-							{viewingHistorySession ? 'Past Interview' : 'Interview Complete'} —{' '}
-							{mockSession?.target_role}
-						</h3>
-						<div className='flex items-center gap-2'>
-							{viewingHistorySession && (
-								<Button
-									size='sm'
-									variant='ghost'
-									onClick={backToSetup}
-									className='min-h-[44px] min-w-[44px]'
-								>
-									← Back
-								</Button>
-							)}
-							<Button
-								size='sm'
-								variant='outline'
-								onClick={resetMockInterview}
-								className='min-h-[44px] min-w-[44px]'
-							>
-								<Plus className='h-3.5 w-3.5 mr-1.5' /> New Interview
-							</Button>
-						</div>
-					</div>
-
-					{/* Overall score */}
-					<div
-						className={`text-center p-6 rounded-xl border-2 ${scoreBg(mockFeedback.overall_score)}`}
-					>
-						<div className={`text-5xl font-bold ${scoreColor(mockFeedback.overall_score)}`}>
-							{mockFeedback.overall_score}/10
-						</div>
-						<div className='text-sm text-muted-foreground mt-1'>
-							{(mockFeedback as any)._content_failed
-								? 'Based on Communication & Presentation only'
-								: scoreLabel(mockFeedback.overall_score)}
-						</div>
-						<Badge
-							className={`mt-2 ${
-								mockFeedback.interview_readiness === 'ready'
-									? 'bg-green-100 text-green-700'
-									: mockFeedback.interview_readiness === 'almost_ready'
-										? 'bg-amber-100 text-amber-700'
-										: 'bg-red-100 text-red-700'
-							} border-0`}
-						>
-							{mockFeedback.interview_readiness === 'ready'
-								? 'Interview Ready'
-								: mockFeedback.interview_readiness === 'almost_ready'
-									? 'Almost Ready'
-									: 'Needs Work'}
-						</Badge>
-					</div>
-
-					{/* Summary */}
-					<Card>
-						<CardContent className='p-4'>
-							<p className='text-sm leading-relaxed'>{mockFeedback.summary}</p>
-						</CardContent>
-					</Card>
-
-					{/* Score bars */}
-					{(mockFeedback as any).content && (mockFeedback as any).communication && (
-						<div className='flex items-center justify-center gap-6 py-2'>
-							<ScoreBar
-								score={
-									(mockFeedback as any).content?._failed
-										? null
-										: (mockFeedback as any).content?.score
-								}
-								label='Answer Content'
-								icon={Brain}
-							/>
-							<ScoreBar
-								score={(mockFeedback as any).communication?.score}
-								label='Communication'
-								icon={Volume2}
-							/>
-							<ScoreBar
-								score={(mockFeedback as any).presentation?.score || 5}
-								label='Presentation'
-								icon={Eye}
-							/>
-						</div>
-					)}
-
-					{/* Structured feedback sections */}
-					<div className='space-y-2'>
-						{/* Answer Content Section */}
-						{(mockFeedback as any).content && (
-							<div className='border rounded-lg overflow-hidden'>
-								<button
-									onClick={() =>
-										setExpandedSection(expandedSection === 'mock-content' ? null : 'mock-content')
-									}
-									className='min-h-[44px] w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors'
-								>
-									<span className='flex items-center gap-2 font-medium text-sm'>
-										<Brain className='h-4 w-4 text-violet-600' />
-										Answer Content
-										{(mockFeedback as any).content._failed ? (
-											<span className='text-xs font-bold text-muted-foreground'>
-												Analysis failed
-											</span>
-										) : (
-											<span
-												className={`text-xs font-bold ${scoreColor((mockFeedback as any).content.score)}`}
-											>
-												{(mockFeedback as any).content.score}/10
-											</span>
-										)}
-									</span>
-									{expandedSection === 'mock-content' ? (
-										<ChevronUp className='h-4 w-4' />
-									) : (
-										<ChevronDown className='h-4 w-4' />
-									)}
-								</button>
-								{expandedSection === 'mock-content' && (
-									<div className='p-3 pt-0 space-y-3'>
-										{(mockFeedback as any).content.detailed_feedback && (
-											<p className='text-xs leading-relaxed text-muted-foreground'>
-												{(mockFeedback as any).content.detailed_feedback}
-											</p>
-										)}
-										{(mockFeedback as any).content.strengths?.length > 0 && (
-											<div className='p-3 rounded-lg bg-green-50 border border-green-100'>
-												<h5 className='text-xs font-semibold text-green-800 mb-1.5'>✓ Strengths</h5>
-												<ul className='space-y-1'>
-													{(mockFeedback as any).content.strengths.map((s: string, _i: number) => (
-														<li key={s} className='text-xs text-green-700'>
-															{s}
-														</li>
-													))}
-												</ul>
-											</div>
-										)}
-										{(mockFeedback as any).content.improvements?.length > 0 && (
-											<div className='p-3 rounded-lg bg-amber-50 border border-amber-100'>
-												<h5 className='text-xs font-semibold text-amber-800 mb-1.5'>↑ Improve</h5>
-												<ul className='space-y-1'>
-													{(mockFeedback as any).content.improvements.map(
-														(s: string, _i: number) => (
-															<li key={s} className='text-xs text-amber-700'>
-																{s}
-															</li>
-														),
-													)}
-												</ul>
-											</div>
-										)}
-										{(mockFeedback as any).content.specific_tips?.length > 0 && (
-											<div className='p-3 rounded-lg bg-blue-50 border border-blue-100'>
-												<h5 className='text-xs font-semibold text-blue-800 mb-1.5'>💡 Tips</h5>
-												<ul className='space-y-1'>
-													{(mockFeedback as any).content.specific_tips.map(
-														(s: string, i: number) => (
-															<li key={i} className='text-xs text-blue-700'>
-																{s}
-															</li>
-														),
-													)}
-												</ul>
-											</div>
-										)}
-										{(mockFeedback as any).content.common_mistake && (
-											<div className='p-3 rounded-lg bg-red-50 border border-red-100'>
-												<h5 className='text-xs font-semibold text-red-800 mb-1.5'>
-													⚠️ Common Mistake
-												</h5>
-												<p className='text-xs text-red-700'>
-													{(mockFeedback as any).content.common_mistake}
-												</p>
-											</div>
-										)}
-										{/* Sub-scores */}
-										<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
-											{(mockFeedback as any).content.star_method_usage && (
-												<div
-													className={`p-2.5 rounded-lg border ${scoreBg((mockFeedback as any).content.star_method_usage.score)}`}
-												>
-													<div className='flex items-center justify-between mb-1'>
-														<span className='text-[10px] font-medium text-muted-foreground'>
-															STAR Method
-														</span>
-														<span
-															className={`text-sm font-bold ${scoreColor((mockFeedback as any).content.star_method_usage.score)}`}
-														>
-															{(mockFeedback as any).content.star_method_usage.score}/10
-														</span>
-													</div>
-													<p className='text-[10px] text-muted-foreground leading-relaxed'>
-														{(mockFeedback as any).content.star_method_usage.feedback}
-													</p>
-												</div>
-											)}
-											{(mockFeedback as any).content.technical_depth && (
-												<div
-													className={`p-2.5 rounded-lg border ${scoreBg((mockFeedback as any).content.technical_depth.score)}`}
-												>
-													<div className='flex items-center justify-between mb-1'>
-														<span className='text-[10px] font-medium text-muted-foreground'>
-															Technical Depth
-														</span>
-														<span
-															className={`text-sm font-bold ${scoreColor((mockFeedback as any).content.technical_depth.score)}`}
-														>
-															{(mockFeedback as any).content.technical_depth.score}/10
-														</span>
-													</div>
-													<p className='text-[10px] text-muted-foreground leading-relaxed'>
-														{(mockFeedback as any).content.technical_depth.feedback}
-													</p>
-												</div>
-											)}
-										</div>
-									</div>
-								)}
-							</div>
-						)}
-
-						{/* Communication & Speech Section */}
-						{(mockFeedback as any).communication && (
-							<div className='border rounded-lg overflow-hidden'>
-								<button
-									onClick={() =>
-										setExpandedSection(
-											expandedSection === 'mock-communication' ? null : 'mock-communication',
-										)
-									}
-									className='min-h-[44px] w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors'
-								>
-									<span className='flex items-center gap-2 font-medium text-sm'>
-										<Volume2 className='h-4 w-4 text-sky-600' />
-										Communication & Speech
-										<span
-											className={`text-xs font-bold ${scoreColor((mockFeedback as any).communication.score)}`}
-										>
-											{(mockFeedback as any).communication.score}/10
-										</span>
-									</span>
-									{expandedSection === 'mock-communication' ? (
-										<ChevronUp className='h-4 w-4' />
-									) : (
-										<ChevronDown className='h-4 w-4' />
-									)}
-								</button>
-								{expandedSection === 'mock-communication' && (
-									<div className='p-3 pt-0 space-y-3'>
-										<div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2'>
-											<div className='p-2 rounded bg-muted/50 text-center'>
-												<div className='text-lg font-bold'>
-													{(mockFeedback as any).communication.words_per_minute || '\u2014'}
-												</div>
-												<div className='text-[10px] text-muted-foreground'>Words/min</div>
-											</div>
-											<div className='p-2 rounded bg-muted/50 text-center'>
-												<div className='text-lg font-bold'>
-													{(mockFeedback as any).communication.word_count || '\u2014'}
-												</div>
-												<div className='text-[10px] text-muted-foreground'>Total Words</div>
-											</div>
-											<div className='p-2 rounded bg-muted/50 text-center'>
-												<div className='text-lg font-bold'>
-													{(mockFeedback as any).communication.total_fillers || 0}
-												</div>
-												<div className='text-[10px] text-muted-foreground'>Filler Words</div>
-											</div>
-											<div className='p-2 rounded bg-muted/50 text-center'>
-												<div className='text-lg font-bold'>
-													{(mockFeedback as any).communication.duration_seconds
-														? `${Math.round((mockFeedback as any).communication.duration_seconds / 60)}:${String((mockFeedback as any).communication.duration_seconds % 60).padStart(2, '0')}`
-														: '\u2014'}
-												</div>
-												<div className='text-[10px] text-muted-foreground'>Duration</div>
-											</div>
-										</div>
-
-										{(mockFeedback as any).communication.pace && (
-											<div
-												className={`p-3 rounded-lg ${
-													(mockFeedback as any).communication.pace.assessment === 'good'
-														? 'bg-green-50 border border-green-100'
-														: (mockFeedback as any).communication.pace.assessment?.includes(
-																	'slight',
-																)
-															? 'bg-amber-50 border border-amber-100'
-															: 'bg-red-50 border border-red-100'
-												}`}
-											>
-												<h5 className='text-xs font-semibold mb-1'>🎙️ Speaking Pace</h5>
-												<p className='text-xs'>
-													{(mockFeedback as any).communication.pace.feedback}
-												</p>
-											</div>
-										)}
-
-										{(mockFeedback as any).communication.total_fillers > 0 &&
-											(mockFeedback as any).communication.filler_words && (
-												<div className='p-3 rounded-lg bg-amber-50 border border-amber-100'>
-													<h5 className='text-xs font-semibold text-amber-800 mb-1.5'>
-														Filler Words ({(mockFeedback as any).communication.filler_rate || 0}% of
-														speech)
-													</h5>
-													<div className='flex flex-wrap gap-1.5'>
-														{Object.entries((mockFeedback as any).communication.filler_words)
-															.filter(([, count]) => (count as number) > 0)
-															.map(([word, count]) => (
-																<Badge
-																	key={word}
-																	variant='outline'
-																	className='text-[10px] bg-white'
-																>
-																	"{word}" × {count as number}
-																</Badge>
-															))}
-													</div>
-												</div>
-											)}
-
-										{(mockFeedback as any).communication.trends && (
-											<div className='p-3 rounded-lg bg-indigo-50 border border-indigo-100'>
-												<h5 className='text-xs font-semibold text-indigo-800 mb-1'>
-													📈 Communication Trends
-												</h5>
-												<p className='text-xs text-indigo-700'>
-													{(mockFeedback as any).communication.trends}
-												</p>
-											</div>
-										)}
-
-										{(mockFeedback as any).communication.tips?.length > 0 && (
-											<div className='p-3 rounded-lg bg-blue-50 border border-blue-100'>
-												<h5 className='text-xs font-semibold text-blue-800 mb-1.5'>
-													💡 Speech Tips
-												</h5>
-												<ul className='space-y-1'>
-													{(mockFeedback as any).communication.tips.map(
-														(tip: string, i: number) => (
-															<li key={i} className='text-xs text-blue-700'>
-																{tip}
-															</li>
-														),
-													)}
-												</ul>
-											</div>
-										)}
-
-										{/* Voice Analysis */}
-										{(mockFeedback as any).voice_analysis && (
-											<div className='space-y-2 pt-1'>
-												<h5 className='text-xs font-semibold flex items-center gap-1.5'>
-													<Mic className='h-3.5 w-3.5 text-indigo-600' /> Voice & Tone Analysis
-												</h5>
-												<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
-													{[
-														{ key: 'voice_confidence', label: 'Confidence', icon: Star },
-														{ key: 'vocal_variety', label: 'Vocal Variety', icon: Volume2 },
-														{ key: 'energy', label: 'Energy', icon: Zap },
-														{ key: 'articulation', label: 'Articulation', icon: MessageSquare },
-													].map((item) => {
-														const data = ((mockFeedback as any).voice_analysis as any)?.[item.key]
-														if (!data) return null
-														const ItemIcon = item.icon
-														return (
-															<div
-																key={item.key}
-																className={`p-2.5 rounded-lg border ${scoreBg(data.score)}`}
-															>
-																<div className='flex items-center justify-between mb-1'>
-																	<span className='text-[10px] font-medium text-muted-foreground flex items-center gap-1'>
-																		<ItemIcon className='h-3 w-3' /> {item.label}
-																	</span>
-																	<span className={`text-sm font-bold ${scoreColor(data.score)}`}>
-																		{data.score}/10
-																	</span>
-																</div>
-																<p className='text-[10px] text-muted-foreground leading-relaxed'>
-																	{data.feedback}
-																</p>
-															</div>
-														)
-													})}
-												</div>
-												{(mockFeedback as any).voice_analysis.voice_summary && (
-													<div className='p-3 rounded-lg bg-indigo-50 border border-indigo-100'>
-														<p className='text-xs text-indigo-700'>
-															{(mockFeedback as any).voice_analysis.voice_summary}
-														</p>
-													</div>
-												)}
-											</div>
-										)}
-									</div>
-								)}
-							</div>
-						)}
-
-						{/* Body Language & Presentation Section */}
-						<div className='border rounded-lg overflow-hidden'>
-							<button
-								onClick={() =>
-									setExpandedSection(
-										expandedSection === 'mock-presentation' ? null : 'mock-presentation',
-									)
-								}
-								className='min-h-[44px] w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors'
-							>
-								<span className='flex items-center gap-2 font-medium text-sm'>
-									<Eye className='h-4 w-4 text-emerald-600' />
-									Body Language & Presentation
-									{mockFeedback.presentation ? (
-										<span
-											className={`text-xs font-bold ${scoreColor(mockFeedback.presentation.score)}`}
-										>
-											{mockFeedback.presentation.score}/10
-										</span>
-									) : (
-										<span className='text-xs text-muted-foreground'>Not available</span>
-									)}
-								</span>
-								{expandedSection === 'mock-presentation' ? (
-									<ChevronUp className='h-4 w-4' />
-								) : (
-									<ChevronDown className='h-4 w-4' />
-								)}
-							</button>
-							{expandedSection === 'mock-presentation' && (
-								<div className='p-3 pt-0 space-y-3'>
-									{mockFeedback.presentation ? (
-										<>
-											<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
-												{[
-													{ key: 'eye_contact', label: 'Eye Contact', icon: Eye },
-													{ key: 'facial_expressions', label: 'Expressions', icon: User },
-													{ key: 'body_language', label: 'Body Language', icon: User },
-													{ key: 'professional_appearance', label: 'Appearance', icon: Monitor },
-												].map((item) => {
-													const data = (mockFeedback.presentation as any)?.[item.key]
-													if (!data) return null
-													return (
-														<div
-															key={item.key}
-															className={`p-2.5 rounded-lg border ${scoreBg(data.score)}`}
-														>
-															<div className='flex items-center justify-between mb-1'>
-																<span className='text-[10px] font-medium text-muted-foreground'>
-																	{item.label}
-																</span>
-																<span className={`text-sm font-bold ${scoreColor(data.score)}`}>
-																	{data.score}/10
-																</span>
-															</div>
-															<p className='text-[10px] text-muted-foreground leading-relaxed'>
-																{data.feedback}
-															</p>
-														</div>
-													)
-												})}
-											</div>
-											{mockFeedback.presentation.summary && (
-												<div className='p-3 rounded-lg bg-emerald-50 border border-emerald-100'>
-													<h5 className='text-xs font-semibold text-emerald-800 mb-1'>
-														📊 Overall Assessment
-													</h5>
-													<p className='text-xs text-emerald-700'>
-														{mockFeedback.presentation.summary}
-													</p>
-												</div>
-											)}
-										</>
-									) : (
-										<p className='text-xs text-muted-foreground'>
-											📹 Body language analysis requires camera access during the interview. Enable
-											your camera next time for presentation feedback.
-										</p>
-									)}
-								</div>
-							)}
-						</div>
-					</div>
-
-					{/* Interview Arc */}
-					{(mockFeedback as any).interview_arc && (
-						<Card>
-							<CardContent className='p-4'>
-								<h4 className='text-sm font-semibold mb-2 flex items-center gap-1.5'>
-									<TrendingUp className='h-4 w-4 text-primary' /> Overall Interview Arc
-								</h4>
-								<p className='text-xs leading-relaxed text-muted-foreground'>
-									{(mockFeedback as any).interview_arc}
-								</p>
-							</CardContent>
-						</Card>
-					)}
-
-					{/* Question-by-question scores */}
-					{mockFeedback.question_scores?.length > 0 && (
-						<Card>
-							<CardContent className='p-4'>
-								<h4 className='text-sm font-semibold mb-3'>Question-by-Question Scores</h4>
-								<div className='space-y-2'>
-									{mockFeedback.question_scores.map((qs: any, i: number) => (
-										<div
-											key={qs.question_summary || `qs-${i}`}
-											className='flex items-start gap-3 p-2 rounded-lg bg-muted/30'
-										>
-											<div
-												className={`text-sm font-bold shrink-0 w-10 text-center ${scoreColor(qs.score)}`}
-											>
-												{qs.score}/10
-											</div>
-											<div className='flex-1 min-w-0'>
-												<p className='text-xs font-medium'>{qs.question_summary}</p>
-												<p className='text-[10px] text-muted-foreground mt-0.5'>{qs.feedback}</p>
-											</div>
-										</div>
-									))}
-								</div>
-							</CardContent>
-						</Card>
-					)}
-
-					{/* Top tip */}
-					{mockFeedback.top_tip && (
-						<div className='p-4 rounded-xl bg-primary/5 border border-primary/10'>
-							<h4 className='text-sm font-semibold flex items-center gap-1.5 mb-1'>
-								<Sparkles className='h-4 w-4 text-primary' /> #1 Tip to Improve
-							</h4>
-							<p className='text-sm text-muted-foreground'>{mockFeedback.top_tip}</p>
-						</div>
-					)}
-
-					{/* Full transcript */}
-					{mockSession?.conversation && mockSession.conversation.length > 0 && (
-						<Card>
-							<CardContent className='p-4'>
-								<h4 className='text-sm font-semibold mb-3 flex items-center gap-1.5'>
-									<FileText className='h-4 w-4 text-muted-foreground' /> Full Transcript
-								</h4>
-								<div className='space-y-3 max-h-[50vh] overflow-y-auto'>
-									{mockSession.conversation.map((turn: any, i: number) => (
-										<div key={turn.id || `turn-${i}`} className='flex gap-3'>
-											<div
-												className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${
-													turn.role === 'interviewer' ? 'bg-violet-100' : 'bg-green-100'
-												}`}
-											>
-												{turn.role === 'interviewer' ? (
-													<Brain className='h-3.5 w-3.5 text-violet-600' />
-												) : (
-													<User className='h-3.5 w-3.5 text-green-600' />
-												)}
-											</div>
-											<div className='flex-1'>
-												<p
-													className={`text-[10px] font-medium mb-0.5 ${
-														turn.role === 'interviewer' ? 'text-violet-600' : 'text-green-600'
-													}`}
-												>
-													{turn.role === 'interviewer' ? 'Alex (Interviewer)' : 'You'}
-													{turn.action && turn.action !== 'transition' && (
-														<span className='ml-1.5 text-muted-foreground font-normal'>
-															·{' '}
-															{turn.action === 'follow_up'
-																? 'Follow-up'
-																: turn.action === 'challenge'
-																	? 'Probing deeper'
-																	: turn.action === 'introduction'
-																		? 'Introduction'
-																		: turn.action === 'wrap_up'
-																			? 'Wrapping up'
-																			: ''}
-														</span>
-													)}
-												</p>
-												<p className='text-xs leading-relaxed whitespace-pre-wrap'>{turn.text}</p>
-											</div>
-										</div>
-									))}
-								</div>
-							</CardContent>
-						</Card>
-					)}
-				</div>
+			<InterviewResultsPage
+				mockSession={mockSession}
+				mockFeedback={mockFeedback}
+				viewingHistorySession={viewingHistorySession}
+				onBack={backToSetup}
+				onNewInterview={resetMockInterview}
+			/>
 			) : (
 				/* Setup / Landing */
 				<div className='space-y-6'>
