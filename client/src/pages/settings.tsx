@@ -71,7 +71,7 @@ export function SettingsPage() {
 	// Clear error when switching tabs
 	useEffect(() => {
 		setError('')
-	}, [])
+	}, [activeTab])
 	const [name, setName] = useState(user?.name || '')
 	const [email, setEmail] = useState(user?.email || '')
 	const [bio, setBio] = useState('')
