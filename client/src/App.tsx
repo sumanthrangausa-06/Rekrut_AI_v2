@@ -119,6 +119,9 @@ const CandidatePayrollPage = lazy(() =>
 const AiCoachingPage = lazy(() =>
 	import('@/pages/candidate/ai-coaching').then((m) => ({ default: m.AiCoachingPage })),
 )
+const CareerCoachPage = lazy(() =>
+	import('@/pages/candidate/career-coach').then((m) => ({ default: m.CareerCoachPage })),
+)
 const CandidateOmniScorePage = lazy(() =>
 	import('@/pages/candidate/omniscore').then((m) => ({ default: m.CandidateOmniScorePage })),
 )
@@ -585,6 +588,14 @@ function AppRoutes() {
 					element={
 						<Protected>
 							<AiCoachingPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path='career-coach'
+					element={
+						<Protected>
+							<CareerCoachPage />
 						</Protected>
 					}
 				/>

@@ -2,7 +2,7 @@
 // Sub-components: QuickPractice, MockInterview, ProgressTab, HistoryTab
 // Types in coaching-types.ts, utilities in coaching-utils.tsx
 
-import { BarChart3, BookOpen, Camera, Eye, Flame, History, Star, Target, TrendingUp, Video, Volume2 } from 'lucide-react'
+import { ArrowRight, BarChart3, BookOpen, Camera, Eye, Flame, History, Sparkles, Star, Target, TrendingUp, Video, Volume2 } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -209,6 +209,31 @@ export function AiCoachingPage() {
 						<p className='text-sm font-medium text-emerald-900'>Speech Analysis</p>
 						<p className='text-xs text-emerald-600'>Pace, filler words, clarity scoring</p>
 					</div>
+				</div>
+			</div>
+
+			{/* Career Coach Promo */}
+			<div className='rounded-lg border bg-indigo-50/50 p-4 dark:bg-indigo-950/20'>
+				<div className='flex items-center justify-between'>
+					<div className='flex items-center gap-3'>
+						<div className='flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10'>
+							<Sparkles className='h-5 w-5 text-indigo-500' />
+						</div>
+						<div>
+							<p className='font-medium text-indigo-900 dark:text-indigo-100'>
+								New: AI Career Coach
+							</p>
+							<p className='text-xs text-indigo-700 dark:text-indigo-300'>
+								Career paths, skill gaps, company research, application optimizer, salary practice
+							</p>
+						</div>
+					</div>
+					<a
+						href='/candidate/career-coach'
+						className='inline-flex items-center gap-1 rounded-md bg-indigo-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-600'
+					>
+						Try it <ArrowRight className='h-3 w-3' />
+					</a>
 				</div>
 			</div>
 

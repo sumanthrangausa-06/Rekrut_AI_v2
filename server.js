@@ -97,6 +97,7 @@ const candidateRoutes = require('./routes/candidate');
 const assessmentRoutes = require('./routes/assessments');
 const panelRoutes = require('./routes/panels');
 const documentRoutes = require('./routes/documents');
+const careerCoachRoutes = require('./routes/career-coach'); // Issue #121 — AI Career Coach
 const candidateDocumentRoutes = require('./routes/candidate-documents');
 const fitScoreRoutes = require('./routes/fitScore'); // Issue #76 — Job Fit Score API
 const recruiterDocumentRoutes = require('./routes/recruiter-documents');
@@ -563,6 +564,7 @@ app.use('/api/recruiter/omniscore', omniscoreRoutes);
 app.use('/api/candidate', candidateRoutes);
 app.use('/api/candidate', fitScoreRoutes); // Issue #76 — Job Fit Score API
 app.use('/api/assessments', assessmentRoutes);
+app.use('/api/career-coach', careerCoachRoutes); // Issue #121 — AI Career Coach
 
 // API Routes - Recruiter/Company side
 app.use('/api/company', auditRoutes);
@@ -1899,7 +1901,7 @@ const KNOWN_ROUTES = [
 	'^/candidate/assessments/[^/]+/results$',
 	'^/candidate/assessment-results$',
 	'^/candidate/job-assessment/[^/]+$',
-	'^/candidate/(interviews|ai-coaching|omniscore)$',
+	'^/candidate/(interviews|ai-coaching|career-coach|omniscore)$',
 	'^/candidate/(documents|interview-practice)$',
 	'^/candidate/(video-interview|interview-analysis|history)$',
 	'^/candidate/(feedback|saved-jobs|top-matches)$',
