@@ -20,7 +20,8 @@
 
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
-const { authMiddleware, requireRole } = require('../../lib/auth');
+const { authMiddleware } = require('../../lib/auth');
+const { requirePermission } = require('../../middleware/rbac');
 const { rateLimits, createRateLimit } = require('../../lib/distributed-rate-limiter');
 const livekitService = require('../services/livekit');
 const { transcribeAudioWithWhisper } = require('../../lib/polsia-ai');
@@ -149,7 +150,7 @@ function verifyPlaybackToken(token) {
 router.post(
 	'/start',
 	authMiddleware,
-	requireRole('recruiter', 'hiring_manager', 'employer', 'admin'),
+	requirePermission('interviews:schedule'),
 	createRateLimit({ windowMs: 60 * 1000, max: 5, keyPrefix: 'recording-start' }),
 	[
 		body('room_id').isInt({ min: 1 }).withMessage('Valid room_id required'),
@@ -256,7 +257,7 @@ router.post(
 router.post(
 	'/:id/stop',
 	authMiddleware,
-	requireRole('recruiter', 'hiring_manager', 'employer', 'admin'),
+	requirePermission('interviews:schedule'),
 	createRateLimit({ windowMs: 60 * 1000, max: 5, keyPrefix: 'recording-stop' }),
 	[param('id').isInt({ min: 1 }).withMessage('Valid recording ID required')],
 	handleValidationErrors,
@@ -335,7 +336,7 @@ router.post(
 router.get(
 	'/',
 	authMiddleware,
-	requireRole('recruiter', 'hiring_manager', 'employer', 'admin'),
+	requirePermission('interviews:read'),
 	rateLimits.standard,
 	[query('event_id').isInt({ min: 1 }).withMessage('Valid event_id required')],
 	handleValidationErrors,
@@ -521,7 +522,7 @@ router.get(
 router.post(
 	'/:id/transcribe',
 	authMiddleware,
-	requireRole('recruiter', 'hiring_manager', 'employer', 'admin'),
+	requirePermission('interviews:schedule'),
 	rateLimits.ai,
 	[param('id').isInt({ min: 1 }).withMessage('Valid recording ID required')],
 	handleValidationErrors,
@@ -770,7 +771,7 @@ router.post(
 router.post(
 	'/transcript/:segmentId/highlight',
 	authMiddleware,
-	requireRole('recruiter', 'hiring_manager', 'employer', 'admin'),
+	requirePermission('interviews:schedule'),
 	rateLimits.standard,
 	[
 		param('segmentId').isInt({ min: 1 }).withMessage('Valid segment ID required'),

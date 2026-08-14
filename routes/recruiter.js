@@ -3,6 +3,7 @@ const express = require('express');
 const crypto = require('node:crypto');
 const pool = require('../lib/db');
 const { authMiddleware, requireApprovedRecruiter, requireNotSuspended } = require('../lib/auth');
+const { requirePermission } = require('../middleware/rbac');
 const trustscoreService = require('../services/trustscore');
 const jobOptimizer = require('../services/job-optimizer');
 const calendarService = require('../server/services/calendar-service');
@@ -74,14 +75,8 @@ function normalizeSalary(value, fieldName) {
 	return parsed;
 }
 
-// Middleware to require recruiter role — auto-provisions company if recruiter has company_name but no company_id
-async function requireRecruiter(req, res, next) {
-	const recruiterRoles = ['recruiter', 'hiring_manager', 'employer', 'admin'];
-	if (!recruiterRoles.includes(req.user.role)) {
-		return res.status(403).json({ error: 'Recruiter access required' });
-	}
-
-	// Auto-provision company for recruiters with company_name but no company_id
+// Auto-provision company for users with company_name but no company_id
+async function ensureCompany(req, res, next) {
 	if (!req.user.company_id && req.user.company_name) {
 		try {
 			const slug = req.user.company_name
@@ -102,20 +97,20 @@ async function requireRecruiter(req, res, next) {
 				`Auto-provisioned company "${req.user.company_name}" (id=${companyId}) for user ${req.user.id}`,
 			);
 		} catch (e) {
-			console.error('Failed to auto-provision company for recruiter:', e.message);
-			return res.status(403).json({ error: 'Recruiter access required — company setup failed' });
+			console.error('Failed to auto-provision company:', e.message);
+			return res.status(403).json({ error: 'Company setup failed' });
 		}
 	}
 
 	if (!req.user.company_id) {
-		return res.status(403).json({ error: 'Recruiter access required — no company associated' });
+		return res.status(403).json({ error: 'No company associated with this account' });
 	}
 
 	next();
 }
 
 // Dashboard overview
-router.get('/dashboard', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('analytics:read'), async (req, res) => {
 	try {
 		const companyId = req.user.company_id;
 		const days = parseInt(req.query.days, 10) || 30;
@@ -456,7 +451,7 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, requireRecrui
 });
 
 // Get all jobs for company
-router.get('/jobs', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/jobs', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:read'), async (req, res) => {
 	try {
 		const { status, limit = 50, offset = 0 } = req.query;
 
@@ -489,7 +484,7 @@ router.get('/jobs', authMiddleware, requireApprovedRecruiter, requireRecruiter, 
 });
 
 // Create job with optional AI optimization
-router.post('/jobs', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/jobs', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:create'), async (req, res) => {
 	try {
 		const {
 			title,
@@ -634,7 +629,7 @@ router.post('/jobs', authMiddleware, requireNotSuspended, requireApprovedRecruit
 });
 
 // Analyze job posting
-router.post('/jobs/analyze', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/jobs/analyze', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:create'), async (req, res) => {
 	try {
 		const analysis = await jobOptimizer.analyzeJobPosting(req.body);
 		res.json({ success: true, analysis });
@@ -645,7 +640,7 @@ router.post('/jobs/analyze', authMiddleware, requireNotSuspended, requireApprove
 });
 
 // Optimize job description with AI
-router.post('/jobs/optimize', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/jobs/optimize', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:create'), async (req, res) => {
 	try {
 		const optimized = await jobOptimizer.optimizeJobDescription(req.body);
 		res.json({ success: true, optimized });
@@ -656,7 +651,7 @@ router.post('/jobs/optimize', authMiddleware, requireNotSuspended, requireApprov
 });
 
 // Get salary insights
-router.get('/salary-insights', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/salary-insights', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:read'), async (req, res) => {
 	try {
 		const { title, location, experience_level } = req.query;
 
@@ -673,7 +668,7 @@ router.get('/salary-insights', authMiddleware, requireApprovedRecruiter, require
 });
 
 // Generate complete job description from title + optional notes
-router.post('/jobs/generate', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/jobs/generate', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:create'), async (req, res) => {
 	try {
 		const { title, brief_notes, location, job_type } = req.body;
 
@@ -694,7 +689,7 @@ router.post('/jobs/generate', authMiddleware, requireNotSuspended, requireApprov
 });
 
 // Suggest skills and requirements for a role
-router.post('/jobs/suggest-skills', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/jobs/suggest-skills', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:create'), async (req, res) => {
 	try {
 		const { title, description, current_skills } = req.body;
 
@@ -715,7 +710,7 @@ router.post('/jobs/suggest-skills', authMiddleware, requireNotSuspended, require
 });
 
 // Suggest optimized job titles
-router.post('/jobs/suggest-title', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/jobs/suggest-title', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:create'), async (req, res) => {
 	try {
 		const { title, description } = req.body;
 
@@ -732,7 +727,7 @@ router.post('/jobs/suggest-title', authMiddleware, requireNotSuspended, requireA
 });
 
 // Update job
-router.put('/jobs/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.put('/jobs/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:update'), async (req, res) => {
 	try {
 		const {
 			title,
@@ -832,7 +827,7 @@ router.put('/jobs/:id', authMiddleware, requireNotSuspended, requireApprovedRecr
 });
 
 // Get ALL applications for the company
-router.get('/applications', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/applications', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
 	try {
 		const { status, job_id, limit = 100, offset = 0 } = req.query;
 
@@ -876,7 +871,7 @@ router.get('/applications', authMiddleware, requireApprovedRecruiter, requireRec
 });
 
 // Update application status (alternative route)
-router.put('/applications/:id/status', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.put('/applications/:id/status', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
 	try {
 		const { status } = req.body;
 
@@ -1002,7 +997,7 @@ router.put('/applications/:id/status', authMiddleware, requireNotSuspended, requ
 });
 
 // Create interview (POST to /interviews)
-router.post('/interviews', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/interviews', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('interviews:schedule'), async (req, res) => {
 	try {
 		const {
 			application_id,
@@ -1070,7 +1065,7 @@ router.post('/interviews', authMiddleware, requireNotSuspended, requireApprovedR
 });
 
 // Delete/cancel interview
-router.delete('/interviews/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.delete('/interviews/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('interviews:schedule'), async (req, res) => {
 	try {
 		const result = await pool.query(
 			'DELETE FROM scheduled_interviews WHERE id = $1 AND company_id = $2 RETURNING id, calendar_event_id, calendar_provider, recruiter_id',
@@ -1103,7 +1098,7 @@ router.delete('/interviews/:id', authMiddleware, requireNotSuspended, requireApp
 });
 
 // Get all candidates who have applied (for offer creation dropdown)
-router.get('/candidates', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/candidates', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
 	try {
 		const result = await pool.query(
 			`
@@ -1125,7 +1120,7 @@ router.get('/candidates', authMiddleware, requireApprovedRecruiter, requireRecru
 });
 
 // Get full candidate profiles with pipeline data (B-001)
-router.get('/candidates/full', authMiddleware, requireApprovedRecruiter, requireRecruiter, dataAccessAudit('candidate_profiles'), async (req, res) => {
+router.get('/candidates/full', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), dataAccessAudit('candidate_profiles'), async (req, res) => {
 	try {
 		const {
 			search,
@@ -1316,7 +1311,7 @@ router.get('/candidates/full', authMiddleware, requireApprovedRecruiter, require
 	}
 });
 
-router.post('/candidates/bulk-status', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/candidates/bulk-status', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
 	try {
 		const { candidateIds, status } = req.body;
 		const VALID = ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'];
@@ -1344,7 +1339,7 @@ router.post('/candidates/bulk-status', authMiddleware, requireNotSuspended, requ
 });
 
 // Get pipeline stats (B-001)
-router.get('/pipeline-stats', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/pipeline-stats', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('analytics:read'), async (req, res) => {
 	try {
 		const companyId = req.user.company_id;
 
@@ -1425,7 +1420,7 @@ router.get('/pipeline-stats', authMiddleware, requireApprovedRecruiter, requireR
 });
 
 // Get applications for a job
-router.get('/jobs/:id/applications', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/jobs/:id/applications', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
 	try {
 		// Verify job belongs to company or user
 		const job = await pool.query(
@@ -1462,7 +1457,7 @@ router.get('/jobs/:id/applications', authMiddleware, requireApprovedRecruiter, r
 });
 
 // Update application status
-router.put('/applications/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.put('/applications/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
 	try {
 		const { status, recruiter_notes } = req.body;
 
@@ -1637,7 +1632,7 @@ router.put('/applications/:id', authMiddleware, requireNotSuspended, requireAppr
 });
 
 // Schedule interview
-router.post('/interviews/schedule', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/interviews/schedule', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('interviews:schedule'), async (req, res) => {
 	try {
 		let {
 			job_id,
@@ -1711,7 +1706,7 @@ router.post('/interviews/schedule', authMiddleware, requireNotSuspended, require
 });
 
 // Get scheduled interviews
-router.get('/interviews', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/interviews', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('interviews:read'), async (req, res) => {
 	try {
 		const { upcoming_only = 'false', status, limit = 50 } = req.query;
 
@@ -1748,7 +1743,7 @@ router.get('/interviews', authMiddleware, requireApprovedRecruiter, requireRecru
 });
 
 // Update interview outcome
-router.put('/interviews/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.put('/interviews/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('interviews:schedule'), async (req, res) => {
 	try {
 		const { status, outcome, feedback, meeting_link } = req.body;
 
@@ -1794,7 +1789,7 @@ router.put('/interviews/:id', authMiddleware, requireNotSuspended, requireApprov
 });
 
 // Generate interview questions for a job
-router.post('/jobs/:id/questions', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/jobs/:id/questions', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:update'), async (req, res) => {
 	try {
 		const job = await pool.query(
 			'SELECT title, description, requirements FROM jobs WHERE id = $1 AND company_id = $2',
@@ -1816,7 +1811,7 @@ router.post('/jobs/:id/questions', authMiddleware, requireNotSuspended, requireA
 });
 
 // Analyze candidate fit for a job
-router.post('/jobs/:id/analyze-candidate', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/jobs/:id/analyze-candidate', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
 	try {
 		const { candidate_id } = req.body;
 
@@ -1865,7 +1860,7 @@ router.post('/jobs/:id/analyze-candidate', authMiddleware, requireNotSuspended, 
 });
 
 // Get candidate coaching/practice history (for recruiter review)
-router.get('/candidates/:id/coaching', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/candidates/:id/coaching', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
 	try {
 		const candidateId = req.params.id;
 
@@ -1986,7 +1981,7 @@ const PIPELINE_STAGES = [
 ];
 
 // GET pipeline stages (so frontend stays in sync)
-router.get('/pipeline-stages', authMiddleware, requireApprovedRecruiter, requireRecruiter, (_req, res) => {
+router.get('/pipeline-stages', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), (_req, res) => {
 	const active = PIPELINE_STAGES.filter((s) => !['rejected', 'withdrawn'].includes(s));
 	const terminal = ['rejected', 'withdrawn'];
 	res.json({
@@ -2007,7 +2002,7 @@ router.get('/pipeline-stages', authMiddleware, requireApprovedRecruiter, require
 });
 
 // Batch update application status (for bulk actions)
-router.put('/applications/batch-status', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.put('/applications/batch-status', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
 	try {
 		const { application_ids, status } = req.body;
 
@@ -2177,7 +2172,7 @@ router.put('/applications/batch-status', authMiddleware, requireNotSuspended, re
 });
 
 // Get applications grouped by pipeline stage (for kanban view)
-router.get('/pipeline/:jobId', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/pipeline/:jobId', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('analytics:read'), async (req, res) => {
 	try {
 		const jobId = req.params.jobId;
 
@@ -2240,7 +2235,7 @@ router.get('/pipeline/:jobId', authMiddleware, requireApprovedRecruiter, require
 });
 
 // Get ranked candidates for a job (by match score)
-router.get('/jobs/:id/ranked-candidates', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/jobs/:id/ranked-candidates', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
 	try {
 		const jobId = req.params.id;
 		const { min_score = 0 } = req.query;
@@ -2293,7 +2288,7 @@ router.get('/jobs/:id/ranked-candidates', authMiddleware, requireApprovedRecruit
 // ============= AI FEATURES =============
 
 // AI Candidate Summary — one-click strengths/concerns/fit assessment
-router.post('/ai/candidate-summary', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/ai/candidate-summary', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
 	try {
 		const { application_id } = req.body;
 		if (!application_id) return res.status(400).json({ error: 'application_id required' });
@@ -2382,7 +2377,7 @@ Only return JSON.`;
 });
 
 // AI Screening Questions Suggestions — based on job + recruiter's past bank
-router.post('/ai/suggest-questions', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/ai/suggest-questions', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('interviews:read'), async (req, res) => {
 	try {
 		const { job_title, job_description, existing_questions = [] } = req.body;
 		if (!job_title) return res.status(400).json({ error: 'job_title required' });
@@ -2445,7 +2440,7 @@ Only return JSON array.`;
 });
 
 // Save questions to recruiter's question bank
-router.post('/question-bank', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/question-bank', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:update'), async (req, res) => {
 	try {
 		const { questions } = req.body;
 		if (!questions || !Array.isArray(questions))
@@ -2480,7 +2475,7 @@ router.post('/question-bank', authMiddleware, requireApprovedRecruiter, requireR
 });
 
 // Get recruiter's question bank
-router.get('/question-bank', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/question-bank', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:read'), async (req, res) => {
 	try {
 		const questions = await pool.query(
 			`
@@ -2498,7 +2493,7 @@ router.get('/question-bank', authMiddleware, requireApprovedRecruiter, requireRe
 // ============= OFFER MANAGEMENT =============
 
 // Create an offer
-router.post('/offers', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/offers', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
 	try {
 		const {
 			candidate_id,
@@ -2602,7 +2597,7 @@ router.post('/offers', authMiddleware, requireNotSuspended, requireApprovedRecru
 });
 
 // List offers for company
-router.get('/offers', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/offers', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
 	try {
 		const { status, job_id, limit = 50, offset = 0 } = req.query;
 
@@ -2638,7 +2633,7 @@ router.get('/offers', authMiddleware, requireApprovedRecruiter, requireRecruiter
 });
 
 // Get single offer
-router.get('/offers/:id', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/offers/:id', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
 	try {
 		const result = await pool.query(
 			`
@@ -2665,7 +2660,7 @@ router.get('/offers/:id', authMiddleware, requireApprovedRecruiter, requireRecru
 });
 
 // Update offer (edit draft or add details)
-router.put('/offers/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.put('/offers/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
 	try {
 		const {
 			title,
@@ -2742,7 +2737,7 @@ router.put('/offers/:id', authMiddleware, requireNotSuspended, requireApprovedRe
 });
 
 // Send offer to candidate (changes status from draft to sent)
-router.put('/offers/:id/send', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.put('/offers/:id/send', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
 	try {
 		const existing = await pool.query(
 			'SELECT id, status, candidate_id, job_id FROM offers WHERE id = $1 AND company_id = $2',
@@ -2837,7 +2832,7 @@ router.put('/offers/:id/send', authMiddleware, requireNotSuspended, requireAppro
 });
 
 // Withdraw/cancel offer (recruiter action)
-router.put('/offers/:id/withdraw', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.put('/offers/:id/withdraw', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:manage'), async (req, res) => {
 	try {
 		const { reason } = req.body;
 
@@ -2868,7 +2863,7 @@ router.put('/offers/:id/withdraw', authMiddleware, requireNotSuspended, requireA
 // ============= AI AGENT ENDPOINTS (Phase 4) =============
 
 // AI Candidate Comparison — side-by-side analysis of 2+ candidates
-router.post('/ai/compare-candidates', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/ai/compare-candidates', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
 	try {
 		const { candidate_ids, job_id } = req.body;
 		if (!candidate_ids || !Array.isArray(candidate_ids) || candidate_ids.length < 2) {
@@ -2967,7 +2962,7 @@ Only return JSON.`;
 });
 
 // AI Bulk Rank — rank all candidates for a job by OmniScore (uses existing scores, no recalculation)
-router.get('/ai/rank-all/:jobId', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/ai/rank-all/:jobId', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
 	try {
 		const jobId = req.params.jobId;
 
@@ -3027,7 +3022,7 @@ router.get('/ai/rank-all/:jobId', authMiddleware, requireApprovedRecruiter, requ
 });
 
 // Pipeline Automation Settings — get/set auto-advance rules per job
-router.get('/pipeline/automation/:jobId', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/pipeline/automation/:jobId', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:read'), async (req, res) => {
 	try {
 		const jobId = req.params.jobId;
 
@@ -3080,7 +3075,7 @@ router.get('/pipeline/automation/:jobId', authMiddleware, requireApprovedRecruit
 });
 
 // Save pipeline automation rules
-router.put('/pipeline/automation/:jobId', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.put('/pipeline/automation/:jobId', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:update'), async (req, res) => {
 	try {
 		const jobId = req.params.jobId;
 		const { rules } = req.body;
@@ -3130,7 +3125,7 @@ router.put('/pipeline/automation/:jobId', authMiddleware, requireNotSuspended, r
 });
 
 // Recruiter Feedback on candidate — feeds into OmniScore calibration
-router.post('/ai/feedback', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/ai/feedback', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:score'), async (req, res) => {
 	try {
 		const { candidate_id, job_id, feedback_type, notes } = req.body;
 		if (!candidate_id || !feedback_type)
@@ -3185,7 +3180,7 @@ router.post('/ai/feedback', authMiddleware, requireNotSuspended, requireApproved
 });
 
 // Trigger pipeline auto-advance check for a job (event-driven: call after application status change)
-router.post('/pipeline/auto-check/:jobId', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/pipeline/auto-check/:jobId', authMiddleware, requireNotSuspended, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:update'), async (req, res) => {
 	try {
 		const jobId = req.params.jobId;
 
@@ -3273,7 +3268,7 @@ router.post('/pipeline/auto-check/:jobId', authMiddleware, requireNotSuspended, 
 });
 
 // Get recruiter analytics dashboard data
-router.get('/analytics', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/analytics', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('analytics:read'), async (req, res) => {
 	try {
 		const companyId = req.user.company_id;
 		const days = parseInt(req.query.days, 10) || 30;
@@ -3763,7 +3758,7 @@ router.get('/analytics', authMiddleware, requireApprovedRecruiter, requireRecrui
 });
 
 // Saved searches (Issue #109)
-router.get('/saved-searches', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/saved-searches', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:read'), async (req, res) => {
 	try {
 		// Graceful: create table if it doesn't exist
 		await pool.query(`
@@ -3801,7 +3796,7 @@ router.get('/saved-searches', authMiddleware, requireApprovedRecruiter, requireR
 	}
 });
 
-router.post('/saved-searches', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.post('/saved-searches', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:create'), async (req, res) => {
 	try {
 		const { name, filters, searchQuery, alertEnabled } = req.body;
 		if (!name) return res.status(400).json({ error: 'Name is required' });
@@ -3832,7 +3827,7 @@ router.post('/saved-searches', authMiddleware, requireApprovedRecruiter, require
 	}
 });
 
-router.delete('/saved-searches/:id', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.delete('/saved-searches/:id', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('jobs:update'), async (req, res) => {
 	try {
 		const result = await pool.query(
 			'DELETE FROM saved_searches WHERE id = $1 AND recruiter_id = $2 RETURNING id',
@@ -3849,7 +3844,7 @@ router.delete('/saved-searches/:id', authMiddleware, requireApprovedRecruiter, r
 });
 
 // GET /api/recruiter/conversations — real implementation (Issue #109)
-router.get('/conversations', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/conversations', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
 	try {
 		// Graceful: create table if it doesn't exist
 		await pool.query(`
@@ -3934,7 +3929,7 @@ router.get('/conversations', authMiddleware, requireApprovedRecruiter, requireRe
 });
 
 // GET /api/recruiter/screenings — real implementation (Issue #109)
-router.get('/screenings', authMiddleware, requireApprovedRecruiter, requireRecruiter, async (req, res) => {
+router.get('/screenings', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('candidates:read'), async (req, res) => {
 	try {
 		const result = await pool.query(
 			`SELECT

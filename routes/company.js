@@ -27,6 +27,7 @@ const {
 } = require('../services/company-domain-service');
 const { insertAuditLog } = require('../routes/audit');
 const emailService = require('../lib/email-service');
+const { requirePermission, invalidateUserCache } = require('../middleware/rbac');
 
 const router = express.Router();
 
@@ -318,7 +319,7 @@ router.post('/register', rateLimits.standard, async (req, res) => {
 });
 
 // Get company profile
-router.get('/profile', authMiddleware, async (req, res) => {
+router.get('/profile', authMiddleware, requirePermission('company:read'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -344,7 +345,7 @@ router.get('/profile', authMiddleware, async (req, res) => {
 });
 
 // Update company profile
-router.put('/profile', authMiddleware, async (req, res) => {
+router.put('/profile', authMiddleware, requirePermission('company:manage'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -612,7 +613,7 @@ router.get('/:slug/team', optionalAuth, async (req, res) => {
 	}
 });
 // Verify company (manual verification request)
-router.post('/verify', authMiddleware, async (req, res) => {
+router.post('/verify', authMiddleware, requirePermission('company:manage'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -648,7 +649,7 @@ router.post('/verify', authMiddleware, async (req, res) => {
 });
 
 // Get company team members (Issue #157: include suspended status)
-router.get('/team/members', authMiddleware, async (req, res) => {
+router.get('/team/members', authMiddleware, requirePermission('members:read'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -670,7 +671,7 @@ router.get('/team/members', authMiddleware, async (req, res) => {
 });
 
 // Alias for GET /members (same as /team/members)
-router.get('/members', authMiddleware, async (req, res) => {
+router.get('/members', authMiddleware, requirePermission('members:read'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -692,7 +693,7 @@ router.get('/members', authMiddleware, async (req, res) => {
 });
 
 // Invite team member
-router.post('/team/invite', authMiddleware, async (req, res) => {
+router.post('/team/invite', authMiddleware, requirePermission('members:manage'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -765,7 +766,7 @@ router.post('/team/invite', authMiddleware, async (req, res) => {
 // ============= JOIN REQUEST MANAGEMENT (Issue #103) =============
 
 // List pending join requests for the current company
-router.get('/join-requests', authMiddleware, async (req, res) => {
+router.get('/join-requests', authMiddleware, requirePermission('members:read'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -799,7 +800,7 @@ router.get('/join-requests', authMiddleware, async (req, res) => {
 });
 
 // Approve a join request
-router.post('/join-requests/:id/approve', authMiddleware, async (req, res) => {
+router.post('/join-requests/:id/approve', authMiddleware, requirePermission('members:manage'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -850,7 +851,7 @@ router.post('/join-requests/:id/approve', authMiddleware, async (req, res) => {
 });
 
 // Reject a join request
-router.post('/join-requests/:id/reject', authMiddleware, async (req, res) => {
+router.post('/join-requests/:id/reject', authMiddleware, requirePermission('members:manage'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -930,7 +931,7 @@ router.get('/join-requests/me', authMiddleware, async (req, res) => {
 });
 
 // Suspend a team member (owner only) — Issue #157
-router.post('/team/members/:id/suspend', authMiddleware, async (req, res) => {
+router.post('/team/members/:id/suspend', authMiddleware, requirePermission('members:manage'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -969,6 +970,9 @@ router.post('/team/members/:id/suspend', authMiddleware, async (req, res) => {
 		await pool.query('UPDATE users SET suspended_at = NOW(), updated_at = NOW() WHERE id = $1', [
 			target.id,
 		]);
+
+		// Issue #138: Invalidate user's permission cache
+		invalidateUserCache(target.id);
 
 		// ─── Issue #157: Email notification to suspended user ───
 		try {
@@ -1016,7 +1020,7 @@ router.post('/team/members/:id/suspend', authMiddleware, async (req, res) => {
 });
 
 // Reinstate a suspended team member (owner only) — Issue #157
-router.post('/team/members/:id/reinstate', authMiddleware, async (req, res) => {
+router.post('/team/members/:id/reinstate', authMiddleware, requirePermission('members:manage'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -1052,6 +1056,9 @@ router.post('/team/members/:id/reinstate', authMiddleware, async (req, res) => {
 			target.id,
 		]);
 
+		// Issue #138: Invalidate user's permission cache
+		invalidateUserCache(target.id);
+
 		// ─── Issue #156: Audit log — recruiter reinstated ───
 		try {
 			await insertAuditLog({
@@ -1077,7 +1084,7 @@ router.post('/team/members/:id/reinstate', authMiddleware, async (req, res) => {
 
 // Alias routes for /members/:id/suspend and /members/:id/reinstate (Issue #157)
 // These delegate to the same handlers as /team/members/:id/*
-router.post('/members/:id/suspend', authMiddleware, async (req, res) => {
+router.post('/members/:id/suspend', authMiddleware, requirePermission('members:manage'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -1156,7 +1163,7 @@ router.post('/members/:id/suspend', authMiddleware, async (req, res) => {
 // ============= COMPANY OWNERSHIP TRANSFER (Issue #104) =============
 
 // Transfer company ownership (owner only)
-router.post('/transfer-ownership', authMiddleware, rateLimits.strict, async (req, res) => {
+router.post('/transfer-ownership', authMiddleware, rateLimits.strict, requirePermission('company:manage'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });
@@ -1251,6 +1258,10 @@ router.post('/transfer-ownership', authMiddleware, rateLimits.strict, async (req
 			client.release();
 		}
 
+		// Issue #138: Invalidate permission caches for both old and new owner
+		invalidateUserCache(req.user.id);
+		invalidateUserCache(newOwnerId);
+
 		// ─── Audit log — ownership transferred ───
 		try {
 			await insertAuditLog({
@@ -1312,7 +1323,7 @@ router.post('/transfer-ownership', authMiddleware, rateLimits.strict, async (req
 	}
 });
 
-router.post('/members/:id/reinstate', authMiddleware, async (req, res) => {
+router.post('/members/:id/reinstate', authMiddleware, requirePermission('members:manage'), async (req, res) => {
 	try {
 		if (!req.user.company_id) {
 			return res.status(400).json({ error: 'No company associated with this account' });

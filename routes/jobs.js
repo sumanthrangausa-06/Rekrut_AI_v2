@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const pool = require('../lib/db');
 const { authMiddleware, optionalAuth, requireRole, requireApprovedRecruiter, requireNotSuspended } = require('../lib/auth');
+const { requirePermission } = require('../middleware/rbac');
 
 const router = express.Router();
 
@@ -219,7 +220,7 @@ router.post(
 	authMiddleware,
 	requireNotSuspended,
 	requireApprovedRecruiter,
-	requireRole('hiring_manager', 'admin', 'recruiter', 'employer'),
+	requirePermission('jobs:create'),
 	async (req, res) => {
 		try {
 			const {
@@ -322,7 +323,7 @@ router.post(
 );
 
 // Update job
-router.put('/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, async (req, res) => {
+router.put('/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requirePermission('jobs:update'), async (req, res) => {
 	try {
 		const {
 			title,
@@ -389,7 +390,7 @@ router.put('/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter
 });
 
 // Delete job
-router.delete('/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, async (req, res) => {
+router.delete('/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter, requirePermission('jobs:delete'), async (req, res) => {
 	try {
 		const existing = await pool.query('SELECT user_id FROM jobs WHERE id = $1', [req.params.id]);
 		if (existing.rows.length === 0) {

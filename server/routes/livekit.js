@@ -13,7 +13,8 @@
 
 const express = require('express');
 const { body, param, validationResult } = require('express-validator');
-const { authMiddleware, requireRole } = require('../../lib/auth');
+const { authMiddleware } = require('../../lib/auth');
+const { requirePermission } = require('../../middleware/rbac');
 const { rateLimits } = require('../../lib/distributed-rate-limiter');
 const livekitService = require('../services/livekit');
 
@@ -39,7 +40,7 @@ function handleValidationErrors(req, res, next) {
 router.post(
 	'/rooms',
 	authMiddleware,
-	requireRole('recruiter', 'hiring_manager', 'employer', 'admin'),
+	requirePermission('interviews:schedule'),
 	rateLimits.standard,
 	[
 		body('interview_event_id').isInt({ min: 1 }).withMessage('Valid interview_event_id required'),
@@ -166,7 +167,7 @@ router.post(
 router.delete(
 	'/rooms/:id',
 	authMiddleware,
-	requireRole('recruiter', 'hiring_manager', 'employer', 'admin'),
+	requirePermission('interviews:schedule'),
 	rateLimits.standard,
 	[param('id').isInt({ min: 1 }).withMessage('Valid room ID required')],
 	handleValidationErrors,

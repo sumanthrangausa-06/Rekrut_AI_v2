@@ -82,7 +82,12 @@ async function _fetchUserPermissions(userId, companyId) {
  * Call this whenever a user's roles are assigned, revoked, or modified.
  */
 function invalidateUserCache(userId) {
-	_permissionCache.delete(Number(userId));
+	const uid = String(userId);
+	for (const key of _permissionCache.keys()) {
+		if (key.startsWith(`${uid}:`)) {
+			_permissionCache.delete(key);
+		}
+	}
 }
 
 /**
