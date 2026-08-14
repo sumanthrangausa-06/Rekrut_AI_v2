@@ -17,6 +17,7 @@
     "routes/**/*.js",
     "server/**/*.js",
     "migrations/**/*.js",
+    "middleware/**/*.js",
     "server.js"
   ],
   "exclude": [
