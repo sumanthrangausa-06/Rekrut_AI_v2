@@ -785,4 +785,625 @@ router.get('/audit-trail/export', authMiddleware, async (req, res) => {
 	}
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// EU AI ACT COMPLIANCE — Issue #142
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const EuComplianceService = require('../services/euComplianceService');
+
+// ── Risk Classification ──────────────────────────────────────────────────────
+
+/**
+ * POST /api/compliance/risk-classify
+ * Classify or update a job posting's AI risk level under EU AI Act.
+ */
+router.post('/risk-classify', authMiddleware, async (req, res) => {
+	try {
+		if (!['admin', 'employer', 'recruiter', 'hiring_manager'].includes(req.user?.role)) {
+			return res.status(403).json({ error: 'Insufficient permissions' });
+		}
+
+		const { jobId, riskLevel, riskFactors, justification } = req.body;
+		if (!jobId || !riskLevel) {
+			return res.status(400).json({ error: 'jobId and riskLevel are required' });
+		}
+		if (!['minimal', 'limited', 'high', 'unacceptable'].includes(riskLevel)) {
+			return res.status(400).json({ error: 'Invalid riskLevel' });
+		}
+
+		const record = await EuComplianceService.classifyJobRisk({
+			jobId: parseInt(jobId, 10),
+			riskLevel,
+			riskFactors: riskFactors || [],
+			justification,
+			assessedBy: req.user.id,
+		});
+
+		await auditLogService.logEvent({
+			eventType: auditLogService.EVENT_TYPES.STATUS_CHANGE,
+			entityType: auditLogService.ENTITY_TYPES.JOB,
+			entityId: parseInt(jobId, 10),
+			actorId: req.user.id,
+			actorRole: req.user.role,
+			jobId: parseInt(jobId, 10),
+			companyId: req.user.company_id,
+			payload: { risk_level: riskLevel, justification },
+		});
+
+		res.json({ success: true, record });
+	} catch (error) {
+		console.error('[compliance/risk-classify] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to classify job risk' });
+	}
+});
+
+/**
+ * GET /api/compliance/risk-classify/:jobId
+ */
+router.get('/risk-classify/:jobId', authMiddleware, async (req, res) => {
+	try {
+		const jobId = parseInt(req.params.jobId, 10);
+		if (!Number.isInteger(jobId)) {
+			return res.status(400).json({ error: 'Valid job ID required' });
+		}
+
+		const record = await EuComplianceService.getJobRiskClassification(jobId);
+		if (!record) {
+			return res.status(404).json({ error: 'Risk classification not found' });
+		}
+
+		// Access control
+		const isAdmin = req.user?.role === 'admin';
+		const isCompanyUser = ['employer', 'recruiter', 'hiring_manager'].includes(req.user?.role) &&
+			req.user?.company_id === record.company_id;
+		if (!isAdmin && !isCompanyUser) {
+			return res.status(403).json({ error: 'Access denied' });
+		}
+
+		res.json({ success: true, record });
+	} catch (error) {
+		console.error('[compliance/risk-classify/:jobId] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to fetch risk classification' });
+	}
+});
+
+/**
+ * GET /api/compliance/risk-classify
+ * List risk classifications for a company.
+ */
+router.get('/risk-classify', authMiddleware, async (req, res) => {
+	try {
+		if (!['admin', 'employer', 'recruiter', 'hiring_manager'].includes(req.user?.role)) {
+			return res.status(403).json({ error: 'Insufficient permissions' });
+		}
+
+		const companyId = req.user.role === 'admin' ? undefined : req.user.company_id;
+		const { riskLevel, limit, offset } = req.query;
+		const result = await EuComplianceService.listJobRiskClassifications({
+			companyId,
+			riskLevel,
+			limit: limit ? parseInt(limit, 10) : 50,
+			offset: offset ? parseInt(offset, 10) : 0,
+		});
+
+		res.json({ success: true, ...result });
+	} catch (error) {
+		console.error('[compliance/risk-classify] List failed:', error.message);
+		res.status(500).json({ error: 'Failed to list risk classifications' });
+	}
+});
+
+// ── Bias Detection Per Posting ───────────────────────────────────────────────
+
+/**
+ * POST /api/compliance/bias/analyze/:jobId
+ * Calculate and store bias metrics for a specific job posting.
+ */
+router.post('/bias/analyze/:jobId', authMiddleware, async (req, res) => {
+	try {
+		if (!['admin', 'employer', 'recruiter', 'hiring_manager'].includes(req.user?.role)) {
+			return res.status(403).json({ error: 'Insufficient permissions' });
+		}
+
+		const jobId = parseInt(req.params.jobId, 10);
+		if (!Number.isInteger(jobId)) {
+			return res.status(400).json({ error: 'Valid job ID required' });
+		}
+
+		const { selectionStatuses } = req.body;
+		const metrics = await EuComplianceService.calculateBiasMetricsForJob(jobId, {
+			selectionStatuses: Array.isArray(selectionStatuses) ? selectionStatuses : undefined,
+		});
+
+		await auditLogService.logEvent({
+			eventType: auditLogService.EVENT_TYPES.AI_DECISION,
+			entityType: auditLogService.ENTITY_TYPES.JOB,
+			entityId: jobId,
+			actorId: req.user.id,
+			actorRole: req.user.role,
+			jobId,
+			companyId: req.user.company_id,
+			payload: { bias_metrics_count: metrics.length, flagged: metrics.some((m) => m.flagged) },
+		});
+
+		res.json({ success: true, metrics });
+	} catch (error) {
+		console.error('[compliance/bias/analyze/:jobId] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to calculate bias metrics' });
+	}
+});
+
+/**
+ * GET /api/compliance/bias/metrics/:jobId
+ * Retrieve stored bias metrics for a job posting.
+ */
+router.get('/bias/metrics/:jobId', authMiddleware, async (req, res) => {
+	try {
+		const jobId = parseInt(req.params.jobId, 10);
+		if (!Number.isInteger(jobId)) {
+			return res.status(400).json({ error: 'Valid job ID required' });
+		}
+
+		const metrics = await EuComplianceService.getBiasMetricsForJob(jobId);
+		res.json({ success: true, metrics });
+	} catch (error) {
+		console.error('[compliance/bias/metrics/:jobId] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to fetch bias metrics' });
+	}
+});
+
+/**
+ * GET /api/compliance/bias/flagged
+ * List all job postings flagged for adverse impact.
+ */
+router.get('/bias/flagged', authMiddleware, async (req, res) => {
+	try {
+		if (!['admin', 'employer', 'recruiter', 'hiring_manager'].includes(req.user?.role)) {
+			return res.status(403).json({ error: 'Insufficient permissions' });
+		}
+
+		const companyId = req.user.role === 'admin' ? undefined : req.user.company_id;
+		const { limit, offset } = req.query;
+		const result = await EuComplianceService.listFlaggedBiasMetrics({
+			companyId,
+			limit: limit ? parseInt(limit, 10) : 50,
+			offset: offset ? parseInt(offset, 10) : 0,
+		});
+
+		res.json({ success: true, ...result });
+	} catch (error) {
+		console.error('[compliance/bias/flagged] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to fetch flagged bias metrics' });
+	}
+});
+
+/**
+ * GET /api/compliance/bias/four-fifths/:jobId
+ * Calculate four-fifths rule on-demand for a job posting.
+ */
+router.get('/bias/four-fifths/:jobId', authMiddleware, async (req, res) => {
+	try {
+		const jobId = parseInt(req.params.jobId, 10);
+		if (!Number.isInteger(jobId)) {
+			return res.status(400).json({ error: 'Valid job ID required' });
+		}
+
+		const { selectionStatuses } = req.query;
+		const statuses = selectionStatuses
+			? selectionStatuses.split(',').map((s) => s.trim())
+			: ['interview', 'hired', 'offer_extended'];
+
+		const result = await BiasDetection.calculateFourFifthsRule(jobId, statuses);
+		res.json({ success: true, ...result });
+	} catch (error) {
+		console.error('[compliance/bias/four-fifths/:jobId] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to calculate four-fifths rule' });
+	}
+});
+
+// ── Explainability ───────────────────────────────────────────────────────────
+
+/**
+ * GET /api/compliance/explain/job/:jobId/candidate/:candidateId
+ * Return weighted factor breakdowns for a candidate-job pair.
+ */
+router.get('/explain/job/:jobId/candidate/:candidateId', authMiddleware, async (req, res) => {
+	try {
+		const jobId = parseInt(req.params.jobId, 10);
+		const candidateId = parseInt(req.params.candidateId, 10);
+		if (!Number.isInteger(jobId) || !Number.isInteger(candidateId)) {
+			return res.status(400).json({ error: 'Valid job ID and candidate ID required' });
+		}
+
+		// Candidate can view their own explanation
+		const isOwn = req.user?.role === 'candidate' && req.user?.id === candidateId;
+		const isCompanyUser = ['employer', 'recruiter', 'hiring_manager', 'admin'].includes(req.user?.role);
+		if (!isOwn && !isCompanyUser) {
+			return res.status(403).json({ error: 'Access denied' });
+		}
+
+		const explanation = await EuComplianceService.explainDecisionForJob({
+			userId: candidateId,
+			jobId,
+		});
+
+		await auditLogService.logEvent({
+			eventType: auditLogService.EVENT_TYPES.AI_DECISION,
+			entityType: auditLogService.ENTITY_TYPES.CANDIDATE,
+			entityId: candidateId,
+			actorId: req.user?.id,
+			actorRole: req.user?.role,
+			jobId,
+			companyId: req.user?.company_id,
+			payload: { explanation_viewed: true },
+		});
+
+		res.json({ success: true, explanation });
+	} catch (error) {
+		console.error('[compliance/explain/job/:jobId/candidate/:candidateId] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to generate explanation' });
+	}
+});
+
+// ── Human Oversight ──────────────────────────────────────────────────────────
+
+/**
+ * POST /api/compliance/overrides
+ * Record a human override of an AI recommendation.
+ */
+router.post('/overrides', authMiddleware, async (req, res) => {
+	try {
+		if (!['admin', 'employer', 'recruiter', 'hiring_manager'].includes(req.user?.role)) {
+			return res.status(403).json({ error: 'Insufficient permissions' });
+		}
+
+		const {
+			applicationId,
+			userId,
+			jobId,
+			originalScore,
+			newScore,
+			originalStatus,
+			newStatus,
+			reason,
+		} = req.body;
+
+		if (!applicationId || !userId || !jobId || !reason) {
+			return res.status(400).json({ error: 'applicationId, userId, jobId, and reason are required' });
+		}
+
+		const override = await EuComplianceService.recordHumanOverride({
+			applicationId: parseInt(applicationId, 10),
+			userId: parseInt(userId, 10),
+			jobId: parseInt(jobId, 10),
+			originalScore: originalScore !== undefined ? parseFloat(originalScore) : null,
+			newScore: newScore !== undefined ? parseFloat(newScore) : null,
+			originalStatus: originalStatus || null,
+			newStatus: newStatus || null,
+			reason,
+			overriddenBy: req.user.id,
+		});
+
+		res.status(201).json({ success: true, override });
+	} catch (error) {
+		console.error('[compliance/overrides] Failed:', error.message);
+		res.status(500).json({ error: error.message || 'Failed to record override' });
+	}
+});
+
+/**
+ * GET /api/compliance/overrides/job/:jobId
+ */
+router.get('/overrides/job/:jobId', authMiddleware, async (req, res) => {
+	try {
+		if (!['admin', 'employer', 'recruiter', 'hiring_manager'].includes(req.user?.role)) {
+			return res.status(403).json({ error: 'Insufficient permissions' });
+		}
+
+		const jobId = parseInt(req.params.jobId, 10);
+		if (!Number.isInteger(jobId)) {
+			return res.status(400).json({ error: 'Valid job ID required' });
+		}
+
+		const { limit, offset } = req.query;
+		const result = await EuComplianceService.getOverridesForJob(jobId, {
+			limit: limit ? parseInt(limit, 10) : 100,
+			offset: offset ? parseInt(offset, 10) : 0,
+		});
+
+		res.json({ success: true, ...result });
+	} catch (error) {
+		console.error('[compliance/overrides/job/:jobId] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to fetch overrides' });
+	}
+});
+
+/**
+ * GET /api/compliance/overrides/:id
+ */
+router.get('/overrides/:id', authMiddleware, async (req, res) => {
+	try {
+		const id = parseInt(req.params.id, 10);
+		if (!Number.isInteger(id)) {
+			return res.status(400).json({ error: 'Valid override ID required' });
+		}
+
+		const override = await EuComplianceService.getOverrideById(id);
+		if (!override) {
+			return res.status(404).json({ error: 'Override not found' });
+		}
+
+		res.json({ success: true, override });
+	} catch (error) {
+		console.error('[compliance/overrides/:id] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to fetch override' });
+	}
+});
+
+// ── Data Retention ───────────────────────────────────────────────────────────
+
+/**
+ * POST /api/compliance/retention/policies
+ * Set or update a retention policy (supports per-company / per-job scope).
+ */
+router.post('/retention/policies', authMiddleware, async (req, res) => {
+	try {
+		if (!['admin', 'employer'].includes(req.user?.role)) {
+			return res.status(403).json({ error: 'Admin or owner access required' });
+		}
+
+		const { dataType, retentionDays, autoDelete, policyScope, scopeId, description } = req.body;
+		if (!dataType || retentionDays === undefined) {
+			return res.status(400).json({ error: 'dataType and retentionDays are required' });
+		}
+
+		const policy = await EuComplianceService.setRetentionPolicy({
+			dataType,
+			retentionDays: parseInt(retentionDays, 10),
+			autoDelete: !!autoDelete,
+			companyId: req.user.role === 'admin' ? req.body.companyId : req.user.company_id,
+			policyScope: policyScope || 'global',
+			scopeId: scopeId ? parseInt(scopeId, 10) : null,
+			description,
+		});
+
+		await auditLogService.logEvent({
+			eventType: auditLogService.EVENT_TYPES.STATUS_CHANGE,
+			entityType: 'retention_policy',
+			entityId: policy.id,
+			actorId: req.user.id,
+			actorRole: req.user.role,
+			companyId: req.user.company_id,
+			payload: { data_type: dataType, retention_days: retentionDays, auto_delete: autoDelete },
+		});
+
+		res.json({ success: true, policy });
+	} catch (error) {
+		console.error('[compliance/retention/policies] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to set retention policy' });
+	}
+});
+
+/**
+ * POST /api/compliance/retention/purge
+ * Execute automated data purge based on retention policies.
+ */
+router.post('/retention/purge', authMiddleware, async (req, res) => {
+	try {
+		if (!['admin', 'employer'].includes(req.user?.role)) {
+			return res.status(403).json({ error: 'Admin or owner access required' });
+		}
+
+		const { dryRun = true, companyId } = req.body;
+		const targetCompanyId = req.user.role === 'admin' ? companyId : req.user.company_id;
+		const summary = await EuComplianceService.executePurge({
+			dryRun: dryRun !== false,
+			companyId: targetCompanyId,
+		});
+
+		await auditLogService.logEvent({
+			eventType: auditLogService.EVENT_TYPES.STATUS_CHANGE,
+			entityType: 'retention_purge',
+			entityId: 0,
+			actorId: req.user.id,
+			actorRole: req.user.role,
+			companyId: targetCompanyId,
+			payload: { dry_run: dryRun !== false, affected_policies: summary.length },
+		});
+
+		res.json({ success: true, dry_run: dryRun !== false, summary });
+	} catch (error) {
+		console.error('[compliance/retention/purge] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to execute purge' });
+	}
+});
+
+// ── Candidate Consent Management ─────────────────────────────────────────────
+
+/**
+ * POST /api/compliance/consent
+ * Record or update candidate consent with history tracking.
+ */
+router.post('/consent', authMiddleware, async (req, res) => {
+	try {
+		const { userId, consentType, consented, metadata } = req.body;
+		const access = canAccessUserRecord(req, userId);
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
+		}
+
+		if (!consentType || consented === undefined) {
+			return res.status(400).json({ error: 'consentType and consented are required' });
+		}
+
+		const record = await EuComplianceService.recordConsent({
+			userId: access.targetId,
+			consentType,
+			consented: !!consented,
+			ipAddress: req.ip,
+			userAgent: req.headers['user-agent'],
+			metadata,
+			recordedBy: req.user?.id,
+		});
+
+		res.json({ success: true, record });
+	} catch (error) {
+		console.error('[compliance/consent] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to record consent' });
+	}
+});
+
+/**
+ * POST /api/compliance/consent/revoke
+ * Revoke consent with history tracking.
+ */
+router.post('/consent/revoke', authMiddleware, async (req, res) => {
+	try {
+		const { consentId, reason } = req.body;
+		if (!consentId || !reason) {
+			return res.status(400).json({ error: 'consentId and reason are required' });
+		}
+
+		// Verify ownership
+		const existing = await pool.query('SELECT user_id FROM consent_records WHERE id = $1', [consentId]);
+		if (existing.rows.length === 0) {
+			return res.status(404).json({ error: 'Consent record not found' });
+		}
+		const userId = existing.rows[0].user_id;
+		const access = canAccessUserRecord(req, userId);
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
+		}
+
+		const record = await EuComplianceService.revokeConsent({
+			consentId: parseInt(consentId, 10),
+			reason,
+			revokedBy: req.user?.id,
+			ipAddress: req.ip,
+			userAgent: req.headers['user-agent'],
+		});
+
+		res.json({ success: true, record });
+	} catch (error) {
+		console.error('[compliance/consent/revoke] Failed:', error.message);
+		res.status(500).json({ error: error.message || 'Failed to revoke consent' });
+	}
+});
+
+/**
+ * GET /api/compliance/consent/history/:userId
+ * Get full consent change history for a user.
+ */
+router.get('/consent/history/:userId', authMiddleware, async (req, res) => {
+	try {
+		const { userId } = req.params;
+		const access = canAccessUserRecord(req, userId);
+		if (!access.ok) {
+			return res.status(access.status).json({ error: access.error });
+		}
+
+		const { consentType, limit, offset } = req.query;
+		const result = await EuComplianceService.getConsentHistory(access.targetId, {
+			consentType,
+			limit: limit ? parseInt(limit, 10) : 100,
+			offset: offset ? parseInt(offset, 10) : 0,
+		});
+
+		res.json({ success: true, ...result });
+	} catch (error) {
+		console.error('[compliance/consent/history/:userId] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to fetch consent history' });
+	}
+});
+
+// ── Transparency Reports ─────────────────────────────────────────────────────
+
+/**
+ * POST /api/compliance/transparency-reports
+ * Generate a regulator-ready transparency report.
+ */
+router.post('/transparency-reports', authMiddleware, async (req, res) => {
+	try {
+		if (!['admin', 'employer'].includes(req.user?.role)) {
+			return res.status(403).json({ error: 'Admin or owner access required' });
+		}
+
+		const { periodStart, periodEnd, reportType, format } = req.body;
+		if (!periodStart || !periodEnd) {
+			return res.status(400).json({ error: 'periodStart and periodEnd are required' });
+		}
+
+		const companyId = req.user.role === 'admin' ? req.body.companyId : req.user.company_id;
+		if (!companyId) {
+			return res.status(400).json({ error: 'Company ID is required' });
+		}
+
+		const result = await EuComplianceService.generateTransparencyReport({
+			companyId: parseInt(companyId, 10),
+			periodStart,
+			periodEnd,
+			reportType: reportType || 'regulator',
+			generatedBy: req.user.id,
+			format: format || 'json',
+		});
+
+		res.status(201).json({ success: true, report: result.report, data: result.data });
+	} catch (error) {
+		console.error('[compliance/transparency-reports] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to generate transparency report' });
+	}
+});
+
+/**
+ * GET /api/compliance/transparency-reports
+ * List generated transparency reports.
+ */
+router.get('/transparency-reports', authMiddleware, async (req, res) => {
+	try {
+		if (!['admin', 'employer', 'recruiter', 'hiring_manager'].includes(req.user?.role)) {
+			return res.status(403).json({ error: 'Insufficient permissions' });
+		}
+
+		const companyId = req.user.role === 'admin' ? undefined : req.user.company_id;
+		const { limit, offset } = req.query;
+		const result = await EuComplianceService.getTransparencyReports({
+			companyId,
+			limit: limit ? parseInt(limit, 10) : 20,
+			offset: offset ? parseInt(offset, 10) : 0,
+		});
+
+		res.json({ success: true, ...result });
+	} catch (error) {
+		console.error('[compliance/transparency-reports] List failed:', error.message);
+		res.status(500).json({ error: 'Failed to list transparency reports' });
+	}
+});
+
+/**
+ * POST /api/compliance/transparency-reports/:id/finalize
+ * Finalize a transparency report (immutable).
+ */
+router.post('/transparency-reports/:id/finalize', authMiddleware, async (req, res) => {
+	try {
+		if (!['admin', 'employer'].includes(req.user?.role)) {
+			return res.status(403).json({ error: 'Admin or owner access required' });
+		}
+
+		const id = parseInt(req.params.id, 10);
+		if (!Number.isInteger(id)) {
+			return res.status(400).json({ error: 'Valid report ID required' });
+		}
+
+		const report = await EuComplianceService.finalizeTransparencyReport(id);
+		if (!report) {
+			return res.status(404).json({ error: 'Report not found' });
+		}
+
+		res.json({ success: true, report });
+	} catch (error) {
+		console.error('[compliance/transparency-reports/:id/finalize] Failed:', error.message);
+		res.status(500).json({ error: 'Failed to finalize report' });
+	}
+});
+
 module.exports = router;

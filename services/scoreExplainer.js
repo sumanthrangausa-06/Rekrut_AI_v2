@@ -185,6 +185,108 @@ class ScoreExplainer {
 	}
 
 	/**
+	 * Explain a decision for a specific candidate-job pair with weighted factor breakdowns.
+	 * Caches result in ai_decision_explanations.
+	 */
+	static async explainDecisionForJob(userId, jobId, applicationId) {
+		const scoreResult = await pool.query('SELECT * FROM omniscore_results WHERE user_id = $1', [userId]);
+		const score = scoreResult.rows[0] || {};
+
+		const components = await pool.query(
+			`SELECT component_type, source_type, points, max_points, weight, metadata, created_at
+       FROM score_components WHERE user_id = $1 ORDER BY created_at DESC`,
+			[userId],
+		);
+
+		const jobResult = await pool.query('SELECT title, requirements FROM jobs WHERE id = $1', [jobId]);
+		const job = jobResult.rows[0] || {};
+
+		const matchResult = await pool.query(
+			`SELECT overall_match_score, skill_match_score, experience_match_score, cultural_match_score,
+              skills_matched, skills_missing, match_explanation
+       FROM candidate_job_matches WHERE candidate_id = $1 AND job_id = $2`,
+			[userId, jobId],
+		);
+		const match = matchResult.rows[0] || {};
+
+		const overallScore = parseFloat(score.overall_score) || parseFloat(match.overall_match_score) || 0;
+		const factorBreakdowns = [];
+
+		factorBreakdowns.push({
+			factor: 'Technical Skills',
+			weight: 0.40,
+			score: parseFloat(score.technical_score) || parseFloat(match.skill_match_score) || 0,
+			contribution: ((parseFloat(score.technical_score) || parseFloat(match.skill_match_score) || 0) * 0.40).toFixed(2),
+			explanation: match.skills_matched
+				? `Matched skills: ${Array.isArray(match.skills_matched) ? match.skills_matched.join(', ') : match.skills_matched}`
+				: 'Based on technical assessment and resume parsing',
+			data_source: 'score_components',
+		});
+
+		factorBreakdowns.push({
+			factor: 'Behavioral Fit',
+			weight: 0.30,
+			score: parseFloat(score.behavioral_score) || 0,
+			contribution: ((parseFloat(score.behavioral_score) || 0) * 0.30).toFixed(2),
+			explanation: 'Derived from interview responses and personality indicators',
+			data_source: 'omniscore_results',
+		});
+
+		factorBreakdowns.push({
+			factor: 'Experience Match',
+			weight: 0.20,
+			score: parseFloat(score.experience_score) || parseFloat(match.experience_match_score) || 0,
+			contribution: ((parseFloat(score.experience_score) || parseFloat(match.experience_match_score) || 0) * 0.20).toFixed(2),
+			explanation: `Relevance to ${job.title || 'this role'} based on work history`,
+			data_source: 'score_components',
+		});
+
+		factorBreakdowns.push({
+			factor: 'Cultural Fit',
+			weight: 0.10,
+			score: parseFloat(match.cultural_match_score) || 0,
+			contribution: ((parseFloat(match.cultural_match_score) || 0) * 0.10).toFixed(2),
+			explanation: match.match_explanation || 'Alignment with company values and team dynamics',
+			data_source: 'candidate_job_matches',
+		});
+
+		const explanation = {
+			user_id: userId,
+			job_id: jobId,
+			application_id: applicationId || null,
+			overall_score: overallScore,
+			job_title: job.title,
+			factor_breakdowns: factorBreakdowns,
+			component_details: components.rows.map((c) => ({
+				component_type: c.component_type,
+				source_type: c.source_type,
+				points: parseFloat(c.points),
+				max_points: parseFloat(c.max_points),
+				weight: parseFloat(c.weight),
+				metadata: c.metadata,
+				date: c.created_at,
+			})),
+			generated_at: new Date().toISOString(),
+		};
+
+		// Cache
+		await pool.query(
+			`INSERT INTO ai_decision_explanations (user_id, job_id, application_id, overall_score, factor_breakdowns, weights_hash, generated_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, 'v1-default', NOW(), NOW())
+       ON CONFLICT (user_id, job_id) DO UPDATE SET
+         application_id = EXCLUDED.application_id,
+         overall_score = EXCLUDED.overall_score,
+         factor_breakdowns = EXCLUDED.factor_breakdowns,
+         weights_hash = EXCLUDED.weights_hash,
+         generated_at = EXCLUDED.generated_at,
+         updated_at = NOW()`,
+			[userId, jobId, applicationId || null, overallScore, JSON.stringify(explanation)],
+		);
+
+		return explanation;
+	}
+
+	/**
 	 * Explain why a specific score decision was made
 	 * (e.g., why a candidate was rejected)
 	 */
