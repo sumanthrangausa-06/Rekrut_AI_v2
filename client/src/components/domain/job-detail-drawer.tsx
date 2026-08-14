@@ -1,4 +1,5 @@
 import {
+	AlertTriangle,
 	Award,
 	Bookmark,
 	BookmarkPlus,
@@ -12,14 +13,16 @@ import {
 	GraduationCap,
 	MapPin,
 	Send,
+	Sparkles,
 	X,
 	Zap,
 } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScoreRing } from '@/components/domain/score-ring'
+import { MatchExplanation } from '@/components/domain/match-explanation'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tooltip } from '@/components/ui/tooltip'
@@ -49,6 +52,12 @@ export interface Job {
 	missing_skills?: string[]
 	success_prediction?: string
 	similarity_score?: number
+	explanation?: {
+		why_matched: string
+		skills_match: string
+		company_quality: string
+		your_strength: string
+	}
 	// Extended
 	company_logo?: string
 	company_size?: string
@@ -111,6 +120,7 @@ export function JobDetailContent({
 	hideHeader = false,
 }: JobDetailContentProps) {
 	const score = job.weighted_score ? Math.round(job.weighted_score) : null
+	const [matchExpanded, setMatchExpanded] = useState(score != null && score >= 70)
 
 	const screeningQuestions = (() => {
 		if (!job.screening_questions) return []
@@ -209,6 +219,20 @@ export function JobDetailContent({
 					)}
 				</div>
 			)}
+
+			{/* AI Match Explanation */}
+			<MatchExplanation
+				matchLevel={job.match_level}
+				weightedScore={job.weighted_score}
+				skillMatchPct={job.skill_match_pct}
+				matchingSkills={job.matching_skills}
+				missingSkills={job.missing_skills}
+				successPrediction={job.success_prediction}
+				similarityScore={job.similarity_score}
+				explanation={job.explanation}
+				defaultExpanded={matchExpanded}
+				onToggleExpand={setMatchExpanded}
+			/>
 
 			{/* Job Meta */}
 			<div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>

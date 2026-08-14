@@ -54,6 +54,8 @@ interface Job {
 	requirements: string
 	location: string
 	salary_range: string
+	salary_min?: number
+	salary_max?: number
 	job_type: string
 	remote_type?: string
 	experience_level?: string
@@ -65,6 +67,20 @@ interface Job {
 	screening_questions?: string | ScreeningQuestion[]
 	created_at: string
 	updated_at?: string
+	// Match fields (may be populated from recommended jobs API)
+	weighted_score?: number
+	match_level?: string
+	skill_match_pct?: number
+	matching_skills?: string[]
+	missing_skills?: string[]
+	success_prediction?: string
+	similarity_score?: number
+	explanation?: {
+		why_matched: string
+		skills_match: string
+		company_quality: string
+		your_strength: string
+	}
 }
 
 interface ScreeningQuestion {

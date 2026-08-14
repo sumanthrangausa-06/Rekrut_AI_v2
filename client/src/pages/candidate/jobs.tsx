@@ -70,6 +70,12 @@ interface Job {
 	missing_skills?: string[]
 	success_prediction?: string
 	similarity_score?: number
+	explanation?: {
+		why_matched: string
+		skills_match: string
+		company_quality: string
+		your_strength: string
+	}
 	// Extended
 	company_logo?: string
 	company_size?: string

@@ -2,15 +2,19 @@ import {
 	Bookmark,
 	BookmarkCheck,
 	Building2,
+	ChevronDown,
+	ChevronUp,
 	Clock,
 	DollarSign,
 	Globe,
 	MapPin,
 	RotateCcw,
+	Sparkles,
 	Star,
 	ThumbsUp,
 	X,
 } from 'lucide-react'
+import { useState } from 'react'
 import { ScoreRing } from '@/components/domain/score-ring'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -41,6 +45,12 @@ export interface JobCardData {
 	skill_match_pct?: number
 	matching_skills?: string[]
 	missing_skills?: string[]
+	explanation?: {
+		why_matched: string
+		skills_match: string
+		company_quality: string
+		your_strength: string
+	}
 	// Extended
 	company_logo?: string
 	company_size?: string
@@ -131,6 +141,7 @@ export function JobCard({
 	const score = job.weighted_score ? Math.round(job.weighted_score) : null
 	const companyName = job.company || job.poster_company || 'Company'
 	const isTrashMode = activeTab === 'dismissed'
+	const [showCompactMatch, setShowCompactMatch] = useState(false)
 
 	const allSkills = [
 		...(job.matching_skills || []),
@@ -387,6 +398,89 @@ export function JobCard({
 						</div>
 					</div>
 				</div>
+
+				{/* Compact AI Match Explanation inline */}
+				{score != null && (job.matching_skills?.length || job.missing_skills?.length || job.explanation) && (
+					<div className="mt-3 pt-3 border-t border-border/40">
+						<button
+							onClick={(e) => {
+								e.stopPropagation()
+								setShowCompactMatch((prev) => !prev)
+							}}
+							className={cn(
+								'w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left',
+								'bg-emerald-50/50 hover:bg-emerald-50 dark:bg-emerald-950/10 dark:hover:bg-emerald-950/20',
+								'transition-colors',
+							)}
+						>
+							<div className="flex items-center gap-2 min-w-0">
+								<Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+								<span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 truncate">
+									{score}% match — Why you&apos;re a {score >= 70 ? 'strong' : 'potential'} match
+								</span>
+							</div>
+							{showCompactMatch ? (
+								<ChevronUp className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+							) : (
+								<ChevronDown className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+							)}
+						</button>
+						{showCompactMatch && (
+							<div className="mt-2 space-y-2 px-1">
+								{/* Matching skills pills */}
+								{job.matching_skills && job.matching_skills.length > 0 && (
+									<div className="flex flex-wrap gap-1">
+										{job.matching_skills.slice(0, 4).map((s) => (
+											<Badge
+												key={s}
+												variant="secondary"
+												className="text-[10px] font-medium px-2 py-0 rounded-full bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700"
+											>
+												{s}
+											</Badge>
+										))}
+										{job.matching_skills.length > 4 && (
+											<span className="text-[10px] text-emerald-600 dark:text-emerald-400">
+												+{job.matching_skills.length - 4} more
+											</span>
+										)}
+									</div>
+								)}
+								{/* Specific reason */}
+								{job.explanation?.why_matched && (
+									<p className="text-xs text-emerald-700 dark:text-emerald-300/80 leading-relaxed">
+										{job.explanation.why_matched}
+									</p>
+								)}
+								{job.explanation?.your_strength && (
+									<p className="text-xs text-emerald-700 dark:text-emerald-300/80 leading-relaxed">
+										{job.explanation.your_strength}
+									</p>
+								)}
+								{/* Missing skills */}
+								{job.missing_skills && job.missing_skills.length > 0 && (
+									<div className="flex flex-wrap items-center gap-1">
+										<span className="text-[10px] text-amber-600 dark:text-amber-400 shrink-0">Gaps:</span>
+										{job.missing_skills.slice(0, 3).map((s) => (
+											<Badge
+												key={s}
+												variant="outline"
+												className="text-[10px] font-medium px-1.5 py-0 rounded-full border-amber-300 text-amber-700 bg-amber-50/50 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700"
+											>
+												{s}
+											</Badge>
+										))}
+										{job.missing_skills.length > 3 && (
+											<span className="text-[10px] text-amber-600 dark:text-amber-400">
+												+{job.missing_skills.length - 3}
+											</span>
+										)}
+									</div>
+								)}
+							</div>
+						)}
+					</div>
+				)}
 			</CardContent>
 		</Card>
 	)
