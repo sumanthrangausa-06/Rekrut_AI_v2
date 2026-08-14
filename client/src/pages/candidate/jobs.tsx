@@ -22,7 +22,7 @@ import {
 	X,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -168,6 +168,7 @@ export function CandidateJobsPage() {
 	const [likedJobsData, setLikedJobsData] = useState<Job[]>([])
 	const [dismissedJobsData, setDismissedJobsData] = useState<Job[]>([])
 	const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([])
+	const [userSkills, setUserSkills] = useState<string[]>([])
 
 	// === Tab state ===
 	const [activeTab, setActiveTab] = useState<'all' | 'liked' | 'dismissed'>('all')
@@ -192,7 +193,18 @@ export function CandidateJobsPage() {
 	const [_hasMore, _setHasMore] = useState(true)
 	const PAGE_SIZE = 10
 
+	const [searchParams, setSearchParams] = useSearchParams()
+
 	const jobListRef = useRef<HTMLDivElement>(null)
+
+	// Sync URL skill param to search filter
+	useEffect(() => {
+		const skillParam = searchParams.get('skill')
+		if (skillParam && filters.search !== skillParam) {
+			setFilters((prev) => ({ ...prev, search: skillParam }))
+			setPage(1)
+		}
+	}, [searchParams])
 
 	// Load recent searches from localStorage
 	useEffect(() => {
@@ -334,14 +346,23 @@ export function CandidateJobsPage() {
 		} catch (err) { console.error("[jobs] Operation failed:", err); }
 	}, [])
 
+	const loadUserSkills = useCallback(async () => {
+		try {
+			const data = await apiCall<{ profile: { skills: Array<{ skill_name: string }> } }>('/candidate/profile')
+			const skills = data.profile?.skills?.map((s) => s.skill_name) || []
+			setUserSkills(skills)
+		} catch (err) { console.error("[jobs] Failed to load user skills:", err); }
+	}, [])
+
 	useEffect(() => {
 		loadJobs()
 		if (user) {
 			loadSavedJobs()
 			loadLikedJobs()
 			loadDismissedJobs()
+			loadUserSkills()
 		}
-	}, [user, loadJobs, loadSavedJobs, loadLikedJobs, loadDismissedJobs])
+	}, [user, loadJobs, loadSavedJobs, loadLikedJobs, loadDismissedJobs, loadUserSkills])
 
 	async function toggleSaveJob(jobId: number, e: React.MouseEvent) {
 		e.preventDefault()
@@ -456,6 +477,18 @@ export function CandidateJobsPage() {
 		setAiSearchQuery('')
 		setAiSearchMode(false)
 	}
+
+	const handleSkillClick = useCallback((skill: string) => {
+		setSearchParams({ skill })
+		setFilters((prev) => ({ ...prev, search: skill }))
+		setPage(1)
+	}, [setSearchParams])
+
+	const clearSkillFilter = useCallback(() => {
+		setSearchParams({})
+		setFilters((prev) => ({ ...prev, search: '' }))
+		setPage(1)
+	}, [setSearchParams])
 
 	function setSearch(key: keyof FilterState, value: any) {
 		setFilters((prev) => ({ ...prev, [key]: value }))
@@ -674,7 +707,13 @@ export function CandidateJobsPage() {
 								<Input
 									placeholder='Search by title, company, or keywords...'
 									value={filters.search}
-									onChange={(e) => setSearch('search', e.target.value)}
+									onChange={(e) => {
+										const value = e.target.value
+										setSearch('search', value)
+										if (!value) {
+											setSearchParams({})
+										}
+									}}
 									className='pl-10 bg-white/95 border-0 text-foreground h-11 shadow-lg text-base sm:text-sm'
 								/>
 							</div>
@@ -786,6 +825,20 @@ export function CandidateJobsPage() {
 									<X className='h-3 w-3' /> Clear all
 								</button>
 							)}
+							{searchParams.get('skill') && (
+								<div className='flex items-center gap-1.5 ml-2 shrink-0'>
+									<Badge className='bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 px-2.5 py-1 text-xs font-medium gap-1.5'>
+										<span>Skill: {searchParams.get('skill')}</span>
+										<button
+											onClick={clearSkillFilter}
+											className='inline-flex items-center justify-center rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-800/50 p-0.5 transition-colors'
+											aria-label='Clear skill filter'
+										>
+											<X className='h-3 w-3' />
+										</button>
+									</Badge>
+								</div>
+							)}
 						</div>
 						<div className='flex items-center gap-2 shrink-0'>
 							<select
@@ -881,6 +934,8 @@ export function CandidateJobsPage() {
 										onToggleSave={toggleSaveJob}
 										onToggleLike={toggleLikeJob}
 										onToggleDismiss={toggleDismissJob}
+										userSkills={userSkills}
+										onSkillClick={handleSkillClick}
 									/>
 								))}
 
@@ -920,6 +975,7 @@ export function CandidateJobsPage() {
 					onViewFullPage={() => {
 						if (selectedJob) navigate(`/candidate/jobs/${selectedJob.id}`)
 					}}
+					onSkillClick={handleSkillClick}
 				/>
 			</div>
 		</div>

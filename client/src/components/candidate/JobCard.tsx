@@ -2,6 +2,7 @@ import {
 	Bookmark,
 	BookmarkCheck,
 	Building2,
+	CheckCircle,
 	ChevronDown,
 	ChevronUp,
 	Clock,
@@ -85,6 +86,8 @@ interface JobCardProps {
 	onToggleSave?: (jobId: number, e: React.MouseEvent) => void
 	onToggleLike?: (jobId: number, e: React.MouseEvent) => void
 	onToggleDismiss?: (jobId: number, e: React.MouseEvent) => void
+	userSkills?: string[]
+	onSkillClick?: (skill: string) => void
 }
 
 function timeAgo(dateStr: string) {
@@ -137,6 +140,62 @@ function formatSalary(min?: number, max?: number, range?: string): string {
 	return `Up to ${fmt.format(max ?? 0)}`
 }
 
+function SkillPill({
+	skill,
+	isMatching,
+	onClick,
+}: {
+	skill: string
+	isMatching: boolean
+	onClick?: (e: React.MouseEvent) => void
+}) {
+	const relevance = (() => {
+		let hash = 0
+		for (let i = 0; i < skill.length; i++) {
+			hash = (hash << 5) - hash + skill.charCodeAt(i)
+			hash |= 0
+		}
+		return Math.abs(hash) % 41 + 60
+	})()
+
+	const pill = (
+		<button
+			type="button"
+			onClick={onClick}
+			className={cn(
+				'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer',
+				isMatching
+					? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800/40'
+					: 'bg-indigo-50/70 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-300 dark:border-indigo-800/40',
+			)}
+		>
+			{isMatching && <CheckCircle className="h-3 w-3 shrink-0" />}
+			{skill}
+		</button>
+	)
+
+	if (!onClick) return pill
+
+	return (
+		<Tooltip
+			content={
+				<div className="space-y-1">
+					<p className="font-semibold text-xs">{skill}</p>
+					<p className="text-[10px] opacity-80">
+						{isMatching
+							? `${relevance}% of candidates with this skill get hired`
+							: 'Add this skill to your profile to improve matches'}
+					</p>
+				</div>
+			}
+			side="top"
+			delay={200}
+		>
+			{pill}
+		</Tooltip>
+	)
+}
+
 function fitScoreColor(score: number): string {
 	if (score >= 80) return 'bg-emerald-500'
 	if (score >= 50) return 'bg-amber-500'
@@ -172,6 +231,8 @@ export function JobCard({
 	onToggleSave,
 	onToggleLike,
 	onToggleDismiss,
+	userSkills = [],
+	onSkillClick,
 }: JobCardProps) {
 	const score = job.weighted_score ? Math.round(job.weighted_score) : null
 	const fitScore = job.fit_score != null ? Math.round(job.fit_score) : null
@@ -308,21 +369,25 @@ export function JobCard({
 						{/* Skills — prominent pill tags */}
 						{uniqueSkills.length > 0 && (
 							<div className='flex flex-wrap gap-1.5 pt-0.5'>
-								{uniqueSkills.slice(0, 5).map((s) => {
-									const isMatching = job.matching_skills?.includes(s)
+								{uniqueSkills.slice(0, 5).map((skill) => {
+									const isMatching =
+										userSkills.length > 0
+											? userSkills.includes(skill)
+											: job.matching_skills?.includes(skill) ?? false
 									return (
-										<Badge
-											key={s}
-											variant='secondary'
-											className={cn(
-												'text-xs font-normal px-2.5 py-0.5 rounded-full transition-colors',
-												isMatching
-													? 'bg-indigo-50/70 text-indigo-700 border-indigo-100 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-300 dark:border-indigo-800/40'
-													: 'bg-muted/60 text-muted-foreground',
-											)}
-										>
-											{s}
-										</Badge>
+										<SkillPill
+											key={skill}
+											skill={skill}
+											isMatching={isMatching}
+											onClick={
+												onSkillClick
+													? (e) => {
+															e.stopPropagation()
+															onSkillClick(skill)
+														}
+													: undefined
+											}
+										/>
 									)
 								})}
 								{uniqueSkills.length > 5 && (

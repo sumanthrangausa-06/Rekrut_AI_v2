@@ -145,6 +145,7 @@ export function CandidateJobDetailPage() {
 	const [audioUrl, setAudioUrl] = useState<string | null>(null)
 	const [audioLoading, setAudioLoading] = useState(false)
 	const [isPlaying, setIsPlaying] = useState(false)
+	const [userSkills, setUserSkills] = useState<string[]>([])
 	const audioRef = useRef<HTMLAudioElement | null>(null)
 
 	const loadJob = useCallback(async () => {
@@ -169,6 +170,14 @@ export function CandidateJobDetailPage() {
 			const data = await apiCall<{ profile: { completeness: number } }>('/candidate/profile')
 			setProfileCompleteness(data.profile?.completeness || 0)
 		} catch (err) { console.error("[job-detail] Operation failed:", err); }
+	}, [])
+
+	const loadUserSkills = useCallback(async () => {
+		try {
+			const data = await apiCall<{ profile: { skills: Array<{ skill_name: string }> } }>('/candidate/profile')
+			const skills = data.profile?.skills?.map((s) => s.skill_name) || []
+			setUserSkills(skills)
+		} catch (err) { console.error("[job-detail] Failed to load user skills:", err); }
 	}, [])
 
 	const loadJobAssessment = useCallback(async () => {
@@ -209,12 +218,14 @@ export function CandidateJobDetailPage() {
 			loadJobAssessment()
 			checkSaved()
 			loadProfileCompleteness()
+			loadUserSkills()
 		}
 	}, [
 		user,
 		loadJob,
 		loadMatchBreakdown,
 		loadProfileCompleteness,
+		loadUserSkills,
 		checkSaved,
 		loadJobAssessment,
 		checkIfApplied,
@@ -1261,6 +1272,8 @@ export function CandidateJobDetailPage() {
 					onToggleSave={toggleSave}
 					hideHeader={true}
 					showCloseButton={false}
+					userSkills={userSkills}
+					onSkillClick={(skill) => navigate(`/candidate/jobs?skill=${encodeURIComponent(skill)}`)}
 				/>
 			</Card>
 

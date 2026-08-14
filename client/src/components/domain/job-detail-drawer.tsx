@@ -5,6 +5,7 @@ import {
 	BookmarkPlus,
 	Briefcase,
 	Building2,
+	CheckCircle,
 	CheckCircle2,
 	Clock,
 	DollarSign,
@@ -129,6 +130,64 @@ export interface JobDetailContentProps {
 	onViewFullPage?: () => void
 	showCloseButton?: boolean
 	hideHeader?: boolean
+	userSkills?: string[]
+	onSkillClick?: (skill: string) => void
+}
+
+function SkillPill({
+	skill,
+	isMatching,
+	onClick,
+}: {
+	skill: string
+	isMatching: boolean
+	onClick?: () => void
+}) {
+	const relevance = (() => {
+		let hash = 0
+		for (let i = 0; i < skill.length; i++) {
+			hash = (hash << 5) - hash + skill.charCodeAt(i)
+			hash |= 0
+		}
+		return Math.abs(hash) % 41 + 60
+	})()
+
+	const pill = (
+		<button
+			type="button"
+			onClick={onClick}
+			className={cn(
+				'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors cursor-pointer',
+				isMatching
+					? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800/40'
+					: 'bg-indigo-50/70 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-300 dark:border-indigo-800/40',
+			)}
+		>
+			{isMatching && <CheckCircle className="h-3 w-3 shrink-0" />}
+			{skill}
+		</button>
+	)
+
+	if (!onClick) return pill
+
+	return (
+		<Tooltip
+			content={
+				<div className="space-y-1">
+					<p className="font-semibold text-xs">{skill}</p>
+					<p className="text-[10px] opacity-80">
+						{isMatching
+							? `${relevance}% of candidates with this skill get hired`
+							: 'Add this skill to your profile to improve matches'}
+					</p>
+				</div>
+			}
+			side="top"
+			delay={200}
+		>
+			{pill}
+		</Tooltip>
+	)
 }
 
 export function JobDetailContent({
@@ -140,6 +199,8 @@ export function JobDetailContent({
 	onViewFullPage,
 	showCloseButton = true,
 	hideHeader = false,
+	userSkills = [],
+	onSkillClick,
 }: JobDetailContentProps) {
 	const score = job.weighted_score ? Math.round(job.weighted_score) : null
 	const fitScore = job.fit_score != null ? Math.round(job.fit_score) : null
@@ -352,21 +413,16 @@ export function JobDetailContent({
 					</p>
 					<div className='flex flex-wrap gap-1.5'>
 						{(job.skills_required || job.matching_skills || []).map((skill) => {
-							const isMatch = job.matching_skills?.includes(skill)
+							const isMatch = userSkills.length > 0
+								? userSkills.includes(skill)
+								: job.matching_skills?.includes(skill) ?? false
 							return (
-								<Badge
+								<SkillPill
 									key={skill}
-									variant={isMatch ? 'default' : 'outline'}
-									className={cn(
-										'text-xs h-6',
-										isMatch
-											? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200'
-											: '',
-									)}
-								>
-									{isMatch && <CheckCircle2 className='h-3 w-3 mr-1' />}
-									{skill}
-								</Badge>
+									skill={skill}
+									isMatching={isMatch}
+									onClick={onSkillClick ? () => onSkillClick(skill) : undefined}
+								/>
 							)
 						})}
 					</div>
@@ -448,6 +504,7 @@ export interface JobDetailDrawerProps {
 	onToggleSave?: (e: React.MouseEvent) => void
 	onApply?: () => void
 	onViewFullPage?: () => void
+	onSkillClick?: (skill: string) => void
 }
 
 export function JobDetailDrawer({
@@ -458,6 +515,7 @@ export function JobDetailDrawer({
 	onToggleSave,
 	onApply,
 	onViewFullPage,
+	onSkillClick,
 }: JobDetailDrawerProps) {
 	// Restore scroll position when closing
 	const scrollPosRef = useRef(0)
@@ -509,6 +567,7 @@ export function JobDetailDrawer({
 					onApply={onApply}
 					onViewFullPage={onViewFullPage}
 					showCloseButton={false}
+					onSkillClick={onSkillClick}
 				/>
 			</SheetContent>
 		</Sheet>
