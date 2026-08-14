@@ -37,6 +37,7 @@ import {
 	apiCall,
 	dismissJob,
 	getDismissedJobs,
+	getFitScores,
 	getLikedJobs,
 	likeJob,
 	restoreJob,
@@ -75,6 +76,15 @@ interface Job {
 		skills_match: string
 		company_quality: string
 		your_strength: string
+	}
+	// Fit score
+	fit_score?: number
+	fit_breakdown?: {
+		skills: number
+		experience: number
+		location: number
+		salary: number
+		type: number
 	}
 	// Extended
 	company_logo?: string
@@ -151,6 +161,7 @@ export function CandidateJobsPage() {
 	const [jobs, setJobs] = useState<Job[]>([])
 	const [recommendedJobs, setRecommendedJobs] = useState<Job[]>([])
 	const [loading, setLoading] = useState(true)
+	const [fitScoresLoading, setFitScoresLoading] = useState(false)
 	const [savedJobIds, setSavedJobIds] = useState<Set<number>>(new Set())
 	const [likedJobIds, setLikedJobIds] = useState<Set<number>>(new Set())
 	const [dismissedJobIds, setDismissedJobIds] = useState<Set<number>>(new Set())
@@ -241,6 +252,32 @@ export function CandidateJobsPage() {
 			const allJobs = primaryRes?.data || []
 			setJobs(allJobs)
 			setLoading(false)
+
+			// Fetch fit scores for all visible jobs — non-blocking enrichment
+			if (allJobs.length > 0) {
+				setFitScoresLoading(true)
+				const jobIds = allJobs.map((j) => j.id)
+				getFitScores(jobIds)
+					.then((fitScores) => {
+						const fitMap = new Map<number, { fit_score: number; fit_breakdown: Job['fit_breakdown'] }>()
+						for (const fs of fitScores) {
+							fitMap.set(fs.job_id, {
+								fit_score: fs.fit_score,
+								fit_breakdown: fs.breakdown,
+							})
+						}
+						setJobs((prev) =>
+							prev.map((j) => {
+								const fit = fitMap.get(j.id)
+								return fit ? { ...j, fit_score: fit.fit_score, fit_breakdown: fit.fit_breakdown } : j
+							}),
+						)
+					})
+					.catch((err) => {
+						console.warn('[jobs] Fit scores fetch failed (non-blocking):', err)
+					})
+					.finally(() => setFitScoresLoading(false))
+			}
 
 			// Recommended call — best-effort background enrichment
 			try {
@@ -508,8 +545,9 @@ export function CandidateJobsPage() {
 		})
 		.sort((a, b) => {
 			if (filters.sortBy === 'match') {
-				const sa = b.weighted_score ?? 0
-				const sb = a.weighted_score ?? 0
+				// Prefer fit_score, fallback to weighted_score
+				const sa = b.fit_score ?? b.weighted_score ?? 0
+				const sb = a.fit_score ?? a.weighted_score ?? 0
 				if (sa !== sb) return sa - sb
 			}
 			if (filters.sortBy === 'newest')
@@ -553,6 +591,12 @@ export function CandidateJobsPage() {
 								{aiResults
 									? `${aiResults.length} AI-matched results`
 									: `${filtered.length} active jobs`}
+								{fitScoresLoading && (
+										<span className='inline-flex items-center gap-1 ml-2'>
+											<Loader2 className='h-3 w-3 animate-spin' />
+											<span className='text-[10px]'>calculating fit…</span>
+										</span>
+									)}
 							</p>
 						</div>
 						<div className='flex items-center gap-2 shrink-0'>

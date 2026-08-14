@@ -11,6 +11,7 @@ import {
 	RotateCcw,
 	Sparkles,
 	Star,
+	Target,
 	ThumbsUp,
 	X,
 } from 'lucide-react'
@@ -20,6 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Tooltip } from '@/components/ui/tooltip'
 import { trackEvent } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 
@@ -61,6 +63,15 @@ export interface JobCardData {
 	applicants_count?: number
 	has_applied?: boolean
 	has_saved?: boolean
+	// Fit score
+	fit_score?: number
+	fit_breakdown?: {
+		skills: number
+		experience: number
+		location: number
+		salary: number
+		type: number
+	}
 }
 
 interface JobCardProps {
@@ -126,6 +137,30 @@ function formatSalary(min?: number, max?: number, range?: string): string {
 	return `Up to ${fmt.format(max ?? 0)}`
 }
 
+function fitScoreColor(score: number): string {
+	if (score >= 80) return 'bg-emerald-500'
+	if (score >= 50) return 'bg-amber-500'
+	return 'bg-red-500'
+}
+
+function fitScoreTextColor(score: number): string {
+	if (score >= 80) return 'text-emerald-700 dark:text-emerald-400'
+	if (score >= 50) return 'text-amber-700 dark:text-amber-400'
+	return 'text-red-700 dark:text-red-400'
+}
+
+function fitScoreBgColor(score: number): string {
+	if (score >= 80) return 'bg-emerald-50 dark:bg-emerald-900/20'
+	if (score >= 50) return 'bg-amber-50 dark:bg-amber-900/20'
+	return 'bg-red-50 dark:bg-red-900/20'
+}
+
+function fitScoreBorderColor(score: number): string {
+	if (score >= 80) return 'border-emerald-200 dark:border-emerald-800'
+	if (score >= 50) return 'border-amber-200 dark:border-amber-800'
+	return 'border-red-200 dark:border-red-800'
+}
+
 export function JobCard({
 	job,
 	isSelected,
@@ -139,9 +174,11 @@ export function JobCard({
 	onToggleDismiss,
 }: JobCardProps) {
 	const score = job.weighted_score ? Math.round(job.weighted_score) : null
+	const fitScore = job.fit_score != null ? Math.round(job.fit_score) : null
 	const companyName = job.company || job.poster_company || 'Company'
 	const isTrashMode = activeTab === 'dismissed'
 	const [showCompactMatch, setShowCompactMatch] = useState(false)
+	const [showFitBreakdown, setShowFitBreakdown] = useState(false)
 
 	const allSkills = [
 		...(job.matching_skills || []),
@@ -173,6 +210,13 @@ export function JobCard({
 		trackEvent('job_card_dismiss_click', { job_id: job.id, dismissed: !isTrashMode })
 		onToggleDismiss?.(job.id, e)
 	}
+
+	const breakdownEntries = job.fit_breakdown
+		? Object.entries(job.fit_breakdown).map(([key, value]) => ({
+				label: key.charAt(0).toUpperCase() + key.slice(1),
+				value: Math.round(value),
+			}))
+		: []
 
 	return (
 		<Card
@@ -315,8 +359,41 @@ export function JobCard({
 
 					{/* Right: Score Ring + Action Rail */}
 					<div className='shrink-0 flex flex-row sm:flex-col items-center gap-3 sm:gap-2 w-full sm:w-auto justify-between sm:justify-start sm:pt-1'>
-						{/* Score Ring — prominently displayed */}
-						{score != null && (
+						{/* Fit Score — prominently displayed, fallback to weighted_score */}
+						{fitScore != null ? (
+							<Tooltip
+								content={
+									<div className='space-y-1.5 min-w-[140px]'>
+										<p className='font-semibold text-xs'>Fit Breakdown</p>
+										{breakdownEntries.map((entry) => (
+											<div key={entry.label} className='flex items-center justify-between gap-3'>
+												<span className='text-[10px] opacity-80'>{entry.label}</span>
+												<span className='text-[10px] font-semibold'>{entry.value}%</span>
+											</div>
+										))}
+									</div>
+								}
+								side='left'
+							>
+								<div className='flex flex-col items-center cursor-help'>
+									<div
+										className={cn(
+											'flex items-center justify-center rounded-full border-2 font-bold text-sm',
+											'w-14 h-14',
+											fitScoreBgColor(fitScore),
+											fitScoreBorderColor(fitScore),
+											fitScoreTextColor(fitScore),
+										)}
+									>
+										{fitScore}%
+									</div>
+									<span className={cn('text-[10px] font-medium mt-0.5', fitScoreTextColor(fitScore))}>
+										<Target className='h-2.5 w-2.5 inline mr-0.5' />
+										Fit
+									</span>
+								</div>
+							</Tooltip>
+						) : score != null ? (
 							<div className='flex flex-col items-center'>
 								<ScoreRing score={score} size='md' />
 								{score >= 80 && (
@@ -329,7 +406,7 @@ export function JobCard({
 									</Badge>
 								)}
 							</div>
-						)}
+						) : null}
 
 						{/* Action Rail — vertical on desktop, horizontal on mobile */}
 						<div className='flex sm:flex-col gap-1'>
@@ -399,8 +476,57 @@ export function JobCard({
 					</div>
 				</div>
 
+				{/* Fit Score Breakdown inline */}
+				{fitScore != null && breakdownEntries.length > 0 && (
+					<div className='mt-3 pt-3 border-t border-border/40'>
+						<button
+							onClick={(e) => {
+								e.stopPropagation()
+								setShowFitBreakdown((prev) => !prev)
+							}}
+							className={cn(
+								'w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left',
+								fitScoreBgColor(fitScore),
+								'hover:opacity-80 transition-colors',
+							)}
+						>
+							<div className='flex items-center gap-2 min-w-0'>
+								<Target className={cn('h-3.5 w-3.5 shrink-0', fitScoreTextColor(fitScore))} />
+								<span className={cn('text-xs font-semibold truncate', fitScoreTextColor(fitScore))}>
+									{fitScore}% fit — {fitScore >= 80 ? 'Strong match' : fitScore >= 50 ? 'Potential match' : 'Low match'}
+								</span>
+							</div>
+							{showFitBreakdown ? (
+								<ChevronUp className={cn('h-3.5 w-3.5 shrink-0', fitScoreTextColor(fitScore))} />
+							) : (
+								<ChevronDown className={cn('h-3.5 w-3.5 shrink-0', fitScoreTextColor(fitScore))} />
+							)}
+						</button>
+						{showFitBreakdown && (
+							<div className='mt-2 space-y-2 px-1'>
+								{breakdownEntries.map((entry) => (
+									<div key={entry.label} className='space-y-1'>
+										<div className='flex items-center justify-between'>
+											<span className='text-[11px] text-muted-foreground'>{entry.label}</span>
+											<span className={cn('text-[11px] font-semibold', fitScoreTextColor(entry.value))}>
+												{entry.value}%
+											</span>
+										</div>
+										<div className='h-1.5 w-full rounded-full bg-muted overflow-hidden'>
+											<div
+												className={cn('h-full rounded-full transition-all duration-500', fitScoreColor(entry.value))}
+												style={{ width: `${entry.value}%` }}
+											/>
+										</div>
+									</div>
+								))}
+								</div>
+							)}
+						</div>
+					)}
+
 				{/* Compact AI Match Explanation inline */}
-				{score != null && (job.matching_skills?.length || job.missing_skills?.length || job.explanation) && (
+				{score != null && !fitScore && (job.matching_skills?.length || job.missing_skills?.length || job.explanation) && (
 					<div className="mt-3 pt-3 border-t border-border/40">
 						<button
 							onClick={(e) => {

@@ -372,3 +372,52 @@ export interface JobActionResponse {
 	liked_jobs?: Array<Record<string, unknown>>
 	dismissed_jobs?: Array<Record<string, unknown>>
 }
+
+// ── Fit Score API helpers ──
+
+export interface FitScoreBreakdown {
+	skills: number
+	experience: number
+	location: number
+	salary: number
+	type: number
+}
+
+export interface FitScoreEntry {
+	job_id: number
+	fit_score: number
+	breakdown: FitScoreBreakdown
+}
+
+export interface FitScoreResponse {
+	success: boolean
+	scores: FitScoreEntry[]
+}
+
+export async function getFitScores(jobIds: number[]): Promise<FitScoreEntry[]> {
+	if (jobIds.length === 0) return []
+	// Batch in chunks of 50
+	const chunks: number[][] = []
+	for (let i = 0; i < jobIds.length; i += 50) {
+		chunks.push(jobIds.slice(i, i + 50))
+	}
+	const results: FitScoreEntry[] = []
+	for (const chunk of chunks) {
+		const data = await apiCall<FitScoreResponse>(
+			`/candidate/jobs/fit-scores?job_ids=${chunk.join(',')}`,
+		)
+		if (data.scores) {
+			results.push(...data.scores)
+		}
+	}
+	return results
+}
+
+export async function getFitScore(jobId: number): Promise<FitScoreEntry | null> {
+	try {
+		const data = await apiCall<FitScoreResponse>(`/candidate/jobs/${jobId}/fit-score`)
+		return data.scores?.[0] ?? null
+	} catch {
+		return null
+	}
+}

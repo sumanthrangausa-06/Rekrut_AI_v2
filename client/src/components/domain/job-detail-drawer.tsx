@@ -14,6 +14,7 @@ import {
 	MapPin,
 	Send,
 	Sparkles,
+	Target,
 	X,
 	Zap,
 } from 'lucide-react'
@@ -58,6 +59,15 @@ export interface Job {
 		company_quality: string
 		your_strength: string
 	}
+	// Fit score
+	fit_score?: number
+	fit_breakdown?: {
+		skills: number
+		experience: number
+		location: number
+		salary: number
+		type: number
+	}
 	// Extended
 	company_logo?: string
 	company_size?: string
@@ -76,6 +86,18 @@ function matchBg(score: number): string {
 	if (score >= 80) return 'bg-green-100 text-green-700 border-green-200'
 	if (score >= 60) return 'bg-amber-100 text-amber-700 border-amber-200'
 	return 'bg-red-100 text-red-600 border-red-200'
+}
+
+function fitScoreBarColor(score: number): string {
+	if (score >= 80) return 'bg-emerald-500'
+	if (score >= 50) return 'bg-amber-500'
+	return 'bg-red-500'
+}
+
+function fitScoreTextColor(score: number): string {
+	if (score >= 80) return 'text-emerald-700 dark:text-emerald-400'
+	if (score >= 50) return 'text-amber-700 dark:text-amber-400'
+	return 'text-red-700 dark:text-red-400'
 }
 
 function matchLevelLabel(level: string): string {
@@ -120,6 +142,7 @@ export function JobDetailContent({
 	hideHeader = false,
 }: JobDetailContentProps) {
 	const score = job.weighted_score ? Math.round(job.weighted_score) : null
+	const fitScore = job.fit_score != null ? Math.round(job.fit_score) : null
 	const [matchExpanded, setMatchExpanded] = useState(score != null && score >= 70)
 
 	const screeningQuestions = (() => {
@@ -134,6 +157,13 @@ export function JobDetailContent({
 			return []
 		}
 	})()
+
+	const breakdownEntries = job.fit_breakdown
+		? Object.entries(job.fit_breakdown).map(([key, value]) => ({
+				label: key.charAt(0).toUpperCase() + key.slice(1),
+				value: Math.round(value as number),
+			}))
+		: []
 
 	return (
 		<div className='p-4 sm:p-5 space-y-5'>
@@ -184,8 +214,40 @@ export function JobDetailContent({
 				</div>
 			)}
 
-			{/* Match Score Banner */}
-			{score != null && (
+			{/* Fit Score Banner — prioritized over weighted_score */}
+			{fitScore != null && (
+				<div className={cn('rounded-lg border p-3', matchBg(fitScore))}>
+					<div className='flex items-center justify-between gap-2'>
+						<div className='flex items-center gap-3 min-w-0'>
+							<div
+								className={cn(
+									'flex items-center justify-center rounded-full border-2 font-bold text-sm w-12 h-12 shrink-0',
+									fitScore >= 80
+										? 'bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-700 dark:text-emerald-400'
+										: fitScore >= 60
+											? 'bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-400'
+											: 'bg-red-50 border-red-300 text-red-700 dark:bg-red-950/30 dark:border-red-700 dark:text-red-400',
+								)}
+							>
+								{fitScore}%
+							</div>
+							<div className='min-w-0'>
+								<p className='font-semibold text-sm break-words flex items-center gap-1.5'>
+									<Target className='h-3.5 w-3.5' />
+									Fit Score — {fitScore >= 80 ? 'Strong Match' : fitScore >= 60 ? 'Good Match' : 'Fair Match'}
+								</p>
+								<p className='text-xs opacity-80 break-words'>
+									Based on your profile skills, experience, and preferences
+								</p>
+							</div>
+						</div>
+						{fitScore >= 80 && <Zap className='h-5 w-5 text-green-600 shrink-0' />}
+					</div>
+				</div>
+			)}
+
+			{/* Legacy Match Score Banner (fallback) */}
+			{fitScore == null && score != null && (
 				<div className={cn('rounded-lg border p-3', matchBg(score))}>
 					<div className='flex items-center justify-between gap-2'>
 						<div className='flex items-center gap-3 min-w-0'>
@@ -217,6 +279,34 @@ export function JobDetailContent({
 							</div>
 						</div>
 					)}
+				</div>
+			)}
+
+			{/* Fit Score Breakdown */}
+			{fitScore != null && breakdownEntries.length > 0 && (
+				<div className='rounded-lg border border-indigo-100 dark:border-indigo-800/40 bg-indigo-50/30 dark:bg-indigo-950/10 p-3 space-y-3'>
+					<p className='text-sm font-semibold flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300'>
+						<Target className='h-4 w-4' />
+						Fit Score Breakdown
+					</p>
+					<div className='space-y-2.5'>
+						{breakdownEntries.map((entry) => (
+							<div key={entry.label} className='space-y-1'>
+								<div className='flex items-center justify-between'>
+									<span className='text-xs text-muted-foreground'>{entry.label}</span>
+									<span className={cn('text-xs font-semibold', fitScoreTextColor(entry.value))}>
+										{entry.value}%
+									</span>
+								</div>
+								<div className='h-2 w-full rounded-full bg-muted overflow-hidden'>
+									<div
+										className={cn('h-full rounded-full transition-all duration-500', fitScoreBarColor(entry.value))}
+										style={{ width: `${entry.value}%` }}
+									/>
+								</div>
+							</div>
+						))}
+					</div>
 				</div>
 			)}
 
