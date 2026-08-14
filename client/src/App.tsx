@@ -60,6 +60,13 @@ const RecruiterCommunicationsPage = lazy(() =>
 	})),
 )
 
+const LeaderboardPage = lazy(() =>
+	import('@/pages/candidate/leaderboard').then((m) => ({ default: m.LeaderboardPage })),
+)
+const CompanyComparePage = lazy(() =>
+	import('@/pages/candidate/company-compare').then((m) => ({ default: m.CompanyComparePage })),
+)
+
 // Blog
 const BlogPage = lazy(() => import('@/pages/blog').then((m) => ({ default: m.BlogPage })))
 const BlogPostPage = lazy(() => import('@/pages/blog').then((m) => ({ default: m.BlogPostPage })))
@@ -468,6 +475,9 @@ function AppRoutes() {
 			<Route path='/contact' element={<ContactPage />} />
 			<Route path='/privacy' element={<PrivacyPage />} />
 			<Route path='/terms' element={<TermsPage />} />
+
+			<Route path='/leaderboard' element={<LeaderboardPage />} />
+			<Route path='/compare' element={<CompanyComparePage />} />
 
 			{/* Public company profile */}
 			<Route
