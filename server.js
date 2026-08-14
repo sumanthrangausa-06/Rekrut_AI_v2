@@ -127,6 +127,7 @@ const sandboxRoutes = require('./routes/sandbox');
 const codingTemplateRoutes = require('./routes/coding-templates');
 const codingSubmissionRoutes = require('./routes/coding-submissions');
 const livekitRoutes = require('./server/routes/livekit'); // Issue #124 — LiveKit video infrastructure
+const recordingRoutes = require('./server/routes/recordings'); // Issue #126 — Interview recording, playback & AI transcript
 
 // ─── Prometheus metrics (Phase 1 observability — Issue #144) ─────────────
 const prometheus = require('./server/middleware/prometheus');
@@ -555,6 +556,9 @@ app.use('/api/interviews', interviewRoutes); // Mock Interview + video analysis 
 
 // API Routes - LiveKit Video Infrastructure (Issue #124)
 app.use('/api/livekit', livekitRoutes);
+
+// API Routes - Interview Recordings (Issue #126)
+app.use('/api/interviews/recordings', recordingRoutes);
 
 // API Routes - Interview Panels (Issue #125 — Multi-interviewer panel with scorecards and shared notes)
 app.use('/api/panels', panelRoutes);

@@ -255,9 +255,13 @@ const RecruiterJobAssessmentPage = lazy(() =>
 const RecruiterOffersPage = lazy(() =>
 	import('@/pages/recruiter/offers').then((m) => ({ default: m.RecruiterOffersPage })),
 )
-const RecruiterInterviewsPage = lazy(() =>
-	import('@/pages/recruiter/interviews').then((m) => ({ default: m.RecruiterInterviewsPage })),
+const RecruiterRecordingsPage = lazy(() =>
+	import('@/pages/recruiter/recordings').then((m) => ({ default: m.RecruiterRecordingsPage })),
 )
+const RecordingPlaybackPage = lazy(() =>
+	import('@/pages/recruiter/recording-playback').then((m) => ({ default: m.RecordingPlaybackPage })),
+)
+
 const RecruiterPanelsPage = lazy(() =>
 	import('@/pages/recruiter/panels').then((m) => ({ default: m.RecruiterPanelsPage })),
 )
@@ -1051,6 +1055,26 @@ function AppRoutes() {
 						<Protected>
 							<RecruiterGuard>
 								<RecruiterInterviewsPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path='recordings'
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<RecruiterRecordingsPage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path='recordings/:id/playback'
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<RecordingPlaybackPage />
 							</RecruiterGuard>
 						</Protected>
 					}

@@ -13,13 +13,17 @@ import { ConnectionState, Track } from 'livekit-client'
 import {
 	AlertTriangle,
 	ArrowLeft,
+	CheckCircle,
 	ChevronRight,
+	CircleDot,
 	Loader2,
 	Mic,
 	MicOff,
 	MonitorUp,
 	MonitorX,
 	PhoneOff,
+	PlayCircle,
+	Square,
 	Users,
 	Video,
 	VideoOff,
@@ -29,7 +33,15 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog'
 import { EmptyState } from '@/components/domain/empty-state'
+import { useAuth } from '@/contexts/auth-context'
 import { apiCall } from '@/lib/api'
 
 // ─── Types ───────────────────────────────────────────────────────────────
@@ -39,6 +51,19 @@ interface TokenResponse {
 	roomName: string
 	livekitUrl: string
 	expiresIn: number
+}
+
+interface RecordingInfo {
+	id: number
+	status: string
+	started_at: string
+	room_id: number
+}
+
+interface ConsentParticipant {
+	userId: number
+	name: string
+	consented: boolean
 }
 
 // ─── Connection State Badge ──────────────────────────────────────────────
@@ -87,6 +112,20 @@ function ConnectionBadge() {
 		<Badge variant='outline' className={`${config.classes} flex items-center gap-1.5 px-2.5 py-1`}>
 			<Icon className={`h-3.5 w-3.5 ${config.spin ? 'animate-spin' : ''}`} />
 			<span className='text-xs font-medium'>{config.label}</span>
+		</Badge>
+	)
+}
+
+// ─── Recording Indicator ─────────────────────────────────────────────────
+
+function RecordingBadge() {
+	return (
+		<Badge
+			variant='outline'
+			className='bg-red-500/20 text-red-300 border-red-500/30 flex items-center gap-1.5 px-2.5 py-1'
+		>
+			<CircleDot className='h-3 w-3 animate-pulse text-red-500' />
+			<span className='text-xs font-medium'>Recording</span>
 		</Badge>
 	)
 }
@@ -257,7 +296,23 @@ function ParticipantSidebar({ onClose }: { onClose: () => void }) {
 
 // ─── Control Bar ─────────────────────────────────────────────────────────
 
-function RoomControlBar({ onLeave }: { onLeave: () => void }) {
+function RoomControlBar({
+	onLeave,
+	isRecruiter,
+	recording,
+	onStartRecording,
+	onStopRecording,
+	startingRecording,
+	stoppingRecording,
+}: {
+	onLeave: () => void
+	isRecruiter: boolean
+	recording: RecordingInfo | null
+	onStartRecording: () => void
+	onStopRecording: () => void
+	startingRecording: boolean
+	stoppingRecording: boolean
+}) {
 	const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant()
 	const [isScreenSharing, setIsScreenSharing] = useState(false)
 
@@ -279,7 +334,7 @@ function RoomControlBar({ onLeave }: { onLeave: () => void }) {
 	}, [localParticipant, isScreenSharing])
 
 	return (
-		<div className='flex items-center justify-center gap-3 p-4 bg-slate-900/95 border-t border-slate-700 shrink-0'>
+		<div className='flex items-center justify-center gap-3 p-4 bg-slate-900/95 border-t border-slate-700 shrink-0 flex-wrap'>
 			<Button
 				variant={isMicrophoneEnabled ? 'secondary' : 'destructive'}
 				size='icon'
@@ -330,6 +385,43 @@ function RoomControlBar({ onLeave }: { onLeave: () => void }) {
 				)}
 			</Button>
 
+			{/* Recording controls — recruiters only */}
+			{isRecruiter && (
+				<>
+					{recording ? (
+						<Button
+							variant='destructive'
+							size='icon'
+							onClick={onStopRecording}
+							disabled={stoppingRecording}
+							className='rounded-full h-12 w-12 min-h-[44px] min-w-[44px] bg-red-600 hover:bg-red-700'
+							aria-label='Stop recording'
+						>
+							{stoppingRecording ? (
+								<Loader2 className='h-5 w-5 animate-spin' />
+							) : (
+								<Square className='h-5 w-5' />
+							)}
+						</Button>
+					) : (
+						<Button
+							variant='destructive'
+							size='icon'
+							onClick={onStartRecording}
+							disabled={startingRecording}
+							className='rounded-full h-12 w-12 min-h-[44px] min-w-[44px] bg-red-600 hover:bg-red-700'
+							aria-label='Start recording'
+						>
+							{startingRecording ? (
+								<Loader2 className='h-5 w-5 animate-spin' />
+							) : (
+								<PlayCircle className='h-5 w-5' />
+							)}
+						</Button>
+					)}
+				</>
+			)}
+
 			<Button
 				variant='destructive'
 				size='icon'
@@ -343,13 +435,255 @@ function RoomControlBar({ onLeave }: { onLeave: () => void }) {
 	)
 }
 
+// ─── Consent Dialog ──────────────────────────────────────────────────────
+
+function ConsentDialog({
+	open,
+	onClose,
+	participants,
+	recordingId,
+	onConsentGiven,
+	onStartRecording,
+	allConsented,
+	consentLoading,
+}: {
+	open: boolean
+	onClose: () => void
+	participants: ConsentParticipant[]
+	recordingId: number | null
+	onConsentGiven: (userId: number) => void
+	onStartRecording: () => void
+	allConsented: boolean
+	consentLoading: boolean
+}) {
+	return (
+		<Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+			<DialogContent className='sm:max-w-md'>
+				<DialogHeader>
+					<DialogTitle className='flex items-center gap-2'>
+						<CircleDot className='h-5 w-5 text-red-500' />
+						Recording Consent Required
+					</DialogTitle>
+					<DialogDescription>
+						All participants must consent before the interview can be recorded.
+					</DialogDescription>
+				</DialogHeader>
+				<div className='space-y-3 py-2'>
+					{participants.length === 0 ? (
+						<p className='text-sm text-muted-foreground'>
+							Loading participants...
+						</p>
+					) : (
+						participants.map((p) => (
+							<div
+								key={p.userId}
+								className={`flex items-center justify-between p-3 rounded-lg border ${
+									p.consented
+										? 'bg-emerald-50 border-emerald-200'
+										: 'bg-muted/50 border-border'
+								}`}
+							>
+								<div className='flex items-center gap-2'>
+									{p.consented ? (
+										<CheckCircle className='h-4 w-4 text-emerald-600' />
+									) : (
+										<CircleDot className='h-4 w-4 text-muted-foreground' />
+									)}
+									<span className='text-sm font-medium'>{p.name}</span>
+								</div>
+								{p.consented ? (
+									<Badge variant='success' className='text-xs'>
+										Consented
+									</Badge>
+								) : (
+									<Button
+										size='sm'
+										variant='outline'
+										onClick={() => onConsentGiven(p.userId)}
+										disabled={consentLoading || !recordingId}
+										className='min-h-[36px] text-xs'
+										title={!recordingId ? 'Recording ID not available. Please retry starting the recording.' : ''}
+									>
+										I consent to being recorded
+									</Button>
+								)}
+							</div>
+						))
+					)}
+					{!recordingId && participants.some((p) => !p.consented) && (
+						<p className='text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200'>
+							Note: Recording consent cannot be recorded until a recording is initialized.
+							Click "Start Recording" below to retry after all participants have given verbal consent.
+						</p>
+					)}
+				</div>
+				<div className='flex justify-end gap-2 mt-4'>
+					<Button variant='outline' onClick={onClose}>
+						Cancel
+					</Button>
+					<Button
+						onClick={onStartRecording}
+						disabled={!allConsented || consentLoading}
+						className='gap-1'
+					>
+						{consentLoading ? (
+							<Loader2 className='h-4 w-4 animate-spin' />
+						) : (
+							<PlayCircle className='h-4 w-4' />
+						)}
+						Start Recording
+					</Button>
+				</div>
+			</DialogContent>
+		</Dialog>
+	)
+}
+
 // ─── Room UI (rendered inside LiveKitRoom context) ───────────────────────
 
-function RoomUI({ roomName, onLeave }: { roomName: string; onLeave: () => void }) {
+function RoomUI({
+	roomName,
+	onLeave,
+	roomId,
+	isRecruiter,
+}: {
+	roomName: string
+	onLeave: () => void
+	roomId: string
+	isRecruiter: boolean
+}) {
 	const [showSidebar, setShowSidebar] = useState(false)
+	const [recording, setRecording] = useState<RecordingInfo | null>(null)
+	const [startingRecording, setStartingRecording] = useState(false)
+	const [stoppingRecording, setStoppingRecording] = useState(false)
+	const [showConsentDialog, setShowConsentDialog] = useState(false)
+	const [consentParticipants, setConsentParticipants] = useState<ConsentParticipant[]>([])
+	const [consentRecordingId, setConsentRecordingId] = useState<number | null>(null)
+	const [consentLoading, setConsentLoading] = useState(false)
+	const [toastMessage, setToastMessage] = useState<string | null>(null)
+
+	// Get participant info at component top level (hooks rule)
+	const localParticipantInfo = useLocalParticipant()
+	const remoteParticipantsList = useParticipants()
+
+	const showToast = useCallback((message: string) => {
+		setToastMessage(message)
+		setTimeout(() => setToastMessage(null), 4000)
+	}, [])
+
+	const handleStartRecording = useCallback(async () => {
+		if (!roomId) return
+		setStartingRecording(true)
+		try {
+			const res = await fetch(`/api/interviews/recordings/start`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${localStorage.getItem('rekrutai_token') || ''}`,
+				},
+				body: JSON.stringify({ room_id: parseInt(roomId, 10) }),
+				credentials: 'include',
+			})
+
+			const data = await res.json().catch(() => ({ error: 'Request failed' }))
+
+			if (res.status === 201 && data.recording) {
+				setRecording(data.recording)
+				setConsentRecordingId(data.recording.id)
+				showToast('Recording started')
+			} else if (res.status === 409 && data.recording) {
+				setRecording(data.recording)
+				setConsentRecordingId(data.recording.id)
+				showToast('Recording already in progress')
+			} else if (res.status === 403 && data.code === 'CONSENT_REQUIRED') {
+				// Build participant list from missing consent data
+				const allParticipants = [
+					{
+						identity: localParticipantInfo.localParticipant.identity,
+						name: localParticipantInfo.localParticipant.name,
+					},
+					...remoteParticipantsList.map((p) => ({
+						identity: p.identity,
+						name: p.name,
+					})),
+				]
+				const missingIds: number[] = data.missingConsentFrom || []
+				const participants: ConsentParticipant[] = missingIds.map((userId, idx) => ({
+					userId,
+					name: allParticipants[idx]?.name || allParticipants[idx]?.identity || `Participant ${userId}`,
+					consented: false,
+				}))
+				setConsentParticipants(participants)
+				setShowConsentDialog(true)
+				showToast('Consent required from all participants')
+			} else {
+				showToast(data.error || 'Failed to start recording')
+			}
+		} catch (err: any) {
+			showToast(err.message || 'Failed to start recording')
+		} finally {
+			setStartingRecording(false)
+		}
+	}, [roomId, localParticipantInfo, remoteParticipantsList, showToast])
+
+	const handleStopRecording = useCallback(async () => {
+		if (!recording) return
+		setStoppingRecording(true)
+		try {
+			await apiCall(`/interviews/recordings/${recording.id}/stop`, {
+				method: 'POST',
+			})
+			setRecording(null)
+			showToast('Recording stopped')
+		} catch (err: any) {
+			showToast(err.message || 'Failed to stop recording')
+		} finally {
+			setStoppingRecording(false)
+		}
+	}, [recording, showToast])
+
+	const handleConsentGiven = useCallback(
+		async (userId: number) => {
+			if (!consentRecordingId) {
+				showToast('Unable to record consent — no recording ID available')
+				return
+			}
+			setConsentLoading(true)
+			try {
+				await apiCall(`/interviews/recordings/${consentRecordingId}/consent`, {
+					method: 'POST',
+					body: { consent_type: 'explicit' },
+				})
+				setConsentParticipants((prev) =>
+					prev.map((p) => (p.userId === userId ? { ...p, consented: true } : p)),
+				)
+				showToast('Consent recorded')
+			} catch (err: any) {
+				showToast(err.message || 'Failed to record consent')
+			} finally {
+				setConsentLoading(false)
+			}
+		},
+		[consentRecordingId, showToast],
+	)
+
+	const handleConsentStartRecording = useCallback(async () => {
+		setShowConsentDialog(false)
+		await handleStartRecording()
+	}, [handleStartRecording])
+
+	const allConsented = consentParticipants.every((p) => p.consented)
 
 	return (
 		<div className='flex flex-col h-[calc(100vh-4rem)] bg-slate-950 text-white overflow-hidden rounded-xl'>
+			{/* Toast */}
+			{toastMessage && (
+				<div className='fixed top-4 right-4 z-[100] flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg bg-emerald-600 text-white animate-in slide-in-from-right fade-in duration-200'>
+					<CheckCircle className='h-4 w-4' />
+					{toastMessage}
+				</div>
+			)}
+
 			{/* Header */}
 			<header className='flex items-center justify-between px-4 py-3 bg-slate-900/95 border-b border-slate-700 shrink-0'>
 				<div className='flex items-center gap-3 min-w-0'>
@@ -365,6 +699,7 @@ function RoomUI({ roomName, onLeave }: { roomName: string; onLeave: () => void }
 					<h1 className='text-sm font-semibold text-white truncate'>{roomName}</h1>
 				</div>
 				<div className='flex items-center gap-3 shrink-0'>
+					{recording && <RecordingBadge />}
 					<ConnectionBadge />
 					<Button
 						variant='ghost'
@@ -387,8 +722,28 @@ function RoomUI({ roomName, onLeave }: { roomName: string; onLeave: () => void }
 			</div>
 
 			{/* Controls */}
-			<RoomControlBar onLeave={onLeave} />
+			<RoomControlBar
+				onLeave={onLeave}
+				isRecruiter={isRecruiter}
+				recording={recording}
+				onStartRecording={handleStartRecording}
+				onStopRecording={handleStopRecording}
+				startingRecording={startingRecording}
+				stoppingRecording={stoppingRecording}
+			/>
 			<RoomAudioRenderer />
+
+			{/* Consent Dialog */}
+			<ConsentDialog
+				open={showConsentDialog}
+				onClose={() => setShowConsentDialog(false)}
+				participants={consentParticipants}
+				recordingId={consentRecordingId}
+				onConsentGiven={handleConsentGiven}
+				onStartRecording={handleConsentStartRecording}
+				allConsented={allConsented}
+				consentLoading={consentLoading}
+			/>
 		</div>
 	)
 }
@@ -398,11 +753,18 @@ function RoomUI({ roomName, onLeave }: { roomName: string; onLeave: () => void }
 export function LiveKitRoomPage() {
 	const [searchParams] = useSearchParams()
 	const navigate = useNavigate()
+	const { user } = useAuth()
 	const roomId = searchParams.get('roomId')
 
 	const [tokenData, setTokenData] = useState<TokenResponse | null>(null)
 	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState<string | null>(null)
+
+	const isRecruiter =
+		user?.role === 'recruiter' ||
+		user?.role === 'hiring_manager' ||
+		user?.role === 'employer' ||
+		user?.role === 'admin'
 
 	const fetchToken = useCallback(async () => {
 		if (!roomId) return
@@ -498,7 +860,12 @@ export function LiveKitRoomPage() {
 			video={true}
 			onDisconnected={handleLeave}
 		>
-			<RoomUI roomName={tokenData.roomName} onLeave={handleLeave} />
+			<RoomUI
+				roomName={tokenData.roomName}
+				onLeave={handleLeave}
+				roomId={roomId}
+				isRecruiter={isRecruiter}
+			/>
 		</LiveKitRoom>
 	)
 }

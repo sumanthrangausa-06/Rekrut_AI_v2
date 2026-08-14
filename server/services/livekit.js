@@ -11,6 +11,9 @@
 // =============================================================================
 
 const pool = require('../../lib/db');
+const encryption = require('../../services/encryption');
+const fetch = require('node-fetch');
+const FormData = require('form-data');
 
 // LiveKit SDK v2 is ESM-only; lazy-load via dynamic import
 /** @type {any} */
@@ -267,6 +270,274 @@ async function autoCreateRoomForInterview(interviewEventId) {
 	}
 }
 
+// ─── Egress Recording (Issue #126) ────────────────────────────────────────
+
+/**
+ * Get an EgressClient for room composition recording.
+ * LiveKit Egress uses the same API credentials but a different endpoint.
+ */
+async function getEgressClient() {
+	const { EgressClient } = await getLivekitModule();
+	const { apiKey, apiSecret } = getConfig();
+	const httpUrl = process.env.LIVEKIT_URL.replace(/^wss?:\/\//, 'https:\/\/').replace(/\/$/, '');
+	return new EgressClient(httpUrl, apiKey, apiSecret);
+}
+
+/**
+ * Build S3 output config for LiveKit Egress from environment.
+ * Supports AWS S3, Cloudflare R2, or any S3-compatible storage.
+ * @returns {Object|null} S3 upload configuration or null if not configured
+ */
+function getS3OutputConfig() {
+	const bucket = process.env.RECORDING_STORAGE_BUCKET;
+	const region = process.env.RECORDING_STORAGE_REGION || 'auto';
+	const endpoint = process.env.RECORDING_STORAGE_ENDPOINT;
+	const accessKey = process.env.RECORDING_STORAGE_ACCESS_KEY;
+	const secretKey = process.env.RECORDING_STORAGE_SECRET_KEY;
+
+	if (!bucket || !accessKey || !secretKey) {
+		return null;
+	}
+
+	return {
+		S3: {
+			bucket,
+			region,
+			endpoint,
+			accessKey,
+			secret: secretKey,
+		},
+	};
+}
+
+/**
+ * Start a room composition recording via LiveKit Egress.
+ * @param {string} roomName - LiveKit room name
+ * @param {Object} [options]
+ * @param {string} [options.fileType='mp4'] - Output format (mp4 or ogg)
+ * @param {string} [options.resolution='720p'] - Video resolution
+ * @param {boolean} [options.audioOnly=false] - Audio-only recording
+ * @returns {Promise<{egressId: string, status: string, fileLocation?: string}>}
+ */
+async function startRoomRecording(roomName, options = {}) {
+	const client = await getEgressClient();
+	const s3Config = getS3OutputConfig();
+
+	if (!s3Config) {
+		throw new Error('Recording storage not configured: RECORDING_STORAGE_BUCKET, RECORDING_STORAGE_ACCESS_KEY, RECORDING_STORAGE_SECRET_KEY required');
+	}
+
+	const { RoomCompositeEgressRequest, EncodedFileType } = await getLivekitModule();
+
+	const fileType = options.fileType === 'ogg' ? EncodedFileType.OGG : EncodedFileType.MP4;
+	const req = new RoomCompositeEgressRequest({
+		roomName,
+		fileType,
+		preset: options.resolution === '1080p' ? 'H264_1080P_30' : 'H264_720P_30',
+		audioOnly: options.audioOnly || false,
+	});
+
+	// Attach S3 output
+	req.fileOutputs = [{
+		fileType,
+		filepath: `rekrut-recordings/${roomName}-${Date.now()}.${fileType === EncodedFileType.OGG ? 'ogg' : 'mp4'}`,
+		...s3Config,
+	}];
+
+	const info = await client.startRoomCompositeEgress(roomName, req);
+
+	return {
+		egressId: info.egressId,
+		status: info.status,
+		fileLocation: info.fileResults?.[0]?.location || null,
+	};
+}
+
+/**
+ * Stop an active Egress recording.
+ * @param {string} egressId
+ * @returns {Promise<{egressId: string, status: string}>}
+ */
+async function stopRoomRecording(egressId) {
+	const client = await getEgressClient();
+	const info = await client.stopEgress(egressId);
+	return {
+		egressId: info.egressId,
+		status: info.status,
+	};
+}
+
+/**
+ * Get the current status of an Egress recording.
+ * @param {string} egressId
+ * @returns {Promise<Object|null>}
+ */
+async function getEgressInfo(egressId) {
+	const client = await getEgressClient();
+	const info = await client.listEgress({ egressId });
+	return info?.[0] || null;
+}
+
+// ─── Recording Database Operations ────────────────────────────────────────
+
+/**
+ * Persist a new recording record.
+ * @param {Object} opts
+ * @param {number} opts.interviewEventId
+ * @param {number} opts.roomId
+ * @param {string} opts.egressId
+ * @returns {Promise<Object>} inserted row
+ */
+async function createRecordingRecord({ interviewEventId, roomId, egressId }) {
+	const retentionDays = parseInt(process.env.RECORDING_RETENTION_DAYS || '90', 10);
+	const retentionDate = new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000);
+	const result = await pool.query(
+		`INSERT INTO interview_recordings
+		 (interview_event_id, room_id, livekit_egress_id, status, started_at, retention_expires_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, 'recording', NOW(), $4, NOW(), NOW())
+		 RETURNING *`,
+		[interviewEventId, roomId, egressId, retentionDate],
+	);
+	return result.rows[0];
+}
+
+/**
+ * Mark a recording as stopped and store the encrypted file path.
+ * @param {number} recordingId
+ * @param {string} storagePath - raw S3/R2 path or URL
+ * @param {number} durationSeconds
+ * @param {number} fileSizeBytes
+ */
+async function completeRecordingRecord(recordingId, storagePath, durationSeconds, fileSizeBytes) {
+	const encryptedPath = storagePath ? encryption.encrypt(Buffer.from(storagePath)) : null;
+	await pool.query(
+		`UPDATE interview_recordings
+		 SET status = 'completed',
+		     stopped_at = NOW(),
+		     duration_seconds = $1,
+		     storage_path = $2,
+		     file_size_bytes = $3,
+		     updated_at = NOW()
+		 WHERE id = $4`,
+		[durationSeconds, encryptedPath, fileSizeBytes, recordingId],
+	);
+}
+
+/**
+ * Mark a recording as failed.
+ * @param {number} recordingId
+ * @param {string} [reason]
+ */
+async function failRecordingRecord(recordingId, reason) {
+	await pool.query(
+		`UPDATE interview_recordings
+		 SET status = 'failed',
+		     stopped_at = NOW(),
+		     updated_at = NOW()
+		 WHERE id = $1`,
+		[recordingId],
+	);
+}
+
+/**
+ * Find a recording by its local record ID.
+ * @param {number} recordingId
+ * @returns {Promise<Object|null>}
+ */
+async function findRecordingById(recordingId) {
+	const result = await pool.query(
+		`SELECT * FROM interview_recordings WHERE id = $1`,
+		[recordingId],
+	);
+	return result.rows[0] || null;
+}
+
+/**
+ * Find the active recording for a room.
+ * @param {number} roomId
+ * @returns {Promise<Object|null>}
+ */
+async function findActiveRecordingByRoomId(roomId) {
+	const result = await pool.query(
+		`SELECT * FROM interview_recordings
+		 WHERE room_id = $1 AND status = 'recording'
+		 ORDER BY started_at DESC
+		 LIMIT 1`,
+		[roomId],
+	);
+	return result.rows[0] || null;
+}
+
+/**
+ * List recordings for an interview event.
+ * @param {number} interviewEventId
+ * @returns {Promise<Object[]>}
+ */
+async function listRecordingsByEventId(interviewEventId) {
+	const result = await pool.query(
+		`SELECT * FROM interview_recordings
+		 WHERE interview_event_id = $1
+		 ORDER BY created_at DESC`,
+		[interviewEventId],
+	);
+	return result.rows;
+}
+
+/**
+ * Decrypt the storage path for a recording.
+ * @param {Object} recording - interview_recordings row
+ * @returns {string|null}
+ */
+function decryptStoragePath(recording) {
+	if (!recording.storage_path) return null;
+	try {
+		const decrypted = encryption.decrypt(Buffer.from(recording.storage_path));
+		return decrypted.toString('utf-8');
+	} catch (err) {
+		console.error('[livekit] Failed to decrypt storage path:', err.message);
+		return null;
+	}
+}
+
+// ─── Audio Download for Transcription ─────────────────────────────────────
+
+/**
+ * Download audio from a recording storage path for transcription.
+ * @param {string} storagePath - decrypted S3/R2 path
+ * @returns {Promise<Buffer|null>}
+ */
+async function downloadRecordingAudio(storagePath) {
+	try {
+		// If it's an HTTP URL, fetch it directly
+		if (storagePath.startsWith('http')) {
+			const res = await fetch(storagePath);
+			if (!res.ok) {
+				console.error(`[livekit] Download failed: ${res.status} ${res.statusText}`);
+				return null;
+			}
+			return Buffer.from(await res.arrayBuffer());
+		}
+
+		// For S3 paths, construct a pre-signed URL or use the R2 proxy
+		const endpoint = process.env.RECORDING_STORAGE_ENDPOINT;
+		const bucket = process.env.RECORDING_STORAGE_BUCKET;
+		if (endpoint && bucket) {
+			const url = `${endpoint.replace(/\/$/, '')}/${bucket}/${storagePath}`;
+			const res = await fetch(url);
+			if (!res.ok) {
+				console.error(`[livekit] Download failed: ${res.status} ${res.statusText}`);
+				return null;
+			}
+			return Buffer.from(await res.arrayBuffer());
+		}
+
+		return null;
+	} catch (err) {
+		console.error('[livekit] Download recording audio error:', err.message);
+		return null;
+	}
+}
+
 module.exports = {
 	generateToken,
 	createRoom,
@@ -277,4 +548,16 @@ module.exports = {
 	findRoomById,
 	validateRoomAccess,
 	autoCreateRoomForInterview,
+	// Issue #126 — Recording
+	startRoomRecording,
+	stopRoomRecording,
+	getEgressInfo,
+	createRecordingRecord,
+	completeRecordingRecord,
+	failRecordingRecord,
+	findRecordingById,
+	findActiveRecordingByRoomId,
+	listRecordingsByEventId,
+	decryptStoragePath,
+	downloadRecordingAudio,
 };
