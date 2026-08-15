@@ -127,6 +127,7 @@ const sandboxRoutes = require('./routes/sandbox');
 const codingTemplateRoutes = require('./routes/coding-templates');
 const codingSubmissionRoutes = require('./routes/coding-submissions');
 const livekitRoutes = require('./server/routes/livekit'); // Issue #124 — LiveKit video infrastructure
+const backgroundCheckRoutes = require('./routes/background-check'); // Issue #133 — Background check
 const recordingRoutes = require('./server/routes/recordings'); // Issue #126 — Interview recording, playback & AI transcript
 const collaborationRoutes = require('./routes/collaboration'); // Issue #128 — Real-time collaboration for hiring teams
 
@@ -640,6 +641,10 @@ app.use('/api/candidates', candidateSearchRoutes);
 
 // API Routes - Identity Verification
 app.use('/api/candidates', verificationRoutes);
+
+// Issue #133 — Background Check (employment/education verification, discrepancy detection, reference checks)
+app.use('/api/candidates', backgroundCheckRoutes.candidateRouter);
+app.use('/api', backgroundCheckRoutes.router);
 
 const voiceRoutes = require('./routes/voice');
 const ttsRoutes = require('./routes/tts');
