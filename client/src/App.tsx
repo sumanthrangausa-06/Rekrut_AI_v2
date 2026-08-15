@@ -129,9 +129,10 @@ const AiCoachingPage = lazy(() =>
 const CareerCoachPage = lazy(() =>
 	import('@/pages/candidate/career-coach').then((m) => ({ default: m.CareerCoachPage })),
 )
-const CandidateOmniScorePage = lazy(() =>
-	import('@/pages/candidate/omniscore').then((m) => ({ default: m.CandidateOmniScorePage })),
+const CandidateTopMatchesPage = lazy(() =>
+	import('@/pages/candidate/top-matches').then((m) => ({ default: m.CandidateTopMatchesPage })),
 )
+
 const CandidateDocumentsPage = lazy(() =>
 	import('@/pages/candidate/documents').then((m) => ({ default: m.CandidateDocumentsPage })),
 )
@@ -697,7 +698,7 @@ function AppRoutes() {
 					path='top-matches'
 					element={
 						<Protected>
-							<_PlaceholderPage />
+							<CandidateTopMatchesPage />
 						</Protected>
 					}
 				/>
