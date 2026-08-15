@@ -173,6 +173,15 @@ const CandidatePostHireFeedbackPage = lazy(() =>
 const OfferManagementPage = lazy(() =>
 	import('@/pages/candidate/offer-management').then((m) => ({ default: m.OfferManagementPage })),
 )
+const CVReviewPage = lazy(() =>
+	import('@/pages/candidate/cv-review').then((m) => ({ default: m.CVReviewPage })),
+)
+const LinkedInOptimizerPage = lazy(() =>
+	import('@/pages/candidate/linkedin-optimizer').then((m) => ({ default: m.LinkedInOptimizerPage })),
+)
+const CareerDiagnosisPage = lazy(() =>
+	import('@/pages/candidate/career-diagnosis').then((m) => ({ default: m.CareerDiagnosisPage })),
+)
 const CompanyProfilePage = lazy(() =>
 	import('@/pages/candidate/company-profile').then((m) => ({ default: m.CompanyProfilePage })),
 )
@@ -722,7 +731,7 @@ function AppRoutes() {
 					path='cv-review'
 					element={
 						<Protected>
-							<_PlaceholderPage />
+							<CVReviewPage />
 						</Protected>
 					}
 				/>
@@ -730,7 +739,7 @@ function AppRoutes() {
 					path='linkedin-optimizer'
 					element={
 						<Protected>
-							<_PlaceholderPage />
+							<LinkedInOptimizerPage />
 						</Protected>
 					}
 				/>
@@ -738,7 +747,7 @@ function AppRoutes() {
 					path='career-diagnosis'
 					element={
 						<Protected>
-							<_PlaceholderPage />
+							<CareerDiagnosisPage />
 						</Protected>
 					}
 				/>
