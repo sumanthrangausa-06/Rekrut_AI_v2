@@ -1,388 +1,487 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
 import { apiCall } from '@/lib/api'
-import { FileText, Upload, CheckCircle, AlertCircle, ArrowUpRight, Lightbulb, Layout, Target } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import {
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  Loader2,
+  Sparkles,
+  Crown,
+  Upload,
+  RefreshCw,
+  Lightbulb,
+} from 'lucide-react'
 
-interface CVStrength {
-	title: string
-	description: string
+// ── Types ───────────────────────────────────────────────────────────────────
+
+interface SectionScore {
+  name: string
+  score: number
+  impact: 'Highest' | 'Medium' | 'Low'
+  recommendations: string[]
 }
 
-interface CVImprovement {
-	title: string
-	description: string
-	priority: 'high' | 'medium' | 'low'
+interface CVAnalysis {
+  id: number
+  status: 'pending' | 'completed' | 'failed'
+  overall_score: number
+  section_scores: SectionScore[]
+  recommendations?: Array<{ section: string; impact: string; text: string }>
 }
 
-interface ATSCompatibility {
-	score: number
-	notes: string
+interface TriggerResponse {
+  success: boolean
+  analysis_id: number
+  status: string
 }
 
-interface CVAnalysisResult {
-	score: number
-	scoreLabel: string
-	strengths: CVStrength[]
-	improvements: CVImprovement[]
-	summary: string
-	formattingTips: string[]
-	keywordOptimization: string[]
-	atsCompatibility: ATSCompatibility
+interface AnalysisResponse {
+  success: boolean
+  analysis: CVAnalysis
 }
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function scoreColorClass(score: number): string {
+  if (score >= 80) return 'text-emerald-600'
+  if (score >= 60) return 'text-amber-600'
+  if (score >= 40) return 'text-orange-600'
+  return 'text-red-600'
+}
+
+function scoreBorderBgClass(score: number): string {
+  if (score >= 80) return 'bg-emerald-50 border-emerald-200'
+  if (score >= 60) return 'bg-amber-50 border-amber-200'
+  if (score >= 40) return 'bg-orange-50 border-orange-200'
+  return 'bg-red-50 border-red-200'
+}
+
+function impactBadgeClass(impact: string): string {
+  switch (impact) {
+    case 'Highest':
+      return 'bg-red-100 text-red-700 border-red-200'
+    case 'Medium':
+      return 'bg-amber-100 text-amber-700 border-amber-200'
+    default:
+      return 'bg-gray-100 text-gray-600 border-gray-200'
+  }
+}
+
+function overallScoreLabel(score: number): string {
+  if (score >= 90) return 'Outstanding'
+  if (score >= 80) return 'Great'
+  if (score >= 70) return 'Good'
+  if (score >= 60) return 'Fair'
+  if (score >= 50) return 'Needs Improvement'
+  return 'Critical'
+}
+
+// ── Section Accordion ───────────────────────────────────────────────────────
+
+function SectionAccordion({
+  section,
+  expanded,
+  onToggle,
+}: {
+  section: SectionScore
+  expanded: boolean
+  onToggle: () => void
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left"
+      >
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="font-semibold text-sm">{section.name}</span>
+          <span
+            className={cn(
+              'text-xs font-bold tabular-nums',
+              scoreColorClass(section.score),
+            )}
+          >
+            {section.score}%
+          </span>
+          <span
+            className={cn(
+              'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium border',
+              impactBadgeClass(section.impact),
+            )}
+          >
+            {section.impact} Impact
+          </span>
+        </div>
+        {expanded ? (
+          <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
+        )}
+      </button>
+      {expanded && (
+        <div className="px-4 pb-4">
+          {section.recommendations.length > 0 ? (
+            <ul className="space-y-2">
+              {section.recommendations.map((rec, i) => (
+                <li
+                  key={i}
+                  className="flex items-start gap-2 text-sm text-muted-foreground"
+                >
+                  <Lightbulb className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                  <span>{rec}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No specific recommendations for this section.
+            </p>
+          )}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+// ── Main Page ───────────────────────────────────────────────────────────────
+
+type PageState =
+  | { kind: 'idle' }
+  | { kind: 'analyzing'; analysisId: number }
+  | { kind: 'completed'; analysis: CVAnalysis }
+  | { kind: 'failed'; message: string }
+  | { kind: 'upgrade_required' }
+  | { kind: 'no_document' }
 
 export function CVReviewPage() {
-	const [file, setFile] = useState<File | null>(null)
-	const [dragActive, setDragActive] = useState(false)
-	const [loading, setLoading] = useState(false)
-	const [result, setResult] = useState<CVAnalysisResult | null>(null)
-	const [error, setError] = useState<string | null>(null)
-	const fileInputRef = useRef<HTMLInputElement>(null)
+  const navigate = useNavigate()
+  const [state, setState] = useState<PageState>({ kind: 'idle' })
+  const [expandedSection, setExpandedSection] = useState<string | null>(null)
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-	const handleDrag = useCallback((e: React.DragEvent) => {
-		e.preventDefault()
-		e.stopPropagation()
-		if (e.type === 'dragenter' || e.type === 'dragover') {
-			setDragActive(true)
-		} else if (e.type === 'dragleave') {
-			setDragActive(false)
-		}
-	}, [])
+  const clearPoll = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current)
+      pollTimerRef.current = null
+    }
+  }, [])
 
-	const handleDrop = useCallback((e: React.DragEvent) => {
-		e.preventDefault()
-		e.stopPropagation()
-		setDragActive(false)
-		if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-			const droppedFile = e.dataTransfer.files[0]
-			if (isValidFile(droppedFile)) {
-				setFile(droppedFile)
-				setError(null)
-			} else {
-				setError('Please upload a PDF or Word document.')
-			}
-		}
-	}, [])
+  useEffect(() => {
+    return () => clearPoll()
+  }, [clearPoll])
 
-	const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-		if (e.target.files && e.target.files[0]) {
-			const selectedFile = e.target.files[0]
-			if (isValidFile(selectedFile)) {
-				setFile(selectedFile)
-				setError(null)
-			} else {
-				setError('Please upload a PDF or Word document.')
-			}
-		}
-	}, [])
+  const toggleSection = useCallback((name: string) => {
+    setExpandedSection((prev) => (prev === name ? null : name))
+  }, [])
 
-	const handleAnalyze = useCallback(async () => {
-		if (!file) return
-		setLoading(true)
-		setError(null)
-		setResult(null)
+  const startPolling = useCallback(
+    (analysisId: number) => {
+      clearPoll()
+      setState({ kind: 'analyzing', analysisId })
 
-		try {
-			const formData = new FormData()
-			formData.append('cv', file)
+      const poll = async () => {
+        try {
+          const data = await apiCall<AnalysisResponse>(
+            `/candidate/cv/analysis/${analysisId}`,
+          )
+          const analysis = data.analysis
 
-			const res = await apiCall<CVAnalysisResult & { success: boolean; error?: string }>(
-				'/profile-enhancement/cv-analyze',
-				{
-					method: 'POST',
-					body: formData,
-				},
-			)
+          if (analysis.status === 'completed') {
+            clearPoll()
+            setState({ kind: 'completed', analysis })
+            setExpandedSection(analysis.section_scores[0]?.name ?? null)
+          } else if (analysis.status === 'failed') {
+            clearPoll()
+            setState({
+              kind: 'failed',
+              message: 'CV analysis failed. Please try again.',
+            })
+          }
+          // pending → keep polling
+        } catch (err: any) {
+          clearPoll()
+          setState({
+            kind: 'failed',
+            message: err?.message || 'Failed to fetch analysis results.',
+          })
+        }
+      }
 
-			if (res.success) {
-				setResult(res)
-			} else {
-				setError(res.error || 'Analysis failed. Please try again.')
-			}
-		} catch (err: any) {
-			console.error('CV analyze error:', err)
-			setError(err?.message || 'Failed to analyze CV. Please try again.')
-		} finally {
-			setLoading(false)
-		}
-	}, [file])
+      poll() // immediate first check
+      pollTimerRef.current = setInterval(poll, 2000)
+    },
+    [clearPoll],
+  )
 
-	const handleReset = useCallback(() => {
-		setFile(null)
-		setResult(null)
-		setError(null)
-		if (fileInputRef.current) {
-			fileInputRef.current.value = ''
-		}
-	}, [])
+  const handleAnalyze = useCallback(async () => {
+    setState({ kind: 'idle' })
+    setExpandedSection(null)
 
-	const scoreColor = (score: number) => {
-		if (score >= 80) return 'text-emerald-600'
-		if (score >= 60) return 'text-amber-600'
-		if (score >= 40) return 'text-orange-600'
-		return 'text-red-600'
-	}
+    try {
+      const data = await apiCall<TriggerResponse>('/candidate/cv/analyze', {
+        method: 'POST',
+      })
+      startPolling(data.analysis_id)
+    } catch (err: any) {
+      const code = (err as Error & { code?: string }).code
+      if (code === 'UPGRADE_REQUIRED') {
+        setState({ kind: 'upgrade_required' })
+      } else if (code === 'NO_DOCUMENT') {
+        setState({ kind: 'no_document' })
+      } else {
+        setState({
+          kind: 'failed',
+          message: err?.message || 'Failed to start CV analysis.',
+        })
+      }
+    }
+  }, [startPolling])
 
-	const scoreBg = (score: number) => {
-		if (score >= 80) return 'bg-emerald-50 border-emerald-200'
-		if (score >= 60) return 'bg-amber-50 border-amber-200'
-		if (score >= 40) return 'bg-orange-50 border-orange-200'
-		return 'bg-red-50 border-red-200'
-	}
+  const handleReset = useCallback(() => {
+    clearPoll()
+    setState({ kind: 'idle' })
+    setExpandedSection(null)
+  }, [clearPoll])
 
-	const priorityColor = (priority: string) => {
-		switch (priority) {
-			case 'high':
-				return 'bg-red-100 text-red-700'
-			case 'medium':
-				return 'bg-amber-100 text-amber-700'
-			default:
-				return 'bg-blue-100 text-blue-700'
-		}
-	}
+  const analysis = state.kind === 'completed' ? state.analysis : null
+  const overallScore = analysis?.overall_score ?? 0
 
-	return (
-		<div className='space-y-6 px-4 sm:px-6'>
-			{/* Header */}
-			<div className='flex items-center gap-3'>
-				<div className='p-2 rounded-lg bg-primary/10'>
-					<FileText className='h-5 w-5 text-primary' />
-				</div>
-				<div>
-					<h1 className='text-2xl font-heading font-bold'>CV Review</h1>
-					<p className='text-muted-foreground text-sm'>
-						Upload your CV and get AI-powered feedback on strengths, improvements, and ATS compatibility
-					</p>
-				</div>
-			</div>
+  return (
+    <div className="space-y-6 px-4 sm:px-6 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-lg bg-primary/10">
+          <FileText className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold">CV Review</h1>
+          <p className="text-muted-foreground text-sm">
+            Get AI-powered feedback on your CV strengths, improvements, and ATS
+            compatibility
+          </p>
+        </div>
+      </div>
 
-			{/* Upload Area */}
-			{!result && (
-				<Card>
-					<CardContent className='p-6'>
-						<div
-							className={`relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 transition-colors ${
-								dragActive
-									? 'border-primary bg-primary/5'
-									: 'border-muted-foreground/25 hover:border-muted-foreground/50'
-							}`}
-							onDragEnter={handleDrag}
-							onDragLeave={handleDrag}
-							onDragOver={handleDrag}
-							onDrop={handleDrop}
-						>
-							<input
-								ref={fileInputRef}
-								type='file'
-								accept='.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-								onChange={handleFileChange}
-								className='absolute inset-0 w-full h-full opacity-0 cursor-pointer'
-							/>
-							<Upload className='h-10 w-10 text-muted-foreground mb-3' />
-							<p className='text-sm font-medium text-foreground'>
-								{file ? file.name : 'Click to upload or drag and drop'}
-							</p>
-							<p className='text-xs text-muted-foreground mt-1'>
-								PDF or Word documents up to 10MB
-							</p>
-						</div>
+      {/* ── Idle / Trigger ── */}
+      {state.kind === 'idle' && (
+        <Card>
+          <CardContent className="p-8 flex flex-col items-center text-center gap-4">
+            <div className="p-3 rounded-full bg-primary/10">
+              <Sparkles className="h-8 w-8 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">
+                Analyze Your CV
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                Our AI will review your latest uploaded CV and provide
+                actionable feedback on how to improve it.
+              </p>
+            </div>
+            <Button onClick={handleAnalyze} className="gap-2">
+              <Sparkles className="h-4 w-4" />
+              Analyze My CV
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
-						{error && (
-							<div className='mt-4 flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700'>
-								<AlertCircle className='h-4 w-4 shrink-0' />
-								{error}
-							</div>
-						)}
+      {/* ── Analyzing ── */}
+      {state.kind === 'analyzing' && (
+        <Card>
+          <CardContent className="p-8 flex flex-col items-center text-center gap-4">
+            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+            <div>
+              <h2 className="text-lg font-semibold">Analyzing your CV…</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                This usually takes 10–30 seconds. We're checking structure,
+                keywords, ATS compatibility, and more.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-						{file && (
-							<div className='mt-4 flex items-center justify-between rounded-lg bg-muted p-3'>
-								<div className='flex items-center gap-2'>
-									<FileText className='h-4 w-4 text-primary' />
-									<span className='text-sm font-medium'>{file.name}</span>
-									<span className='text-xs text-muted-foreground'>
-										{(file.size / 1024).toFixed(0)} KB
-									</span>
-								</div>
-								<Button
-									onClick={handleAnalyze}
-									disabled={loading}
-									className='gap-2'
-								>
-									{loading ? (
-										<>
-											<div className='animate-spin rounded-full h-4 w-4 border-b-2 border-current' />
-											Analyzing...
-										</>
-									) : (
-										<>
-											<ArrowUpRight className='h-4 w-4' />
-											Analyze CV
-										</>
-									)}
-								</Button>
-							</div>
-						)}
-					</CardContent>
-				</Card>
-			)}
+      {/* ── Upgrade Required ── */}
+      {state.kind === 'upgrade_required' && (
+        <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-white">
+          <CardContent className="p-8 flex flex-col items-center text-center gap-4">
+            <div className="p-3 rounded-full bg-amber-100">
+              <Crown className="h-8 w-8 text-amber-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Upgrade to Pro</h2>
+              <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                CV Review is a Pro feature. Upgrade your plan to unlock
+                AI-powered CV analysis, recommendations, and ATS scoring.
+              </p>
+            </div>
+            <Button
+              onClick={() => navigate('/pricing')}
+              className="gap-2 bg-amber-600 hover:bg-amber-700"
+            >
+              <Crown className="h-4 w-4" />
+              Upgrade to Pro
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleReset}>
+              Go Back
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
-			{/* Results */}
-			{result && (
-				<div className='space-y-6'>
-					{/* Score Card */}
-					<Card className={`border-2 ${scoreBg(result.score)}`}>
-						<CardContent className='p-6'>
-							<div className='flex flex-col sm:flex-row items-center gap-6'>
-								<div className='flex flex-col items-center'>
-									<div
-										className={`text-5xl font-bold ${scoreColor(result.score)}`}
-									>
-										{result.score}
-									</div>
-									<div className='text-sm font-medium text-muted-foreground mt-1'>
-										out of 100
-									</div>
-								</div>
-								<div className='flex-1 text-center sm:text-left'>
-									<h2 className={`text-xl font-bold ${scoreColor(result.score)}`}>
-										{result.scoreLabel}
-									</h2>
-									<p className='text-sm text-muted-foreground mt-1'>
-										{result.summary}
-									</p>
-								</div>
-								<div className='flex items-center gap-2'>
-									<Button variant='outline' onClick={handleReset}>
-										Analyze Another CV
-									</Button>
-								</div>
-							</div>
-						</CardContent>
-					</Card>
+      {/* ── No Document ── */}
+      {state.kind === 'no_document' && (
+        <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-white">
+          <CardContent className="p-8 flex flex-col items-center text-center gap-4">
+            <div className="p-3 rounded-full bg-blue-100">
+              <Upload className="h-8 w-8 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Upload Your CV First</h2>
+              <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                We couldn't find a CV on file. Please upload your resume to the
+                Documents section first, then come back to analyze it.
+              </p>
+            </div>
+            <Button
+              onClick={() => navigate('/candidate/documents')}
+              className="gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Go to Documents
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleReset}>
+              Go Back
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
-					<div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-						{/* Strengths */}
-						<Card>
-							<CardHeader className='pb-3'>
-								<CardTitle className='flex items-center gap-2 text-base'>
-									<CheckCircle className='h-5 w-5 text-emerald-600' />
-									Strengths
-								</CardTitle>
-							</CardHeader>
-							<CardContent className='space-y-3'>
-								{result.strengths.map((s, i) => (
-									<div key={i} className='rounded-lg bg-emerald-50/50 p-3'>
-										<p className='text-sm font-medium text-emerald-900'>{s.title}</p>
-										<p className='text-xs text-emerald-700 mt-0.5'>{s.description}</p>
-									</div>
-								))}
-								{result.strengths.length === 0 && (
-									<p className='text-sm text-muted-foreground'>No strengths identified.</p>
-								)}
-							</CardContent>
-						</Card>
+      {/* ── Failed ── */}
+      {state.kind === 'failed' && (
+        <Card className="border-red-200">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-sm">Analysis Failed</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {state.message}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <Button onClick={handleAnalyze} className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Try Again
+              </Button>
+              <Button variant="outline" onClick={handleReset}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-						{/* Improvements */}
-						<Card>
-							<CardHeader className='pb-3'>
-								<CardTitle className='flex items-center gap-2 text-base'>
-									<AlertCircle className='h-5 w-5 text-amber-600' />
-									Areas for Improvement
-								</CardTitle>
-							</CardHeader>
-							<CardContent className='space-y-3'>
-								{result.improvements.map((imp, i) => (
-									<div key={i} className='rounded-lg bg-muted p-3'>
-										<div className='flex items-center gap-2'>
-											<span
-												className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium ${priorityColor(imp.priority)}`}
-											>
-												{imp.priority.toUpperCase()}
-											</span>
-											<p className='text-sm font-medium'>{imp.title}</p>
-										</div>
-										<p className='text-xs text-muted-foreground mt-1'>{imp.description}</p>
-									</div>
-								))}
-								{result.improvements.length === 0 && (
-									<p className='text-sm text-muted-foreground'>No improvements needed — great CV!</p>
-								)}
-							</CardContent>
-						</Card>
-					</div>
+      {/* ── Results ── */}
+      {analysis && (
+        <div className="space-y-6">
+          {/* Overall Score Card */}
+          <Card
+            className={cn(
+              'border-2',
+              scoreBorderBgClass(overallScore),
+            )}
+          >
+            <CardContent className="p-6">
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+                <div className="flex flex-col items-center">
+                  <div
+                    className={cn(
+                      'text-6xl font-bold tabular-nums',
+                      scoreColorClass(overallScore),
+                    )}
+                  >
+                    {overallScore}
+                  </div>
+                  <div className="text-sm font-medium text-muted-foreground mt-1">
+                    out of 100
+                  </div>
+                </div>
+                <div className="flex-1 text-center sm:text-left">
+                  <h2
+                    className={cn(
+                      'text-xl font-bold',
+                      scoreColorClass(overallScore),
+                    )}
+                  >
+                    {overallScore > 0
+                      ? overallScoreLabel(overallScore)
+                      : 'Analysis Complete'}
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Based on {analysis.section_scores.length} evaluated
+                    sections
+                  </p>
+                </div>
+                <Button variant="outline" onClick={handleReset}>
+                  <RefreshCw className="h-4 w-4 mr-1.5" />
+                  Analyze Again
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-					{/* ATS Compatibility */}
-					<Card>
-						<CardHeader className='pb-3'>
-							<CardTitle className='flex items-center gap-2 text-base'>
-								<Target className='h-5 w-5 text-primary' />
-								ATS Compatibility
-							</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<div className='flex items-center gap-4 mb-3'>
-								<div className='text-3xl font-bold'>{result.atsCompatibility.score}/100</div>
-								<p className='text-sm text-muted-foreground'>{result.atsCompatibility.notes}</p>
-							</div>
-						</CardContent>
-					</Card>
+          {/* Score Breakdown */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Score Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {analysis.section_scores.map((section) => (
+                <div key={section.name} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{section.name}</span>
+                    <span
+                      className={cn(
+                        'font-bold tabular-nums',
+                        scoreColorClass(section.score),
+                      )}
+                    >
+                      {section.score}%
+                    </span>
+                  </div>
+                  <Progress value={section.score} />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
 
-					<div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-						{/* Formatting Tips */}
-						<Card>
-							<CardHeader className='pb-3'>
-								<CardTitle className='flex items-center gap-2 text-base'>
-									<Layout className='h-5 w-5 text-primary' />
-									Formatting Tips
-								</CardTitle>
-							</CardHeader>
-							<CardContent className='space-y-2'>
-								{result.formattingTips.map((tip, i) => (
-									<div key={i} className='flex items-start gap-2 text-sm'>
-										<Lightbulb className='h-4 w-4 text-amber-500 shrink-0 mt-0.5' />
-										<span>{tip}</span>
-									</div>
-								))}
-								{result.formattingTips.length === 0 && (
-									<p className='text-sm text-muted-foreground'>No formatting tips.</p>
-								)}
-							</CardContent>
-						</Card>
-
-						{/* Keyword Optimization */}
-						<Card>
-							<CardHeader className='pb-3'>
-								<CardTitle className='flex items-center gap-2 text-base'>
-									<ArrowUpRight className='h-5 w-5 text-primary' />
-									Keyword Optimization
-								</CardTitle>
-							</CardHeader>
-							<CardContent className='space-y-2'>
-								{result.keywordOptimization.map((kw, i) => (
-									<div key={i} className='flex items-start gap-2 text-sm'>
-										<Target className='h-4 w-4 text-primary shrink-0 mt-0.5' />
-										<span>{kw}</span>
-									</div>
-								))}
-								{result.keywordOptimization.length === 0 && (
-									<p className='text-sm text-muted-foreground'>No keyword suggestions.</p>
-								)}
-							</CardContent>
-						</Card>
-					</div>
-				</div>
-			)}
-		</div>
-	)
-}
-
-function isValidFile(file: File) {
-	const allowedTypes = [
-		'application/pdf',
-		'application/msword',
-		'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-	]
-	return allowedTypes.includes(file.type)
+          {/* Section Accordion Feedback */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Detailed Feedback
+            </h3>
+            {analysis.section_scores.map((section) => (
+              <SectionAccordion
+                key={section.name}
+                section={section}
+                expanded={expandedSection === section.name}
+                onToggle={() => toggleSection(section.name)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default CVReviewPage
