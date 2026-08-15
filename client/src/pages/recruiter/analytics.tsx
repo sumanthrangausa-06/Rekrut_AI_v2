@@ -11,6 +11,7 @@ import {
 	FileText,
 	Minus,
 	MousePointer,
+	Printer,
 	Star,
 	Target,
 	Timer,
@@ -88,8 +89,23 @@ interface AnalyticsData {
 		percentage: number
 		trend: number
 	}>
-}
+	diversity_pipeline_dropoff?: {
+		gender: Array<{
+			group: string
+			stages: Array<{ stage: string; count: number; dropoff: number }>
+		}>
+		ethnicity: Array<{
+			group: string
+			stages: Array<{ stage: string; count: number; dropoff: number }>
+		}>
+	}
+	time_to_hire_breakdown?: {
+		by_role: Array<{ dimension: string; avg_days: string; count: number }>
+		by_source: Array<{ dimension: string; avg_days: string; count: number }>
+		by_recruiter: Array<{ dimension: string; avg_days: string; count: number }>
+	}
 
+}
 export function RecruiterAnalyticsPage() {
 	const [data, setData] = useState<AnalyticsData | null>(null)
 	const [loading, setLoading] = useState(true)
@@ -295,6 +311,127 @@ export function RecruiterAnalyticsPage() {
 
 		trackEvent('analytics_export', { timeRange })
 	}
+	const handlePrintPdf = () => {
+		if (!data) return
+		const printWindow = window.open('', '_blank')
+		if (!printWindow) return
+
+		const html = `
+<!DOCTYPE html>
+<html>
+<head>
+<title>Hiring Analytics Report</title>
+<style>
+body { font-family: system-ui, -apple-system, sans-serif; padding: 40px; color: #1a1a1a; }
+h1 { font-size: 24px; margin-bottom: 8px; }
+.meta { color: #666; font-size: 14px; margin-bottom: 24px; }
+table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e5e5e5; }
+th { background: #f8f8f8; font-weight: 600; }
+.metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.metric-box { border: 1px solid #e5e5e5; border-radius: 8px; padding: 16px; text-align: center; }
+.metric-value { font-size: 22px; font-weight: 700; }
+.metric-label { font-size: 12px; color: #666; margin-top: 4px; }
+.section { margin-bottom: 32px; }
+.section h2 { font-size: 16px; margin-bottom: 12px; }
+.bar { height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-top: 4px; }
+.bar-fill { height: 100%; background: #4f46e5; border-radius: 4px; }
+@media print { body { padding: 0; } .no-print { display: none; } }
+</style>
+</head>
+<body>
+<h1>Hiring Analytics Report</h1>
+<p class="meta">Generated on ${new Date().toLocaleString()} &middot; Time range: Last ${timeRange} days</p>
+
+<div class="metric-grid">
+<div class="metric-box"><div class="metric-value">${data.job_stats?.total_views?.toLocaleString() || 0}</div><div class="metric-label">Job Views</div></div>
+<div class="metric-box"><div class="metric-value">${data.application_stats?.total_applications?.toLocaleString() || 0}</div><div class="metric-label">Applications</div></div>
+<div class="metric-box"><div class="metric-value">${data.avg_time_to_hire || '—'}</div><div class="metric-label">Avg Days to Hire</div></div>
+<div class="metric-box"><div class="metric-value">${data.application_stats?.hired?.toLocaleString() || 0}</div><div class="metric-label">Hired</div></div>
+</div>
+
+<div class="section">
+<h2>Hiring Velocity</h2>
+<table>
+<thead><tr><th>Month</th><th>Applications</th><th>Interviews</th><th>Hired</th></tr></thead>
+<tbody>
+${(data.hiring_velocity || []).map(v => `<tr><td>${v.month}</td><td>${v.applications}</td><td>${v.interviews}</td><td>${v.hired}</td></tr>`).join('')}
+</tbody>
+</table>
+</div>
+
+<div class="section">
+<h2>Source Breakdown</h2>
+<table>
+<thead><tr><th>Source</th><th>Count</th><th>Percentage</th></tr></thead>
+<tbody>
+${(data.source_breakdown || []).map(s => `<tr><td>${s.name}</td><td>${s.count}</td><td>${s.percentage}%</td></tr>`).join('')}
+</tbody>
+</table>
+</div>
+
+<div class="section">
+<h2>Time to Hire by Stage</h2>
+<table>
+<thead><tr><th>Stage</th><th>Avg Days</th><th>Count</th></tr></thead>
+<tbody>
+${(data.time_to_hire_by_stage || []).map(s => `<tr><td>${s.stage}</td><td>${s.avg_days}</td><td>${s.count}</td></tr>`).join('')}
+</tbody>
+</table>
+</div>
+
+<div class="section">
+<h2>OmniScore Distribution</h2>
+<table>
+<thead><tr><th>Range</th><th>Count</th></tr></thead>
+<tbody>
+<tr><td>900+ (Elite)</td><td>${data.score_distribution?.['900'] || 0}</td></tr>
+<tr><td>800-899 (Excellent)</td><td>${data.score_distribution?.['800'] || 0}</td></tr>
+<tr><td>700-799 (Good)</td><td>${data.score_distribution?.['700'] || 0}</td></tr>
+<tr><td>600-699 (Average)</td><td>${data.score_distribution?.['600'] || 0}</td></tr>
+<tr><td>&lt;600 (Below)</td><td>${data.score_distribution?.below || 0}</td></tr>
+</tbody>
+</table>
+</div>
+
+${data.time_to_hire_breakdown ? `
+<div class="section">
+<h2>Time-to-Hire Breakdown by Role</h2>
+<table>
+<thead><tr><th>Role</th><th>Avg Days</th><th>Hires</th></tr></thead>
+<tbody>
+${data.time_to_hire_breakdown.by_role.map(r => `<tr><td>${r.dimension}</td><td>${r.avg_days}</td><td>${r.count}</td></tr>`).join('')}
+</tbody>
+</table>
+</div>
+` : ''}
+
+${data.diversity_pipeline_dropoff ? `
+<div class="section">
+<h2>Diversity Pipeline Drop-off (Gender)</h2>
+<table>
+<thead><tr><th>Gender</th><th>Applied</th><th>Screening</th><th>Interviewed</th><th>Offered</th><th>Hired</th></tr></thead>
+<tbody>
+${data.diversity_pipeline_dropoff.gender.map(g => {
+  const counts = g.stages.reduce((acc, s) => { acc[s.stage] = s.count; return acc; }, {} as Record<string, number>);
+  return `<tr><td>${g.group}</td><td>${counts.applied || 0}</td><td>${counts.screening || 0}</td><td>${counts.interviewed || 0}</td><td>${counts.offered || 0}</td><td>${counts.hired || 0}</td></tr>`;
+}).join('')}
+</tbody>
+</table>
+</div>
+` : ''}
+
+<div class="no-print" style="margin-top:40px;text-align:center;">
+<button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer;">Print / Save as PDF</button>
+</div>
+</body>
+</html>
+`
+		printWindow.document.write(html)
+		printWindow.document.close()
+		trackEvent('analytics_print_pdf', { timeRange })
+	}
+
 
 	return (
 		<div className='space-y-6'>
@@ -317,7 +454,11 @@ export function RecruiterAnalyticsPage() {
 					</select>
 					<Button variant='outline' size='sm' className='gap-1 min-h-[44px]' onClick={handleExport}>
 						<Download className='h-4 w-4' />
-						Export
+						Export CSV
+					</Button>
+					<Button variant='outline' size='sm' className='gap-1 min-h-[44px]' onClick={handlePrintPdf}>
+						<Printer className='h-4 w-4' />
+						Print PDF
 					</Button>
 				</div>
 			</div>
@@ -828,25 +969,212 @@ export function RecruiterAnalyticsPage() {
 								{data?.cost_per_hire ? `$${data.cost_per_hire.toLocaleString()}` : '—'}
 							</p>
 							<p className='text-xs text-muted-foreground'>Cost per Hire</p>
-							<p className='text-xs text-green-600 mt-1'>↓ 12% vs last quarter</p>
 						</div>
 						<div className='text-center p-4 rounded-lg bg-white/60 border border-indigo-100'>
 							<p className='text-2xl font-bold'>
 								{data?.quality_of_hire ? `${data.quality_of_hire}/5` : '—'}
 							</p>
 							<p className='text-xs text-muted-foreground'>Quality of Hire</p>
-							<p className='text-xs text-green-600 mt-1'>↑ 8% vs last quarter</p>
 						</div>
 						<div className='text-center p-4 rounded-lg bg-white/60 border border-indigo-100'>
 							<p className='text-2xl font-bold'>
 								{data?.offer_acceptance_rate ? `${data.offer_acceptance_rate}%` : '—'}
 							</p>
 							<p className='text-xs text-muted-foreground'>Offer Acceptance</p>
-							<p className='text-xs text-green-600 mt-1'>↑ 5% vs last quarter</p>
 						</div>
 					</div>
 				</CardContent>
 			</Card>
+
+			{/* Diversity Pipeline Drop-off */}
+			{data?.diversity_pipeline_dropoff && (
+				<Card>
+					<CardHeader className='pb-3'>
+						<CardTitle className='text-lg flex items-center gap-2'>
+							<Users className='h-4 w-4 text-indigo-500' />
+							Diversity Pipeline Drop-off
+						</CardTitle>
+					</CardHeader>
+					<CardContent className='space-y-5'>
+						{/* Gender */}
+						<div className='space-y-2'>
+							<p className='text-sm font-medium text-muted-foreground'>Gender</p>
+							<div className='overflow-x-auto'>
+								<table className='w-full text-sm'>
+									<thead>
+										<tr className='border-b'>
+											<th className='text-left py-2 px-3 font-medium text-muted-foreground'>Gender</th>
+											<th className='text-right py-2 px-3 font-medium text-muted-foreground'>Applied</th>
+											<th className='text-right py-2 px-3 font-medium text-muted-foreground'>Screening</th>
+											<th className='text-right py-2 px-3 font-medium text-muted-foreground'>Interviewed</th>
+											<th className='text-right py-2 px-3 font-medium text-muted-foreground'>Offered</th>
+											<th className='text-right py-2 px-3 font-medium text-muted-foreground'>Hired</th>
+											<th className='text-right py-2 px-3 font-medium text-muted-foreground'>Drop-off</th>
+										</tr>
+									</thead>
+									<tbody>
+										{data.diversity_pipeline_dropoff.gender.map((g) => {
+											const applied = g.stages.find((s) => s.stage === 'applied')?.count || 0
+											const hired = g.stages.find((s) => s.stage === 'hired')?.count || 0
+											const dropoff = applied > 0 ? Math.round(((applied - hired) / applied) * 100) : 0
+											return (
+												<tr key={g.group} className='border-b last:border-0'>
+													<td className='py-2 px-3'>{g.group}</td>
+													{g.stages.map((s) => (
+														<td key={s.stage} className='text-right py-2 px-3'>{s.count}</td>
+													))}
+													<td className='text-right py-2 px-3 text-red-600 font-medium'>{dropoff}%</td>
+												</tr>
+											)
+										})}
+									</tbody>
+								</table>
+							</div>
+						</div>
+						{/* Ethnicity */}
+						<div className='space-y-2'>
+							<p className='text-sm font-medium text-muted-foreground'>Ethnicity</p>
+							<div className='overflow-x-auto'>
+								<table className='w-full text-sm'>
+									<thead>
+										<tr className='border-b'>
+											<th className='text-left py-2 px-3 font-medium text-muted-foreground'>Ethnicity</th>
+											<th className='text-right py-2 px-3 font-medium text-muted-foreground'>Applied</th>
+											<th className='text-right py-2 px-3 font-medium text-muted-foreground'>Screening</th>
+											<th className='text-right py-2 px-3 font-medium text-muted-foreground'>Interviewed</th>
+											<th className='text-right py-2 px-3 font-medium text-muted-foreground'>Offered</th>
+											<th className='text-right py-2 px-3 font-medium text-muted-foreground'>Hired</th>
+											<th className='text-right py-2 px-3 font-medium text-muted-foreground'>Drop-off</th>
+										</tr>
+									</thead>
+									<tbody>
+										{data.diversity_pipeline_dropoff.ethnicity.map((g) => {
+											const applied = g.stages.find((s) => s.stage === 'applied')?.count || 0
+											const hired = g.stages.find((s) => s.stage === 'hired')?.count || 0
+											const dropoff = applied > 0 ? Math.round(((applied - hired) / applied) * 100) : 0
+											return (
+												<tr key={g.group} className='border-b last:border-0'>
+													<td className='py-2 px-3'>{g.group}</td>
+													{g.stages.map((s) => (
+														<td key={s.stage} className='text-right py-2 px-3'>{s.count}</td>
+													))}
+													<td className='text-right py-2 px-3 text-red-600 font-medium'>{dropoff}%</td>
+												</tr>
+											)
+										})}
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+			)}
+
+			{/* Time-to-Hire Breakdown */}
+			{data?.time_to_hire_breakdown && (
+				<div className='grid grid-cols-1 gap-6 lg:grid-cols-3'>
+					<Card>
+						<CardHeader className='pb-3'>
+							<CardTitle className='text-lg flex items-center gap-2'>
+								<Timer className='h-4 w-4 text-indigo-500' />
+								By Role
+							</CardTitle>
+						</CardHeader>
+						<CardContent>
+							{data.time_to_hire_breakdown.by_role.length > 0 ? (
+								<div className='space-y-3'>
+									{data.time_to_hire_breakdown.by_role.map((r) => (
+										<div key={r.dimension}>
+											<div className='flex items-center justify-between text-sm mb-1'>
+												<span className='text-muted-foreground truncate max-w-[60%]'>{r.dimension}</span>
+												<span className='font-medium'>{r.avg_days} days</span>
+											</div>
+											<div className='flex items-center gap-3'>
+												<div className='flex-1 h-2 rounded-full bg-muted overflow-hidden'>
+													<div
+														className='h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500'
+														style={{ width: `${Math.min((parseFloat(r.avg_days) / 60) * 100, 100)}%` }}
+													/>
+												</div>
+												<span className='text-xs text-muted-foreground w-10 text-right'>{r.count}</span>
+											</div>
+										</div>
+									))}
+								</div>
+							) : (
+								<div className='text-center py-6 text-sm text-muted-foreground'>No data available</div>
+							)}
+						</CardContent>
+					</Card>
+					<Card>
+						<CardHeader className='pb-3'>
+							<CardTitle className='text-lg flex items-center gap-2'>
+								<MousePointer className='h-4 w-4 text-indigo-500' />
+								By Source
+							</CardTitle>
+						</CardHeader>
+						<CardContent>
+							{data.time_to_hire_breakdown.by_source.length > 0 ? (
+								<div className='space-y-3'>
+									{data.time_to_hire_breakdown.by_source.map((r) => (
+										<div key={r.dimension}>
+											<div className='flex items-center justify-between text-sm mb-1'>
+												<span className='text-muted-foreground'>{r.dimension}</span>
+												<span className='font-medium'>{r.avg_days} days</span>
+											</div>
+											<div className='flex items-center gap-3'>
+												<div className='flex-1 h-2 rounded-full bg-muted overflow-hidden'>
+													<div
+														className='h-full bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full transition-all duration-500'
+														style={{ width: `${Math.min((parseFloat(r.avg_days) / 60) * 100, 100)}%` }}
+													/>
+												</div>
+												<span className='text-xs text-muted-foreground w-10 text-right'>{r.count}</span>
+											</div>
+										</div>
+									))}
+								</div>
+							) : (
+								<div className='text-center py-6 text-sm text-muted-foreground'>No data available</div>
+							)}
+						</CardContent>
+					</Card>
+					<Card>
+						<CardHeader className='pb-3'>
+							<CardTitle className='text-lg flex items-center gap-2'>
+								<Users className='h-4 w-4 text-indigo-500' />
+								By Recruiter
+							</CardTitle>
+						</CardHeader>
+						<CardContent>
+							{data.time_to_hire_breakdown.by_recruiter.length > 0 ? (
+								<div className='space-y-3'>
+									{data.time_to_hire_breakdown.by_recruiter.map((r) => (
+										<div key={r.dimension}>
+											<div className='flex items-center justify-between text-sm mb-1'>
+												<span className='text-muted-foreground'>{r.dimension}</span>
+												<span className='font-medium'>{r.avg_days} days</span>
+											</div>
+											<div className='flex items-center gap-3'>
+												<div className='flex-1 h-2 rounded-full bg-muted overflow-hidden'>
+													<div
+														className='h-full bg-gradient-to-r from-amber-500 to-amber-600 rounded-full transition-all duration-500'
+														style={{ width: `${Math.min((parseFloat(r.avg_days) / 60) * 100, 100)}%` }}
+													/>
+												</div>
+												<span className='text-xs text-muted-foreground w-10 text-right'>{r.count}</span>
+											</div>
+										</div>
+									))}
+								</div>
+							) : (
+								<div className='text-center py-6 text-sm text-muted-foreground'>No data available</div>
+							)}
+						</CardContent>
+					</Card>
+				</div>
+			)}
+
 		</div>
 	)
 }

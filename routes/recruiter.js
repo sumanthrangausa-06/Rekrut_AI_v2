@@ -361,15 +361,13 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
 		} catch (_divErr) {
 			console.log('[dashboard] diversity metrics not available');
 		}
-
 		// ─── COST PER HIRE & QUALITY OF HIRE ───
 		let costPerHire = null;
 		let qualityOfHire = null;
+		let conversionRate = null;
+		let offerAcceptanceRate = null;
 		try {
-			const hiredCount = parseInt(appStats.rows[0].hired, 10) || 0;
-			if (hiredCount > 0) {
-				costPerHire = 2450; // Mock until real cost tracking is implemented
-			}
+			// costPerHire: no mock — return null until real cost tracking is implemented
 			const qualityResult = await pool.query(
 				`
         SELECT AVG(omniscore_at_apply) as avg_score
@@ -382,8 +380,137 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
 			if (avgScore > 0) {
 				qualityOfHire = Math.min(5, Math.max(1, avgScore / 200)).toFixed(1); // Scale 1000 -> 5
 			}
+
+			// Conversion rate: total applications / total views
+			if (totalViews > 0) {
+				const totalApps = parseInt(appStats.rows[0].total_applications, 10) || 0;
+				conversionRate = Math.round((totalApps / totalViews) * 100);
+			}
+
+			// Offer acceptance rate: hired / offered
+			const hired = parseInt(appStats.rows[0].hired, 10) || 0;
+			const offered = parseInt(appStats.rows[0].offered, 10) || 0;
+			if (offered > 0) {
+				offerAcceptanceRate = Math.round((hired / offered) * 100);
+			}
 		} catch (_err) {
-			console.log('[dashboard] quality metrics not available');
+			console.log('[dashboard] quality/conversion metrics not available');
+		}
+
+		// ─── DIVERSITY PIPELINE DROPOFF ───
+		let diversityPipelineDropoff = null;
+		try {
+			const pipelineStages = ['applied', 'screening', 'interviewed', 'offered', 'hired'];
+			const genderPipelineResult = await pool.query(
+				`
+        SELECT
+          COALESCE(cp.gender, 'Unknown') as group_label,
+          ja.status as stage,
+          COUNT(*) as count
+        FROM job_applications ja
+        JOIN candidate_profiles cp ON ja.candidate_id = cp.user_id
+        WHERE ja.company_id = $1 ${dateFilter}
+        GROUP BY cp.gender, ja.status
+      `,
+				[companyId, days],
+			);
+			const ethnicityPipelineResult = await pool.query(
+				`
+        SELECT
+          COALESCE(cp.ethnicity, 'Unknown') as group_label,
+          ja.status as stage,
+          COUNT(*) as count
+        FROM job_applications ja
+        JOIN candidate_profiles cp ON ja.candidate_id = cp.user_id
+        WHERE ja.company_id = $1 ${dateFilter}
+        GROUP BY cp.ethnicity, ja.status
+      `,
+				[companyId, days],
+			);
+
+			function buildDropoff(rows) {
+				const groups = {};
+				for (const r of rows) {
+					const g = r.group_label;
+					if (!groups[g]) groups[g] = {};
+					groups[g][r.stage] = parseInt(r.count, 10) || 0;
+				}
+				const result = [];
+				for (const [group, counts] of Object.entries(groups)) {
+					const stages = pipelineStages.map((stage) => {
+						const count = counts[stage] || 0;
+						const applied = counts['applied'] || 1;
+						return { stage, count, dropoff: stage === 'applied' ? 0 : Math.round(((applied - count) / applied) * 100) };
+					});
+					result.push({ group, stages });
+				}
+				return result;
+			}
+
+			diversityPipelineDropoff = {
+				gender: buildDropoff(genderPipelineResult.rows),
+				ethnicity: buildDropoff(ethnicityPipelineResult.rows),
+			};
+		} catch (_err) {
+			console.log('[dashboard] diversity pipeline dropoff not available');
+		}
+
+		// ─── TIME TO HIRE BREAKDOWN ───
+		let timeToHireBreakdown = null;
+		try {
+			const byRoleResult = await pool.query(
+				`
+        SELECT
+          j.title as dimension,
+          AVG(EXTRACT(EPOCH FROM (ja.hired_at - ja.applied_at)) / 86400) as avg_days,
+          COUNT(*) as count
+        FROM job_applications ja
+        JOIN jobs j ON ja.job_id = j.id
+        WHERE ja.company_id = $1 AND ja.status = 'hired' AND ja.hired_at IS NOT NULL ${dateFilter}
+        GROUP BY j.title
+        ORDER BY avg_days DESC
+        LIMIT 10
+      `,
+				[companyId, days],
+			);
+			const bySourceResult = await pool.query(
+				`
+        SELECT
+          COALESCE(ja.source, 'Direct') as dimension,
+          AVG(EXTRACT(EPOCH FROM (ja.hired_at - ja.applied_at)) / 86400) as avg_days,
+          COUNT(*) as count
+        FROM job_applications ja
+        WHERE ja.company_id = $1 AND ja.status = 'hired' AND ja.hired_at IS NOT NULL ${dateFilter}
+        GROUP BY ja.source
+        ORDER BY avg_days DESC
+        LIMIT 10
+      `,
+				[companyId, days],
+			);
+			const byRecruiterResult = await pool.query(
+				`
+        SELECT
+          u.name as dimension,
+          AVG(EXTRACT(EPOCH FROM (ja.hired_at - ja.applied_at)) / 86400) as avg_days,
+          COUNT(*) as count
+        FROM job_applications ja
+        JOIN jobs j ON ja.job_id = j.id
+        JOIN users u ON j.user_id = u.id
+        WHERE ja.company_id = $1 AND ja.status = 'hired' AND ja.hired_at IS NOT NULL ${dateFilter}
+        GROUP BY u.name
+        ORDER BY avg_days DESC
+        LIMIT 10
+      `,
+				[companyId, days],
+			);
+
+			timeToHireBreakdown = {
+				by_role: byRoleResult.rows.map((r) => ({ dimension: r.dimension, avg_days: r.avg_days ? parseFloat(r.avg_days).toFixed(1) : '0.0', count: parseInt(r.count, 10) || 0 })),
+				by_source: bySourceResult.rows.map((r) => ({ dimension: r.dimension, avg_days: r.avg_days ? parseFloat(r.avg_days).toFixed(1) : '0.0', count: parseInt(r.count, 10) || 0 })),
+				by_recruiter: byRecruiterResult.rows.map((r) => ({ dimension: r.dimension, avg_days: r.avg_days ? parseFloat(r.avg_days).toFixed(1) : '0.0', count: parseInt(r.count, 10) || 0 })),
+			};
+		} catch (_err) {
+			console.log('[dashboard] time-to-hire breakdown not available');
 		}
 
 		// Get upcoming interviews
@@ -436,8 +563,12 @@ router.get('/dashboard', authMiddleware, requireApprovedRecruiter, ensureCompany
 			hiring_velocity: hiringVelocity,
 			time_to_hire_by_stage: timeToHireByStage,
 			diversity_metrics: diversityMetrics,
+			diversity_pipeline_dropoff: diversityPipelineDropoff,
+			time_to_hire_breakdown: timeToHireBreakdown,
 			cost_per_hire: costPerHire,
 			quality_of_hire: qualityOfHire,
+			conversion_rate: conversionRate,
+			offer_acceptance_rate: offerAcceptanceRate,
 			upcoming_interviews: upcomingInterviews.rows,
 			recent_applications: recentApps.rows,
 		};
@@ -3989,6 +4120,100 @@ router.get('/screenings', authMiddleware, requireApprovedRecruiter, ensureCompan
 	} catch (err) {
 		console.error('Get screenings error:', err);
 		res.status(500).json({ error: 'Failed to fetch screenings' });
+	}
+});
+
+
+// ─── OFFER ACCEPTANCE PREDICTION (Issue #129) ────────────────────
+router.get('/applications/:id/offer-prediction', authMiddleware, requireApprovedRecruiter, ensureCompany, requirePermission('analytics:read'), async (req, res) => {
+	try {
+		const companyId = req.user.company_id;
+		const applicationId = req.params.id;
+
+		// Verify application belongs to company and is in 'offered' status
+		const appResult = await pool.query(
+			`SELECT ja.*, j.title as job_title, j.id as job_id
+			 FROM job_applications ja
+			 JOIN jobs j ON ja.job_id = j.id
+			 WHERE ja.id = $1 AND ja.company_id = $2`,
+			[applicationId, companyId],
+		);
+
+		if (appResult.rows.length === 0) {
+			return res.status(404).json({ error: 'Application not found' });
+		}
+
+		const app = appResult.rows[0];
+		const jobTitle = app.job_title;
+		const jobId = app.job_id;
+
+		// Need at least 5 historical offers company-wide for any prediction
+		const minOffersResult = await pool.query(
+			`SELECT COUNT(*) as total_offers
+			 FROM job_applications
+			 WHERE company_id = $1 AND status IN ('offered', 'hired')`,
+			[companyId],
+		);
+		const totalOffers = parseInt(minOffersResult.rows[0].total_offers, 10) || 0;
+		if (totalOffers < 5) {
+			return res.json({
+				success: true,
+				insufficient_data: true,
+				message: 'Need at least 5 historical offers to generate a prediction.',
+				prediction: null,
+			});
+		}
+
+		// Historical acceptance rate for same job title
+		const titleResult = await pool.query(
+			`SELECT
+				COUNT(*) FILTER (WHERE status = 'hired') as hired,
+				COUNT(*) FILTER (WHERE status IN ('offered', 'hired')) as offered
+			 FROM job_applications ja
+			 JOIN jobs j ON ja.job_id = j.id
+			 WHERE ja.company_id = $1 AND j.title = $2 AND ja.status IN ('offered', 'hired')`,
+			[companyId, jobTitle],
+		);
+		const titleHired = parseInt(titleResult.rows[0].hired, 10) || 0;
+		const titleOffered = parseInt(titleResult.rows[0].offered, 10) || 0;
+		const titleRate = titleOffered > 0 ? (titleHired / titleOffered) : 0;
+
+		// Historical acceptance rate company-wide
+		const companyResult = await pool.query(
+			`SELECT
+				COUNT(*) FILTER (WHERE status = 'hired') as hired,
+				COUNT(*) FILTER (WHERE status IN ('offered', 'hired')) as offered
+			 FROM job_applications
+			 WHERE company_id = $1 AND status IN ('offered', 'hired')`,
+			[companyId],
+		);
+		const companyHired = parseInt(companyResult.rows[0].hired, 10) || 0;
+		const companyOffered = parseInt(companyResult.rows[0].offered, 10) || 0;
+		const companyRate = companyOffered > 0 ? (companyHired / companyOffered) : 0;
+
+		// Weighted: 60% same-title, 40% company-wide (fallback to company-wide if same-title has < 3 offers)
+		let prediction;
+		if (titleOffered >= 3 && titleRate > 0) {
+			prediction = Math.round(titleRate * 0.6 + companyRate * 0.4);
+		} else {
+			prediction = Math.round(companyRate);
+		}
+
+		res.json({
+			success: true,
+			insufficient_data: false,
+			prediction,
+			details: {
+				job_title: jobTitle,
+				same_title_acceptance_rate: titleOffered >= 3 ? Math.round(titleRate * 100) : null,
+				company_wide_acceptance_rate: Math.round(companyRate * 100),
+				same_title_sample_size: titleOffered,
+				company_sample_size: companyOffered,
+			},
+		});
+	} catch (err) {
+		console.error('Offer prediction error:', err);
+		res.status(500).json({ error: 'Failed to generate offer prediction' });
 	}
 });
 

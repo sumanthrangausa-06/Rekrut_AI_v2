@@ -635,7 +635,9 @@ export function RecruiterApplicationsPage() {
 							</Button>
 						</div>
 
-						{/* Make Offer button */}
+						{selected.status === 'offered' && <OfferPredictionBlock applicationId={selected.id} />}
+
+					{/* Make Offer button */}
 						{!['rejected', 'offered', 'hired'].includes(selected.status) && (
 							<Button
 								className='w-full gap-2 min-h-[44px]'
@@ -652,6 +654,56 @@ export function RecruiterApplicationsPage() {
 					</div>
 				</Dialog>
 			)}
+		</div>
+	)
+}
+
+
+function OfferPredictionBlock({ applicationId }: { applicationId: number }) {
+	const [prediction, setPrediction] = useState<any>(null)
+	const [loading, setLoading] = useState(true)
+
+	useEffect(() => {
+		setLoading(true)
+		apiCall<any>(`/recruiter/applications/${applicationId}/offer-prediction`)
+			.then((res) => {
+				if (res.success) setPrediction(res)
+			})
+			.catch(() => {})
+			.finally(() => setLoading(false))
+	}, [applicationId])
+
+	if (loading) {
+		return <div className='text-xs text-muted-foreground py-2'>Loading prediction...</div>
+	}
+	if (!prediction || prediction.insufficient_data) {
+		return (
+			<div className='rounded-lg border bg-amber-50/50 p-3'>
+				<p className='text-sm text-muted-foreground'>
+					{prediction?.message || 'Insufficient data to predict offer acceptance.'}
+				</p>
+			</div>
+		)
+	}
+
+	return (
+		<div className='rounded-lg border bg-indigo-50/50 p-3'>
+			<div className='flex items-center justify-between mb-1'>
+				<h4 className='font-medium text-sm'>Offer Acceptance Prediction</h4>
+				<Badge variant='outline' className='text-[10px]'>Heuristic</Badge>
+			</div>
+			<div className='flex items-center gap-3'>
+				<div className='text-3xl font-bold text-indigo-700'>{prediction.prediction}%</div>
+				<div className='text-xs text-muted-foreground'>
+					<p>likely to accept</p>
+					{prediction.details?.company_wide_acceptance_rate != null && (
+						<p>Company-wide rate: {prediction.details.company_wide_acceptance_rate}%</p>
+					)}
+					{prediction.details?.same_title_acceptance_rate != null && (
+						<p>Same-role rate: {prediction.details.same_title_acceptance_rate}%</p>
+					)}
+				</div>
+			</div>
 		</div>
 	)
 }
