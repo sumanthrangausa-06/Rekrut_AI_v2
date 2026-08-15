@@ -883,6 +883,235 @@ router.post('/resume/apply', authMiddleware, async (req, res) => {
 	}
 });
 
+// ============= CV REVIEW / ANALYSIS =============
+
+// Helper: generate realistic mock CV analysis
+function generateMockAnalysis() {
+	const sections = [
+		{
+			name: 'Experience',
+			score: Math.floor(Math.random() * 25) + 65, // 65-90
+			impact: 'Highest',
+			recommendations: [
+				'Quantify achievements with metrics (e.g., "increased revenue by 20%")',
+				'Use strong action verbs at the beginning of each bullet point',
+				'Include 3-5 bullet points per role with clear outcomes',
+			],
+		},
+		{
+			name: 'Skills',
+			score: Math.floor(Math.random() * 30) + 60, // 60-90
+			impact: 'Medium',
+			recommendations: [
+				'Group skills by category (e.g., Technical, Soft Skills, Languages)',
+				'Prioritize skills mentioned in target job descriptions',
+				'Remove outdated or irrelevant skills to keep the list focused',
+			],
+		},
+		{
+			name: 'ATS & Recruiter Optimization',
+			score: Math.floor(Math.random() * 35) + 55, // 55-90
+			impact: 'Highest',
+			recommendations: [
+				'Include relevant keywords from the job posting naturally',
+				'Avoid tables, headers/footers, and graphics that confuse ATS parsers',
+				'Use standard section headings like "Work Experience" and "Education"',
+			],
+		},
+		{
+			name: 'Formatting & Layout',
+			score: Math.floor(Math.random() * 30) + 60, // 60-90
+			impact: 'Low',
+			recommendations: [
+				'Maintain consistent spacing and alignment throughout',
+				'Use a clean, professional font (e.g., Arial, Calibri, Helvetica)',
+				'Keep the resume to 1-2 pages for optimal readability',
+			],
+		},
+		{
+			name: 'Education',
+			score: Math.floor(Math.random() * 20) + 70, // 70-90
+			impact: 'Low',
+			recommendations: [
+				'Include relevant coursework or certifications if applicable',
+				'List GPA only if it is 3.5 or above and recent',
+				'Add honors, awards, or extracurriculars that demonstrate leadership',
+			],
+		},
+	];
+
+	const overallScore = Math.round(
+		sections.reduce((sum, s) => sum + s.score, 0) / sections.length,
+	);
+
+	return {
+		overall_score: overallScore,
+		section_scores: sections,
+		recommendations: sections.flatMap((s) =>
+			s.recommendations.map((r) => ({
+				section: s.name,
+				impact: s.impact,
+				text: r,
+			})),
+		),
+	};
+}
+
+// Trigger CV analysis (async-style)
+router.post('/cv/analyze', authMiddleware, async (req, res) => {
+	try {
+		// Premium gating: CV Review is Pro-only
+		const access = await checkFeatureAccess(req.user, 'cv_review');
+		if (!access.allowed) {
+			return res.status(403).json({
+				error: 'Upgrade to Pro to access CV Review',
+				code: 'UPGRADE_REQUIRED',
+				feature: 'cv_review',
+				upgradeUrl: '/pricing',
+			});
+		}
+
+		// Check user has uploaded documents (parsed_resumes)
+		const docs = await pool.query(
+			'SELECT id FROM parsed_resumes WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+			[req.user.id],
+		);
+
+		if (docs.rows.length === 0) {
+			return res.status(400).json({
+				error: 'No uploaded document found. Please upload your CV first.',
+				code: 'NO_DOCUMENT',
+			});
+		}
+
+		const documentId = docs.rows[0].id;
+
+		// Create analysis record in pending state
+		const result = await pool.query(
+			`
+			INSERT INTO cv_analyses (user_id, document_id, status)
+			VALUES ($1, $2, 'pending')
+			RETURNING id
+			`,
+			[req.user.id, documentId],
+		);
+
+		const analysisId = result.rows[0].id;
+
+		// Async mock analysis — complete immediately in MVP
+		setImmediate(async () => {
+			try {
+				const mock = generateMockAnalysis();
+				await pool.query(
+					`
+					UPDATE cv_analyses
+					SET status = 'completed',
+						overall_score = $2,
+						section_scores = $3,
+						recommendations = $4,
+						updated_at = NOW()
+					WHERE id = $1
+					`,
+					[analysisId, mock.overall_score, JSON.stringify(mock.section_scores), JSON.stringify(mock.recommendations)],
+				);
+				console.log(`[CV Review] Mock analysis completed for user ${req.user.id}, analysis ${analysisId}`);
+			} catch (asyncErr) {
+				console.error(`[CV Review] Async mock analysis failed for analysis ${analysisId}:`, asyncErr.message);
+				try {
+					await pool.query(
+						"UPDATE cv_analyses SET status = 'failed', updated_at = NOW() WHERE id = $1",
+						[analysisId],
+					);
+				} catch (markErr) {
+					console.error('[CV Review] Failed to mark analysis as failed:', markErr.message);
+				}
+			}
+		});
+
+		res.json({ success: true, analysis_id: analysisId, status: 'pending' });
+	} catch (err) {
+		console.error('CV analyze error:', err);
+		res.status(500).json({ error: 'Failed to start CV analysis' });
+	}
+});
+
+// Get analysis result by ID
+router.get('/cv/analysis/:id', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`
+			SELECT id, user_id, document_id, status, overall_score, section_scores, recommendations, created_at, updated_at
+			FROM cv_analyses
+			WHERE id = $1 AND user_id = $2
+			`,
+			[req.params.id, req.user.id],
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Analysis not found' });
+		}
+
+		const row = result.rows[0];
+		res.json({
+			success: true,
+			analysis: {
+				id: row.id,
+				user_id: row.user_id,
+				document_id: row.document_id,
+				status: row.status,
+				overall_score: row.overall_score,
+				section_scores: row.section_scores,
+				recommendations: row.recommendations,
+				created_at: row.created_at,
+				updated_at: row.updated_at,
+			},
+		});
+	} catch (err) {
+		console.error('Get CV analysis error:', err);
+		res.status(500).json({ error: 'Failed to get CV analysis' });
+	}
+});
+
+// List user's analyses with pagination
+router.get('/cv/analyses', authMiddleware, async (req, res) => {
+	try {
+		const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+		const offset = parseInt(req.query.offset, 10) || 0;
+
+		const analysesResult = await pool.query(
+			`
+			SELECT id, user_id, document_id, status, overall_score, created_at, updated_at
+			FROM cv_analyses
+			WHERE user_id = $1
+			ORDER BY created_at DESC
+			LIMIT $2 OFFSET $3
+			`,
+			[req.user.id, limit, offset],
+		);
+
+		const countResult = await pool.query(
+			'SELECT COUNT(*) as total FROM cv_analyses WHERE user_id = $1',
+			[req.user.id],
+		);
+		const total = parseInt(countResult.rows[0].total, 10);
+
+		res.json({
+			success: true,
+			analyses: analysesResult.rows,
+			pagination: {
+				total,
+				limit,
+				offset,
+				page: Math.floor(offset / limit) + 1,
+				has_more: offset + analysesResult.rows.length < total,
+			},
+		});
+	} catch (err) {
+		console.error('List CV analyses error:', err);
+		res.status(500).json({ error: 'Failed to list CV analyses' });
+	}
+});
+
 // ============= WORK EXPERIENCE =============
 
 router.post('/experience', authMiddleware, async (req, res) => {
@@ -3905,5 +4134,7 @@ router.delete('/documents/:id', authMiddleware, async (req, res) => {
 		res.status(500).json({ error: 'Failed to delete document' });
 	}
 });
+
+module.exports = router;
 
 
