@@ -133,6 +133,10 @@ const CandidateTopMatchesPage = lazy(() =>
 	import('@/pages/candidate/top-matches').then((m) => ({ default: m.CandidateTopMatchesPage })),
 )
 
+const CompanyMatchesPage = lazy(() =>
+	import('@/pages/candidate/company-matches').then((m) => ({ default: m.CompanyMatchesPage })),
+)
+
 const CandidateDocumentsPage = lazy(() =>
 	import('@/pages/candidate/documents').then((m) => ({ default: m.CandidateDocumentsPage })),
 )
@@ -715,7 +719,7 @@ function AppRoutes() {
 					path='company-matches'
 					element={
 						<Protected>
-							<_PlaceholderPage />
+							<CompanyMatchesPage />
 						</Protected>
 					}
 				/>
