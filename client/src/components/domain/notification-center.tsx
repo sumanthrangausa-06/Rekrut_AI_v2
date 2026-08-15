@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { trackEvent } from '@/lib/analytics'
+import { apiCall } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 export type Notification = {
@@ -81,50 +81,34 @@ export function NotificationCenter({ className }: { className?: string }) {
 		async function load() {
 			setLoading(true)
 			try {
-				// TODO: Replace with real API call
-				// const data = await apiCall<{ notifications: Notification[] }>("/notifications")
-				// setNotifications(data.notifications || [])
+				const data = await apiCall<{
+					notifications: Array<{
+						id: number
+						type: string
+						title: string
+						message: string
+						read: boolean
+						created_at: string
+						metadata?: Record<string, unknown>
+					}>
+					unread_count: number
+				}>('/notifications/in-app?limit=50')
 
-				// Demo data
-				setNotifications([
-					{
-						id: '1',
-						title: 'Interview Scheduled',
-						message:
-							'Your AI interview for Senior Developer at TechCorp is scheduled for tomorrow at 2:00 PM.',
-						type: 'interview',
-						read: false,
-						timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-						action: { label: 'Join Interview', url: '/candidate/interviews' },
-					},
-					{
-						id: '2',
-						title: 'New Job Match',
-						message: 'We found 3 new jobs matching your profile with 85%+ match score.',
-						type: 'info',
-						read: false,
-						timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-						action: { label: 'View Jobs', url: '/candidate/jobs' },
-					},
-					{
-						id: '3',
-						title: 'Document Verified',
-						message:
-							'Your resume has been AI-verified and boosted your profile score by 12 points.',
-						type: 'success',
-						read: true,
-						timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-					},
-					{
-						id: '4',
-						title: 'Assessment Due',
-						message: 'Complete your technical assessment for Product Manager role before Friday.',
-						type: 'warning',
-						read: false,
-						timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-						action: { label: 'Take Assessment', url: '/candidate/assessments' },
-					},
-				])
+				const mapped: Notification[] = (data.notifications || []).map((n) => ({
+					id: String(n.id),
+					title: n.title,
+					message: n.message,
+					type: (n.type as Notification['type']) || 'info',
+					read: n.read,
+					timestamp: n.created_at,
+					action: n.metadata?.url
+						? { label: 'View', url: String(n.metadata.url) }
+						: undefined,
+				}))
+				setNotifications(mapped)
+			} catch (err) {
+				console.error('[NotificationCenter] Load error:', err)
+				setNotifications([])
 			} finally {
 				setLoading(false)
 			}
@@ -132,19 +116,27 @@ export function NotificationCenter({ className }: { className?: string }) {
 		load()
 	}, [open])
 
-	const markRead = (id: string) => {
+	const markRead = async (id: string) => {
+		try {
+			await apiCall(`/notifications/in-app/${id}/read`, { method: 'PUT' })
+		} catch (err) {
+			console.error('[NotificationCenter] Mark read error:', err)
+		}
 		setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
-		trackEvent('notification_read', { notification_id: id })
 	}
 
-	const markAllRead = () => {
+	const markAllRead = async () => {
+		try {
+			await apiCall('/notifications/in-app/mark-all-read', { method: 'POST' })
+		} catch (err) {
+			console.error('[NotificationCenter] Mark all read error:', err)
+		}
 		setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
-		trackEvent('notifications_mark_all_read')
 	}
 
-	const deleteNotification = (id: string) => {
+	const deleteNotification = async (id: string) => {
+		// ponytail: no backend DELETE for in-app notifications yet; optimistic local remove
 		setNotifications((prev) => prev.filter((n) => n.id !== id))
-		trackEvent('notification_delete', { notification_id: id })
 	}
 
 	const playNotification = async (notification: Notification) => {

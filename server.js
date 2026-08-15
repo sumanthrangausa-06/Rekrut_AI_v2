@@ -128,6 +128,7 @@ const codingTemplateRoutes = require('./routes/coding-templates');
 const codingSubmissionRoutes = require('./routes/coding-submissions');
 const livekitRoutes = require('./server/routes/livekit'); // Issue #124 — LiveKit video infrastructure
 const recordingRoutes = require('./server/routes/recordings'); // Issue #126 — Interview recording, playback & AI transcript
+const collaborationRoutes = require('./routes/collaboration'); // Issue #128 — Real-time collaboration for hiring teams
 
 // ─── Prometheus metrics (Phase 1 observability — Issue #144) ─────────────
 const prometheus = require('./server/middleware/prometheus');
@@ -553,6 +554,9 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/interviews', interviewEventsRoutes); // Issue #127 — Calendar interview scheduling (mounted BEFORE mock routes)
 app.use('/api/interviews', quickPracticeRoutes); // ISOLATED Quick Practice — must be BEFORE interview routes (#32717)
 app.use('/api/interviews', interviewRoutes); // Mock Interview + video analysis (no practice routes)
+
+// API Routes - Collaboration (Issue #128)
+app.use('/api/collaboration', collaborationRoutes);
 
 // API Routes - LiveKit Video Infrastructure (Issue #124)
 app.use('/api/livekit', livekitRoutes);
