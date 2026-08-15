@@ -8,6 +8,8 @@ import {
 	Clock,
 	DollarSign,
 	Globe,
+	Loader2,
+	Lock,
 	MapPin,
 	RotateCcw,
 	Sparkles,
@@ -15,6 +17,7 @@ import {
 	Target,
 	ThumbsUp,
 	X,
+	Zap,
 } from 'lucide-react'
 import { useState } from 'react'
 import { ScoreRing } from '@/components/domain/score-ring'
@@ -88,6 +91,9 @@ interface JobCardProps {
 	onToggleDismiss?: (jobId: number, e: React.MouseEvent) => void
 	userSkills?: string[]
 	onSkillClick?: (skill: string) => void
+	onAutoApply?: (jobId: number) => void
+	autoApplyLoading?: boolean
+	autoApplyState?: 'hidden' | 'locked' | 'available' | 'limit_reached'
 }
 
 function timeAgo(dateStr: string) {
@@ -233,6 +239,9 @@ export function JobCard({
 	onToggleDismiss,
 	userSkills = [],
 	onSkillClick,
+	onAutoApply,
+	autoApplyLoading,
+	autoApplyState = 'hidden',
 }: JobCardProps) {
 	const score = job.weighted_score ? Math.round(job.weighted_score) : null
 	const fitScore = job.fit_score != null ? Math.round(job.fit_score) : null
@@ -271,6 +280,16 @@ export function JobCard({
 		trackEvent('job_card_dismiss_click', { job_id: job.id, dismissed: !isTrashMode })
 		onToggleDismiss?.(job.id, e)
 	}
+
+	const handleAutoApply = (e: React.MouseEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		onAutoApply?.(job.id)
+	}
+
+	const showAutoApplyBtn = autoApplyState !== 'hidden' && !job.has_applied
+	const isAutoApplyLocked = autoApplyState === 'locked'
+	const isAutoApplyLimitReached = autoApplyState === 'limit_reached'
 
 	const breakdownEntries = job.fit_breakdown
 		? Object.entries(job.fit_breakdown).map(([key, value]) => ({
@@ -382,10 +401,10 @@ export function JobCard({
 											onClick={
 												onSkillClick
 													? (e) => {
-															e.stopPropagation()
-															onSkillClick(skill)
-														}
-													: undefined
+														e.stopPropagation()
+														onSkillClick(skill)
+													}
+												: undefined
 											}
 										/>
 									)
@@ -523,7 +542,44 @@ export function JobCard({
 								)}
 							</button>
 
-							{!isTrashMode && (
+							{!isTrashMode && showAutoApplyBtn && (
+								<Tooltip
+									content={
+										isAutoApplyLocked
+											? 'Upgrade to Pro to unlock Auto-Apply'
+											: isAutoApplyLimitReached
+												? 'You have reached your daily Auto-Apply limit (10/day)'
+												: 'Instantly apply with your profile'
+										}
+									side='left'
+								>
+										<Button
+											size='sm'
+											variant={isAutoApplyLocked ? 'outline' : 'default'}
+											className={cn(
+												'relative z-20 min-h-[36px] px-2.5 text-xs font-semibold gap-1',
+												isAutoApplyLocked
+													? 'border-amber-300 text-amber-700 hover:bg-amber-50'
+													: isAutoApplyLimitReached
+														? 'bg-muted text-muted-foreground cursor-not-allowed'
+														: 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-sm',
+											)}
+											onClick={handleAutoApply}
+											disabled={autoApplyLoading || isAutoApplyLimitReached}
+										>
+											{autoApplyLoading ? (
+												<Loader2 className='h-3.5 w-3.5 animate-spin' />
+											) : isAutoApplyLocked ? (
+												<Lock className='h-3.5 w-3.5' />
+											) : (
+												<Zap className='h-3.5 w-3.5' />
+											)}
+											{isAutoApplyLimitReached ? 'Limit reached' : 'Auto-Apply'}
+										</Button>
+								</Tooltip>
+							)}
+
+							{!isTrashMode && !job.has_applied && (
 								<Button
 									size='sm'
 									className='relative z-20 min-h-[36px] px-3.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'

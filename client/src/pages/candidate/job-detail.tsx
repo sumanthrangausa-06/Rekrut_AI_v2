@@ -17,6 +17,7 @@ import {
 	GraduationCap,
 	ListChecks,
 	Loader2,
+	Lock,
 	MapPin,
 	Pencil,
 	Send,
@@ -44,6 +45,7 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/auth-context'
 import { apiCall } from '@/lib/api'
+import { useSubscription } from '@/hooks/use-subscription'
 
 interface Job {
 	id: number
@@ -147,6 +149,64 @@ export function CandidateJobDetailPage() {
 	const [isPlaying, setIsPlaying] = useState(false)
 	const [userSkills, setUserSkills] = useState<string[]>([])
 	const audioRef = useRef<HTMLAudioElement | null>(null)
+	// Auto-Apply state
+	const [autoApplyLoading, setAutoApplyLoading] = useState(false)
+	const [autoApplyRemaining, setAutoApplyRemaining] = useState<number | null>(null)
+	const [toastMessage, setToastMessage] = useState<string | null>(null)
+
+	const { isPro, canUseFeature, usageFor } = useSubscription()
+
+	const showToast = useCallback((msg: string) => {
+		setToastMessage(msg)
+		setTimeout(() => setToastMessage(null), 4000)
+	}, [])
+
+	// Load auto-apply usage when user/pro status changes
+	useEffect(() => {
+		if (isPro) {
+			usageFor('auto_apply').then((u) => setAutoApplyRemaining(u.remaining))
+		} else {
+			setAutoApplyRemaining(null)
+		}
+	}, [isPro, usageFor])
+
+	async function handleAutoApply() {
+		if (!job) return
+		if (!isPro || !canUseFeature('auto_apply')) {
+			navigate('/pricing')
+			return
+		}
+		if (autoApplyRemaining !== null && autoApplyRemaining <= 0) {
+			showToast('Daily auto-apply limit reached (10/day)')
+			return
+		}
+		setAutoApplyLoading(true)
+		try {
+			await apiCall('/candidate/applications/auto-apply', {
+				method: 'POST',
+				body: { job_id: job.id },
+			})
+			setApplied(true)
+			showToast('Auto-applied successfully!')
+			const u = await usageFor('auto_apply')
+			setAutoApplyRemaining(u.remaining)
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : ''
+			const code = (err as Error & { code?: string }).code
+			if (msg.toLowerCase().includes('already') || code === 'ALREADY_APPLIED') {
+				showToast('You have already applied to this job')
+				setApplied(true)
+			} else if (msg.toLowerCase().includes('upgrade') || msg.toLowerCase().includes('premium') || code === 'UPGRADE_REQUIRED') {
+				navigate('/pricing')
+			} else if (msg.toLowerCase().includes('limit')) {
+				showToast('Daily auto-apply limit reached (10/day)')
+			} else {
+				showToast(msg || 'Auto-apply failed. Please try again.')
+			}
+		} finally {
+			setAutoApplyLoading(false)
+		}
+	}
 
 	const loadJob = useCallback(async () => {
 		try {
@@ -716,6 +776,34 @@ export function CandidateJobDetailPage() {
 								)}
 								{audioLoading ? 'Generating...' : isPlaying ? 'Playing...' : 'Listen'}
 							</Button>
+							{!applied && user && (
+								<>
+									{!isPro ? (
+										<Button
+											variant='outline'
+											size='sm'
+											onClick={() => navigate('/pricing')}
+											className='gap-1.5 min-h-[44px] border-amber-300 text-amber-700 hover:bg-amber-50'
+										>
+											<Lock className='h-4 w-4' /> Upgrade to Auto-Apply
+										</Button>
+									) : (
+										<Button
+											size='sm'
+											onClick={handleAutoApply}
+											disabled={autoApplyLoading || (autoApplyRemaining !== null && autoApplyRemaining <= 0)}
+											className='gap-1.5 min-h-[44px] bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-sm'
+										>
+											{autoApplyLoading ? (
+												<Loader2 className='h-4 w-4 animate-spin' />
+											) : (
+												<Zap className='h-4 w-4' />
+											)}
+											Auto-Apply
+										</Button>
+									)}
+								</>
+							)}
 							{applied ? (
 								<Badge variant='success' className='gap-1 text-sm py-1.5 px-3'>
 									<CheckCircle className='h-3.5 w-3.5' /> Applied
@@ -1282,6 +1370,13 @@ export function CandidateJobDetailPage() {
 					<ListChecks className='h-4 w-4 shrink-0' />
 					This job has {screeningQuestions.length} pre-screening question
 					{screeningQuestions.length > 1 ? 's' : ''} you'll need to answer when applying.
+				</div>
+			)}
+
+			{/* Toast */}
+			{toastMessage && (
+				<div className='fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-foreground text-background px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium animate-in fade-in slide-in-from-bottom-2'>
+					{toastMessage}
 				</div>
 			)}
 		</div>

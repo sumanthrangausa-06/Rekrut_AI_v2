@@ -46,6 +46,7 @@ import {
 import { cn } from '@/lib/utils'
 import { JobCard, JobFilterBar } from '@/components/candidate'
 import type { JobFilterValues } from '@/components/candidate'
+import { useSubscription } from '@/hooks/use-subscription'
 
 interface Job {
 	id: number
@@ -156,6 +157,7 @@ function timeAgo(dateStr: string) {
 export function CandidateJobsPage() {
 	const navigate = useNavigate()
 	const { user } = useAuth()
+	const { isPro, canUseFeature, usageFor } = useSubscription()
 
 	// === Data state ===
 	const [jobs, setJobs] = useState<Job[]>([])
@@ -184,6 +186,11 @@ export function CandidateJobsPage() {
 	const [aiSearching, setAiSearching] = useState(false)
 	const [aiResults, setAiResults] = useState<Job[] | null>(null)
 
+	// === Auto-Apply ===
+	const [autoApplyLoadingId, setAutoApplyLoadingId] = useState<number | null>(null)
+	const [autoApplyRemaining, setAutoApplyRemaining] = useState<number | null>(null)
+	const [toastMessage, setToastMessage] = useState<string | null>(null)
+
 	// === Split view ===
 	const [selectedJob, setSelectedJob] = useState<Job | null>(null)
 	const [showDetailPanel, setShowDetailPanel] = useState(false)
@@ -196,6 +203,59 @@ export function CandidateJobsPage() {
 	const [searchParams, setSearchParams] = useSearchParams()
 
 	const jobListRef = useRef<HTMLDivElement>(null)
+
+	// Load auto-apply usage when user/pro status changes
+	useEffect(() => {
+		if (isPro) {
+			usageFor('auto_apply').then((u) => setAutoApplyRemaining(u.remaining))
+		} else {
+			setAutoApplyRemaining(null)
+		}
+	}, [isPro, usageFor])
+
+	const showToast = useCallback((msg: string) => {
+		setToastMessage(msg)
+		setTimeout(() => setToastMessage(null), 4000)
+	}, [])
+
+	async function handleAutoApply(jobId: number) {
+		if (!isPro || !canUseFeature('auto_apply')) {
+			navigate('/pricing')
+			return
+		}
+		setAutoApplyLoadingId(jobId)
+		try {
+			await apiCall('/candidate/applications/auto-apply', {
+				method: 'POST',
+				body: { job_id: jobId },
+			})
+			setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, has_applied: true } : j)))
+			setRecommendedJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, has_applied: true } : j)))
+			showToast('Auto-applied successfully!')
+			const u = await usageFor('auto_apply')
+			setAutoApplyRemaining(u.remaining)
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : ''
+			const code = (err as Error & { code?: string }).code
+			if (msg.toLowerCase().includes('already') || code === 'ALREADY_APPLIED') {
+				showToast('You have already applied to this job')
+				setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, has_applied: true } : j)))
+			} else if (msg.toLowerCase().includes('upgrade') || msg.toLowerCase().includes('premium') || code === 'UPGRADE_REQUIRED') {
+				navigate('/pricing')
+			} else {
+				showToast(msg || 'Auto-apply failed. Please try again.')
+			}
+		} finally {
+			setAutoApplyLoadingId(null)
+		}
+	}
+
+	function getAutoApplyState(): 'hidden' | 'locked' | 'available' | 'limit_reached' {
+		if (!user) return 'hidden'
+		if (!isPro) return 'locked'
+		if (autoApplyRemaining !== null && autoApplyRemaining <= 0) return 'limit_reached'
+		return 'available'
+	}
 
 	// Sync URL skill param to search filter
 	useEffect(() => {
@@ -798,7 +858,7 @@ export function CandidateJobsPage() {
 									<Badge variant='secondary' className='text-[10px] px-1.5 py-0 ml-0.5'>
 										{likedJobIds.size}
 									</Badge>
-								)}
+									)}
 							</button>
 							<button
 								onClick={() => setActiveTab('dismissed')}
@@ -815,7 +875,7 @@ export function CandidateJobsPage() {
 									<Badge variant='secondary' className='text-[10px] px-1.5 py-0 ml-0.5'>
 										{dismissedJobIds.size}
 									</Badge>
-								)}
+									)}
 							</button>
 							{activeFilterCount > 0 && (
 								<button
@@ -936,6 +996,9 @@ export function CandidateJobsPage() {
 										onToggleDismiss={toggleDismissJob}
 										userSkills={userSkills}
 										onSkillClick={handleSkillClick}
+										onAutoApply={handleAutoApply}
+										autoApplyLoading={autoApplyLoadingId === job.id}
+										autoApplyState={getAutoApplyState()}
 									/>
 								))}
 
@@ -978,6 +1041,13 @@ export function CandidateJobsPage() {
 					onSkillClick={handleSkillClick}
 				/>
 			</div>
+
+			{/* Toast */}
+			{toastMessage && (
+				<div className='fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-foreground text-background px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium animate-in fade-in slide-in-from-bottom-2'>
+					{toastMessage}
+				</div>
+			)}
 		</div>
 	)
 }

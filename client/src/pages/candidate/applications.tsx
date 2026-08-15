@@ -27,6 +27,7 @@ import {
 	MessageCircle,
 	Trophy,
 	XCircle,
+	Zap,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -373,6 +374,14 @@ export function CandidateApplicationsPage() {
 								</Badge>
 							)
 						})()}
+						{selectedApp.is_auto_applied && (
+							<Badge
+								variant='outline'
+								className='w-fit gap-1 bg-violet-50 text-violet-700 border-violet-200'
+							>
+								<Zap className='h-3 w-3' /> Auto-applied
+							</Badge>
+						)}
 
 						{/* Details grid */}
 						<div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>

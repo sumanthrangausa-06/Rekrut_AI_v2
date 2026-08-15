@@ -9,6 +9,7 @@ import {
 	GripVertical,
 	Mail,
 	MapPin,
+	Zap,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
@@ -38,6 +39,7 @@ export interface KanbanApplication {
 	cover_letter?: string
 	screening_answers?: string | Record<string, string>
 	screening_questions?: string | ScreeningQuestion[]
+	is_auto_applied?: boolean
 }
 
 export interface KanbanSavedJob {
@@ -177,6 +179,14 @@ export function KanbanCard({ item, columnId, onClick, isOverlay }: KanbanCardPro
 
 			<div className='mt-2 flex flex-wrap items-center gap-2'>
 				<ApplicationTypeBadge item={item} />
+				{item.type === 'application' && item.data.is_auto_applied && (
+					<Badge
+						variant='outline'
+						className='text-[10px] gap-1 bg-violet-50 text-violet-700 border-violet-200'
+					>
+						<Zap className='h-3 w-3' /> Auto-applied
+					</Badge>
+				)}
 				{data.location && (
 					<span className='text-[10px] text-muted-foreground flex items-center gap-0.5'>
 						<MapPin className='h-3 w-3' />
