@@ -19,6 +19,7 @@ const omniscoreService = require('../services/omniscore');
 const { decrypt } = require('../lib/crypto-utils');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const emailService = require('../lib/email-service');
+const { checkFeatureAccess, incrementUsage } = require('../lib/subscription');
 const calendarService = require('../server/services/calendar-service');
 
 let matchingEngine;
@@ -2056,8 +2057,8 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
 
 		const result = await pool.query(
 			`
-      INSERT INTO job_applications (candidate_id, job_id, company_id, cover_letter, match_score, omniscore_at_apply, screening_answers)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO job_applications (candidate_id, job_id, company_id, cover_letter, match_score, omniscore_at_apply, screening_answers, is_auto_applied)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `,
 			[
@@ -2068,6 +2069,7 @@ router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
 				matchScore,
 				omniscore,
 				JSON.stringify(screening_answers || {}),
+				false,
 			],
 		);
 
@@ -2207,7 +2209,7 @@ router.get('/applications', authMiddleware, async (req, res) => {
 	try {
 		const applications = await pool.query(
 			`
-      SELECT ja.*, j.title, j.company, j.location, j.salary_range, j.job_type,
+      SELECT ja.*, ja.is_auto_applied, j.title, j.company, j.location, j.salary_range, j.job_type,
              j.screening_questions, u.company_name as posted_by_company
       FROM job_applications ja
       JOIN jobs j ON ja.job_id = j.id
@@ -2222,6 +2224,167 @@ router.get('/applications', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Get applications error:', err);
 		res.status(500).json({ error: 'Failed to get applications' });
+	}
+});
+
+// Auto-apply to a job (Pro feature, rate-limited)
+router.post('/applications/auto-apply', authMiddleware, async (req, res) => {
+	try {
+		const { job_id } = req.body;
+		if (!job_id) {
+			return res.status(400).json({ error: 'job_id is required' });
+		}
+
+		// Check feature access and rate limits
+		const access = await checkFeatureAccess(req.user, 'auto_apply');
+		if (!access.allowed) {
+			return res.status(403).json({
+				error: 'Upgrade to Pro to access Auto-Apply',
+				code: 'UPGRADE_REQUIRED',
+				feature: 'auto_apply',
+				upgradeUrl: '/pricing',
+			});
+		}
+
+		// Check if already applied
+		const existing = await pool.query(
+			'SELECT id FROM job_applications WHERE candidate_id = $1 AND job_id = $2',
+			[req.user.id, job_id],
+		);
+		if (existing.rows.length > 0) {
+			return res.status(409).json({ error: 'You have already applied to this job' });
+		}
+
+		// Fetch job for company_id
+		const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [job_id]);
+		if (job.rows.length === 0) {
+			return res.status(404).json({ error: 'Job not found' });
+		}
+
+		// Fetch candidate profile for match_score / omniscore
+		const profile = await pool.query(
+			`
+				SELECT cp.*, u.name, u.email, os.total_score as omniscore
+				FROM users u
+				LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+				LEFT JOIN omni_scores os ON os.user_id = u.id
+				WHERE u.id = $1
+			`,
+			[req.user.id],
+		);
+
+		const skills = await pool.query('SELECT skill_name FROM candidate_skills WHERE user_id = $1', [
+			req.user.id,
+		]);
+
+		const candidateProfile = {
+			...profile.rows[0],
+			skills: skills.rows,
+		};
+
+		// ponytail: reuse subscriptionId fetch pattern from manual apply
+		const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
+			req.user.id,
+		]);
+		const subscriptionId = user.rows[0]?.stripe_subscription_id;
+
+		let matchScore = 50;
+		try {
+			const match = await generateJobMatchScore(candidateProfile, job.rows[0], { subscriptionId });
+			matchScore = match.match_score;
+		} catch (_e) {}
+
+		const omniscore = profile.rows[0]?.omniscore || null;
+
+		// Insert auto-application — no cover letter, no screening answers
+		const result = await pool.query(
+			`
+				INSERT INTO job_applications (
+					candidate_id, job_id, company_id,
+					cover_letter, match_score, omniscore_at_apply,
+					screening_answers, is_auto_applied
+				)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+				RETURNING *
+			`,
+			[
+				req.user.id,
+				job_id,
+				job.rows[0].company_id,
+				'', // ponytail: empty cover letter for auto-apply
+				matchScore,
+				omniscore,
+				JSON.stringify({}), // ponytail: empty screening answers for auto-apply
+				true,
+			],
+		);
+
+		// Increment usage for rate limiting
+		await incrementUsage(req.user.id, 'auto_apply');
+
+		// ── Send application submitted notification to candidate (non-blocking) ──
+		try {
+			const jobInfo = job.rows[0];
+			const userInfo = profile.rows[0];
+			await emailService.sendTemplatedEmail({
+				to: userInfo?.email,
+				templateName: 'candidate_application_submitted',
+				templateData: {
+					name: userInfo?.name || 'Candidate',
+					job_title: jobInfo?.title || 'the position',
+					company_name: jobInfo?.company || 'Our Company',
+					location: jobInfo?.location || 'Remote',
+					applied_date: new Date().toISOString(),
+					application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/candidate/applications`,
+				},
+				userId: req.user.id,
+				metadata: { job_id: jobInfo?.id, company_id: jobInfo?.company_id },
+			});
+		} catch (emailErr) {
+			console.error(
+				'[email] Failed to send auto-apply submitted email (non-blocking):',
+				emailErr.message,
+			);
+		}
+
+		// ── Send application received notification to recruiter (non-blocking) ──
+		try {
+			const jobInfo = job.rows[0];
+			const userInfo = profile.rows[0];
+			const recruiterResult = await pool.query(
+				'SELECT u.id, u.email, u.name FROM users u JOIN jobs j ON j.user_id = u.id WHERE j.id = $1',
+				[job_id],
+			);
+			const recruiter = recruiterResult.rows[0];
+			if (recruiter?.email) {
+				await emailService.sendTemplatedEmail({
+					to: recruiter.email,
+					templateName: 'recruiter_new_application',
+					templateData: {
+						name: recruiter.name || 'Recruiter',
+						candidate_name: userInfo?.name || 'Candidate',
+						candidate_email: userInfo?.email || '',
+						job_title: jobInfo?.title || 'the position',
+						omniscore: omniscore || 'N/A',
+						verification_status: 'verified',
+						applied_date: new Date().toISOString(),
+						application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/recruiter/applications`,
+					},
+					userId: recruiter.id,
+					metadata: { job_id: jobInfo?.id, candidate_id: req.user.id },
+				});
+			}
+		} catch (emailErr) {
+			console.error(
+				'[email] Failed to send recruiter notification for auto-apply (non-blocking):',
+				emailErr.message,
+			);
+		}
+
+		res.json({ success: true, application: result.rows[0] });
+	} catch (err) {
+		console.error('Auto-apply error:', err);
+		res.status(500).json({ error: 'Failed to auto-apply to job' });
 	}
 });
 
