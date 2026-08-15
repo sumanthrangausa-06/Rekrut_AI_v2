@@ -367,20 +367,30 @@ router.post('/webhook', async (req, res) => {
 					}
 					break;
 				}
-				case 'customer.subscription.deleted': {
+				case 'customer.subscription.updated': {
 					const subscription = event.data?.object;
 					if (subscription?.id) {
 						await pool.query(
-							`UPDATE users
-               SET is_paid = false,
-                   subscription_status = $1,
-                   stripe_subscription_id = NULL
-               WHERE stripe_subscription_id = $2`,
-							['cancelled', subscription.id],
+							`UPDATE users SET subscription_status = $1 WHERE stripe_subscription_id = $2`,
+							[subscription.status, subscription.id],
 						);
 					}
 					break;
 				}
+			case 'customer.subscription.deleted': {
+				const subscription = event.data?.object;
+				if (subscription?.id) {
+					await pool.query(
+						`UPDATE users
+               SET is_paid = false,
+                   subscription_status = $1,
+                   stripe_subscription_id = NULL
+               WHERE stripe_subscription_id = $2`,
+						['cancelled', subscription.id],
+					);
+				}
+				break;
+			}
 			}
 		} catch (dbError) {
 			console.error('[billing] webhook DB error:', dbError.message);
@@ -478,7 +488,7 @@ router.post('/cancel-subscription', optionalAuth, async (req, res) => {
 		});
 
 		await pool.query(`UPDATE users SET subscription_status = $1 WHERE id = $2`, [
-			'cancelled',
+			deleted.status, // ponytail: sync actual Stripe status (active until period end)
 			req.user.id,
 		]);
 
