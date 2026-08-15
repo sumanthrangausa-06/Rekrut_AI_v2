@@ -141,7 +141,7 @@ router.post('/tts', authMiddleware, requireCartesiaKey, rateLimits.ai, async (re
 
 		// Track usage
 		console.log(
-			`[voice/tts] user=${req.user?.id || 'unknown'} chars=${text.length} voice=${voice_id || 'default'} file=${result.fileName}`,
+			`[voice/tts] user=${req.user?.id || 'unknown'} chars=${text.length} voice=${voice_id || 'default'} file=${result.fileName} cached=${result.cached}`,
 		);
 
 		res.json({
@@ -153,10 +153,55 @@ router.post('/tts', authMiddleware, requireCartesiaKey, rateLimits.ai, async (re
 			credits_used: result.creditsUsed,
 			format: result.format,
 			voice_id: voice_id || process.env.CARTESIA_DEFAULT_VOICE_ID,
+			cached: result.cached || false,
 			timestamp: new Date().toISOString(),
 		});
 	} catch (err) {
 		handleVoiceError(res, err);
+	}
+});
+
+// ─── POST /api/voice/interview-feedback-audio — Interview feedback TTS ─────
+
+router.post('/interview-feedback-audio', authMiddleware, requireCartesiaKey, async (req, res) => {
+	try {
+		const { interview_id, feedback_text, voice_id } = req.body;
+
+		if (!interview_id || typeof interview_id !== 'string') {
+			return res.status(400).json({ error: 'interview_id is required and must be a string' });
+		}
+		if (!feedback_text || typeof feedback_text !== 'string' || feedback_text.length === 0) {
+			return res.status(400).json({ error: 'feedback_text is required and must be a non-empty string' });
+		}
+		if (feedback_text.length > 5000) {
+			return res.status(400).json({ error: 'feedback_text exceeds 5000 character limit' });
+		}
+
+		const result = await voiceService.synthesize({
+			text: feedback_text,
+			voiceId: voice_id,
+		});
+
+		console.log(
+			`[voice/interview-feedback-audio] user=${req.user?.id || 'unknown'} interview=${interview_id} chars=${feedback_text.length} voice=${voice_id || 'default'} file=${result.fileName} cached=${result.cached}`,
+		);
+
+		res.json({
+			success: true,
+			audio_url: result.publicUrl,
+			duration: result.duration,
+			cached: result.cached || false,
+			timestamp: new Date().toISOString(),
+		});
+	} catch (err) {
+		console.error('[voice/interview-feedback-audio] TTS failed:', err.message);
+		// Graceful fallback: don't propagate Cartesia errors to the client
+		res.json({
+			success: false,
+			error: 'TTS unavailable',
+			fallback_text: req.body.feedback_text,
+			timestamp: new Date().toISOString(),
+		});
 	}
 });
 
