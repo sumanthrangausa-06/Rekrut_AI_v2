@@ -100,6 +100,7 @@ const documentRoutes = require('./routes/documents');
 const careerCoachRoutes = require('./routes/career-coach'); // Issue #121 — AI Career Coach
 const candidateDocumentRoutes = require('./routes/candidate-documents');
 const fitScoreRoutes = require('./routes/fitScore'); // Issue #76 — Job Fit Score API
+const profileEnhancementRoutes = require('./routes/profile-enhancement'); // Issue #26 — Profile Enhancement Tools
 const recruiterDocumentRoutes = require('./routes/recruiter-documents');
 const payrollRoutes = require('./routes/payroll');
 const complianceRoutes = require('./routes/compliance');
@@ -572,6 +573,7 @@ app.use('/api/candidate/omniscore', omniscoreRoutes);
 app.use('/api/recruiter/omniscore', omniscoreRoutes);
 app.use('/api/candidate', candidateRoutes);
 app.use('/api/candidate', fitScoreRoutes); // Issue #76 — Job Fit Score API
+app.use('/api', profileEnhancementRoutes); // Issue #26 — Profile Enhancement Tools
 app.use('/api/assessments', assessmentRoutes);
 app.use('/api/career-coach', careerCoachRoutes); // Issue #121 — AI Career Coach
 
