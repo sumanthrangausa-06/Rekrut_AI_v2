@@ -4,11 +4,15 @@ const multer = require('multer');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
 const pool = require('../lib/db');
-const { authMiddleware } = require('../lib/auth');
+const { authMiddleware, requireRole } = require('../lib/auth');
+const emailService = require('../lib/email-service');
 const {
 	verifyDocument,
 	applyDocumentScoresToOmniScore,
 	logDocumentAccess,
+	checkCrossDocumentConsistency,
+	resolveDocumentReview,
+	appealDocument,
 } = require('../services/document-verification');
 
 // Configure multer for memory storage
@@ -39,6 +43,7 @@ const upload = multer({
 /**
  * Upload and verify a document
  * POST /api/documents/upload
+ * Supports resubmit: updates existing rejected/pending_review document of same type
  */
 router.post('/upload', authMiddleware, upload.single('document'), async (req, res) => {
 	try {
@@ -92,27 +97,64 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 
 		const fileUrl = uploadResult.file.url;
 
-		// Create document record
-		const result = await pool.query(
+		// Check for existing rejected/pending_review document of same type for resubmit
+		const existingResult = await pool.query(
 			`
-      INSERT INTO verification_documents (
-        user_id, document_type, original_filename, file_url,
-        file_size, mime_type, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, 'pending')
-      RETURNING *
-    `,
-			[userId, document_type, req.file.originalname, fileUrl, req.file.size, req.file.mimetype],
+			SELECT id FROM verification_documents
+			WHERE user_id = $1 AND document_type = $2 AND status IN ('rejected', 'pending_review')
+			ORDER BY created_at DESC
+			LIMIT 1
+			`,
+			[userId, document_type],
 		);
 
-		const document = result.rows[0];
+		let document;
+		const isResubmit = existingResult.rows.length > 0;
+
+		if (isResubmit) {
+			// Update existing document record with new file
+			const updateResult = await pool.query(
+				`
+				UPDATE verification_documents
+				SET file_url = $1,
+					original_filename = $2,
+					file_size = $3,
+					mime_type = $4,
+					status = 'pending',
+					extracted_text = NULL,
+					extracted_data = NULL,
+					authenticity_score = NULL,
+					fraud_flags = '[]',
+					processed_at = NULL,
+					updated_at = NOW()
+				WHERE id = $5
+				RETURNING *
+				`,
+				[fileUrl, req.file.originalname, req.file.size, req.file.mimetype, existingResult.rows[0].id],
+			);
+			document = updateResult.rows[0];
+		} else {
+			// Create new document record
+			const result = await pool.query(
+				`
+				INSERT INTO verification_documents (
+					user_id, document_type, original_filename, file_url,
+					file_size, mime_type, status
+				) VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+				RETURNING *
+				`,
+				[userId, document_type, req.file.originalname, fileUrl, req.file.size, req.file.mimetype],
+			);
+			document = result.rows[0];
+		}
 
 		// Start verification process asynchronously
 		verifyDocument(document.id, userId)
 			.then(async (verificationResult) => {
 				console.log(`Document ${document.id} verified:`, verificationResult);
 
-				// Apply scores to OmniScore if verification passed
-				if (verificationResult.fraud_risk !== 'high') {
+				// Apply scores to OmniScore if verification passed (low risk)
+				if (verificationResult.fraud_risk === 'low') {
 					await applyDocumentScoresToOmniScore(userId);
 				}
 
@@ -124,7 +166,7 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 					const user = userResult.rows[0];
 					if (user?.email) {
 						const templateName =
-							verificationResult.fraud_risk === 'high' ? 'document_flagged' : 'document_verified';
+							verificationResult.fraud_risk === 'low' ? 'document_verified' : 'document_flagged';
 						await emailService.sendTemplatedEmail({
 							to: user.email,
 							templateName,
@@ -132,12 +174,12 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 								name: user.name || 'Candidate',
 								document_type: document.document_type,
 								authenticity_score: verificationResult.authenticity_score || 'N/A',
-								status: verificationResult.fraud_risk === 'high' ? 'flagged' : 'verified',
+								status: verificationResult.fraud_risk === 'low' ? 'verified' : 'flagged',
 								verified_date: new Date().toISOString(),
 								documents_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/candidate/documents`,
 								flag_reason:
-									verificationResult.fraud_risk === 'high'
-										? 'High fraud risk detected during automated verification'
+									verificationResult.fraud_risk !== 'low'
+										? 'Suspicious indicators detected during automated verification — pending human review'
 										: '',
 							},
 							userId,
@@ -163,8 +205,11 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 				filename: document.original_filename,
 				status: document.status,
 				uploaded_at: document.uploaded_at,
+				is_resubmit: isResubmit,
 			},
-			message: 'Document uploaded successfully. Verification in progress.',
+			message: isResubmit
+				? 'Document resubmitted successfully. Verification in progress.'
+				: 'Document uploaded successfully. Verification in progress.',
 		});
 	} catch (error) {
 		console.error('Document upload error:', error);
@@ -241,12 +286,18 @@ router.get('/:id', authMiddleware, async (req, res) => {
         dv.is_duplicate,
         dv.confidence_score,
         dv.verified_at,
+        dv.false_positive,
         vc.credential_name,
         vc.issuer,
-        vc.verification_status as credential_status
+        vc.verification_status as credential_status,
+        drq.review_status as queue_status,
+        drq.review_notes,
+        drq.appeal_reason,
+        drq.appealed_at
       FROM verification_documents vd
       LEFT JOIN document_verifications dv ON vd.id = dv.document_id
       LEFT JOIN verified_credentials vc ON vc.document_id = vd.id
+      LEFT JOIN document_review_queue drq ON drq.document_id = vd.id
       WHERE vd.id = $1
     `,
 			[id],
@@ -371,6 +422,143 @@ router.get('/:id/verification', authMiddleware, async (req, res) => {
 	} catch (error) {
 		console.error('Get verification status error:', error);
 		res.status(500).json({ error: 'Failed to retrieve verification status' });
+	}
+});
+
+/**
+ * Get cross-document consistency check for authenticated user
+ * GET /api/documents/consistency-check
+ */
+router.get('/consistency-check', authMiddleware, async (req, res) => {
+	try {
+		const userId = req.user.id;
+
+		if (!userId) {
+			return res.status(401).json({ error: 'Authentication required' });
+		}
+
+		const result = await checkCrossDocumentConsistency(userId);
+
+		res.json({
+			success: true,
+			...result,
+		});
+	} catch (error) {
+		console.error('Consistency check error:', error);
+		res.status(500).json({ error: 'Failed to perform consistency check' });
+	}
+});
+
+/**
+ * Get pending review queue (admin/recruiter only)
+ * GET /api/documents/review-queue
+ */
+router.get('/review-queue', authMiddleware, requireRole('admin', 'recruiter', 'hiring_manager'), async (req, res) => {
+	try {
+		const { status = 'pending', limit = 50, offset = 0 } = req.query;
+
+		const result = await pool.query(
+			`
+			SELECT
+				drq.id,
+				drq.document_id,
+				drq.user_id,
+				u.name as candidate_name,
+				u.email as candidate_email,
+				drq.fraud_risk,
+				drq.fraud_flags,
+				drq.review_status,
+				drq.reviewer_id,
+				drq.reviewed_at,
+				drq.review_notes,
+				drq.appeal_reason,
+				drq.appealed_at,
+				drq.created_at,
+				vd.document_type,
+				vd.original_filename
+			FROM document_review_queue drq
+			JOIN users u ON drq.user_id = u.id
+			JOIN verification_documents vd ON drq.document_id = vd.id
+			WHERE drq.review_status = $1
+			ORDER BY drq.created_at ASC
+			LIMIT $2 OFFSET $3
+			`,
+			[status, parseInt(limit), parseInt(offset)],
+		);
+
+		const countResult = await pool.query(
+			`SELECT COUNT(*) FROM document_review_queue WHERE review_status = $1`,
+			[status],
+		);
+
+		res.json({
+			success: true,
+			reviews: result.rows,
+			total: parseInt(countResult.rows[0].count),
+			limit: parseInt(limit),
+			offset: parseInt(offset),
+		});
+	} catch (error) {
+		console.error('Get review queue error:', error);
+		res.status(500).json({ error: 'Failed to retrieve review queue' });
+	}
+});
+
+/**
+ * Resolve a document review (admin/recruiter only)
+ * POST /api/documents/review/:documentId
+ */
+router.post('/review/:documentId', authMiddleware, requireRole('admin', 'recruiter', 'hiring_manager'), async (req, res) => {
+	try {
+		const { documentId } = req.params;
+		const { decision, notes } = req.body;
+		const reviewerId = req.user.id;
+
+		if (!decision || !['approved', 'rejected'].includes(decision)) {
+			return res.status(400).json({ error: 'Decision must be "approved" or "rejected"' });
+		}
+
+		const result = await resolveDocumentReview(documentId, reviewerId, decision, notes || '');
+
+		res.json({
+			success: true,
+			message: `Document ${decision}`,
+			review: result.review,
+		});
+	} catch (error) {
+		console.error('Resolve review error:', error);
+		res.status(500).json({ error: error.message || 'Failed to resolve review' });
+	}
+});
+
+/**
+ * Appeal a rejected document (candidate only)
+ * POST /api/documents/appeal/:documentId
+ */
+router.post('/appeal/:documentId', authMiddleware, requireRole('candidate'), async (req, res) => {
+	try {
+		const { documentId } = req.params;
+		const { reason } = req.body;
+		const userId = req.user.id;
+
+		if (!reason || reason.trim().length === 0) {
+			return res.status(400).json({ error: 'Appeal reason is required' });
+		}
+
+		if (reason.trim().length > 2000) {
+			return res.status(400).json({ error: 'Appeal reason must be under 2000 characters' });
+		}
+
+		const result = await appealDocument(documentId, userId, reason.trim());
+
+		res.json({
+			success: true,
+			message: 'Appeal submitted successfully',
+			...result,
+		});
+	} catch (error) {
+		console.error('Appeal error:', error);
+		res.status(400).json({ error: error.message || 'Failed to submit appeal' });
 	}
 });
 
@@ -502,6 +690,7 @@ router.get('/stats/summary', authMiddleware, async (req, res) => {
         COUNT(DISTINCT vd.id) as total_documents,
         COUNT(DISTINCT CASE WHEN vd.status = 'verified' THEN vd.id END) as verified_documents,
         COUNT(DISTINCT CASE WHEN vd.status = 'rejected' THEN vd.id END) as flagged_documents,
+        COUNT(DISTINCT CASE WHEN vd.status = 'pending_review' THEN vd.id END) as pending_review_documents,
         COUNT(DISTINCT vc.id) as verified_credentials,
         COALESCE(SUM(dsi.score_impact), 0) as total_score_impact,
         COALESCE(AVG(dv.authenticity_score), 0) as avg_authenticity_score
