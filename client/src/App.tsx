@@ -140,6 +140,9 @@ const CompanyMatchesPage = lazy(() =>
 const CandidateDocumentsPage = lazy(() =>
 	import('@/pages/candidate/documents').then((m) => ({ default: m.CandidateDocumentsPage })),
 )
+const CandidateBackgroundCheckPage = lazy(() =>
+	import('@/pages/candidate/background-check').then((m) => ({ default: m.CandidateBackgroundCheckPage })),
+)
 const CandidateScreeningPage = lazy(() =>
 	import('@/pages/candidate/screening').then((m) => ({ default: m.CandidateScreeningPage })),
 )
@@ -342,6 +345,9 @@ const RecruiterPostHireFeedbackPage = lazy(() =>
 )
 const RecruiterCompliancePage = lazy(() =>
 	import('@/pages/recruiter/compliance').then((m) => ({ default: m.RecruiterCompliancePage })),
+)
+const RecruiterBackgroundCheckPage = lazy(() =>
+	import('@/pages/recruiter/background-check').then((m) => ({ default: m.RecruiterBackgroundCheckPage })),
 )
 
 const RecruiterPendingApprovalPage = lazy(() =>
@@ -640,6 +646,14 @@ function AppRoutes() {
 					element={
 						<Protected>
 							<CandidateDocumentsPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path='background-check'
+					element={
+						<Protected>
+							<CandidateBackgroundCheckPage />
 						</Protected>
 					}
 				/>
@@ -1319,6 +1333,16 @@ function AppRoutes() {
 						<Protected>
 							<RecruiterGuard>
 								<RecruiterCompliancePage />
+							</RecruiterGuard>
+						</Protected>
+					}
+				/>
+				<Route
+					path='background-check'
+					element={
+						<Protected>
+							<RecruiterGuard>
+								<RecruiterBackgroundCheckPage />
 							</RecruiterGuard>
 						</Protected>
 					}
