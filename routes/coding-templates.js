@@ -20,7 +20,7 @@ const express = require('express');
 const pool = require('../lib/db');
 const { authMiddleware, requireRole } = require('../lib/auth');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
-const { AuditLogger } = require('../services/auditLogger');
+const { AuditLogger } = require('../services/auditLogService');
 
 const router = express.Router();
 

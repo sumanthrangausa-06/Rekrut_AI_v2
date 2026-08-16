@@ -5,7 +5,7 @@ const { authMiddleware } = require('../lib/auth');
 const { chat, handleAIError } = require('../lib/polsia-ai');
 const omniscoreService = require('../services/omniscore');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
-const { AuditLogger } = require('../services/auditLogger');
+const { AuditLogger } = require('../services/auditLogService');
 
 // Skill catalog - available to all candidates without pre-existing skills
 const SKILL_CATALOG = [

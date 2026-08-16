@@ -4,7 +4,7 @@ const express = require('express');
 const { authMiddleware } = require('../lib/auth');
 const omniscoreService = require('../services/omniscore');
 const trustscoreService = require('../services/trustscore');
-const { AuditLogger } = require('../services/auditLogger');
+const { AuditLogger } = require('../services/auditLogService');
 const pool = require('../lib/db');
 
 const router = express.Router();

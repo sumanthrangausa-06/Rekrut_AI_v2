@@ -1,7 +1,7 @@
 const express = require('express');
 const crypto = require('node:crypto');
 const { authMiddleware, requireRole } = require('../lib/auth');
-const { AuditLogger } = require('../services/auditLogger');
+const { AuditLogger } = require('../services/auditLogService');
 const {
 	findMatchingJobs,
 	findMatchingCandidates,

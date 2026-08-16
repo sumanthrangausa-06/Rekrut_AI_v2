@@ -17,7 +17,7 @@ const router = express.Router();
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { DistributedRateLimiter } = require('../lib/distributed-rate-limiter');
-const AuditLogger = require('../services/auditLogger');
+const { AuditLogger } = require('../services/auditLogService');
 const matchingEngine = require('../services/matching-engine');
 
 // ─── Auth & Authorization ────────────────────────────────────────

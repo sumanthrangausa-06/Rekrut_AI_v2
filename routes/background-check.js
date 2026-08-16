@@ -12,8 +12,8 @@ const pool = require('../lib/db');
 const { authMiddleware, requireRole } = require('../lib/auth');
 const verificationService = require('../server/services/verification-service');
 const discrepancyService = require('../server/services/discrepancy-service');
-const { AuditLogger } = require('../services/auditLogger');
 const auditLogService = require('../services/auditLogService');
+const { AuditLogger } = auditLogService;
 
 const candidateRouter = express.Router();
 const router = express.Router();

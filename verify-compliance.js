@@ -1,5 +1,5 @@
 // Verification script for compliance features
-const { AuditLogger } = require('./services/auditLogger');
+const { AuditLogger } = require('./services/auditLogService');
 const BiasDetection = require('./services/biasDetection');
 const ScoreExplainer = require('./services/scoreExplainer');
 

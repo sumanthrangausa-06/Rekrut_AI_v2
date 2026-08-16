@@ -25,7 +25,7 @@ let _AuditLogger = null;
 function getAuditLogger() {
 	if (!_AuditLogger) {
 		try {
-			const { AuditLogger } = require('../services/auditLogger');
+			const { AuditLogger } = require('../services/auditLogService');
 			_AuditLogger = AuditLogger;
 		} catch {
 			_AuditLogger = null;

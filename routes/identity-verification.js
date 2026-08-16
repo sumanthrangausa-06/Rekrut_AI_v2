@@ -15,8 +15,8 @@ const express = require('express');
 const crypto = require('node:crypto');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
-const { AuditLogger } = require('../services/auditLogger');
 const auditLogService = require('../services/auditLogService');
+const { AuditLogger } = auditLogService;
 
 const router = express.Router();
 

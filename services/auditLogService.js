@@ -1,25 +1,19 @@
 /**
- * Compliance Audit Log Service
- * Issue #136 — Tamper-evident audit trail for EU AI Act compliance
+ * Audit Log Service
+ * Merged from auditLogger.js + auditLogService.js (Issue #174)
  *
- * Properties:
- * - Append-only, no updates or deletes
- * - Tamper-evident via hash chaining (each record contains hash of previous record)
- * - Exportable for regulators (JSON/CSV export)
- * - Queryable by: candidate, job, recruiter, date range
- * - Retained beyond operational data retention window
- *
- * Event types:
- * - ai_decision: AI scoring decisions (inputs, outputs, model version)
- * - human_override: Human override of AI decision, with reason
- * - data_access: Access to sensitive candidate data, attributed to user
- * - verification: Background check / document verification outcomes
- * - signature: Document signing events
- * - status_change: Hiring pipeline status changes
+ * Provides:
+ * - General audit logging (AuditLogger class) → audit_logs table
+ * - Compliance audit trail (logEvent) → compliance_audit_trail table
+ * - Hash-chain verification for tamper evidence
+ * - Export for regulators
+ * - Express middleware for automatic audit logging
  */
 
 const crypto = require('node:crypto');
 const pool = require('../lib/db');
+
+// ─── Constants ──────────────────────────────────────────────────────────────
 
 const EVENT_TYPES = Object.freeze({
 	AI_DECISION: 'ai_decision',
@@ -39,48 +33,22 @@ const ENTITY_TYPES = Object.freeze({
 
 const GENESIS_HASH = '0';
 
-/**
- * Compute SHA-256 hash of concatenated audit fields.
- * @param {string} previousHash
- * @param {string} eventType
- * @param {number} entityId
- * @param {number|null} actorId
- * @param {Object} payload
- * @param {string} createdAt ISO timestamp
- * @returns {string} hex digest
- */
+// ─── Hash chain helpers (compliance audit trail) ────────────────────────────
+
 function computeHash(previousHash, eventType, entityId, actorId, payload, createdAt) {
 	const data = `${previousHash}|${eventType}|${entityId}|${actorId || ''}|${JSON.stringify(payload)}|${createdAt}`;
 	return crypto.createHash('sha256').update(data).digest('hex');
 }
 
-/**
- * Get the most recent audit record globally to obtain the last hash.
- * @returns {Promise<string|null>} current_hash of last record, or null
- */
 async function getLastHash() {
 	const result = await pool.query(
-		`SELECT current_hash FROM compliance_audit_trail ORDER BY created_at DESC LIMIT 1`
+		`SELECT current_hash FROM compliance_audit_trail ORDER BY created_at DESC LIMIT 1`,
 	);
 	return result.rows.length > 0 ? result.rows[0].current_hash : null;
 }
 
-/**
- * Log an event to the compliance audit trail.
- * Append-only insert with automatic hash chain computation.
- *
- * @param {Object} eventData
- * @param {string} eventData.eventType — one of EVENT_TYPES
- * @param {string} eventData.entityType — one of ENTITY_TYPES
- * @param {number} eventData.entityId
- * @param {number|null} [eventData.actorId]
- * @param {string|null} [eventData.actorRole]
- * @param {number|null} [eventData.jobId]
- * @param {number|null} [eventData.companyId]
- * @param {Object} [eventData.payload] — contextual data (inputs, outputs, model version, reason, etc.)
- * @param {Object} [eventData.req] — Express request for IP/user-agent extraction
- * @returns {Promise<Object>} the inserted record
- */
+// ─── Compliance audit trail ─────────────────────────────────────────────────
+
 async function logEvent(eventData) {
 	const {
 		eventType,
@@ -94,7 +62,6 @@ async function logEvent(eventData) {
 		req = null,
 	} = eventData;
 
-	// Validate event type
 	if (!Object.values(EVENT_TYPES).includes(eventType)) {
 		throw new Error(`Invalid eventType: ${eventType}`);
 	}
@@ -102,7 +69,6 @@ async function logEvent(eventData) {
 		throw new Error(`Invalid entityType: ${entityType}`);
 	}
 
-	// Enrich payload with request context if available
 	const enrichedPayload = { ...payload };
 	if (req) {
 		enrichedPayload._request = {
@@ -147,21 +113,6 @@ async function logEvent(eventData) {
 	return result.rows[0];
 }
 
-/**
- * Query the audit trail with filters.
- *
- * @param {Object} filters
- * @param {number|null} [filters.candidateId] — entity_id where entity_type='candidate'
- * @param {number|null} [filters.jobId]
- * @param {number|null} [filters.recruiterId] — actor_id
- * @param {string|null} [filters.startDate] — ISO date string
- * @param {string|null} [filters.endDate] — ISO date string
- * @param {string|null} [filters.eventType]
- * @param {number|null} [filters.companyId]
- * @param {number} [filters.limit=100]
- * @param {number} [filters.offset=0]
- * @returns {Promise<Object>} { rows, total }
- */
 async function getAuditTrail(filters = {}) {
 	const {
 		candidateId,
@@ -228,16 +179,6 @@ async function getAuditTrail(filters = {}) {
 	return { rows: dataResult.rows, total };
 }
 
-/**
- * Get the full record of AI decisions and consequential actions about a candidate.
- * For GDPR / right-to-explanation requests.
- *
- * @param {number} candidateId
- * @param {Object} [options]
- * @param {number} [options.limit=500]
- * @param {number} [options.offset=0]
- * @returns {Promise<Object>} { rows, total }
- */
 async function getCandidateDecisions(candidateId, options = {}) {
 	const { limit = 500, offset = 0 } = options;
 
@@ -259,13 +200,6 @@ async function getCandidateDecisions(candidateId, options = {}) {
 	return { rows: result.rows, total };
 }
 
-/**
- * Verify the integrity of the hash chain.
- * Checks that every record's previous_hash matches the previous record's current_hash.
- *
- * @param {number|null} [companyId] — if provided, verify only that company's records
- * @returns {Promise<Object>} { valid: boolean, checked: number, errors: Array<{id, expected, actual}> }
- */
 async function verifyChain(companyId = null) {
 	let query;
 	let params = [];
@@ -286,7 +220,6 @@ async function verifyChain(companyId = null) {
 
 	const errors = [];
 
-	// First record must have previous_hash = GENESIS_HASH
 	if (rows[0].previous_hash !== GENESIS_HASH) {
 		errors.push({
 			id: rows[0].id,
@@ -296,7 +229,6 @@ async function verifyChain(companyId = null) {
 		});
 	}
 
-	// Verify each subsequent record's previous_hash matches the prior record's current_hash
 	for (let i = 1; i < rows.length; i++) {
 		const prev = rows[i - 1];
 		const curr = rows[i];
@@ -310,7 +242,6 @@ async function verifyChain(companyId = null) {
 		}
 	}
 
-	// Also verify each record's current_hash recomputes correctly
 	for (const row of rows) {
 		const recomputed = computeHash(
 			row.previous_hash,
@@ -337,18 +268,9 @@ async function verifyChain(companyId = null) {
 	};
 }
 
-/**
- * Export a regulator-ready JSON report for a date range.
- *
- * @param {number|null} [companyId]
- * @param {string} startDate — ISO date string
- * @param {string} endDate — ISO date string
- * @param {string} [format='json'] — 'json' or 'csv'
- * @returns {Promise<Object|string>} regulator report object or CSV string
- */
 async function exportForRegulator(companyId, startDate, endDate, format = 'json') {
 	let query;
-	let params = [startDate, endDate];
+	const params = [startDate, endDate];
 
 	if (companyId !== undefined && companyId !== null) {
 		query = `SELECT * FROM compliance_audit_trail
@@ -393,7 +315,6 @@ async function exportForRegulator(companyId, startDate, endDate, format = 'json'
 		return `${headers.join(',')}\n${csvRows.join('\n')}`;
 	}
 
-	// JSON report with metadata
 	return {
 		report_metadata: {
 			generated_at: new Date().toISOString(),
@@ -406,7 +327,121 @@ async function exportForRegulator(companyId, startDate, endDate, format = 'json'
 	};
 }
 
+// ─── General audit logger (audit_logs table) ────────────────────────────────
+
+// biome-ignore lint/complexity/noStaticOnlyClass: Preserving existing AuditLogger API to avoid changing 28+ call sites
+class AuditLogger {
+	static async log({ actionType, userId, targetType, targetId, metadata = {}, req = null }) {
+		try {
+			const ipAddress = req ? req.ip || req.connection?.remoteAddress : null;
+			const userAgent = req ? req.get('user-agent') : null;
+
+			await pool.query(
+				`INSERT INTO audit_logs (action_type, user_id, target_type, target_id, metadata, ip_address, user_agent)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+				[actionType, userId, targetType, targetId, JSON.stringify(metadata), ipAddress, userAgent],
+			);
+		} catch (error) {
+			console.error('Audit log failed:', error);
+			// Don't throw - audit logging should not break core functionality
+		}
+	}
+
+	static async query({
+		userId,
+		actionType,
+		targetType,
+		startDate,
+		endDate,
+		limit = 100,
+		offset = 0,
+	}) {
+		let query = 'SELECT * FROM audit_logs WHERE 1=1';
+		const params = [];
+		let paramIndex = 1;
+
+		if (userId) {
+			query += ` AND user_id = $${paramIndex++}`;
+			params.push(userId);
+		}
+
+		if (actionType) {
+			query += ` AND action_type = $${paramIndex++}`;
+			params.push(actionType);
+		}
+
+		if (targetType) {
+			query += ` AND target_type = $${paramIndex++}`;
+			params.push(targetType);
+		}
+
+		if (startDate) {
+			query += ` AND created_at >= $${paramIndex++}`;
+			params.push(startDate);
+		}
+
+		if (endDate) {
+			query += ` AND created_at <= $${paramIndex++}`;
+			params.push(endDate);
+		}
+
+		query += ` ORDER BY created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
+		params.push(limit, offset);
+
+		const result = await pool.query(query, params);
+		return result.rows;
+	}
+
+	static async exportLogs({ startDate, endDate, format = 'json' }) {
+		const result = await pool.query(
+			`SELECT * FROM audit_logs
+       WHERE created_at >= $1 AND created_at <= $2
+       ORDER BY created_at ASC`,
+			[startDate, endDate],
+		);
+
+		if (format === 'csv') {
+			const headers = Object.keys(result.rows[0] || {}).join(',');
+			const rows = result.rows
+				.map((row) =>
+					Object.values(row)
+						.map((v) => (typeof v === 'object' ? JSON.stringify(v) : v))
+						.join(','),
+				)
+				.join('\n');
+			return `${headers}\n${rows}`;
+		}
+
+		return result.rows;
+	}
+}
+
+// ─── Middleware for automatic audit logging ─────────────────────────────────
+
+function auditMiddleware(actionType, getMetadata = () => ({})) {
+	return async (req, res, next) => {
+		const originalJson = res.json.bind(res);
+
+		res.json = (data) => {
+			if (res.statusCode < 400) {
+				AuditLogger.log({
+					actionType,
+					userId: req.session?.userId || req.user?.id,
+					targetType: req.params?.type,
+					targetId: req.params?.id || data?.id,
+					metadata: getMetadata(req, res, data),
+					req,
+				});
+			}
+			return originalJson(data);
+		};
+
+		next();
+	};
+}
+
 module.exports = {
+	// Compliance audit trail exports
 	EVENT_TYPES,
 	ENTITY_TYPES,
 	GENESIS_HASH,
@@ -415,5 +450,8 @@ module.exports = {
 	getCandidateDecisions,
 	verifyChain,
 	exportForRegulator,
-	computeHash, // exported for tests
+	computeHash,
+	// General audit logger exports
+	AuditLogger,
+	auditMiddleware,
 };

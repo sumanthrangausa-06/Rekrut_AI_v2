@@ -15,7 +15,7 @@ const pool = require('../../lib/db');
 const emailService = require('../../lib/email-service');
 const discrepancyService = require('./discrepancy-service');
 const auditLogService = require('../../services/auditLogService');
-const { AuditLogger } = require('../../services/auditLogger');
+const { AuditLogger } = auditLogService;
 
 const BASE_URL = process.env.BASE_URL || process.env.APP_URL || 'https://rekrut.ai';
 

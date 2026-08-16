@@ -28,7 +28,7 @@ const crypto = require('node:crypto');
 const pool = require('../lib/db');
 const { authMiddleware, requireRole } = require('../lib/auth');
 const { rateLimits, createRateLimit } = require('../lib/distributed-rate-limiter');
-const { AuditLogger } = require('../services/auditLogger');
+const { AuditLogger } = require('../services/auditLogService');
 
 const router = express.Router();
 

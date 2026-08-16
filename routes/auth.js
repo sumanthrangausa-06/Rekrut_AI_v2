@@ -12,7 +12,7 @@ const {
 	authMiddleware,
 } = require('../lib/auth');
 
-const { AuditLogger } = require('../services/auditLogger');
+const { AuditLogger } = require('../services/auditLogService');
 
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const emailService = require('../lib/email-service');

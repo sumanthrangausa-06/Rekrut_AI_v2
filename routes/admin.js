@@ -1617,7 +1617,7 @@ router.post('/compliance/appeals/:id/review', requireAdmin, async (req, res) => 
 		}
 
 		// Log the review action
-		const { AuditLogger } = require('../services/auditLogger');
+		const { AuditLogger } = require('../services/auditLogService');
 		await AuditLogger.log({
 			actionType: 'appeal_reviewed',
 			userId: req.user?.id,
@@ -1909,7 +1909,7 @@ router.put('/compliance/retention-policies/:id', requireAdmin, async (req, res) 
 			return res.status(404).json({ error: 'Policy not found' });
 		}
 
-		const { AuditLogger } = require('../services/auditLogger');
+		const { AuditLogger } = require('../services/auditLogService');
 		await AuditLogger.log({
 			actionType: 'retention_policy_updated',
 			userId: req.user?.id,

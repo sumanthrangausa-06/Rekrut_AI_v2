@@ -3,7 +3,7 @@ const router = express.Router();
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
-const { AuditLogger } = require('../services/auditLogger');
+const { AuditLogger } = require('../services/auditLogService');
 
 const RECRUITER_ROLES = ['employer', 'recruiter', 'hiring_manager', 'admin'];
 

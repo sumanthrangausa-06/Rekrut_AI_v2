@@ -122,7 +122,7 @@ jest.mock('../lib/db', () => {
   };
 });
 
-jest.mock('../services/auditLogger', () => ({
+jest.mock('../services/auditLogService', () => ({
   AuditLogger: {
     log: jest.fn().mockResolvedValue({ id: 'audit-1' }),
   },
@@ -439,7 +439,7 @@ describe('RBAC Privilege Escalation — Issue #138', () => {
 
   describe('Audit logging', () => {
     it('logs permission denials to audit trail', async () => {
-      const { AuditLogger } = require('../services/auditLogger');
+      const { AuditLogger } = require('../services/auditLogService');
       const userId = 20;
       db._mockUserRoles.set(userId, new Set(['viewer']));
       const token = makeToken(userId, 'viewer');
