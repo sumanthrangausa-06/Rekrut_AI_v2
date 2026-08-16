@@ -475,6 +475,15 @@ export function JobCard({
 										<Target className='h-2.5 w-2.5 inline mr-0.5' />
 										Fit
 									</span>
+									{fitScore >= 70 && (
+										<Badge
+											variant='outline'
+											className='text-[10px] mt-0.5 border-amber-300 text-amber-700 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700 px-1 py-0 gap-0.5'
+										>
+											<Star className='h-2.5 w-2.5 fill-amber-500 text-amber-500' />
+											Top 5
+										</Badge>
+									)}
 								</div>
 							</Tooltip>
 						) : score != null ? (

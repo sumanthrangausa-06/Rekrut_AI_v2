@@ -2439,10 +2439,12 @@ router.get('/applications', authMiddleware, async (req, res) => {
 		const applications = await pool.query(
 			`
       SELECT ja.*, ja.is_auto_applied, j.title, j.company, j.location, j.salary_range, j.job_type,
-             j.screening_questions, u.company_name as posted_by_company
+             j.screening_questions, u.company_name as posted_by_company,
+             ri.status as intro_status, ri.id as intro_id
       FROM job_applications ja
       JOIN jobs j ON ja.job_id = j.id
       LEFT JOIN users u ON j.user_id = u.id
+      LEFT JOIN recruiter_introductions ri ON ri.job_id = ja.job_id AND ri.candidate_id = ja.candidate_id
       WHERE ja.candidate_id = $1
       ORDER BY ja.applied_at DESC
     `,

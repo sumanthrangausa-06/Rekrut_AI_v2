@@ -39,8 +39,8 @@ export interface KanbanApplication {
 	cover_letter?: string
 	screening_answers?: string | Record<string, string>
 	screening_questions?: string | ScreeningQuestion[]
-	is_auto_applied?: boolean
-}
+	intro_status?: string | null
+	intro_id?: number | null
 
 export interface KanbanSavedJob {
 	id: number

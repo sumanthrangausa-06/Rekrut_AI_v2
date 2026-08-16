@@ -15,6 +15,7 @@ import {
 	FileText,
 	Globe,
 	GraduationCap,
+	Handshake,
 	ListChecks,
 	Loader2,
 	Lock,
@@ -23,6 +24,7 @@ import {
 	Send,
 	Shield,
 	Sparkles,
+	Star,
 	Target,
 	TrendingUp,
 	Volume2,
@@ -77,6 +79,7 @@ interface Job {
 	missing_skills?: string[]
 	success_prediction?: string
 	similarity_score?: number
+	fit_score?: number
 	explanation?: {
 		why_matched: string
 		skills_match: string
@@ -153,6 +156,9 @@ export function CandidateJobDetailPage() {
 	const [autoApplyLoading, setAutoApplyLoading] = useState(false)
 	const [autoApplyRemaining, setAutoApplyRemaining] = useState<number | null>(null)
 	const [toastMessage, setToastMessage] = useState<string | null>(null)
+	// Recruiter Introduction state
+	const [introLoading, setIntroLoading] = useState(false)
+	const [introRequested, setIntroRequested] = useState(false)
 
 	const { isPro, canUseFeature, usageFor } = useSubscription()
 
@@ -205,6 +211,39 @@ export function CandidateJobDetailPage() {
 			}
 		} finally {
 			setAutoApplyLoading(false)
+		}
+	}
+
+	async function handleRequestIntro() {
+		if (!job) return
+		if (!canUseFeature('recruiter_intros')) {
+			navigate('/pricing')
+			return
+		}
+		trackEvent('intro_request_click', { job_id: job.id })
+		setIntroLoading(true)
+		try {
+			await apiCall('/recruiter-intros/request', {
+				method: 'POST',
+				body: { job_id: job.id },
+			})
+			setIntroRequested(true)
+			showToast('Introduction request sent!')
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : ''
+			const code = (err as Error & { code?: string }).code
+			if (code === 'QUOTA_EXCEEDED' || msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('limit')) {
+				showToast('Weekly introduction limit reached (3/week)')
+			} else if (code === 'NOT_TOP_FIVE' || msg.toLowerCase().includes('top 5')) {
+				showToast('You must be in the Top 5 matches for this job')
+			} else if (code === 'DUPLICATE_REQUEST' || msg.toLowerCase().includes('already')) {
+				setIntroRequested(true)
+				showToast('You have already requested an introduction')
+			} else {
+				showToast(msg || 'Failed to request introduction. Please try again.')
+			}
+		} finally {
+			setIntroLoading(false)
 		}
 	}
 
@@ -819,6 +858,40 @@ export function CandidateJobDetailPage() {
 								<Button onClick={() => navigate('/login')} className='gap-2 min-h-[44px]'>
 									Sign in to Apply
 								</Button>
+							)}
+							{/* Request Introduction — Top 5 match only */}
+							{user && (job?.fit_score != null ? job.fit_score >= 70 : matchBreakdown?.overall_score != null ? Math.round(matchBreakdown.overall_score) >= 70 : false) && !introRequested && (
+								<>
+									{!canUseFeature('recruiter_intros') ? (
+										<Button
+											variant='outline'
+											size='sm'
+											onClick={() => navigate('/pricing')}
+											className='gap-1.5 min-h-[44px] border-amber-300 text-amber-700 hover:bg-amber-50'
+										>
+											<Lock className='h-4 w-4' /> Request Intro
+										</Button>
+									) : (
+										<Button
+											size='sm'
+											onClick={handleRequestIntro}
+											disabled={introLoading}
+											className='gap-1.5 min-h-[44px] bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-sm'
+										>
+											{introLoading ? (
+												<Loader2 className='h-4 w-4 animate-spin' />
+											) : (
+												<Handshake className='h-4 w-4' />
+											)}
+											Request Intro
+										</Button>
+									)}
+								</>
+							)}
+							{introRequested && (
+								<Badge variant='outline' className='gap-1 text-sm py-1.5 px-3 bg-amber-50 text-amber-700 border-amber-200'>
+									<Star className='h-3.5 w-3.5 fill-amber-500 text-amber-500' /> Intro Requested
+								</Badge>
 							)}
 						</div>
 					</div>

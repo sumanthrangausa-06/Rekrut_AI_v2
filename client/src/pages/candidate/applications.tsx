@@ -374,6 +374,15 @@ export function CandidateApplicationsPage() {
 								</Badge>
 							)
 						})()}
+						{selectedApp.intro_status && (
+							<Badge
+								variant='outline'
+								className='w-fit gap-1 bg-amber-50 text-amber-700 border-amber-200'
+							>
+								<Trophy className='h-3 w-3' />
+								Intro {selectedApp.intro_status.replace('_', ' ')}
+							</Badge>
+						)}
 						{selectedApp.is_auto_applied && (
 							<Badge
 								variant='outline'
