@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const FormData = require('form-data');
 const pool = require('../lib/db');
 const { authMiddleware, requireRole } = require('../lib/auth');
 const emailService = require('../lib/email-service');
@@ -75,16 +74,12 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 
 		// Upload to R2
 		const formData = new FormData();
-		formData.append('file', req.file.buffer, {
-			filename: req.file.originalname,
-			contentType: req.file.mimetype,
-		});
+		formData.append('file', new Blob([req.file.buffer], { type: req.file.mimetype }), req.file.originalname);
 
 		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
 			method: 'POST',
 			headers: {
 				Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-				...formData.getHeaders(),
 			},
 			body: formData,
 		});

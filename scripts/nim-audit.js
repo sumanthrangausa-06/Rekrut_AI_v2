@@ -5,7 +5,6 @@
  */
 
 const OpenAI = require('openai');
-const _FormData = require('form-data');
 
 const NIM_API_KEY = process.env.NVIDIA_NIM_API_KEY;
 const NIM_BASE = process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1';

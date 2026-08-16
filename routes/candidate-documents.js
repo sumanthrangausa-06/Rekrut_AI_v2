@@ -12,7 +12,6 @@
 
 const express = require('express');
 const multer = require('multer');
-const FormData = require('form-data');
 const pool = require('../lib/db');
 const { authMiddleware } = require('../lib/auth');
 const { encryptBuffer, decryptBuffer } = require('../lib/document-crypto');
@@ -149,16 +148,12 @@ router.post('/upload', authMiddleware, upload.single('document'), async (req, re
 
     // ── 3. Upload encrypted file to R2 ──
     const formData = new FormData();
-    formData.append('file', encryptedBuffer, {
-      filename: req.file.originalname,
-      contentType: 'application/octet-stream', // encrypted blob
-    });
+    formData.append('file', new Blob([encryptedBuffer], { type: 'application/octet-stream' }), req.file.originalname);
 
     const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-        ...formData.getHeaders(),
       },
       body: formData,
     });

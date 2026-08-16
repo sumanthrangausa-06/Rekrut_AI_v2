@@ -20,7 +20,6 @@ const {
 const crypto = require('node:crypto');
 const omniscoreService = require('../services/omniscore');
 const multer = require('multer');
-const FormData = require('form-data');
 
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const emailService = require('../lib/email-service');
@@ -398,16 +397,12 @@ router.post(
 
 			// Upload to R2
 			const formData = new FormData();
-			formData.append('file', req.file.buffer, {
-				filename: `interview-${interview_id}-q${question_index}.webm`,
-				contentType: req.file.mimetype,
-			});
+			formData.append('file', new Blob([req.file.buffer], { type: req.file.mimetype }), `interview-${interview_id}-q${question_index}.webm`);
 
 			const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
 				method: 'POST',
 				headers: {
 					Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-					...formData.getHeaders(),
 				},
 				body: formData,
 			});

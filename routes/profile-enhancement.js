@@ -14,7 +14,6 @@
 
 const express = require('express');
 const multer = require('multer');
-const FormData = require('form-data');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const pool = require('../lib/db');
@@ -71,13 +70,12 @@ async function extractTextFromFile(buffer, mimetype) {
 
 async function uploadToR2(buffer, originalname, mimetype) {
 	const formData = new FormData();
-	formData.append('file', buffer, { filename: originalname, contentType: mimetype });
+	formData.append('file', new Blob([buffer], { type: mimetype }), originalname);
 
 	const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
 		method: 'POST',
 		headers: {
 			Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-			...formData.getHeaders(),
 		},
 		body: formData,
 	});

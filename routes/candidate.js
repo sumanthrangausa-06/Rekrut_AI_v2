@@ -1,6 +1,5 @@
 // Candidate Profile API Routes
 const express = require('express');
-const FormData = require('form-data');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
@@ -329,17 +328,14 @@ router.post('/profile/photo', authMiddleware, upload.single('photo'), async (req
 			return res.status(400).json({ error: 'No file uploaded' });
 		}
 
+		// Upload to R2 via Polsia proxy using native FormData
 		const formData = new FormData();
-		formData.append('file', req.file.buffer, {
-			filename: req.file.originalname,
-			contentType: req.file.mimetype,
-		});
+		formData.append('file', new Blob([req.file.buffer], { type: req.file.mimetype }), req.file.originalname);
 
 		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
 			method: 'POST',
 			headers: {
 				Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-				...formData.getHeaders(),
 			},
 			body: formData,
 		});
@@ -389,18 +385,14 @@ router.post('/profile/resume', authMiddleware, upload.single('resume'), async (r
 			return res.status(400).json({ error: 'Invalid file type. Only PDF, DOC, and DOCX are allowed.' });
 		}
 
-		// Upload to R2
+		// Upload to R2 via Polsia proxy using native FormData
 		const formData = new FormData();
-		formData.append('file', req.file.buffer, {
-			filename: req.file.originalname,
-			contentType: req.file.mimetype,
-		});
+		formData.append('file', new Blob([req.file.buffer], { type: req.file.mimetype }), req.file.originalname);
 
 		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
 			method: 'POST',
 			headers: {
 				Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-				...formData.getHeaders(),
 			},
 			body: formData,
 		});
@@ -410,7 +402,6 @@ router.post('/profile/resume', authMiddleware, upload.single('resume'), async (r
 			throw new Error(uploadResult.error?.message || 'Upload failed');
 		}
 
-		// Save parsed resume record (processing status — no AI parsing triggered)
 		await pool.query(
 			`
 			INSERT INTO parsed_resumes (user_id, original_filename, file_url, parsing_status)
@@ -464,18 +455,14 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
 			return res.status(400).json({ error: 'No file uploaded' });
 		}
 
-		// Upload to R2
+		// Upload to R2 via Polsia proxy using native FormData
 		const formData = new FormData();
-		formData.append('file', req.file.buffer, {
-			filename: req.file.originalname,
-			contentType: req.file.mimetype,
-		});
+		formData.append('file', new Blob([req.file.buffer], { type: req.file.mimetype }), req.file.originalname);
 
 		const uploadRes = await fetch('https://polsia.com/api/proxy/r2/upload', {
 			method: 'POST',
 			headers: {
 				Authorization: `Bearer ${process.env.POLSIA_API_KEY}`,
-				...formData.getHeaders(),
 			},
 			body: formData,
 		});
@@ -485,7 +472,6 @@ router.post('/resume/upload', authMiddleware, upload.single('resume'), async (re
 			throw new Error(uploadResult.error?.message || 'Upload failed');
 		}
 
-		// Save parsed resume record
 		const resumeRecord = await pool.query(
 			`
       INSERT INTO parsed_resumes (user_id, original_filename, file_url, parsing_status)
