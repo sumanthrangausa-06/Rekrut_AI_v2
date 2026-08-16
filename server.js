@@ -108,6 +108,7 @@ const companyRoutes = require('./routes/company');
 const { router: auditRoutes } = require('./routes/audit');
 const trustscoreRoutes = require('./routes/trustscore');
 const recruiterRoutes = require('./routes/recruiter');
+const recruiterImportRoutes = require('./routes/recruiter-import'); // Issue #141 — Bulk import
 const matchingRoutes = require('./routes/matching');
 const companyMatchRoutes = require('./routes/candidate-company-matches'); // Issue #27 — Company Matches
 const recruiterIntroductionRoutes = require('./routes/recruiter-introductions'); // Issue #38 — Recruiter Introductions
@@ -568,6 +569,7 @@ app.use('/api/company', companyRoutes);
 app.use('/api/careers', require('./routes/careers'));
 app.use('/api/trustscore', trustscoreRoutes);
 app.use('/api/recruiter', recruiterRoutes);
+app.use('/api/recruiter', recruiterImportRoutes); // Issue #141 — Bulk import
 
 // API Routes - Matching Engine
 app.use('/api/matching', matchingRoutes);
