@@ -33,8 +33,14 @@ import {
 	Video,
 	X,
 	Zap,
+	MapPin,
+	FileText,
+	BarChart3,
+	Compass,
+	ChevronLeft,
+	ChevronRight,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -454,27 +460,65 @@ function HeroSection() {
 						spam, no noise.
 					</p>
 
-					{/* Hero search bar */}
-					<div className='mx-auto mt-8 max-w-xl'>
-						<div
-							className='flex items-center gap-2 rounded-xl border bg-background px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary/20'
-							onClick={() => trackEvent('hero_search_focus')}
-						>
-							<Search className='h-5 w-5 text-muted-foreground shrink-0' />
-							<input
-								type='text'
-								placeholder='Search jobs, companies, or skills...'
-								className='flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground'
-								onKeyDown={(e) => {
-									if (e.key === 'Enter') {
-										const query = (e.target as HTMLInputElement).value
-										if (query.trim()) {
-											trackEvent('hero_search_submit', { query })
-											window.location.href = `/candidate/jobs?q=${encodeURIComponent(query)}`
+					{/* Hero search bar — dual input: job title + location */}
+					<div className='mx-auto mt-8 max-w-2xl'>
+						<div className='flex flex-col sm:flex-row items-stretch gap-1 rounded-xl border bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-primary/20'>
+							<div className='flex flex-1 items-center gap-2 px-3 py-2'>
+								<Search className='h-5 w-5 text-muted-foreground shrink-0' />
+								<input
+									id='hero-search-title'
+									type='text'
+									placeholder='Job title, keywords, or company'
+									className='flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground'
+									onKeyDown={(e) => {
+										if (e.key === 'Enter') {
+											const title = (e.target as HTMLInputElement).value
+											const locInput = document.getElementById('hero-search-location') as HTMLInputElement
+											const loc = locInput?.value || ''
+											if (title.trim()) {
+												trackEvent('hero_search_submit', { query: title, location: loc })
+												window.location.href = `/candidate/jobs?q=${encodeURIComponent(title)}&location=${encodeURIComponent(loc)}`
+											}
 										}
+									}}
+								/>
+							</div>
+							<div className='hidden sm:block w-px bg-border self-stretch my-1' />
+							<div className='flex flex-1 items-center gap-2 px-3 py-2'>
+								<MapPin className='h-5 w-5 text-muted-foreground shrink-0' />
+								<input
+									id='hero-search-location'
+									type='text'
+									placeholder='Location'
+									className='flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground'
+									onKeyDown={(e) => {
+										if (e.key === 'Enter') {
+											const loc = (e.target as HTMLInputElement).value
+											const titleInput = document.getElementById('hero-search-title') as HTMLInputElement
+											const title = titleInput?.value || ''
+											if (title.trim()) {
+												trackEvent('hero_search_submit', { query: title, location: loc })
+												window.location.href = `/candidate/jobs?q=${encodeURIComponent(title)}&location=${encodeURIComponent(loc)}`
+											}
+										}
+									}}
+								/>
+							</div>
+							<Button
+								size='sm'
+								className='shrink-0 gap-2 px-4'
+								onClick={() => {
+									const title = (document.getElementById('hero-search-title') as HTMLInputElement)?.value || ''
+									const loc = (document.getElementById('hero-search-location') as HTMLInputElement)?.value || ''
+									if (title.trim()) {
+										trackEvent('hero_search_submit', { query: title, location: loc })
+										window.location.href = `/candidate/jobs?q=${encodeURIComponent(title)}&location=${encodeURIComponent(loc)}`
 									}
 								}}
-							/>
+							>
+								<Search className='h-4 w-4' />
+								<span className='hidden sm:inline'>Search</span>
+							</Button>
 						</div>
 					</div>
 
@@ -643,6 +687,177 @@ function HeroSection() {
 	)
 }
 
+function CompanyTrustBarSection() {
+	return (
+		<section className='border-y bg-muted/30 py-10 sm:py-12'>
+			<div className='mx-auto max-w-7xl px-4'>
+				<p className='text-center text-xs font-medium uppercase tracking-wider text-muted-foreground mb-6'>
+					Trusted by candidates at top companies
+				</p>
+				<div className='flex flex-wrap items-center justify-center gap-x-3 gap-y-3 sm:gap-x-6'>
+					{companyLogos.map((name) => (
+						<div
+							key={name}
+							className='flex items-center gap-2 rounded-lg bg-background border px-3 py-2 shadow-sm'
+						>
+							<Building2 className='h-4 w-4 text-indigo-500' />
+							<span className='text-sm font-semibold text-foreground'>{name}</span>
+						</div>
+					))}
+				</div>
+			</div>
+		</section>
+	)
+}
+
+function LiveStatsSection() {
+	const [counts, setCounts] = useState({ candidates: 0, positions: 0, score: 0 })
+
+	useEffect(() => {
+		const targets = { candidates: 50000, positions: 2400, score: 87 }
+		const duration = 1500
+		const steps = 30
+		let step = 0
+		const interval = setInterval(() => {
+			step++
+			const progress = step / steps
+			setCounts({
+				candidates: Math.round(targets.candidates * progress),
+				positions: Math.round(targets.positions * progress),
+				score: Math.round(targets.score * progress),
+			})
+			if (step >= steps) clearInterval(interval)
+		}, duration / steps)
+		return () => clearInterval(interval)
+	}, [])
+
+	return (
+		<section className='py-16 sm:py-20'>
+			<div className='mx-auto max-w-7xl px-4'>
+				<div className='mx-auto max-w-2xl text-center'>
+					<Badge variant='outline' className='mb-4'>Live Stats</Badge>
+					<h2 className='font-heading text-3xl font-bold tracking-tight sm:text-4xl'>
+						Join thousands already hiring smarter
+					</h2>
+				</div>
+				<div className='mt-12 grid gap-6 sm:grid-cols-3'>
+					{[
+						{ value: counts.candidates.toLocaleString() + '+', label: 'Active candidates', icon: Users },
+						{ value: counts.positions.toLocaleString() + '+', label: 'Open positions', icon: Briefcase },
+						{ value: counts.score + '%', label: 'Avg. match score', icon: Star },
+					].map((stat) => (
+						<Card key={stat.label} className='border-0 bg-card shadow-sm text-center'>
+							<CardContent className='p-8'>
+								<div className='flex justify-center'>
+									<div className='flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/10'>
+										<stat.icon className='h-6 w-6 text-indigo-500' />
+									</div>
+								</div>
+								<p className='mt-4 font-heading text-3xl font-bold text-indigo-500 sm:text-4xl'>
+									{stat.value}
+								</p>
+								<p className='mt-2 text-sm text-muted-foreground'>{stat.label}</p>
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			</div>
+		</section>
+	)
+}
+
+const tabFeatures = [
+	{
+		id: 'cv-review',
+		label: 'CV Review',
+		icon: FileText,
+		title: 'AI-Powered CV Review',
+		description:
+			'Upload your resume and get instant, actionable feedback. Our AI analyzes structure, keywords, and impact — then suggests improvements that actually get you noticed.',
+	},
+	{
+		id: 'auto-apply',
+		label: 'Auto-Apply',
+		icon: Send,
+		title: 'One-Click Auto Apply',
+		description:
+			'Set your preferences once and let Rekrut AI apply to matched roles automatically. Tailored cover letters, optimized applications, zero manual effort.',
+	},
+	{
+		id: 'match-feedback',
+		label: 'Match Feedback',
+		icon: BarChart3,
+		title: 'Detailed Match Feedback',
+		description:
+			'Understand why you matched — or did not. Get breakdowns of skill gaps, experience alignment, and personalized steps to improve your match score.',
+	},
+	{
+		id: 'career-nav',
+		label: 'Career Navigator',
+		icon: Compass,
+		title: 'AI Career Navigator',
+		description:
+			'Map your career trajectory with AI. Explore paths, compare roles, and get step-by-step guidance on skills to build next to reach your target position.',
+	},
+]
+
+function FeatureTabsSection() {
+	const [activeTab, setActiveTab] = useState(tabFeatures[0].id)
+	const active = tabFeatures.find((t) => t.id === activeTab) || tabFeatures[0]
+
+	return (
+		<section className='border-y bg-muted/30 py-20 sm:py-24'>
+			<div className='mx-auto max-w-7xl px-4'>
+				<div className='mx-auto max-w-2xl text-center'>
+					<Badge variant='outline' className='mb-4'>Product</Badge>
+					<h2 className='font-heading text-3xl font-bold tracking-tight sm:text-4xl'>
+						One platform, every career need
+					</h2>
+					<p className='mt-4 text-lg text-muted-foreground'>
+						From polishing your CV to landing the offer — everything in one place.
+					</p>
+				</div>
+
+				<div className='mt-14'>
+					<div className='flex flex-wrap justify-center gap-2'>
+						{tabFeatures.map((tab) => {
+							const isActive = tab.id === activeTab
+							return (
+								<button
+									key={tab.id}
+									onClick={() => setActiveTab(tab.id)}
+									className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
+										isActive
+											? 'bg-indigo-500 text-white shadow-sm'
+											: 'bg-background border text-muted-foreground hover:text-foreground'
+									}`}
+								>
+									<tab.icon className='h-4 w-4' />
+									{tab.label}
+								</button>
+							)
+						})}
+					</div>
+
+					<Card className='mt-8 border-0 bg-card shadow-sm'>
+						<CardContent className='p-8 sm:p-12'>
+							<div className='flex flex-col items-center text-center'>
+								<div className='flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-500/10'>
+									<active.icon className='h-8 w-8 text-indigo-500' />
+								</div>
+								<h3 className='mt-6 font-heading text-2xl font-bold'>{active.title}</h3>
+								<p className='mt-3 max-w-xl text-base leading-relaxed text-muted-foreground'>
+									{active.description}
+								</p>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
+			</div>
+		</section>
+	)
+}
+
 function FeaturesSection() {
 	return (
 		<section className='border-y bg-muted/30 py-20 sm:py-24'>
@@ -729,54 +944,81 @@ function HowItWorksSection() {
 }
 
 function SocialProofSection() {
+	const scrollRef = useRef<HTMLDivElement>(null)
+
+	const scroll = (dir: 'left' | 'right') => {
+		const el = scrollRef.current
+		if (!el) return
+		const w = el.offsetWidth
+		el.scrollBy({ left: dir === 'left' ? -w * 0.8 : w * 0.8, behavior: 'smooth' })
+	}
+
 	return (
 		<section className='border-y bg-muted/30 py-20 sm:py-24'>
 			<div className='mx-auto max-w-7xl px-4'>
-				{/* Logos */}
-				<div className='mx-auto max-w-3xl text-center'>
-					<p className='text-sm font-medium text-muted-foreground uppercase tracking-wider'>
-						Candidates at companies like Google, Stripe, Airbnb, and thousands of startups trust
-						Rekrut AI
+				<div className='mx-auto max-w-2xl text-center'>
+					<Badge variant='outline' className='mb-4'>Testimonials</Badge>
+					<h2 className='font-heading text-3xl font-bold tracking-tight sm:text-4xl'>
+						Success stories from real candidates
+					</h2>
+					<p className='mt-4 text-lg text-muted-foreground'>
+						See how Rekrut AI helped people land their dream jobs.
 					</p>
-					<div className='mt-8 flex flex-wrap items-center justify-center gap-x-4 gap-y-4 sm:gap-x-8'>
-						{companyLogos.map((logo) => (
-							<div
-								key={logo}
-								className='flex items-center gap-2 rounded-lg bg-background px-4 py-2 shadow-sm'
-							>
-								<Building2 className='h-4 w-4 text-muted-foreground' />
-								<span className='text-sm font-semibold text-muted-foreground'>{logo}</span>
-							</div>
-						))}
-					</div>
 				</div>
 
-				{/* Testimonials */}
-				<div className='mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4'>
-					{testimonials.map((t, i) => (
-						<Card key={t.author} className='border-0 bg-card shadow-sm'>
-							<CardContent className='p-6'>
-								<div className='flex gap-1'>
-									{[1, 2, 3, 4, 5].map((star) => (
-										<Star key={star} className='h-4 w-4 fill-amber-400 text-amber-400' />
-									))}
-								</div>
-								<p className='mt-4 text-sm leading-relaxed text-foreground'>"{t.quote}"</p>
-								<div className='mt-6 flex items-center gap-3'>
-									<img
-										src={UNSPLASH_IMAGES[`testimonial${i + 1}` as keyof typeof UNSPLASH_IMAGES]}
-										alt={t.author}
-										className='h-10 w-10 rounded-full object-cover'
-										loading='lazy'
-									/>
-									<div>
-										<p className='text-sm font-semibold'>{t.author}</p>
-										<p className='text-xs text-muted-foreground'>{t.role}</p>
+				<div className='mt-14 relative'>
+					<div
+						ref={scrollRef}
+						className='flex gap-6 overflow-x-auto pb-4 snap-x snap-mandatory scroll-smooth'
+						style={{ scrollbarWidth: 'none' }}
+					>
+						{testimonials.map((t, i) => (
+							<Card
+								key={t.author}
+								className='min-w-[280px] sm:min-w-[360px] flex-shrink-0 snap-start border-0 bg-card shadow-sm'
+							>
+								<CardContent className='p-6'>
+									<div className='flex gap-1'>
+										{[1, 2, 3, 4, 5].map((s) => (
+											<Star key={s} className='h-4 w-4 fill-amber-400 text-amber-400' />
+										))}
 									</div>
-								</div>
-							</CardContent>
-						</Card>
-					))}
+									<p className='mt-4 text-sm leading-relaxed text-foreground'>"{t.quote}"</p>
+									<div className='mt-6 flex items-center gap-3'>
+										<img
+											src={UNSPLASH_IMAGES[`testimonial${i + 1}` as keyof typeof UNSPLASH_IMAGES]}
+											alt={t.author}
+											className='h-10 w-10 rounded-full object-cover'
+											loading='lazy'
+										/>
+										<div>
+											<p className='text-sm font-semibold'>{t.author}</p>
+											<p className='text-xs text-muted-foreground'>{t.role}</p>
+										</div>
+									</div>
+								</CardContent>
+							</Card>
+						))}
+					</div>
+
+					<div className='mt-4 flex items-center justify-center gap-3'>
+						<Button
+							variant='outline'
+							size='icon'
+							onClick={() => scroll('left')}
+							aria-label='Previous testimonial'
+						>
+							<ChevronLeft className='h-4 w-4' />
+						</Button>
+						<Button
+							variant='outline'
+							size='icon'
+							onClick={() => scroll('right')}
+							aria-label='Next testimonial'
+						>
+							<ChevronRight className='h-4 w-4' />
+						</Button>
+					</div>
 				</div>
 			</div>
 		</section>
@@ -1425,9 +1667,12 @@ export function LandingPage() {
 			<Header />
 			<main>
 				<HeroSection />
+				<CompanyTrustBarSection />
+				<LiveStatsSection />
 				<div id='features'>
 					<FeaturesSection />
 				</div>
+				<FeatureTabsSection />
 				<HowItWorksSection />
 				<SocialProofSection />
 				<PricingTeaserSection />
