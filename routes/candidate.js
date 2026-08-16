@@ -1,6 +1,5 @@
 // Candidate Profile API Routes
 const express = require('express');
-const fetch = require('node-fetch');
 const FormData = require('form-data');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');

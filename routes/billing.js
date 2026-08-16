@@ -1,5 +1,4 @@
 const express = require('express');
-const fetch = require('node-fetch');
 const crypto = require('node:crypto');
 const pool = require('../lib/db');
 const { optionalAuth, authMiddleware } = require('../lib/auth');

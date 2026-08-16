@@ -5,7 +5,6 @@
  */
 
 const OpenAI = require('openai');
-const fetch = require('node-fetch');
 const _FormData = require('form-data');
 
 const NIM_API_KEY = process.env.NVIDIA_NIM_API_KEY;

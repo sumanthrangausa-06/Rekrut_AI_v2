@@ -4,7 +4,6 @@
  * Tests all recruiter and candidate action buttons/functions
  */
 
-const fetch = require('node-fetch');
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const colors = {

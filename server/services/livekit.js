@@ -12,7 +12,6 @@
 
 const pool = require('../../lib/db');
 const encryption = require('../../services/encryption');
-const fetch = require('node-fetch');
 const FormData = require('form-data');
 
 // LiveKit SDK v2 is ESM-only; lazy-load via dynamic import

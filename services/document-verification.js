@@ -1,7 +1,6 @@
 const OpenAI = require('openai');
 const crypto = require('node:crypto');
 const pool = require('../lib/db');
-const fetch = require('node-fetch');
 
 let openai = null;
 try {

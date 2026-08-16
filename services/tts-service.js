@@ -2,7 +2,6 @@
 // Extracted from routes/tts.js for clean separation of concerns
 // Provides robust error handling, retries, and health checking
 
-const fetch = require('node-fetch');
 
 const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
 const CARTESIA_API_URL = 'https://api.cartesia.ai/tts/bytes';

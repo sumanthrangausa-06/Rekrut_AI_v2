@@ -14,7 +14,6 @@
 
 const express = require('express');
 const multer = require('multer');
-const fetch = require('node-fetch');
 const FormData = require('form-data');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');

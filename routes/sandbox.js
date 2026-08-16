@@ -31,7 +31,6 @@ const { rateLimits, createRateLimit } = require('../lib/distributed-rate-limiter
 const { AuditLogger } = require('../services/auditLogger');
 
 const router = express.Router();
-const fetch = require('node-fetch');
 
 // =============================================================================
 // Configuration

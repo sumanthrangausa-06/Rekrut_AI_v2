@@ -20,7 +20,6 @@ const {
 const crypto = require('node:crypto');
 const omniscoreService = require('../services/omniscore');
 const multer = require('multer');
-const fetch = require('node-fetch');
 const FormData = require('form-data');
 
 const { rateLimits } = require('../lib/distributed-rate-limiter');

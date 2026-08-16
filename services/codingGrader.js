@@ -14,7 +14,6 @@
 
 const pool = require('../lib/db');
 const { chat } = require('../lib/polsia-ai');
-const fetch = require('node-fetch');
 
 // =============================================================================
 // Configuration

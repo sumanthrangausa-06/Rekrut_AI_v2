@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const fetch = require('node-fetch');
 const FormData = require('form-data');
 const pool = require('../lib/db');
 const { authMiddleware, requireRole } = require('../lib/auth');
