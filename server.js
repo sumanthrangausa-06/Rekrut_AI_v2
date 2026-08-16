@@ -12,6 +12,21 @@ const { cspMiddleware } = require('./server/middleware/csp');
 // Load environment variables from .env file
 require('dotenv').config();
 
+// ─── Sentry Error Tracking ───────────────────────────────────────────────
+// Initialize BEFORE express app so request handlers are instrumented
+const Sentry = require('@sentry/node');
+if (process.env.SENTRY_DSN) {
+	Sentry.init({
+		dsn: process.env.SENTRY_DSN,
+		tracesSampleRate: 1.0,
+		profilesSampleRate: 1.0,
+		environment: process.env.NODE_ENV || 'development',
+	});
+	console.log('[sentry] Initialized');
+} else {
+	console.log('[sentry] SENTRY_DSN not set — error tracking disabled');
+}
+
 const pool = require('./lib/db');
 
 // ─── Startup Environment Validation ─────────────────────────────────────
@@ -140,6 +155,12 @@ const prometheus = require('./server/middleware/prometheus');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Sentry request handler — must be the first middleware on the app
+if (process.env.SENTRY_DSN) {
+	app.use(Sentry.Handlers.requestHandler());
+	app.use(Sentry.Handlers.tracingHandler());
+}
 
 // Disable x-powered-by header
 app.disable('x-powered-by');
@@ -287,48 +308,9 @@ app.get('/health', async (_req, res) => {
 	}
 });
 
-// API health alias for monitoring consistency
-app.get('/api/health', async (_req, res) => {
-	const HEALTH_TIMEOUT_MS = 3000;
-	let responded = false;
-
-	const timeout = setTimeout(() => {
-		if (!responded) {
-			responded = true;
-			res.status(200).json({
-				status: 'degraded',
-				timestamp: new Date().toISOString(),
-				db: { connected: false, error: 'Health check timed out' },
-				issues: { healthCheckTimeout: true },
-			});
-		}
-	}, HEALTH_TIMEOUT_MS);
-
-	try {
-		const { runHealthCheck } = require('./lib/db-health');
-		const health = await runHealthCheck();
-		if (responded) return;
-		clearTimeout(timeout);
-		res.status(200).json({
-			status: health.healthy ? 'ok' : 'degraded',
-			timestamp: new Date().toISOString(),
-			db: health.connection,
-			tables: health.tables,
-			pool: health.pool,
-			env: health.env,
-			issues: health.issues,
-		});
-	} catch (_err) {
-		if (responded) return;
-		clearTimeout(timeout);
-		res.status(200).json({
-			status: 'degraded',
-			timestamp: new Date().toISOString(),
-			db: { connected: false, error: 'Health check failed' },
-			issues: { healthCheckError: true },
-		});
-	}
-});
+// API health alias for monitoring consistency — delegated to routes/health.js
+const healthRoutes = require('./routes/health');
+app.use('/api/health', healthRoutes);
 
 // Issue #143: Analytics performance health endpoint
 app.get('/health/analytics', (_req, res) => {
@@ -2018,6 +2000,12 @@ app.get('*', (req, res) => {
 		res.status(404).json({ error: 'API endpoint not found' });
 	}
 });
+
+// Sentry error handler — captures exceptions and sends to Sentry
+// Must be registered BEFORE the global error handler but AFTER all routes
+if (process.env.SENTRY_DSN) {
+	app.use(Sentry.Handlers.errorHandler());
+}
 
 // Global error handler — return JSON for API routes, HTML for everything else
 app.use((err, _req, res, _next) => {

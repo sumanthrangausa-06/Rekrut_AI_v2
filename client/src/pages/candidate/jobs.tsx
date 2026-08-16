@@ -43,6 +43,7 @@ import {
 	restoreJob,
 	unlikeJob,
 } from '@/lib/api'
+import { trackEvent } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
 import { JobCard, JobFilterBar } from '@/components/candidate'
 import type { JobFilterValues } from '@/components/candidate'
@@ -324,6 +325,7 @@ export function CandidateJobsPage() {
 			const allJobs = primaryRes?.data || []
 			setJobs(allJobs)
 			setLoading(false)
+			trackEvent('job_search', { query: filters.search || undefined, location: filters.location || undefined })
 
 			// Fetch fit scores for all visible jobs — non-blocking enrichment
 			if (allJobs.length > 0) {

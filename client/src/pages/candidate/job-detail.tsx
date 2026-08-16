@@ -47,6 +47,7 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/auth-context'
 import { apiCall } from '@/lib/api'
+import { trackEvent } from '@/lib/analytics'
 import { useSubscription } from '@/hooks/use-subscription'
 
 interface Job {
@@ -446,6 +447,7 @@ export function CandidateJobDetailPage() {
 			setApplied(true)
 			setShowApplyForm(false)
 			setShowOneClickModal(false)
+			trackEvent('application_submitted', { job_id: job.id })
 		} catch (err: unknown) {
 			alert(err instanceof Error ? err.message : 'Failed to apply')
 		} finally {

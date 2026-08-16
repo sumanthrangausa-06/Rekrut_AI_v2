@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { apiCall, getToken } from '@/lib/api'
+import { trackEvent } from '@/lib/analytics'
 
 import type {
 	MockConversationTurn,
@@ -959,6 +960,7 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 				},
 			})
 			if (res.success) {
+				trackEvent('ai_interview_start', { target_role: mockTargetRole.trim() })
 				setMockSession(res.session)
 				setMockShowSetup(false)
 				setMockFeedback(null)
@@ -1116,6 +1118,8 @@ export function MockInterview({ mockPastSessions, onSessionComplete }: MockInter
 			})
 			if (res.success) {
 				stopMockCamera()
+				const overallScore = res.feedback?.overall_score ?? 0
+				trackEvent('ai_interview_complete', { score: overallScore, target_role: mockTargetRole.trim() })
 				if (res.no_feedback) {
 					setMockFeedback({
 						overall_score: 0,

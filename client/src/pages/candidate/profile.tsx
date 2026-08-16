@@ -61,6 +61,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/auth-context'
 import { apiCall } from '@/lib/api'
+import { trackEvent } from '@/lib/analytics'
 
 interface Profile {
 	user_id?: number
@@ -1676,6 +1677,7 @@ function PersonalInfoTab({
 			throw new Error('Invalid LinkedIn URL')
 		}
 		await apiCall('/candidate/profile', { method: 'PUT', body: data })
+		trackEvent('profile_edit')
 	}
 
 	const { status: saveStatus } = useAutoSave(profile, saveProfile, 500)
