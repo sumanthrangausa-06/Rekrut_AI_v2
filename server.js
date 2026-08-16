@@ -95,6 +95,7 @@ const trustscoreRoutes = require('./routes/trustscore');
 const recruiterRoutes = require('./routes/recruiter');
 const matchingRoutes = require('./routes/matching');
 const companyMatchRoutes = require('./routes/candidate-company-matches'); // Issue #27 — Company Matches
+const recruiterIntroductionRoutes = require('./routes/recruiter-introductions'); // Issue #38 — Recruiter Introductions
 const candidateRoutes = require('./routes/candidate');
 const assessmentRoutes = require('./routes/assessments');
 const panelRoutes = require('./routes/panels');
@@ -589,6 +590,7 @@ app.use('/api/recruiter', recruiterRoutes);
 // API Routes - Matching Engine
 app.use('/api/matching', matchingRoutes);
 app.use('/api/candidate/company-matches', companyMatchRoutes); // Issue #27 — Company Matches
+app.use('/api/recruiter-intros', recruiterIntroductionRoutes); // Issue #38 — Recruiter Introductions
 
 // Issue #115: Candidate document management — mounted BEFORE /api/documents so /candidate/documents takes priority
 app.use('/api/candidate/documents', candidateDocumentRoutes);
