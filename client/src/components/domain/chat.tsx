@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Avatar } from '@/components/ui/avatar'
 import { apiCall } from '@/lib/api'
 
 // ─── Types ──────────────────────────────────────────────────
@@ -725,11 +726,12 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 																className={`flex gap-2 ${isSelf ? 'flex-row-reverse' : ''}`}
 															>
 																{showAvatar ? (
-																	<div className='h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 mt-1'>
-																		{msg.sender?.name?.[0]?.toUpperCase() ||
-																			otherUser?.name?.[0]?.toUpperCase() ||
-																			'?'}
-																	</div>
+																	<Avatar
+																		className='h-7 w-7 shrink-0 mt-1'
+																		seed={msg.sender_id || otherUser?.id}
+																		fallback={msg.sender?.name?.[0]?.toUpperCase() || otherUser?.name?.[0]?.toUpperCase() || '?'}
+																		useDiceBear={true}
+																	/>
 																) : (
 																	!isSelf && <div className='w-7 shrink-0' />
 																)}
@@ -801,9 +803,12 @@ export function ChatPage({ mode }: { mode: 'candidate' | 'recruiter' }) {
 										{/* Typing indicator */}
 										{typingUsers.size > 0 && !msgSearchQuery && (
 											<div className='flex gap-2'>
-												<div className='h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0'>
-													{otherUser?.name?.[0]?.toUpperCase() || '?'}
-												</div>
+												<Avatar
+													className='h-7 w-7 shrink-0'
+													seed={otherUser?.id}
+													fallback={otherUser?.name?.[0]?.toUpperCase() || '?'}
+													useDiceBear={true}
+												/>
 												<div className='bg-muted rounded-2xl rounded-tl-md px-4 py-2.5'>
 													<div className='flex items-center gap-1'>
 														<div

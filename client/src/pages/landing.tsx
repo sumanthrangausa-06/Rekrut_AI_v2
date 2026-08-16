@@ -434,6 +434,14 @@ function HeroSection() {
 
 	return (
 		<section className='relative overflow-hidden'>
+			{/* Background image with overlay */}
+			<div
+				className='absolute inset-0 bg-cover bg-center bg-no-repeat'
+				style={{ backgroundImage: `url(${UNSPLASH_IMAGES.hero})` }}
+				aria-hidden='true'
+			/>
+			<div className='absolute inset-0 bg-background/80 backdrop-blur-sm' />
+
 			{/* Background gradient blobs */}
 			<div className='absolute inset-0 overflow-hidden pointer-events-none'>
 				<div className='absolute -top-40 -right-40 h-96 w-96 rounded-full bg-primary/10 blur-3xl' />

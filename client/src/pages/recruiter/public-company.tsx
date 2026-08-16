@@ -282,7 +282,7 @@ export function PublicCompanyPage() {
 						{/* Logo */}
 						<div className='h-24 w-24 rounded-2xl bg-white border-2 border-border shadow-sm flex items-center justify-center shrink-0 overflow-hidden'>
 							{c.logo_url ? (
-								<img src={c.logo_url} alt={c.name} className='h-full w-full object-cover' />
+								<img src={c.logo_url} alt={c.name} className='h-full w-full object-cover' loading="lazy" />
 							) : (
 								<Building2 className='h-10 w-10 text-primary/60' />
 							)}

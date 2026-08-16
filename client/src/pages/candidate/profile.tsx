@@ -1466,7 +1466,7 @@ function AvatarUpload({
 		<div className='relative group'>
 			<div className='h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-muted flex items-center justify-center overflow-hidden border-4 border-white shadow-lg'>
 				{profile.avatar_url ? (
-					<img src={profile.avatar_url} alt='Avatar' className='h-full w-full object-cover' />
+					<img src={profile.avatar_url} alt='Avatar' className='h-full w-full object-cover' loading="lazy" />
 				) : (
 					<User className='h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground' />
 				)}

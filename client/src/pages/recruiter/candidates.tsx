@@ -974,6 +974,7 @@ export function RecruiterCandidatesPage() {
 									? { label: 'Clear filters', onClick: handleClearFilters }
 									: { label: 'Post a job', href: '/recruiter/jobs' }
 							}
+							image={UNSPLASH_IMAGES.emptyCandidates}
 						/>
 					) : viewMode === 'list' ? (
 						<div className='space-y-4'>
@@ -1091,11 +1092,12 @@ export function RecruiterCandidatesPage() {
 													onClick={() => handleOpenProfilePreview(candidate)}
 												>
 													<div className='flex items-center gap-2 mb-2'>
-														<Avatar className='h-8 w-8'>
-															<AvatarFallback className='text-xs bg-indigo-100 text-indigo-600'>
-																{candidate.name.slice(0, 2).toUpperCase()}
-															</AvatarFallback>
-														</Avatar>
+														<Avatar
+															className='h-8 w-8'
+															seed={candidate.id}
+															fallback={candidate.name.slice(0, 2).toUpperCase()}
+															useDiceBear={true}
+														/>
 														<div className='min-w-0 flex-1'>
 															<p className='text-sm font-medium truncate'>{candidate.name}</p>
 															<p className='text-xs text-muted-foreground truncate'>

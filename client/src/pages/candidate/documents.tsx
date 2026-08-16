@@ -18,6 +18,7 @@ import {
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '@/components/domain/empty-state'
+import { UNSPLASH_IMAGES } from '@/lib/avatar'
 import { Skeleton } from '@/components/domain/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -302,6 +303,7 @@ export function CandidateDocumentsPage() {
 							icon={FileText}
 							title='No documents yet'
 							description='Upload your resume, certificates, and ID documents to improve your profile and job matching'
+       image={UNSPLASH_IMAGES.emptyNotifications}
 							action={{
 								label: 'Upload your first document',
 								onClick: () => document.getElementById('doc-upload')?.click(),

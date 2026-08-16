@@ -1058,17 +1058,30 @@ function EmptyState({
 	title,
 	description,
 	action,
+	image,
 }: {
 	icon: React.ReactNode
 	title: string
 	description: string
 	action?: React.ReactNode
+	image?: string
 }) {
 	return (
 		<div className='flex flex-col items-center justify-center py-12'>
-			<div className='rounded-full bg-indigo-50 dark:bg-indigo-900/20 p-4 mb-4'>
-				{icon}
-			</div>
+			{image ? (
+				<img
+					src={image}
+					alt={title}
+					className='h-40 w-auto rounded-xl object-cover mb-4 shadow-sm'
+					loading='lazy'
+					width={320}
+					height={160}
+				/>
+			) : (
+				<div className='rounded-full bg-indigo-50 dark:bg-indigo-900/20 p-4 mb-4'>
+					{icon}
+				</div>
+			)}
 			<p className='text-foreground font-semibold text-base'>{title}</p>
 			<p className='text-sm text-muted-foreground mt-1 max-w-xs text-center'>{description}</p>
 			{action}

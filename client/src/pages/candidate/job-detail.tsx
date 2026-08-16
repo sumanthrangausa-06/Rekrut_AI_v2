@@ -668,6 +668,7 @@ export function CandidateJobDetailPage() {
 					title={`${job.title} at ${job.company || job.poster_company || 'Company'} — Apply Now`}
 					description={`${job.title} at ${job.company || job.poster_company || 'Company'}. ${job.job_type} position in ${job.location || 'various locations'}. ${job.salary_range ? `Salary: ${job.salary_range}. ` : ''}Apply on Rekrut AI.`}
 					canonical={`/candidate/jobs/${job.id}`}
+					ogImage={job.company_logo || 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1200&h=630&fit=crop&q=80'}
 					ogType='job posting'
 					jsonLd={{
 						'@context': 'https://schema.org',

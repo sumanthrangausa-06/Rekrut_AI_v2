@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { EmptyState } from '@/components/domain/empty-state'
+import { UNSPLASH_IMAGES } from '@/lib/avatar'
 import { Skeleton } from '@/components/domain/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -217,6 +218,7 @@ export function CandidateOffersPage() {
 					icon={Gift}
 					title='No offers yet'
 					description='When a recruiter makes you an offer, it will appear here.'
+     image={UNSPLASH_IMAGES.emptyNotifications}
 				/>
 			) : (
 				<div className='space-y-6'>

@@ -198,7 +198,7 @@ export function RecruiterCompanyPage() {
 					<div className='flex flex-col gap-4 sm:flex-row sm:items-center'>
 						<div className='h-20 w-20 rounded-xl bg-muted flex items-center justify-center overflow-hidden border-2 border-border shrink-0'>
 							{company.logo_url ? (
-								<img src={company.logo_url} alt='Logo' className='h-full w-full object-cover' />
+								<img src={company.logo_url} alt='Logo' className='h-full w-full object-cover' loading="lazy" />
 							) : (
 								<Building2 className='h-8 w-8 text-muted-foreground' />
 							)}

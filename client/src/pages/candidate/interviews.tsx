@@ -20,6 +20,7 @@ import {
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '@/components/domain/empty-state'
+import { UNSPLASH_IMAGES } from '@/lib/avatar'
 import { Skeleton } from '@/components/domain/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -330,6 +331,7 @@ export function CandidateInterviewsPage() {
 							icon={Calendar}
 							title='No upcoming interviews'
 							description="When recruiters schedule interviews, they'll appear here."
+       image={UNSPLASH_IMAGES.emptyInterviews}
 						/>
 					) : (
 						<div className='space-y-3'>
@@ -369,6 +371,7 @@ export function CandidateInterviewsPage() {
 							icon={Inbox}
 							title='No past interviews'
 							description='Completed, cancelled, or declined interviews will appear here.'
+       image={UNSPLASH_IMAGES.emptyInterviews}
 						/>
 					) : (
 						<div className='space-y-3'>

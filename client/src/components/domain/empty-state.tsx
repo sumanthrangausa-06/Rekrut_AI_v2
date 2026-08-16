@@ -11,17 +11,29 @@ export type EmptyStateProps = {
 		onClick?: () => void
 		href?: string
 	}
+	image?: string
 	className?: string
 }
 
-export function EmptyState({ icon: Icon, title, description, action, className }: EmptyStateProps) {
+export function EmptyState({ icon: Icon, title, description, action, image, className }: EmptyStateProps) {
 	return (
 		<div
 			className={cn('flex flex-col items-center justify-center text-center py-12 px-4', className)}
 		>
-			<div className='flex h-16 w-16 items-center justify-center rounded-2xl bg-muted mb-4'>
-				<Icon className='h-8 w-8 text-muted-foreground' />
-			</div>
+			{image ? (
+				<img
+					src={image}
+					alt={title}
+					className='h-40 w-auto rounded-xl object-cover mb-4 shadow-sm'
+					loading='lazy'
+					width={320}
+					height={160}
+				/>
+			) : (
+				<div className='flex h-16 w-16 items-center justify-center rounded-2xl bg-muted mb-4'>
+					<Icon className='h-8 w-8 text-muted-foreground' />
+				</div>
+			)}
 			<h3 className='font-semibold text-lg mb-1'>{title}</h3>
 			<p className='text-sm text-muted-foreground max-w-sm mb-4'>{description}</p>
 			{action && (
