@@ -82,7 +82,7 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 		// --- Issue #103: Enforce company email domain for recruiter roles ---
 		const recruiterRoles = ['employer', 'recruiter', 'hiring_manager', 'admin'];
 		if (recruiterRoles.includes(role)) {
-			const { validateRecruiterEmail, getBlockedDomainExamples } = require('../services/email-domain-validator');
+			const { validateRecruiterEmail, getBlockedDomainExamples } = require('../services/domain-validator');
 			const emailValidation = validateRecruiterEmail(email);
 			if (!emailValidation.valid) {
 				return res.status(400).json({
@@ -117,8 +117,8 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 		// Auto-create company for recruiter/employer roles
 		if (recruiterRoles.includes(role) && company_name) {
 			try {
-				const { findCompanyByDomain, createJoinRequest } = require('../services/company-domain-service');
-				const { extractDomain } = require('../services/email-domain-validator');
+				const { findCompanyByDomain, createJoinRequest } = require('../services/domain-validator');
+				const { extractDomain } = require('../services/domain-validator');
 
 				const email_domain = extractDomain(email);
 
@@ -707,8 +707,8 @@ router.get('/google/callback', async (req, res) => {
 			if (!user.oauth_provider) user.oauth_provider = 'google';
 		} else {
 			// ── New user: determine role based on email domain ──
-			const { isBlockedEmailDomain, extractDomain } = require('../services/email-domain-validator');
-			const { findCompanyByDomain, createJoinRequest } = require('../services/company-domain-service');
+			const { isBlockedEmailDomain, extractDomain } = require('../services/domain-validator');
+			const { findCompanyByDomain, createJoinRequest } = require('../services/domain-validator');
 
 			const emailDomain = extractDomain(googleUser.email);
 			const domainCheck = isBlockedEmailDomain(googleUser.email);
@@ -818,7 +818,7 @@ router.get('/google/callback', async (req, res) => {
 		// Determine redirect based on role and approval status
 		let redirectUrl;
 		if (user.role === 'recruiter') {
-			const { findPendingJoinRequest } = require('../services/company-domain-service');
+			const { findPendingJoinRequest } = require('../services/domain-validator');
 			const pendingRequest = await findPendingJoinRequest(user.id);
 			if (pendingRequest) {
 				redirectUrl = `/recruiter/dashboard?pending_approval=true&message=${encodeURIComponent(`A company with domain "${pendingRequest.domain}" already exists. Your registration is pending approval from the company administrator.`)}`;

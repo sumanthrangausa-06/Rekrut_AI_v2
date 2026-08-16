@@ -258,18 +258,22 @@ jest.mock('../../../routes/audit', () => ({
 	insertAuditLog: jest.fn().mockResolvedValue(undefined),
 }));
 
-// ─── Mock company-domain-service ────────────────────────────────────────────
-jest.mock('../../../services/company-domain-service', () => ({
-	findCompanyByDomain: jest.fn(),
-	storeVerifiedDomain: jest.fn(),
-	createJoinRequest: jest.fn(),
-	approveJoinRequest: jest.fn(),
-	rejectJoinRequest: jest.fn(),
-	listPendingJoinRequests: jest.fn(),
-	getJoinRequestById: jest.fn(),
-	findLatestJoinRequestForUser: jest.fn(),
-	findPendingJoinRequest: jest.fn(),
-}));
+// ─── Mock domain-validator (company-domain functions) ─────────────────────
+jest.mock('../../../services/domain-validator', () => {
+	const actual = jest.requireActual('../../../services/domain-validator');
+	return {
+		...actual,
+		findCompanyByDomain: jest.fn(),
+		storeVerifiedDomain: jest.fn(),
+		createJoinRequest: jest.fn(),
+		approveJoinRequest: jest.fn(),
+		rejectJoinRequest: jest.fn(),
+		listPendingJoinRequests: jest.fn(),
+		getJoinRequestById: jest.fn(),
+		findLatestJoinRequestForUser: jest.fn(),
+		findPendingJoinRequest: jest.fn(),
+	};
+});
 
 // ─── Mock distributed-rate-limiter ──────────────────────────────────────────
 jest.mock('../../../lib/distributed-rate-limiter', () => {
@@ -301,7 +305,7 @@ jest.mock('isomorphic-dompurify', () => {
 });
 
 // ─── Now require the modules under test ─────────────────────────────────────
-const companyDomainService = require('../../../services/company-domain-service');
+const companyDomainService = require('../../../services/domain-validator');
 const { insertAuditLog } = require('../../../routes/audit');
 const emailService = require('../../../lib/email-service');
 

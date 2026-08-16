@@ -15,8 +15,6 @@ const {
 	validateRecruiterEmail,
 	getBlockedDomainExamples,
 	isCompanyEmail,
-} = require('../services/email-domain-validator');
-const {
 	findCompanyByDomain,
 	createJoinRequest,
 	approveJoinRequest,
@@ -24,7 +22,7 @@ const {
 	listPendingJoinRequests,
 	getJoinRequestById,
 	findLatestJoinRequestForUser,
-} = require('../services/company-domain-service');
+} = require('../services/domain-validator');
 const { insertAuditLog } = require('../routes/audit');
 const emailService = require('../lib/email-service');
 const { requirePermission, invalidateUserCache } = require('../middleware/rbac');
@@ -716,7 +714,7 @@ router.post('/team/invite', authMiddleware, requirePermission('members:manage'),
 		if (companyDomain) {
 			const invitedDomain = email.split('@')[1]?.toLowerCase();
 			if (invitedDomain) {
-				const { normalizeDomain } = require('../services/email-domain-validator');
+				const { normalizeDomain } = require('../services/domain-validator');
 				const normalizedInvited = normalizeDomain(invitedDomain);
 				const normalizedCompany = normalizeDomain(companyDomain);
 				if (normalizedInvited !== normalizedCompany) {
