@@ -21,7 +21,7 @@ import {
 	TrendingUp,
 	X,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -195,6 +195,7 @@ export function CandidateJobsPage() {
 	// === Split view ===
 	const [selectedJob, setSelectedJob] = useState<Job | null>(null)
 	const [showDetailPanel, setShowDetailPanel] = useState(false)
+	const [isDrawerLoading, setIsDrawerLoading] = useState(false)
 
 	// === Pagination ===
 	const [page, setPage] = useState(1)
@@ -574,6 +575,19 @@ export function CandidateJobsPage() {
 		setPage(1)
 	}
 
+	// Open drawer from URL ?job=<id>
+	useEffect(() => {
+		const jobIdParam = searchParams.get('job')
+		if (jobIdParam && !selectedJob && jobs.length > 0) {
+			const jobId = Number(jobIdParam)
+			const job = jobs.find((j) => j.id === jobId)
+			if (job) {
+				setSelectedJob(job)
+				setShowDetailPanel(true)
+			}
+		}
+	}, [searchParams, jobs, selectedJob])
+
 	// Count active filters
 	useEffect(() => {
 		let count = 0
@@ -662,8 +676,49 @@ export function CandidateJobsPage() {
 				? dismissedJobsData
 				: aiResults || filtered
 
+	const selectedJobIndex = useMemo(() => {
+		if (!selectedJob) return -1
+		return tabJobs.findIndex((j) => j.id === selectedJob.id)
+	}, [selectedJob, tabJobs])
+
 	const displayed = tabJobs.slice(0, page * PAGE_SIZE)
 	const hasMoreResults = tabJobs.length > page * PAGE_SIZE
+
+	const handleSelectJob = useCallback((job: Job) => {
+		setSelectedJob(job)
+		setShowDetailPanel(true)
+		setSearchParams((prev) => {
+			const next = new URLSearchParams(prev)
+			next.set('job', String(job.id))
+			return next
+		})
+	}, [setSearchParams])
+
+	const handleNextJob = useCallback(() => {
+		if (selectedJobIndex < 0 || selectedJobIndex >= tabJobs.length - 1) return
+		const nextJob = tabJobs[selectedJobIndex + 1]
+		setIsDrawerLoading(true)
+		setSelectedJob(nextJob)
+		setSearchParams((prev) => {
+			const next = new URLSearchParams(prev)
+			next.set('job', String(nextJob.id))
+			return next
+		})
+		setTimeout(() => setIsDrawerLoading(false), 200)
+	}, [selectedJobIndex, tabJobs, setSearchParams])
+
+	const handlePreviousJob = useCallback(() => {
+		if (selectedJobIndex <= 0) return
+		const prevJob = tabJobs[selectedJobIndex - 1]
+		setIsDrawerLoading(true)
+		setSelectedJob(prevJob)
+		setSearchParams((prev) => {
+			const next = new URLSearchParams(prev)
+			next.set('job', String(prevJob.id))
+			return next
+		})
+		setTimeout(() => setIsDrawerLoading(false), 200)
+	}, [selectedJobIndex, tabJobs, setSearchParams])
 
 	return (
 		<div className='min-h-[calc(100dvh-4rem)] flex flex-col overflow-hidden'>
@@ -989,10 +1044,7 @@ export function CandidateJobsPage() {
 										isLiked={likedJobIds.has(job.id)}
 										isDismissed={dismissedJobIds.has(job.id)}
 										activeTab={activeTab}
-										onSelect={(j) => {
-											setSelectedJob(j)
-											setShowDetailPanel(true)
-										}}
+										onSelect={handleSelectJob}
 										onToggleSave={toggleSaveJob}
 										onToggleLike={toggleLikeJob}
 										onToggleDismiss={toggleDismissJob}
@@ -1028,7 +1080,14 @@ export function CandidateJobsPage() {
 					open={showDetailPanel && selectedJob != null}
 					onOpenChange={(open) => {
 						setShowDetailPanel(open)
-						if (!open) setSelectedJob(null)
+						if (!open) {
+							setSelectedJob(null)
+							setSearchParams((prev) => {
+								const next = new URLSearchParams(prev)
+								next.delete('job')
+								return next
+							})
+						}
 					}}
 					isSaved={selectedJob ? savedJobIds.has(selectedJob.id) : false}
 					onToggleSave={(e) => {
@@ -1041,6 +1100,11 @@ export function CandidateJobsPage() {
 						if (selectedJob) navigate(`/candidate/jobs/${selectedJob.id}`)
 					}}
 					onSkillClick={handleSkillClick}
+					onNextJob={handleNextJob}
+					onPreviousJob={handlePreviousJob}
+					hasNext={selectedJobIndex >= 0 && selectedJobIndex < tabJobs.length - 1}
+					hasPrevious={selectedJobIndex > 0}
+					isLoading={isDrawerLoading}
 				/>
 			</div>
 

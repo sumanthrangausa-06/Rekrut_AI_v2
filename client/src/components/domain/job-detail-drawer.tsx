@@ -7,11 +7,14 @@ import {
 	Building2,
 	CheckCircle,
 	CheckCircle2,
+	ChevronLeft,
+	ChevronRight,
 	Clock,
 	DollarSign,
 	ExternalLink,
 	Globe,
 	GraduationCap,
+	Loader2,
 	MapPin,
 	Send,
 	Sparkles,
@@ -505,6 +508,11 @@ export interface JobDetailDrawerProps {
 	onApply?: () => void
 	onViewFullPage?: () => void
 	onSkillClick?: (skill: string) => void
+	onNextJob?: () => void
+	onPreviousJob?: () => void
+	hasNext?: boolean
+	hasPrevious?: boolean
+	isLoading?: boolean
 }
 
 export function JobDetailDrawer({
@@ -516,6 +524,11 @@ export function JobDetailDrawer({
 	onApply,
 	onViewFullPage,
 	onSkillClick,
+	onNextJob,
+	onPreviousJob,
+	hasNext = false,
+	hasPrevious = false,
+	isLoading = false,
 }: JobDetailDrawerProps) {
 	// Restore scroll position when closing
 	const scrollPosRef = useRef(0)
@@ -543,6 +556,22 @@ export function JobDetailDrawer({
 		}
 	}, [open])
 
+	// Keyboard navigation
+	useEffect(() => {
+		if (!open) return
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === 'ArrowRight' && hasNext && onNextJob) {
+				e.preventDefault()
+				onNextJob()
+			} else if (e.key === 'ArrowLeft' && hasPrevious && onPreviousJob) {
+				e.preventDefault()
+				onPreviousJob()
+			}
+		}
+		window.addEventListener('keydown', handleKeyDown)
+		return () => window.removeEventListener('keydown', handleKeyDown)
+	}, [open, hasNext, hasPrevious, onNextJob, onPreviousJob])
+
 	if (!job) return null
 
 	return (
@@ -553,12 +582,53 @@ export function JobDetailDrawer({
 			className='w-full sm:!w-[600px]'
 		>
 			<SheetHeader>
-				<SheetTitle className='flex items-center gap-2'>
-					<Briefcase className='h-5 w-5' /> Job Details
-				</SheetTitle>
-				<SheetClose />
+				<div className='flex items-center justify-between w-full'>
+					<div className='flex items-center gap-1'>
+						{onPreviousJob && (
+							<button
+								type='button'
+								onClick={onPreviousJob}
+								disabled={!hasPrevious}
+								className={cn(
+									'p-1.5 rounded-md transition-colors',
+									hasPrevious
+										? 'hover:bg-muted text-foreground'
+										: 'text-muted-foreground/40 cursor-not-allowed',
+								)}
+								aria-label='Previous job'
+							>
+								<ChevronLeft className='h-4 w-4' />
+							</button>
+						)}
+						<SheetTitle className='flex items-center gap-2 text-sm'>
+							<Briefcase className='h-5 w-5' /> Job Details
+						</SheetTitle>
+						{onNextJob && (
+							<button
+								type='button'
+								onClick={onNextJob}
+								disabled={!hasNext}
+								className={cn(
+									'p-1.5 rounded-md transition-colors',
+									hasNext
+										? 'hover:bg-muted text-foreground'
+										: 'text-muted-foreground/40 cursor-not-allowed',
+								)}
+								aria-label='Next job'
+							>
+								<ChevronRight className='h-4 w-4' />
+							</button>
+						)}
+					</div>
+					<SheetClose />
+				</div>
 			</SheetHeader>
-			<SheetContent className='p-0'>
+			<SheetContent className='p-0 relative'>
+				{isLoading && (
+					<div className='absolute inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm'>
+						<Loader2 className='h-8 w-8 animate-spin text-primary' />
+					</div>
+				)}
 				<JobDetailContent
 					job={job}
 					isSaved={isSaved}
