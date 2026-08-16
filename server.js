@@ -651,6 +651,9 @@ app.use('/api/candidates', verificationRoutes);
 app.use('/api/candidates', backgroundCheckRoutes.candidateRouter);
 app.use('/api', backgroundCheckRoutes.router);
 
+const identityVerificationRoutes = require('./routes/identity-verification'); // Issue #135 — Aadhaar/PAN verification
+app.use('/api/identity-verification', identityVerificationRoutes);
+
 const voiceRoutes = require('./routes/voice');
 const ttsRoutes = require('./routes/tts');
 const aptitudeRoutes = require('./routes/aptitude');
