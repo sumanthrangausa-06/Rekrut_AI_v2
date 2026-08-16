@@ -2,7 +2,6 @@
 // Provides unified voice AI capabilities: text-to-speech and speech-to-text
 // Stores generated audio locally; supports Cartesia Sonic (TTS) and Ink-Whisper (STT)
 
-const fetch = require('node-fetch');
 const fs = require('node:fs');
 const path = require('node:path');
 const { promisify } = require('node:util');
@@ -310,51 +309,12 @@ async function transcribe({ audioBuffer, fileName, language, model }) {
 						? 'audio/webm'
 						: 'audio/wav';
 
-	// Build multipart form data manually (no form-data dependency needed for simple cases)
-	const boundary = `----CartesiaFormBoundary${crypto.randomBytes(16).toString('hex')}`;
-	const formParts = [];
-
-	// file field
-	formParts.push(
-		Buffer.from(
-			`--${boundary}\r\n` +
-				`Content-Disposition: form-data; name="file"; filename="audio.${ext}"\r\n` +
-				`Content-Type: ${mimeType}\r\n\r\n`,
-		),
-	);
-	formParts.push(audioBuffer);
-	formParts.push(Buffer.from('\r\n'));
-
-	// model field
-	formParts.push(
-		Buffer.from(
-			`--${boundary}\r\n` +
-				`Content-Disposition: form-data; name="model"\r\n\r\n` +
-				`${model || 'ink-whisper'}\r\n`,
-		),
-	);
-
-	// language field
-	formParts.push(
-		Buffer.from(
-			`--${boundary}\r\n` +
-				`Content-Disposition: form-data; name="language"\r\n\r\n` +
-				`${language || 'en'}\r\n`,
-		),
-	);
-
-	// timestamp_granularities field (word-level)
-	formParts.push(
-		Buffer.from(
-			`--${boundary}\r\n` +
-				`Content-Disposition: form-data; name="timestamp_granularities[]"\r\n\r\n` +
-				`word\r\n`,
-		),
-	);
-
-	formParts.push(Buffer.from(`--${boundary}--\r\n`));
-
-	const formBody = Buffer.concat(formParts);
+	// Build multipart form data using native FormData (Node.js 18+)
+	const form = new FormData();
+	form.append('file', new Blob([audioBuffer], { type: mimeType }), `audio.${ext}`);
+	form.append('model', model || 'ink-whisper');
+	form.append('language', language || 'en');
+	form.append('timestamp_granularities[]', 'word');
 
 	try {
 		const res = await fetch(CARTESIA_STT_URL, {
@@ -362,9 +322,8 @@ async function transcribe({ audioBuffer, fileName, language, model }) {
 			headers: {
 				'Cartesia-Version': '2024-06-10',
 				'X-API-Key': CARTESIA_API_KEY,
-				'Content-Type': `multipart/form-data; boundary=${boundary}`,
 			},
-			body: formBody,
+			body: form,
 			timeout: 60000, // 60s for STT (longer audio files)
 		});
 
