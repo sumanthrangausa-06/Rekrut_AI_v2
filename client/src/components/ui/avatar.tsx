@@ -1,6 +1,5 @@
-import React from 'react'
 import * as React from 'react'
-import { getDiceBearAvatar } from '@/lib/avatar'
+import { getDiceBearAvatar, getUserAvatar } from '@/lib/avatar'
 import { cn } from '@/lib/utils'
 
 interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -10,6 +9,7 @@ interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
 	seed?: string | number // DiceBear seed — used when no src provided
 	size?: 'sm' | 'md' | 'lg'
 	useDiceBear?: boolean // Whether to use DiceBear fallback instead of initials
+	user?: { id?: string | number; email?: string; name?: string; avatar_url?: string | null }
 }
 
 const sizeMap = {
@@ -25,6 +25,7 @@ function Avatar({
 	seed,
 	size = 'md',
 	useDiceBear = true,
+	user,
 	className,
 	children,
 	...props
@@ -38,9 +39,13 @@ function Avatar({
 		.toUpperCase()
 		.slice(0, 2)
 
+	// ponytail: prefer getUserAvatar when user object is available
+	const userSrc = user ? getUserAvatar(user) : null
+	const effectiveSrc = userSrc || src
+
 	// Generate DiceBear avatar if no src or useDiceBear is enabled
 	const diceBearSrc = seed ? getDiceBearAvatar(String(seed)) : null
-	const showSrc = src && !imgError ? src : useDiceBear ? diceBearSrc : null
+	const showSrc = effectiveSrc && !imgError ? effectiveSrc : useDiceBear ? diceBearSrc : null
 
 	return (
 		<div

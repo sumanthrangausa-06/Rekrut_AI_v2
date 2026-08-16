@@ -41,6 +41,8 @@ export interface KanbanApplication {
 	screening_questions?: string | ScreeningQuestion[]
 	intro_status?: string | null
 	intro_id?: number | null
+	is_auto_applied?: boolean
+}
 
 export interface KanbanSavedJob {
 	id: number

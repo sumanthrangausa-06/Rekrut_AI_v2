@@ -1,4 +1,3 @@
-import React from 'react'
 import { X } from 'lucide-react'
 import * as React from 'react'
 import { useScrollLock } from '@/hooks/use-scroll-lock'
