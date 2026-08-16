@@ -330,7 +330,7 @@ export function AboutPage() {
 														rel='noopener noreferrer'
 														className='flex h-8 w-8 items-center justify-center rounded-lg bg-muted transition-colors hover:bg-primary/10'
 														onClick={() =>
-															trackEvent('about_founder_social_click', { founder: founder.name })
+															trackEvent('about_founder_social_click', { platform: founder.social })
 														}
 													>
 														{founder.social === 'linkedin' ? (

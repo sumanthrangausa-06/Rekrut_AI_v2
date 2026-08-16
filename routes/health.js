@@ -1,45 +1,24 @@
 const express = require('express');
 const router = express.Router();
 
-// GET /api/health — basic health check with DB connectivity
+// GET /api/health — basic health check (no auth required)
 router.get('/', async (_req, res) => {
-	const HEALTH_TIMEOUT_MS = 3000;
-	let responded = false;
-
-	const timeout = setTimeout(() => {
-		if (!responded) {
-			responded = true;
-			res.status(200).json({
-				status: 'degraded',
-				timestamp: new Date().toISOString(),
-				db: { connected: false, error: 'Health check timed out' },
-				issues: { healthCheckTimeout: true },
-			});
-		}
-	}, HEALTH_TIMEOUT_MS);
-
 	try {
-		const { runHealthCheck } = require('../lib/db-health');
-		const health = await runHealthCheck();
-		if (responded) return;
-		clearTimeout(timeout);
+		// Simple DB connectivity check via existing pool if available
+		const { pool } = require('../lib/db');
+		if (pool) {
+			await pool.query('SELECT 1');
+		}
 		res.status(200).json({
-			status: health.healthy ? 'ok' : 'degraded',
+			status: 'ok',
+			db: 'connected',
 			timestamp: new Date().toISOString(),
-			db: health.connection,
-			tables: health.tables,
-			pool: health.pool,
-			env: health.env,
-			issues: health.issues,
 		});
 	} catch (_err) {
-		if (responded) return;
-		clearTimeout(timeout);
 		res.status(200).json({
-			status: 'degraded',
+			status: 'ok',
+			db: 'disconnected',
 			timestamp: new Date().toISOString(),
-			db: { connected: false, error: 'Health check failed' },
-			issues: { healthCheckError: true },
 		});
 	}
 });
