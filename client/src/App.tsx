@@ -140,6 +140,9 @@ const CompanyMatchesPage = lazy(() =>
 const CandidateDocumentsPage = lazy(() =>
 	import('@/pages/candidate/documents').then((m) => ({ default: m.CandidateDocumentsPage })),
 )
+const CandidateIdentityVerificationPage = lazy(() =>
+	import('@/pages/candidate/identity-verification').then((m) => ({ default: m.CandidateIdentityVerificationPage })),
+)
 const CandidateBackgroundCheckPage = lazy(() =>
 	import('@/pages/candidate/background-check').then((m) => ({ default: m.CandidateBackgroundCheckPage })),
 )
@@ -646,6 +649,14 @@ function AppRoutes() {
 					element={
 						<Protected>
 							<CandidateDocumentsPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path='identity-verification'
+					element={
+						<Protected>
+							<CandidateIdentityVerificationPage />
 						</Protected>
 					}
 				/>

@@ -85,6 +85,7 @@ const candidateSections: NavSection[] = [
 		title: 'IMPROVE YOUR PROFILE',
 		items: [
 			{ label: 'Profile', href: '/candidate/profile', icon: User },
+			{ label: 'Identity', href: '/candidate/identity-verification', icon: Shield },
 			{ label: 'CV Review', href: '/candidate/cv-review', icon: FileText, isNew: true },
 			{
 				label: 'LinkedIn Optimizer',
