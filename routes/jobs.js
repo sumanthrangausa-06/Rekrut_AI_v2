@@ -8,6 +8,9 @@ const { requirePermission } = require('../middleware/rbac');
 
 const router = express.Router();
 
+// ponytail: Exclude E2E test data from public listings (#71)
+const EXCLUDE_TEST_JOBS = " AND j.company NOT ILIKE '%E2E%' AND j.title NOT ILIKE '%E2E%'";
+
 // Validation rules for job search/list queries
 const validateJobSearch = [
 	query('limit')
@@ -78,7 +81,7 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
              u.company_name as poster_company
       FROM jobs j
       LEFT JOIN users u ON j.user_id = u.id
-      WHERE j.status = $1
+      WHERE j.status = $1${EXCLUDE_TEST_JOBS}
     `;
 		const params = [requestedStatus];
 		let idx = 2;
@@ -125,7 +128,7 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 		const result = await pool.query(sqlQuery, params);
 
 		// Get total count for pagination
-		let countQuery = `SELECT COUNT(*) as total FROM jobs j WHERE j.status = $1`;
+		let countQuery = `SELECT COUNT(*) as total FROM jobs j WHERE j.status = $1${EXCLUDE_TEST_JOBS}`;
 		const countParams = [requestedStatus];
 		let cIdx = 2;
 		if (search?.trim()) {
@@ -199,7 +202,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
               u.company_name as poster_company, u.name as poster_name
        FROM jobs j
        LEFT JOIN users u ON j.user_id = u.id
-       WHERE j.id = $1 AND j.status = 'active'`,
+       WHERE j.id = $1 AND j.status = 'active'${EXCLUDE_TEST_JOBS}`,
 			[id],
 		);
 
@@ -425,7 +428,7 @@ router.post('/:id/audio', optionalAuth, async (req, res) => {
 		// Fetch job from DB
 		const result = await pool.query(
 			`SELECT id, title, company, description, requirements, location, job_type
-       FROM jobs WHERE id = $1 AND status = 'active'`,
+       FROM jobs j WHERE j.id = $1 AND j.status = 'active'${EXCLUDE_TEST_JOBS}`,
 			[id],
 		);
 		if (result.rows.length === 0) {
