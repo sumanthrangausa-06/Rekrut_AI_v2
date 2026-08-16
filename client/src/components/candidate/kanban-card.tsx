@@ -9,6 +9,7 @@ import {
 	GripVertical,
 	Mail,
 	MapPin,
+	MessageCircle,
 	Zap,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -42,6 +43,7 @@ export interface KanbanApplication {
 	intro_status?: string | null
 	intro_id?: number | null
 	is_auto_applied?: boolean
+	outreach_count?: number
 }
 
 export interface KanbanSavedJob {
@@ -65,6 +67,7 @@ interface KanbanCardProps {
 	item: KanbanItem
 	columnId: string
 	onClick?: () => void
+	onStartOutreach?: (app: KanbanApplication) => void
 	isOverlay?: boolean
 }
 
@@ -126,7 +129,7 @@ function ApplicationTypeBadge({ item }: { item: KanbanItem }) {
 	)
 }
 
-export function KanbanCard({ item, columnId, onClick, isOverlay }: KanbanCardProps) {
+export function KanbanCard({ item, columnId, onClick, onStartOutreach, isOverlay }: KanbanCardProps) {
 	const data = item.type === 'application' ? item.data : item.data
 	const draggableId = `${item.type}-${data.id}`
 
@@ -189,6 +192,15 @@ export function KanbanCard({ item, columnId, onClick, isOverlay }: KanbanCardPro
 						<Zap className='h-3 w-3' /> Auto-applied
 					</Badge>
 				)}
+				{item.type === 'application' && (item.data.outreach_count || 0) > 0 && (
+					<Badge
+						variant='outline'
+						className='text-[10px] gap-1 bg-blue-50 text-blue-700 border-blue-200'
+					>
+						<MessageCircle className='h-3 w-3' />
+						{item.data.outreach_count} outreach logged
+					</Badge>
+				)}
 				{data.location && (
 					<span className='text-[10px] text-muted-foreground flex items-center gap-0.5'>
 						<MapPin className='h-3 w-3' />
@@ -211,6 +223,22 @@ export function KanbanCard({ item, columnId, onClick, isOverlay }: KanbanCardPro
 					</Button>
 				</Link>
 			</div>
+
+			{item.type === 'application' && columnId === 'applied' && onStartOutreach && (
+				<div className='mt-2'>
+					<Button
+						variant='outline'
+						size='sm'
+						className='w-full h-7 text-xs gap-1 border-indigo-200 text-indigo-700 hover:bg-indigo-50'
+						onClick={(e) => {
+							e.stopPropagation()
+							onStartOutreach(item.data)
+						}}
+					>
+						<MessageCircle className='h-3 w-3' /> Start Outreach
+					</Button>
+				</div>
+			)}
 
 			{item.type === 'application' && item.data.match_score && (
 				<div className='mt-2 flex items-center gap-2'>

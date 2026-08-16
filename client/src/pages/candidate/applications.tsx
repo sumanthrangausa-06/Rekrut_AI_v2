@@ -40,6 +40,7 @@ import {
 	KanbanCard,
 	KanbanColumn,
 	KANBAN_COLUMNS,
+	OutreachModal,
 	type KanbanItem,
 	type KanbanApplication,
 	type KanbanSavedJob,
@@ -88,6 +89,7 @@ export function CandidateApplicationsPage() {
 	const [withdrawTarget, setWithdrawTarget] = useState<KanbanApplication | null>(null)
 	const [withdrawing, setWithdrawing] = useState(false)
 	const [selectedApp, setSelectedApp] = useState<KanbanApplication | null>(null)
+	const [outreachApp, setOutreachApp] = useState<KanbanApplication | null>(null)
 	const [activeDragItem, setActiveDragItem] = useState<KanbanItem | null>(null)
 	const [updatingStatus, setUpdatingStatus] = useState(false)
 
@@ -329,6 +331,7 @@ export function CandidateApplicationsPage() {
 										column={column}
 										items={columnItems[column.id] || []}
 										onCardClick={handleCardClick}
+										onStartOutreach={column.id === 'applied' ? (app) => setOutreachApp(app) : undefined}
 									/>
 								</div>
 							))}
@@ -522,6 +525,12 @@ export function CandidateApplicationsPage() {
 					</div>
 				</Dialog>
 			)}
+			{/* Outreach modal */}
+			<OutreachModal
+				application={outreachApp}
+				open={!!outreachApp}
+				onClose={() => setOutreachApp(null)}
+			/>
 		</div>
 	)
 }

@@ -1,7 +1,7 @@
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Bookmark, Briefcase, FileText, MessageCircle, Trophy } from 'lucide-react'
-import type { KanbanItem } from './kanban-card'
+import type { KanbanApplication, KanbanItem } from './kanban-card'
 import { KanbanCard } from './kanban-card'
 
 export interface KanbanColumnDef {
@@ -62,9 +62,10 @@ interface KanbanColumnProps {
 	column: KanbanColumnDef
 	items: KanbanItem[]
 	onCardClick: (item: KanbanItem) => void
+	onStartOutreach?: (app: KanbanApplication) => void
 }
 
-export function KanbanColumn({ column, items, onCardClick }: KanbanColumnProps) {
+export function KanbanColumn({ column, items, onCardClick, onStartOutreach }: KanbanColumnProps) {
 	const { setNodeRef, isOver } = useDroppable({
 		id: column.id,
 		data: { columnId: column.id },
@@ -113,6 +114,7 @@ export function KanbanColumn({ column, items, onCardClick }: KanbanColumnProps) 
 								item={item}
 								columnId={column.id}
 								onClick={() => onCardClick(item)}
+								onStartOutreach={onStartOutreach}
 							/>
 						))}
 					</SortableContext>

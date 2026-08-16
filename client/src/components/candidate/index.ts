@@ -14,3 +14,6 @@ export type { JobCardData } from './JobCard'
 
 export { JobFilterBar } from './JobFilterBar'
 export type { JobFilterValues } from './JobFilterBar'
+
+export { OutreachModal } from './outreach-modal'
+export type { OutreachAttempt } from './outreach-modal'

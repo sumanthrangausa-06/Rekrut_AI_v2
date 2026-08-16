@@ -2425,7 +2425,8 @@ router.get('/applications', authMiddleware, async (req, res) => {
 			`
       SELECT ja.*, ja.is_auto_applied, j.title, j.company, j.location, j.salary_range, j.job_type,
              j.screening_questions, u.company_name as posted_by_company,
-             ri.status as intro_status, ri.id as intro_id
+             ri.status as intro_status, ri.id as intro_id,
+             (SELECT COUNT(*) FROM outreach_attempts oa WHERE oa.application_id = ja.id) as outreach_count
       FROM job_applications ja
       JOIN jobs j ON ja.job_id = j.id
       LEFT JOIN users u ON j.user_id = u.id
@@ -4119,6 +4120,127 @@ router.delete('/documents/:id', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Delete document error:', err);
 		res.status(500).json({ error: 'Failed to delete document' });
+	}
+});
+
+// ============= OUTREACH ATTEMPTS =============
+
+// List outreach attempts for an application
+router.get('/outreach/:applicationId', authMiddleware, async (req, res) => {
+	try {
+		const applicationId = parseInt(req.params.applicationId, 10);
+		if (!applicationId || applicationId <= 0) {
+			return res.status(400).json({ error: 'Invalid application ID' });
+		}
+
+		// Verify ownership
+		const appCheck = await pool.query(
+			'SELECT id FROM job_applications WHERE id = $1 AND candidate_id = $2',
+			[applicationId, req.user.id],
+		);
+		if (appCheck.rows.length === 0) {
+			return res.status(404).json({ error: 'Application not found' });
+		}
+
+		const result = await pool.query(
+			`
+			SELECT id, application_id, method, message, status, created_at, updated_at
+			FROM outreach_attempts
+			WHERE application_id = $1 AND user_id = $2
+			ORDER BY created_at DESC
+			`,
+			[applicationId, req.user.id],
+		);
+
+		res.json({ success: true, attempts: result.rows });
+	} catch (err) {
+		console.error('Get outreach error:', err);
+		res.status(500).json({ error: 'Failed to get outreach attempts' });
+	}
+});
+
+// Create new outreach attempt
+router.post('/outreach', authMiddleware, async (req, res) => {
+	try {
+		const { application_id, method, message, status } = req.body;
+
+		if (!application_id) {
+			return res.status(400).json({ error: 'application_id is required' });
+		}
+		if (!method || !['email', 'linkedin', 'phone', 'other'].includes(method)) {
+			return res.status(400).json({ error: 'method must be email, linkedin, phone, or other' });
+		}
+
+		// Verify ownership
+		const appCheck = await pool.query(
+			'SELECT id FROM job_applications WHERE id = $1 AND candidate_id = $2',
+			[application_id, req.user.id],
+		);
+		if (appCheck.rows.length === 0) {
+			return res.status(404).json({ error: 'Application not found' });
+		}
+
+		const result = await pool.query(
+			`
+			INSERT INTO outreach_attempts (application_id, user_id, method, message, status)
+			VALUES ($1, $2, $3, $4, $5)
+			RETURNING id, application_id, method, message, status, created_at, updated_at
+			`,
+			[application_id, req.user.id, method, message || null, status || 'pending'],
+		);
+
+		res.json({ success: true, attempt: result.rows[0] });
+	} catch (err) {
+		console.error('Create outreach error:', err);
+		res.status(500).json({ error: 'Failed to create outreach attempt' });
+	}
+});
+
+// Update outreach status
+router.put('/outreach/:id', authMiddleware, async (req, res) => {
+	try {
+		const { status } = req.body;
+		if (!status || !['pending', 'sent', 'replied', 'follow_up', 'no_response'].includes(status)) {
+			return res.status(400).json({ error: 'Invalid status' });
+		}
+
+		const result = await pool.query(
+			`
+			UPDATE outreach_attempts
+			SET status = $3, updated_at = NOW()
+			WHERE id = $1 AND user_id = $2
+			RETURNING id, application_id, method, message, status, created_at, updated_at
+			`,
+			[req.params.id, req.user.id, status],
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Outreach attempt not found' });
+		}
+
+		res.json({ success: true, attempt: result.rows[0] });
+	} catch (err) {
+		console.error('Update outreach error:', err);
+		res.status(500).json({ error: 'Failed to update outreach attempt' });
+	}
+});
+
+// Delete outreach attempt
+router.delete('/outreach/:id', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			'DELETE FROM outreach_attempts WHERE id = $1 AND user_id = $2 RETURNING id',
+			[req.params.id, req.user.id],
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: 'Outreach attempt not found' });
+		}
+
+		res.json({ success: true });
+	} catch (err) {
+		console.error('Delete outreach error:', err);
+		res.status(500).json({ error: 'Failed to delete outreach attempt' });
 	}
 });
 
