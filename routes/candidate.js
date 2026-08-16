@@ -1097,6 +1097,156 @@ router.get('/cv/analyses', authMiddleware, async (req, res) => {
 	}
 });
 
+// ============= AI CV REVIEW (#82) =============
+
+// POST /cv-review — create AI-powered CV review
+router.post('/cv-review', authMiddleware, async (req, res) => {
+	try {
+		const { document_id, cv_text } = req.body;
+
+		// Validate input: at least one source required
+		if (!document_id && !cv_text) {
+			return res.status(400).json({
+				error: 'Either document_id or cv_text is required',
+				code: 'MISSING_INPUT',
+			});
+		}
+
+		// Premium gating
+		const access = await checkFeatureAccess(req.user, 'cv_review');
+		if (!access.allowed) {
+			return res.status(403).json({
+				error: 'Upgrade to Pro to access CV Review',
+				code: 'UPGRADE_REQUIRED',
+				feature: 'cv_review',
+				upgradeUrl: '/pricing',
+			});
+		}
+
+		let reviewText = cv_text || '';
+		let resolvedDocumentId = document_id || null;
+
+		// If document_id provided, fetch parsed resume text
+		if (document_id) {
+			const docResult = await pool.query(
+				'SELECT id, parsed_data FROM parsed_resumes WHERE id = $1 AND user_id = $2',
+				[document_id, req.user.id],
+			);
+			if (docResult.rows.length === 0) {
+				return res.status(404).json({
+					error: 'Document not found',
+					code: 'DOCUMENT_NOT_FOUND',
+				});
+			}
+			// Use parsed_data JSONB as text source
+			const parsedData = docResult.rows[0].parsed_data;
+			reviewText = parsedData ? JSON.stringify(parsedData) : '';
+			if (!reviewText.trim()) {
+				return res.status(400).json({
+					error: 'Document has no parsed content. Please upload a valid CV.',
+					code: 'EMPTY_DOCUMENT',
+				});
+			}
+		}
+
+		// Build AI prompt
+		const prompt = `You are an expert CV/resume reviewer. Review the following CV and provide structured feedback.
+
+CV CONTENT:
+${reviewText.substring(0, 12000)}
+
+Provide your analysis as a JSON object with exactly this structure:
+{
+  "score": <number 0-100>,
+  "sections": [
+    {
+      "name": "<section name>",
+      "score": <number 0-100>,
+      "feedback": "<detailed feedback for this section>",
+      "priority": "<highest|medium|optional>"
+    }
+  ],
+  "overall_feedback": "<2-3 sentence overall summary>"
+}
+
+Evaluate these areas: Experience, Skills, Education, Formatting, and ATS Optimization. Be constructive and specific.`;
+
+		// Call AI
+		const { chat } = require('../lib/polsia-ai');
+		const aiResponse = await chat(prompt, {
+			task: 'cv-review',
+			module: 'candidate',
+			feature: 'cv_review',
+		});
+
+		// Parse AI response
+		const { safeParseJSON } = require('../lib/polsia-ai');
+		const reviewData = safeParseJSON(aiResponse);
+		if (!reviewData) {
+			return res.status(502).json({
+				error: 'AI response could not be parsed',
+				code: 'AI_PARSE_ERROR',
+			});
+		}
+
+		// Save to cv_reviews table
+		const insertResult = await pool.query(
+			`
+			INSERT INTO cv_reviews (user_id, document_id, review_data)
+			VALUES ($1, $2, $3)
+			RETURNING id, user_id, document_id, review_data, created_at
+			`,
+			[req.user.id, resolvedDocumentId, JSON.stringify(reviewData)],
+		);
+
+		// Track usage
+		try {
+			await incrementUsage(req.user.id, 'cv_review');
+		} catch (usageErr) {
+			console.error('[CV Review] Usage tracking failed (non-fatal):', usageErr.message);
+		}
+
+		res.json({
+			success: true,
+			review: insertResult.rows[0],
+		});
+	} catch (err) {
+		console.error('CV review error:', err);
+		res.status(500).json({ error: 'Failed to generate CV review' });
+	}
+});
+
+// GET /cv-review — return most recent CV review for authenticated user
+router.get('/cv-review', authMiddleware, async (req, res) => {
+	try {
+		const result = await pool.query(
+			`
+			SELECT id, user_id, document_id, review_data, created_at
+			FROM cv_reviews
+			WHERE user_id = $1
+			ORDER BY created_at DESC
+			LIMIT 1
+			`,
+			[req.user.id],
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(404).json({
+				error: 'No CV review found',
+				code: 'NOT_FOUND',
+			});
+		}
+
+		res.json({
+			success: true,
+			review: result.rows[0],
+		});
+	} catch (err) {
+		console.error('Get CV review error:', err);
+		res.status(500).json({ error: 'Failed to get CV review' });
+	}
+});
+
 // ============= WORK EXPERIENCE =============
 
 router.post('/experience', authMiddleware, async (req, res) => {
