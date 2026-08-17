@@ -15,7 +15,8 @@ const {
 
 const omniscoreService = require('../services/omniscore');
 const { decrypt } = require('../lib/crypto-utils');
-const { rateLimits } = require('../lib/distributed-rate-limiter');
+const { rateLimits, distributedRateLimiter } = require('../lib/distributed-rate-limiter');
+const marketBenchmarks = require('../lib/market-benchmarks');
 const emailService = require('../lib/email-service');
 const { checkFeatureAccess, incrementUsage } = require('../lib/subscription');
 const calendarService = require('../server/services/calendar-service');
@@ -4391,6 +4392,364 @@ router.delete('/outreach/:id', authMiddleware, async (req, res) => {
 	} catch (err) {
 		console.error('Delete outreach error:', err);
 		res.status(500).json({ error: 'Failed to delete outreach attempt' });
+	}
+});
+
+// ============= CAREER DIAGNOSIS (#77) =============
+
+// Skill name/category → dimension mapping
+function getSkillDimension(skillName, category) {
+	const name = (skillName || '').toLowerCase();
+	const cat = (category || 'technical').toLowerCase();
+
+	if (cat === 'soft' || cat === 'language') return 'communication';
+	if (cat === 'management' || cat === 'leadership') return 'leadership';
+	if (cat === 'tool' || cat === 'framework') return 'execution';
+	if (cat === 'domain' || cat === 'business') return 'strategic_thinking';
+	if (cat === 'stakeholder') return 'stakeholder_management';
+
+	if (name.includes('lead') || name.includes('manage') || name.includes('mentor') || name.includes('coach')) return 'leadership';
+	if (name.includes('communi') || name.includes('writing') || name.includes('present') || name.includes('speak')) return 'communication';
+	if (name.includes('strateg') || name.includes('product') || name.includes('research') || name.includes('roadmap')) return 'strategic_thinking';
+	if (name.includes('stakeholder') || name.includes('client') || name.includes('consult') || name.includes('partner') || name.includes('negotiat')) return 'stakeholder_management';
+	if (name.includes('project') || name.includes('agile') || name.includes('scrum') || name.includes('delivery') || name.includes('ci/cd') || name.includes('devops')) return 'execution';
+
+	return 'problem_solving';
+}
+
+function inferLevel(years) {
+	const y = parseFloat(years) || 0;
+	if (y < 2) return 'junior';
+	if (y < 5) return 'mid';
+	return 'senior';
+}
+
+function inferTargetRole(headline, skills) {
+	const h = (headline || '').toLowerCase();
+	const skillNames = (skills || []).map((s) => (s.skill_name || '').toLowerCase());
+
+	if (h.includes('product') || h.includes('pm') || skillNames.some((s) => s.includes('product'))) return 'Product Manager';
+	if (h.includes('data') || h.includes('analytics') || h.includes('ml ') || skillNames.some((s) => s.includes('machine learning') || s.includes('data science'))) return 'Data Scientist';
+	if (h.includes('design') || h.includes('ux') || h.includes('ui') || skillNames.some((s) => s.includes('figma') || s.includes('design'))) return 'UX Designer';
+	return 'Software Engineer';
+}
+
+function calculateDimensionScores(profile, skills, experience, education, assessments) {
+	const scores = {
+		problem_solving: 0,
+		execution: 0,
+		communication: 0,
+		leadership: 0,
+		strategic_thinking: 0,
+		stakeholder_management: 0,
+	};
+
+	const yearsExp = parseFloat(profile?.years_experience) || 0;
+	const baseScore = yearsExp < 2 ? 35 : yearsExp < 5 ? 55 : 75;
+
+	for (const dim of Object.keys(scores)) {
+		scores[dim] = baseScore;
+	}
+
+	for (const skill of skills || []) {
+		const dim = getSkillDimension(skill.skill_name, skill.category);
+		const level = parseInt(skill.level, 10) || 3;
+		scores[dim] = Math.min(100, scores[dim] + level * 8);
+	}
+
+	for (const assessment of assessments || []) {
+		const score = parseInt(assessment.score, 10) || 0;
+		if (score > 0) {
+			const boost = (score / 100) * 12;
+			for (const dim of Object.keys(scores)) {
+				scores[dim] = Math.min(100, scores[dim] + boost);
+			}
+		}
+	}
+
+	const degrees = (education || []).map((e) => (e.degree || '').toLowerCase());
+	if (degrees.some((d) => d.includes('phd') || d.includes('doctorate'))) {
+		scores.problem_solving = Math.min(100, scores.problem_solving + 15);
+		scores.strategic_thinking = Math.min(100, scores.strategic_thinking + 10);
+	} else if (degrees.some((d) => d.includes('master') || d.includes('mba'))) {
+		scores.problem_solving = Math.min(100, scores.problem_solving + 10);
+		scores.strategic_thinking = Math.min(100, scores.strategic_thinking + 5);
+	} else if (degrees.some((d) => d.includes('bachelor'))) {
+		scores.problem_solving = Math.min(100, scores.problem_solving + 5);
+	}
+
+	for (const exp of experience || []) {
+		const title = (exp.title || '').toLowerCase();
+		if (title.includes('senior') || title.includes('lead') || title.includes('principal')) {
+			scores.leadership = Math.min(100, scores.leadership + 10);
+			scores.strategic_thinking = Math.min(100, scores.strategic_thinking + 5);
+		}
+		if (title.includes('manager') || title.includes('director')) {
+			scores.leadership = Math.min(100, scores.leadership + 15);
+			scores.stakeholder_management = Math.min(100, scores.stakeholder_management + 10);
+		}
+		if (title.includes('architect')) {
+			scores.strategic_thinking = Math.min(100, scores.strategic_thinking + 15);
+			scores.problem_solving = Math.min(100, scores.problem_solving + 10);
+		}
+	}
+
+	for (const dim of Object.keys(scores)) {
+		scores[dim] = Math.round(scores[dim]);
+	}
+
+	return scores;
+}
+
+function calculateCompetitiveness(candidateScores, role, level) {
+	const benchmark = marketBenchmarks.getBenchmark(role, level);
+	if (!benchmark) return 0;
+
+	const weights = marketBenchmarks.getRoleWeights(role);
+	let totalWeight = 0;
+	let weightedScore = 0;
+
+	for (const dim of Object.keys(candidateScores)) {
+		const weight = weights[dim] || 1.0;
+		const bench = benchmark[dim] || 50;
+		const ratio = bench > 0 ? Math.min(1, candidateScores[dim] / bench) : 0;
+		weightedScore += ratio * weight;
+		totalWeight += weight;
+	}
+
+	return Math.round((weightedScore / totalWeight) * 100);
+}
+
+function findBestMatch(candidateScores) {
+	const roles = marketBenchmarks.getRoles();
+	const levels = marketBenchmarks.getLevels();
+	let best = { role: roles[0], level: levels[0], score: 0 };
+
+	for (const role of roles) {
+		for (const level of levels) {
+			const score = calculateCompetitiveness(candidateScores, role, level);
+			if (score > best.score) {
+				best = { role, level, score };
+			}
+		}
+	}
+	return best;
+}
+
+function generateGapAnalysis(candidateScores, role, level) {
+	const benchmark = marketBenchmarks.getBenchmark(role, level);
+	const labels = marketBenchmarks.getDimensionLabels();
+	const gaps = [];
+
+	for (const dim of Object.keys(candidateScores)) {
+		const bench = benchmark[dim] || 50;
+		const gap = bench - candidateScores[dim];
+		gaps.push({
+			dimension: labels[dim] || dim,
+			candidate_score: candidateScores[dim],
+			market_benchmark: bench,
+			gap: Math.round(gap),
+			status: gap > 15 ? 'needs_improvement' : gap > 5 ? 'near_target' : 'on_target',
+		});
+	}
+
+	return gaps.sort((a, b) => b.gap - a.gap);
+}
+
+function generateAlternativeRoles(candidateScores, primaryRole) {
+	const roles = marketBenchmarks.getRoles();
+	const levels = marketBenchmarks.getLevels();
+	const alternatives = [];
+
+	for (const role of roles) {
+		if (role === primaryRole) continue;
+		for (const level of levels) {
+			const score = calculateCompetitiveness(candidateScores, role, level);
+			alternatives.push({ role, level, competitiveness_score: score });
+		}
+	}
+
+	const bestPerRole = {};
+	for (const alt of alternatives) {
+		if (!bestPerRole[alt.role] || alt.competitiveness_score > bestPerRole[alt.role].competitiveness_score) {
+			bestPerRole[alt.role] = alt;
+		}
+	}
+
+	return Object.values(bestPerRole)
+		.sort((a, b) => b.competitiveness_score - a.competitiveness_score)
+		.slice(0, 3);
+}
+
+function generateRecommendations(gaps) {
+	const recommendations = [];
+	const labels = marketBenchmarks.getDimensionLabels();
+
+	for (const gap of gaps) {
+		if (gap.gap <= 5) continue;
+		const dimKey = Object.entries(labels).find(([, v]) => v === gap.dimension)?.[0] || '';
+
+		const recs = {
+			problem_solving: 'Practice algorithmic challenges and system design. Consider advanced technical certifications.',
+			execution: 'Take ownership of end-to-end projects. Learn Agile/Scrum and delivery tooling.',
+			communication: 'Practice technical writing and presentations. Seek opportunities to lead meetings.',
+			leadership: 'Mentor junior colleagues or lead a small initiative. Consider leadership training.',
+			strategic_thinking: 'Study product/business strategy. Participate in roadmap and planning sessions.',
+			stakeholder_management: 'Engage with cross-functional partners. Practice expectation management.',
+		};
+
+		recommendations.push({
+			dimension: gap.dimension,
+			priority: gap.gap > 20 ? 'high' : 'medium',
+			action: recs[dimKey] || `Improve your ${gap.dimension.toLowerCase()} through structured practice.`,
+		});
+	}
+
+	return recommendations.slice(0, 6);
+}
+
+// Per-user rate limit: 5 requests per hour
+async function careerDiagnosisRateLimit(req, res, next) {
+	if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'e2e') {
+		return next();
+	}
+	const key = `career-diagnosis:user:${req.user.id}`;
+	const result = await distributedRateLimiter.checkLimit(key, 60 * 60 * 1000, 5);
+	res.setHeader('X-RateLimit-Limit', 5);
+	res.setHeader('X-RateLimit-Remaining', Math.max(0, 5 - result.count));
+	res.setHeader('X-RateLimit-Reset', Math.ceil(new Date(result.resetAt).getTime() / 1000));
+	if (!result.allowed) {
+		return res.status(429).json({
+			error: 'Rate limit exceeded',
+			code: 'RATE_LIMIT_EXCEEDED',
+			retry_after: result.retryAfter,
+			message: `Career diagnosis limit: 5 per hour. Try again in ${result.retryAfter} seconds.`,
+		});
+	}
+	next();
+}
+
+// POST /career-diagnosis — Run 360° skills assessment
+router.post('/career-diagnosis', authMiddleware, requireRole('candidate'), careerDiagnosisRateLimit, async (req, res) => {
+	try {
+		// Fetch candidate profile
+		const profileResult = await pool.query(
+			`SELECT cp.*, u.name, u.email
+			 FROM users u
+			 LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+			 WHERE u.id = $1`,
+			[req.user.id],
+		);
+
+		if (profileResult.rows.length === 0 || !profileResult.rows[0].user_id) {
+			return res.status(404).json({
+				error: 'No candidate profile found. Please complete your profile first.',
+				code: 'PROFILE_NOT_FOUND',
+			});
+		}
+
+		const profile = profileResult.rows[0];
+
+		// Fetch supporting data in parallel
+		const [skillsRes, experienceRes, educationRes, assessmentsRes, omniRes] = await Promise.all([
+			pool.query('SELECT skill_name, category, level, years_experience FROM candidate_skills WHERE user_id = $1', [req.user.id]),
+			pool.query('SELECT title, company_name, start_date, end_date, is_current FROM work_experience WHERE user_id = $1 ORDER BY start_date DESC', [req.user.id]),
+			pool.query('SELECT degree, field_of_study, institution FROM education WHERE user_id = $1', [req.user.id]),
+			pool.query('SELECT score, title FROM skill_assessments WHERE user_id = $1 AND score IS NOT NULL', [req.user.id]),
+			pool.query('SELECT total_score FROM omni_scores WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1', [req.user.id]),
+		]);
+
+		const skills = skillsRes.rows;
+		const experience = experienceRes.rows;
+		const education = educationRes.rows;
+		const assessments = assessmentsRes.rows;
+		const omniScore = omniRes.rows[0]?.total_score || null;
+
+		// Calculate dimension scores
+		const dimensionScores = calculateDimensionScores(profile, skills, experience, education, assessments);
+
+		// Infer target role and level
+		const targetRole = inferTargetRole(profile.headline, skills);
+		const targetLevel = inferLevel(profile.years_experience);
+
+		// Generate analysis
+		const gapAnalysis = generateGapAnalysis(dimensionScores, targetRole, targetLevel);
+		const marketCompetitiveness = calculateCompetitiveness(dimensionScores, targetRole, targetLevel);
+		const alternativeRoles = generateAlternativeRoles(dimensionScores, targetRole);
+		const recommendations = generateRecommendations(gapAnalysis);
+
+		const diagnosisData = {
+			target_role: targetRole,
+			target_level: targetLevel,
+			dimension_scores: dimensionScores,
+			gap_analysis: gapAnalysis,
+			market_competitiveness_score: marketCompetitiveness,
+			alternative_roles: alternativeRoles,
+			recommendations,
+			omni_score: omniScore,
+			profile_summary: {
+				years_experience: parseFloat(profile.years_experience) || 0,
+				skill_count: skills.length,
+				assessment_count: assessments.length,
+				education_count: education.length,
+			},
+		};
+
+		// Persist diagnosis
+		const insertResult = await pool.query(
+			`INSERT INTO career_diagnoses (user_id, diagnosis_data)
+			 VALUES ($1, $2)
+			 RETURNING id, created_at`,
+			[req.user.id, JSON.stringify(diagnosisData)],
+		);
+
+		res.json({
+			success: true,
+			diagnosis: {
+				id: insertResult.rows[0].id,
+				...diagnosisData,
+				created_at: insertResult.rows[0].created_at,
+			},
+		});
+	} catch (err) {
+		console.error('Career diagnosis error:', err);
+		res.status(500).json({ error: 'Failed to generate career diagnosis' });
+	}
+});
+
+// GET /career-diagnosis — Return latest diagnosis for logged-in candidate
+router.get('/career-diagnosis', authMiddleware, requireRole('candidate'), async (req, res) => {
+	try {
+		const result = await pool.query(
+			`SELECT id, user_id, diagnosis_data, created_at, updated_at
+			 FROM career_diagnoses
+			 WHERE user_id = $1
+			 ORDER BY created_at DESC
+			 LIMIT 1`,
+			[req.user.id],
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(404).json({
+				error: 'No career diagnosis found. Run a diagnosis first.',
+				code: 'NOT_FOUND',
+			});
+		}
+
+		const row = result.rows[0];
+		res.json({
+			success: true,
+			diagnosis: {
+				id: row.id,
+				user_id: row.user_id,
+				...row.diagnosis_data,
+				created_at: row.created_at,
+				updated_at: row.updated_at,
+			},
+		});
+	} catch (err) {
+		console.error('Get career diagnosis error:', err);
+		res.status(500).json({ error: 'Failed to get career diagnosis' });
 	}
 });
 
