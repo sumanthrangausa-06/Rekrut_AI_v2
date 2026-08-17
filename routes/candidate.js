@@ -3986,140 +3986,6 @@ Only return JSON.`;
 	}
 });
 
-// ============= LINKEDIN IMPORT =============
-
-// POST /linkedin/import — Import LinkedIn profile data for candidate
-router.post('/linkedin/import', authMiddleware, requireRole('candidate'), rateLimits.standard, async (req, res) => {
-	try {
-		// 1. Find the user's LinkedIn OAuth connection
-		const connectionResult = await pool.query(
-			`SELECT access_token, profile_data
-			 FROM oauth_connections
-			 WHERE user_id = $1 AND provider = 'linkedin'
-			 ORDER BY updated_at DESC
-			 LIMIT 1`,
-			[req.user.id],
-		);
-
-		if (connectionResult.rows.length === 0) {
-			return res.status(404).json({
-				error: 'LinkedIn account not connected',
-				code: 'LINKEDIN_NOT_CONNECTED',
-			});
-		}
-
-		const { access_token: encryptedToken, profile_data: storedProfileData } = connectionResult.rows[0];
-
-		if (!encryptedToken) {
-			return res.status(404).json({
-				error: 'LinkedIn token not found',
-				code: 'LINKEDIN_TOKEN_MISSING',
-			});
-		}
-
-		// 2. Decrypt the access token
-		let accessToken;
-		try {
-			accessToken = decrypt(encryptedToken);
-		} catch (decryptErr) {
-			console.error('[linkedin/import] Token decryption failed:', decryptErr.message);
-			return res.status(500).json({
-				error: 'Failed to decrypt LinkedIn token',
-				code: 'TOKEN_DECRYPTION_FAILED',
-			});
-		}
-
-		if (!accessToken) {
-			return res.status(404).json({
-				error: 'LinkedIn token not found',
-				code: 'LINKEDIN_TOKEN_MISSING',
-			});
-		}
-
-		// 3. Call LinkedIn /v2/userinfo
-		const userInfoResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
-			headers: { Authorization: `Bearer ${accessToken}` },
-		});
-
-		// Handle token expiration (401 from LinkedIn)
-		if (userInfoResponse.status === 401) {
-			return res.status(401).json({
-				error: 'LinkedIn token expired. Please reconnect your account.',
-				code: 'LINKEDIN_TOKEN_EXPIRED',
-			});
-		}
-
-		if (!userInfoResponse.ok) {
-			const errorBody = await userInfoResponse.text();
-			console.error(`[linkedin/import] LinkedIn API error ${userInfoResponse.status}:`, errorBody);
-			return res.status(502).json({
-				error: 'LinkedIn API request failed',
-				code: 'LINKEDIN_API_ERROR',
-				status: userInfoResponse.status,
-			});
-		}
-
-		const linkedinUser = await userInfoResponse.json();
-
-		if (!linkedinUser.email) {
-			return res.status(502).json({
-				error: 'Could not retrieve email from LinkedIn',
-				code: 'LINKEDIN_EMAIL_MISSING',
-			});
-		}
-
-		// 4. Construct linkedin_url if possible
-		let linkedinUrl = null;
-		// Try to extract vanity name from stored profile_data if available
-		if (storedProfileData) {
-			try {
-				const parsed = typeof storedProfileData === 'string' ? JSON.parse(storedProfileData) : storedProfileData;
-				if (parsed.vanityName) {
-					linkedinUrl = `https://www.linkedin.com/in/${parsed.vanityName}`;
-				}
-			} catch (_e) {
-				// ignore parse errors
-			}
-		}
-		// Fallback: try to construct from name (best effort)
-		if (!linkedinUrl && linkedinUser.name) {
-			const vanity = linkedinUser.name
-				.toLowerCase()
-				.replace(/[^a-z0-9]+/g, '-')
-				.replace(/^-|-$/g, '');
-			if (vanity) {
-				linkedinUrl = `https://www.linkedin.com/in/${vanity}`;
-			}
-		}
-
-		const photo = linkedinUser.picture || null;
-		const name = linkedinUser.name || `${linkedinUser.given_name || ''} ${linkedinUser.family_name || ''}`.trim() || null;
-
-		// 5. Update users.avatar_url if photo changed
-		if (photo && photo !== req.user.avatar_url) {
-			try {
-				await pool.query('UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2', [
-					photo,
-					req.user.id,
-				]);
-			} catch (avatarErr) {
-				console.error('[linkedin/import] Failed to update avatar_url (non-blocking):', avatarErr.message);
-			}
-		}
-
-		res.json({
-			success: true,
-			name,
-			email: linkedinUser.email,
-			photo,
-			linkedin_url: linkedinUrl,
-		});
-	} catch (err) {
-		console.error('[linkedin/import] Error:', err.message, err.code, err.stack);
-		res.status(500).json({ error: 'Failed to import LinkedIn profile' });
-	}
-});
-
 // GET /api/candidate/list — returns candidates for the recruiter's company (Issue #109)
 router.get('/list', authMiddleware, async (req, res) => {
 	try {
@@ -4767,6 +4633,342 @@ router.get('/career-diagnosis', authMiddleware, requireRole('candidate'), async 
 	} catch (err) {
 		console.error('Get career diagnosis error:', err);
 		res.status(500).json({ error: 'Failed to get career diagnosis' });
+	}
+});
+
+
+// ============= LINKEDIN PROFILE IMPORT (#79) =============
+
+/**
+ * Fetch LinkedIn profile data using stored OAuth token.
+ * Uses OpenID Connect userinfo (guaranteed with current scope)
+ * and attempts v2 profile API for extended fields.
+ */
+async function fetchLinkedInProfile(accessToken) {
+	const headers = { Authorization: `Bearer ${accessToken}` };
+
+	// 1. OpenID Connect userinfo — always available with `openid profile email` scope
+	const userinfoRes = await fetch('https://api.linkedin.com/v2/userinfo', { headers });
+	if (!userinfoRes.ok) {
+		const errBody = await userinfoRes.text().catch(() => '');
+		throw new Error(`LinkedIn userinfo failed: ${userinfoRes.status} ${errBody}`);
+	}
+	const userinfo = await userinfoRes.json();
+
+	const profile = {
+		sub: userinfo.sub,
+		name: userinfo.name,
+		firstName: userinfo.given_name,
+		lastName: userinfo.family_name,
+		email: userinfo.email,
+		picture: userinfo.picture,
+		headline: null,
+		summary: null,
+		vanityName: null,
+		experience: [],
+		education: [],
+		skills: [],
+		_raw: { userinfo },
+	};
+
+	// 2. Attempt v2 basic profile for headline / summary (requires r_basicprofile partner scope)
+	try {
+		const meRes = await fetch(
+			'https://api.linkedin.com/v2/me?projection=(id,firstName,lastName,headline,summary,vanityName)',
+			{ headers, signal: AbortSignal.timeout(5000) },
+		);
+		if (meRes.ok) {
+			const me = await meRes.json();
+			profile.headline = me.headline || null;
+			profile.summary = me.summary || null;
+			profile.vanityName = me.vanityName || null;
+			profile._raw.me = me;
+		}
+	} catch (apiErr) {
+		console.log('[LinkedIn Import] v2/me unavailable (expected without r_basicprofile):', apiErr.message);
+	}
+
+	// 3. Attempt v2 positions (requires r_basicprofile)
+	try {
+		const positionsRes = await fetch(
+			`https://api.linkedin.com/v2/positions?owner=urn:li:person:${profile.sub}&count=50`,
+			{ headers, signal: AbortSignal.timeout(5000) },
+		);
+		if (positionsRes.ok) {
+			const positions = await positionsRes.json();
+			profile._raw.positions = positions;
+			if (positions.elements) {
+				profile.experience = positions.elements.map((p) => ({
+					company: p.companyName,
+					title: p.title,
+					location: p.locationName,
+					description: p.description,
+					start_date: p.startDate
+						? `${p.startDate.year}-${String(p.startDate.month || 1).padStart(2, '0')}`
+						: null,
+					end_date: p.endDate
+						? `${p.endDate.year}-${String(p.endDate.month || 1).padStart(2, '0')}`
+						: 'Present',
+					is_current: !p.endDate,
+				}));
+			}
+		}
+	} catch (apiErr) {
+		console.log('[LinkedIn Import] v2/positions unavailable:', apiErr.message);
+	}
+
+	// 4. Attempt v2 educations (requires r_basicprofile)
+	try {
+		const eduRes = await fetch(
+			`https://api.linkedin.com/v2/educations?owner=urn:li:person:${profile.sub}&count=50`,
+			{ headers, signal: AbortSignal.timeout(5000) },
+		);
+		if (eduRes.ok) {
+			const educations = await eduRes.json();
+			profile._raw.educations = educations;
+			if (educations.elements) {
+				profile.education = educations.elements.map((e) => ({
+					institution: e.schoolName,
+					degree: e.degreeName,
+					field: e.fieldOfStudy,
+					start_date: e.startDate ? `${e.startDate.year}` : null,
+					end_date: e.endDate ? `${e.endDate.year}` : 'Present',
+					is_current: !e.endDate,
+				}));
+			}
+		}
+	} catch (apiErr) {
+		console.log('[LinkedIn Import] v2/educations unavailable:', apiErr.message);
+	}
+
+	// 5. Attempt v2 skills (requires r_basicprofile)
+	try {
+		const skillsRes = await fetch(
+			`https://api.linkedin.com/v2/skills?owner=urn:li:person:${profile.sub}&count=50`,
+			{ headers, signal: AbortSignal.timeout(5000) },
+		);
+		if (skillsRes.ok) {
+			const skillsData = await skillsRes.json();
+			profile._raw.skills = skillsData;
+			if (skillsData.elements) {
+				profile.skills = skillsData.elements.map((s) => ({
+					name: s.name,
+					level: 3, // LinkedIn v2 does not expose proficiency level
+					category: 'technical',
+				}));
+			}
+		}
+	} catch (apiErr) {
+		console.log('[LinkedIn Import] v2/skills unavailable:', apiErr.message);
+	}
+
+	return profile;
+}
+
+/**
+ * Merge LinkedIn profile data into existing candidate profile.
+ * Strategy: fill gaps only (do not overwrite manually-entered data).
+ */
+async function mergeLinkedInProfile(userId, linkedinProfile) {
+	const summary = {
+		user_updated: false,
+		profile_updated: false,
+		experience_added: 0,
+		education_added: 0,
+		skills_added: 0,
+	};
+
+	// 1. Update users.name (only if empty)
+	if (linkedinProfile.name) {
+		const userRes = await pool.query(
+			`UPDATE users
+			 SET name = COALESCE(NULLIF(TRIM(name), ''), $2),
+			     title = COALESCE(NULLIF(TRIM(title), ''), $3),
+			     linkedin_data = $4,
+			     updated_at = NOW()
+			 WHERE id = $1
+			 RETURNING name, title`,
+			[userId, linkedinProfile.name, linkedinProfile.headline, JSON.stringify(linkedinProfile._raw)],
+		);
+		if (userRes.rows.length > 0) {
+			summary.user_updated = true;
+		}
+	}
+
+	// 2. Upsert candidate_profiles (merge, don't overwrite)
+	await pool.query(
+		`
+		INSERT INTO candidate_profiles (user_id, headline, bio, photo_url)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id) DO UPDATE SET
+			headline = COALESCE(NULLIF(candidate_profiles.headline, ''), EXCLUDED.headline),
+			bio      = COALESCE(NULLIF(candidate_profiles.bio, ''), EXCLUDED.bio),
+			photo_url = COALESCE(candidate_profiles.photo_url, EXCLUDED.photo_url),
+			updated_at = NOW()
+		`,
+		[userId, linkedinProfile.headline, linkedinProfile.summary, linkedinProfile.picture],
+	);
+	summary.profile_updated = true;
+
+	// 3. Merge work experience (skip duplicates by company+title)
+	for (let i = 0; i < linkedinProfile.experience.length; i++) {
+		const exp = linkedinProfile.experience[i];
+		if (!exp.company || !exp.title) continue;
+
+		const existing = await pool.query(
+			`SELECT id FROM work_experience
+			 WHERE user_id = $1 AND LOWER(company_name) = LOWER($2) AND LOWER(title) = LOWER($3)`,
+			[userId, exp.company, exp.title],
+		);
+		if (existing.rows.length > 0) continue;
+
+		await pool.query(
+			`
+			INSERT INTO work_experience (
+				user_id, company_name, title, location,
+				start_date, end_date, is_current, description, order_index
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			`,
+			[
+				userId,
+				exp.company,
+				exp.title,
+				exp.location || null,
+				exp.start_date ? new Date(`${exp.start_date}-01`) : null,
+				exp.end_date && exp.end_date !== 'Present' ? new Date(`${exp.end_date}-01`) : null,
+				exp.is_current || false,
+				exp.description || null,
+				i,
+			],
+		);
+		summary.experience_added++;
+	}
+
+	// 4. Merge education (skip duplicates by institution+degree)
+	for (let i = 0; i < linkedinProfile.education.length; i++) {
+		const edu = linkedinProfile.education[i];
+		if (!edu.institution) continue;
+
+		const existing = await pool.query(
+			`SELECT id FROM education
+			 WHERE user_id = $1 AND LOWER(institution) = LOWER($2) AND LOWER(COALESCE(degree, '')) = LOWER(COALESCE($3, ''))`,
+			[userId, edu.institution, edu.degree || ''],
+		);
+		if (existing.rows.length > 0) continue;
+
+		await pool.query(
+			`
+			INSERT INTO education (
+				user_id, institution, degree, field_of_study,
+				start_date, end_date, is_current, order_index
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			`,
+			[
+				userId,
+				edu.institution,
+				edu.degree || null,
+				edu.field || null,
+				edu.start_date ? new Date(`${edu.start_date}-01-01`) : null,
+				edu.end_date && edu.end_date !== 'Present' ? new Date(`${edu.end_date}-01-01`) : null,
+				edu.is_current || false,
+				i,
+			],
+		);
+		summary.education_added++;
+	}
+
+	// 5. Merge skills (upsert with level = GREATEST(existing, new))
+	for (const skill of linkedinProfile.skills) {
+		if (!skill.name) continue;
+		try {
+			await pool.query(
+				`
+				INSERT INTO candidate_skills (user_id, skill_name, category, level)
+				VALUES ($1, $2, $3, $4)
+				ON CONFLICT (user_id, skill_name) DO UPDATE SET
+					category = COALESCE(NULLIF($3, ''), candidate_skills.category),
+					level = GREATEST(candidate_skills.level, $4)
+				`,
+				[userId, skill.name, skill.category || 'technical', Math.max(1, Math.min(5, skill.level || 3))],
+			);
+			summary.skills_added++;
+		} catch (skillErr) {
+			console.error('[LinkedIn Import] Skip skill insert:', skillErr.message);
+		}
+	}
+
+	return summary;
+}
+
+// POST /linkedin/import — One-click LinkedIn profile sync
+router.post('/linkedin/import', authMiddleware, async (req, res) => {
+	try {
+		const userId = req.user.id;
+
+		// 1. Find the user's LinkedIn OAuth connection
+		const connResult = await pool.query(
+			`SELECT access_token, refresh_token, provider_user_id, profile_data
+			 FROM oauth_connections
+			 WHERE user_id = $1 AND provider = 'linkedin'`,
+			[userId],
+		);
+
+		if (connResult.rows.length === 0) {
+			return res.status(400).json({
+				error: 'No LinkedIn connection found. Please connect your LinkedIn account first.',
+				code: 'LINKEDIN_NOT_CONNECTED',
+			});
+		}
+
+		const conn = connResult.rows[0];
+
+		// 2. Decrypt access token
+		let accessToken;
+		try {
+			accessToken = decrypt(conn.access_token);
+		} catch (decryptErr) {
+			console.error('[LinkedIn Import] Token decryption failed:', decryptErr.message);
+			return res.status(500).json({
+				error: 'Failed to decrypt LinkedIn token. Please reconnect your account.',
+				code: 'TOKEN_DECRYPT_FAILED',
+			});
+		}
+
+		if (!accessToken) {
+			return res.status(400).json({
+				error: 'LinkedIn access token is missing. Please reconnect your account.',
+				code: 'TOKEN_MISSING',
+			});
+		}
+
+		// 3. Fetch profile from LinkedIn
+		const linkedinProfile = await fetchLinkedInProfile(accessToken);
+
+		// 4. Merge into local profile (merge strategy — fill gaps only)
+		const summary = await mergeLinkedInProfile(userId, linkedinProfile);
+
+		// 5. Trigger async profile updates
+		triggerProfileUpdate(userId, 'linkedin_import');
+
+		res.json({
+			success: true,
+			message: 'LinkedIn profile imported successfully',
+			summary,
+			linkedin: {
+				name: linkedinProfile.name,
+				headline: linkedinProfile.headline,
+				experience_count: linkedinProfile.experience.length,
+				education_count: linkedinProfile.education.length,
+				skills_count: linkedinProfile.skills.length,
+			},
+		});
+	} catch (err) {
+		console.error('LinkedIn import error:', err.message, err.stack);
+		res.status(500).json({
+			error: 'LinkedIn profile import failed',
+			code: 'IMPORT_FAILED',
+			detail: err.message,
+		});
 	}
 });
 
