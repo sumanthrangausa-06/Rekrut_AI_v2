@@ -17,6 +17,8 @@ const { AuditLogger } = require('../services/auditLogService');
 const { rateLimits } = require('../lib/distributed-rate-limiter');
 const emailService = require('../lib/email-service');
 
+const router = express.Router();
+
 function logAuth(message) {
 	try {
 		fs.appendFileSync('auth.log', `${message}\n`);

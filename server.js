@@ -625,9 +625,6 @@ app.use('/api/screening', screeningRoutes);
 // API Routes - AI Recruiter Screener (Issue #112)
 app.use('/api', aiScreenerRoutes);
 
-// API Routes - Aptitude Test Engine (Issue #111)
-app.use('/api/aptitude', aptitudeRoutes);
-
 // API Routes - Screening Questionnaire (Issue #110)
 app.use('/api/questionnaire', questionnaireRoutes);
 
@@ -641,6 +638,7 @@ app.use('/api/signatures', signatureRoutes);
 app.use('/api/candidates', candidateSearchRoutes);
 
 // API Routes - Identity Verification
+const verificationRoutes = require('./routes/verification');
 app.use('/api/candidates', verificationRoutes);
 
 // Issue #133 — Background Check (employment/education verification, discrepancy detection, reference checks)
@@ -655,6 +653,7 @@ const ttsRoutes = require('./routes/tts');
 const aptitudeRoutes = require('./routes/aptitude');
 app.use('/api/voice', voiceRoutes);
 app.use('/api/tts', ttsRoutes);
+app.use('/api/aptitude', aptitudeRoutes);
 
 // API Routes - Calendar Integration (Google + Outlook)
 const calendarRoutes = require('./routes/calendar');
@@ -1981,6 +1980,9 @@ const KNOWN_ROUTES = [
 function isKnownSpaRoute(routePath) {
 	return KNOWN_ROUTES.some((regex) => regex.test(routePath));
 }
+
+// API Documentation — auto-generated OpenAPI spec with Swagger UI (Issue #52)
+app.use('/api/docs', require('./routes/docs'));
 
 // SPA fallback — serve React index.html for all non-API routes that don't match a file
 app.get('*', (req, res) => {
