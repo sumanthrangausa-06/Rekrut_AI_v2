@@ -355,7 +355,7 @@ function FunnelChart({ stages }: { stages: { label: string; count: number; color
 				const widthPct = Math.max(20, (stage.count / max) * 100)
 				return (
 					<div key={stage.label} className='flex items-center gap-3'>
-						<span className='text-xs text-muted-foreground w-16 shrink-0 text-right'>{stage.label}</span>
+						<span className='text-xs text-muted-foreground w-20 shrink-0 text-right whitespace-nowrap'>{stage.label}</span>
 						<div className='flex-1 flex items-center gap-2'>
 							<div
 								className={`h-8 rounded-md flex items-center px-3 transition-all duration-500 ${stage.bgColor}`}
@@ -1016,7 +1016,7 @@ export function RecruiterDashboard() {
 								{stats.totalApplications > 0 ? (
 									<>
 										<AreaChart data={dailyAppData} />
-										<div className='flex items-center justify-between mt-3 pt-3 border-t border-slate-100'>
+										<div className='flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-100'>
 											<span className='text-xs text-muted-foreground'>Last 30 days</span>
 											<Badge variant='outline' className='text-xs gap-1 font-normal'>
 												{mom.trend === 'up' ? (
