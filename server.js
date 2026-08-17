@@ -326,6 +326,87 @@ app.get('/health/analytics', (_req, res) => {
 	});
 });
 
+// Issue #51: Self-hosted status page — serve static HTML
+app.get('/status', (_req, res) => {
+	res.sendFile(path.join(__dirname, 'public', 'status.html'));
+});
+
+// Issue #51: Detailed health check — includes DB, external services, uptime, memory
+app.get('/health/detailed', async (_req, res) => {
+	const start = Date.now();
+	const { runHealthCheckFast } = require('./lib/db-health');
+
+	// Collect all checks in parallel where possible
+	const [dbHealth, aiHealth] = await Promise.allSettled([
+		runHealthCheckFast(),
+		(async () => {
+			// Lightweight external service checks — env presence only (no API calls to avoid cost/latency)
+			const services = {
+				openai: { configured: !!process.env.OPENAI_API_KEY },
+				anthropic: { configured: !!process.env.ANTHROPIC_API_KEY || !!process.env.POLSIA_API_KEY },
+				polsia: { configured: !!process.env.POLSIA_API_KEY },
+				stripe: { configured: !!process.env.STRIPE_SECRET_KEY },
+				sentry: { configured: !!process.env.SENTRY_DSN },
+				livekit: { configured: !!process.env.LIVEKIT_API_KEY && !!process.env.LIVEKIT_API_SECRET },
+				google_oauth: { configured: !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET },
+				smtp: { configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) },
+			};
+			return services;
+		})(),
+	]);
+
+	const mem = process.memoryUsage();
+	const uptimeSec = process.uptime();
+
+	const responseTime = Date.now() - start;
+	const db = dbHealth.status === 'fulfilled' ? dbHealth.value : { healthy: false, error: dbHealth.reason?.message };
+	const external = aiHealth.status === 'fulfilled' ? aiHealth.value : {};
+
+	const healthy = db.status === 'fulfilled' ? db.value.healthy : false;
+
+	res.status(healthy ? 200 : 200).json({
+		status: healthy ? 'ok' : 'degraded',
+		timestamp: new Date().toISOString(),
+		responseTimeMs: responseTime,
+		uptime: {
+			seconds: Math.round(uptimeSec),
+			formatted: formatUptime(uptimeSec),
+		},
+		memory: {
+			rss: `${Math.round(mem.rss / 1024 / 1024)}MB`,
+			heapUsed: `${Math.round(mem.heapUsed / 1024 / 1024)}MB`,
+			heapTotal: `${Math.round(mem.heapTotal / 1024 / 1024)}MB`,
+			external: `${Math.round(mem.external / 1024 / 1024)}MB`,
+		},
+		db: db.status === 'fulfilled' ? {
+			connected: db.value.connection?.connected,
+			latencyMs: db.value.connection?.latencyMs,
+			pool: db.value.pool,
+			issues: db.value.issues,
+		} : { connected: false, error: db.reason?.message },
+		externalServices: external,
+		node: {
+			version: process.version,
+			platform: process.platform,
+			arch: process.arch,
+			pid: process.pid,
+		},
+	});
+});
+
+function formatUptime(seconds) {
+	const d = Math.floor(seconds / 86400);
+	const h = Math.floor((seconds % 86400) / 3600);
+	const m = Math.floor((seconds % 3600) / 60);
+	const s = Math.round(seconds % 60);
+	const parts = [];
+	if (d) parts.push(`${d}d`);
+	if (h) parts.push(`${h}h`);
+	if (m) parts.push(`${m}m`);
+	parts.push(`${s}s`);
+	return parts.join(' ');
+}
+
 // CORS — restricted to known origins only
 const ALLOWED_ORIGINS = [
 	'https://hireloop-vzvw.polsia.app',
