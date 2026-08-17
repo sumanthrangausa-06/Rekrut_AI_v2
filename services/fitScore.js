@@ -261,6 +261,57 @@ function scoreJobType(candidatePreferredTypes, actualJobType) {
 /**
  * Generate a human-readable summary based on the fit score.
  */
+/**
+ * Score working-style preference match.
+ * +10 if remote_type matches remote_preference
+ * +10 if job_type is in preferred_job_types
+ * +5  if salary ranges overlap
+ */
+function scorePreferences(candidateProfile, job) {
+  let points = 0;
+  const details = [];
+
+  // Remote match
+  const candidateRemote = (candidateProfile.remote_preference || '').toLowerCase().trim();
+  const jobRemote = (job.remote_type || '').toLowerCase().trim();
+  if (candidateRemote && jobRemote && candidateRemote === jobRemote) {
+    points += 10;
+    details.push('remote_match');
+  }
+
+  // Job type match
+  const preferredTypes = candidateProfile.preferred_job_types || [];
+  const actualJobType = (job.job_type || '').toLowerCase().trim();
+  if (actualJobType && preferredTypes.length > 0) {
+    const preferredLower = preferredTypes.map((t) => String(t).toLowerCase().trim());
+    if (preferredLower.includes(actualJobType)) {
+      points += 10;
+      details.push('job_type_match');
+    }
+  }
+
+  // Salary overlap
+  const cMin = parseInt(candidateProfile.salary_min, 10);
+  const cMax = parseInt(candidateProfile.salary_max, 10);
+  const jMin = job.salary_min !== null && job.salary_min !== undefined ? parseInt(job.salary_min, 10) : null;
+  const jMax = job.salary_max !== null && job.salary_max !== undefined ? parseInt(job.salary_max, 10) : null;
+
+  if (!Number.isNaN(cMin) || !Number.isNaN(cMax)) {
+    const candMin = Number.isNaN(cMin) ? 0 : cMin;
+    const candMax = Number.isNaN(cMax) ? Number.MAX_SAFE_INTEGER : cMax;
+    const jobMin = jMin !== null && !Number.isNaN(jMin) ? jMin : 0;
+    const jobMax = jMax !== null && !Number.isNaN(jMax) ? jMax : Number.MAX_SAFE_INTEGER;
+
+    // Overlap exists if max(lower bounds) <= min(upper bounds)
+    if (Math.max(candMin, jobMin) <= Math.min(candMax, jobMax)) {
+      points += 5;
+      details.push('salary_overlap');
+    }
+  }
+
+  return { score: points, max: 25, details };
+}
+
 function generateSummary(fitScore) {
 	if (fitScore >= 90) return 'Excellent match — highly aligned with role requirements';
 	if (fitScore >= 75) return 'Strong match — skills and experience align well';
@@ -407,12 +458,15 @@ async function calculateFitScore(candidateId, jobId) {
 
 		// ─── Weighted total ───────────────────────────────────────────────
 
+		const preferencesBreakdown = scorePreferences(candidateProfileNormalised, job);
+
 		const weightedScore =
 			skillsBreakdown.score * WEIGHTS.skills +
 			experienceBreakdown.score * WEIGHTS.experience +
 			locationBreakdown.score * WEIGHTS.location +
 			salaryBreakdown.score * WEIGHTS.salary +
-			jobTypeBreakdown.score * WEIGHTS.job_type;
+			jobTypeBreakdown.score * WEIGHTS.job_type +
+			preferencesBreakdown.score;
 
 		const fitScore = Math.round(Math.min(100, Math.max(0, weightedScore)));
 
@@ -424,6 +478,7 @@ async function calculateFitScore(candidateId, jobId) {
 				location: locationBreakdown,
 				salary: salaryBreakdown,
 				job_type: jobTypeBreakdown,
+				preferences: preferencesBreakdown,
 			},
 			summary: generateSummary(fitScore),
 		};
@@ -568,12 +623,15 @@ async function calculateFitScoresBatch(candidateId, jobIds) {
 			);
 			const jobTypeBreakdown = scoreJobType(preferredJobTypes, job.job_type);
 
+			const preferencesBreakdown = scorePreferences(candidateProfileNormalised, job);
+
 			const weightedScore =
 				skillsBreakdown.score * WEIGHTS.skills +
 				experienceBreakdown.score * WEIGHTS.experience +
 				locationBreakdown.score * WEIGHTS.location +
 				salaryBreakdown.score * WEIGHTS.salary +
-				jobTypeBreakdown.score * WEIGHTS.job_type;
+				jobTypeBreakdown.score * WEIGHTS.job_type +
+				preferencesBreakdown.score;
 
 			const fitScore = Math.round(Math.min(100, Math.max(0, weightedScore)));
 
@@ -586,6 +644,7 @@ async function calculateFitScoresBatch(candidateId, jobIds) {
 					location: locationBreakdown,
 					salary: salaryBreakdown,
 					job_type: jobTypeBreakdown,
+					preferences: preferencesBreakdown,
 				},
 				summary: generateSummary(fitScore),
 			};

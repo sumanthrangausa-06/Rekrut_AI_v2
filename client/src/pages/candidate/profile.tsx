@@ -83,6 +83,9 @@ interface Profile {
 	preferred_locations?: string[]
 	remote_preference?: string
 	years_experience?: number
+	salary_currency?: string
+	timezone_preference?: string
+	travel_willingness?: string
 	// New fields
 	omni_score?: number
 	profile_views?: number
@@ -1659,7 +1662,7 @@ function PersonalInfoTab({
 		return /^https:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+\/?$/.test(url)
 	}
 
-	function updateField(key: string, value: string | number) {
+	function updateField(key: string, value: string | number | string[]) {
 		setProfile((p) => ({ ...p, [key]: value }))
 		if (key === 'linkedin_url') {
 			const url = String(value)
@@ -1867,7 +1870,7 @@ function PersonalInfoTab({
 				<Card>
 					<CardContent className='p-6 space-y-6'>
 						<h3 className='font-semibold flex items-center gap-2'>
-							<Briefcase className='h-4 w-4' /> Preferences
+							<Briefcase className='h-4 w-4' /> Working Style
 						</h3>
 						<div className='grid gap-4 sm:grid-cols-2'>
 							<div>
@@ -1895,6 +1898,20 @@ function PersonalInfoTab({
 								</select>
 							</div>
 							<div>
+								<Label>Job Type</Label>
+								<select
+									value={(profile.preferred_job_types?.[0]) || 'full-time'}
+									onChange={(e) => updateField('preferred_job_types', [e.target.value])}
+									className='flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base sm:text-sm'
+								>
+									<option value='full-time'>Full-time</option>
+									<option value='part-time'>Part-time</option>
+									<option value='contract'>Contract</option>
+									<option value='freelance'>Freelance</option>
+									<option value='internship'>Internship</option>
+								</select>
+							</div>
+							<div>
 								<Label>Availability</Label>
 								<select
 									value={profile.availability || 'open'}
@@ -1908,7 +1925,25 @@ function PersonalInfoTab({
 								</select>
 							</div>
 							<div>
-								<Label>Minimum Salary ($)</Label>
+								<Label>Salary Currency</Label>
+								<select
+									value={profile.salary_currency || 'USD'}
+									onChange={(e) => updateField('salary_currency', e.target.value)}
+									className='flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base sm:text-sm'
+								>
+									<option value='USD'>USD</option>
+									<option value='EUR'>EUR</option>
+									<option value='GBP'>GBP</option>
+									<option value='INR'>INR</option>
+									<option value='CAD'>CAD</option>
+									<option value='AUD'>AUD</option>
+									<option value='JPY'>JPY</option>
+									<option value='CNY'>CNY</option>
+									<option value='SGD'>SGD</option>
+								</select>
+							</div>
+							<div>
+								<Label>Minimum Salary</Label>
 								<Input
 									type='number'
 									value={profile.salary_min ?? ''}
@@ -1917,13 +1952,48 @@ function PersonalInfoTab({
 								/>
 							</div>
 							<div>
-								<Label>Maximum Salary ($)</Label>
+								<Label>Maximum Salary</Label>
 								<Input
 									type='number'
 									value={profile.salary_max ?? ''}
 									onChange={(e) => updateField('salary_max', parseInt(e.target.value, 10) || 0)}
 									placeholder='150000'
 								/>
+							</div>
+							<div>
+								<Label>Timezone Preference</Label>
+								<select
+									value={profile.timezone_preference || 'UTC'}
+									onChange={(e) => updateField('timezone_preference', e.target.value)}
+									className='flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base sm:text-sm'
+								>
+									<option value='UTC'>UTC</option>
+									<option value='America/New_York'>America/New York (EST)</option>
+									<option value='America/Chicago'>America/Chicago (CST)</option>
+									<option value='America/Denver'>America/Denver (MST)</option>
+									<option value='America/Los_Angeles'>America/Los Angeles (PST)</option>
+									<option value='Europe/London'>Europe/London (GMT)</option>
+									<option value='Europe/Paris'>Europe/Paris (CET)</option>
+									<option value='Europe/Berlin'>Europe/Berlin (CET)</option>
+									<option value='Asia/Tokyo'>Asia/Tokyo (JST)</option>
+									<option value='Asia/Shanghai'>Asia/Shanghai (CST)</option>
+									<option value='Asia/Singapore'>Asia/Singapore (SGT)</option>
+									<option value='Asia/Dubai'>Asia/Dubai (GST)</option>
+									<option value='Australia/Sydney'>Australia/Sydney (AEST)</option>
+									<option value='Pacific/Auckland'>Pacific/Auckland (NZST)</option>
+								</select>
+							</div>
+							<div>
+								<Label>Travel Willingness</Label>
+								<select
+									value={profile.travel_willingness || 'none'}
+									onChange={(e) => updateField('travel_willingness', e.target.value)}
+									className='flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base sm:text-sm'
+								>
+									<option value='none'>No travel</option>
+									<option value='occasional'>Occasional</option>
+									<option value='frequent'>Frequent</option>
+								</select>
 							</div>
 						</div>
 					</CardContent>

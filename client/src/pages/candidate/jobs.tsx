@@ -123,6 +123,7 @@ interface FilterState {
 	companySize: string
 	sortBy: 'match' | 'newest' | 'salary_high' | 'salary_low'
 	remoteOnly: boolean
+	matchPreferences: boolean
 }
 
 const DEFAULT_FILTERS: FilterState = {
@@ -137,6 +138,7 @@ const DEFAULT_FILTERS: FilterState = {
 	companySize: '',
 	sortBy: 'match',
 	remoteOnly: false,
+	matchPreferences: false,
 }
 
 function matchLevelLabel(level: string): string {
@@ -409,11 +411,26 @@ export function CandidateJobsPage() {
 		} catch (err) { console.error("[jobs] Operation failed:", err); }
 	}, [])
 
+	const [userPreferences, setUserPreferences] = useState<{
+		remote_preference?: string
+		preferred_job_types?: string[]
+	}>({})
+
 	const loadUserSkills = useCallback(async () => {
 		try {
-			const data = await apiCall<{ profile: { skills: Array<{ skill_name: string }> } }>('/candidate/profile')
+			const data = await apiCall<{
+				profile: {
+					skills: Array<{ skill_name: string }>
+					remote_preference?: string
+					preferred_job_types?: string[]
+				}
+			}>('/candidate/profile')
 			const skills = data.profile?.skills?.map((s) => s.skill_name) || []
 			setUserSkills(skills)
+			setUserPreferences({
+				remote_preference: data.profile?.remote_preference,
+				preferred_job_types: data.profile?.preferred_job_types,
+			})
 		} catch (err) { console.error("[jobs] Failed to load user skills:", err); }
 	}, [])
 
@@ -601,6 +618,7 @@ export function CandidateJobsPage() {
 		if (filters.companySize) count++
 		if (filters.sortBy !== 'match') count++
 		if (filters.remoteOnly) count++
+		if (filters.matchPreferences) count++
 		setActiveFilterCount(count)
 	}, [filters])
 
@@ -631,7 +649,16 @@ export function CandidateJobsPage() {
 				!filters.remoteType ||
 				j.remote_type === filters.remoteType ||
 				j.location?.toLowerCase().includes(filters.remoteType.toLowerCase())
+
 			const matchRemoteOnly = !filters.remoteOnly || j.remote_type === 'remote'
+			const matchPreferences =
+				!filters.matchPreferences ||
+				(!userPreferences.remote_preference &&
+					(!userPreferences.preferred_job_types || userPreferences.preferred_job_types.length === 0)) ||
+				((!userPreferences.remote_preference || j.remote_type === userPreferences.remote_preference) &&
+					(!userPreferences.preferred_job_types ||
+						userPreferences.preferred_job_types.length === 0 ||
+						userPreferences.preferred_job_types.includes(j.job_type)))
 			const matchExp =
 				!filters.experienceLevel ||
 				(j.experience_level || '').toLowerCase().includes(filters.experienceLevel.toLowerCase())
@@ -972,15 +999,34 @@ export function CandidateJobsPage() {
 					</div>
 
 					{/* Desktop Filter Bar (horizontal) */}
-					<JobFilterBar
-						filters={filters}
-						jobTypes={jobTypes}
-						allSkills={allSkills}
-						activeFilterCount={activeFilterCount}
-						onFilterChange={setSearch}
-						onToggleSkill={toggleSkill}
-						onClearAll={clearAllFilters}
-					/>
+					<div className="flex items-center gap-3 flex-wrap">
+						<JobFilterBar
+							filters={filters}
+							jobTypes={jobTypes}
+							allSkills={allSkills}
+							activeFilterCount={activeFilterCount}
+							onFilterChange={setSearch}
+							onToggleSkill={toggleSkill}
+							onClearAll={clearAllFilters}
+						/>
+						<button
+							onClick={() => setSearch('matchPreferences', !filters.matchPreferences)}
+							title={
+								!userPreferences.remote_preference && (!userPreferences.preferred_job_types || userPreferences.preferred_job_types.length === 0)
+									? 'Set your preferences in profile'
+									: 'Filter jobs matching your working style preferences'
+							}
+							className={cn(
+								'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors',
+								filters.matchPreferences
+									? 'bg-indigo-600 text-white border-indigo-600'
+									: 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+							)}
+						>
+							<Heart className="h-3 w-3" />
+							Match my preferences
+						</button>
+					</div>
 
 					{/* Job List */}
 					<div ref={jobListRef} data-job-list className='flex-1 overflow-y-auto px-3 sm:px-4 py-3 space-y-3'>

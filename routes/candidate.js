@@ -191,9 +191,12 @@ router.put('/profile', authMiddleware, async (req, res) => {
 			availability,
 			salary_min,
 			salary_max,
+			salary_currency,
 			preferred_job_types,
 			preferred_locations,
 			remote_preference,
+			timezone_preference,
+			travel_willingness,
 			years_experience,
 		} = req.body;
 
@@ -207,6 +210,9 @@ router.put('/profile', authMiddleware, async (req, res) => {
 		const sanitizedAvailability = normalizeTextField(availability, 60, 'Availability');
 		const sanitizedSalaryMin = normalizePositiveInteger(salary_min, 'salary_min');
 		const sanitizedSalaryMax = normalizePositiveInteger(salary_max, 'salary_max');
+		const sanitizedSalaryCurrency = normalizeTextField(salary_currency, 3, 'salary_currency');
+		const sanitizedTimezonePreference = normalizeTextField(timezone_preference, 100, 'timezone_preference');
+		const sanitizedTravelWillingness = normalizeTextField(travel_willingness, 50, 'travel_willingness');
 		const sanitizedYearsExperience = normalizePositiveInteger(
 			years_experience,
 			'years_experience',
@@ -243,10 +249,13 @@ router.put('/profile', authMiddleware, async (req, res) => {
           availability = COALESCE($9, availability),
           salary_min = COALESCE($10, salary_min),
           salary_max = COALESCE($11, salary_max),
-          preferred_job_types = COALESCE($12, preferred_job_types),
-          preferred_locations = COALESCE($13, preferred_locations),
-          remote_preference = COALESCE($14, remote_preference),
-          years_experience = COALESCE($15, years_experience),
+          salary_currency = COALESCE($12, salary_currency),
+          preferred_job_types = COALESCE($13, preferred_job_types),
+          preferred_locations = COALESCE($14, preferred_locations),
+          remote_preference = COALESCE($15, remote_preference),
+          timezone_preference = COALESCE($16, timezone_preference),
+          travel_willingness = COALESCE($17, travel_willingness),
+          years_experience = COALESCE($18, years_experience),
           updated_at = NOW()
         WHERE user_id = $1
         RETURNING *
@@ -266,6 +275,8 @@ router.put('/profile', authMiddleware, async (req, res) => {
 					JSON.stringify(preferred_job_types),
 					JSON.stringify(preferred_locations),
 					remote_preference,
+			timezone_preference,
+			travel_willingness,
 					sanitizedYearsExperience,
 				],
 			);
@@ -276,9 +287,11 @@ router.put('/profile', authMiddleware, async (req, res) => {
           user_id, headline, bio, location, phone,
           linkedin_url, github_url, portfolio_url,
           availability, salary_min, salary_max,
+          salary_currency,
           preferred_job_types, preferred_locations,
-          remote_preference, years_experience
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          remote_preference, timezone_preference, travel_willingness,
+          years_experience
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         RETURNING *
       `,
 				[
@@ -293,9 +306,12 @@ router.put('/profile', authMiddleware, async (req, res) => {
 					sanitizedAvailability,
 					sanitizedSalaryMin,
 					sanitizedSalaryMax,
+					sanitizedSalaryCurrency,
 					JSON.stringify(preferred_job_types || ['full-time']),
 					JSON.stringify(preferred_locations || []),
 					remote_preference || 'hybrid',
+					sanitizedTimezonePreference,
+					sanitizedTravelWillingness,
 					sanitizedYearsExperience || 0,
 				],
 			);
@@ -1883,6 +1899,7 @@ router.get('/jobs', authMiddleware, async (req, res) => {
 			job_type,
 			salary_min,
 			salary_max,
+			salary_currency,
 			remoteType,
 			experienceLevel,
 			skills,
