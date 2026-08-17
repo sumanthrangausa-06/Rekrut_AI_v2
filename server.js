@@ -150,6 +150,9 @@ const livekitRoutes = require('./server/routes/livekit'); // Issue #124 — Live
 const backgroundCheckRoutes = require('./routes/background-check'); // Issue #133 — Background check
 const recordingRoutes = require('./server/routes/recordings'); // Issue #126 — Interview recording, playback & AI transcript
 const collaborationRoutes = require('./routes/collaboration'); // Issue #128 — Real-time collaboration for hiring teams
+const apiKeyRoutes = require('./routes/api-keys'); // Issue #140 — Public API key management
+const publicApiRoutes = require('./routes/public-api'); // Issue #140 — Public API v1
+
 
 // ─── Prometheus metrics (Phase 1 observability — Issue #144) ─────────────
 const prometheus = require('./server/middleware/prometheus');
@@ -570,6 +573,11 @@ app.use('/api/careers', require('./routes/careers'));
 app.use('/api/trustscore', trustscoreRoutes);
 app.use('/api/recruiter', recruiterRoutes);
 app.use('/api/recruiter', recruiterImportRoutes); // Issue #141 — Bulk import
+app.use('/api/recruiter', apiKeyRoutes); // Issue #140 — Public API key management
+
+// API Routes - Public API v1 (Issue #140)
+app.use('/api/v1', publicApiRoutes);
+
 
 // API Routes - Matching Engine
 app.use('/api/matching', matchingRoutes);
