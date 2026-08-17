@@ -153,6 +153,7 @@ const recordingRoutes = require('./server/routes/recordings'); // Issue #126 —
 const collaborationRoutes = require('./routes/collaboration'); // Issue #128 — Real-time collaboration for hiring teams
 const apiKeyRoutes = require('./routes/api-keys'); // Issue #140 — Public API key management
 const publicApiRoutes = require('./routes/public-api'); // Issue #140 — Public API v1
+const referralRoutes = require('./routes/referrals'); // Issue #80 — Refer & Earn
 
 
 // ─── Prometheus metrics (Phase 1 observability — Issue #144) ─────────────
@@ -666,6 +667,7 @@ app.use('/api/v1', publicApiRoutes);
 app.use('/api/matching', matchingRoutes);
 app.use('/api/candidate/company-matches', companyMatchRoutes); // Issue #27 — Company Matches
 app.use('/api/recruiter-intros', recruiterIntroductionRoutes); // Issue #38 — Recruiter Introductions
+app.use('/api/referrals', referralRoutes); // Issue #80 — Refer & Earn
 
 // Issue #115: Candidate document management — mounted BEFORE /api/documents so /candidate/documents takes priority
 app.use('/api/candidate/documents', candidateDocumentRoutes);

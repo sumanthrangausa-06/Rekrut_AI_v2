@@ -217,6 +217,41 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 			}
 		}
 
+		// ─── Issue #80: Refer & Earn attribution ─────────────────────────────────
+		const { referral_code } = req.body;
+		if (referral_code) {
+			try {
+				const refResult = await pool.query(
+					`SELECT id, referrer_id, referred_user_id FROM referrals WHERE referral_code = $1`,
+					[referral_code.toUpperCase().trim()],
+				);
+				if (refResult.rows.length > 0) {
+					const referral = refResult.rows[0];
+					// Prevent self-referral
+					if (referral.referrer_id !== user.id && !referral.referred_user_id) {
+						await pool.query(
+							`UPDATE referrals
+							 SET referred_user_id = $1,
+								 referred_email = COALESCE($2, referred_email),
+								 status = 'registered',
+								 converted_at = NOW()
+							 WHERE id = $3`,
+							[user.id, email, referral.id],
+						);
+						// Create reward for referrer — ponytail: fixed 10 premium days
+						await pool.query(
+							`INSERT INTO referral_rewards (user_id, referral_id, reward_type, amount, status)
+							 VALUES ($1, $2, 'premium_days', 10, 'pending')`,
+							[referral.referrer_id, referral.id],
+						);
+						console.log(`[referrals] User ${user.id} attributed to referral ${referral.id}`);
+					}
+				}
+			} catch (refErr) {
+				console.error('[referrals] Attribution error (non-blocking):', refErr.message);
+			}
+		}
+
 		const accessToken = generateToken(user);
 		let refreshToken;
 		try {

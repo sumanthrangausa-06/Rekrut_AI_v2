@@ -30,6 +30,7 @@ interface RegisterData {
 	name: string
 	role: UserRole
 	company_name?: string
+	referral_code?: string
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -159,6 +160,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	}
 
 	const register = async (registerData: RegisterData) => {
+		// Include referral code from localStorage if present
+		const referralCode = localStorage.getItem('referral_code')
+		if (referralCode && !registerData.referral_code) {
+			registerData = { ...registerData, referral_code: referralCode }
+		}
 		const data = await apiCall<{
 			success: boolean
 			user: User

@@ -9,6 +9,7 @@ import { AuthProvider, getDashboardPath, useAuth } from '@/contexts/auth-context
 
 // Public
 const LandingPage = lazy(() => import('@/pages/landing').then((m) => ({ default: m.LandingPage })))
+const ReferralLandingPage = lazy(() => import('@/pages/referral-landing').then((m) => ({ default: m.ReferralLandingPage })))
 const LoginPage = lazy(() => import('@/pages/login').then((m) => ({ default: m.LoginPage })))
 const RegisterPage = lazy(() =>
 	import('@/pages/register').then((m) => ({ default: m.RegisterPage })),
@@ -182,6 +183,9 @@ const CandidatePostHireFeedbackPage = lazy(() =>
 )
 const OfferManagementPage = lazy(() =>
 	import('@/pages/candidate/offer-management').then((m) => ({ default: m.OfferManagementPage })),
+)
+const ReferralsPage = lazy(() =>
+	import('@/pages/candidate/referrals').then((m) => ({ default: m.ReferralsPage })),
 )
 const CVReviewPage = lazy(() =>
 	import('@/pages/candidate/cv-review').then((m) => ({ default: m.CVReviewPage })),
@@ -490,6 +494,7 @@ function AppRoutes() {
 			<Route path='/' element={<LandingPage />} />
 			<Route path='/login' element={<LoginPage />} />
 			<Route path='/register' element={<RegisterPage />} />
+			<Route path='/ref' element={<ReferralLandingPage />} />
 			<Route path='/forgot-password' element={<ForgotPasswordPage />} />
 			<Route path='/reset-password' element={<ResetPasswordPage />} />
 			<Route path='/test-camera' element={<TestCameraPage />} />
@@ -873,6 +878,14 @@ function AppRoutes() {
 					element={
 						<Protected>
 							<SettingsPage />
+						</Protected>
+					}
+				/>
+				<Route
+					path='referrals'
+					element={
+						<Protected>
+							<ReferralsPage />
 						</Protected>
 					}
 				/>
