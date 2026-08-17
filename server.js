@@ -105,6 +105,7 @@ const interviewEventsRoutes = require('./routes/interview-events'); // Issue #12
 const quickPracticeRoutes = require('./routes/quick-practice'); // ISOLATED from Mock Interview (#32717)
 const omniscoreRoutes = require('./routes/omniscore');
 const companyRoutes = require('./routes/company');
+const departmentRoutes = require('./routes/departments'); // Issue #139 — Department hierarchy
 const { router: auditRoutes } = require('./routes/audit');
 const trustscoreRoutes = require('./routes/trustscore');
 const recruiterRoutes = require('./routes/recruiter');
@@ -569,6 +570,7 @@ app.use('/api/career-coach', careerCoachRoutes); // Issue #121 — AI Career Coa
 // API Routes - Recruiter/Company side
 app.use('/api/company', auditRoutes);
 app.use('/api/company', companyRoutes);
+app.use('/api/departments', departmentRoutes); // Issue #139 — Department hierarchy
 app.use('/api/careers', require('./routes/careers'));
 app.use('/api/trustscore', trustscoreRoutes);
 app.use('/api/recruiter', recruiterRoutes);

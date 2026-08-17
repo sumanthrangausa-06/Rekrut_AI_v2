@@ -62,6 +62,7 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 			job_type,
 			salary_min,
 			salary_max,
+			department_id,
 		} = req.query;
 
 		const allowedStatuses = ['active'];
@@ -122,6 +123,13 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 			idx++;
 		}
 
+		// Department filter
+		if (department_id?.trim()) {
+			sqlQuery += ` AND j.department_id = $${idx}`;
+			params.push(parseInt(department_id.trim(), 10));
+			idx++;
+		}
+
 		sqlQuery += ` ORDER BY j.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`;
 		params.push(parsedLimit, parsedOffset);
 
@@ -144,6 +152,11 @@ router.get('/', optionalAuth, validateJobSearch, handleValidationErrors, async (
 		if (job_type?.trim()) {
 			countQuery += ` AND j.job_type = $${cIdx}`;
 			countParams.push(job_type.trim());
+			cIdx++;
+		}
+		if (department_id?.trim()) {
+			countQuery += ` AND j.department_id = $${cIdx}`;
+			countParams.push(parseInt(department_id.trim(), 10));
 			cIdx++;
 		}
 
@@ -239,6 +252,7 @@ router.post(
 				currency_code,
 				salary_min,
 				salary_max,
+				department_id,
 			} = req.body;
 
 			if (!title) {
@@ -275,9 +289,23 @@ router.post(
 				}
 			}
 
+			// Validate department_id if provided
+			if (department_id) {
+				const deptCheck = await pool.query(
+					'SELECT id FROM departments WHERE id = $1 AND company_id = $2',
+					[department_id, req.user.company_id],
+				);
+				if (deptCheck.rows.length === 0) {
+					return res.status(403).json({
+						error: 'Department does not belong to your company',
+						code: 'INVALID_DEPARTMENT',
+					});
+				}
+			}
+
 			const result = await pool.query(
-				`INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions, country_code, currency_code, salary_min, salary_max)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+				`INSERT INTO jobs (user_id, company_id, title, company, description, requirements, location, salary_range, job_type, screening_questions, country_code, currency_code, salary_min, salary_max, department_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING *`,
 				[
 					req.user.id,
@@ -294,6 +322,7 @@ router.post(
 					jobCurrency,
 					salary_min || null,
 					salary_max || null,
+					department_id || null,
 				],
 			);
 
@@ -337,6 +366,7 @@ router.put('/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter
 			job_type,
 			status,
 			screening_questions,
+			department_id,
 		} = req.body;
 
 		// Normalize job_type to lowercase if provided
@@ -359,6 +389,20 @@ router.put('/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter
 			return res.status(403).json({ error: 'Not authorized' });
 		}
 
+		// Validate department_id if provided
+		if (department_id) {
+			const deptCheck = await pool.query(
+				'SELECT id FROM departments WHERE id = $1 AND company_id = $2',
+				[department_id, req.user.company_id],
+			);
+			if (deptCheck.rows.length === 0) {
+				return res.status(403).json({
+					error: 'Department does not belong to your company',
+					code: 'INVALID_DEPARTMENT',
+				});
+			}
+		}
+
 		const result = await pool.query(
 			`UPDATE jobs SET
         title = COALESCE($1, title),
@@ -369,8 +413,9 @@ router.put('/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter
         job_type = COALESCE($6, job_type),
         status = COALESCE($7, status),
         screening_questions = COALESCE($8, screening_questions),
+        department_id = COALESCE($9, department_id),
         updated_at = NOW()
-       WHERE id = $9
+       WHERE id = $10
        RETURNING *`,
 			[
 				title,
@@ -381,6 +426,7 @@ router.put('/:id', authMiddleware, requireNotSuspended, requireApprovedRecruiter
 				normalizedUpdateJobType,
 				status,
 				screening_questions ? JSON.stringify(screening_questions) : null,
+				department_id !== undefined ? department_id || null : null,
 				req.params.id,
 			],
 		);

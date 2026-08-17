@@ -335,7 +335,16 @@ router.get('/profile', authMiddleware, requirePermission('company:read'), async 
 			return res.status(404).json({ error: 'Company not found' });
 		}
 
-		res.json({ company: result.rows[0] });
+		const departments = await pool.query(
+			`SELECT d.*,
+				(SELECT COUNT(*) FROM department_members dm WHERE dm.department_id = d.id) as member_count
+			 FROM departments d
+			 WHERE d.company_id = $1
+			 ORDER BY d.name`,
+			[req.user.company_id],
+		);
+
+		res.json({ company: { ...result.rows[0], departments: departments.rows } });
 	} catch (err) {
 		console.error('Get company profile error:', err);
 		res.status(500).json({ error: 'Failed to fetch company profile' });
