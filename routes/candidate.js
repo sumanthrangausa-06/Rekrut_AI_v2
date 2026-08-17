@@ -2384,203 +2384,202 @@ router.get('/jobs/dismissed', authMiddleware, async (req, res) => {
 	}
 });
 
-// Apply to a job
-router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
-	try {
-		const { cover_letter, screening_answers } = req.body;
 
-		// Get match score
-		const profile = await pool.query(
-			`
-      SELECT cp.*, u.name, os.total_score as omniscore
+// Helper: shared application submission logic (manual + auto-apply)
+async function submitApplication({ candidateId, jobId, coverLetter, screeningAnswers, appliedVia, autoApplyProfileData }) {
+  // Get profile + skills + omniscore
+  const profile = await pool.query(
+    `
+      SELECT cp.*, u.name, u.email, os.total_score as omniscore
       FROM users u
       LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
       LEFT JOIN omni_scores os ON os.user_id = u.id
       WHERE u.id = $1
     `,
-			[req.user.id],
-		);
+    [candidateId],
+  );
 
-		const skills = await pool.query('SELECT skill_name FROM candidate_skills WHERE user_id = $1', [
-			req.user.id,
-		]);
+  const skills = await pool.query('SELECT skill_name FROM candidate_skills WHERE user_id = $1', [
+    candidateId,
+  ]);
 
-		const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [req.params.jobId]);
-		if (job.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
-		}
+  const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [jobId]);
+  if (job.rows.length === 0) {
+    const err = new Error('Job not found');
+    err.statusCode = 404;
+    throw err;
+  }
 
-		const existingApplication = await pool.query(
-			'SELECT id FROM job_applications WHERE candidate_id = $1 AND job_id = $2',
-			[req.user.id, req.params.jobId],
-		);
-		if (existingApplication.rows.length > 0) {
-			return res.status(400).json({ error: 'You have already applied to this job' });
-		}
+  const existingApplication = await pool.query(
+    'SELECT id FROM job_applications WHERE candidate_id = $1 AND job_id = $2',
+    [candidateId, jobId],
+  );
+  if (existingApplication.rows.length > 0) {
+    const err = new Error('You have already applied to this job');
+    err.statusCode = 400;
+    throw err;
+  }
 
-		const candidateProfile = {
-			...profile.rows[0],
-			skills: skills.rows,
-		};
+  const candidateProfile = {
+    ...profile.rows[0],
+    skills: skills.rows,
+  };
 
-		const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
-			req.user.id,
-		]);
-		const subscriptionId = user.rows[0]?.stripe_subscription_id;
+  const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
+    candidateId,
+  ]);
+  const subscriptionId = user.rows[0]?.stripe_subscription_id;
 
-		let matchScore = 50;
-		try {
-			const match = await generateJobMatchScore(candidateProfile, job.rows[0], { subscriptionId });
-			matchScore = match.match_score;
-		} catch (_e) {}
+  let matchScore = 50;
+  try {
+    const match = await generateJobMatchScore(candidateProfile, job.rows[0], { subscriptionId });
+    matchScore = match.match_score;
+  } catch (_e) {}
 
-		// Get omniscore for application
-		const omniscore = profile.rows[0]?.omniscore || null;
+  const omniscore = profile.rows[0]?.omniscore || null;
 
-		const result = await pool.query(
-			`
-      INSERT INTO job_applications (candidate_id, job_id, company_id, cover_letter, match_score, omniscore_at_apply, screening_answers, is_auto_applied)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+  const result = await pool.query(
+    `
+      INSERT INTO job_applications (candidate_id, job_id, company_id, cover_letter, match_score, omniscore_at_apply, screening_answers, is_auto_applied, applied_via)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `,
-			[
-				req.user.id,
-				req.params.jobId,
-				job.rows[0].company_id,
-				cover_letter,
-				matchScore,
-				omniscore,
-				JSON.stringify(screening_answers || {}),
-				false,
-			],
-		);
+    [
+      candidateId,
+      jobId,
+      job.rows[0].company_id,
+      coverLetter || (autoApplyProfileData?.cover_letter_template || ''),
+      matchScore,
+      omniscore,
+      JSON.stringify(screeningAnswers || {}),
+      appliedVia === 'auto_apply',
+      appliedVia || 'manual',
+    ],
+  );
 
-		// ── Smart Data Enrichment: Extract profile data from screening answers ──
-		if (screening_answers && Object.keys(screening_answers).length > 0) {
-			try {
-				const screeningQs = job.rows[0].screening_questions || [];
-				const updates = {};
+  // Smart data enrichment from screening answers (manual only)
+  if (appliedVia === 'manual' && screeningAnswers && Object.keys(screeningAnswers).length > 0) {
+    try {
+      const screeningQs = job.rows[0].screening_questions || [];
+      const updates = {};
+      for (const q of screeningQs) {
+        const answer = screeningAnswers[q.id];
+        if (!answer) continue;
+        if (q.category === 'salary' && answer) {
+          const nums = String(answer).match(/\d[\d,]*/g);
+          if (nums && nums.length > 0) {
+            updates.salary_min = parseInt(nums[0].replace(/,/g, ''), 10);
+            if (nums.length > 1) updates.salary_max = parseInt(nums[1].replace(/,/g, ''), 10);
+          }
+        } else if (q.category === 'availability') {
+          updates.availability = String(answer);
+        } else if (q.category === 'experience') {
+          const bracket = String(answer);
+          if (bracket.includes('0-1')) updates.years_experience = 1;
+          else if (bracket.includes('1-3')) updates.years_experience = 2;
+          else if (bracket.includes('3-5')) updates.years_experience = 4;
+          else if (bracket.includes('5-10')) updates.years_experience = 7;
+          else if (bracket.includes('10+')) updates.years_experience = 12;
+        }
+      }
+      if (Object.keys(updates).length > 0) {
+        const setClauses = [];
+        const values = [candidateId];
+        let idx = 2;
+        for (const [key, val] of Object.entries(updates)) {
+          setClauses.push(`${key} = COALESCE(${idx}, ${key})`);
+          values.push(val);
+          idx++;
+        }
+        await pool.query(
+          `UPDATE candidate_profiles SET ${setClauses.join(', ')}, updated_at = NOW() WHERE user_id = $1`,
+          values,
+        );
+      }
+    } catch (enrichErr) {
+      console.error('Profile enrichment from screening (non-blocking):', enrichErr.message);
+    }
+  }
 
-				for (const q of screeningQs) {
-					const answer = screening_answers[q.id];
-					if (!answer) continue;
+  // Auto-create conversation (non-blocking)
+  try {
+    const { getOrCreateConversation } = require('../routes/chat');
+    await getOrCreateConversation(jobId, candidateId, job.rows[0].user_id, job.rows[0].company_id);
+  } catch (convErr) {
+    console.error('[apply] Auto-create conversation failed (non-blocking):', convErr.message);
+  }
 
-					if (q.category === 'salary' && answer) {
-						const nums = String(answer).match(/\d[\d,]*/g);
-						if (nums && nums.length > 0) {
-							updates.salary_min = parseInt(nums[0].replace(/,/g, ''), 10);
-							if (nums.length > 1) updates.salary_max = parseInt(nums[1].replace(/,/g, ''), 10);
-						}
-					} else if (q.category === 'availability') {
-						updates.availability = String(answer);
-					} else if (q.category === 'experience') {
-						const bracket = String(answer);
-						if (bracket.includes('0-1')) updates.years_experience = 1;
-						else if (bracket.includes('1-3')) updates.years_experience = 2;
-						else if (bracket.includes('3-5')) updates.years_experience = 4;
-						else if (bracket.includes('5-10')) updates.years_experience = 7;
-						else if (bracket.includes('10+')) updates.years_experience = 12;
-					} else if (q.category === 'work_authorization') {
-						// Store as a profile note
-					}
-				}
+  // Send candidate notification (non-blocking)
+  try {
+    const jobInfo = job.rows[0];
+    const userInfo = profile.rows[0];
+    await emailService.sendTemplatedEmail({
+      to: userInfo?.email,
+      templateName: 'candidate_application_submitted',
+      templateData: {
+        name: userInfo?.name || 'Candidate',
+        job_title: jobInfo?.title || 'the position',
+        company_name: jobInfo?.company || 'Our Company',
+        location: jobInfo?.location || 'Remote',
+        applied_date: new Date().toISOString(),
+        application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/candidate/applications`,
+      },
+      userId: candidateId,
+      metadata: { job_id: jobInfo?.id, company_id: jobInfo?.company_id },
+    });
+  } catch (emailErr) {
+    console.error('[email] Failed to send application submitted email (non-blocking):', emailErr.message);
+  }
 
-				if (Object.keys(updates).length > 0) {
-					const setClauses = [];
-					const values = [req.user.id];
-					let idx = 2;
-					for (const [key, val] of Object.entries(updates)) {
-						setClauses.push(`${key} = COALESCE($${idx}, ${key})`);
-						values.push(val);
-						idx++;
-					}
-					if (setClauses.length > 0) {
-						await pool.query(
-							`UPDATE candidate_profiles SET ${setClauses.join(', ')}, updated_at = NOW() WHERE user_id = $1`,
-							values,
-						);
-					}
-				}
-			} catch (enrichErr) {
-				console.error('Profile enrichment from screening (non-blocking):', enrichErr.message);
-			}
-		}
+  // Send recruiter notification (non-blocking)
+  try {
+    const jobInfo = job.rows[0];
+    const userInfo = profile.rows[0];
+    const recruiterResult = await pool.query(
+      'SELECT u.id, u.email, u.name FROM users u JOIN jobs j ON j.user_id = u.id WHERE j.id = $1',
+      [jobId],
+    );
+    const recruiter = recruiterResult.rows[0];
+    if (recruiter?.email) {
+      await emailService.sendTemplatedEmail({
+        to: recruiter.email,
+        templateName: 'recruiter_new_application',
+        templateData: {
+          name: recruiter.name || 'Recruiter',
+          candidate_name: userInfo?.name || 'Candidate',
+          candidate_email: userInfo?.email || '',
+          job_title: jobInfo?.title || 'the position',
+          omniscore: omniscore || 'N/A',
+          verification_status: 'verified',
+          applied_date: new Date().toISOString(),
+          application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/recruiter/applications`,
+        },
+        userId: recruiter.id,
+        metadata: { job_id: jobInfo?.id, candidate_id: candidateId },
+      });
+    }
+  } catch (emailErr) {
+    console.error('[email] Failed to send recruiter notification (non-blocking):', emailErr.message);
+  }
 
-		// Auto-create conversation for recruiter-candidate chat (Issue #114 — non-blocking)
-		try {
-			const { getOrCreateConversation } = require('../routes/chat');
-			await getOrCreateConversation(
-				req.params.jobId,
-				req.user.id,
-				job.rows[0].user_id,
-				job.rows[0].company_id,
-			);
-		} catch (convErr) {
-			console.error('[apply] Auto-create conversation failed (non-blocking):', convErr.message);
-		}
-
-		res.json({ success: true, application: result.rows[0] });
-
-		// ── Send application submitted notification to candidate (non-blocking) ──
-		try {
-			const jobInfo = job.rows[0];
-			const userInfo = profile.rows[0];
-			await emailService.sendTemplatedEmail({
-				to: userInfo?.email,
-				templateName: 'candidate_application_submitted',
-				templateData: {
-					name: userInfo?.name || 'Candidate',
-					job_title: jobInfo?.title || 'the position',
-					company_name: jobInfo?.company || 'Our Company',
-					location: jobInfo?.location || 'Remote',
-					applied_date: new Date().toISOString(),
-					application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/candidate/applications`,
-				},
-				userId: req.user.id,
-				metadata: { job_id: jobInfo?.id, company_id: jobInfo?.company_id },
-			});
-		} catch (emailErr) {
-			console.error(
-				'[email] Failed to send application submitted email (non-blocking):',
-				emailErr.message,
-			);
-		}
-
-		// ── Send application received notification to recruiter (non-blocking) ──
-		try {
-			const jobInfo = job.rows[0];
-			const userInfo = profile.rows[0];
-			// Get recruiter email for this job
-			const recruiterResult = await pool.query(
-				'SELECT u.id, u.email, u.name FROM users u JOIN jobs j ON j.user_id = u.id WHERE j.id = $1',
-				[req.params.jobId],
-			);
-			const recruiter = recruiterResult.rows[0];
-			if (recruiter?.email) {
-				await emailService.sendTemplatedEmail({
-					to: recruiter.email,
-					templateName: 'recruiter_new_application',
-					templateData: {
-						name: recruiter.name || 'Recruiter',
-						candidate_name: userInfo?.name || 'Candidate',
-						candidate_email: userInfo?.email || '',
-						job_title: jobInfo?.title || 'the position',
-						omniscore: omniscore || 'N/A',
-						verification_status: 'verified',
-						applied_date: new Date().toISOString(),
-						application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/recruiter/applications`,
-					},
-					userId: recruiter.id,
-					metadata: { job_id: jobInfo?.id, candidate_id: req.user.id },
-				});
-			}
-		} catch (emailErr) {
-			console.error(
-				'[email] Failed to send recruiter notification (non-blocking):',
-				emailErr.message,
-			);
-		}
+  return result.rows[0];
+}
+// Apply to a job
+router.post('/jobs/:jobId/apply', authMiddleware, async (req, res) => {
+	try {
+		const { cover_letter, screening_answers } = req.body;
+		const application = await submitApplication({
+			candidateId: req.user.id,
+			jobId: req.params.jobId,
+			coverLetter: cover_letter,
+			screeningAnswers: screening_answers,
+			appliedVia: 'manual',
+		});
+		res.json({ success: true, application });
 	} catch (err) {
+		if (err.statusCode) {
+			return res.status(err.statusCode).json({ error: err.message });
+		}
 		console.error('Apply to job error:', err);
 		res.status(500).json({ error: 'Failed to apply to job' });
 	}
@@ -2612,7 +2611,7 @@ router.get('/applications', authMiddleware, async (req, res) => {
 	}
 });
 
-// Auto-apply to a job (Pro feature, rate-limited)
+// Auto-apply to a job (Pro feature, rate-limited) — uses stored auto-apply profile
 router.post('/applications/auto-apply', authMiddleware, async (req, res) => {
 	try {
 		const { job_id } = req.body;
@@ -2620,7 +2619,7 @@ router.post('/applications/auto-apply', authMiddleware, async (req, res) => {
 			return res.status(400).json({ error: 'job_id is required' });
 		}
 
-		// Check feature access and rate limits
+		// Check feature access
 		const access = await checkFeatureAccess(req.user, 'auto_apply');
 		if (!access.allowed) {
 			return res.status(403).json({
@@ -2631,144 +2630,179 @@ router.post('/applications/auto-apply', authMiddleware, async (req, res) => {
 			});
 		}
 
-		// Check if already applied
-		const existing = await pool.query(
-			'SELECT id FROM job_applications WHERE candidate_id = $1 AND job_id = $2',
-			[req.user.id, job_id],
+		// Check auto-apply profile is active and consented
+		const aap = await pool.query(
+			'SELECT * FROM auto_apply_profiles WHERE user_id = $1 AND is_active = TRUE AND gdpr_consent = TRUE',
+			[req.user.id],
 		);
-		if (existing.rows.length > 0) {
-			return res.status(409).json({ error: 'You have already applied to this job' });
+		if (aap.rows.length === 0) {
+			return res.status(400).json({
+				error: 'Auto-apply is not activated. Please activate auto-apply first.',
+				code: 'AUTO_APPLY_NOT_ACTIVATED',
+			});
 		}
 
-		// Fetch job for company_id
-		const job = await pool.query('SELECT * FROM jobs WHERE id = $1', [job_id]);
-		if (job.rows.length === 0) {
-			return res.status(404).json({ error: 'Job not found' });
+		const application = await submitApplication({
+			candidateId: req.user.id,
+			jobId: job_id,
+			appliedVia: 'auto_apply',
+			autoApplyProfileData: aap.rows[0].profile_data,
+		});
+
+		await incrementUsage(req.user.id, 'auto_apply');
+		res.json({ success: true, application });
+	} catch (err) {
+		if (err.statusCode) {
+			return res.status(err.statusCode).json({ error: err.message });
+		}
+		console.error('Auto-apply error:', err);
+		res.status(500).json({ error: 'Failed to auto-apply to job' });
+	}
+});
+
+// ============= AUTO-APPLY PROFILE MANAGEMENT (#83) =============
+
+// Activate auto-apply with GDPR consent
+router.post('/auto-apply/activate', authMiddleware, async (req, res) => {
+	try {
+		const { gdpr_consent, profile_data } = req.body;
+
+		if (!gdpr_consent) {
+			return res.status(400).json({
+				error: 'GDPR consent is required to activate auto-apply',
+				code: 'CONSENT_REQUIRED',
+			});
 		}
 
-		// Fetch candidate profile for match_score / omniscore
-		const profile = await pool.query(
+		// Upsert: create or update profile, set active + consent
+		const result = await pool.query(
 			`
-				SELECT cp.*, u.name, u.email, os.total_score as omniscore
-				FROM users u
-				LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
-				LEFT JOIN omni_scores os ON os.user_id = u.id
-				WHERE u.id = $1
+				INSERT INTO auto_apply_profiles (user_id, profile_data, is_active, gdpr_consent, consent_date, updated_at)
+				VALUES ($1, $2, TRUE, TRUE, NOW(), NOW())
+				ON CONFLICT (user_id) DO UPDATE SET
+					is_active = TRUE,
+					gdpr_consent = TRUE,
+					consent_date = NOW(),
+					profile_data = COALESCE($2, auto_apply_profiles.profile_data),
+					updated_at = NOW()
+				RETURNING *
+			`,
+			[req.user.id, JSON.stringify(profile_data || {})],
+		);
+
+		res.json({ success: true, auto_apply: result.rows[0] });
+	} catch (err) {
+		console.error('Auto-apply activate error:', err);
+		res.status(500).json({ error: 'Failed to activate auto-apply' });
+	}
+});
+
+// Deactivate auto-apply
+router.post('/auto-apply/deactivate', authMiddleware, async (req, res) => {
+	try {
+		await pool.query(
+			`
+				UPDATE auto_apply_profiles
+				SET is_active = FALSE, updated_at = NOW()
+				WHERE user_id = $1
 			`,
 			[req.user.id],
 		);
+		res.json({ success: true, message: 'Auto-apply deactivated' });
+	} catch (err) {
+		console.error('Auto-apply deactivate error:', err);
+		res.status(500).json({ error: 'Failed to deactivate auto-apply' });
+	}
+});
 
-		const skills = await pool.query('SELECT skill_name FROM candidate_skills WHERE user_id = $1', [
-			req.user.id,
-		]);
-
-		const candidateProfile = {
-			...profile.rows[0],
-			skills: skills.rows,
-		};
-
-		// ponytail: reuse subscriptionId fetch pattern from manual apply
-		const user = await pool.query('SELECT stripe_subscription_id FROM users WHERE id = $1', [
-			req.user.id,
-		]);
-		const subscriptionId = user.rows[0]?.stripe_subscription_id;
-
-		let matchScore = 50;
-		try {
-			const match = await generateJobMatchScore(candidateProfile, job.rows[0], { subscriptionId });
-			matchScore = match.match_score;
-		} catch (_e) {}
-
-		const omniscore = profile.rows[0]?.omniscore || null;
-
-		// Insert auto-application — no cover letter, no screening answers
+// Get auto-apply status and profile
+router.get('/auto-apply/status', authMiddleware, async (req, res) => {
+	try {
 		const result = await pool.query(
-			`
-				INSERT INTO job_applications (
-					candidate_id, job_id, company_id,
-					cover_letter, match_score, omniscore_at_apply,
-					screening_answers, is_auto_applied
-				)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-				RETURNING *
-			`,
-			[
-				req.user.id,
-				job_id,
-				job.rows[0].company_id,
-				'', // ponytail: empty cover letter for auto-apply
-				matchScore,
-				omniscore,
-				JSON.stringify({}), // ponytail: empty screening answers for auto-apply
-				true,
-			],
+			'SELECT id, user_id, profile_data, is_active, gdpr_consent, consent_date, created_at, updated_at FROM auto_apply_profiles WHERE user_id = $1',
+			[req.user.id],
 		);
 
-		// Increment usage for rate limiting
-		await incrementUsage(req.user.id, 'auto_apply');
-
-		// ── Send application submitted notification to candidate (non-blocking) ──
-		try {
-			const jobInfo = job.rows[0];
-			const userInfo = profile.rows[0];
-			await emailService.sendTemplatedEmail({
-				to: userInfo?.email,
-				templateName: 'candidate_application_submitted',
-				templateData: {
-					name: userInfo?.name || 'Candidate',
-					job_title: jobInfo?.title || 'the position',
-					company_name: jobInfo?.company || 'Our Company',
-					location: jobInfo?.location || 'Remote',
-					applied_date: new Date().toISOString(),
-					application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/candidate/applications`,
-				},
-				userId: req.user.id,
-				metadata: { job_id: jobInfo?.id, company_id: jobInfo?.company_id },
-			});
-		} catch (emailErr) {
-			console.error(
-				'[email] Failed to send auto-apply submitted email (non-blocking):',
-				emailErr.message,
-			);
+		if (result.rows.length === 0) {
+			return res.json({ success: true, auto_apply: null, is_active: false });
 		}
 
-		// ── Send application received notification to recruiter (non-blocking) ──
-		try {
-			const jobInfo = job.rows[0];
-			const userInfo = profile.rows[0];
-			const recruiterResult = await pool.query(
-				'SELECT u.id, u.email, u.name FROM users u JOIN jobs j ON j.user_id = u.id WHERE j.id = $1',
-				[job_id],
-			);
-			const recruiter = recruiterResult.rows[0];
-			if (recruiter?.email) {
-				await emailService.sendTemplatedEmail({
-					to: recruiter.email,
-					templateName: 'recruiter_new_application',
-					templateData: {
-						name: recruiter.name || 'Recruiter',
-						candidate_name: userInfo?.name || 'Candidate',
-						candidate_email: userInfo?.email || '',
-						job_title: jobInfo?.title || 'the position',
-						omniscore: omniscore || 'N/A',
-						verification_status: 'verified',
-						applied_date: new Date().toISOString(),
-						application_link: `${process.env.FRONTEND_URL || 'https://rekrutai.co'}/recruiter/applications`,
-					},
-					userId: recruiter.id,
-					metadata: { job_id: jobInfo?.id, candidate_id: req.user.id },
-				});
-			}
-		} catch (emailErr) {
-			console.error(
-				'[email] Failed to send recruiter notification for auto-apply (non-blocking):',
-				emailErr.message,
-			);
-		}
-
-		res.json({ success: true, application: result.rows[0] });
+		res.json({ success: true, auto_apply: result.rows[0], is_active: result.rows[0].is_active });
 	} catch (err) {
-		console.error('Auto-apply error:', err);
+		console.error('Auto-apply status error:', err);
+		res.status(500).json({ error: 'Failed to get auto-apply status' });
+	}
+});
+
+// Update auto-apply profile data
+router.put('/auto-apply/profile', authMiddleware, async (req, res) => {
+	try {
+		const { profile_data } = req.body;
+		if (!profile_data || typeof profile_data !== 'object') {
+			return res.status(400).json({ error: 'profile_data object is required' });
+		}
+
+		const result = await pool.query(
+			`
+				INSERT INTO auto_apply_profiles (user_id, profile_data, updated_at)
+				VALUES ($1, $2, NOW())
+				ON CONFLICT (user_id) DO UPDATE SET
+					profile_data = $2,
+					updated_at = NOW()
+				RETURNING *
+			`,
+			[req.user.id, JSON.stringify(profile_data)],
+		);
+
+		res.json({ success: true, auto_apply: result.rows[0] });
+	} catch (err) {
+		console.error('Auto-apply profile update error:', err);
+		res.status(500).json({ error: 'Failed to update auto-apply profile' });
+	}
+});
+
+// One-click auto-apply by job ID in URL (rate-limited)
+router.post('/jobs/:id/auto-apply', authMiddleware, rateLimits.standard, async (req, res) => {
+	try {
+		const jobId = req.params.id;
+
+		// Check feature access
+		const access = await checkFeatureAccess(req.user, 'auto_apply');
+		if (!access.allowed) {
+			return res.status(403).json({
+				error: 'Upgrade to Pro to access Auto-Apply',
+				code: 'UPGRADE_REQUIRED',
+				feature: 'auto_apply',
+				upgradeUrl: '/pricing',
+			});
+		}
+
+		// Check auto-apply profile is active and consented
+		const aap = await pool.query(
+			'SELECT * FROM auto_apply_profiles WHERE user_id = $1 AND is_active = TRUE AND gdpr_consent = TRUE',
+			[req.user.id],
+		);
+		if (aap.rows.length === 0) {
+			return res.status(400).json({
+				error: 'Auto-apply is not activated. Please activate auto-apply first.',
+				code: 'AUTO_APPLY_NOT_ACTIVATED',
+			});
+		}
+
+		const application = await submitApplication({
+			candidateId: req.user.id,
+			jobId,
+			appliedVia: 'auto_apply',
+			autoApplyProfileData: aap.rows[0].profile_data,
+		});
+
+		await incrementUsage(req.user.id, 'auto_apply');
+		res.json({ success: true, application });
+	} catch (err) {
+		if (err.statusCode) {
+			return res.status(err.statusCode).json({ error: err.message });
+		}
+		console.error('One-click auto-apply error:', err);
 		res.status(500).json({ error: 'Failed to auto-apply to job' });
 	}
 });
