@@ -81,10 +81,12 @@ exports.up = async (client) => {
     )
   `);
 
-	// Add unique constraint on job_id (one questionnaire per job)
+	// Add unique constraint on job_id (one questionnaire per job).
+	// Postgres has no ADD CONSTRAINT IF NOT EXISTS, so a unique index gives the
+	// same guarantee and is natively idempotent.
 	await client.query(`
-    ALTER TABLE screening_questionnaires
-    ADD CONSTRAINT IF NOT EXISTS screening_questionnaires_job_id_unique UNIQUE (job_id)
+    CREATE UNIQUE INDEX IF NOT EXISTS screening_questionnaires_job_id_unique
+    ON screening_questionnaires(job_id)
   `);
 
 	// Indexes

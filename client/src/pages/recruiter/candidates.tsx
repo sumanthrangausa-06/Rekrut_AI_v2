@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { UNSPLASH_IMAGES } from '@/lib/avatar'
 import { CandidateCard } from '@/components/domain/candidate-card'
 import { ChartCard } from '@/components/domain/chart-card'
 import { EmptyState } from '@/components/domain/empty-state'

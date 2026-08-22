@@ -21,5 +21,10 @@ module.exports = {
 		`);
 
 		console.log('[migration:225] career_diagnoses table and indexes created');
+
+		await client.query(`
+			ALTER TABLE career_diagnoses
+			ADD COLUMN IF NOT EXISTS diagnosis_data JSONB DEFAULT '{}'::jsonb
+		`);
 	},
 };

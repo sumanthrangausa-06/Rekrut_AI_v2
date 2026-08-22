@@ -22,15 +22,15 @@ module.exports = {
 			`CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)`,
 			`CREATE INDEX IF NOT EXISTS idx_jobs_company ON jobs(company)`,
 
-			// ── job_applications ──
-			`CREATE INDEX IF NOT EXISTS idx_job_applications_created_at ON job_applications(created_at DESC)`,
+			// ── job_applications (timestamps live in applied_at, not created_at) ──
+			`CREATE INDEX IF NOT EXISTS idx_job_applications_applied_at ON job_applications(applied_at DESC)`,
 			`CREATE INDEX IF NOT EXISTS idx_job_applications_status ON job_applications(status)`,
-			`CREATE INDEX IF NOT EXISTS idx_job_applications_status_created_at ON job_applications(status, created_at DESC)`,
+			`CREATE INDEX IF NOT EXISTS idx_job_applications_status_applied_at ON job_applications(status, applied_at DESC)`,
 			`CREATE INDEX IF NOT EXISTS idx_job_applications_job_id ON job_applications(job_id)`,
-			`CREATE INDEX IF NOT EXISTS idx_job_applications_job_id_created_at ON job_applications(job_id, created_at DESC)`,
+			`CREATE INDEX IF NOT EXISTS idx_job_applications_job_id_applied_at ON job_applications(job_id, applied_at DESC)`,
 			`CREATE INDEX IF NOT EXISTS idx_job_applications_candidate_id ON job_applications(candidate_id)`,
-			`CREATE INDEX IF NOT EXISTS idx_job_applications_candidate_id_created_at ON job_applications(candidate_id, created_at DESC)`,
-			`CREATE INDEX IF NOT EXISTS idx_job_applications_user_id ON job_applications(user_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_job_applications_candidate_id_applied_at ON job_applications(candidate_id, applied_at DESC)`,
+			`CREATE INDEX IF NOT EXISTS idx_job_applications_company_id ON job_applications(company_id)`,
 
 			// ── interviews ──
 			`CREATE INDEX IF NOT EXISTS idx_interviews_created_at ON interviews(created_at DESC)`,
@@ -60,8 +60,8 @@ module.exports = {
 			`CREATE INDEX IF NOT EXISTS idx_communications_status ON communications(status)`,
 			`CREATE INDEX IF NOT EXISTS idx_communications_type ON communications(type)`,
 
-			// ── match_results ──
-			`CREATE INDEX IF NOT EXISTS idx_match_results_created_at ON match_results(created_at DESC)`,
+			// ── match_results (timestamps live in calculated_at, not created_at) ──
+			`CREATE INDEX IF NOT EXISTS idx_match_results_calculated_at ON match_results(calculated_at DESC)`,
 			`CREATE INDEX IF NOT EXISTS idx_match_results_job_id ON match_results(job_id)`,
 			`CREATE INDEX IF NOT EXISTS idx_match_results_candidate_id ON match_results(candidate_id)`,
 
@@ -90,8 +90,22 @@ module.exports = {
 			`CREATE INDEX IF NOT EXISTS idx_candidate_profiles_user_id ON candidate_profiles(user_id)`,
 		];
 
+		// These indexes are pure query optimisations. A table or column that is
+		// absent on a given environment must not abort the whole deploy, so skip
+		// those rather than failing the migration.
+		// The runner wraps each migration in a transaction, so a savepoint is
+		// needed to recover from an individual failure without aborting the rest.
+		const SKIPPABLE = new Set(['42P01', '42703']); // undefined_table, undefined_column
 		for (const sql of indexes) {
-			await client.query(sql);
+			await client.query('SAVEPOINT idx_stmt');
+			try {
+				await client.query(sql);
+				await client.query('RELEASE SAVEPOINT idx_stmt');
+			} catch (err) {
+				await client.query('ROLLBACK TO SAVEPOINT idx_stmt');
+				if (!SKIPPABLE.has(err.code)) throw err;
+				console.log(`[070_analytics_indexes] skipped (${err.message}): ${sql}`);
+			}
 		}
 	},
 };

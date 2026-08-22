@@ -150,24 +150,41 @@ module.exports = {
 		// Seed Data: 5 predefined templates (one per role type)
 		// ────────────────────────────────────────────────────────────────────
 
+		const insertTemplate = async (row) => {
+			const result = await client.query(
+				`INSERT INTO coding_templates (title, description, role_type, difficulty, language_support, time_limit_seconds, memory_limit_mb, starter_code, is_custom, is_active)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8::jsonb, false, true)
+         RETURNING id`,
+				[
+					row.title,
+					row.description,
+					row.role_type,
+					row.difficulty,
+					JSON.stringify(row.language_support),
+					row.time_limit_seconds,
+					row.memory_limit_mb,
+					JSON.stringify(row.starter_code),
+				],
+			);
+			return result.rows[0].id;
+		};
+
 		// Template 1: Frontend — Build a Counter Component
-		const t1 = await client.query(`
-      INSERT INTO coding_templates (title, description, role_type, difficulty, language_support, time_limit_seconds, memory_limit_mb, starter_code, is_custom, is_active)
-      VALUES (
-        'Build a Counter Component',
-        'Create a simple counter component with increment, decrement, and reset functionality. The component should handle edge cases gracefully.',
-        'frontend',
-        'easy',
-        '["javascript","typescript"]',
-        10,
-        256,
-        '{"javascript": "function counter(initialValue = 0) {\n  // Your code here\n}", "typescript": "function counter(initialValue: number = 0): { increment: () => number; decrement: () => number; reset: () => number; getValue: () => number } {\n  // Your code here\n}"}',
-        false,
-        true
-      )
-      RETURNING id
-    `);
-		const t1Id = t1.rows[0].id;
+		const t1Id = await insertTemplate({
+			title: 'Build a Counter Component',
+			description:
+				'Create a simple counter component with increment, decrement, and reset functionality. The component should handle edge cases gracefully.',
+			role_type: 'frontend',
+			difficulty: 'easy',
+			language_support: ['javascript', 'typescript'],
+			time_limit_seconds: 10,
+			memory_limit_mb: 256,
+			starter_code: {
+				javascript: 'function counter(initialValue = 0) {\n  // Your code here\n}',
+				typescript:
+					'function counter(initialValue: number = 0): { increment: () => number; decrement: () => number; reset: () => number; getValue: () => number } {\n  // Your code here\n}',
+			},
+		});
 
 		await client.query(`
       INSERT INTO coding_test_cases (template_id, name, description, stdin, expected_output, is_hidden, weight, order_index)
@@ -180,23 +197,24 @@ module.exports = {
     `, [t1Id]);
 
 		// Template 2: Backend — REST API Rate Limiter
-		const t2 = await client.query(`
-      INSERT INTO coding_templates (title, description, role_type, difficulty, language_support, time_limit_seconds, memory_limit_mb, starter_code, is_custom, is_active)
-      VALUES (
-        'REST API Rate Limiter',
-        'Implement a simple in-memory rate limiter that tracks requests per IP address within a sliding time window. Return whether a request should be allowed or blocked.',
-        'backend',
-        'medium',
-        '["javascript","python","java","go"]',
-        15,
-        512,
-        '{"javascript": "class RateLimiter {\n  constructor(maxRequests, windowMs) {\n    this.maxRequests = maxRequests;\n    this.windowMs = windowMs;\n    this.requests = new Map();\n  }\n  isAllowed(ip) {\n    // Your code here\n  }\n}", "python": "class RateLimiter:\n    def __init__(self, max_requests, window_ms):\n        self.max_requests = max_requests\n        self.window_ms = window_ms\n        self.requests = {}\n    def is_allowed(self, ip):\n        # Your code here\n        pass", "java": "public class RateLimiter {\n    private int maxRequests;\n    private long windowMs;\n    public RateLimiter(int maxRequests, long windowMs) {\n        this.maxRequests = maxRequests;\n        this.windowMs = windowMs;\n    }\n    public boolean isAllowed(String ip) {\n        // Your code here\n        return true;\n    }\n}", "go": "type RateLimiter struct {\n    maxRequests int\n    windowMs    int64\n    requests    map[string][]int64\n}\nfunc NewRateLimiter(maxRequests int, windowMs int64) *RateLimiter {\n    return &RateLimiter{maxRequests: maxRequests, windowMs: windowMs, requests: make(map[string][]int64)}\n}\nfunc (rl *RateLimiter) IsAllowed(ip string) bool {\n    // Your code here\n    return true\n}"}',
-        false,
-        true
-      )
-      RETURNING id
-    `);
-		const t2Id = t2.rows[0].id;
+		const t2Id = await insertTemplate({
+			title: 'REST API Rate Limiter',
+			description:
+				'Implement a simple in-memory rate limiter that tracks requests per IP address within a sliding time window. Return whether a request should be allowed or blocked.',
+			role_type: 'backend',
+			difficulty: 'medium',
+			language_support: ['javascript', 'python', 'java', 'go'],
+			time_limit_seconds: 15,
+			memory_limit_mb: 512,
+			starter_code: {
+				javascript:
+					'class RateLimiter {\n  constructor(maxRequests, windowMs) {\n    this.maxRequests = maxRequests;\n    this.windowMs = windowMs;\n    this.requests = new Map();\n  }\n  isAllowed(ip) {\n    // Your code here\n  }\n}',
+				python:
+					'class RateLimiter:\n    def __init__(self, max_requests, window_ms):\n        self.max_requests = max_requests\n        self.window_ms = window_ms\n        self.requests = {}\n    def is_allowed(self, ip):\n        # Your code here\n        pass',
+				java: 'public class RateLimiter {\n    private int maxRequests;\n    private long windowMs;\n    public RateLimiter(int maxRequests, long windowMs) {\n        this.maxRequests = maxRequests;\n        this.windowMs = windowMs;\n    }\n    public boolean isAllowed(String ip) {\n        // Your code here\n        return true;\n    }\n}',
+				go: 'type RateLimiter struct {\n    maxRequests int\n    windowMs    int64\n    requests    map[string][]int64\n}\nfunc NewRateLimiter(maxRequests int, windowMs int64) *RateLimiter {\n    return &RateLimiter{maxRequests: maxRequests, windowMs: windowMs, requests: make(map[string][]int64)}\n}\nfunc (rl *RateLimiter) IsAllowed(ip string) bool {\n    // Your code here\n    return true\n}',
+			},
+		});
 
 		await client.query(`
       INSERT INTO coding_test_cases (template_id, name, description, stdin, expected_output, is_hidden, weight, order_index)
@@ -209,23 +227,23 @@ module.exports = {
     `, [t2Id]);
 
 		// Template 3: Data — Process CSV Data
-		const t3 = await client.query(`
-      INSERT INTO coding_templates (title, description, role_type, difficulty, language_support, time_limit_seconds, memory_limit_mb, starter_code, is_custom, is_active)
-      VALUES (
-        'CSV Sales Report Processor',
-        'Write a function that processes a CSV string of sales data (product,quantity,price) and returns total revenue, best-selling product, and average order value.',
-        'data',
-        'medium',
-        '["python","javascript","sql"]',
-        15,
-        512,
-        '{"python": "import csv\nfrom io import StringIO\n\ndef process_sales(csv_data):\n    \"\"\"Process sales CSV and return summary stats.\"\"\"\n    # Your code here\n    return {\n        'total_revenue': 0,\n        'best_selling_product': '',\n        'average_order_value': 0.0\n    }", "javascript": "function processSales(csvData) {\n  // Your code here\n  return {\n    totalRevenue: 0,\n    bestSellingProduct: '',\n    averageOrderValue: 0.0\n  };\n}", "sql": "-- Write a SQL query that processes a sales table\n-- Table: sales (product VARCHAR, quantity INT, price DECIMAL)\n-- Return: total_revenue, best_selling_product, avg_order_value\nSELECT \n  -- Your code here\nFROM sales;"}',
-        false,
-        true
-      )
-      RETURNING id
-    `);
-		const t3Id = t3.rows[0].id;
+		const t3Id = await insertTemplate({
+			title: 'CSV Sales Report Processor',
+			description:
+				'Write a function that processes a CSV string of sales data (product,quantity,price) and returns total revenue, best-selling product, and average order value.',
+			role_type: 'data',
+			difficulty: 'medium',
+			language_support: ['python', 'javascript', 'sql'],
+			time_limit_seconds: 15,
+			memory_limit_mb: 512,
+			starter_code: {
+				python:
+					'import csv\nfrom io import StringIO\n\ndef process_sales(csv_data):\n    """Process sales CSV and return summary stats."""\n    # Your code here\n    return {\n        "total_revenue": 0,\n        "best_selling_product": "",\n        "average_order_value": 0.0\n    }',
+				javascript:
+					"function processSales(csvData) {\n  // Your code here\n  return {\n    totalRevenue: 0,\n    bestSellingProduct: '',\n    averageOrderValue: 0.0\n  };\n}",
+				sql: '-- Write a SQL query that processes a sales table\n-- Table: sales (product VARCHAR, quantity INT, price DECIMAL)\n-- Return: total_revenue, best_selling_product, avg_order_value\nSELECT \n  -- Your code here\nFROM sales;',
+			},
+		});
 
 		await client.query(`
       INSERT INTO coding_test_cases (template_id, name, description, stdin, expected_output, is_hidden, weight, order_index)
@@ -238,23 +256,19 @@ module.exports = {
     `, [t3Id]);
 
 		// Template 4: SQL — Employee Department Analysis
-		const t4 = await client.query(`
-      INSERT INTO coding_templates (title, description, role_type, difficulty, language_support, time_limit_seconds, memory_limit_mb, starter_code, is_custom, is_active)
-      VALUES (
-        'Employee Department Analysis',
-        'Write SQL queries to analyze employee data across departments. Given tables: employees(id, name, department_id, salary, hire_date) and departments(id, name, budget).',
-        'sql',
-        'medium',
-        '["sql"]',
-        15,
-        256,
-        '{"sql": "-- Tables:\n-- employees(id INT, name VARCHAR, department_id INT, salary DECIMAL, hire_date DATE)\n-- departments(id INT, name VARCHAR, budget DECIMAL)\n\n-- Q1: List departments with avg salary > 50000\nSELECT \n  -- Your code here\nFROM departments d\nJOIN employees e ON d.id = e.department_id\nGROUP BY d.id;\n\n-- Q2: Find the 3 highest paid employees per department\nWITH ranked AS (\n  SELECT *,\n    -- Your code here\n  FROM employees\n)\nSELECT * FROM ranked WHERE rank <= 3;\n\n-- Q3: Find departments where total salary exceeds budget\nSELECT \n  -- Your code here\nFROM departments d\nJOIN employees e ON d.id = e.department_id;"}',
-        false,
-        true
-      )
-      RETURNING id
-    `);
-		const t4Id = t4.rows[0].id;
+		const t4Id = await insertTemplate({
+			title: 'Employee Department Analysis',
+			description:
+				'Write SQL queries to analyze employee data across departments. Given tables: employees(id, name, department_id, salary, hire_date) and departments(id, name, budget).',
+			role_type: 'sql',
+			difficulty: 'medium',
+			language_support: ['sql'],
+			time_limit_seconds: 15,
+			memory_limit_mb: 256,
+			starter_code: {
+				sql: '-- Tables:\n-- employees(id INT, name VARCHAR, department_id INT, salary DECIMAL, hire_date DATE)\n-- departments(id INT, name VARCHAR, budget DECIMAL)\n\n-- Q1: List departments with avg salary > 50000\nSELECT \n  -- Your code here\nFROM departments d\nJOIN employees e ON d.id = e.department_id\nGROUP BY d.id;\n\n-- Q2: Find the 3 highest paid employees per department\nWITH ranked AS (\n  SELECT *,\n    -- Your code here\n  FROM employees\n)\nSELECT * FROM ranked WHERE rank <= 3;\n\n-- Q3: Find departments where total salary exceeds budget\nSELECT \n  -- Your code here\nFROM departments d\nJOIN employees e ON d.id = e.department_id;',
+			},
+		});
 
 		await client.query(`
       INSERT INTO coding_test_cases (template_id, name, description, stdin, expected_output, is_hidden, weight, order_index)
@@ -267,23 +281,23 @@ module.exports = {
     `, [t4Id]);
 
 		// Template 5: Algorithms — Two Sum
-		const t5 = await client.query(`
-      INSERT INTO coding_templates (title, description, role_type, difficulty, language_support, time_limit_seconds, memory_limit_mb, starter_code, is_custom, is_active)
-      VALUES (
-        'Two Sum',
-        'Given an array of integers and a target sum, return indices of the two numbers that add up to the target. You may assume each input has exactly one solution, and you may not use the same element twice. Optimize for O(n) time complexity.',
-        'algorithms',
-        'easy',
-        '["python","javascript","java","cpp","go"]',
-        10,
-        256,
-        '{"python": "def two_sum(nums, target):\n    \"\"\"Return indices of two numbers that add to target.\"\"\"\n    # Your code here\n    return []", "javascript": "function twoSum(nums, target) {\n  // Your code here\n  return [];\n}", "java": "public class Solution {\n    public int[] twoSum(int[] nums, int target) {\n        // Your code here\n        return new int[0];\n    }\n}", "cpp": "class Solution {\npublic:\n    vector<int> twoSum(vector<int>& nums, int target) {\n        // Your code here\n        return {};\n    }\n};", "go": "func twoSum(nums []int, target int) []int {\n    // Your code here\n    return nil\n}"}',
-        false,
-        true
-      )
-      RETURNING id
-    `);
-		const t5Id = t5.rows[0].id;
+		const t5Id = await insertTemplate({
+			title: 'Two Sum',
+			description:
+				'Given an array of integers and a target sum, return indices of the two numbers that add up to the target. You may assume each input has exactly one solution, and you may not use the same element twice. Optimize for O(n) time complexity.',
+			role_type: 'algorithms',
+			difficulty: 'easy',
+			language_support: ['python', 'javascript', 'java', 'cpp', 'go'],
+			time_limit_seconds: 10,
+			memory_limit_mb: 256,
+			starter_code: {
+				python: 'def two_sum(nums, target):\n    """Return indices of two numbers that add to target."""\n    # Your code here\n    return []',
+				javascript: 'function twoSum(nums, target) {\n  // Your code here\n  return [];\n}',
+				java: 'public class Solution {\n    public int[] twoSum(int[] nums, int target) {\n        // Your code here\n        return new int[0];\n    }\n}',
+				cpp: 'class Solution {\npublic:\n    vector<int> twoSum(vector<int>& nums, int target) {\n        // Your code here\n        return {};\n    }\n};',
+				go: 'func twoSum(nums []int, target int) []int {\n    // Your code here\n    return nil\n}',
+			},
+		});
 
 		await client.query(`
       INSERT INTO coding_test_cases (template_id, name, description, stdin, expected_output, is_hidden, weight, order_index)

@@ -52,12 +52,12 @@ interface NavLinkItem {
 const candidateLinks: NavLinkItem[] = [
 	{ label: 'All Matches', href: '/candidate/jobs', icon: Briefcase },
 	{ label: 'Applications', href: '/candidate/applications', icon: FileText },
-	{ label: 'Coaching', href: '/candidate/coaching', icon: MessageSquare },
+	{ label: 'Coaching', href: '/candidate/ai-coaching', icon: MessageSquare },
 	{ label: 'Company Matches', href: '/candidate/company-matches', icon: Building2 },
 ];
 
 const recruiterLinks: NavLinkItem[] = [
-	{ label: 'Dashboard', href: '/recruiter/dashboard', icon: LayoutDashboard },
+	{ label: 'Dashboard', href: '/recruiter', icon: LayoutDashboard },
 	{ label: 'My Jobs', href: '/recruiter/jobs', icon: Briefcase },
 	{ label: 'Candidates', href: '/recruiter/candidates', icon: Users },
 	{ label: 'Company', href: '/recruiter/company', icon: Building2 },

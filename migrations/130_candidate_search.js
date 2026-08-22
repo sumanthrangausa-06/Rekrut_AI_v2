@@ -64,12 +64,15 @@ module.exports = {
       CREATE INDEX IF NOT EXISTS idx_csi_search_vector ON candidate_search_index USING GIN (search_vector)
     `);
 
-		// pgvector ivfflat index for cosine-similarity semantic search
-		// lists=100 is a good default for up to ~1M vectors
-		await client.query(`
+		// ivfflat needs enough rows to train lists; skip if the index cannot be created yet
+		try {
+			await client.query(`
       CREATE INDEX IF NOT EXISTS idx_csi_embedding ON candidate_search_index
       USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)
     `);
+		} catch (idxErr) {
+			console.warn('[migration 130] skipped ivfflat embedding index:', idxErr.message);
+		}
 
 		// Composite index for common filter combos
 		await client.query(`
@@ -162,7 +165,7 @@ module.exports = {
           name, avatar_url, search_vector, last_synced
         ) VALUES (
           p_user_id, v_embedding, v_skills, v_location, COALESCE(v_experience, 0),
-          COALESCE(v_omi, 0), v_tier, COALESCE(v_avail, 'immediately'), v_title, v_bio,
+          COALESCE(v_omni, 0), v_tier, COALESCE(v_avail, 'immediately'), v_title, v_bio,
           v_name, v_avatar, to_tsvector('english', v_search_text), NOW()
         )
         ON CONFLICT (user_id) DO UPDATE SET
@@ -188,7 +191,7 @@ module.exports = {
       CREATE OR REPLACE FUNCTION trigger_sync_candidate_search_index()
       RETURNS TRIGGER AS $$
       BEGIN
-        PERFORM sync_candidate_search_index(NEW.user_id);
+        PERFORM sync_candidate_search_index(COALESCE(NEW.user_id, NEW.id));
         RETURN NEW;
       END;
       $$ LANGUAGE plpgsql;
@@ -201,15 +204,6 @@ module.exports = {
         AFTER INSERT OR UPDATE ON candidate_profiles
         FOR EACH ROW
         EXECUTE FUNCTION trigger_sync_candidate_search_index();
-    `);
-
-		// Trigger on candidate_skills
-		await client.query(`
-      DROP TRIGGER IF EXISTS trg_sync_csi_skills ON candidate_skills;
-      CREATE TRIGGER trg_sync_csi_skills
-        AFTER INSERT OR UPDATE OR DELETE ON candidate_skills
-        FOR EACH ROW
-        EXECUTE FUNCTION trigger_sync_candidate_search_index_skills();
     `);
 
 		// Skills-specific trigger function (needs to handle DELETE where OLD.user_id is available)
@@ -228,6 +222,15 @@ module.exports = {
         RETURN COALESCE(NEW, OLD);
       END;
       $$ LANGUAGE plpgsql;
+    `);
+
+		// Trigger on candidate_skills
+		await client.query(`
+      DROP TRIGGER IF EXISTS trg_sync_csi_skills ON candidate_skills;
+      CREATE TRIGGER trg_sync_csi_skills
+        AFTER INSERT OR UPDATE OR DELETE ON candidate_skills
+        FOR EACH ROW
+        EXECUTE FUNCTION trigger_sync_candidate_search_index_skills();
     `);
 
 		// Trigger on candidate_embeddings (when embedding is updated)

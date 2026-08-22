@@ -121,7 +121,7 @@ export function RecruiterCommunicationsPage() {
 			<div className='max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-8'>
 				<div className='mb-6'>
 					<Link
-						to='/recruiter/dashboard'
+						to='/recruiter'
 						className='text-gray-600 hover:text-gray-900 flex items-center gap-2 mb-4'
 					>
 						<ArrowLeft className='w-4 h-4' />
