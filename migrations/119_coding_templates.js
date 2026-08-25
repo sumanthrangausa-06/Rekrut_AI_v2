@@ -151,6 +151,10 @@ module.exports = {
 		// ────────────────────────────────────────────────────────────────────
 
 		// Template 1: Frontend — Build a Counter Component
+		const t1Starter = JSON.stringify({
+			javascript: 'function counter(initialValue = 0) {\n  // Your code here\n}',
+			typescript: 'function counter(initialValue: number = 0): { increment: () => number; decrement: () => number; reset: () => number; getValue: () => number } {\n  // Your code here\n}'
+		});
 		const t1 = await client.query(`
       INSERT INTO coding_templates (title, description, role_type, difficulty, language_support, time_limit_seconds, memory_limit_mb, starter_code, is_custom, is_active)
       VALUES (
@@ -161,12 +165,12 @@ module.exports = {
         '["javascript","typescript"]',
         10,
         256,
-        '{"javascript": "function counter(initialValue = 0) {\n  // Your code here\n}", "typescript": "function counter(initialValue: number = 0): { increment: () => number; decrement: () => number; reset: () => number; getValue: () => number } {\n  // Your code here\n}"}',
+        $1,
         false,
         true
       )
       RETURNING id
-    `);
+    `, [t1Starter]);
 		const t1Id = t1.rows[0].id;
 
 		await client.query(`
@@ -180,6 +184,12 @@ module.exports = {
     `, [t1Id]);
 
 		// Template 2: Backend — REST API Rate Limiter
+		const t2Starter = JSON.stringify({
+			javascript: 'class RateLimiter {\n  constructor(maxRequests, windowMs) {\n    this.maxRequests = maxRequests;\n    this.windowMs = windowMs;\n    this.requests = new Map();\n  }\n  isAllowed(ip) {\n    // Your code here\n  }\n}',
+			python: 'class RateLimiter:\n    def __init__(self, max_requests, window_ms):\n        self.max_requests = max_requests\n        self.window_ms = window_ms\n        self.requests = {}\n    def is_allowed(self, ip):\n        # Your code here\n        pass',
+			java: 'public class RateLimiter {\n    private int maxRequests;\n    private long windowMs;\n    public RateLimiter(int maxRequests, long windowMs) {\n        this.maxRequests = maxRequests;\n        this.windowMs = windowMs;\n    }\n    public boolean isAllowed(String ip) {\n        // Your code here\n        return true;\n    }\n}',
+			go: 'type RateLimiter struct {\n    maxRequests int\n    windowMs    int64\n    requests    map[string][]int64\n}\nfunc NewRateLimiter(maxRequests int, windowMs int64) *RateLimiter {\n    return &RateLimiter{maxRequests: maxRequests, windowMs: windowMs, requests: make(map[string][]int64)}\n}\nfunc (rl *RateLimiter) IsAllowed(ip string) bool {\n    // Your code here\n    return true\n}'
+		});
 		const t2 = await client.query(`
       INSERT INTO coding_templates (title, description, role_type, difficulty, language_support, time_limit_seconds, memory_limit_mb, starter_code, is_custom, is_active)
       VALUES (
@@ -190,12 +200,12 @@ module.exports = {
         '["javascript","python","java","go"]',
         15,
         512,
-        '{"javascript": "class RateLimiter {\n  constructor(maxRequests, windowMs) {\n    this.maxRequests = maxRequests;\n    this.windowMs = windowMs;\n    this.requests = new Map();\n  }\n  isAllowed(ip) {\n    // Your code here\n  }\n}", "python": "class RateLimiter:\n    def __init__(self, max_requests, window_ms):\n        self.max_requests = max_requests\n        self.window_ms = window_ms\n        self.requests = {}\n    def is_allowed(self, ip):\n        # Your code here\n        pass", "java": "public class RateLimiter {\n    private int maxRequests;\n    private long windowMs;\n    public RateLimiter(int maxRequests, long windowMs) {\n        this.maxRequests = maxRequests;\n        this.windowMs = windowMs;\n    }\n    public boolean isAllowed(String ip) {\n        // Your code here\n        return true;\n    }\n}", "go": "type RateLimiter struct {\n    maxRequests int\n    windowMs    int64\n    requests    map[string][]int64\n}\nfunc NewRateLimiter(maxRequests int, windowMs int64) *RateLimiter {\n    return &RateLimiter{maxRequests: maxRequests, windowMs: windowMs, requests: make(map[string][]int64)}\n}\nfunc (rl *RateLimiter) IsAllowed(ip string) bool {\n    // Your code here\n    return true\n}"}',
+        $1,
         false,
         true
       )
       RETURNING id
-    `);
+    `, [t2Starter]);
 		const t2Id = t2.rows[0].id;
 
 		await client.query(`
@@ -209,6 +219,11 @@ module.exports = {
     `, [t2Id]);
 
 		// Template 3: Data — Process CSV Data
+		const t3Starter = JSON.stringify({
+			python: "import csv\nfrom io import StringIO\n\ndef process_sales(csv_data):\n    \"\"\"Process sales CSV and return summary stats.\"\"\"\n    # Your code here\n    return {\n        'total_revenue': 0,\n        'best_selling_product': '',\n        'average_order_value': 0.0\n    }",
+			javascript: 'function processSales(csvData) {\n  // Your code here\n  return {\n    totalRevenue: 0,\n    bestSellingProduct: \'\',\n    averageOrderValue: 0.0\n  };\n}',
+			sql: '-- Write a SQL query that processes a sales table\n-- Table: sales (product VARCHAR, quantity INT, price DECIMAL)\n-- Return: total_revenue, best_selling_product, avg_order_value\nSELECT \n  -- Your code here\nFROM sales;'
+		});
 		const t3 = await client.query(`
       INSERT INTO coding_templates (title, description, role_type, difficulty, language_support, time_limit_seconds, memory_limit_mb, starter_code, is_custom, is_active)
       VALUES (
@@ -219,12 +234,12 @@ module.exports = {
         '["python","javascript","sql"]',
         15,
         512,
-        '{"python": "import csv\nfrom io import StringIO\n\ndef process_sales(csv_data):\n    \"\"\"Process sales CSV and return summary stats.\"\"\"\n    # Your code here\n    return {\n        'total_revenue': 0,\n        'best_selling_product': '',\n        'average_order_value': 0.0\n    }", "javascript": "function processSales(csvData) {\n  // Your code here\n  return {\n    totalRevenue: 0,\n    bestSellingProduct: '',\n    averageOrderValue: 0.0\n  };\n}", "sql": "-- Write a SQL query that processes a sales table\n-- Table: sales (product VARCHAR, quantity INT, price DECIMAL)\n-- Return: total_revenue, best_selling_product, avg_order_value\nSELECT \n  -- Your code here\nFROM sales;"}',
+        $1,
         false,
         true
       )
       RETURNING id
-    `);
+    `, [t3Starter]);
 		const t3Id = t3.rows[0].id;
 
 		await client.query(`
@@ -238,6 +253,9 @@ module.exports = {
     `, [t3Id]);
 
 		// Template 4: SQL — Employee Department Analysis
+		const t4Starter = JSON.stringify({
+			sql: '-- Tables:\n-- employees(id INT, name VARCHAR, department_id INT, salary DECIMAL, hire_date DATE)\n-- departments(id INT, name VARCHAR, budget DECIMAL)\n\n-- Q1: List departments with avg salary > 50000\nSELECT \n  -- Your code here\nFROM departments d\nJOIN employees e ON d.id = e.department_id\nGROUP BY d.id;\n\n-- Q2: Find the 3 highest paid employees per department\nWITH ranked AS (\n  SELECT *,\n    -- Your code here\n  FROM employees\n)\nSELECT * FROM ranked WHERE rank <= 3;\n\n-- Q3: Find departments where total salary exceeds budget\nSELECT \n  -- Your code here\nFROM departments d\nJOIN employees e ON d.id = e.department_id;'
+		});
 		const t4 = await client.query(`
       INSERT INTO coding_templates (title, description, role_type, difficulty, language_support, time_limit_seconds, memory_limit_mb, starter_code, is_custom, is_active)
       VALUES (
@@ -248,12 +266,12 @@ module.exports = {
         '["sql"]',
         15,
         256,
-        '{"sql": "-- Tables:\n-- employees(id INT, name VARCHAR, department_id INT, salary DECIMAL, hire_date DATE)\n-- departments(id INT, name VARCHAR, budget DECIMAL)\n\n-- Q1: List departments with avg salary > 50000\nSELECT \n  -- Your code here\nFROM departments d\nJOIN employees e ON d.id = e.department_id\nGROUP BY d.id;\n\n-- Q2: Find the 3 highest paid employees per department\nWITH ranked AS (\n  SELECT *,\n    -- Your code here\n  FROM employees\n)\nSELECT * FROM ranked WHERE rank <= 3;\n\n-- Q3: Find departments where total salary exceeds budget\nSELECT \n  -- Your code here\nFROM departments d\nJOIN employees e ON d.id = e.department_id;"}',
+        $1,
         false,
         true
       )
       RETURNING id
-    `);
+    `, [t4Starter]);
 		const t4Id = t4.rows[0].id;
 
 		await client.query(`
@@ -267,6 +285,13 @@ module.exports = {
     `, [t4Id]);
 
 		// Template 5: Algorithms — Two Sum
+		const t5Starter = JSON.stringify({
+			python: 'def two_sum(nums, target):\n    """Return indices of two numbers that add to target."""\n    # Your code here\n    return []',
+			javascript: 'function twoSum(nums, target) {\n  // Your code here\n  return [];\n}',
+			java: 'public class Solution {\n    public int[] twoSum(int[] nums, int target) {\n        // Your code here\n        return new int[0];\n    }\n}',
+			cpp: 'class Solution {\npublic:\n    vector<int> twoSum(vector<int>& nums, int target) {\n        // Your code here\n        return {};\n    }\n};',
+			go: 'func twoSum(nums []int, target int) []int {\n    // Your code here\n    return nil\n}'
+		});
 		const t5 = await client.query(`
       INSERT INTO coding_templates (title, description, role_type, difficulty, language_support, time_limit_seconds, memory_limit_mb, starter_code, is_custom, is_active)
       VALUES (
@@ -277,12 +302,12 @@ module.exports = {
         '["python","javascript","java","cpp","go"]',
         10,
         256,
-        '{"python": "def two_sum(nums, target):\n    \"\"\"Return indices of two numbers that add to target.\"\"\"\n    # Your code here\n    return []", "javascript": "function twoSum(nums, target) {\n  // Your code here\n  return [];\n}", "java": "public class Solution {\n    public int[] twoSum(int[] nums, int target) {\n        // Your code here\n        return new int[0];\n    }\n}", "cpp": "class Solution {\npublic:\n    vector<int> twoSum(vector<int>& nums, int target) {\n        // Your code here\n        return {};\n    }\n};", "go": "func twoSum(nums []int, target int) []int {\n    // Your code here\n    return nil\n}"}',
+        $1,
         false,
         true
       )
       RETURNING id
-    `);
+    `, [t5Starter]);
 		const t5Id = t5.rows[0].id;
 
 		await client.query(`

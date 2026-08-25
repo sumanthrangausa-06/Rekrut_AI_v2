@@ -84,7 +84,9 @@ exports.up = async (client) => {
 	// Add unique constraint on job_id (one questionnaire per job)
 	await client.query(`
     ALTER TABLE screening_questionnaires
-    ADD CONSTRAINT IF NOT EXISTS screening_questionnaires_job_id_unique UNIQUE (job_id)
+    DROP CONSTRAINT IF EXISTS screening_questionnaires_job_id_unique;
+    ALTER TABLE screening_questionnaires
+    ADD CONSTRAINT screening_questionnaires_job_id_unique UNIQUE (job_id)
   `);
 
 	// Indexes

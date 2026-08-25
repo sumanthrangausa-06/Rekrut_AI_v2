@@ -28,6 +28,16 @@ module.exports = {
 		`);
 
 		// ─── 3. role_permissions junction ─────────────────────────────────────
+		// Check if old role_permissions table exists with 'resource' column (pre-RBAC schema)
+		const oldRolePermsCheck = await client.query(`
+			SELECT column_name 
+			FROM information_schema.columns 
+			WHERE table_name = 'role_permissions' AND column_name = 'resource'
+		`);
+		if (oldRolePermsCheck.rows.length > 0) {
+			await client.query(`DROP TABLE IF EXISTS role_permissions CASCADE`);
+		}
+
 		await client.query(`
 			CREATE TABLE IF NOT EXISTS role_permissions (
 				role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
@@ -37,6 +47,17 @@ module.exports = {
 		`);
 
 		// ─── 4. user_roles junction (scoped to company) ───────────────────────
+		// Check if old user_roles table exists with 'role' text column (pre-RBAC schema)
+		const oldUserRolesCheck = await client.query(`
+			SELECT column_name 
+			FROM information_schema.columns 
+			WHERE table_name = 'user_roles' AND column_name = 'role'
+		`);
+		if (oldUserRolesCheck.rows.length > 0) {
+			// Old schema detected — drop and recreate with proper RBAC schema
+			await client.query(`DROP TABLE IF EXISTS user_roles CASCADE`);
+		}
+
 		await client.query(`
 			CREATE TABLE IF NOT EXISTS user_roles (
 				user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
