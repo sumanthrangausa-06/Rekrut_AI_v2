@@ -310,6 +310,9 @@ const RecruiterAnalyticsPage = lazy(() =>
 const RecruiterCandidatesPage = lazy(() =>
 	import('@/pages/recruiter/candidates').then((m) => ({ default: m.RecruiterCandidatesPage })),
 )
+const RecruiterInterviewsPage = lazy(() =>
+	import('@/pages/recruiter/interviews').then((m) => ({ default: m.RecruiterInterviewsPage })),
+)
 const RecruiterScreeningPage = lazy(() =>
 	import('@/pages/recruiter/screening').then((m) => ({ default: m.RecruiterScreeningPage })),
 )
@@ -346,6 +349,9 @@ const RecruiterOnboardingDocsPage = lazy(() =>
 )
 const RecruiterOmniScorePage = lazy(() =>
 	import('@/pages/recruiter/omniscore').then((m) => ({ default: m.RecruiterOmniScorePage })),
+)
+const CandidateOmniScorePage = lazy(() =>
+	import('@/pages/candidate/omniscore').then((m) => ({ default: m.CandidateOmniScorePage })),
 )
 const RecruiterPostHireFeedbackPage = lazy(() =>
 	import('@/pages/post-hire-feedback').then((m) => ({ default: m.RecruiterPostHireFeedbackPage })),
