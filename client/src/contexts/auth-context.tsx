@@ -37,7 +37,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
 	const [user, setUser] = useState<User | null>(null)
-	const [loading, setLoading] = useState(true) // Start with true for initial auth check
+	// Sync check: only show loading spinner if there's a token to verify.
+	// This fixes E2E tests that expect immediate redirect on unauth routes.
+	const [loading, setLoading] = useState(() => {
+		if (typeof window === 'undefined') return false
+		return !!getToken()
+	})
 
 	// Check auth on initial load — verify token if it exists in localStorage
 	useEffect(() => {
