@@ -162,7 +162,7 @@ module.exports = {
           name, avatar_url, search_vector, last_synced
         ) VALUES (
           p_user_id, v_embedding, v_skills, v_location, COALESCE(v_experience, 0),
-          COALESCE(v_omi, 0), v_tier, COALESCE(v_avail, 'immediately'), v_title, v_bio,
+          COALESCE(v_omni, 0), v_tier, COALESCE(v_avail, 'immediately'), v_title, v_bio,
           v_name, v_avatar, to_tsvector('english', v_search_text), NOW()
         )
         ON CONFLICT (user_id) DO UPDATE SET
@@ -194,24 +194,6 @@ module.exports = {
       $$ LANGUAGE plpgsql;
     `);
 
-		// Trigger on candidate_profiles
-		await client.query(`
-      DROP TRIGGER IF EXISTS trg_sync_csi_profiles ON candidate_profiles;
-      CREATE TRIGGER trg_sync_csi_profiles
-        AFTER INSERT OR UPDATE ON candidate_profiles
-        FOR EACH ROW
-        EXECUTE FUNCTION trigger_sync_candidate_search_index();
-    `);
-
-		// Trigger on candidate_skills
-		await client.query(`
-      DROP TRIGGER IF EXISTS trg_sync_csi_skills ON candidate_skills;
-      CREATE TRIGGER trg_sync_csi_skills
-        AFTER INSERT OR UPDATE OR DELETE ON candidate_skills
-        FOR EACH ROW
-        EXECUTE FUNCTION trigger_sync_candidate_search_index_skills();
-    `);
-
 		// Skills-specific trigger function (needs to handle DELETE where OLD.user_id is available)
 		await client.query(`
       CREATE OR REPLACE FUNCTION trigger_sync_candidate_search_index_skills()
@@ -228,6 +210,24 @@ module.exports = {
         RETURN COALESCE(NEW, OLD);
       END;
       $$ LANGUAGE plpgsql;
+    `);
+
+		// Trigger on candidate_profiles
+		await client.query(`
+      DROP TRIGGER IF EXISTS trg_sync_csi_profiles ON candidate_profiles;
+      CREATE TRIGGER trg_sync_csi_profiles
+        AFTER INSERT OR UPDATE ON candidate_profiles
+        FOR EACH ROW
+        EXECUTE FUNCTION trigger_sync_candidate_search_index();
+    `);
+
+		// Trigger on candidate_skills
+		await client.query(`
+      DROP TRIGGER IF EXISTS trg_sync_csi_skills ON candidate_skills;
+      CREATE TRIGGER trg_sync_csi_skills
+        AFTER INSERT OR UPDATE OR DELETE ON candidate_skills
+        FOR EACH ROW
+        EXECUTE FUNCTION trigger_sync_candidate_search_index_skills();
     `);
 
 		// Trigger on candidate_embeddings (when embedding is updated)

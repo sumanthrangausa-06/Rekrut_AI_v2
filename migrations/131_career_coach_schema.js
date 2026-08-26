@@ -29,7 +29,7 @@ module.exports = {
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         session_id INTEGER REFERENCES career_coach_sessions(id) ON DELETE SET NULL,
-        current_role VARCHAR(255),
+        "current_role" VARCHAR(255),
         target_role VARCHAR(255),
         pathway JSONB DEFAULT '[]',
           -- [{ step, role, timeframe, required_skills, avg_salary, confidence }]
