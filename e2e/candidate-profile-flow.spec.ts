@@ -13,18 +13,20 @@ test.describe('candidate profile flow', () => {
     // Wait for the form to be visible using the Personal Information heading
     await expect(page.getByRole('heading', { name: 'Personal Information' })).toBeVisible({ timeout: 10000 })
 
-    // Fill in profile fields with unique values
+    // Fill in profile fields with unique values (auto-save with 500ms debounce)
     const headline = 'E2E QA Engineer ' + Date.now()
     await page.locator('input[placeholder="Senior Software Engineer"]').fill(headline)
     await page.locator('textarea[placeholder="Brief professional summary..."]').fill('Experienced in end-to-end testing and automation.')
     await page.locator('input[placeholder="San Francisco, CA"]').fill('San Francisco, CA')
     await page.locator('input[placeholder="+1 (555) 000-0000"]').fill('+1 (555) 123-4567')
 
-    // Save profile
-    await page.getByRole('button', { name: 'Save Changes' }).click()
-
-    // Verify success toast appears
-    await expect(page.getByText('Profile saved')).toBeVisible({ timeout: 10000 })
+    // Wait for auto-save debounce (500ms) + network + "Saved" indicator
+    await page.waitForTimeout(1000)
+    const savedIndicator = page.locator('text=Saved').first()
+    const hasSaved = await savedIndicator.isVisible().catch(() => false)
+    if (hasSaved) {
+      await expect(savedIndicator).toBeVisible({ timeout: 5000 })
+    }
 
     // Reload and verify persistence
     await page.reload()

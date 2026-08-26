@@ -42,15 +42,28 @@ test.describe('Candidate Critical Flow — Desktop', () => {
     await page.locator('button').filter({ hasText: /Settings/i }).click();
     await expect(page.locator('text=Personal Information').first()).toBeVisible({ timeout: 10000 });
 
-    // Fill key profile fields
+    // Fill key profile fields (auto-save with 500ms debounce)
     await page.getByPlaceholder('Senior Software Engineer').fill('Senior QA Engineer');
     await page.getByPlaceholder('Brief professional summary...').fill('Experienced QA automation engineer with 5+ years in end-to-end testing.');
     await page.getByPlaceholder('San Francisco, CA').fill('Remote');
     await page.getByPlaceholder('+1 (555) 000-0000').fill('+1 555 123 4567');
 
-    // Save profile
-    await page.getByRole('button', { name: /Save Changes/i }).click();
-    await expect(page.locator('text=Profile saved').first()).toBeVisible({ timeout: 10000 });
+    // Wait for auto-save debounce (500ms) + network + "Saved" indicator
+    await page.waitForTimeout(1000);
+    // Verify auto-save completed by checking for "Saved" status or reloading
+    const savedIndicator = page.locator('text=Saved').first();
+    const hasSaved = await savedIndicator.isVisible().catch(() => false);
+    if (hasSaved) {
+      await expect(savedIndicator).toBeVisible({ timeout: 5000 });
+    }
+
+    // Verify persistence by reloading
+    await page.reload();
+    await expect(page.locator('text=Profile Completeness').or(page.locator('text=Personal Information')).first()).toBeVisible({ timeout: 10000 });
+    await page.locator('button').filter({ hasText: /Settings/i }).click();
+    await expect(page.locator('text=Personal Information').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByPlaceholder('Senior Software Engineer')).toHaveValue('Senior QA Engineer');
+    await expect(page.getByPlaceholder('San Francisco, CA')).toHaveValue('Remote');
 
     // ─── 3. Search Jobs ───
     await page.goto('/candidate/jobs');
@@ -113,11 +126,25 @@ test.describe('Candidate Critical Flow — Mobile', () => {
     await page.locator('button').filter({ hasText: /Settings/i }).click();
     await expect(page.locator('text=Personal Information').first()).toBeVisible({ timeout: 10000 });
 
+    // Fill profile fields (auto-save with 500ms debounce)
     await page.getByPlaceholder('Senior Software Engineer').fill('Mobile QA Engineer');
     await page.getByPlaceholder('Brief professional summary...').fill('Mobile testing specialist.');
     await page.getByPlaceholder('San Francisco, CA').fill('Remote');
-    await page.getByRole('button', { name: /Save Changes/i }).click();
-    await expect(page.locator('text=Profile saved').first()).toBeVisible({ timeout: 10000 });
+
+    // Wait for auto-save debounce (500ms) + network
+    await page.waitForTimeout(1000);
+    const savedIndicator = page.locator('text=Saved').first();
+    const hasSaved = await savedIndicator.isVisible().catch(() => false);
+    if (hasSaved) {
+      await expect(savedIndicator).toBeVisible({ timeout: 5000 });
+    }
+
+    // Verify persistence by reloading
+    await page.reload();
+    await expect(page.locator('text=Profile Completeness').or(page.locator('text=Personal Information')).first()).toBeVisible({ timeout: 10000 });
+    await page.locator('button').filter({ hasText: /Settings/i }).click();
+    await expect(page.locator('text=Personal Information').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByPlaceholder('Senior Software Engineer')).toHaveValue('Mobile QA Engineer');
 
     // ─── 3. Search Jobs ───
     await page.goto('/candidate/jobs');

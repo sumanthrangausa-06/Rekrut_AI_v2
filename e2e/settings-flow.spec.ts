@@ -13,14 +13,14 @@ test.describe('Settings Flow', () => {
     await expect(page.getByRole('heading', { name: /Settings/i })).toBeVisible({ timeout: 10000 })
     await expect(page.getByText(/Manage your profile, account, and preferences/i)).toBeVisible()
 
-    // Verify all tabs are present (shadcn TabsTrigger renders as buttons)
+    // Verify all tabs are present (shadcn TabsTrigger renders with role="tab")
     // Use nth(1) for Notifications to avoid navbar notification bell conflict
-    await expect(page.getByRole('button', { name: 'Profile', exact: true })).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole('button', { name: 'Account', exact: true })).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole('button', { name: 'Notifications', exact: true }).nth(1)).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole('button', { name: 'Privacy', exact: true })).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole('button', { name: 'Appearance', exact: true })).toBeVisible({ timeout: 10000 })
-    await expect(page.getByRole('button', { name: 'Billing', exact: true })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('tab', { name: 'Profile', exact: true })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('tab', { name: 'Account', exact: true })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('tab', { name: 'Notifications', exact: true }).nth(1)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('tab', { name: 'Privacy', exact: true })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('tab', { name: 'Appearance', exact: true })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('tab', { name: 'Billing', exact: true })).toBeVisible({ timeout: 10000 })
   })
 
   test('profile tab displays user info and can be updated', async ({ page }) => {
@@ -28,7 +28,7 @@ test.describe('Settings Flow', () => {
     await page.waitForTimeout(1000)
 
     // Ensure Profile tab is active
-    await page.getByRole('button', { name: 'Profile', exact: true }).click()
+    await page.getByRole('tab', { name: 'Profile', exact: true }).click()
     await page.waitForTimeout(300)
 
     // Verify profile form fields
@@ -53,7 +53,7 @@ test.describe('Settings Flow', () => {
     await page.goto('/settings')
     await page.waitForTimeout(1000)
 
-    await page.getByRole('button', { name: 'Account', exact: true }).click()
+    await page.getByRole('tab', { name: 'Account', exact: true }).click()
     await page.waitForTimeout(300)
 
     // Verify password change section
@@ -86,7 +86,7 @@ test.describe('Settings Flow', () => {
     await page.goto('/settings')
     await page.waitForTimeout(1000)
 
-    await page.getByRole('button', { name: 'Notifications', exact: true }).nth(1).click()
+    await page.getByRole('tab', { name: 'Notifications', exact: true }).nth(1).click()
     await page.waitForTimeout(300)
 
     // Verify email notifications section
@@ -117,7 +117,7 @@ test.describe('Settings Flow', () => {
     await page.goto('/settings')
     await page.waitForTimeout(1000)
 
-    await page.getByRole('button', { name: 'Privacy', exact: true }).click()
+    await page.getByRole('tab', { name: 'Privacy', exact: true }).click()
     await page.waitForTimeout(300)
 
     // Verify privacy settings
@@ -140,7 +140,7 @@ test.describe('Settings Flow', () => {
     await page.goto('/settings')
     await page.waitForTimeout(1000)
 
-    await page.getByRole('button', { name: 'Appearance', exact: true }).click()
+    await page.getByRole('tab', { name: 'Appearance', exact: true }).click()
     await page.waitForTimeout(300)
 
     await expect(page.getByText('Theme')).toBeVisible({ timeout: 10000 })
@@ -155,10 +155,10 @@ test.describe('Settings Flow', () => {
     await page.goto('/settings')
     await page.waitForTimeout(1000)
 
-    await page.getByRole('button', { name: 'Billing', exact: true }).click()
+    await page.getByRole('tab', { name: 'Billing', exact: true }).click()
     await page.waitForTimeout(300)
 
-    await expect(page.getByText('Subscription')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: 'Subscription' })).toBeVisible({ timeout: 10000 })
 
     // Verify either free plan message or subscription details exist
     const billingContent = page.getByText(/free plan|Upgrade|Plan|Status|Subscription/i).first()

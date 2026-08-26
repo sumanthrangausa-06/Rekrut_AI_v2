@@ -54,7 +54,7 @@ test.describe('Password Reset Flow', () => {
     await page.getByRole('button', { name: /Send reset link/i }).click();
 
     // Should still show success to avoid email enumeration
-    await expect(page.getByText('Check your console').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('If an account with that email exists').first()).toBeVisible({ timeout: 10000 });
   });
 
   test('reset-password page with missing token shows error', async ({ page }) => {
@@ -88,7 +88,7 @@ test.describe('Password Reset Flow', () => {
     await page.getByRole('button', { name: /Send reset link/i }).click();
 
     // ─── 3. Verify success state ───
-    await expect(page.getByText('Check your console').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('If an account with that email exists').first()).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('link', { name: /Back to sign in/i })).toBeVisible();
 
     // ─── 4. Get reset token from DB ───

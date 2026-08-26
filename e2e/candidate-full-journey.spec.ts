@@ -83,8 +83,21 @@ test.describe('Candidate Full Journey', () => {
     await page.locator('input[placeholder="San Francisco, CA"]').fill('Remote');
     await page.locator('input[placeholder="+1 (555) 000-0000"]').fill('+1 (555) 123-4567');
 
-    await page.getByRole('button', { name: 'Save Changes' }).click();
-    await expect(page.getByText('Profile saved')).toBeVisible({ timeout: 10000 });
+    // Wait for auto-save debounce (500ms) + network + "Saved" indicator
+    await page.waitForTimeout(1000);
+    const savedIndicator = page.locator('text=Saved').first();
+    const hasSaved = await savedIndicator.isVisible().catch(() => false);
+    if (hasSaved) {
+      await expect(savedIndicator).toBeVisible({ timeout: 5000 });
+    }
+
+    // Verify persistence by reloading
+    await page.reload();
+    await page.waitForURL('/candidate/profile');
+    await page.waitForTimeout(500);
+    await page.getByRole('button', { name: 'Settings' }).click();
+    await expect(page.getByRole('heading', { name: 'Personal Information' })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('input[placeholder="Senior Software Engineer"]')).toHaveValue('Senior QA Automation Engineer');
 
     // ─── 3. Search for the seeded job ───
     await page.goto('/candidate/jobs');
