@@ -1,8 +1,20 @@
 import { test, expect } from '@playwright/test';
-import { openMobileMenuIfNeeded, openDashboardSidebarIfNeeded } from './helpers';
+import { openMobileMenuIfNeeded, openDashboardSidebarIfNeeded, ensureAuth } from './helpers';
 
 const CANDIDATE_STORAGE = 'e2e/.auth/candidate.json';
 const RECRUITER_STORAGE = 'e2e/.auth/recruiter.json';
+
+const CANDIDATE_CREDS = {
+  email: 'e2e-candidate@rekrutai.test',
+  password: 'TestPass123!',
+  role: 'candidate' as const,
+};
+
+const RECRUITER_CREDS = {
+  email: 'e2e-recruiter@rekrutai.test',
+  password: 'TestPass123!',
+  role: 'recruiter' as const,
+};
 
 // ───────────────────────────────────────────────
 // Visitor navigation
@@ -33,7 +45,10 @@ test.describe('Visitor Navigation', () => {
 test.describe('Candidate Navigation', () => {
   test.use({ storageState: CANDIDATE_STORAGE });
 
-  test('candidate can navigate dashboard → jobs → apply', async ({ page }) => {
+  test('candidate can navigate dashboard → jobs → apply', async ({ page, request }) => {
+    // Ensure auth is fresh (re-auth via API if storageState token expired)
+    await ensureAuth(page, request, CANDIDATE_STORAGE, CANDIDATE_CREDS);
+
     await page.goto('/candidate');
 
     // Verify dashboard loads — accept either candidate's name or dashboard heading
@@ -80,7 +95,10 @@ test.describe('Candidate Navigation', () => {
 test.describe('Recruiter Navigation', () => {
   test.use({ storageState: RECRUITER_STORAGE });
 
-  test('recruiter can navigate dashboard → create job → view applicants', async ({ page }) => {
+  test('recruiter can navigate dashboard → create job → view applicants', async ({ page, request }) => {
+    // Ensure auth is fresh (re-auth via API if storageState token expired)
+    await ensureAuth(page, request, RECRUITER_STORAGE, RECRUITER_CREDS);
+
     await page.goto('/recruiter');
 
     // Verify dashboard loads

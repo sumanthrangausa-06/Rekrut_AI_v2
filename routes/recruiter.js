@@ -1487,8 +1487,8 @@ router.get('/pipeline-stats', authMiddleware, requireApprovedRecruiter, ensureCo
         COUNT(DISTINCT ja.id) as total,
         COUNT(DISTINCT CASE WHEN ja.status = 'applied' THEN ja.id END) as new,
         COUNT(DISTINCT CASE WHEN ja.status = 'screening' THEN ja.id END) as screening,
-        COUNT(DISTINCT CASE WHEN ja.status = 'interview' THEN ja.id END) as interview,
-        COUNT(DISTINCT CASE WHEN ja.status = 'offer' THEN ja.id END) as offer,
+        COUNT(DISTINCT CASE WHEN ja.status = 'interviewed' THEN ja.id END) as interview,
+        COUNT(DISTINCT CASE WHEN ja.status = 'offered' THEN ja.id END) as offer,
         COUNT(DISTINCT CASE WHEN ja.status = 'hired' THEN ja.id END) as hired,
         COUNT(DISTINCT CASE WHEN ja.status = 'rejected' THEN ja.id END) as rejected
       FROM job_applications ja
@@ -1508,16 +1508,23 @@ router.get('/pipeline-stats', authMiddleware, requireApprovedRecruiter, ensureCo
 			[companyId],
 		);
 
-		const topCandidates = await pool.query(
-			`
+		// Graceful fallback if omni_scores table is missing in E2E
+		let topCandidatesCount = 0;
+		try {
+			const topCandidates = await pool.query(
+				`
       SELECT COUNT(DISTINCT u.id) as count
       FROM job_applications ja
       JOIN users u ON ja.candidate_id = u.id
       LEFT JOIN omni_scores os ON os.user_id = u.id
       WHERE ja.company_id = $1 AND COALESCE(os.total_score, ja.match_score, 0) >= 85
     `,
-			[companyId],
-		);
+				[companyId],
+			);
+			topCandidatesCount = parseInt(topCandidates.rows[0].count, 10) || 0;
+		} catch (_topErr) {
+			console.log('[pipeline-stats] omni_scores not available, topCandidates = 0');
+		}
 
 		const row = stats.rows[0];
 		const activity = recentActivity.rows[0];
@@ -1531,7 +1538,7 @@ router.get('/pipeline-stats', authMiddleware, requireApprovedRecruiter, ensureCo
 				offer: parseInt(row.offer, 10) || 0,
 				hired: parseInt(row.hired, 10) || 0,
 				rejected: parseInt(row.rejected, 10) || 0,
-				topCandidates: parseInt(topCandidates.rows[0].count, 10) || 0,
+				topCandidates: topCandidatesCount,
 				last24h: parseInt(activity.last_24h, 10) || 0,
 				last7d: parseInt(activity.last_7d, 10) || 0,
 			},

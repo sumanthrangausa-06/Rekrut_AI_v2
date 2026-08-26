@@ -1,6 +1,13 @@
 import { test, expect } from '@playwright/test';
+import { ensureAuth } from './helpers';
 
 const RECRUITER_STORAGE = 'e2e/.auth/recruiter.json';
+
+const RECRUITER_CREDS = {
+  email: 'e2e-recruiter@rekrutai.test',
+  password: 'TestPass123!',
+  role: 'recruiter' as const,
+};
 
 // Mock plan data so the pricing page shows Stripe as configured
 const MOCK_PLANS = {
@@ -59,7 +66,10 @@ const MOCK_STRIPE_HTML = `<!DOCTYPE html>
 test.describe('Payment Flow', () => {
   test.use({ storageState: RECRUITER_STORAGE });
 
-  test('recruiter completes upgrade payment end-to-end', async ({ page }) => {
+  test('recruiter completes upgrade payment end-to-end', async ({ page, request }) => {
+    // Ensure auth is fresh (re-auth via API if storageState token expired)
+    await ensureAuth(page, request, RECRUITER_STORAGE, RECRUITER_CREDS);
+
     // 1. Mock pricing plans so Stripe appears configured
     await page.route('/api/billing/plans', async (route) => {
       await route.fulfill({
