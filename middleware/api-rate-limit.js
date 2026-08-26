@@ -34,6 +34,11 @@ setInterval(() => {
  * Logs usage to api_key_usage table asynchronously (fire-and-forget).
  */
 function apiRateLimit(req, res, next) {
+	// Allow disabling rate limiting for E2E testing
+	if (process.env.DISABLE_RATE_LIMIT === 'true') {
+		return next();
+	}
+
 	const keyId = req.apiKey?.id;
 	const limit = req.apiKey?.rateLimit ?? DEFAULT_LIMIT;
 	const key = keyId ? `apikey:${keyId}` : `ip:${req.ip}`;

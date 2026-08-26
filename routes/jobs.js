@@ -9,7 +9,10 @@ const { requirePermission } = require('../middleware/rbac');
 const router = express.Router();
 
 // ponytail: Exclude E2E test data from public listings (#71)
-const EXCLUDE_TEST_JOBS = " AND j.company NOT ILIKE '%E2E%' AND j.title NOT ILIKE '%E2E%'";
+// Disable in development/E2E testing so test jobs are visible
+const EXCLUDE_TEST_JOBS = process.env.NODE_ENV === 'production'
+	? " AND j.company NOT ILIKE '%E2E%' AND j.title NOT ILIKE '%E2E%'"
+	: '';
 
 // Validation rules for job search/list queries
 const validateJobSearch = [

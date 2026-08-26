@@ -47,6 +47,63 @@ async function addTableIfMissing(table, ddl) {
       )
     `);
 
+    // Missing candidate_search_index table (from migration 130)
+    await addTableIfMissing('candidate_search_index', `
+      CREATE TABLE candidate_search_index (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT,
+        avatar_url TEXT,
+        job_title TEXT,
+        location TEXT,
+        experience_years INTEGER DEFAULT 0,
+        omni_score INTEGER DEFAULT 0,
+        score_tier TEXT,
+        availability_status TEXT,
+        bio TEXT,
+        skills JSONB DEFAULT '[]',
+        search_vector TSVECTOR,
+        embedding VECTOR(1536),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Missing saved_searches table
+    await addTableIfMissing('saved_searches', `
+      CREATE TABLE saved_searches (
+        id SERIAL PRIMARY KEY,
+        recruiter_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL,
+        name TEXT NOT NULL,
+        filters JSONB DEFAULT '{}',
+        search_query TEXT,
+        alert_enabled BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Seed candidate_search_index for E2E candidate
+    const e2eCandidate = await pool.query(`SELECT id FROM users WHERE email = 'e2e-candidate@rekrutai.test'`);
+    if (e2eCandidate.rows.length > 0) {
+      const userId = e2eCandidate.rows[0].id;
+      await pool.query(`
+        INSERT INTO candidate_search_index (user_id, name, job_title, location, experience_years, omni_score, score_tier, availability_status, bio, skills, updated_at)
+        VALUES ($1, 'E2E Candidate', 'Senior QA Engineer', 'Remote', 5, 85, 'expert', 'open', 'Experienced QA automation engineer', '["Playwright", "TypeScript", "React"]', NOW())
+        ON CONFLICT (user_id) DO UPDATE SET
+          name = EXCLUDED.name,
+          job_title = EXCLUDED.job_title,
+          location = EXCLUDED.location,
+          experience_years = EXCLUDED.experience_years,
+          omni_score = EXCLUDED.omni_score,
+          score_tier = EXCLUDED.score_tier,
+          availability_status = EXCLUDED.availability_status,
+          bio = EXCLUDED.bio,
+          skills = EXCLUDED.skills,
+          updated_at = NOW()
+      `, [userId]);
+      console.log('Seeded candidate_search_index for E2E candidate');
+    }
+
     console.log('Schema alignment complete');
   } catch (err) {
     console.error('Error:', err.message);
