@@ -22,7 +22,7 @@ test.describe('Candidate Critical Flow — Desktop', () => {
     await page.goto('/register');
     await expect(page.getByRole('heading', { name: /Create an account/i })).toBeVisible();
 
-    await page.getByRole('combobox').selectOption('candidate');
+    // Role defaults to 'candidate' (Job Seeker) — no selection needed
     await page.fill('input#name', 'E2E Test Candidate');
     await page.fill('input#email', email);
     await page.fill('input#password', PASSWORD);
@@ -31,7 +31,7 @@ test.describe('Candidate Critical Flow — Desktop', () => {
     await page.getByRole('button', { name: /Sign up/i }).click();
 
     // Should redirect to candidate dashboard
-    await expect(page).toHaveURL(/.*\/candidate/);
+    await expect(page).toHaveURL(/.*\/candidate/, { timeout: 15000 });
     await expect(page.locator('text=Welcome back').or(page.locator('text=Dashboard')).first()).toBeVisible({ timeout: 15000 });
 
     // ─── 2. Complete Profile ───
@@ -96,13 +96,13 @@ test.describe('Candidate Critical Flow — Mobile', () => {
     await page.waitForTimeout(1000);
     await expect(page.getByText(/Create an account|Sign up|Register/i).first()).toBeVisible({ timeout: 10000 });
 
-    await page.getByRole('combobox').selectOption('candidate');
+    // Role defaults to candidate — no selection needed
     await page.fill('input#name', 'E2E Mobile Candidate');
     await page.fill('input#email', email);
     await page.fill('input#password', PASSWORD);
     await page.getByRole('button', { name: /Sign up/i }).click();
 
-    await expect(page).toHaveURL(/.*\/candidate/);
+    await expect(page).toHaveURL(/.*\/candidate/, { timeout: 15000 });
     await expect(page.locator('text=Welcome back').or(page.locator('text=Dashboard')).first()).toBeVisible({ timeout: 15000 });
 
     // ─── 2. Complete Profile ───

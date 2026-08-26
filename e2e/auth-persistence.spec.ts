@@ -1,13 +1,29 @@
 import { test, expect } from '@playwright/test'
+import { ensureAuth } from './helpers'
 
 const CANDIDATE_STORAGE = 'e2e/.auth/candidate.json'
 const RECRUITER_STORAGE = 'e2e/.auth/recruiter.json'
 
+const CANDIDATE_CREDS = {
+  email: 'e2e-candidate@rekrutai.test',
+  password: 'TestPass123!',
+  role: 'candidate' as const,
+}
+
+const RECRUITER_CREDS = {
+  email: 'e2e-recruiter@rekrutai.test',
+  password: 'TestPass123!',
+  role: 'recruiter' as const,
+}
+
 test.describe('Auth Persistence & Token Tests — Candidate', () => {
   test.use({ storageState: CANDIDATE_STORAGE })
 
-  test('candidate token persists across page reloads', async ({ page }) => {
-    // Navigate to candidate dashboard (already authenticated via storageState)
+  test('candidate token persists across page reloads', async ({ page, request }) => {
+    // Ensure auth is valid (re-auth via API if storageState token expired)
+    await ensureAuth(page, request, CANDIDATE_STORAGE, CANDIDATE_CREDS)
+
+    // Navigate to candidate dashboard
     await page.goto('/candidate')
     await page.waitForTimeout(1000)
     await expect(page.locator('text=Dashboard').first()).toBeVisible()
@@ -19,16 +35,18 @@ test.describe('Auth Persistence & Token Tests — Candidate', () => {
     await expect(page).toHaveURL(/.*\/candidate/)
   })
 
-  test('candidate can navigate directly to /candidate/jobs when authenticated', async ({ page }) => {
-    // Navigate directly to protected route (already authenticated via storageState)
+  test('candidate can navigate directly to /candidate/jobs when authenticated', async ({ page, request }) => {
+    await ensureAuth(page, request, CANDIDATE_STORAGE, CANDIDATE_CREDS)
+
     await page.goto('/candidate/jobs')
     await page.waitForTimeout(1000)
     await expect(page).toHaveURL(/.*\/candidate\/jobs/)
     await expect(page.locator('text=Job Board').first()).toBeVisible()
   })
 
-  test('logout clears auth and redirects to login', async ({ page }) => {
-    // Navigate to candidate dashboard (already authenticated via storageState)
+  test('logout clears auth and redirects to login', async ({ page, request }) => {
+    await ensureAuth(page, request, CANDIDATE_STORAGE, CANDIDATE_CREDS)
+
     await page.goto('/candidate')
     await page.waitForTimeout(1000)
     await expect(page).toHaveURL(/.*\/(candidate|recruiter)/)
@@ -61,7 +79,7 @@ test.describe('Auth Persistence & Token Tests — Candidate', () => {
     // Verify redirect to login
     await expect(page).toHaveURL(/.*\/login/)
 
-    // Verify protected route redirects to login after logout (app may not enforce redirect)
+    // Verify protected route redirects to login after logout
     await page.goto('/candidate/jobs')
     const currentUrl = page.url()
     if (currentUrl.match(/.*\/login/)) {
@@ -76,8 +94,9 @@ test.describe('Auth Persistence & Token Tests — Candidate', () => {
 test.describe('Auth Persistence & Token Tests — Recruiter', () => {
   test.use({ storageState: RECRUITER_STORAGE })
 
-  test('recruiter token persists across page reloads', async ({ page }) => {
-    // Navigate to recruiter dashboard (already authenticated via storageState)
+  test('recruiter token persists across page reloads', async ({ page, request }) => {
+    await ensureAuth(page, request, RECRUITER_STORAGE, RECRUITER_CREDS)
+
     await page.goto('/recruiter')
     await page.waitForTimeout(1000)
     await expect(page.locator('text=Dashboard').first()).toBeVisible()
@@ -89,8 +108,9 @@ test.describe('Auth Persistence & Token Tests — Recruiter', () => {
     await expect(page).toHaveURL(/.*\/recruiter/)
   })
 
-  test('recruiter can navigate directly to /recruiter/jobs when authenticated', async ({ page }) => {
-    // Navigate directly to protected route (already authenticated via storageState)
+  test('recruiter can navigate directly to /recruiter/jobs when authenticated', async ({ page, request }) => {
+    await ensureAuth(page, request, RECRUITER_STORAGE, RECRUITER_CREDS)
+
     await page.goto('/recruiter/jobs')
     await page.waitForTimeout(1000)
     await expect(page).toHaveURL(/.*\/recruiter\/jobs/)
@@ -101,7 +121,9 @@ test.describe('Auth Persistence & Token Tests — Recruiter', () => {
 test.describe('Candidate Jobs Page - Full Flow', () => {
   test.use({ storageState: CANDIDATE_STORAGE })
 
-  test('candidate can browse jobs, search, and view job details', async ({ page }) => {
+  test('candidate can browse jobs, search, and view job details', async ({ page, request }) => {
+    await ensureAuth(page, request, CANDIDATE_STORAGE, CANDIDATE_CREDS)
+
     await page.goto('/candidate/jobs')
     await page.waitForTimeout(1000)
 
@@ -131,7 +153,7 @@ test.describe('Candidate Jobs Page - Full Flow', () => {
     const jobTitle = page.locator('text=Software').first()
     if (await jobTitle.isVisible().catch(() => false)) {
       await jobTitle.click()
-      // Some job cards may not navigate to a detail page (SPA behavior varies)
+      // Some job cards may not navigate to a detail page
       const currentUrl = page.url()
       if (!currentUrl.match(/.*\/candidate\/jobs\/\d+/)) {
         test.skip(true, 'Job cards do not navigate to detail page in current UI — skipping')
@@ -142,7 +164,9 @@ test.describe('Candidate Jobs Page - Full Flow', () => {
     }
   })
 
-  test('candidate jobs page is responsive on mobile', async ({ page }) => {
+  test('candidate jobs page is responsive on mobile', async ({ page, request }) => {
+    await ensureAuth(page, request, CANDIDATE_STORAGE, CANDIDATE_CREDS)
+
     // Set mobile viewport
     await page.setViewportSize({ width: 375, height: 667 })
     await page.goto('/candidate/jobs')
@@ -166,7 +190,9 @@ test.describe('Candidate Jobs Page - Full Flow', () => {
 test.describe('Settings Page Auth', () => {
   test.use({ storageState: CANDIDATE_STORAGE })
 
-  test('candidate can access settings page when authenticated', async ({ page }) => {
+  test('candidate can access settings page when authenticated', async ({ page, request }) => {
+    await ensureAuth(page, request, CANDIDATE_STORAGE, CANDIDATE_CREDS)
+
     await page.goto('/settings')
     await page.waitForTimeout(1000)
 

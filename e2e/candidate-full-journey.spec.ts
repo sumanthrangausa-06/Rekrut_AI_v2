@@ -60,7 +60,7 @@ test.describe('Candidate Full Journey', () => {
     await page.goto('/register');
     await expect(page.getByRole('heading', { name: /Create an account/i })).toBeVisible({ timeout: 10000 });
 
-    await page.getByRole('combobox').selectOption('candidate');
+    // Role defaults to candidate — no selection needed
     await page.fill('input#name', 'E2E Full Journey Candidate');
     await page.fill('input#email', email);
     await page.fill('input#password', PASSWORD);
