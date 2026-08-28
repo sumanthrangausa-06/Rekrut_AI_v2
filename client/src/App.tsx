@@ -40,6 +40,9 @@ const EmployeePayrollPage = lazy(() =>
 const SavedJobsPage = lazy(() =>
 	import('@/pages/candidate/saved-jobs').then((m) => ({ default: m.SavedJobsPage })),
 )
+const AISearchPage = lazy(() =>
+	import('@/pages/candidate/ai-search').then((m) => ({ default: m.AISearchPage })),
+)
 const SettingsPage = lazy(() =>
 	import('@/pages/settings').then((m) => ({ default: m.SettingsPage })),
 )
@@ -763,7 +766,7 @@ function AppRoutes() {
 					path='ai-search'
 					element={
 						<Protected>
-							<_PlaceholderPage />
+							<AISearchPage />
 						</Protected>
 					}
 				/>
