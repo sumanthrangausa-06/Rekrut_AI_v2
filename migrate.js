@@ -129,6 +129,120 @@ async function migrate() {
       )
     `);
 
+    // ─── Issue #183: Missing v2 auth tables ──────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        token_hash VARCHAR(255) NOT NULL UNIQUE,
+        family_id VARCHAR(100) NOT NULL,
+        is_revoked BOOLEAN DEFAULT false,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        last_used_at TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        token VARCHAR(255) NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        used_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS oauth_connections (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        provider VARCHAR(50) NOT NULL,
+        provider_user_id VARCHAR(255) NOT NULL,
+        access_token TEXT,
+        refresh_token TEXT,
+        profile_data JSONB DEFAULT '{}',
+        encryption_version VARCHAR(10) DEFAULT 'v1',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(provider, provider_user_id)
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS companies (
+        id SERIAL PRIMARY KEY,
+        owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(255) UNIQUE,
+        email_domain VARCHAR(255),
+        verified_domain VARCHAR(255),
+        is_verified BOOLEAN DEFAULT false,
+        domain_enforced_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS recruiter_join_requests (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+        email VARCHAR(255) NOT NULL,
+        domain VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, company_id)
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS referral_rewards (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        referral_id INTEGER,
+        reward_type VARCHAR(50) DEFAULT 'premium_days',
+        amount INTEGER DEFAULT 0,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW(),
+        claimed_at TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS candidate_profiles (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        headline VARCHAR(255),
+        summary TEXT,
+        skills JSONB DEFAULT '[]',
+        experience JSONB DEFAULT '[]',
+        education JSONB DEFAULT '[]',
+        resume_url TEXT,
+        linkedin_url TEXT,
+        portfolio_url TEXT,
+        location VARCHAR(255),
+        preferred_role VARCHAR(255),
+        salary_expectation VARCHAR(100),
+        remote_preference VARCHAR(50),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS saved_jobs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, job_id)
+      )
+    `);
+
     // Run migration files from migrations folder
     const migrationsDir = path.join(__dirname, 'migrations');
     if (fs.existsSync(migrationsDir)) {
