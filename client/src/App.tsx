@@ -37,8 +37,8 @@ const RecruiterRegisterPage = lazy(() =>
 const EmployeePayrollPage = lazy(() =>
 	import('@/pages/employee-payroll').then((m) => ({ default: m.EmployeePayrollPage })),
 )
-const _PlaceholderPage = lazy(() =>
-	import('@/pages/placeholder').then((m) => ({ default: m.PlaceholderPage })),
+const SavedJobsPage = lazy(() =>
+	import('@/pages/candidate/saved-jobs').then((m) => ({ default: m.SavedJobsPage })),
 )
 const SettingsPage = lazy(() =>
 	import('@/pages/settings').then((m) => ({ default: m.SettingsPage })),
@@ -739,7 +739,7 @@ function AppRoutes() {
 					path='saved-jobs'
 					element={
 						<Protected>
-							<_PlaceholderPage />
+							<SavedJobsPage />
 						</Protected>
 					}
 				/>
