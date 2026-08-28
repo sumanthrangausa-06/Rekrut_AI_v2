@@ -15,6 +15,7 @@ import {
 	Monitor,
 	Moon,
 	Palette,
+	RefreshCw,
 	Shield,
 	Sun,
 	Trash2,
@@ -77,6 +78,9 @@ export function SettingsPage() {
 	const [bio, setBio] = useState('')
 	const [location, setLocation] = useState('')
 	const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || '')
+	const [linkedinUrl, setLinkedinUrl] = useState('')
+	const [linkedinUrlError, setLinkedinUrlError] = useState('')
+	const [syncingLinkedin, setSyncingLinkedin] = useState(false)
 
 	// Password state
 	const [currentPassword, setCurrentPassword] = useState('')
@@ -242,13 +246,14 @@ export function SettingsPage() {
 	const loadSettings = useCallback(async () => {
 		try {
 			const data = await apiCall<{
-				profile?: { bio?: string; location?: string }
+				profile?: { bio?: string; location?: string; linkedin_url?: string }
 				notifications?: NotificationSettings
 				privacy?: PrivacySettings
 			}>('/settings')
 			if (data.profile) {
 				setBio(data.profile.bio || '')
 				setLocation(data.profile.location || '')
+				setLinkedinUrl(data.profile.linkedin_url || '')
 			}
 			if (data.notifications) setNotifications(data.notifications)
 			if (data.privacy) setPrivacy(data.privacy)
@@ -315,12 +320,22 @@ export function SettingsPage() {
 
 	async function handleProfileUpdate(e: FormEvent) {
 		e.preventDefault()
-		setSaving(true)
 		setError('')
+
+		// Validate LinkedIn URL
+		const linkedinError = validateLinkedinUrl(linkedinUrl)
+		if (linkedinError) {
+			setLinkedinUrlError(linkedinError)
+			setError(linkedinError)
+			return
+		}
+		setLinkedinUrlError('')
+
+		setSaving(true)
 		try {
 			await apiCall('/settings/profile', {
 				method: 'PATCH',
-				body: { name, email, bio, location },
+				body: { name, email, bio, location, linkedin_url: linkedinUrl },
 			})
 			showSaved()
 			trackEvent('settings_profile_update')
@@ -328,6 +343,36 @@ export function SettingsPage() {
 			setError(err instanceof Error ? err.message : 'Update failed')
 		} finally {
 			setSaving(false)
+		}
+	}
+
+	function validateLinkedinUrl(url: string): string {
+		if (!url) return ''
+		try {
+			const parsed = new URL(url.startsWith('http') ? url : `https://${url}`)
+			if (!parsed.hostname.match(/^(.+\.)?linkedin\.com$/i)) {
+				return 'Must be a LinkedIn URL'
+			}
+			if (!parsed.pathname.match(/^\/in\/[^/]+/i)) {
+				return 'Invalid LinkedIn URL format. Expected: linkedin.com/in/username'
+			}
+			return ''
+		} catch {
+			return 'Invalid LinkedIn URL format. Expected: linkedin.com/in/username'
+		}
+	}
+
+	async function handleResyncLinkedin() {
+		setSyncingLinkedin(true)
+		try {
+			await apiCall('/settings/linkedin/resync', { method: 'POST' })
+			showToast('LinkedIn profile synced successfully', 'success')
+			loadConnections()
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : 'Failed to sync LinkedIn profile'
+			showToast(msg, 'error')
+		} finally {
+			setSyncingLinkedin(false)
 		}
 	}
 
@@ -594,6 +639,40 @@ export function SettingsPage() {
 									/>
 								</div>
 
+								{/* LinkedIn URL Field (#167) */}
+								<div className='space-y-2'>
+									<Label htmlFor='linkedin-url'>LinkedIn URL</Label>
+									<div className='flex gap-2'>
+										<Input
+											id='linkedin-url'
+											value={linkedinUrl}
+											onChange={(e) => {
+												setLinkedinUrl(e.target.value)
+												setLinkedinUrlError(validateLinkedinUrl(e.target.value))
+											}}
+											placeholder='https://linkedin.com/in/username'
+											className={linkedinUrlError ? 'border-red-500' : ''}
+										/>
+										{linkedinUrl && !linkedinUrlError && (
+											<a
+												href={linkedinUrl.startsWith('http') ? linkedinUrl : `https://${linkedinUrl}`}
+												target='_blank'
+												rel='noopener noreferrer'
+												className='inline-flex items-center justify-center h-10 w-10 rounded-md border hover:bg-muted shrink-0'
+												aria-label='View LinkedIn profile'
+											>
+												<Linkedin className='h-4 w-4' />
+											</a>
+										)}
+									</div>
+									{linkedinUrlError && (
+										<p className='text-xs text-red-500'>{linkedinUrlError}</p>
+									)}
+									<p className='text-xs text-muted-foreground'>
+										Your LinkedIn profile URL will be displayed on your public profile.
+									</p>
+								</div>
+
 								<div className='flex items-center justify-between'>
 									<div className='flex items-center gap-2'>
 										<Badge variant='outline' className='capitalize'>
@@ -792,20 +871,36 @@ export function SettingsPage() {
 											</div>
 										</div>
 										{connections.find((c) => c.provider === 'linkedin') ? (
-											<Button
-												variant='outline'
-												size='sm'
-												onClick={() => setConfirmDisconnectProvider('linkedin')}
-												disabled={disconnectingProvider === 'linkedin'}
-												className='gap-1 shrink-0'
-											>
-												{disconnectingProvider === 'linkedin' ? (
-													<Loader2 className='h-3.5 w-3.5 animate-spin' />
-												) : (
-													<Link2Off className='h-3.5 w-3.5' />
-												)}
-												Disconnect
-											</Button>
+											<div className='flex items-center gap-2 shrink-0'>
+												<Button
+													variant='outline'
+													size='sm'
+													onClick={handleResyncLinkedin}
+													disabled={syncingLinkedin}
+													className='gap-1'
+												>
+													{syncingLinkedin ? (
+														<Loader2 className='h-3.5 w-3.5 animate-spin' />
+													) : (
+														<RefreshCw className='h-3.5 w-3.5' />
+													)}
+													Re-sync
+												</Button>
+												<Button
+													variant='outline'
+													size='sm'
+													onClick={() => setConfirmDisconnectProvider('linkedin')}
+													disabled={disconnectingProvider === 'linkedin'}
+													className='gap-1'
+												>
+													{disconnectingProvider === 'linkedin' ? (
+														<Loader2 className='h-3.5 w-3.5 animate-spin' />
+													) : (
+														<Link2Off className='h-3.5 w-3.5' />
+													)}
+													Disconnect
+												</Button>
+											</div>
 										) : (
 											<Button
 												size='sm'
