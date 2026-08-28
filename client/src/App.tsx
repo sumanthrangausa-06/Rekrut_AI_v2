@@ -350,6 +350,12 @@ const RecruiterOnboardingDocsPage = lazy(() =>
 		default: m.RecruiterOnboardingDocsPage,
 	})),
 )
+const CandidateOmniScorePage = lazy(() =>
+	import('@/pages/candidate/omniscore').then((m) => ({ default: m.CandidateOmniScorePage })),
+)
+const RecruiterInterviewsPage = lazy(() =>
+	import('@/pages/recruiter/interviews').then((m) => ({ default: m.RecruiterInterviewsPage })),
+)
 const RecruiterOmniScorePage = lazy(() =>
 	import('@/pages/recruiter/omniscore').then((m) => ({ default: m.RecruiterOmniScorePage })),
 )

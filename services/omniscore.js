@@ -76,6 +76,17 @@ function tierFromScore(total) {
 	return 'needs_work';
 }
 
+function dbTierFromLabel(tier) {
+	const map = {
+		exceptional: 'platinum',
+		excellent: 'gold',
+		good: 'silver',
+		fair: 'bronze',
+		needs_work: 'new',
+	};
+	return map[tier] || 'new';
+}
+
 function daysBetween(a, b) {
 	return Math.floor((new Date(b) - new Date(a)) / (1000 * 60 * 60 * 24));
 }
@@ -148,10 +159,10 @@ async function fetchCandidateData(userId) {
 
 		// Document verifications
 		const docsRes = await client.query(
-			`SELECT v.verification_type, d.document_type, v.status, v.verified_at
+			`SELECT v.verification_type, d.document_type, d.status, d.verified_at
 			 FROM document_verifications v
 			 JOIN verification_documents d ON v.document_id = d.id
-			 WHERE v.user_id = $1 AND v.status = 'verified'`,
+			 WHERE v.user_id = $1 AND d.status = 'verified'`,
 			[userId],
 		);
 
@@ -164,7 +175,7 @@ async function fetchCandidateData(userId) {
 
 		// Activity log (for reliability & growth)
 		const activityRes = await client.query(
-			`SELECT action_type, created_at
+			`SELECT event_type AS action_type, created_at
 			 FROM activity_log WHERE user_id = $1 ORDER BY created_at DESC`,
 			[userId],
 		);
@@ -701,7 +712,7 @@ async function calculateScore(userId) {
 			technical_score,
 			resume_score,
 			behavior_score,
-			tier,
+			dbTierFromLabel(tier),
 			JSON.stringify(Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Math.round(v.raw)]))),
 			peerPercentile,
 			JSON.stringify(fraudSignals),

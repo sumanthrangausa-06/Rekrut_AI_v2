@@ -725,10 +725,11 @@ async function calculateDiversityMetrics(companyId) {
 	// Check if we have location data from applicants
 	const result = await pool.query(
 		`
-    SELECT COUNT(DISTINCT u.location) as distinct_locations, COUNT(*) as total
+    SELECT COUNT(DISTINCT cp.location) as distinct_locations, COUNT(*) as total
     FROM job_applications ja
     JOIN users u ON ja.candidate_id = u.id
-    WHERE ja.company_id = $1 AND u.location IS NOT NULL
+    LEFT JOIN candidate_profiles cp ON cp.user_id = u.id
+    WHERE ja.company_id = $1 AND cp.location IS NOT NULL
   `,
 		[companyId],
 	);

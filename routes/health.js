@@ -5,7 +5,7 @@ const router = express.Router();
 router.get('/', async (_req, res) => {
 	try {
 		// Simple DB connectivity check via existing pool if available
-		const { pool } = require('../lib/db');
+		const pool = require('../lib/db');
 		if (pool) {
 			await pool.query('SELECT 1');
 		}

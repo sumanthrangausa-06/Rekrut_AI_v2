@@ -211,6 +211,16 @@ router.post('/register', rateLimits.strict, async (req, res) => {
 					const companyId = companyResult.rows[0].id;
 					await pool.query('UPDATE users SET company_id = $1 WHERE id = $2', [companyId, user.id]);
 					user.company_id = companyId;
+					try {
+						await pool.query(
+							`INSERT INTO user_roles (user_id, role_id, company_id, assigned_by)
+							 SELECT $1, r.id, $2, $1 FROM roles r WHERE r.name = 'owner'
+							 ON CONFLICT DO NOTHING`,
+							[user.id, companyId],
+						);
+					} catch (roleErr) {
+						console.error('[auth] Failed to assign owner role (non-blocking):', roleErr.message);
+					}
 				}
 			} catch (companyErr) {
 				console.error('Auto-create company error (non-blocking):', companyErr.message);

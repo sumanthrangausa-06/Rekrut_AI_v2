@@ -74,21 +74,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 						// Tier endpoint may fail if billing is not configured — default already set
 					})
 
-				// Fetch company profile to determine ownership — non-blocking
-				apiCall<{ company: { owner_id: number } }>('/company/profile', { skipAuthCheck: false })
-					.then((companyData) => {
-						setUser((prev) =>
-							prev
-								? {
-										...prev,
-										is_company_owner: companyData.company?.owner_id === prev.id,
-									}
-								: prev,
-						)
-					})
-					.catch(() => {
-						// Company endpoint may fail if user has no company — default already set
-					})
+				if (isRecruiterRole(user.role)) {
+					apiCall<{ company: { owner_id: number } }>('/company/profile', { skipAuthCheck: false })
+						.then((companyData) => {
+							setUser((prev) =>
+								prev
+									? {
+											...prev,
+											is_company_owner: companyData.company?.owner_id === prev.id,
+										}
+									: prev,
+							)
+						})
+						.catch(() => {
+							// Company endpoint may fail if user has no company — default already set
+						})
+				}
 			})
 			.catch(() => {
 				// Token invalid or expired — clear it
@@ -147,21 +148,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				// Tier endpoint may fail if billing is not configured — default already set
 			})
 
-		// Fetch company profile to determine ownership — non-blocking
-		apiCall<{ company: { owner_id: number } }>('/company/profile', { skipAuthCheck: false })
-			.then((companyData) => {
-				setUser((prev) =>
-					prev
-						? {
-								...prev,
-								is_company_owner: companyData.company?.owner_id === prev.id,
-							}
-						: prev,
-				)
-			})
-			.catch(() => {
-				// Company endpoint may fail if user has no company — default already set
-			})
+		if (isRecruiterRole(user.role)) {
+			apiCall<{ company: { owner_id: number } }>('/company/profile', { skipAuthCheck: false })
+				.then((companyData) => {
+					setUser((prev) =>
+						prev
+							? {
+									...prev,
+									is_company_owner: companyData.company?.owner_id === prev.id,
+								}
+							: prev,
+					)
+				})
+				.catch(() => {
+					// Company endpoint may fail if user has no company — default already set
+				})
+		}
 	}
 
 	const register = async (registerData: RegisterData) => {
@@ -222,21 +224,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				// Tier endpoint may fail if billing is not configured — default already set
 			})
 
-		// Fetch company profile to determine ownership — non-blocking
-		apiCall<{ company: { owner_id: number } }>('/company/profile', { skipAuthCheck: false })
-			.then((companyData) => {
-				setUser((prev) =>
-					prev
-						? {
-								...prev,
-								is_company_owner: companyData.company?.owner_id === prev.id,
-							}
-						: prev,
-				)
-			})
-			.catch(() => {
-				// Company endpoint may fail if user has no company — default already set
-			})
+		if (isRecruiterRole(user.role)) {
+			apiCall<{ company: { owner_id: number } }>('/company/profile', { skipAuthCheck: false })
+				.then((companyData) => {
+					setUser((prev) =>
+						prev
+							? {
+									...prev,
+									is_company_owner: companyData.company?.owner_id === prev.id,
+								}
+							: prev,
+					)
+				})
+				.catch(() => {
+					// Company endpoint may fail if user has no company — default already set
+				})
+		}
 	}
 
 	const logout = () => {

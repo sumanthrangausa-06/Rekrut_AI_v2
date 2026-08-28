@@ -58,3 +58,8 @@ stripe
 
 # E2E reports directory (generated test artifacts, do not commit)
 e2e-reports/
+
+# Local QA secrets and bulky screenshots
+docs/qa/**/qa_accounts.json
+docs/qa/**/screenshots*/
+docs/qa/**/screenshots-e2e/

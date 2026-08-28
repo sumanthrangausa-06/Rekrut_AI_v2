@@ -109,7 +109,7 @@ export function RecruiterProfilePage() {
 			<div className='container mx-auto px-4 py-8 max-w-5xl'>
 				<div className='mb-6'>
 					<Link
-						to='/recruiter/dashboard'
+						to='/recruiter'
 						className='text-gray-400 hover:text-white flex items-center gap-2 mb-4'
 					>
 						<ArrowLeft className='w-4 h-4' />

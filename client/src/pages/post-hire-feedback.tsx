@@ -99,7 +99,7 @@ export function RecruiterPostHireFeedbackPage() {
 							Your feedback has been submitted successfully. It helps us improve the hiring
 							experience for everyone.
 						</p>
-						<Link to='/recruiter/dashboard'>
+						<Link to='/recruiter'>
 							<Button className='bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'>
 								<ArrowLeft className='w-4 h-4 mr-2' />
 								Back to Dashboard
@@ -116,7 +116,7 @@ export function RecruiterPostHireFeedbackPage() {
 			<div className='container mx-auto px-4 py-8 max-w-4xl'>
 				<div className='mb-8'>
 					<Link
-						to='/recruiter/dashboard'
+						to='/recruiter'
 						className='text-gray-400 hover:text-white flex items-center gap-2 mb-4'
 					>
 						<ArrowLeft className='w-4 h-4' />

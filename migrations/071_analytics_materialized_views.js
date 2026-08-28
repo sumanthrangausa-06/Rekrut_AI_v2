@@ -29,11 +29,11 @@ module.exports = {
 			),
 			daily_apps AS (
 				SELECT
-					DATE(created_at) AS day,
+					DATE(applied_at) AS day,
 					status,
 					COUNT(*) AS cnt
 				FROM job_applications
-				GROUP BY DATE(created_at), status
+				GROUP BY DATE(applied_at), status
 			),
 			daily_interviews AS (
 				SELECT
@@ -82,7 +82,7 @@ module.exports = {
 			SELECT
 				COALESCE(ja.status, 'total') AS status,
 				COUNT(*) AS count,
-				AVG(COALESCE(ic.score, 0)) AS avg_interview_score,
+				AVG(COALESCE(ic.composite_score, 0)) AS avg_interview_score,
 				NOW() AS refreshed_at
 			FROM job_applications ja
 			LEFT JOIN interviews i ON i.job_id = ja.job_id
@@ -108,7 +108,7 @@ module.exports = {
 				COUNT(DISTINCT ja.id) AS total_applications,
 				COUNT(DISTINCT i.id) AS total_interviews,
 				COUNT(DISTINCT CASE WHEN ja.status = 'hired' THEN ja.id END) AS total_hires,
-				AVG(COALESCE(ic.score, 0)) AS avg_score,
+				AVG(COALESCE(ic.composite_score, 0)) AS avg_score,
 				NOW() AS refreshed_at
 			FROM users u
 			LEFT JOIN jobs j ON j.user_id = u.id
@@ -135,7 +135,7 @@ module.exports = {
 				j.title AS job_title,
 				u.company_name,
 				AVG(
-					EXTRACT(EPOCH FROM (ja.updated_at - ja.created_at)) / 86400.0
+					EXTRACT(EPOCH FROM (ja.updated_at - ja.applied_at)) / 86400.0
 				)::numeric(10,2) AS avg_days_to_hire,
 				COUNT(*) FILTER (WHERE ja.status = 'hired') AS hires_count,
 				NOW() AS refreshed_at
@@ -161,7 +161,7 @@ module.exports = {
 				cs.skill_name,
 				cs.category,
 				COUNT(*) AS candidate_count,
-				AVG(cs.proficiency_level) AS avg_proficiency,
+				AVG(cs.level) AS avg_proficiency,
 				NOW() AS refreshed_at
 			FROM candidate_skills cs
 			GROUP BY cs.skill_name, cs.category

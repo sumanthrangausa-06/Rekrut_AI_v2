@@ -2011,6 +2011,7 @@ const KNOWN_ROUTES = [
 	'^/candidate/interview$',
 	'^/candidate/(chat|offers|onboarding)$',
 	'^/candidate/(payroll|settings)$',
+	'^/candidate/(referrals|ai-screening|background-check|livekit-room)$',
 
 	// Recruiter pending approval
 	'^/recruiter/pending-approval$',
@@ -2042,6 +2043,7 @@ const KNOWN_ROUTES = [
 	'^/recruiter/compliance$',
 	'^/recruiter/proctoring$',
 	'^/recruiter/proctoring/[^/]+$',
+	'^/recruiter/(panels|recordings|calendar|background-check)$',
 
 	// Settings
 	'^/settings$',
