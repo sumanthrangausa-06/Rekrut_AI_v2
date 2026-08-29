@@ -101,7 +101,10 @@ function isNetworkError(err) {
 // ─── DB Cache Helpers ──────────────────────────────────────────────────────
 
 function getCacheKey(text, voiceId) {
-	return crypto.createHash('sha256').update(text + (voiceId || '')).digest('hex');
+	return crypto
+		.createHash('sha256')
+		.update(text + (voiceId || ''))
+		.digest('hex');
 }
 
 async function getCachedAudio(textHash, voice) {
