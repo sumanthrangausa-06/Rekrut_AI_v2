@@ -198,7 +198,6 @@ export function CareerDiagnosisPage() {
 						}
 					})
 					.catch((err: any) => {
-						console.error('Career diagnosis error:', err)
 						setError(err?.message || 'Failed to generate diagnosis.')
 					})
 					.finally(() => setLoading(false))

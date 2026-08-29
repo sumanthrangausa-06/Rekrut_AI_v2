@@ -66,7 +66,6 @@ export function LinkedInOptimizerPage() {
 				setError(res.error || 'Failed to load LinkedIn tips.')
 			}
 		} catch (err: any) {
-			console.error('LinkedIn tips error:', err)
 			setError(err?.message || 'Failed to load LinkedIn tips.')
 		} finally {
 			setLoading(false)
